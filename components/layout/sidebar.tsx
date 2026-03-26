@@ -236,7 +236,7 @@ function ClientSidebar({
       </div>
 
       {/* Report section tabs */}
-      <nav className="flex flex-1 flex-col overflow-y-auto border-t border-white/[0.06] px-3 pt-4">
+      <nav className="flex flex-1 flex-col overflow-y-auto border-t border-white/[0.06] px-3 pt-4 scrollbar-dark">
         {client && (
           <>
             <p className="mb-2 px-3 text-xs font-semibold text-text-muted">
@@ -255,6 +255,7 @@ function ClientSidebar({
                   return (
                     <li key={slug}>
                       <span
+                        title="Interested in gaining visibility here? Contact your account manager to explore this service line."
                         className="flex items-center justify-between rounded-md px-3 py-2 text-sm font-semibold text-white/20 cursor-not-allowed"
                       >
                         <span>{REPORT_NAMES[slug] ?? slug}</span>
