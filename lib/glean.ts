@@ -5,11 +5,16 @@ const GLEAN_API_TOKEN = process.env.GLEAN_API_TOKEN ?? ''
 
 export const GLEAN_BASE_URL = `https://${GLEAN_INSTANCE}-be.glean.com/rest/api/v1`
 
-export function getGleanHeaders(): HeadersInit {
-  return {
+export function getGleanHeaders(actAsEmail?: string): HeadersInit {
+  const headers: Record<string, string> = {
     Authorization: `Bearer ${GLEAN_API_TOKEN}`,
     'Content-Type': 'application/json',
   }
+  // Global tokens require X-Scio-Actas to specify the user context
+  if (actAsEmail) {
+    headers['X-Scio-Actas'] = actAsEmail
+  }
+  return headers
 }
 
 export function getLast7DaysRange(): { from: string; to: string } {

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   try {
     const gleanResponse = await fetch(`${GLEAN_BASE_URL}/chat`, {
       method: 'POST',
-      headers: getGleanHeaders(),
+      headers: getGleanHeaders('bill.hoerr@avenuez.com'),
       body: JSON.stringify({
         messages: [
           {
