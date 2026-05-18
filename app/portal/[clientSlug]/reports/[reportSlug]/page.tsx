@@ -34,34 +34,34 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string) {
+function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null) {
   switch (reportSlug) {
     case 'exec-summary':
-      return <ExecSummary clientSlug={clientSlug} dateRange={dateRange} />
+      return <ExecSummary clientSlug={clientSlug} />
     case 'ga4':
-      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} />
+      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <MetaAdsReport clientSlug={clientSlug} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <GoogleAdsReport clientSlug={clientSlug} />
     case 'email-marketing':
-      return <EmailMarketingReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':
-      return <BlendedPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <LinkedInAdsReport clientSlug={clientSlug} />
     case 'snapchat-ads':
-      return <SnapchatAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
-      return <TikTokAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <TikTokAdsReport clientSlug={clientSlug} />
     case 'shopify-performance':
-      return <ShopifyPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <ShopifyPerformanceReport clientSlug={clientSlug} />
     case 'hubspot-performance':
-      return <HubSpotPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <HubSpotPerformanceReport clientSlug={clientSlug} />
     case 'reddit-ads':
-      return <RedditAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <RedditAdsReport clientSlug={clientSlug} />
     case 'bing-ads':
-      return <BingAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BingAdsReport clientSlug={clientSlug} />
     default:
       return null
   }
@@ -72,10 +72,10 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
-  const { dateRange: dateRangeParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
   const client = getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -85,6 +85,7 @@ export default async function PortalReportPage({
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
+  const compareRange = compareRangeParam ?? null
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-12">
@@ -97,14 +98,16 @@ export default async function PortalReportPage({
             {reportName}
           </h1>
         </div>
-        <PortalReportDateRange value={dateRange} />
+        <Suspense fallback={null}>
+          <PortalReportDateRange value={dateRange} />
+        </Suspense>
       </div>
 
       <div className="divider-full mb-8" />
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange)}
         </Suspense>
       </ReportErrorBoundary>
     </div>

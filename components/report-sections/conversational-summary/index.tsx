@@ -5,7 +5,7 @@ import { generateConversationalSummary, type ConversationalSummaryResponse } fro
 
 interface ConversationalSummaryProps {
   clientSlug: string
-  dateRange: string
+  dateRange?: string
 }
 
 const sentimentColor = {
@@ -141,7 +141,7 @@ export async function ConversationalSummary({ clientSlug, dateRange }: Conversat
 
   try {
     // Fetch real data from BigQuery
-    const data = await fetchFunSpotData(dateRange)
+    const data = await fetchFunSpotData(dateRange ?? 'last_30_days')
     period = formatPeriod(data.dateRange.startDate, data.dateRange.endDate)
 
     // Generate narrative with Gemini
@@ -149,7 +149,7 @@ export async function ConversationalSummary({ clientSlug, dateRange }: Conversat
     isLive = true
   } catch (error) {
     console.error('Failed to fetch BQ/Gemini data, using fallback:', error)
-    const { startDate, endDate } = parseDateRange(dateRange)
+    const { startDate, endDate } = parseDateRange(dateRange ?? 'last_30_days')
     period = formatPeriod(startDate, endDate)
 
     // Fallback demo data — per client

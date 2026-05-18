@@ -5,7 +5,7 @@ import { CHART_COLORS } from '@/lib/constants'
 
 interface BingAdsProps {
   clientSlug: string
-  dateRange: string
+  dateRange?: string
 }
 
 const DEMO_KPIS = [

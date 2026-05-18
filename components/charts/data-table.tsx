@@ -6,7 +6,7 @@ interface Column {
 
 interface DataTableProps {
   columns: Column[]
-  rows: Record<string, string | number>[]
+  rows: Record<string, React.ReactNode>[]
 }
 
 export function DataTable({ columns, rows }: DataTableProps) {

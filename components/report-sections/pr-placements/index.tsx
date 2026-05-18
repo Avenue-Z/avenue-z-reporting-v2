@@ -6,7 +6,7 @@ import { CoverageChart } from './coverage-chart'
 
 interface PRPlacementsProps {
   clientSlug: string
-  dateRange: string
+  dateRange?: string
 }
 
 // --- Mock data per client ---

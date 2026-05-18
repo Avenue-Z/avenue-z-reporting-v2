@@ -1,13 +1,29 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
 import { PortalSidebar } from '@/components/layout/portal-sidebar'
 
-export default function PortalLayout({
+const INTERNAL_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
+
+export default async function PortalLayout({
   children,
   params,
 }: {
   children: React.ReactNode
   params: Promise<{ clientSlug: string }>
 }) {
+  const session = await auth()
+
+  if (!session) redirect('/login')
+
+  const { clientSlug } = await params
+  const isInternal = INTERNAL_ROLES.has(session.user.role ?? '')
+
+  // Client users may only access their own portal slug
+  if (!isInternal && session.user.clientSlug !== clientSlug) {
+    redirect('/unauthorized')
+  }
+
   return (
     <div className="flex h-screen bg-black" data-print-layout>
       <Suspense>

@@ -4,6 +4,7 @@
 *-service-account*.json
 *-prod-*.json
 avenue-z-data-warehouse-*.json
+avenue-z-reporting-*.json
 
 # dependencies
 /node_modules

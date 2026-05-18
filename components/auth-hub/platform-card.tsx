@@ -1,47 +1,37 @@
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { DS_NAMES } from '@/lib/supermetrics/constants'
-import type { DsId } from '@/lib/supermetrics/constants'
-import { ConnectButton } from './connect-button'
-import { PLATFORM_LOGOS } from './platform-icons'
+import { PLATFORM_NAMES, PLATFORM_LOGOS } from '@/lib/platforms/constants'
+import type { PlatformId } from '@/lib/platforms/constants'
+
+export type ConnectionStatus = 'CONNECTED' | 'NOT_CONFIGURED'
 
 interface PlatformCardProps {
-  clientSlug: string
-  dsId: DsId
-  status: 'CONNECTED' | 'EXPIRED' | 'NOT_CONNECTED'
-  connectedAt?: string
+  platformId: PlatformId
+  status: ConnectionStatus
 }
 
-const statusConfig = {
+const statusConfig: Record<ConnectionStatus, { label: string; className: string }> = {
   CONNECTED: {
-    label: 'Connected',
+    label: 'Configured',
     className: 'border-brand-green text-brand-green',
   },
-  EXPIRED: {
-    label: 'Expired',
-    className: 'border-brand-purple text-brand-purple',
-  },
-  NOT_CONNECTED: {
-    label: 'Not Connected',
+  NOT_CONFIGURED: {
+    label: 'Not Configured',
     className: 'border-text-muted/30 text-text-muted',
   },
-} as const
+}
 
-export function PlatformCard({
-  clientSlug,
-  dsId,
-  status,
-  connectedAt,
-}: PlatformCardProps) {
+export function PlatformCard({ platformId, status }: PlatformCardProps) {
   const badge = statusConfig[status]
-  const logo = PLATFORM_LOGOS[dsId]
+  const logo = PLATFORM_LOGOS[platformId]
+  const name = PLATFORM_NAMES[platformId]
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <div className="mb-4">
-        <Image src={logo} alt={DS_NAMES[dsId]} width={32} height={32} className="h-8 w-8" />
+        <Image src={logo} alt={name} width={32} height={32} className="h-8 w-8" />
       </div>
-      <h3 className="text-lg font-bold text-white">{DS_NAMES[dsId]}</h3>
+      <h3 className="text-lg font-bold text-white">{name}</h3>
 
       <span
         className={cn(
@@ -52,13 +42,11 @@ export function PlatformCard({
         {badge.label}
       </span>
 
-      {connectedAt && (
-        <p className="mt-2 text-xs text-text-muted">
-          Connected {new Date(connectedAt).toLocaleDateString()}
+      {status === 'NOT_CONFIGURED' && (
+        <p className="mt-3 text-xs text-text-muted">
+          Set the env var in Vercel to enable this integration.
         </p>
       )}
-
-      <ConnectButton clientSlug={clientSlug} dsId={dsId} status={status} />
     </div>
   )
 }

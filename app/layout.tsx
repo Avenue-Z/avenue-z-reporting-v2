@@ -3,21 +3,21 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Avenue Z — Reporting Platform',
+    default: 'Avenue Z — Marketing Intelligence Platform',
     template: '%s | Avenue Z',
   },
-  description: 'Multi-client marketing reporting powered by Supermetrics.',
+  description: 'Multi-client marketing intelligence powered by Supermetrics.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   openGraph: {
-    title: 'Avenue Z — Reporting Platform',
-    description: 'Multi-client marketing reporting powered by Supermetrics.',
-    siteName: 'Avenue Z Reporting',
+    title: 'Avenue Z — Marketing Intelligence Platform',
+    description: 'Multi-client marketing intelligence powered by Supermetrics.',
+    siteName: 'Avenue Z Marketing Intelligence',
     type: 'website',
   },
   twitter: {
     card: 'summary',
-    title: 'Avenue Z — Reporting Platform',
-    description: 'Multi-client marketing reporting powered by Supermetrics.',
+    title: 'Avenue Z — Marketing Intelligence Platform',
+    description: 'Multi-client marketing intelligence powered by Supermetrics.',
   },
 }
 

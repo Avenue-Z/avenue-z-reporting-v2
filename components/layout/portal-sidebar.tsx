@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { demoLogout } from '@/app/actions/demo-auth'
-import { REPORT_NAMES, ALL_REPORT_SLUGS } from '@/lib/constants'
+import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS } from '@/lib/constants'
 import { getAllClients } from '@/lib/clients.config'
 import { LogOut, Lock } from 'lucide-react'
 
@@ -21,9 +21,16 @@ export function PortalSidebar() {
 
   if (!client) return null
 
-  const activeSection = searchParams.get('section')
-  const dateRange = searchParams.get('dateRange')
-  const isOnReports = pathname.includes('/reports')
+  const activeSection    = searchParams.get('section')
+  const activeSubsection = searchParams.get('subsection')
+  const dateRange        = searchParams.get('dateRange')
+  const isOnReports      = pathname.includes('/reports')
+
+  const INBOUND_FUNNEL_SUBSECTIONS: { id: string | null; label: string }[] = [
+    { id: null,     label: 'Overview' },
+    { id: 'forms',  label: 'Forms'    },
+    { id: 'pacing', label: 'Pacing'   },
+  ]
 
   return (
     <aside className="flex h-screen w-64 flex-col bg-bg-surface">
@@ -57,10 +64,26 @@ export function PortalSidebar() {
               isEnabled &&
               isOnReports &&
               (activeSection === slug ||
-                (!activeSection && slug === client.enabledReports.filter(s => s !== 'meeting-prep')[0]))
+                (!activeSection && slug === client.enabledReports[0]))
             const linkParams = new URLSearchParams()
             linkParams.set('section', slug)
             if (dateRange) linkParams.set('dateRange', dateRange)
+
+            // "Soon" items — shown grayed out with badge, not locked
+            if (SOON_REPORT_SLUGS.has(slug)) {
+              return (
+                <li key={slug}>
+                  <div className="flex items-center justify-between rounded-md px-3 py-2">
+                    <span className="text-sm font-semibold text-text-muted/40">
+                      {REPORT_NAMES[slug] ?? slug}
+                    </span>
+                    <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted/50">
+                      Soon
+                    </span>
+                  </div>
+                </li>
+              )
+            }
 
             if (!isEnabled) {
               return (
@@ -72,6 +95,179 @@ export function PortalSidebar() {
                     <span>{REPORT_NAMES[slug] ?? slug}</span>
                     <Lock className="h-3.5 w-3.5 shrink-0" />
                   </span>
+                </li>
+              )
+            }
+
+            // Inbound Funnel — expandable sub-menu
+            if (slug === 'inbound-funnel') {
+              const ifBaseParams = new URLSearchParams()
+              ifBaseParams.set('section', 'inbound-funnel')
+              if (dateRange) ifBaseParams.set('dateRange', dateRange)
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/portal/${clientSlug}/reports?${ifBaseParams.toString()}`}
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )}
+                  >
+                    {REPORT_NAMES[slug] ?? slug}
+                  </Link>
+                  {isActive && (
+                    <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                      {INBOUND_FUNNEL_SUBSECTIONS.map((sub) => {
+                        const subParams = new URLSearchParams()
+                        subParams.set('section', 'inbound-funnel')
+                        if (sub.id) subParams.set('subsection', sub.id)
+                        if (dateRange) subParams.set('dateRange', dateRange)
+                        const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
+                        return (
+                          <li key={sub.id ?? 'overview'}>
+                            <Link
+                              href={`/portal/${clientSlug}/reports?${subParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                subIsActive
+                                  ? 'bg-white/[0.08] text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                              )}
+                            >
+                              {sub.label}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </li>
+              )
+            }
+
+            // Answer Engine Optimization — expandable sub-menu (PEEC.ai + Profound Soon)
+            if (slug === 'peec-ai') {
+              const aeoBaseParams = new URLSearchParams()
+              aeoBaseParams.set('section', 'peec-ai')
+              if (dateRange) aeoBaseParams.set('dateRange', dateRange)
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/portal/${clientSlug}/reports?${aeoBaseParams.toString()}`}
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )}
+                  >
+                    {REPORT_NAMES[slug] ?? slug}
+                  </Link>
+                  {isActive && (
+                    <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                      {AEO_SUBSECTIONS.map((sub) => {
+                        if (sub.comingSoon) {
+                          return (
+                            <li key={sub.id ?? 'soon'}>
+                              <div className="flex items-center justify-between rounded-md px-2.5 py-1.5">
+                                <span className="text-xs font-semibold text-text-muted/40">
+                                  {sub.label}
+                                </span>
+                                <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted/50">
+                                  Soon
+                                </span>
+                              </div>
+                            </li>
+                          )
+                        }
+                        const subParams = new URLSearchParams()
+                        subParams.set('section', 'peec-ai')
+                        if (sub.id) subParams.set('subsection', sub.id)
+                        if (dateRange) subParams.set('dateRange', dateRange)
+                        const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
+                        return (
+                          <li key={sub.id ?? 'peec'}>
+                            <Link
+                              href={`/portal/${clientSlug}/reports?${subParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                subIsActive
+                                  ? 'bg-white/[0.08] text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                              )}
+                            >
+                              {sub.label}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </li>
+              )
+            }
+
+            // GA4 — expandable sub-menu
+            if (slug === 'ga4') {
+              const ga4BaseParams = new URLSearchParams()
+              ga4BaseParams.set('section', 'ga4')
+              if (dateRange) ga4BaseParams.set('dateRange', dateRange)
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/portal/${clientSlug}/reports?${ga4BaseParams.toString()}`}
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )}
+                  >
+                    {REPORT_NAMES[slug] ?? slug}
+                  </Link>
+
+                  {isActive && (
+                    <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                      {GA4_SUBSECTIONS.map((sub) => {
+                        if (sub.comingSoon) {
+                          return (
+                            <li key={sub.id ?? 'soon'}>
+                              <div className="flex items-center justify-between rounded-md px-2.5 py-1.5">
+                                <span className="text-xs font-semibold text-text-muted/40">
+                                  {sub.label}
+                                </span>
+                                <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted/50">
+                                  Soon
+                                </span>
+                              </div>
+                            </li>
+                          )
+                        }
+                        const subParams = new URLSearchParams()
+                        subParams.set('section', 'ga4')
+                        if (sub.id) subParams.set('subsection', sub.id)
+                        if (dateRange) subParams.set('dateRange', dateRange)
+                        const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
+                        return (
+                          <li key={sub.id ?? 'overview'}>
+                            <Link
+                              href={`/portal/${clientSlug}/reports?${subParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                subIsActive
+                                  ? 'bg-white/[0.08] text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                              )}
+                            >
+                              {sub.label}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
                 </li>
               )
             }

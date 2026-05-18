@@ -4,7 +4,7 @@ import { FFCIFunnel } from './funnel'
 
 interface FFCIProps {
   clientSlug: string
-  dateRange: string
+  dateRange?: string
 }
 
 // --- Types ---

@@ -15,6 +15,7 @@ import { SnapchatAdsReport } from '@/components/report-sections/snapchat-ads'
 import { TikTokAdsReport } from '@/components/report-sections/tiktok-ads'
 import { ShopifyPerformanceReport } from '@/components/report-sections/shopify-performance'
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
+import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
 import { ReportDateRange } from './report-date-range'
@@ -35,34 +36,36 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string) {
+function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null) {
   switch (reportSlug) {
     case 'exec-summary':
-      return <ExecSummary clientSlug={clientSlug} dateRange={dateRange} />
+      return <ExecSummary clientSlug={clientSlug} />
     case 'ga4':
-      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} />
+      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <MetaAdsReport clientSlug={clientSlug} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <GoogleAdsReport clientSlug={clientSlug} />
     case 'email-marketing':
-      return <EmailMarketingReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':
-      return <BlendedPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <LinkedInAdsReport clientSlug={clientSlug} />
     case 'snapchat-ads':
-      return <SnapchatAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
-      return <TikTokAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <TikTokAdsReport clientSlug={clientSlug} />
     case 'shopify-performance':
-      return <ShopifyPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <ShopifyPerformanceReport clientSlug={clientSlug} />
     case 'hubspot-performance':
-      return <HubSpotPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <HubSpotPerformanceReport clientSlug={clientSlug} />
+    case 'inbound-funnel':
+      return <InboundFunnelReport clientSlug={clientSlug} />
     case 'reddit-ads':
-      return <RedditAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <RedditAdsReport clientSlug={clientSlug} />
     case 'bing-ads':
-      return <BingAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BingAdsReport clientSlug={clientSlug} />
     default:
       return null
   }
@@ -73,10 +76,10 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
-  const { dateRange: dateRangeParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
   const client = getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -86,18 +89,21 @@ export default async function ReportPage({
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
+  const compareRange = compareRangeParam ?? null
 
   return (
     <>
       <Header title={reportName} subtitle={client.name}>
-        <ReportDateRange value={dateRange} />
+        <Suspense fallback={null}>
+          <ReportDateRange value={dateRange} compareValue={compareRange} />
+        </Suspense>
       </Header>
 
       <div className="divider-full mb-8" />
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange)}
         </Suspense>
       </ReportErrorBoundary>
     </>

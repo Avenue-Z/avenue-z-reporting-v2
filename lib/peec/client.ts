@@ -1,0 +1,544 @@
+const BASE_URL = 'https://api.peec.ai/customer/v1'
+
+function getKey(): string {
+  const key = process.env.PEEC_AI_ACCESS_TOKEN
+  if (!key) throw new Error('Missing env var: PEEC_AI_ACCESS_TOKEN')
+  return key
+}
+
+function isoDate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function periodDates(offsetDays: number, windowDays = 30) {
+  const end = new Date()
+  end.setDate(end.getDate() - offsetDays)
+  const start = new Date(end)
+  start.setDate(start.getDate() - (windowDays - 1))
+  return { start_date: isoDate(start), end_date: isoDate(end) }
+}
+
+async function peecPost<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  const projectId = process.env.PEEC_AI_PROJECT_ID
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': getKey(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...(projectId ? { project_id: projectId } : {}),
+      limit: 100,
+      ...body,
+    }),
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    console.error(`[peec] ${res.status} ${path}:`, text)
+    throw new Error(`Peec.AI API error ${res.status}: ${path}`)
+  }
+  return res.json()
+}
+
+async function peecGet<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const projectId = process.env.PEEC_AI_PROJECT_ID
+  const url = new URL(`${BASE_URL}${path}`)
+  if (projectId) url.searchParams.set('project_id', projectId)
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
+  const res = await fetch(url.toString(), {
+    headers: { 'X-API-Key': getKey() },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
+  return res.json()
+}
+
+// --- Raw API response types ---
+
+type ApiBrandRow = {
+  brand: { id: string; name: string }
+  date?: string
+  prompt_id?: number | string
+  prompt?: { id: number | string; text?: string; index?: number }
+  model_channel?: { id: string }
+  model?: { id: string }
+  visibility: number
+  visibility_count: number
+  visibility_total: number
+  share_of_voice: number
+  sentiment: number
+  sentiment_sum: number
+  sentiment_count: number
+  position: number
+  position_sum: number
+  position_count: number
+  mention_count: number
+}
+
+type ApiDomainRow = {
+  domain: string
+  classification: string
+  model_channel?: { id: string }
+  retrieved_percentage: number
+  citation_rate: number
+  retrieval_count: number
+  citation_count: number
+  retrieved_chat_count: number
+  total_chat_count: number
+}
+
+type ApiQueryRow = {
+  query: { index: number; text: string }
+  prompt?: { id: string; text?: string }
+  chat: { id: string }
+  model: { id: string }
+  model_channel: { id: string }
+  date: string
+}
+
+// --- Exported types ---
+
+export type WeeklyVisibility = {
+  weekStart: string
+  weekLabel: string
+  visibility: number
+}
+
+export type BrandRanking = {
+  rank: number
+  name: string
+  visibility: number
+  visibilityDelta: number
+  sov: number
+  sovDelta: number
+  sentiment: number
+  sentimentDelta: number
+  position: number
+  positionDelta: number
+  isYou?: boolean
+}
+
+export type TopDomain = {
+  domain: string
+  retrieved: number
+  retrievedDelta: number
+  citationRate: number
+  citationRateDelta: number
+  type: string
+}
+
+export type DomainType = {
+  type: string
+  percentage: number
+}
+
+export type LLMBreakdown = {
+  model: string
+  visibility: number
+  sov: number
+  position: number
+  ownDomainRetrieved: number
+}
+
+export type TrackedPrompt = {
+  text: string
+  sources: string[]
+  visibility: number
+  sov: number
+  position: number
+  group: string
+}
+
+export type CompetitorAverages = {
+  visibility: number
+  sov: number
+  sentiment: number
+  position: number
+}
+
+export type PeecOverview = {
+  weeklyVisibility: WeeklyVisibility[]
+  competitorWeeklyVisibility: WeeklyVisibility[]
+  competitorAverages: CompetitorAverages
+  brandRankings: BrandRanking[]
+  brandRankingsByRange: Record<string, BrandRanking[]>
+  domainsByRange: Record<string, TopDomain[]>
+  totalCitationsByRange: Record<string, number>
+  domainTypes: DomainType[]
+  trackedPrompts: TrackedPrompt[]
+  llmBreakdown: LLMBreakdown[]
+}
+
+// --- Aggregation helpers ---
+
+function normalizeClassification(c: string | null | undefined): string {
+  switch ((c ?? '').toLowerCase()) {
+    case 'own':           return 'Own'
+    case 'ugc':           return 'UGC'
+    case 'editorial':     return 'Editorial'
+    case 'corporate':     return 'Corporate'
+    case 'competitor':    return 'Competitor'
+    case 'reference':     return 'Reference'
+    case 'institutional': return 'Institutional'
+    default:              return c ?? 'Other'
+  }
+}
+
+type BrandAgg = {
+  name: string
+  visCount: number
+  visTotal: number
+  sovSum: number
+  sovRows: number
+  sentSum: number
+  sentCount: number
+  posSum: number
+  posCount: number
+}
+
+function aggregateBrandRows(rows: ApiBrandRow[]): Map<string, BrandAgg> {
+  const map = new Map<string, BrandAgg>()
+  for (const row of rows) {
+    const key = row.brand.id
+    const existing = map.get(key)
+    if (existing) {
+      existing.visCount += row.visibility_count
+      existing.visTotal += row.visibility_total
+      existing.sovSum += row.share_of_voice
+      existing.sovRows += 1
+      existing.sentSum += row.sentiment_sum
+      existing.sentCount += row.sentiment_count
+      existing.posSum += row.position_sum
+      existing.posCount += row.position_count
+    } else {
+      map.set(key, {
+        name: row.brand.name,
+        visCount: row.visibility_count,
+        visTotal: row.visibility_total,
+        sovSum: row.share_of_voice,
+        sovRows: 1,
+        sentSum: row.sentiment_sum,
+        sentCount: row.sentiment_count,
+        posSum: row.position_sum,
+        posCount: row.position_count,
+      })
+    }
+  }
+  return map
+}
+
+function aggToMetrics(agg: BrandAgg) {
+  return {
+    visibility: agg.visTotal > 0 ? (agg.visCount / agg.visTotal) * 100 : 0,
+    sov: agg.sovRows > 0 ? (agg.sovSum / agg.sovRows) * 100 : 0,
+    sentiment: agg.sentCount > 0 ? agg.sentSum / agg.sentCount : 0,
+    position: agg.posCount > 0 ? agg.posSum / agg.posCount : 0,
+  }
+}
+
+// --- Weekly grouping helper ---
+
+function groupByWeek(rows: ApiBrandRow[]): WeeklyVisibility[] {
+  const weekMap = new Map<string, { visCount: number; visTotal: number }>()
+  for (const row of rows) {
+    if (!row.date) continue
+    const date = new Date(row.date)
+    const day = date.getUTCDay()
+    const diff = day === 0 ? -6 : 1 - day
+    const monday = new Date(date)
+    monday.setUTCDate(date.getUTCDate() + diff)
+    const key = monday.toISOString().split('T')[0]
+    const existing = weekMap.get(key)
+    if (existing) {
+      existing.visCount += row.visibility_count
+      existing.visTotal += row.visibility_total
+    } else {
+      weekMap.set(key, { visCount: row.visibility_count, visTotal: row.visibility_total })
+    }
+  }
+  return Array.from(weekMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, { visCount, visTotal }]) => {
+      const date = new Date(weekStart)
+      const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })
+      const day = date.getUTCDate()
+      return {
+        weekStart,
+        weekLabel: `${month} ${day}`,
+        visibility: visTotal > 0 ? (visCount / visTotal) * 100 : 0,
+      }
+    })
+}
+
+// --- Paginated fetch for YTD data ---
+
+async function fetchAllYtdRows(body: Record<string, unknown>): Promise<ApiBrandRow[]> {
+  const limit = 500
+  const allRows: ApiBrandRow[] = []
+  let offset = 0
+  while (offset < 10000) {
+    const page = await peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...body, limit, offset })
+    const rows = page.data ?? []
+    allRows.push(...rows)
+    if (rows.length < limit) break
+    offset += limit
+  }
+  return allRows
+}
+
+// --- Main export ---
+
+export async function getPeecOverview(): Promise<PeecOverview> {
+  const yourBrand = process.env.PEEC_AI_YOUR_BRAND ?? ''
+  const thisYear = new Date().getUTCFullYear()
+  const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
+  const priorYtd = { start_date: `${thisYear - 1}-01-01`, end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}` }
+  const current = ytd
+  const prior = priorYtd
+
+  const last30 = periodDates(0, 30)
+
+  const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes] = await Promise.all([
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...last30 }),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...last30 }),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }),
+    peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id'], limit: 2000 }),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }),
+  ])
+
+  const ytdRows = await fetchAllYtdRows({ ...ytd, dimensions: ['date'] })
+
+  // --- Brand rankings ---
+  const currentAgg = aggregateBrandRows(currentBrandsRes.data ?? [])
+  const priorAgg = aggregateBrandRows(priorBrandsRes.data ?? [])
+
+  const brandRankings: BrandRanking[] = Array.from(currentAgg.entries())
+    .map(([id, agg]) => {
+      const curr = aggToMetrics(agg)
+      const prev = priorAgg.has(id) ? aggToMetrics(priorAgg.get(id)!) : curr
+      return {
+        name: agg.name,
+        visibility: curr.visibility,
+        visibilityDelta: curr.visibility - prev.visibility,
+        sov: curr.sov,
+        sovDelta: curr.sov - prev.sov,
+        sentiment: curr.sentiment,
+        sentimentDelta: curr.sentiment - prev.sentiment,
+        position: curr.position,
+        positionDelta: curr.position - prev.position,
+        isYou: yourBrand ? agg.name.toLowerCase().includes(yourBrand.toLowerCase()) : false,
+      }
+    })
+    .sort((a, b) => b.visibility - a.visibility)
+    .map((b, i) => ({ ...b, rank: i + 1 }))
+
+  // --- Top domains ---
+  function buildTopDomains(data: ApiDomainRow[], priorData: ApiDomainRow[] = []): TopDomain[] {
+    const priorMap = new Map(priorData.map((d) => [d.domain, d]))
+    return (data ?? [])
+      .sort((a, b) => b.retrieved_percentage - a.retrieved_percentage)
+      .map((d) => {
+        const prior = priorMap.get(d.domain)
+        return {
+          domain: d.domain,
+          retrieved: d.retrieved_percentage * 100,
+          retrievedDelta: prior ? (d.retrieved_percentage - prior.retrieved_percentage) * 100 : 0,
+          citationRate: d.citation_rate * 100,
+          citationRateDelta: prior ? (d.citation_rate - prior.citation_rate) * 100 : 0,
+          type: normalizeClassification(d.classification),
+        }
+      })
+  }
+  const domainsByRange: Record<string, TopDomain[]> = {
+    'YTD':          buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? []),
+    'Last 30 days': buildTopDomains(domains30Res.data ?? []),
+  }
+  const totalCitationsByRange: Record<string, number> = {
+    'YTD':          (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0),
+    'Last 30 days': (domains30Res.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0),
+  }
+
+  // --- Domain type breakdown ---
+  const typeMap: Record<string, number> = {}
+  for (const d of domainsRes.data ?? []) {
+    const t = normalizeClassification(d.classification)
+    typeMap[t] = (typeMap[t] ?? 0) + 1
+  }
+  const total = (domainsRes.data ?? []).length || 1
+  const domainTypes: DomainType[] = Object.entries(typeMap)
+    .map(([type, count]) => ({ type, percentage: Math.round((count / total) * 100) }))
+    .sort((a, b) => b.percentage - a.percentage)
+
+  // --- Total citations ---
+  const totalCitations = (domainsRes.data ?? []).reduce((sum, d) => sum + (d.citation_count ?? 0), 0)
+
+  // --- Tracked prompts ---
+  function categorizePrompt(text: string): string {
+    const t = text.toLowerCase()
+    if (t.includes('seo') || t.includes('search engine optimization') || t.includes('organic search') || t.includes('keyword rank')) return 'SEO & Search'
+    if (t.includes('pr ') || t.includes('public relations') || t.includes('media relations') || t.includes('press release') || t.includes('earned media') || t.includes('crisis comm')) return 'PR & Communications'
+    if (t.includes('content') || t.includes('blog') || t.includes('copywriting') || t.includes('editorial')) return 'Content Marketing'
+    if (t.includes('social media') || t.includes('instagram') || t.includes('tiktok') || t.includes('linkedin') || t.includes('facebook') || t.includes('twitter') || t.includes('x.com')) return 'Social Media'
+    if (t.includes('paid') || t.includes('ppc') || t.includes('google ads') || t.includes('meta ads') || t.includes('advertising') || t.includes('sem ') || t.includes('display ad')) return 'Paid Media'
+    if (t.includes('email') || t.includes('newsletter') || t.includes('drip') || t.includes('klaviyo') || t.includes('mailchimp')) return 'Email Marketing'
+    if (t.includes('influencer') || t.includes('creator') || t.includes('ugc') || t.includes('ambassador')) return 'Influencer & Creator'
+    if (t.includes('brand') || t.includes('reputation') || t.includes('awareness') || t.includes('identity')) return 'Brand & Reputation'
+    if (t.includes('data') || t.includes('analytics') || t.includes('reporting') || t.includes('measurement') || t.includes('attribution')) return 'Analytics & Reporting'
+    if (t.includes('ai ') || t.includes('artificial intelligence') || t.includes('machine learning') || t.includes('automation') || t.includes('aeo') || t.includes('answer engine') || t.includes('llm') || t.includes('chatgpt') || t.includes('generative')) return 'AI & Automation'
+    if (t.includes('agency') || t.includes('firm') || t.includes(' hire') || t.includes('best ') || t.includes('top ') || t.includes('leading ')) return 'Agency Selection'
+    return 'Digital Strategy'
+  }
+
+  function normalizeSource(id: string): string | null {
+    const s = id.toLowerCase()
+    if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
+    if (s.includes('perplexity')) return 'Perplexity'
+    if (s.includes('gemini')) return 'Gemini'
+    if (s.includes('claude')) return 'Claude'
+    if (s.includes('copilot')) return 'Copilot'
+    if (s.includes('google')) return 'Google'
+    return null
+  }
+
+  // Build UUID → metrics for your brand only
+  type PromptMetric = { visibility: number; sov: number; position: number }
+  const promptMetricsById = new Map<string, PromptMetric>()
+
+  for (const row of promptBrandsRes.data ?? []) {
+    if (yourBrand && !row.brand.name.toLowerCase().includes(yourBrand.toLowerCase())) continue
+    const uuid = row.prompt?.id != null ? String(row.prompt.id) : null
+    if (!uuid) continue
+    const metric: PromptMetric = {
+      visibility: row.visibility_total > 0 ? (row.visibility_count / row.visibility_total) * 100 : 0,
+      sov: row.share_of_voice * 100,
+      position: row.position_count > 0 ? row.position_sum / row.position_count : 0,
+    }
+    promptMetricsById.set(uuid, metric)
+  }
+
+  // Deduplicate queries by text, collecting sources and the prompt UUID (if returned)
+  const promptMap = new Map<string, { sources: Set<string>; uuid?: string }>()
+  for (const q of queriesRes.data ?? []) {
+    const text = q.query?.text
+    const uuid = q.prompt?.id
+    const source = normalizeSource(q.model_channel?.id ?? q.model?.id ?? '')
+    if (!text) continue
+    if (!promptMap.has(text)) promptMap.set(text, { sources: new Set(), uuid })
+    if (source) promptMap.get(text)!.sources.add(source)
+  }
+
+  const trackedPrompts: TrackedPrompt[] = Array.from(promptMap.entries()).map(([text, { sources, uuid }]) => {
+    const m = uuid ? promptMetricsById.get(uuid) : undefined
+    return {
+      text,
+      sources: Array.from(sources),
+      visibility: m?.visibility ?? 0,
+      sov: m?.sov ?? 0,
+      position: m?.position ?? 0,
+      group: categorizePrompt(text),
+    }
+  })
+
+  // --- Weekly visibility (YTD) ---
+  const filteredYtdRows = ytdRows.filter((r) =>
+    yourBrand ? r.brand.name.toLowerCase().includes(yourBrand.toLowerCase()) : true
+  )
+  const competitorYtdRows = ytdRows.filter((r) =>
+    yourBrand ? !r.brand.name.toLowerCase().includes(yourBrand.toLowerCase()) : false
+  )
+  const weeklyVisibility = groupByWeek(filteredYtdRows)
+  const competitorWeeklyVisibility = groupByWeek(competitorYtdRows)
+
+  // --- Additional date ranges for brand rankings (no deltas) ---
+  function buildRankings(rows: ApiBrandRow[]): BrandRanking[] {
+    const agg = aggregateBrandRows(rows)
+    return Array.from(agg.entries())
+      .map(([, a]) => {
+        const m = aggToMetrics(a)
+        return { name: a.name, visibility: m.visibility, visibilityDelta: 0, sov: m.sov, sovDelta: 0, sentiment: m.sentiment, sentimentDelta: 0, position: m.position, positionDelta: 0, isYou: yourBrand ? a.name.toLowerCase().includes(yourBrand.toLowerCase()) : false }
+      })
+      .sort((a, b) => b.visibility - a.visibility)
+      .map((b, i) => ({ ...b, rank: i + 1 }))
+  }
+  const brandRankingsByRange: Record<string, BrandRanking[]> = {
+    'YTD':          brandRankings,
+    'Last 30 days': buildRankings(brands30Res.data ?? []),
+  }
+
+  // --- LLM breakdown (your brand + own domains per model_channel) ---
+  type LLMAgg = { visCount: number; visTotal: number; sovSum: number; sovRows: number; posSum: number; posCount: number }
+  const llmAggMap = new Map<string, LLMAgg>()
+  for (const row of llmBrandsRes.data ?? []) {
+    if (yourBrand && !row.brand.name.toLowerCase().includes(yourBrand.toLowerCase())) continue
+    const rawId = row.model_channel?.id ?? row.model?.id ?? ''
+    const model = normalizeSource(rawId)
+    if (!model) continue
+    const e = llmAggMap.get(model)
+    if (e) {
+      e.visCount += row.visibility_count
+      e.visTotal += row.visibility_total
+      e.sovSum += row.share_of_voice
+      e.sovRows += 1
+      e.posSum += row.position_sum
+      e.posCount += row.position_count
+    } else {
+      llmAggMap.set(model, { visCount: row.visibility_count, visTotal: row.visibility_total, sovSum: row.share_of_voice, sovRows: 1, posSum: row.position_sum, posCount: row.position_count })
+    }
+  }
+
+  // Own domain retrieved % per LLM
+  const llmOwnDomainMap = new Map<string, { retrievedSum: number; rows: number }>()
+  for (const row of llmDomainsRes.data ?? []) {
+    if (normalizeClassification(row.classification) !== 'Own') continue
+    const rawId = row.model_channel?.id ?? ''
+    const model = normalizeSource(rawId)
+    if (!model) continue
+    const e = llmOwnDomainMap.get(model)
+    if (e) { e.retrievedSum += row.retrieved_percentage; e.rows += 1 }
+    else llmOwnDomainMap.set(model, { retrievedSum: row.retrieved_percentage, rows: 1 })
+  }
+
+  const llmBreakdown: LLMBreakdown[] = Array.from(llmAggMap.entries())
+    .map(([model, agg]) => {
+      const own = llmOwnDomainMap.get(model)
+      return {
+        model,
+        visibility: agg.visTotal > 0 ? (agg.visCount / agg.visTotal) * 100 : 0,
+        sov: agg.sovRows > 0 ? (agg.sovSum / agg.sovRows) * 100 : 0,
+        position: agg.posCount > 0 ? agg.posSum / agg.posCount : 0,
+        ownDomainRetrieved: own ? (own.retrievedSum / own.rows) * 100 : 0,
+      }
+    })
+    .sort((a, b) => b.visibility - a.visibility)
+
+  // --- Competitor averages (current period, all non-you brands) ---
+  const competitorAggs = Array.from(currentAgg.entries())
+    .filter(([, agg]) => !yourBrand || !agg.name.toLowerCase().includes(yourBrand.toLowerCase()))
+    .map(([, agg]) => aggToMetrics(agg))
+  const compCount = competitorAggs.length || 1
+  const competitorAverages: CompetitorAverages = {
+    visibility: competitorAggs.reduce((s, a) => s + a.visibility, 0) / compCount,
+    sov: competitorAggs.reduce((s, a) => s + a.sov, 0) / compCount,
+    sentiment: competitorAggs.reduce((s, a) => s + a.sentiment, 0) / compCount,
+    position: competitorAggs.reduce((s, a) => s + a.position, 0) / compCount,
+  }
+
+  return {
+    weeklyVisibility,
+    competitorWeeklyVisibility,
+    competitorAverages,
+    brandRankings,
+    brandRankingsByRange,
+    domainsByRange,
+    totalCitationsByRange,
+    domainTypes,
+    trackedPrompts,
+    llmBreakdown,
+  }
+}

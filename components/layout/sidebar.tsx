@@ -5,15 +5,12 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { demoLogout } from '@/app/actions/demo-auth'
-import { REPORT_NAMES, ALL_REPORT_SLUGS } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS } from '@/lib/constants'
 import { getAllClients } from '@/lib/clients.config'
 import {
   LayoutGrid,
-  Link2,
   ChevronLeft,
-  Settings,
   LogOut,
-  Lock,
 } from 'lucide-react'
 import { AvenueZLogo } from './avenue-z-logo'
 
@@ -51,7 +48,7 @@ export function Sidebar() {
   const isTopLevel = !clientSlug || ['reports', 'connections', 'settings'].includes(clientSlug)
 
   if (!isTopLevel && clientSlug) {
-    return <ClientSidebar clientSlug={clientSlug} pathname={pathname} activeSection={searchParams.get('section')} dateRange={searchParams.get('dateRange')} />
+    return <ClientSidebar clientSlug={clientSlug} pathname={pathname} activeSection={searchParams.get('section')} activeSubsection={searchParams.get('subsection')} dateRange={searchParams.get('dateRange')} />
   }
 
   return <MainSidebar pathname={pathname} />
@@ -78,22 +75,6 @@ function MainSidebar({ pathname }: { pathname: string }) {
               icon={LayoutGrid}
               label="Dashboard"
               isActive={pathname === '/dashboard'}
-            />
-          </li>
-          <li>
-            <NavLink
-              href="/dashboard/connections"
-              icon={Link2}
-              label="Connections"
-              isActive={pathname === '/dashboard/connections'}
-            />
-          </li>
-          <li>
-            <NavLink
-              href="/dashboard/settings"
-              icon={Settings}
-              label="Settings"
-              isActive={pathname === '/dashboard/settings'}
             />
           </li>
         </ul>
@@ -171,15 +152,23 @@ function MainSidebar({ pathname }: { pathname: string }) {
   )
 }
 
+const INBOUND_FUNNEL_SUBSECTIONS: { id: string | null; label: string }[] = [
+  { id: null,     label: 'Overview' },
+  { id: 'forms',  label: 'Forms'    },
+  { id: 'pacing', label: 'Pacing'   },
+]
+
 function ClientSidebar({
   clientSlug,
   pathname,
   activeSection,
+  activeSubsection,
   dateRange,
 }: {
   clientSlug: string
   pathname: string
   activeSection: string | null
+  activeSubsection: string | null
   dateRange: string | null
 }) {
   const clients = getAllClients()
@@ -235,80 +224,254 @@ function ClientSidebar({
         </div>
       </div>
 
-      {/* Report section tabs */}
+      {/* Report nav */}
       <nav className="flex flex-1 flex-col overflow-y-auto border-t border-white/[0.06] px-3 pt-4 scrollbar-dark">
         {client && (
-          <>
-            <p className="mb-2 px-3 text-xs font-semibold text-text-muted">
-              Report sections
-            </p>
-            <ul className="flex flex-col gap-0.5">
-              {ALL_REPORT_SLUGS.filter((slug) => !client.hiddenReports?.includes(slug as any)).map((slug) => {
-                const isEnabled = client.enabledReports.includes(slug as any)
-                const isActive = isEnabled && isOnReports && (activeSection === slug || (!activeSection && slug === client.enabledReports[0]))
-                const linkParams = new URLSearchParams()
-                linkParams.set('section', slug)
-                if (dateRange) linkParams.set('dateRange', dateRange)
-                const isMeetingPrep = slug === 'meeting-prep'
-
-                if (!isEnabled) {
-                  return (
-                    <li key={slug}>
-                      <span
-                        title="Interested in gaining visibility here? Contact your account manager to explore this service line."
-                        className="flex items-center justify-between rounded-md px-3 py-2 text-sm font-semibold text-white/20 cursor-not-allowed"
-                      >
-                        <span>{REPORT_NAMES[slug] ?? slug}</span>
-                        <Lock className="h-3.5 w-3.5 shrink-0" />
-                      </span>
-                    </li>
-                  )
-                }
-
+          <div className="flex flex-col gap-4">
+            {NAV_GROUPS.map((group, gi) => {
+              if (group.comingSoon) {
+                // Coming Soon group — show all slugs, non-clickable
                 return (
-                  <li key={slug}>
-                    {isMeetingPrep ? (
-                      <Link
-                        href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
-                        className={cn(
-                          'block rounded-[100px] px-4 py-2 text-center text-sm font-bold text-black transition-opacity hover:opacity-90',
-                          isActive ? 'opacity-100' : 'opacity-80'
-                        )}
-                        style={{
-                          backgroundImage: 'linear-gradient(135deg, #FFFC60, #60FF80, #60FDFF)',
-                        }}
-                      >
-                        {REPORT_NAMES[slug] ?? slug}
-                      </Link>
-                    ) : (
-                      <Link
-                        href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
-                        className={cn(
-                          'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-                          isActive
-                            ? 'bg-white/[0.08] text-white'
-                            : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
-                        )}
-                      >
-                        {REPORT_NAMES[slug] ?? slug}
-                      </Link>
+                  <div key={gi}>
+                    {group.label && (
+                      <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted/50">
+                        {group.label}
+                      </p>
                     )}
-                  </li>
+                    <ul className="flex flex-col gap-0.5">
+                      {group.slugs.map((slug) => (
+                        <li key={slug}>
+                          <div className="flex items-center justify-between rounded-md px-3 py-2">
+                            <span className="text-sm font-semibold text-text-muted/40">
+                              {REPORT_NAMES[slug] ?? slug}
+                            </span>
+                            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted/50">
+                              Soon
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )
-              })}
-            </ul>
-          </>
-        )}
+              }
 
-        {/* Auth Hub link */}
-        <div className="mt-4 border-t border-white/[0.06] pt-4">
-          <NavLink
-            href={`/dashboard/${clientSlug}/auth`}
-            icon={Link2}
-            label="Connections"
-            isActive={pathname === `/dashboard/${clientSlug}/auth`}
-          />
-        </div>
+              // Regular group — filter by enabledReports
+              const visibleSlugs = group.slugs.filter((slug) =>
+                client.enabledReports.includes(slug as any)
+              )
+              if (visibleSlugs.length === 0) return null
+              return (
+                <div key={gi}>
+                  {group.label && (
+                    <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                      {group.label}
+                    </p>
+                  )}
+                  <ul className="flex flex-col gap-0.5">
+                    {visibleSlugs.map((slug) => {
+                      const isActive = isOnReports && (
+                        activeSection === slug || (!activeSection && slug === client.enabledReports[0])
+                      )
+                      const linkParams = new URLSearchParams()
+                      linkParams.set('section', slug)
+
+                      // Inbound Funnel — expandable sub-menu
+                      if (slug === 'inbound-funnel') {
+                        const ifBaseParams = new URLSearchParams()
+                        ifBaseParams.set('section', 'inbound-funnel')
+                        return (
+                          <li key={slug}>
+                            <Link
+                              href={`/dashboard/${clientSlug}/reports?${ifBaseParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                isActive
+                                  ? 'text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                              )}
+                            >
+                              {REPORT_NAMES[slug] ?? slug}
+                            </Link>
+                            {isActive && (
+                              <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                                {INBOUND_FUNNEL_SUBSECTIONS.map((sub) => {
+                                  const subParams = new URLSearchParams()
+                                  subParams.set('section', 'inbound-funnel')
+                                  if (sub.id) subParams.set('subsection', sub.id)
+                                  const subIsActive = sub.id === null
+                                    ? !activeSubsection
+                                    : activeSubsection === sub.id
+                                  return (
+                                    <li key={sub.id ?? 'overview'}>
+                                      <Link
+                                        href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
+                                        className={cn(
+                                          'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                          subIsActive
+                                            ? 'bg-white/[0.08] text-white'
+                                            : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                                        )}
+                                      >
+                                        {sub.label}
+                                      </Link>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      }
+
+                      // Answer Engine Optimization — expandable sub-menu (PEEC.ai + Profound Soon)
+                      if (slug === 'peec-ai') {
+                        const aeoBaseParams = new URLSearchParams()
+                        aeoBaseParams.set('section', 'peec-ai')
+                        return (
+                          <li key={slug}>
+                            <Link
+                              href={`/dashboard/${clientSlug}/reports?${aeoBaseParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                isActive
+                                  ? 'text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                              )}
+                            >
+                              {REPORT_NAMES[slug] ?? slug}
+                            </Link>
+                            {isActive && (
+                              <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                                {AEO_SUBSECTIONS.map((sub) => {
+                                  if (sub.comingSoon) {
+                                    return (
+                                      <li key={sub.id ?? 'soon'}>
+                                        <div className="flex items-center justify-between rounded-md px-2.5 py-1.5">
+                                          <span className="text-xs font-semibold text-text-muted/40">
+                                            {sub.label}
+                                          </span>
+                                          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted/50">
+                                            Soon
+                                          </span>
+                                        </div>
+                                      </li>
+                                    )
+                                  }
+                                  const subParams = new URLSearchParams()
+                                  subParams.set('section', 'peec-ai')
+                                  if (sub.id) subParams.set('subsection', sub.id)
+                                  const subIsActive = sub.id === null
+                                    ? !activeSubsection
+                                    : activeSubsection === sub.id
+                                  return (
+                                    <li key={sub.id ?? 'peec'}>
+                                      <Link
+                                        href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
+                                        className={cn(
+                                          'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                          subIsActive
+                                            ? 'bg-white/[0.08] text-white'
+                                            : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                                        )}
+                                      >
+                                        {sub.label}
+                                      </Link>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      }
+
+                      // GA4 — show expandable sub-menu when active
+                      if (slug === 'ga4') {
+                        const ga4BaseParams = new URLSearchParams()
+                        ga4BaseParams.set('section', 'ga4')
+                        return (
+                          <li key={slug}>
+                            <Link
+                              href={`/dashboard/${clientSlug}/reports?${ga4BaseParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                isActive
+                                  ? 'text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                              )}
+                            >
+                              {REPORT_NAMES[slug] ?? slug}
+                            </Link>
+
+                            {/* Sub-items — visible when ga4 is the active section */}
+                            {isActive && (
+                              <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                                {GA4_SUBSECTIONS.map((sub) => {
+                                  if (sub.comingSoon) {
+                                    return (
+                                      <li key={sub.id ?? 'soon'}>
+                                        <div className="flex items-center justify-between rounded-md px-2.5 py-1.5">
+                                          <span className="text-xs font-semibold text-text-muted/40">
+                                            {sub.label}
+                                          </span>
+                                          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted/50">
+                                            Soon
+                                          </span>
+                                        </div>
+                                      </li>
+                                    )
+                                  }
+                                  const subParams = new URLSearchParams()
+                                  subParams.set('section', 'ga4')
+                                  if (sub.id) subParams.set('subsection', sub.id)
+                                  const subIsActive = sub.id === null
+                                    ? !activeSubsection
+                                    : activeSubsection === sub.id
+                                  return (
+                                    <li key={sub.id ?? 'overview'}>
+                                      <Link
+                                        href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
+                                        className={cn(
+                                          'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                          subIsActive
+                                            ? 'bg-white/[0.08] text-white'
+                                            : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                                        )}
+                                      >
+                                        {sub.label}
+                                      </Link>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      }
+
+                      return (
+                        <li key={slug}>
+                          <Link
+                            href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
+                            className={cn(
+                              'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                              isActive
+                                ? 'bg-white/[0.08] text-white'
+                                : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                            )}
+                          >
+                            {REPORT_NAMES[slug] ?? slug}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </nav>
 
       {/* User section */}

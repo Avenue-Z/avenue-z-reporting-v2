@@ -6,7 +6,7 @@ import { CHART_COLORS } from '@/lib/constants'
 
 interface TikTokShopProps {
   clientSlug: string
-  dateRange: string
+  dateRange?: string
 }
 
 const DEMO_KPIS = [

@@ -1,0 +1,248 @@
+'use client'
+
+import type { YearlyContactStats, MonthlyContactEntry } from '@/lib/hubspot/client'
+
+const ICP_COLOR          = '#60FF80'
+const MCP_COLOR          = '#60FDFF'
+const UNIDENTIFIED_COLOR = 'rgba(255,255,255,0.15)'
+
+function pct(current: number, baseline: number) {
+  if (baseline === 0) return null
+  return ((current - baseline) / baseline) * 100
+}
+
+function DeltaBadge({ value }: { value: number | null }) {
+  if (value === null) return null
+  const up = value >= 0
+  return (
+    <p className="mt-1 text-sm font-bold" style={{ color: up ? ICP_COLOR : '#FF4444' }}>
+      {up ? '↑' : '↓'} {Math.abs(value).toFixed(1)}% vs prior period
+    </p>
+  )
+}
+
+function InlineTooltip({ text }: { text: string }) {
+  return (
+    <div className="group relative flex-shrink-0">
+      <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
+        ?
+      </span>
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+        {text}
+        <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ title, value, delta, tooltip }: {
+  title: string
+  value: number | string
+  delta?: number | null
+  tooltip: string
+}) {
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-black/20 px-6 py-5">
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{title}</p>
+        <InlineTooltip text={tooltip} />
+      </div>
+      <p className="mt-2 text-3xl font-extrabold tabular-nums text-white">
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </p>
+      {delta !== undefined && <DeltaBadge value={delta ?? null} />}
+    </div>
+  )
+}
+
+function PacingTracker({
+  current,
+  baseline,
+  baselineLabel,
+  daysElapsed,
+  totalDays,
+  remainingMonths,
+  yearLabel,
+}: {
+  current: number
+  baseline: number
+  baselineLabel: string
+  daysElapsed: number
+  totalDays: number
+  remainingMonths: number
+  yearLabel: string
+}) {
+  const timePct     = (daysElapsed / totalDays) * 100
+  const expected    = baseline * (daysElapsed / totalDays)
+  const ahead       = current >= expected
+  const accentColor = ahead ? ICP_COLOR : '#FF4444'
+  const contactsPct = baseline > 0 ? Math.min((current / baseline) * 100, 110) : 0
+  const projected   = daysElapsed > 0 ? (current / daysElapsed) * totalDays : 0
+  const projDelta   = baseline > 0 ? ((projected - baseline) / baseline) * 100 : null
+  const gap = Math.round(baseline - current)
+  const gapPerMonth = remainingMonths > 0 && !ahead ? Math.ceil(gap / remainingMonths) : null
+
+  return (
+    <div className="rounded-md border border-white/[0.06] bg-black/20 px-5 py-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
+          Pacing · Day {daysElapsed} of {totalDays} · {yearLabel}
+        </p>
+        {projDelta !== null && (
+          <p className="text-xs font-bold" style={{ color: accentColor }}>
+            {ahead ? '↑' : '↓'} {Math.abs(projDelta).toFixed(1)}% vs {baselineLabel}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10px] text-text-muted">
+          <span>Year elapsed</span>
+          <span>{timePct.toFixed(0)}%</span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="h-full rounded-full bg-white/25" style={{ width: `${timePct}%` }} />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10px] text-text-muted">
+          <span>Contacts vs {baselineLabel} ({baseline.toLocaleString()} full year)</span>
+          <span className="font-bold" style={{ color: accentColor }}>
+            {current.toLocaleString()} / {Math.round(expected).toLocaleString()} expected
+          </span>
+        </div>
+        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${contactsPct}%`, backgroundColor: accentColor }}
+          />
+          <div
+            className="absolute top-0 h-full w-px bg-white/40"
+            style={{ left: `${timePct}%` }}
+          />
+        </div>
+      </div>
+
+      <p className="text-[10px] text-text-muted">
+        On pace for <span className="font-bold text-white">{Math.round(projected).toLocaleString()}</span> contacts this year
+        {gapPerMonth !== null && (
+          <span> — need <span className="font-bold text-white">{gapPerMonth.toLocaleString()}</span> per month to hit {baselineLabel}&apos;s number</span>
+        )}
+      </p>
+    </div>
+  )
+}
+
+interface YearlyPerformanceProps {
+  stats: YearlyContactStats
+  months: MonthlyContactEntry[]
+}
+
+export function YearlyPerformance({ stats, months }: YearlyPerformanceProps) {
+  const { currentYear, currentYearLabel, currentYearTotal, samePeriodLastYearTotal,
+    fullLastYearTotal, fullPrevPrevYearTotal, daysElapsed, totalDaysInYear, remainingMonths } = stats
+
+  const maxTotal = Math.max(...months.map((m) => m.total), 1)
+
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <h3 className="text-lg font-bold text-white">Yearly Pacing</h3>
+        <InlineTooltip text="Full-year contact creation totals and pacing vs. the prior year. Pacing tracker projects end-of-year volume based on the current run rate." />
+      </div>
+
+      <PacingTracker
+        current={currentYearTotal}
+        baseline={fullLastYearTotal}
+        baselineLabel={String(currentYear - 1)}
+        daysElapsed={daysElapsed}
+        totalDays={totalDaysInYear}
+        remainingMonths={remainingMonths}
+        yearLabel={currentYearLabel}
+      />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          title={`${currentYearLabel} YTD`}
+          value={currentYearTotal}
+          tooltip={`Inbound contacts created so far in ${currentYearLabel} (Jan 1 – today).`}
+        />
+        <StatCard
+          title={`${currentYear - 1} Same Period`}
+          value={samePeriodLastYearTotal}
+          delta={pct(currentYearTotal, samePeriodLastYearTotal)}
+          tooltip={`Inbound contacts created during the same Jan 1 – today window in ${currentYear - 1}. Delta shows year-over-year change on equal footing.`}
+        />
+        <StatCard
+          title={`Full Year ${currentYear - 1}`}
+          value={fullLastYearTotal}
+          delta={pct(currentYearTotal, fullLastYearTotal)}
+          tooltip={`Total inbound contacts for all of ${currentYear - 1}. Delta shows how the current YTD compares to the full prior year.`}
+        />
+        <StatCard
+          title={`Full Year ${currentYear - 2}`}
+          value={fullPrevPrevYearTotal}
+          delta={pct(currentYearTotal, fullPrevPrevYearTotal)}
+          tooltip={`Total inbound contacts for all of ${currentYear - 2}. Provides a two-year historical baseline.`}
+        />
+      </div>
+
+      {/* Monthly bars for current year */}
+      {months.length > 0 && (
+        <div className="space-y-3">
+          {months.map((item) => {
+            const barPct  = (item.total / maxTotal) * 100
+            const icpPct  = item.total > 0 ? (item.icp  / item.total) * 100 : 0
+            const mcpPct  = item.total > 0 ? (item.mcp  / item.total) * 100 : 0
+            const unidPct = item.total > 0 ? (item.unidentified / item.total) * 100 : 0
+
+            return (
+              <div key={item.monthKey} className="flex items-center gap-3">
+                <div className="w-16 shrink-0 text-right text-xs text-text-muted">
+                  {item.month.replace(/\s\d{4}$/, '')}
+                </div>
+
+                <div className="relative h-6 flex-1 overflow-hidden rounded-sm bg-white/[0.04]">
+                  <div
+                    className="absolute inset-y-0 left-0 flex h-full overflow-hidden rounded-sm"
+                    style={{ width: `${barPct}%` }}
+                  >
+                    {icpPct  > 0 && <div style={{ width: `${icpPct}%`,  backgroundColor: ICP_COLOR          }} title={`ICP: ${item.icp}`} />}
+                    {mcpPct  > 0 && <div style={{ width: `${mcpPct}%`,  backgroundColor: MCP_COLOR          }} title={`MCP: ${item.mcp}`} />}
+                    {unidPct > 0 && <div style={{ width: `${unidPct}%`, backgroundColor: UNIDENTIFIED_COLOR }} title={`Not Identified: ${item.unidentified}`} />}
+                  </div>
+                </div>
+
+                <div className="w-32 shrink-0 text-xs">
+                  <span className="tabular-nums text-white">{item.total.toLocaleString()}</span>
+                  {item.total > 0 && (
+                    <span className="ml-1.5 text-[10px]">
+                      {item.icp  > 0 && <span style={{ color: ICP_COLOR }}>{item.icp}I </span>}
+                      {item.mcp  > 0 && <span style={{ color: MCP_COLOR }}>{item.mcp}M </span>}
+                      {item.unidentified > 0 && <span className="text-text-muted">{item.unidentified}—</span>}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-5">
+        {[
+          { label: 'ICP',            color: ICP_COLOR          },
+          { label: 'MCP',            color: MCP_COLOR          },
+          { label: 'Not Identified', color: UNIDENTIFIED_COLOR },
+        ].map(({ label, color }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+            <span className="text-[11px] text-text-muted">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

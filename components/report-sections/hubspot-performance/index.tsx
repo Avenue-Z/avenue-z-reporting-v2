@@ -1,111 +1,334 @@
+import { getPipelineDeals, getOwnerMap } from '@/lib/hubspot/client'
 import { KpiCard } from '@/components/charts/kpi-card'
-import { AreaChart } from '@/components/charts/area-chart'
-import { BarChart } from '@/components/charts/bar-chart'
-import { DonutChart } from '@/components/charts/donut-chart'
-import { DataTable } from '@/components/charts/data-table'
-import { CHART_COLORS } from '@/lib/constants'
+import { PipelineStageAccordion } from './pipeline-stage-accordion'
+import { LeadSourceChart } from './lead-source-chart'
+import type { LeadSourceEntry } from './lead-source-chart'
+import type { StageData } from './pipeline-stage-accordion'
 
 interface HubSpotPerformanceProps {
   clientSlug: string
-  dateRange: string
 }
 
-const DEMO_KPIS = [
-  { title: 'Contacts Created', value: '1,284', delta: 14.8 },
-  { title: 'MQLs', value: '342', delta: 22.1 },
-  { title: 'SQLs', value: '128', delta: 18.4 },
-  { title: 'Deals Created', value: '64', delta: 12.5 },
-  { title: 'Deals Won', value: '28', delta: 16.7 },
-  { title: 'Revenue Closed', value: '184,200', prefix: '$', delta: 24.3 },
-  { title: 'Win Rate', value: '43.8', suffix: '%', delta: 3.6 },
-  { title: 'Avg Deal Size', value: '6,579', prefix: '$', delta: 6.5 },
+const STAGE_LABELS: Record<string, string> = {
+  '1043842406': 'Discovery',
+  '1043842407': 'Qualified Opportunity',
+  '1121402756': 'Audit',
+  '1043842408': 'Proposal Sent',
+  '1043842409': 'Positive Proposal Feedback',
+  '1043842410': 'Verbal',
+  '1046812298': 'Contract Review / Redlines',
+  '1043842411': 'Closed Won',
+  '1043842412': 'Closed Lost',
+  '1047007274': 'Not Ready at This Time',
+}
+
+const STAGE_ORDER = [
+  '1043842406',
+  '1043842407',
+  '1121402756',
+  '1043842408',
+  '1043842409',
+  '1043842410',
+  '1046812298',
 ]
 
-const DEMO_PIPELINE_TREND = Array.from({ length: 12 }, (_, i) => ({
-  date: `Week ${i + 1}`,
-  contacts: Math.floor(80 + Math.random() * 40 + i * 5),
-  mqls: Math.floor(20 + Math.random() * 15 + i * 2),
-  sqls: Math.floor(8 + Math.random() * 6 + i),
-}))
+const CLOSED_STAGE_IDS = new Set(['1043842411', '1043842412'])
+const HIDDEN_STAGE_IDS = new Set(['1043842411', '1043842412', '1047007274'])
 
-const DEMO_LEAD_SOURCES = [
-  { name: 'Organic Search', value: 32, color: CHART_COLORS.ga4 },
-  { name: 'Paid Ads', value: 24, color: CHART_COLORS.metaAds },
-  { name: 'Email', value: 18, color: CHART_COLORS.email },
-  { name: 'Social', value: 14, color: CHART_COLORS.linkedin },
-  { name: 'Referral', value: 12, color: CHART_COLORS.positive },
-]
+function fmtUSD(n: number): string {
+  if (isNaN(n)) return '—'
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+}
 
-const DEMO_DEALS = [
-  { deal: 'Enterprise License — Acme Corp', stage: 'Closed Won', value: '$42,000', daysOpen: '34', owner: 'Sarah K.' },
-  { deal: 'Annual Plan — Beta Inc', stage: 'Closed Won', value: '$28,500', daysOpen: '22', owner: 'Mike R.' },
-  { deal: 'Expansion — Gamma Ltd', stage: 'Negotiation', value: '$35,000', daysOpen: '18', owner: 'Sarah K.' },
-  { deal: 'New Business — Delta Co', stage: 'Proposal', value: '$52,000', daysOpen: '12', owner: 'Alex T.' },
-  { deal: 'Renewal — Epsilon Inc', stage: 'Closed Won', value: '$18,200', daysOpen: '8', owner: 'Mike R.' },
-]
+function fmtUSDStr(val: string | null): string {
+  if (!val) return '—'
+  const n = parseFloat(val)
+  return isNaN(n) ? '—' : fmtUSD(n)
+}
 
-export async function HubSpotPerformanceReport({ clientSlug, dateRange }: HubSpotPerformanceProps) {
+function fmtDate(val: string | null): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function fmtDaysOld(createdate: string | null): string {
+  if (!createdate) return '—'
+  const created = new Date(createdate)
+  if (isNaN(created.getTime())) return '—'
+  const days = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24))
+  if (days === 1) return '1 day'
+  return `${days} days`
+}
+
+function fmtTimeInStage(enteredAt: string | null): string {
+  if (!enteredAt) return '—'
+  const entered = new Date(enteredAt)
+  if (isNaN(entered.getTime())) return '—'
+  const days = Math.floor((Date.now() - entered.getTime()) / (1000 * 60 * 60 * 24))
+  if (days < 1) return '< 1 day'
+  if (days === 1) return '1 day'
+  if (days < 30) return `${days} days`
+  const months = Math.floor(days / 30)
+  const rem = days % 30
+  const mo = months === 1 ? '1 mo' : `${months} mo`
+  return rem === 0 ? mo : `${mo} ${rem}d`
+}
+
+function yoyDelta(current: number, prior: number): number | undefined {
+  if (prior === 0) return undefined
+  return ((current - prior) / prior) * 100
+}
+
+export async function HubSpotPerformanceReport({ clientSlug }: HubSpotPerformanceProps) {
+  // Sequential — HubSpot search API is rate-limited to 4 req/s
+  const deals    = await getPipelineDeals(clientSlug)
+  const ownerMap = await getOwnerMap(clientSlug)
+
+  const closeYear = (d: { properties: { closedate: string | null } }, yr: number) => {
+    const cd = d.properties.closedate
+    return cd ? new Date(cd).getFullYear() === yr : false
+  }
+  const is2026Close = (d: { properties: { closedate: string | null } }) => closeYear(d, 2026)
+  const is2025Close = (d: { properties: { closedate: string | null } }) => closeYear(d, 2025)
+
+  // ── 2026 (current year) ───────────────────────────────────────────────────
+  const openDeals = deals.filter((d) => !HIDDEN_STAGE_IDS.has(d.properties.dealstage ?? '') && is2026Close(d))
+  const wonDeals  = deals.filter((d) => d.properties.dealstage === '1043842411' && is2026Close(d))
+
+  const totalOpenValue = openDeals.reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? '') || 0), 0)
+  const totalWonValue  = wonDeals.reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? '') || 0), 0)
+  const weightedValue  = openDeals.reduce((sum, d) => {
+    const amount = parseFloat(d.properties.amount ?? '') || 0
+    const prob   = parseFloat(d.properties.hs_deal_stage_probability ?? '') || 0
+    return sum + amount * prob
+  }, 0)
+
+  // ── 2025 (prior year, for YoY) ────────────────────────────────────────────
+  const openDeals2025 = deals.filter((d) => !HIDDEN_STAGE_IDS.has(d.properties.dealstage ?? '') && is2025Close(d))
+  const wonDeals2025  = deals.filter((d) => d.properties.dealstage === '1043842411' && is2025Close(d))
+
+  const totalOpenValue2025 = openDeals2025.reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? '') || 0), 0)
+  const totalWonValue2025  = wonDeals2025.reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? '') || 0), 0)
+  const weightedValue2025  = openDeals2025.reduce((sum, d) => {
+    const amount = parseFloat(d.properties.amount ?? '') || 0
+    const prob   = parseFloat(d.properties.hs_deal_stage_probability ?? '') || 0
+    return sum + amount * prob
+  }, 0)
+
+  const closeDateYear = (d: { properties: { closedate: string | null } }) => {
+    const cd = d.properties.closedate
+    return cd ? new Date(cd).getFullYear() : null
+  }
+
+  const buildStageData = (yearFilter: number): StageData[] => {
+    const byStage: Record<string, typeof deals> = {}
+    for (const deal of deals) {
+      if (HIDDEN_STAGE_IDS.has(deal.properties.dealstage ?? '')) continue
+      if (closeDateYear(deal) !== yearFilter) continue
+      const s = deal.properties.dealstage ?? 'unknown'
+      if (!byStage[s]) byStage[s] = []
+      byStage[s].push(deal)
+    }
+    return STAGE_ORDER
+      .filter((s) => byStage[s])
+      .map((s) => {
+        const stageDeals = byStage[s]
+        const totalVal    = stageDeals.reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? '') || 0), 0)
+        const weightedVal = stageDeals.reduce((sum, d) => {
+          const amount = parseFloat(d.properties.amount ?? '') || 0
+          const prob   = parseFloat(d.properties.hs_deal_stage_probability ?? '') || 0
+          return sum + amount * prob
+        }, 0)
+        const sortedDeals = [...stageDeals].sort((a, b) => {
+          const aDate = a.properties.closedate ? new Date(a.properties.closedate).getTime() : 0
+          const bDate = b.properties.closedate ? new Date(b.properties.closedate).getTime() : 0
+          return aDate - bDate
+        })
+        return {
+          id: s,
+          label: STAGE_LABELS[s] ?? s,
+          count: stageDeals.length,
+          totalValue: fmtUSD(totalVal),
+          weightedValue: fmtUSD(weightedVal),
+          deals: sortedDeals.map((d) => ({
+            id: d.id,
+            dealname: d.properties.dealname ?? '',
+            amount: fmtUSDStr(d.properties.amount),
+            closedate: fmtDate(d.properties.closedate),
+            owner: d.properties.hubspot_owner_id
+              ? (ownerMap[d.properties.hubspot_owner_id] ?? d.properties.hubspot_owner_id)
+              : '—',
+            timeInStage: fmtTimeInStage(d.properties['hs_v2_date_entered_current_stage']),
+            daysOld: fmtDaysOld(d.properties.createdate),
+          })),
+        }
+      })
+  }
+
+  const stageData     = buildStageData(2026)
+  const graveyardData = buildStageData(2025)
+
+  // Pipeline by owner — active 2026 deals grouped by owner, sorted by total value desc
+  const byOwner: Record<string, typeof deals> = {}
+  for (const deal of deals) {
+    if (HIDDEN_STAGE_IDS.has(deal.properties.dealstage ?? '')) continue
+    if (closeDateYear(deal) !== 2026) continue
+    const ownerId = deal.properties.hubspot_owner_id ?? 'unassigned'
+    if (!byOwner[ownerId]) byOwner[ownerId] = []
+    byOwner[ownerId].push(deal)
+  }
+
+  const ownerData: StageData[] = Object.entries(byOwner)
+    .map(([ownerId, ownerDeals]) => {
+      const totalVal    = ownerDeals.reduce((sum, d) => sum + (parseFloat(d.properties.amount ?? '') || 0), 0)
+      const weightedVal = ownerDeals.reduce((sum, d) => {
+        const amount = parseFloat(d.properties.amount ?? '') || 0
+        const prob   = parseFloat(d.properties.hs_deal_stage_probability ?? '') || 0
+        return sum + amount * prob
+      }, 0)
+      const sortedDeals = [...ownerDeals].sort((a, b) => {
+        const aDate = a.properties.closedate ? new Date(a.properties.closedate).getTime() : 0
+        const bDate = b.properties.closedate ? new Date(b.properties.closedate).getTime() : 0
+        return aDate - bDate
+      })
+      const ownerName = ownerId === 'unassigned' ? 'Unassigned' : (ownerMap[ownerId] ?? ownerId)
+      return {
+        id: ownerId,
+        label: ownerName,
+        count: ownerDeals.length,
+        totalValue: fmtUSD(totalVal),
+        weightedValue: fmtUSD(weightedVal),
+        deals: sortedDeals.map((d) => ({
+          id: d.id,
+          dealname: d.properties.dealname ?? '',
+          amount: fmtUSDStr(d.properties.amount),
+          closedate: fmtDate(d.properties.closedate),
+          owner: STAGE_LABELS[d.properties.dealstage ?? ''] ?? d.properties.dealstage ?? '—',
+          timeInStage: fmtTimeInStage(d.properties['hs_v2_date_entered_current_stage']),
+          daysOld: fmtDaysOld(d.properties.createdate),
+        })),
+      }
+    })
+    .sort((a, b) => {
+      const aVal = parseFloat(a.totalValue.replace(/[^0-9.-]/g, '')) || 0
+      const bVal = parseFloat(b.totalValue.replace(/[^0-9.-]/g, '')) || 0
+      return bVal - aVal
+    })
+
+  // Lead source breakdown — open 2026 deals grouped by deal_source_1
+  const leadSourceGroups: Record<string, typeof openDeals> = {}
+  for (const deal of openDeals) {
+    const src = deal.properties['deal_source_1'] ?? 'Unknown'
+    if (!leadSourceGroups[src]) leadSourceGroups[src] = []
+    leadSourceGroups[src].push(deal)
+  }
+  const leadSourceData = Object.entries(leadSourceGroups)
+    .map(([source, groupDeals]) => ({
+      source,
+      count: groupDeals.length,
+      deals: [...groupDeals]
+        .sort((a, b) => {
+          const aDate = a.properties.closedate ? new Date(a.properties.closedate).getTime() : 0
+          const bDate = b.properties.closedate ? new Date(b.properties.closedate).getTime() : 0
+          return aDate - bDate
+        })
+        .map((d) => ({
+          id: d.id,
+          dealname: d.properties.dealname ?? '',
+          amount: fmtUSDStr(d.properties.amount),
+          closedate: fmtDate(d.properties.closedate),
+          owner: d.properties.hubspot_owner_id
+            ? (ownerMap[d.properties.hubspot_owner_id] ?? d.properties.hubspot_owner_id)
+            : '—',
+          timeInStage: fmtTimeInStage(d.properties['hs_v2_date_entered_current_stage']),
+          daysOld: fmtDaysOld(d.properties.createdate),
+        })),
+    }))
+    .sort((a, b) => b.count - a.count)
+
   return (
     <div className="space-y-8">
       <div>
         <p className="text-sm font-bold uppercase tracking-widest text-text-muted">
-          CRM &amp; Pipeline
+          Pipeline Performance
         </p>
         <h2 className="text-3xl font-extrabold uppercase text-white">
-          HubSpot{' '}
-          <span className="gradient-text-full">Performance</span>
+          New Business
         </h2>
       </div>
 
+      {/* Summary cards */}
       <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-        {DEMO_KPIS.map((kpi) => (
-          <KpiCard
-            key={kpi.title}
-            title={kpi.title}
-            value={kpi.value}
-            delta={kpi.delta}
-            prefix={kpi.prefix}
-            suffix={kpi.suffix}
-
-          />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div>
-          <h3 className="mb-4 text-lg font-bold text-white">Pipeline Funnel Trend</h3>
-          <AreaChart
-            data={DEMO_PIPELINE_TREND}
-            xKey="date"
-            yKeys={[
-              { key: 'contacts', color: CHART_COLORS.hubspot, label: 'Contacts' },
-              { key: 'mqls', color: CHART_COLORS.email, label: 'MQLs' },
-              { key: 'sqls', color: CHART_COLORS.positive, label: 'SQLs' },
-            ]}
-            height={320}
-          />
-        </div>
-        <div>
-          <h3 className="mb-4 text-lg font-bold text-white">Lead Sources</h3>
-          <DonutChart data={DEMO_LEAD_SOURCES} height={320} />
-        </div>
-      </div>
-
-      <div>
-        <h3 className="mb-4 text-lg font-bold text-white">Recent Deals</h3>
-        <DataTable
-          columns={[
-            { key: 'deal', label: 'Deal' },
-            { key: 'stage', label: 'Stage' },
-            { key: 'value', label: 'Value', align: 'right' },
-            { key: 'daysOpen', label: 'Days Open', align: 'right' },
-            { key: 'owner', label: 'Owner' },
-          ]}
-          rows={DEMO_DEALS}
+        <KpiCard
+          title="Open Deals"
+          value={openDeals.length}
+          delta={yoyDelta(openDeals.length, openDeals2025.length)}
+          deltaLabel="vs 2025"
+          subValue={openDeals2025.length > 0 ? `${openDeals2025.length} in 2025` : undefined}
+          tooltip="Count of deals in active pipeline stages (excludes Closed Won, Closed Lost, and Not Ready) with a 2026 close date."
+        />
+        <KpiCard
+          title="Total Pipeline"
+          value={fmtUSD(totalOpenValue)}
+          delta={yoyDelta(totalOpenValue, totalOpenValue2025)}
+          deltaLabel="vs 2025"
+          subValue={totalOpenValue2025 > 0 ? `${fmtUSD(totalOpenValue2025)} in 2025` : undefined}
+          tooltip="Sum of deal amounts for active-stage deals with a 2026 close date. Excludes Closed Won, Closed Lost, and Not Ready at This Time."
+        />
+        <KpiCard
+          title="Closed Won"
+          value={fmtUSD(totalWonValue)}
+          delta={yoyDelta(totalWonValue, totalWonValue2025)}
+          deltaLabel="vs 2025"
+          subValue={totalWonValue2025 > 0 ? `${fmtUSD(totalWonValue2025)} in 2025` : undefined}
+          tooltip="Sum of deal amounts where the stage is Closed Won and the close date falls in 2026 (current fiscal year)."
+        />
+        <KpiCard
+          title="Weighted Pipeline"
+          value={fmtUSD(weightedValue)}
+          delta={yoyDelta(weightedValue, weightedValue2025)}
+          deltaLabel="vs 2025"
+          subValue={weightedValue2025 > 0 ? `${fmtUSD(weightedValue2025)} in 2025` : undefined}
+          tooltip="Sum of (deal amount × stage probability) for active-stage deals with a 2026 close date. Reflects expected revenue adjusted for win likelihood."
         />
       </div>
 
-      <p className="text-xs text-text-muted">Demo data — connect HubSpot to see real metrics</p>
+      {/* Open deals by lead source */}
+      {leadSourceData.length > 0 && (
+        <div>
+          <h3 className="mb-4 text-lg font-bold text-white">Open Deals by Lead Source</h3>
+          <LeadSourceChart data={leadSourceData} />
+        </div>
+      )}
+
+      {/* Pipeline by stage — accordion */}
+      <div>
+        <h3 className="mb-4 text-lg font-bold text-white">Pipeline by Stage</h3>
+        <PipelineStageAccordion stages={stageData} />
+      </div>
+
+      {/* Pipeline by owner — accordion */}
+      <div>
+        <h3 className="mb-4 text-lg font-bold text-white">Pipeline by Owner</h3>
+        <PipelineStageAccordion stages={ownerData} dealColumnLabel="Stage" />
+      </div>
+
+      {/* Graveyard — 2025 close dates */}
+      {graveyardData.length > 0 && (
+        <div>
+          <div className="mb-4">
+            <h3 className="text-lg font-bold text-white">Graveyard</h3>
+            <p className="text-xs text-text-muted">Deals with a 2025 close date still in active stages</p>
+          </div>
+          <PipelineStageAccordion stages={graveyardData} />
+        </div>
+      )}
+
+      <p className="text-xs text-text-muted">
+        Live data from HubSpot CRM
+      </p>
     </div>
   )
 }

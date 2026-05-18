@@ -2,10 +2,11 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { getClientBySlug } from '@/lib/clients.config'
 import { REPORT_NAMES } from '@/lib/constants'
-import { Header } from '@/components/layout/header'
+import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
 import { GA4Report } from '@/components/report-sections/ga4'
+import { ConversionJourneyReport } from '@/components/report-sections/ga4/conversion-journey'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
 import { GoogleAdsReport } from '@/components/report-sections/google-ads'
 import { EmailMarketingReport } from '@/components/report-sections/email-marketing'
@@ -17,16 +18,16 @@ import { ShopifyPerformanceReport } from '@/components/report-sections/shopify-p
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
 import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
-import { ConversationalSummary } from '@/components/report-sections/conversational-summary'
 import { FFCIReport } from '@/components/report-sections/ffci'
 import { TikTokShopReport } from '@/components/report-sections/tiktok-shop'
 import { PRPlacementsReport } from '@/components/report-sections/pr-placements'
 import { GoHighLevelReport } from '@/components/report-sections/gohighlevel'
 import { TicketSalesReport } from '@/components/report-sections/ticket-sales'
+import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ExportPdfButton } from '@/components/export-pdf-button'
 import { DataChat } from '@/components/data-chat'
 
-import { ReportDateRange } from '@/app/dashboard/[clientSlug]/reports/[reportSlug]/report-date-range'
 import type { ReportSlug } from '@/lib/clients.config'
 
 function SectionSkeleton() {
@@ -45,47 +46,59 @@ function SectionSkeleton() {
   )
 }
 
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string) {
   switch (slug) {
     case 'exec-summary':
-      return <ExecSummary clientSlug={clientSlug} dateRange={dateRange} />
+      return <ExecSummary clientSlug={clientSlug} />
     case 'ga4':
-      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} />
+      if (subsection === 'conversion-journey') {
+        return <ConversionJourneyReport clientSlug={clientSlug} dateRange={dateRange} />
+      }
+      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'inbound-funnel':
+      return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <MetaAdsReport clientSlug={clientSlug} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <GoogleAdsReport clientSlug={clientSlug} />
     case 'email-marketing':
-      return <EmailMarketingReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':
-      return <BlendedPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <LinkedInAdsReport clientSlug={clientSlug} />
     case 'snapchat-ads':
-      return <SnapchatAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
-      return <TikTokAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <TikTokAdsReport clientSlug={clientSlug} />
     case 'shopify-performance':
-      return <ShopifyPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <ShopifyPerformanceReport clientSlug={clientSlug} />
     case 'hubspot-performance':
-      return <HubSpotPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <HubSpotPerformanceReport clientSlug={clientSlug} />
     case 'reddit-ads':
-      return <RedditAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <RedditAdsReport clientSlug={clientSlug} />
     case 'bing-ads':
-      return <BingAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'conversational-summary':
-      return <ConversationalSummary clientSlug={clientSlug} dateRange={dateRange} />
+      return <BingAdsReport clientSlug={clientSlug} />
     case 'ffci':
-      return <FFCIReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <FFCIReport clientSlug={clientSlug} />
     case 'tiktok-shop':
-      return <TikTokShopReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <TikTokShopReport clientSlug={clientSlug} />
     case 'pr-placements':
-      return <PRPlacementsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <PRPlacementsReport clientSlug={clientSlug} />
     case 'gohighlevel':
-      return <GoHighLevelReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <GoHighLevelReport clientSlug={clientSlug} />
     case 'ticket-sales':
-      return <TicketSalesReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <TicketSalesReport clientSlug={clientSlug} />
   }
+}
+
+const GA4_SUBSECTION_NAMES: Record<string, string> = {
+  'conversion-journey': 'Conversion Journey',
+}
+
+const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
+  'forms':  'Forms',
+  'pacing': 'Pacing',
 }
 
 export default async function PortalReportPage({
@@ -93,39 +106,47 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; section?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string }>
 }) {
   const { clientSlug } = await params
-  const { dateRange: dateRangeParam, section } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection } = await searchParams
   const client = getClientBySlug(clientSlug)
   if (!client) notFound()
 
-  const dateRange = dateRangeParam ?? 'last_30_days'
+  const dateRange    = dateRangeParam  ?? 'last_30_days'
+  const compareRange = compareRangeParam ?? null
 
   // Portal: default to first non-internal report (skip meeting-prep)
-  const portalReports: ReportSlug[] = client.enabledReports.filter(s => s !== 'meeting-prep')
+  const portalReports: ReportSlug[] = client.enabledReports
   const activeSection = (
     portalReports.includes(section as ReportSlug)
       ? section
       : portalReports[0]
   ) as ReportSlug
 
-  const reportName = REPORT_NAMES[activeSection] ?? activeSection
+  const pageTitle =
+    (activeSection === 'ga4' && subsection && GA4_SUBSECTION_NAMES[subsection])
+      ? GA4_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
+      ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
+    : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
     <>
-      <Header title={reportName} subtitle={client.name} logoUrl={client.logoUrl}>
-        <ExportPdfButton />
-        {activeSection !== 'conversational-summary' && activeSection !== 'meeting-prep' && (
-          <ReportDateRange value={dateRange} />
+      <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl}>
+        {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
         )}
-      </Header>
+        <ExportPdfButton />
+      </StickyReportHeader>
 
-      <div className="divider-full mb-8" />
+      <div className="h-8" />
 
-      <ReportErrorBoundary sectionName={reportName}>
+      <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection)}
         </Suspense>
       </ReportErrorBoundary>
 

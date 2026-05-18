@@ -2,34 +2,13 @@ import { notFound } from 'next/navigation'
 import { getClientBySlug } from '@/lib/clients.config'
 import { Header } from '@/components/layout/header'
 import { PlatformCard } from '@/components/auth-hub/platform-card'
-import { DS_IDS } from '@/lib/supermetrics/constants'
-import type { DsId } from '@/lib/supermetrics/constants'
+import { PLATFORM_IDS } from '@/lib/platforms/constants'
+import type { PlatformId } from '@/lib/platforms/constants'
 
-const PLATFORMS: DsId[] = [
-  DS_IDS.GA4,
-  DS_IDS.META,
-  DS_IDS.GOOGLE_ADS,
-  DS_IDS.MAILCHIMP,
-  DS_IDS.KLAVIYO,
-  DS_IDS.LINKEDIN,
-  DS_IDS.TIKTOK,
-  DS_IDS.SNAPCHAT,
-  DS_IDS.REDDIT,
-  DS_IDS.BING_ADS,
-  DS_IDS.SHOPIFY,
-  DS_IDS.HUBSPOT,
-  DS_IDS.TIKTOK_SHOP,
-  DS_IDS.LINKEDIN_PAGES,
-  DS_IDS.FACEBOOK_INSIGHTS,
-  DS_IDS.INSTAGRAM_INSIGHTS,
-  DS_IDS.TIKTOK_INSIGHTS,
-  DS_IDS.SALESFORCE,
-  DS_IDS.X_ADS,
-  DS_IDS.X_INSIGHTS,
-  DS_IDS.WOOCOMMERCE,
-  DS_IDS.APPLOVIN,
-  DS_IDS.AHREFS,
-  DS_IDS.GOOGLE_SEARCH_CONSOLE,
+/** Platforms currently integrated via direct API */
+const ACTIVE_PLATFORMS: PlatformId[] = [
+  PLATFORM_IDS.GA4,
+  PLATFORM_IDS.HUBSPOT,
 ]
 
 export default async function AuthHubPage({
@@ -41,32 +20,51 @@ export default async function AuthHubPage({
   const client = getClientBySlug(clientSlug)
   if (!client) notFound()
 
-  // TODO: Fetch real connection status from Supermetrics once API keys are configured
-  // const connections = await getConnectionStatus(clientSlug)
-  // For now, all platforms show as NOT_CONNECTED
-  const connectionMap: Record<string, { status: 'CONNECTED' | 'EXPIRED' | 'NOT_CONNECTED'; connectedAt?: string }> = {}
+  // Resolve env-var-based connection status server-side
+  const connectionMap: Record<PlatformId, boolean> = {
+    [PLATFORM_IDS.GA4]: !!(client.ga4PropertyId && process.env[client.ga4PropertyId]),
+    [PLATFORM_IDS.HUBSPOT]: !!(client.hubspotToken && process.env[client.hubspotToken]),
+    // Remaining — not yet integrated
+    [PLATFORM_IDS.META]: false,
+    [PLATFORM_IDS.GOOGLE_ADS]: false,
+    [PLATFORM_IDS.MAILCHIMP]: false,
+    [PLATFORM_IDS.KLAVIYO]: false,
+    [PLATFORM_IDS.LINKEDIN]: false,
+    [PLATFORM_IDS.TIKTOK]: false,
+    [PLATFORM_IDS.SNAPCHAT]: false,
+    [PLATFORM_IDS.REDDIT]: false,
+    [PLATFORM_IDS.BING_ADS]: false,
+    [PLATFORM_IDS.SHOPIFY]: false,
+    [PLATFORM_IDS.TIKTOK_SHOP]: false,
+    [PLATFORM_IDS.LINKEDIN_PAGES]: false,
+    [PLATFORM_IDS.FACEBOOK_INSIGHTS]: false,
+    [PLATFORM_IDS.INSTAGRAM_INSIGHTS]: false,
+    [PLATFORM_IDS.TIKTOK_INSIGHTS]: false,
+    [PLATFORM_IDS.SALESFORCE]: false,
+    [PLATFORM_IDS.X_ADS]: false,
+    [PLATFORM_IDS.X_INSIGHTS]: false,
+    [PLATFORM_IDS.WOOCOMMERCE]: false,
+    [PLATFORM_IDS.APPLOVIN]: false,
+    [PLATFORM_IDS.AHREFS]: false,
+    [PLATFORM_IDS.GOOGLE_SEARCH_CONSOLE]: false,
+  }
 
   return (
     <>
       <Header title="Auth Hub" subtitle={client.name}>
         <span className="text-sm text-text-muted">
-          Connect your marketing platforms
+          Platform integrations are managed via environment variables
         </span>
       </Header>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {PLATFORMS.map((dsId) => {
-          const conn = connectionMap[dsId]
-          return (
-            <PlatformCard
-              key={dsId}
-              clientSlug={client.slug}
-              dsId={dsId}
-              status={conn?.status ?? 'NOT_CONNECTED'}
-              connectedAt={conn?.connectedAt}
-            />
-          )
-        })}
+        {ACTIVE_PLATFORMS.map((platformId) => (
+          <PlatformCard
+            key={platformId}
+            platformId={platformId}
+            status={connectionMap[platformId] ? 'CONNECTED' : 'NOT_CONFIGURED'}
+          />
+        ))}
       </div>
     </>
   )

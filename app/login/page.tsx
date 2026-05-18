@@ -1,78 +1,105 @@
 import { AvenueZLogo } from '@/components/layout/avenue-z-logo'
-import { demoLoginInternal, demoLoginClient } from '@/app/actions/demo-auth'
-import { getAllClients } from '@/lib/clients.config'
-import Image from 'next/image'
+import { signInWithCredentials, signInWithGoogle } from '@/app/actions/auth'
 
-export default function LoginPage() {
-  const clients = getAllClients()
+interface LoginPageProps {
+  searchParams: Promise<{ error?: string }>
+}
+
+const ERROR_MESSAGES: Record<string, string> = {
+  CredentialsSignin:      'Invalid email or password.',
+  OAuthAccountNotLinked:  'This email is linked to a different sign-in method.',
+  Default:                'Something went wrong. Please try again.',
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { error } = await searchParams
+  const errorMessage = error ? (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.Default) : null
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-sm rounded-lg border border-white/[0.06] bg-bg-surface p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-black px-4">
+
+      {/* Main card */}
+      <div className="w-full max-w-sm rounded-xl border border-white/[0.06] bg-bg-surface p-8">
         <div className="mb-6 flex justify-center">
           <AvenueZLogo height={22} className="text-white" />
         </div>
 
-        <h1 className="mb-2 text-center text-2xl font-extrabold text-white">
-          Reporting Platform
+        <h1 className="mb-1 text-center text-xl font-extrabold text-white">
+          Marketing Intelligence Platform
         </h1>
         <p className="mb-8 text-center text-sm text-text-muted">
-          Select your account to continue
+          Sign in to your account to continue
         </p>
 
-        {/* Internal — Avenue Z team */}
-        <form action={demoLoginInternal}>
+        {/* Error banner */}
+        {errorMessage && (
+          <div className="mb-5 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Credentials form */}
+        <form action={signInWithCredentials} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-text-muted">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-text-muted outline-none focus:border-white/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-text-muted">
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              required
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-text-muted outline-none focus:border-white/20"
+            />
+          </div>
           <button
             type="submit"
-            className="mb-3 flex w-full items-center gap-3 rounded-[100px] bg-white px-6 py-3 text-sm font-bold text-black transition-opacity hover:opacity-90"
+            className="mt-2 w-full rounded-full bg-white px-6 py-3 text-sm font-bold text-black transition-opacity hover:opacity-90"
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black text-[10px] font-extrabold text-white">
-              AZ
-            </span>
-            Avenue Z Team
+            Sign In
           </button>
         </form>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/[0.06]" />
-          <span className="text-xs font-bold uppercase tracking-widest text-text-muted">
-            Client Portals
-          </span>
-          <div className="h-px flex-1 bg-white/[0.06]" />
-        </div>
-
-        {/* Client portals */}
-        {clients.map((client) => (
-          <form
-            key={client.slug}
-            action={demoLoginClient.bind(null, client.slug, client.name)}
-          >
-            <button
-              type="submit"
-              className="mb-3 flex w-full items-center gap-3 rounded-[100px] bg-[#3a3a3a] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-bg-subtle"
-            >
-              {client.logoUrl ? (
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full overflow-hidden ${
-                  client.slug === 'avenue-z' ? 'bg-black p-1' : ''
-                }`}>
-                  <Image
-                    src={client.logoUrl}
-                    alt={client.name}
-                    width={28}
-                    height={28}
-                    className={client.slug === 'avenue-z' ? 'h-4 w-4 object-contain' : 'h-7 w-7 rounded-full object-cover'}
-                  />
-                </span>
-              ) : (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-extrabold">
-                  {client.name.charAt(0)}
-                </span>
-              )}
-              {client.name}
-            </button>
-          </form>
-        ))}
       </div>
+
+      {/* One-click preview access for teammates */}
+      <form action={signInWithCredentials}>
+        <input type="hidden" name="email"    value="demo@avenuez.com" />
+        <input type="hidden" name="password" value="demo" />
+        <button
+          type="submit"
+          className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/70 transition-all hover:border-white/20 hover:text-white"
+        >
+          Preview Access
+        </button>
+      </form>
+
+      {/* Avenue Z employee Google sign-in footnote */}
+      <p className="text-center text-sm text-text-muted">
+        Avenue Z employee?{' '}
+        <form action={signInWithGoogle} className="inline">
+          <button
+            type="submit"
+            className="font-semibold text-white underline underline-offset-2 transition-opacity hover:opacity-70"
+          >
+            Sign in with Google
+          </button>
+        </form>
+      </p>
+
     </div>
   )
 }

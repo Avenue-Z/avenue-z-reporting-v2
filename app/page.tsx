@@ -1,15 +1,22 @@
 import { redirect } from 'next/navigation'
-import { getDemoSession } from '@/lib/demo-auth'
+import { auth } from '@/auth'
+
+const INTERNAL_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
 
 export default async function Home() {
-  const session = await getDemoSession()
+  const session = await auth()
 
-  if (session?.role === 'internal') {
+  if (!session) redirect('/login')
+
+  if (INTERNAL_ROLES.has(session.user.role ?? '')) {
     redirect('/dashboard')
   }
-  if (session?.role === 'client' && session.clientSlug) {
-    redirect(`/portal/${session.clientSlug}/reports`)
+
+  // Client users → their own portal
+  if (session.user.clientSlug) {
+    redirect(`/portal/${session.user.clientSlug}/reports`)
   }
 
+  // Fallback — shouldn't normally be reached
   redirect('/login')
 }
