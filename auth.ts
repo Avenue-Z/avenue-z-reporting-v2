@@ -3,9 +3,20 @@ import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 import { getClientByEmail } from '@/lib/clients.config'
 
+const WORKSPACE_DOMAIN = 'avenuez.com'
+const WORKSPACE_DEFAULT_ROLE = 'INTERNAL_ANALYST'
+const WORKSPACE_DEFAULT_SLUG = 'avenue-z'
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    Google,
+    Google({
+      authorization: {
+        params: {
+          hd: WORKSPACE_DOMAIN,
+          prompt: 'select_account',
+        },
+      },
+    }),
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -25,11 +36,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    async signIn({ account, profile }) {
+      if (account?.provider !== 'google') return true
+      const email = profile?.email
+      const verified = (profile as { email_verified?: boolean } | null | undefined)?.email_verified
+      if (!email?.endsWith(`@${WORKSPACE_DOMAIN}`) || !verified) return false
+      return true
+    },
     async jwt({ token, user }) {
       if (user?.email) {
         const clientConfig = getClientByEmail(user.email)
-        token.role = clientConfig?.role ?? 'CLIENT_VIEWER'
-        token.clientSlug = clientConfig?.slug ?? null
+        if (clientConfig) {
+          token.role = clientConfig.role
+          token.clientSlug = clientConfig.slug
+        } else if (user.email.endsWith(`@${WORKSPACE_DOMAIN}`)) {
+          token.role = WORKSPACE_DEFAULT_ROLE
+          token.clientSlug = WORKSPACE_DEFAULT_SLUG
+        } else {
+          token.role = 'CLIENT_VIEWER'
+          token.clientSlug = null
+        }
       }
       return token
     },
