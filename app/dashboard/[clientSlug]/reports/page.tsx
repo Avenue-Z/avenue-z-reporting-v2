@@ -55,6 +55,9 @@ function getReportComponent(
       if (subsection === 'conversion-journey') {
         return <ConversionJourneyReport clientSlug={clientSlug} dateRange={dateRange} />
       }
+      if (subsection === 'search-console') {
+        return <GoogleSearchConsoleReport clientSlug={clientSlug} />
+      }
       return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'google-search-console':
       return <GoogleSearchConsoleReport clientSlug={clientSlug} />
@@ -63,7 +66,7 @@ function getReportComponent(
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'peec-ai':
-      if (subsection === 'pr-influence')    return <PRInfluenceReport />
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} />
       if (subsection === 'content-impact')  return <ContentImpactReport />
       if (subsection === 'technical-audit') return <TechnicalAuditReport />
       return <PeecAIReport />
@@ -74,6 +77,7 @@ function getReportComponent(
 
 const GA4_SUBSECTION_NAMES: Record<string, string> = {
   'conversion-journey': 'Conversion Journey',
+  'search-console':     'Search Console',
 }
 
 const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
@@ -124,7 +128,7 @@ export default async function ReportPage({
   return (
     <>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl}>
-        {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && (
+        {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && subsection !== 'search-console' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>

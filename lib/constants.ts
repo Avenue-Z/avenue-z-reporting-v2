@@ -101,7 +101,7 @@ export const AEO_SUBSECTIONS: { id: string | null; label: string; comingSoon?: b
 export const GA4_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
   { id: null,                 label: 'Overview'           },
   { id: 'conversion-journey', label: 'Conversion Journey' },
-  { id: 'search-console',     label: 'Search Console',    comingSoon: true },
+  { id: 'search-console',     label: 'Search Console' },
 ]
 
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */
