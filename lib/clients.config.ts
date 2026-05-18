@@ -31,6 +31,7 @@ export type ReportSlug =
   | 'demand-overview'
   | 'ai-summaries'
   | 'report-generator'
+  | 'request-a-report'
 
 export interface PRConfig {
   keywords: string[]
@@ -82,12 +83,11 @@ export const clients: ClientConfig[] = [
     hubspotToken: 'HUBSPOT_ACCESS_TOKEN_AVENUE_Z',    // HubSpot Private App token
     enabledReports: [
       'demand-overview',
-      'ai-summaries',
-      'report-generator',
       'ga4',
       'hubspot-performance',
       'inbound-funnel',
       'peec-ai',
+      'request-a-report',
     ],
     hiddenReports: ['exec-summary'],
     prConfig: {

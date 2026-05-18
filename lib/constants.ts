@@ -69,6 +69,7 @@ export const REPORT_NAMES: Record<string, string> = {
   salesforce: 'Salesforce',
   gohighlevel: 'GoHighLevel',
   'ticket-sales': 'Ticket Sales',
+  'request-a-report': 'Request a Report',
 }
 
 /** Sidebar nav groups in display order */
@@ -85,7 +86,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
   },
   {
     label: 'Tools',
-    slugs: ['ai-summaries', 'report-generator'],
+    slugs: ['request-a-report'],
   },
 ]
 
@@ -114,4 +115,5 @@ export const ALL_REPORT_SLUGS: string[] = [
   'ga4',
   'inbound-funnel',
   'hubspot-performance',
+  'request-a-report',
 ]

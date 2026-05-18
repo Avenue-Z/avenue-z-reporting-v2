@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/clients.config'
 import { REPORT_NAMES } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
@@ -16,6 +17,7 @@ import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/techn
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
 import { AISummariesReport } from '@/components/report-sections/ai-summaries'
 import { ReportGeneratorReport } from '@/components/report-sections/report-generator'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/period-selector'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import type { ReportSlug } from '@/lib/clients.config'
@@ -43,8 +45,11 @@ function getReportComponent(
   compareRange: string | null,
   subsection?: string,
   period?: SummaryPeriod,
+  submittedBy?: string,
 ) {
   switch (slug) {
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'ai-summaries':
       return <AISummariesReport clientSlug={clientSlug} period={period} />
     case 'report-generator':
@@ -103,6 +108,9 @@ export default async function ReportPage({
   const client = getClientBySlug(clientSlug)
   if (!client) notFound()
 
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
+
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)
       ? section
@@ -139,7 +147,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy)}
         </Suspense>
       </ReportErrorBoundary>
     </>
