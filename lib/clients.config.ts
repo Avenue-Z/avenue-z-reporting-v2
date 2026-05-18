@@ -73,6 +73,21 @@ export interface ClientConfig {
 
 export const clients: ClientConfig[] = [
   {
+    slug: 'wellnessspace',
+    name: 'WellnessSpace',
+    enabledReports: [
+      'demand-overview',
+      'ga4',
+      'hubspot-performance',
+      'inbound-funnel',
+      'peec-ai',
+    ],
+    users: [
+      { email: 'nick@avenuez.com', role: 'INTERNAL_ADMIN' },
+      { email: 'demo@avenuez.com', role: 'INTERNAL_ANALYST' },
+    ],
+  },
+  {
     slug: 'avenue-z',
     name: 'Avenue Z',
     logoUrl: '/logos/AvenueZ_White.png',
