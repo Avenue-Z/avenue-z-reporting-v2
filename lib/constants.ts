@@ -91,11 +91,10 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
 
 /** Sub-items shown under the Answer Engine Optimization parent nav item */
 export const AEO_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
-  { id: null,             label: 'Peec AI'        },
-  { id: 'pr-influence',   label: 'PR Influence'   },
-  { id: 'content-impact', label: 'Content Impact' },
+  { id: null,             label: 'Overview'            },
+  { id: 'pr-influence',   label: 'PR Influence'        },
+  { id: 'content-impact', label: 'Content Impact'      },
   { id: 'technical-audit',label: 'Technical Performance'},
-  { id: 'profound',       label: 'Profound', comingSoon: true },
 ]
 
 /** Sub-items shown under the Web Analytics (ga4) parent nav item */

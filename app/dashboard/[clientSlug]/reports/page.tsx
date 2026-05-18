@@ -13,7 +13,6 @@ import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
 import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
-import { ProfoundAIReport } from '@/components/report-sections/profound-ai'
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
 import { AISummariesReport } from '@/components/report-sections/ai-summaries'
 import { ReportGeneratorReport } from '@/components/report-sections/report-generator'
@@ -68,8 +67,6 @@ function getReportComponent(
       if (subsection === 'content-impact')  return <ContentImpactReport />
       if (subsection === 'technical-audit') return <TechnicalAuditReport />
       return <PeecAIReport />
-    case 'profound-ai':
-      return <ProfoundAIReport />
     default:
       return null
   }
