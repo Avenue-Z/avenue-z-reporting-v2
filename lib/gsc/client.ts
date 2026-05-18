@@ -69,16 +69,14 @@ interface GSCResponse {
 
 async function gscPost(siteUrl: string, body: GSCQueryBody): Promise<GSCResponse> {
   const auth = getAuth()
-  const authHeaders = await auth.getRequestHeaders()
+  const headers = await auth.getRequestHeaders()
+  headers.set('Content-Type', 'application/json')
   const encoded = encodeURIComponent(siteUrl)
   const res = await fetch(
     `https://www.googleapis.com/webmasters/v3/sites/${encoded}/searchAnalytics/query`,
     {
       method: 'POST',
-      headers: {
-        ...authHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
       cache: 'no-store',
     }
