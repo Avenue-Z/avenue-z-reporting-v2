@@ -18,7 +18,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen bg-black" data-print-layout>
       <Suspense>
-        <Sidebar />
+        <Sidebar user={session.user} />
       </Suspense>
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-7xl px-8 py-8">{children}</div>
