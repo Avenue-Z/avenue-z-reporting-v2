@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { REPORT_NAMES } from '@/lib/constants'
-import type { ReportSlug } from '@/lib/clients.config'
+import type { ReportSlug } from '@/lib/db/schema'
 
 export function PortalReportNav({
   sections,

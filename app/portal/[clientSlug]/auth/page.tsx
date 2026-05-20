@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { PlatformCard } from '@/components/auth-hub/platform-card'
 import { PLATFORM_IDS } from '@/lib/platforms/constants'
 import type { PlatformId } from '@/lib/platforms/constants'
@@ -16,12 +16,12 @@ export default async function ClientAuthPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   const connectionMap: Record<PlatformId, boolean> = {
     [PLATFORM_IDS.GA4]: !!(client.ga4PropertyId && process.env[client.ga4PropertyId]),
-    [PLATFORM_IDS.HUBSPOT]: !!(client.hubspotToken && process.env[client.hubspotToken]),
+    [PLATFORM_IDS.HUBSPOT]: !!(client.hubspotTokenEnvVar && process.env[client.hubspotTokenEnvVar]),
     [PLATFORM_IDS.META]: false,
     [PLATFORM_IDS.GOOGLE_ADS]: false,
     [PLATFORM_IDS.MAILCHIMP]: false,
