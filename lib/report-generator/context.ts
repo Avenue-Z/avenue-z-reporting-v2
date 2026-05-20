@@ -14,7 +14,7 @@ import {
   getPipelineDeals,
 } from '@/lib/hubspot/client'
 import { getPeecOverview } from '@/lib/peec/client'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -234,7 +234,7 @@ export async function fetchDataSnapshot(
   clientSlug: string,
   period: SummaryPeriod = 'monthly',
 ): Promise<DataSnapshot> {
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) return { fetchedAt: new Date().toISOString(), dateLabel: 'Last 30 days' }
 
   const { days, label } = PERIOD_CONFIG[period]

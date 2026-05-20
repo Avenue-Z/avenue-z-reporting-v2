@@ -1,19 +1,19 @@
 import { cache } from 'react'
 import { Client } from '@hubspot/api-client'
 import { FilterOperatorEnum as DealFilterOp } from '@hubspot/api-client/lib/codegen/crm/deals/models/Filter'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 
 const _clients = new Map<string, Client>()
 
-export function getHubSpotClient(clientSlug: string): Client {
+export async function getHubSpotClient(clientSlug: string): Promise<Client> {
   if (_clients.has(clientSlug)) return _clients.get(clientSlug)!
 
-  const config = getClientBySlug(clientSlug)
+  const config = await getClientBySlug(clientSlug)
   if (!config) throw new Error(`Unknown client: ${clientSlug}`)
-  if (!config.hubspotToken) throw new Error(`HubSpot not configured for client: ${clientSlug}`)
+  if (!config.hubspotTokenEnvVar) throw new Error(`HubSpot not configured for client: ${clientSlug}`)
 
-  const token = process.env[config.hubspotToken]
-  if (!token) throw new Error(`Missing env var: ${config.hubspotToken}`)
+  const token = process.env[config.hubspotTokenEnvVar]
+  if (!token) throw new Error(`Missing env var: ${config.hubspotTokenEnvVar}`)
 
   const client = new Client({ accessToken: token })
   _clients.set(clientSlug, client)
@@ -38,7 +38,7 @@ export type OwnerMap = Record<string, string>
 
 /** Fetch all deals in pipeline 714699412, paginating until exhausted. */
 export async function getPipelineDeals(clientSlug: string): Promise<HubSpotDeal[]> {
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
   const deals: HubSpotDeal[] = []
   let after: string | undefined
 
@@ -70,7 +70,7 @@ export async function getPipelineDeals(clientSlug: string): Promise<HubSpotDeal[
 
 /** Fetch all owners and return a map of id → display name. */
 export async function getOwnerMap(clientSlug: string): Promise<OwnerMap> {
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
   const map: OwnerMap = {}
 
   try {
@@ -106,7 +106,7 @@ type InboundBuckets = {
 }
 
 const load2025InboundContacts = cache(async (clientSlug: string): Promise<InboundBuckets> => {
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
   const yrStart = String(new Date('2025-01-01T00:00:00Z').getTime())
   const yrEnd   = String(new Date('2026-01-01T00:00:00Z').getTime())
 
@@ -178,7 +178,7 @@ const load2025InboundContacts = cache(async (clientSlug: string): Promise<Inboun
 })
 
 const load2026InboundContacts = cache(async (clientSlug: string): Promise<InboundBuckets> => {
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
   const yr2026Start = String(new Date('2026-01-01T00:00:00Z').getTime())
   const yr2026End   = String(new Date('2027-01-01T00:00:00Z').getTime())
 
@@ -271,7 +271,7 @@ function sumDays(byDay: Record<string, ProfileBucket>, startDate: Date, endDate:
 
 /** Fetch inbound funnel contact counts by source and profile. */
 export async function getContactStats(clientSlug: string) {
-  const hs   = getHubSpotClient(clientSlug)
+  const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
   const yr2026Start = String(new Date('2026-01-01T00:00:00Z').getTime())
@@ -317,7 +317,7 @@ export async function getContactStatsYoY(clientSlug: string): Promise<{
   mcp: number
   offline: number | null
 }> {
-  const hs   = getHubSpotClient(clientSlug)
+  const hs   = await getHubSpotClient(clientSlug)
   const data = await load2025InboundContacts(clientSlug)
 
   // Mirror the 2026 YTD window in 2025
@@ -391,7 +391,7 @@ function countWorkingDays(start: Date, end: Date): number {
 
 /** Current-week daily breakdown vs previous-quarter working average. */
 export async function getWeeklyContactStats(clientSlug: string): Promise<WeeklyContactStats> {
-  const hs   = getHubSpotClient(clientSlug)
+  const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
   const today = new Date()
@@ -567,7 +567,7 @@ export type MonthlyContactResult = {
 
 /** Monthly breakdown of 2026 inbound contacts by profile, plus KPI stats. */
 export async function getMonthlyContactBreakdown(clientSlug: string): Promise<MonthlyContactResult> {
-  const hs   = getHubSpotClient(clientSlug)
+  const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
   const today = new Date()
@@ -742,7 +742,7 @@ export type YearlyContactStats = {
 
 /** Current YTD vs same period last year, full last year, and full year before that. */
 export async function getYearlyContactStats(clientSlug: string): Promise<YearlyContactStats> {
-  const hs   = getHubSpotClient(clientSlug)
+  const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
   const today = new Date()
@@ -890,7 +890,7 @@ export async function getContactStatsForRange(
     cur.setUTCDate(cur.getUTCDate() + 1)
   }
 
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
   let offline: number | null = null
   try {
     const res = await hs.crm.contacts.searchApi.doSearch({
@@ -909,7 +909,7 @@ export async function getContactStatsForRange(
 
 /** Fetch total contact and deal counts plus recent closed-won deals. */
 export async function getHubSpotSummary(clientSlug: string) {
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
 
   const [contactsRes, dealsRes, closedDealsRes] = await Promise.all([
     hs.crm.contacts.searchApi.doSearch({ filterGroups: [], properties: [], limit: 1, after: '0', sorts: [] }),
@@ -1080,7 +1080,7 @@ export async function getLifecycleStageCounts(
   startDate:  string,
   endDate:    string,
 ): Promise<LifecycleStageCount[]> {
-  const hs      = getHubSpotClient(clientSlug)
+  const hs      = await getHubSpotClient(clientSlug)
   const start   = new Date(`${startDate}T00:00:00Z`)
   const endIncl = new Date(`${endDate}T00:00:00Z`)
   endIncl.setUTCDate(endIncl.getUTCDate() + 1)
@@ -1113,7 +1113,7 @@ export interface FormMetaEntry {
 }
 
 export async function getFormMetadata(clientSlug: string): Promise<FormMetaEntry[]> {
-  const hs = getHubSpotClient(clientSlug)
+  const hs = await getHubSpotClient(clientSlug)
   const forms: FormMetaEntry[] = []
   let after: string | undefined
   try {
@@ -1157,9 +1157,9 @@ export const getFormSubmissionCounts = cache(async (
   startDate:  string,
   endDate:    string,
 ): Promise<FormSubmissionCount[]> => {
-  const config = getClientBySlug(clientSlug)
-  if (!config?.hubspotToken) return []
-  const token = process.env[config.hubspotToken]
+  const config = await getClientBySlug(clientSlug)
+  if (!config?.hubspotTokenEnvVar) return []
+  const token = process.env[config.hubspotTokenEnvVar]
   if (!token) return []
 
   const forms = await getFormMetadata(clientSlug)
@@ -1216,7 +1216,7 @@ export const getFormSubmissionCounts = cache(async (
   // ── Pass 2a: fetch all customer emails via EQ query (reliable) ───────────
   const customerEmails = new Set<string>()
   try {
-    const hsCust = getHubSpotClient(clientSlug)
+    const hsCust = await getHubSpotClient(clientSlug)
     let afterCust = '0'
     let custPage  = 0
     do {
@@ -1254,7 +1254,7 @@ export const getFormSubmissionCounts = cache(async (
   const profiles: Record<string, { isIcp: boolean; isMcp: boolean }> = {}
 
   if (allEmails.length > 0) {
-    const hs = getHubSpotClient(clientSlug)
+    const hs = await getHubSpotClient(clientSlug)
     for (let i = 0; i < allEmails.length; i += 100) {
       const chunk = allEmails.slice(i, i + 100)
       try {
