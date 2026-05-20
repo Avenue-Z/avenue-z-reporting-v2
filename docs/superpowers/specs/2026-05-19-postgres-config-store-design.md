@@ -240,3 +240,4 @@ Tracked here for visibility; not in scope for this branch:
 - **Audit log table** — track logins, config changes; future compliance need.
 - **Neon branching for previews** — per-PR copy-on-write DBs.
 - **Analytics consolidation onto BigQuery** — migrate report sections off live APIs.
+- **Extract sidebar Client Components** — `components/layout/sidebar.tsx` and `portal-sidebar.tsx` are currently Client Components using `usePathname` / `useSearchParams` hooks. In this branch they receive `clients` as a prop from their async Server Component parent layouts. A future refactor can split each sidebar into a thin Server Component wrapper (handles data fetching) plus a Client Component child (handles interactive routing), which is the Next.js App Router-idiomatic pattern. Doing this as a separate, focused PR keeps the DB migration PR mechanical and easier to review.
