@@ -11,7 +11,7 @@ A white-labeled, multi-client marketing reporting platform built on the
 data, connection state, workspace permissions, and OAuth flows. This app is
 primarily a **presentation and routing layer** on top of those APIs.
 
-**No database. No ORM. No external auth service fees.**
+**No external auth service fees.**
 
 Two audiences:
 
@@ -35,7 +35,7 @@ Two product areas:
 | UI | **shadcn/ui** | Copy-paste, Tailwind-native |
 | Charts | **Tremor + shadcn/ui Charts** | Both on Recharts; Tremor for KPI cards, shadcn for time-series |
 | Styling | **Tailwind CSS v4** | Required by both Tremor and shadcn |
-| Client Config | **`clients.config.ts`** | Flat config file — no database needed |
+| Database | **Neon Postgres + Drizzle ORM** | Stores clients + users; helpers in `lib/db/queries.ts` |
 | Deployment | **Vercel Pro** | ~$20/month per dev seat |
 
 **Total monthly cost: ~$40–60/month** (Vercel Pro for 2–3 devs). Everything else is free or open source.
@@ -53,7 +53,7 @@ Supermetrics permissions — those are managed by Supermetrics workspaces.
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
-import { getClientByEmail } from '@/lib/clients.config'
+import { getClientByEmail } from '@/lib/db/queries'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -62,7 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async session({ session, token }) {
-      const clientConfig = getClientByEmail(token.email)
+      const clientConfig = await getClientByEmail(token.email) // async — DB-backed
       session.user.role = clientConfig?.role ?? 'CLIENT_VIEWER'
       session.user.clientSlug = clientConfig?.slug ?? null
       return session
@@ -71,105 +71,43 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 })
 ```
 
-### Route Protection (`middleware.ts`)
+### Route Protection (`proxy.ts`)
 
-```typescript
-import { auth } from '@/auth'
-
-export default auth((req) => {
-  const { pathname } = req.nextUrl
-  const session = req.auth
-
-  if (!session) return Response.redirect(new URL('/login', req.url))
-
-  // Internal routes — Avenue Z team only
-  if (pathname.startsWith('/dashboard')) {
-    if (
-      session.user.role !== 'INTERNAL_ADMIN' &&
-      session.user.role !== 'INTERNAL_ANALYST'
-    ) {
-      return Response.redirect(new URL('/unauthorized', req.url))
-    }
-  }
-
-  // Client portal — scoped to their own slug only
-  if (pathname.startsWith('/portal')) {
-    const slugInUrl = pathname.split('/')[2]
-    if (session.user.clientSlug !== slugInUrl) {
-      return Response.redirect(new URL('/unauthorized', req.url))
-    }
-  }
-})
-
-export const config = {
-  matcher: ['/dashboard/:path*', '/portal/:path*']
-}
-```
+`middleware.ts` has been removed. Route protection now happens in `proxy.ts`
+combined with NextAuth's JWT callback. The conceptual model is the same:
+unauthenticated requests redirect to `/login`, internal routes (`/dashboard`)
+require `INTERNAL_ADMIN` or `INTERNAL_ANALYST` role, and client portal routes
+(`/portal/[clientSlug]`) are scoped to the session's `clientSlug`. Role and
+`clientSlug` are baked into the JWT at sign-in from the DB lookup — no DB hit
+on subsequent requests.
 
 ---
 
-## Client Configuration (`lib/clients.config.ts`)
+## Client Configuration (Neon Postgres + Drizzle ORM)
 
-This file is the only "database" this app needs. Add one object per client.
+Clients and users now live in a Neon Postgres database. There is no static
+config file.
 
-```typescript
-export type ClientRole =
-  | 'INTERNAL_ADMIN'
-  | 'INTERNAL_ANALYST'
-  | 'CLIENT_ADMIN'
-  | 'CLIENT_VIEWER'
+**Schema and types** — `lib/db/schema.ts` contains the Drizzle table
+definitions for `clients` and `users`, the `clientRole` enum, and the inferred
+TypeScript types (`Client`, `User`, `ClientRole`, `ReportSlug`, `PRConfig`).
+These types are the source of truth — read them for field names and shapes.
 
-export type ReportSlug =
-  | 'exec-summary'
-  | 'ga4'
-  | 'meta-ads'
-  | 'google-ads'
-  | 'email-marketing'
-  | 'blended-performance'
+**Query helpers** — `lib/db/queries.ts` exports the three primary async helpers:
+`getClientBySlug`, `getClientByEmail`, and `getAllClients`. All are wrapped in
+`React.cache()` for per-render deduplication.
 
-export interface ClientConfig {
-  slug: string               // URL slug: /portal/fun-spot
-  name: string               // Display name
-  logoUrl?: string           // Client logo for portal header
-  smWorkspaceId: string      // Supermetrics workspace ID
-  smApiKey: string           // Name of the env var holding their API key
-  enabledReports: ReportSlug[]
-  users: {
-    email: string
-    role: ClientRole
-  }[]
-}
+**Identifiers vs. secrets** — GA4 property IDs and GSC site URLs are
+identifiers stored directly in DB columns (`ga4_property_id`, `gsc_site_url`).
+HubSpot access tokens are secrets: the DB column `hubspot_token_env_var` stores
+only the _name_ of the env var; the value stays in the environment.
 
-export const clients: ClientConfig[] = [
-  {
-    slug: 'fun-spot',
-    name: 'Fun Spot',
-    logoUrl: '/logos/fun-spot.png',
-    smWorkspaceId: 'ws_funspot_123',
-    smApiKey: 'SUPERMETRICS_API_KEY_FUN_SPOT', // name of env var
-    enabledReports: ['exec-summary', 'ga4', 'meta-ads'],
-    users: [
-      { email: 'bill@avenuez.com',     role: 'INTERNAL_ADMIN' },
-      { email: 'contact@fun-spot.com', role: 'CLIENT_VIEWER' },
-    ]
-  },
-  // Add more clients here...
-]
-
-// Helpers
-export const getClientBySlug = (slug: string) =>
-  clients.find(c => c.slug === slug)
-
-export const getClientByEmail = (email?: string | null) =>
-  email
-    ? clients
-        .flatMap(c => c.users.map(u => ({ ...u, slug: c.slug })))
-        .find(u => u.email === email)
-    : null
-```
-
-**To onboard a new client:** add an entry to `clients.config.ts`, add their
-API key to Vercel environment variables, redeploy. Done.
+**To onboard a new client:** insert a row into the `clients` table and one or
+more rows into the `users` table (via Drizzle Studio, the Neon dashboard SQL
+editor, or a future admin UI). If the client uses HubSpot, also add the
+`HUBSPOT_ACCESS_TOKEN_<CLIENT>` env var to Vercel and set `hubspot_token_env_var`
+in the DB row to that var name. No code change, no redeploy required for the
+data entry itself.
 
 ---
 
@@ -360,15 +298,22 @@ Verify exact values against the Supermetrics data sources reference before use.
   /layout/                                      # Shell, sidebar, nav, header
 
 /lib
-  clients.config.ts                             # Client registry — edit to add clients
+  /db/
+    client.ts                                   # Drizzle client singleton (Neon serverless)
+    schema.ts                                   # Table definitions + inferred TS types
+    queries.ts                                  # Async helpers: getClientBySlug, getClientByEmail, getAllClients
   /supermetrics/
     client.ts                                   # smQuery() helper
     auth.ts                                     # Login link + connection status helpers
     constants.ts                                # DS_IDS and other constants
     types.ts                                    # Typed response interfaces
 
+/drizzle/                                       # Auto-generated SQL migrations (committed to git)
+/scripts/
+  seed.ts                                       # One-time seed of initial client/user data
+
 auth.ts                                         # Auth.js v5 config
-middleware.ts                                   # Route protection
+proxy.ts                                        # Route protection (replaces middleware.ts)
 ```
 
 ---
@@ -495,10 +440,16 @@ AUTH_GOOGLE_SECRET=
 NEXT_PUBLIC_APP_URL=                  # e.g. https://reports.avenuez.com
 APP_URL=
 
-# Supermetrics — one per client (name must match smApiKey in clients.config.ts)
-SUPERMETRICS_API_KEY_FUN_SPOT=
-SUPERMETRICS_API_KEY_CLIENT_TWO=
-# ...add one per client
+# Database (Neon Postgres)
+DATABASE_URL=                         # Pooled connection string (app runtime)
+DATABASE_URL_UNPOOLED=                # Direct connection string (Drizzle migrations only)
+
+# Secrets for client integrations — env var NAME is stored in DB; value stays here
+# HubSpot access tokens (one per client that uses HubSpot):
+HUBSPOT_ACCESS_TOKEN_AVENUE_Z=
+
+# Shared service account for GA4 + GSC (property IDs and site URLs are now in the DB)
+GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON key for the Google service account
 ```
 
 ---
@@ -511,8 +462,10 @@ SUPERMETRICS_API_KEY_CLIENT_TWO=
 2. **`ds_id` values live in `lib/supermetrics/constants.ts`.** Never
    hardcode `"GAWA"`, `"FA"`, etc. in components.
 
-3. **Client config lives in `lib/clients.config.ts`.** Never hardcode
-   client names, slugs, or workspace IDs elsewhere.
+3. **Client data lives in the database.** Use `lib/db/queries.ts` to read
+   (always async — add `await`). To write, use Drizzle Studio or the Neon
+   dashboard SQL editor. Schema and inferred TypeScript types are in
+   `lib/db/schema.ts`. Never hardcode client names, slugs, or identifiers.
 
 4. **Each report section is a self-contained RSC** in
    `/components/report-sections/[slug]/`. Props: `clientSlug` and
@@ -544,8 +497,9 @@ CLIENT_ADMIN      → Full access to own client: auth hub + all enabled reports
 CLIENT_VIEWER     → Read-only: own client's enabled reports only
 ```
 
-Role is derived at session time from `clients.config.ts` — no database lookup
-required.
+Role is derived at sign-in from a DB lookup (`getClientByEmail` in `lib/db/queries.ts`)
+and baked into the JWT. Subsequent requests decode role from the token — no DB hit
+per request.
 
 ---
 
