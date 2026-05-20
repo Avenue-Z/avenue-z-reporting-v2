@@ -6,17 +6,20 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { demoLogout } from '@/app/actions/demo-auth'
 import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS } from '@/lib/constants'
-import { getAllClients } from '@/lib/clients.config'
+import type { Client } from '@/lib/db/schema'
 import { LogOut, Lock } from 'lucide-react'
 
-export function PortalSidebar() {
+interface PortalSidebarProps {
+  clients: Client[]
+}
+
+export function PortalSidebar({ clients }: PortalSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   // Extract client slug from /portal/[clientSlug]/...
   const pathParts = pathname.split('/')
   const clientSlug = pathParts[2] ?? ''
-  const clients = getAllClients()
   const client = clients.find((c) => c.slug === clientSlug)
 
   if (!client) return null

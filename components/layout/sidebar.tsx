@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS } from '@/lib/constants'
-import { getAllClients } from '@/lib/clients.config'
+import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
   ChevronLeft,
@@ -45,7 +45,12 @@ interface SidebarUser {
   image?: string | null
 }
 
-export function Sidebar({ user }: { user?: SidebarUser }) {
+interface SidebarProps {
+  user?: SidebarUser
+  clients: Client[]
+}
+
+export function Sidebar({ user, clients }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
@@ -67,6 +72,7 @@ export function Sidebar({ user }: { user?: SidebarUser }) {
         activeSubsection={searchParams.get('subsection')}
         dateRange={searchParams.get('dateRange')}
         user={user}
+        clients={clients}
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
       />
@@ -77,6 +83,7 @@ export function Sidebar({ user }: { user?: SidebarUser }) {
     <MainSidebar
       pathname={pathname}
       user={user}
+      clients={clients}
       collapsed={collapsed}
       onToggle={() => setCollapsed((c) => !c)}
     />
@@ -106,15 +113,16 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 function MainSidebar({
   pathname,
   user,
+  clients,
   collapsed,
   onToggle,
 }: {
   pathname: string
   user?: SidebarUser
+  clients: Client[]
   collapsed: boolean
   onToggle: () => void
 }) {
-  const clients = getAllClients()
 
   return (
     <aside
@@ -251,6 +259,7 @@ function ClientSidebar({
   activeSubsection,
   dateRange,
   user,
+  clients,
   collapsed,
   onToggle,
 }: {
@@ -260,10 +269,10 @@ function ClientSidebar({
   activeSubsection: string | null
   dateRange: string | null
   user?: SidebarUser
+  clients: Client[]
   collapsed: boolean
   onToggle: () => void
 }) {
-  const clients = getAllClients()
   const client = clients.find((c) => c.slug === clientSlug)
   const clientName = client?.name ?? clientSlug
   const isOnReports = pathname === `/dashboard/${clientSlug}/reports`

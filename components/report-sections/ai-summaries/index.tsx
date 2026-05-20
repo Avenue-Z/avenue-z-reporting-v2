@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { CHART_COLORS, REPORT_NAMES } from '@/lib/constants'
 import { fetchDataSnapshot } from '@/lib/report-generator/context'
 import type { DataSnapshot } from '@/lib/report-generator/context'
@@ -273,7 +273,7 @@ interface AISummariesReportProps {
 }
 
 export async function AISummariesReport({ clientSlug, period = 'monthly' }: AISummariesReportProps) {
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) return null
 
   const activeChannels = client.enabledReports

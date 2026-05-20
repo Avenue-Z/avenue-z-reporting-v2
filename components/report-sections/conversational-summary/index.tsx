@@ -1,4 +1,4 @@
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { CHART_COLORS } from '@/lib/constants'
 import { fetchFunSpotData, parseDateRange } from '@/lib/bigquery/client'
 import { generateConversationalSummary, type ConversationalSummaryResponse } from '@/lib/bigquery/gemini'
@@ -133,7 +133,7 @@ function getFallbackSummary(clientSlug: string): ConversationalSummaryResponse {
 }
 
 export async function ConversationalSummary({ clientSlug, dateRange }: ConversationalSummaryProps) {
-  getClientBySlug(clientSlug) // validate client exists
+  await getClientBySlug(clientSlug) // validate client exists
 
   let summary: ConversationalSummaryResponse
   let period: string
