@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { Header } from '@/components/layout/header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -80,7 +80,7 @@ export default async function ReportPage({
 }) {
   const { clientSlug, reportSlug } = await params
   const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   if (!client.enabledReports.includes(reportSlug as typeof client.enabledReports[number])) {

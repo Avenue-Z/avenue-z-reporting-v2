@@ -30,10 +30,11 @@ export const getClientByEmail = cache(async (email: string): Promise<{ email: st
 })
 
 /**
- * List all clients ordered by name.
+ * List all clients ordered by name, including their users.
  */
-export const getAllClients = cache(async (): Promise<Client[]> => {
+export const getAllClients = cache(async (): Promise<(Client & { users: User[] })[]> => {
   return db.query.clients.findMany({
     orderBy: (c, { asc }) => [asc(c.name)],
+    with: { users: true },
   })
 })

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { REPORT_NAMES } from '@/lib/constants'
-import type { ReportSlug } from '@/lib/clients.config'
+import type { ReportSlug } from '@/lib/db/schema'
 
 export function ReportNav({ sections }: { sections: ReportSlug[] }) {
   const [activeSection, setActiveSection] = useState<string>(sections[0])

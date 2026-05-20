@@ -1,4 +1,4 @@
-import { getAllClients } from '@/lib/clients.config'
+import { getAllClients } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { Header } from '@/components/layout/header'
 import {
@@ -54,8 +54,8 @@ function StatusBadge({ connected }: { connected: boolean }) {
   )
 }
 
-export default function SettingsPage() {
-  const clients = getAllClients()
+export default async function SettingsPage() {
+  const clients = await getAllClients()
 
   // Collect all team members across all clients
   const teamMembers = clients.flatMap((client) =>
