@@ -66,7 +66,7 @@ function getReportComponent(
     case 'peec-ai':
       if (subsection === 'pr-influence')    return <PRInfluenceReport />
       if (subsection === 'content-impact')  return <ContentImpactReport />
-      if (subsection === 'technical-audit') return <TechnicalAuditReport />
+      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
       return <PeecAIReport />
     case 'profound-ai':
       return <ProfoundAIReport />

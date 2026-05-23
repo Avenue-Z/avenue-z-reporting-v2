@@ -62,6 +62,40 @@ export interface ClientConfig {
    * e.g. 'HUBSPOT_ACCESS_TOKEN_AVENUE_Z' → process.env.HUBSPOT_ACCESS_TOKEN_AVENUE_Z = 'pat-na1-...'
    */
   hubspotToken?: string
+
+  // ── Technical Audit data connectors ──────────────────────────────────────
+
+  /**
+   * Google Drive file ID for the current Screaming Frog "Internal All" CSV export.
+   * e.g. '1ddlYbe_0wqadeqbIQVAsCt0F_9AOXSe9'
+   * Auth: shared GOOGLE_SERVICE_ACCOUNT_KEY service account (Drive readonly scope).
+   */
+  sfCsvFileId?: string
+
+  /**
+   * Google Drive file ID for the PREVIOUS Screaming Frog "Internal All" CSV export.
+   * Optional — enables delta/trend computation between two crawl snapshots.
+   */
+  sfPrevCsvFileId?: string
+
+  /**
+   * Google Sheets ID for the Sitebulb "Historical Hint Data" sheet.
+   * Wide format: row 0 = hint names, rows 1+ = crawl date + URL counts per hint.
+   * Auth: shared GOOGLE_SERVICE_ACCOUNT_KEY (Sheets readonly scope).
+   */
+  sitebulbSheetId?: string
+
+  /**
+   * Peec customer project ID for Agent Analytics (AI bot crawl data).
+   * Stored directly here (not secret — just an org identifier like "or_043ae735-...").
+   * Only clients with status=CUSTOMER in the Peec workspace have live data.
+   * Verified CUSTOMER clients (2026-05-22):
+   *   Avenue Z, Prometeo, Renaissance, Barilla, CS3, Core Scientific,
+   *   Open Farm Pet, Ualett, HR Performance Solutions
+   * Used with shared env var PEEC_AI_CUSTOMER_TOKEN (skc- key).
+   */
+  peecCustomerProjectId?: string
+
   enabledReports: ReportSlug[]
   hiddenReports?: ReportSlug[]
   prConfig?: PRConfig
@@ -80,6 +114,13 @@ export const clients: ClientConfig[] = [
     ga4PropertyId: 'GA4_PROPERTY_ID_AVENUE_Z',       // e.g. "properties/123456789"
     gscSiteUrl: 'GSC_SITE_URL_AVENUE_Z',             // e.g. "https://avenuez.com/" or "sc-domain:avenuez.com"
     hubspotToken: 'HUBSPOT_ACCESS_TOKEN_AVENUE_Z',    // HubSpot Private App token
+
+    // Technical Audit connectors
+    sfCsvFileId:           '1ddlYbe_0wqadeqbIQVAsCt0F_9AOXSe9',             // May 21 2026 SF Internal All CSV
+    // sfPrevCsvFileId:    '<May 08 file ID>',                               // TODO: add prior crawl file ID once confirmed
+    sitebulbSheetId:       '1cKW5k0aqeWEk3HVakIDpiCrSP_mMf5oxQW7HJOxqsiw', // Sitebulb Historical Hint Data
+    peecCustomerProjectId: 'or_043ae735-9397-48cf-a754-6e346a55f394',        // Peec agent analytics project
+
     enabledReports: [
       'demand-overview',
       'ai-summaries',
