@@ -1,8 +1,9 @@
-import { Settings, CheckCircle, XCircle, AlertCircle, Sparkles, Globe2, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Settings, CheckCircle, XCircle, AlertCircle, Sparkles, Globe2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getSFData } from '@/lib/screaming-frog/client'
 import { getSitebulbData, buildAEOChecklist } from '@/lib/sitebulb/client'
 import { getAgentAnalytics, deriveRobotsTxtStatus } from '@/lib/peec/agent-analytics'
+import { getClientBySlug } from '@/lib/clients.config'
 import type { SFData, SFIssueDelta, SFDeltaStatus } from '@/lib/screaming-frog/types'
 import type { AgentAnalyticsData, AgentBot } from '@/lib/peec/agent-analytics'
 import type { AEOChecklist, AEOChecklistItem, AEOStatus } from '@/lib/sitebulb/types'
@@ -351,84 +352,41 @@ function BotTable({ bots }: { bots: AgentBot[] }) {
 
   return (
     <>
-      {bots.map((bot) => (
-        <tr key={bot.botId} className="divide-y divide-white/[0.04]">
-          <Td><span className="font-medium text-white">{bot.botName}</span></Td>
-          <Td><span className="tabular-nums text-white">{bot.totalVisits.toLocaleString()}</span></Td>
-          <Td><span className="tabular-nums text-white/60">{bot.uniquePages}</span></Td>
-          <Td>
-            {bot.successRate !== null ? (
-              <span className={cn('text-xs font-semibold tabular-nums',
-                bot.successRate >= 0.8 ? 'text-[#60FF80]' : bot.successRate >= 0.4 ? 'text-[#FFFC60]' : 'text-[#FF4444]'
-              )}>
-                {Math.round(bot.successRate * 100)}%
-              </span>
-            ) : <span className="text-white/20">—</span>}
-          </Td>
-          <Td><span className="text-white/30 text-[10px] font-mono">{bot.lastSeen ?? '—'}</span></Td>
-        </tr>
-      ))}
-    </>
-  )
-}
+      {bots.map((bot) => {
+        // Categorize bot type for PRD columns
+        const botType = bot.botType ?? 'unknown'
+        const typeLabel =
+          botType === 'training'  ? 'Training' :
+          botType === 'retrieval' ? 'Retrieval' :
+          botType === 'search'    ? 'Search' :
+          'Agent'
 
-// ── Section E: High-value page overlap ────────────────────────────────────────
-
-function PageOverlapTable({ agentData, sfData }: { agentData: AgentAnalyticsData; sfData: SFData }) {
-  // Find paths that bots visited AND that have SF issues
-  const issuesByUrl = new Map<string, string[]>()
-  for (const issue of sfData.current.issueSummaries) {
-    if (issue.exampleUrl) {
-      const existing = issuesByUrl.get(issue.exampleUrl) ?? []
-      existing.push(issue.checkName)
-      issuesByUrl.set(issue.exampleUrl, existing)
-    }
-  }
-
-  // Cross-reference bot visits with known issue URLs
-  const overlaps = agentData.topPaths
-    .filter((p) => {
-      const fullUrl = `https://avenuez.com${p.path}`
-      return issuesByUrl.has(fullUrl) || issuesByUrl.has(p.path)
-    })
-    .slice(0, 10)
-
-  if (overlaps.length === 0) {
-    return (
-      <EmptyBody
-        cols={5}
-        message="No overlap detected between AI bot visits and pages with known issues — this is a good sign"
-      />
-    )
-  }
-
-  return (
-    <>
-      {overlaps.map((p) => {
-        const issues = issuesByUrl.get(`https://avenuez.com${p.path}`) ?? issuesByUrl.get(p.path) ?? []
         return (
-          <tr key={p.path}>
+          <tr key={bot.botId} className="divide-y divide-white/[0.04]">
+            <Td><span className="font-medium text-white">{bot.botName}</span></Td>
             <Td>
-              <span className="font-mono text-[10px] text-white/60 max-w-[200px] truncate block" title={p.path}>
-                {p.path}
-              </span>
-            </Td>
-            <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
-            <Td><span className="tabular-nums text-white/60">{issues.length}</span></Td>
-            <Td>
-              {issues[0]
-                ? <span className="text-white/50 text-[11px]">{issues[0]}</span>
-                : <span className="text-white/20">—</span>}
-            </Td>
-            <Td>
-              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                p.status >= 400 ? PRIORITY_STYLE.High
-                  : p.status >= 300 ? PRIORITY_STYLE.Medium
-                  : 'bg-white/[0.06] text-white/40'
+              <span className={cn(
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                botType === 'training'  ? 'bg-[#FFFC60]/10 text-[#FFFC60]' :
+                botType === 'retrieval' ? 'bg-[#60FDFF]/10 text-[#60FDFF]' :
+                botType === 'search'    ? 'bg-[#60FF80]/10 text-[#60FF80]' :
+                'bg-white/[0.06] text-white/40'
               )}>
-                {p.status}
+                {typeLabel}
               </span>
             </Td>
+            <Td><span className="tabular-nums text-white">{bot.totalVisits.toLocaleString()}</span></Td>
+            <Td><span className="tabular-nums text-white/60">{bot.uniquePages}</span></Td>
+            <Td>
+              {bot.successRate !== null ? (
+                <span className={cn('text-xs font-semibold tabular-nums',
+                  bot.successRate >= 0.8 ? 'text-[#60FF80]' : bot.successRate >= 0.4 ? 'text-[#FFFC60]' : 'text-[#FF4444]'
+                )}>
+                  {Math.round(bot.successRate * 100)}%
+                </span>
+              ) : <span className="text-white/20">--</span>}
+            </Td>
+            <Td><span className="text-white/30 text-[10px] font-mono">{bot.lastSeen ?? '--'}</span></Td>
           </tr>
         )
       })}
@@ -436,156 +394,233 @@ function PageOverlapTable({ agentData, sfData }: { agentData: AgentAnalyticsData
   )
 }
 
-// ── Section F: Anomalies ──────────────────────────────────────────────────────
+// ── Section E: High-value page overlap ────────────────────────────────────────
 
-function AnomalyCards({ agentData }: { agentData: AgentAnalyticsData }) {
-  const cards = [
-    {
-      color:  '#FF4444',
-      title:  'Bot Hits on Error Pages',
-      body:   'AI bots crawling 4xx or 5xx pages waste crawl budget and signal poor site health.',
-      stat:   agentData.errorPageHits > 0 ? `${agentData.errorPageHits} visits` : '0 error hits',
-      status: agentData.errorPageHits > 10 ? 'fail' : agentData.errorPageHits > 0 ? 'warn' : 'pass',
-    },
-    {
-      color:  '#FFFC60',
-      title:  'Bot Hits on Redirect Responses',
-      body:   'AI bots encountering 301/302 may not follow all hops, causing incomplete indexing.',
-      stat:   agentData.redirectHits > 0 ? `${agentData.redirectHits} redirects` : '0 redirects',
-      status: agentData.redirectHits > 50 ? 'fail' : agentData.redirectHits > 10 ? 'warn' : 'pass',
-    },
-    {
-      color:  '#39A0FF',
-      title:  'Robots.txt Traffic',
-      body:   'High bot traffic to /robots.txt means bots are checking access rules — expected, but monitor response status.',
-      stat:   agentData.robotsTxtHits > 0 ? `${agentData.robotsTxtHits} visits` : '0 visits',
-      status: 'info' as string,
-    },
-    {
-      color:  '#60FDFF',
-      title:  'High-Value Page Bot Visits',
-      body:   'Bot visits to non-utility pages (excluding robots.txt, sitemap) — these are the pages LLMs may index.',
-      stat:   agentData.highValuePageBotHits > 0 ? `${agentData.highValuePageBotHits} visits` : '0 visits',
-      status: agentData.highValuePageBotHits > 0 ? 'pass' : 'warn',
-    },
-  ]
+function PageOverlapTable({ agentData, sfData, clientDomain }: { agentData: AgentAnalyticsData; sfData: SFData; clientDomain: string }) {
+  const severityRank: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 }
+  const issuesByUrl = new Map<string, { count: number; highestSeverity: string }>()
+
+  for (const issue of sfData.current.issueSummaries) {
+    if (issue.exampleUrl) {
+      const existing = issuesByUrl.get(issue.exampleUrl)
+      const rank = severityRank[issue.severity] ?? 0
+      const existingRank = severityRank[existing?.highestSeverity ?? ''] ?? 0
+      issuesByUrl.set(issue.exampleUrl, {
+        count: (existing?.count ?? 0) + 1,
+        highestSeverity: rank > existingRank ? issue.severity : (existing?.highestSeverity ?? issue.severity),
+      })
+    }
+  }
+
+  const LOW_VALUE_PATTERNS = ['/robots.txt', '/sitemap', '/wp-json/', '/oembed', '/.well-known/', '/feed/', '/xmlrpc', '/wp-admin']
+  function pageType(path: string): 'Infrastructure' | 'Content' {
+    return LOW_VALUE_PATTERNS.some(p => path.toLowerCase().includes(p)) ? 'Infrastructure' : 'Content'
+  }
+
+  const domain = clientDomain || 'example.com'
+  const rows = agentData.topPaths.map((p) => {
+    const fullUrl = `https://${domain}${p.path}`
+    const issueData = issuesByUrl.get(fullUrl) ?? issuesByUrl.get(p.path) ?? null
+    const type = pageType(p.path)
+    const priorityFlag: string | null = issueData && p.visits > 10 ? 'High' : issueData ? 'Medium' : p.visits > 20 ? 'Low' : null
+    return { ...p, issueData, type, priorityFlag }
+  }).slice(0, 15)
+
+  if (rows.length === 0) {
+    return <EmptyBody cols={11} message="No AI bot visit data available" />
+  }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {cards.map(({ color, title, body, stat, status }) => (
-        <div key={title} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="h-3.5 w-3.5" style={{ color }} />
-              <span className="text-xs font-bold text-white/70">{title}</span>
-            </div>
-            <span className={cn(
-              'text-xs font-bold',
-              status === 'fail' ? 'text-[#FF4444]'
-                : status === 'warn' ? 'text-[#FFFC60]'
-                : status === 'pass' ? 'text-[#60FF80]'
-                : 'text-white/20',
+    <>
+      {rows.map((p) => (
+        <tr key={p.path}>
+          <Td><span className="font-mono text-[10px] text-white/60 max-w-[140px] truncate block" title={p.path}>{p.path}</span></Td>
+          <Td>
+            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+              p.type === 'Infrastructure' ? 'bg-[#FFFC60]/10 text-[#FFFC60]' : 'bg-[#60FF80]/10 text-[#60FF80]'
             )}>
-              {stat}
+              {p.type}
             </span>
-          </div>
-          <p className="text-[11px] leading-relaxed text-text-muted">{body}</p>
-        </div>
+          </Td>
+          <Td><span className="text-white/20 tabular-nums">--</span></Td>
+          <Td><span className="text-white/20 tabular-nums">--</span></Td>
+          <Td><span className="text-white/20 tabular-nums">--</span></Td>
+          <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
+          <Td><span className="text-white/20 tabular-nums">--</span></Td>
+          <Td><span className="tabular-nums text-white">{p.issueData?.count ?? 0}</span></Td>
+          <Td>
+            {p.issueData ? (
+              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', PRIORITY_STYLE[p.issueData.highestSeverity as Priority] ?? 'bg-white/[0.06] text-white/40')}>
+                {p.issueData.highestSeverity}
+              </span>
+            ) : <span className="text-white/20">--</span>}
+          </Td>
+          <Td><span className="text-white/20">--</span></Td>
+          <Td>
+            {p.priorityFlag ? (
+              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                p.priorityFlag === 'High' ? 'bg-[#FF4444]/10 text-[#FF4444]' :
+                p.priorityFlag === 'Medium' ? 'bg-[#FFFC60]/10 text-[#FFFC60]' :
+                'bg-white/[0.06] text-white/40'
+              )}>
+                {p.priorityFlag}
+              </span>
+            ) : <span className="text-white/20">--</span>}
+          </Td>
+        </tr>
       ))}
-    </div>
+    </>
   )
 }
 
+// ── Section F: Anomalies ──────────────────────────────────────────────────────
+
 // ── Section G: Fix list ────────────────────────────────────────────────────────
 
-function FixList({ sfData, agentData }: { sfData: SFData; agentData: AgentAnalyticsData | null }) {
-  // Build prioritized fix list from delta data
-  const criticalNew  = sfData.delta.filter((d) => d.status === 'New'        && d.severity === 'Critical')
-  const highNew      = sfData.delta.filter((d) => d.status === 'New'        && d.severity === 'High')
-  const persistent   = sfData.delta.filter((d) => d.status === 'Persistent' && (d.severity === 'Critical' || d.severity === 'High'))
-  const topIssues    = sfData.current.topIssues.slice(0, 6)
+/**
+ * Priority scoring per PRD:
+ *   35% technical severity + 25% AI activity + 20% human visits from AI + 20% persistence
+ * Since we don't have per-URL GA4 AI referral data yet, we approximate:
+ *   - Severity: Critical=4, High=3, Medium=2, Low=1 (normalized to 0-1)
+ *   - AI activity: 1 if bot visited the example URL, 0 otherwise
+ *   - Human visits from AI: placeholder 0 (requires GA4 per-URL integration)
+ *   - Persistence: New=0.8, Persistent=1.0, Improved=0.3, Resolved=0, Unchanged=0.5
+ */
+function computeFixPriority(
+  issue: SFIssueDelta,
+  botPaths: Set<string>,
+): number {
+  const severityMap: Record<string, number> = { Critical: 1.0, High: 0.75, Medium: 0.5, Low: 0.25 }
+  const persistenceMap: Record<string, number> = { New: 0.8, Persistent: 1.0, Improved: 0.3, Resolved: 0, Unchanged: 0.5 }
 
-  // If we have no delta, fall back to top issues from current crawl
+  const severity    = severityMap[issue.severity] ?? 0.25
+  const hasAI       = issue.exampleUrl && botPaths.has(new URL(issue.exampleUrl).pathname) ? 1 : 0
+  const humanFromAI = 0 // placeholder until GA4 per-URL AI referral is wired
+  const persistence = persistenceMap[issue.status] ?? 0.5
+
+  return 0.35 * severity + 0.25 * hasAI + 0.20 * humanFromAI + 0.20 * persistence
+}
+
+function FixList({ sfData, agentData }: { sfData: SFData; agentData: AgentAnalyticsData | null }) {
+  const botPaths = new Set<string>(agentData?.topPaths.map((p) => p.path) ?? [])
   const hasDelta = sfData.delta.length > 0
+
   const fixes = hasDelta
-    ? [...criticalNew, ...highNew, ...persistent].slice(0, 8)
-    : []
+    ? sfData.delta
+        .filter((d) => d.status !== 'Resolved' && d.status !== 'Unchanged')
+        .map((d) => ({ ...d, priorityScore: computeFixPriority(d, botPaths) }))
+        .sort((a, b) => b.priorityScore - a.priorityScore)
+        .slice(0, 10)
+    : sfData.current.topIssues.slice(0, 10).map(issue => ({
+        checkId: issue.checkId,
+        checkName: issue.checkName,
+        severity: issue.severity,
+        status: 'Unchanged' as const,
+        prevCount: issue.count,
+        currentCount: issue.count,
+        delta: 0,
+        exampleUrl: '' as string,
+        recommendedAction: (issue as unknown as { recommendedAction?: string }).recommendedAction ?? 'Review and remediate',
+        owner: (issue as unknown as { owner?: string }).owner ?? 'SEO',
+        priorityScore: 0,
+        category: issue.category,
+      }))
+
+  function whyItMatters(fix: { severity: string; status: string; checkName: string }): string {
+    if (fix.severity === 'Critical') return 'Blocks crawler access and AI indexing directly'
+    if (fix.status === 'New') return 'Newly introduced this crawl — requires immediate investigation'
+    if (fix.status === 'Persistent') return 'Unresolved across multiple crawls — systemic issue'
+    if (fix.severity === 'High') return 'High-severity issue impacting AI crawlability'
+    return 'Ongoing technical debt affecting crawl health'
+  }
+
+  function hasAIActivity(exampleUrl: string): boolean {
+    if (!exampleUrl) return false
+    try { return botPaths.has(new URL(exampleUrl).pathname) } catch { return false }
+  }
+
+  function priorityLabel(score: number, severity: string): string {
+    if (!hasDelta) return severity
+    return score >= 0.6 ? 'Critical' : score >= 0.4 ? 'High' : score >= 0.2 ? 'Medium' : 'Low'
+  }
 
   return (
     <div className="rounded-xl border border-[#60FDFF]/20 bg-[#60FDFF]/[0.03] p-6">
       <div className="mb-4 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-[#60FDFF]" />
         <span className="text-sm font-bold text-white">What SEO / Dev Should Fix Next</span>
+        {!hasDelta && (
+          <span className="ml-2 text-[10px] text-white/30">Showing top current issues — upload a prior crawl CSV for delta-based prioritization</span>
+        )}
       </div>
-
-      {hasDelta && fixes.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {fixes.map((fix, i) => (
-            <div key={fix.checkId} className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-              <span className={cn(
-                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
-                fix.status === 'New'        ? 'bg-[#FF4444]/10 text-[#FF4444]'
-                  : fix.status === 'Persistent' ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
-                  : 'bg-white/[0.06] text-white/40',
-              )}>
-                {i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-white/80">{fix.checkName}</span>
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase', PRIORITY_STYLE[fix.severity as Priority])}>
-                    {fix.severity}
-                  </span>
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase', DELTA_STATUS_STYLE[fix.status])}>
-                    {fix.status}
-                  </span>
-                  <span className="ml-auto rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold text-white/40">
-                    {fix.owner}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-[11px] text-text-muted">{fix.recommendedAction}</p>
-                {fix.exampleUrl && (
-                  <p className="mt-0.5 font-mono text-[10px] text-white/20 truncate" title={fix.exampleUrl}>
-                    {fix.exampleUrl}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div>
-          {!hasDelta && (
-            <p className="mb-4 text-xs text-white/40">
-              Showing top issues from current crawl — add a prior crawl CSV to enable delta-based prioritization.
-            </p>
-          )}
-          <div className="grid gap-2 sm:grid-cols-2">
-            {topIssues.map((issue, i) => (
-              <div key={issue.checkId} className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[10px] font-bold text-white/40">
-                  {i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-white/80">{issue.checkName}</span>
-                    <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase', PRIORITY_STYLE[issue.severity as Priority])}>
-                      {issue.severity}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-text-muted">{issue.count.toLocaleString()} affected URLs</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-white/[0.06]">
+              <Th>Issue / Opportunity</Th>
+              <Th>Affected URL</Th>
+              <Th>Why It Matters</Th>
+              <Th>AI Activity Present</Th>
+              <Th>Severity</Th>
+              <Th>Suggested Action</Th>
+              <Th>Suggested Owner</Th>
+              <Th>Priority</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.04]">
+            {fixes.length > 0 ? (
+              fixes.map((fix) => {
+                const aiActive = hasAIActivity(fix.exampleUrl ?? '')
+                const priority = priorityLabel(fix.priorityScore, fix.severity)
+                const priorityColor = priority === 'Critical' || priority === 'High'
+                  ? 'bg-[#FF4444]/10 text-[#FF4444]'
+                  : priority === 'Medium' ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
+                  : 'bg-white/[0.06] text-white/40'
+                return (
+                  <tr key={fix.checkId}>
+                    <Td><span className="font-semibold text-white/80">{fix.checkName}</span></Td>
+                    <Td>
+                      {fix.exampleUrl ? (
+                        <span className="font-mono text-[10px] text-white/40 max-w-[130px] truncate block" title={fix.exampleUrl}>
+                          {fix.exampleUrl.replace(/^https?:\/\/[^/]+/, '')}
+                        </span>
+                      ) : <span className="text-white/20">--</span>}
+                    </Td>
+                    <Td><span className="text-[11px] text-white/50 max-w-[160px] block">{whyItMatters(fix)}</span></Td>
+                    <Td>
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                        aiActive ? 'bg-[#60FDFF]/10 text-[#60FDFF]' : 'bg-white/[0.06] text-white/40'
+                      )}>
+                        {aiActive ? 'Yes' : 'No'}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', PRIORITY_STYLE[fix.severity as Priority] ?? 'bg-white/[0.06] text-white/40')}>
+                        {fix.severity}
+                      </span>
+                    </Td>
+                    <Td><span className="text-[11px] text-white/50 max-w-[160px] block">{fix.recommendedAction}</span></Td>
+                    <Td>
+                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">{fix.owner}</span>
+                    </Td>
+                    <Td>
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', priorityColor)}>
+                        {priority}
+                      </span>
+                    </Td>
+                  </tr>
+                )
+              })
+            ) : (
+              <tr><td colSpan={8} className="py-10 text-center text-xs text-text-muted">No active issues to prioritize</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       {agentData && agentData.errorPageHits > 0 && (
         <div className="mt-4 rounded-lg border border-[#FF4444]/20 bg-[#FF4444]/[0.04] p-3">
           <p className="text-[11px] font-semibold text-[#FF4444]">
-            AI Bot Alert: {agentData.errorPageHits} bot visit{agentData.errorPageHits !== 1 ? 's' : ''} hit error pages in the last 30 days.
-            Fix or redirect these pages immediately — bots are burning crawl budget on dead ends.
+            AI Bot Alert: {agentData.errorPageHits} bot visit{agentData.errorPageHits !== 1 ? 's' : ''} hit error pages in the last 30 days. Fix or redirect immediately.
           </p>
         </div>
       )}
@@ -660,6 +695,10 @@ function DataUnavailable({ label }: { label: string }) {
 // ── Main RSC ──────────────────────────────────────────────────────────────────
 
 export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string }) {
+  // Get client config for domain and other client-specific settings
+  const clientConfig = getClientBySlug(clientSlug)
+  const clientDomain = clientConfig?.domain ?? ''
+
   // Fetch all data sources in parallel, with graceful degradation on each
   const [sfResult, sitebulbResult, agentResult] = await Promise.allSettled([
     getSFData(clientSlug),
@@ -795,7 +834,8 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
-                    <Th>Bot</Th>
+                    <Th>AI Platform / Bot</Th>
+                    <Th>Bot Type</Th>
                     <Th>Total Visits (30d)</Th>
                     <Th>Unique Pages</Th>
                     <Th>2xx Success Rate</Th>
@@ -824,14 +864,20 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
               <thead>
                 <tr className="border-b border-white/[0.06]">
                   <Th>URL Path</Th>
-                  <Th>Bot Visits</Th>
-                  <Th>Known Issues</Th>
-                  <Th>Top Issue</Th>
-                  <Th>Response Status</Th>
+                  <Th>Page Type</Th>
+                  <Th>AI Citations</Th>
+                  <Th>AI Indexing Visits</Th>
+                  <Th>AI Training Visits</Th>
+                  <Th>AI Agent Visits</Th>
+                  <Th>Human Visits from AI</Th>
+                  <Th>Technical Issues</Th>
+                  <Th>Highest Severity</Th>
+                  <Th>Change Since Last Crawl</Th>
+                  <Th>Priority Flag</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                <PageOverlapTable agentData={agentData} sfData={sfData} />
+                <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} />
               </tbody>
             </table>
           </div>
@@ -847,40 +893,96 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
       >
         {agentData ? (
           <>
-            <AnomalyCards agentData={agentData} />
-            {agentData.topPaths.length > 0 && (
-              <div className="mt-2">
-                <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-text-muted">Top 10 Paths by Bot Visits</h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-white/[0.06]">
-                        <Th>Path</Th>
-                        <Th>Bot Visits</Th>
-                        <Th>Response Status</Th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
-                      {agentData.topPaths.map((p) => (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'Error Page Hits',        value: agentData.errorPageHits,        color: '#FF4444' },
+                { label: 'Redirect Hits',          value: agentData.redirectHits,          color: '#FFFC60' },
+                { label: 'Robots.txt Hits',        value: agentData.robotsTxtHits,         color: '#39A0FF' },
+                { label: 'High-Value Page Visits', value: agentData.highValuePageBotHits,  color: '#60FF80' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex flex-col gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                  <span className="text-[10px] font-semibold text-text-muted">{label}</span>
+                  <span className="text-lg font-bold tabular-nums" style={{ color }}>{value.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    <Th>AI Platform</Th>
+                    <Th>Bot Type</Th>
+                    <Th>URL / Path</Th>
+                    <Th>HTTP Status</Th>
+                    <Th>Request Count</Th>
+                    <Th>Redirected</Th>
+                    <Th>Low-Value Endpoint</Th>
+                    <Th>Strategic Page</Th>
+                    <Th>Last Seen</Th>
+                    <Th>Recommended Action</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {agentData.topPaths.length > 0 ? (
+                    agentData.topPaths.map((p) => {
+                      const LOW_VALUE = ['/robots.txt', '/sitemap', '/wp-json/', '/oembed', '/.well-known/', '/feed/', '/xmlrpc', '/wp-admin']
+                      const isLowValue = LOW_VALUE.some(lv => p.path.toLowerCase().includes(lv))
+                      const isRedirected = p.status >= 300 && p.status < 400
+                      const isStrategic = !isLowValue && p.status < 300
+                      const action = p.status >= 400
+                        ? 'Fix or redirect — bots wasting budget on error pages'
+                        : isRedirected && isLowValue ? 'Consolidate redirects; verify bot access rules'
+                        : isRedirected ? 'Consolidate redirect chain to direct URL'
+                        : isLowValue ? 'Verify robots.txt — limit unnecessary bot access'
+                        : 'Monitor — strategic page with healthy bot activity'
+                      return (
                         <tr key={p.path}>
-                          <Td><span className="font-mono text-[10px] text-white/60">{p.path}</span></Td>
-                          <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
+                          <Td><span className="text-white/20">--</span></Td>
+                          <Td><span className="text-white/20">--</span></Td>
+                          <Td><span className="font-mono text-[10px] text-white/60 max-w-[140px] truncate block" title={p.path}>{p.path}</span></Td>
                           <Td>
                             <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                              p.status >= 400 ? 'bg-[#FF4444]/10 text-[#FF4444]'
-                                : p.status >= 300 ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
-                                : 'bg-[#60FF80]/10 text-[#60FF80]'
+                              p.status >= 400 ? 'bg-[#FF4444]/10 text-[#FF4444]' :
+                              p.status >= 300 ? 'bg-[#FFFC60]/10 text-[#FFFC60]' :
+                              'bg-[#60FF80]/10 text-[#60FF80]'
                             )}>
                               {p.status}
                             </span>
                           </Td>
+                          <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
+                          <Td>
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                              isRedirected ? 'bg-[#FFFC60]/10 text-[#FFFC60]' : 'bg-white/[0.06] text-white/40'
+                            )}>
+                              {isRedirected ? 'Yes' : 'No'}
+                            </span>
+                          </Td>
+                          <Td>
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                              isLowValue ? 'bg-[#FF4444]/10 text-[#FF4444]' : 'bg-white/[0.06] text-white/40'
+                            )}>
+                              {isLowValue ? 'Yes' : 'No'}
+                            </span>
+                          </Td>
+                          <Td>
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                              isStrategic ? 'bg-[#60FF80]/10 text-[#60FF80]' : 'bg-white/[0.06] text-white/40'
+                            )}>
+                              {isStrategic ? 'Yes' : 'No'}
+                            </span>
+                          </Td>
+                          <Td><span className="text-white/20">--</span></Td>
+                          <Td><span className="text-[11px] text-white/50">{action}</span></Td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                      )
+                    })
+                  ) : (
+                    <tr><td colSpan={10} className="py-10 text-center text-xs text-text-muted">No AI bot path data available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-text-muted">AI Platform and Bot Type per path require per-path bot breakdown (currently aggregated across bots). Last Seen requires extended log retention from Peec.</p>
           </>
         ) : (
           <DataUnavailable label="Peec agent analytics unavailable" />
@@ -906,17 +1008,17 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
 
       {/* Scoring methodology */}
       <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">How AEO Technical Scoring Works</h3>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">How Priority Scoring Works</h3>
         <p className="text-sm leading-relaxed text-white/60">
-          Each check is weighted by its estimated impact on LLM retrieval probability. Structured data signals carry the most weight
-          (schema markup directly informs LLM knowledge graphs), followed by content signals (H1, title, meta), and crawlability
-          (prerequisite for any indexation).
+          Each issue is scored using a weighted formula that combines technical severity with AI activity signals.
+          Issues on pages that AI bots actively crawl are prioritized higher because they directly impede LLM retrieval.
         </p>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Structured Data', weight: '40%', color: 'bg-[#60FDFF]' },
-            { label: 'Content Signals', weight: '35%', color: 'bg-[#60FF80]' },
-            { label: 'Crawlability',    weight: '25%', color: 'bg-[#FFFC60]' },
+            { label: 'Technical Severity',       weight: '35%', color: 'bg-[#FF4444]' },
+            { label: 'AI Citation / Indexing',    weight: '25%', color: 'bg-[#60FDFF]' },
+            { label: 'Human Visits from AI',      weight: '20%', color: 'bg-[#60FF80]' },
+            { label: 'Issue Persistence / Growth', weight: '20%', color: 'bg-[#FFFC60]' },
           ].map(({ label, weight, color }) => (
             <div key={label} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
               <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', color)} />

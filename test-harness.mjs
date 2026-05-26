@@ -189,16 +189,97 @@ section('3. AEO checklist logic (no API calls)')
   else fail('Weighted score formula', `expected 160, got ${score}`)
 })()
 
-// ── 4. Live API tests ─────────────────────────────────────────────────────────
+// ── 4. PR Proof Library & AEO page integrity ────────────────────────────────
+
+section('4. PR Proof Library + AEO page structure')
+
+;(() => {
+  // 4a. PR Proof types exist
+  const prTypesPath = new URL('lib/pr-proof/types.ts', import.meta.url).pathname
+  if (existsSync(prTypesPath)) {
+    const src = readFileSync(prTypesPath, 'utf-8')
+    if (src.includes('PRPlacement') && src.includes('PRProofData')) ok('PR Proof types: PRPlacement + PRProofData defined')
+    else fail('PR Proof types', 'missing PRPlacement or PRProofData interface')
+    if (src.includes('PRPlacementMatchback')) ok('PR Proof types: PRPlacementMatchback defined')
+    else fail('PR Proof types', 'missing PRPlacementMatchback interface')
+  } else {
+    fail('PR Proof types.ts', 'file not found at lib/pr-proof/types.ts')
+  }
+
+  // 4b. PR Proof client exists with correct exports
+  const prClientPath = new URL('lib/pr-proof/client.ts', import.meta.url).pathname
+  if (existsSync(prClientPath)) {
+    const src = readFileSync(prClientPath, 'utf-8')
+    if (src.includes('getPRProofData')) ok('PR Proof client: getPRProofData export')
+    else fail('PR Proof client', 'missing getPRProofData function')
+    if (src.includes('prProofSheetId')) ok('PR Proof client: reads prProofSheetId from config')
+    else fail('PR Proof client', 'not reading prProofSheetId from client config')
+    if (src.includes('GoogleAuth')) ok('PR Proof client: uses GoogleAuth singleton')
+    else fail('PR Proof client', 'not using GoogleAuth pattern')
+  } else {
+    fail('PR Proof client.ts', 'file not found at lib/pr-proof/client.ts')
+  }
+
+  // 4c. clients.config.ts has PR Proof fields
+  const configText = readFileSync(new URL('lib/clients.config.ts', import.meta.url).pathname, 'utf-8')
+  if (configText.includes('prProofSheetId')) ok('ClientConfig has prProofSheetId field')
+  else fail('ClientConfig', 'missing prProofSheetId field')
+  if (configText.includes('domain')) ok('ClientConfig has domain field')
+  else fail('ClientConfig', 'missing domain field')
+
+  // 4d. AEO page structure: all 3 pages are async RSCs with clientSlug
+  const pages = [
+    ['PR Influence',    'components/report-sections/peec-ai/pr-influence.tsx'],
+    ['Content Impact',  'components/report-sections/peec-ai/content-impact.tsx'],
+    ['Technical Audit', 'components/report-sections/peec-ai/technical-audit.tsx'],
+  ]
+  for (const [name, rel] of pages) {
+    const p = new URL(rel, import.meta.url).pathname
+    if (!existsSync(p)) { fail(`${name} page`, 'file not found'); continue }
+    const src = readFileSync(p, 'utf-8')
+    if (src.includes('clientSlug')) ok(`${name}: accepts clientSlug prop`)
+    else fail(`${name}`, 'missing clientSlug prop')
+  }
+
+  // 4e. reports/page.tsx passes clientSlug to all AEO subpages
+  const routerPath = new URL('app/dashboard/[clientSlug]/reports/page.tsx', import.meta.url).pathname
+  const routerSrc  = readFileSync(routerPath, 'utf-8')
+  if (routerSrc.includes('PRInfluenceReport clientSlug')) ok('Router: passes clientSlug to PRInfluenceReport')
+  else fail('Router', 'PRInfluenceReport missing clientSlug prop')
+  if (routerSrc.includes('ContentImpactReport clientSlug')) ok('Router: passes clientSlug to ContentImpactReport')
+  else fail('Router', 'ContentImpactReport missing clientSlug prop')
+
+  // 4f. PR Influence imports PR Proof data
+  const priSrc = readFileSync(new URL('components/report-sections/peec-ai/pr-influence.tsx', import.meta.url).pathname, 'utf-8')
+  if (priSrc.includes('getPRProofData')) ok('PR Influence: imports getPRProofData')
+  else fail('PR Influence', 'missing getPRProofData import')
+  if (priSrc.includes('Promise.allSettled')) ok('PR Influence: uses Promise.allSettled for graceful degradation')
+  else fail('PR Influence', 'not using Promise.allSettled')
+
+  // 4g. Content Impact uses agent analytics
+  const ciSrc = readFileSync(new URL('components/report-sections/peec-ai/content-impact.tsx', import.meta.url).pathname, 'utf-8')
+  if (ciSrc.includes('getAgentAnalytics')) ok('Content Impact: imports getAgentAnalytics')
+  else fail('Content Impact', 'missing getAgentAnalytics import')
+  if (ciSrc.includes('Promise.allSettled')) ok('Content Impact: uses Promise.allSettled for graceful degradation')
+  else fail('Content Impact', 'not using Promise.allSettled')
+
+  // 4h. No hardcoded avenuez.com in technical-audit
+  const taSrc = readFileSync(new URL('components/report-sections/peec-ai/technical-audit.tsx', import.meta.url).pathname, 'utf-8')
+  const hardcodedHits = (taSrc.match(/['"]https?:\/\/avenuez\.com['"]/g) || []).length
+  if (hardcodedHits === 0) ok('Technical Audit: no hardcoded avenuez.com URLs')
+  else fail('Technical Audit', `found ${hardcodedHits} hardcoded avenuez.com URL(s) -- should use clientDomain`)
+})()
+
+// ── 5. Live API tests ─────────────────────────────────────────────────────────
 
 if (!LIVE) {
   section('Live tests skipped')
-  console.log(`  Run with --live to test Peec, Drive, and Sheets APIs directly.\n`)
+  console.log(`  Run with --live to test Peec, Drive, Sheets, and PR Proof APIs directly.\n`)
   summary()
   process.exit(FAIL > 0 ? 1 : 0)
 }
 
-section('4. Live — Peec Agent Analytics')
+section('5. Live — Peec Agent Analytics')
 
 // ── Google JWT helper (no google-auth-library needed) ────────────────────────
 
@@ -275,7 +356,7 @@ async function getGoogleToken(scopes) {
     }
   } catch (e) { fail('Peec /bots', String(e)) }
 
-  section('5. Live — Google Drive API (SF CSV)')
+  section('6. Live — Google Drive API (SF CSV)')
   console.log('  Note: Requires Drive API enabled at console.developers.google.com/apis/api/drive.googleapis.com/overview?project=847942084273')
   console.log('  Note: SF CSV file must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com\n')
 
@@ -302,7 +383,7 @@ async function getGoogleToken(scopes) {
     }
   } catch (e) { fail('Drive API: SF CSV', String(e)) }
 
-  section('6. Live — Google Sheets API (Sitebulb)')
+  section('7. Live — Google Sheets API (Sitebulb)')
   console.log('  Note: Requires Sheets API enabled at console.developers.google.com/apis/api/sheets.googleapis.com/overview?project=847942084273')
   console.log('  Note: Sheet must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com\n')
 
@@ -331,6 +412,35 @@ async function getGoogleToken(scopes) {
       }
     }
   } catch (e) { fail('Sheets API: Sitebulb', String(e)) }
+
+  section('8. Live — Google Sheets API (PR Proof Library)')
+  console.log('  Note: Sheet must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com\n')
+
+  try {
+    const gToken  = await getGoogleToken(['https://www.googleapis.com/auth/spreadsheets.readonly'])
+    const sheetId = '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M'
+    const range   = encodeURIComponent('A:G')
+    const res     = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`, {
+      headers: { Authorization: `Bearer ${gToken}` },
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      const msg  = body?.error?.message ?? `HTTP ${res.status}`
+      fail('Sheets API: PR Proof', msg.slice(0, 200))
+    } else {
+      const json   = await res.json()
+      const values = json.values ?? []
+      if (values.length > 1) {
+        const header = values[0]
+        ok('PR Proof Sheet: accessible', `${values.length} rows, header: ${header.slice(0, 3).join(' | ')}`)
+        // Check for Avenue Z rows
+        const azRows = values.slice(1).filter(r => (r[0] || '').toString().toLowerCase() === 'avenue z')
+        ok('PR Proof Sheet: Avenue Z rows', `${azRows.length} placements found`)
+      } else {
+        fail('PR Proof Sheet', 'no data rows returned')
+      }
+    }
+  } catch (e) { fail('Sheets API: PR Proof', String(e)) }
 
   summary()
 })()

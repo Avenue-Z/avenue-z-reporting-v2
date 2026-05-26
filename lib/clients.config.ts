@@ -96,6 +96,20 @@ export interface ClientConfig {
    */
   peecCustomerProjectId?: string
 
+  /**
+   * The client's primary domain (no protocol, no trailing slash).
+   * Used for URL matching in technical audit cross-referencing.
+   * e.g. 'avenuez.com', 'corescientific.com'
+   */
+  domain?: string
+
+  /**
+   * Google Sheets ID for the PR Proof Library (PR Placement Log).
+   * Each row: Client, Outlet, Headline, Publication Date, Link, Impact, Date Added.
+   * Auth: shared GOOGLE_SERVICE_ACCOUNT_KEY (Sheets readonly scope).
+   */
+  prProofSheetId?: string
+
   enabledReports: ReportSlug[]
   hiddenReports?: ReportSlug[]
   prConfig?: PRConfig
@@ -116,10 +130,12 @@ export const clients: ClientConfig[] = [
     hubspotToken: 'HUBSPOT_ACCESS_TOKEN_AVENUE_Z',    // HubSpot Private App token
 
     // Technical Audit connectors
+    domain:                'avenuez.com',
     sfCsvFileId:           '1ddlYbe_0wqadeqbIQVAsCt0F_9AOXSe9',             // May 21 2026 SF Internal All CSV
     // sfPrevCsvFileId:    '<May 08 file ID>',                               // TODO: add prior crawl file ID once confirmed
     sitebulbSheetId:       '1cKW5k0aqeWEk3HVakIDpiCrSP_mMf5oxQW7HJOxqsiw', // Sitebulb Historical Hint Data
     peecCustomerProjectId: 'or_043ae735-9397-48cf-a754-6e346a55f394',        // Peec agent analytics project
+    prProofSheetId:        '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M', // PR Proof Library
 
     enabledReports: [
       'demand-overview',

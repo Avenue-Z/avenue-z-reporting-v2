@@ -64,8 +64,8 @@ function getReportComponent(
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'peec-ai':
-      if (subsection === 'pr-influence')    return <PRInfluenceReport />
-      if (subsection === 'content-impact')  return <ContentImpactReport />
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} />
+      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
       return <PeecAIReport />
     case 'profound-ai':
