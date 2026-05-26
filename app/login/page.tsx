@@ -24,12 +24,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <AvenueZLogo height={22} className="text-white" />
         </div>
 
-        <h1 className="mb-1 text-center text-xl font-extrabold text-white">
-          Marketing Intelligence Platform
+        <h1 className="mb-8 text-center text-xl font-extrabold text-white">
+          Reporting Platform
         </h1>
-        <p className="mb-8 text-center text-sm text-text-muted">
-          Sign in to your account to continue
-        </p>
 
         {/* Error banner */}
         {errorMessage && (

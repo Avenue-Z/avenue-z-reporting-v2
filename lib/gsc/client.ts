@@ -10,7 +10,7 @@
  * Date windows: 28 days, ending 2 days ago (GSC has a 2-3 day data lag).
  * Current vs prior period comparison for KPI deltas.
  */
-import { GoogleAuth } from 'google-auth-library'
+import { JWT } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/clients.config'
 
 const WINDOW = 28
@@ -28,19 +28,23 @@ function periodDates(offsetDays: number): { startDate: string; endDate: string }
   return { startDate: isoDate(start), endDate: isoDate(end) }
 }
 
-let _auth: GoogleAuth | null = null
+let _jwt: JWT | null = null
 
-function getAuth(): GoogleAuth {
-  if (!_auth) {
+function getAuth(): JWT {
+  if (!_jwt) {
     const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
     if (!raw) throw new Error('Missing GOOGLE_SERVICE_ACCOUNT_KEY env var')
     const credentials = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
-    _auth = new GoogleAuth({
-      credentials,
+    const subject = process.env.GSC_IMPERSONATE_EMAIL
+    if (!subject) throw new Error('Missing GSC_IMPERSONATE_EMAIL env var — required for domain-wide delegation')
+    _jwt = new JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
       scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+      subject,
     })
   }
-  return _auth
+  return _jwt
 }
 
 interface GSCQueryBody {
@@ -65,16 +69,14 @@ interface GSCResponse {
 
 async function gscPost(siteUrl: string, body: GSCQueryBody): Promise<GSCResponse> {
   const auth = getAuth()
-  const token = await auth.getAccessToken()
+  const headers = await auth.getRequestHeaders()
+  headers.set('Content-Type', 'application/json')
   const encoded = encodeURIComponent(siteUrl)
   const res = await fetch(
     `https://www.googleapis.com/webmasters/v3/sites/${encoded}/searchAnalytics/query`,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
       cache: 'no-store',
     }

@@ -69,6 +69,7 @@ export const REPORT_NAMES: Record<string, string> = {
   salesforce: 'Salesforce',
   gohighlevel: 'GoHighLevel',
   'ticket-sales': 'Ticket Sales',
+  'request-a-report': 'Request a Report',
 }
 
 /** Sidebar nav groups in display order */
@@ -85,24 +86,23 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
   },
   {
     label: 'Tools',
-    slugs: ['ai-summaries', 'report-generator'],
+    slugs: ['request-a-report'],
   },
 ]
 
 /** Sub-items shown under the Answer Engine Optimization parent nav item */
 export const AEO_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
-  { id: null,             label: 'Peec AI'        },
-  { id: 'pr-influence',   label: 'PR Influence'   },
-  { id: 'content-impact', label: 'Content Impact' },
+  { id: null,             label: 'Overview'            },
+  { id: 'pr-influence',   label: 'PR Influence'        },
+  { id: 'content-impact', label: 'Content Impact'      },
   { id: 'technical-audit',label: 'Technical Performance'},
-  { id: 'profound',       label: 'Profound', comingSoon: true },
 ]
 
 /** Sub-items shown under the Web Analytics (ga4) parent nav item */
 export const GA4_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
   { id: null,                 label: 'Overview'           },
   { id: 'conversion-journey', label: 'Conversion Journey' },
-  { id: 'search-console',     label: 'Search Console',    comingSoon: true },
+  { id: 'search-console',     label: 'Search Console' },
 ]
 
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */
@@ -115,4 +115,5 @@ export const ALL_REPORT_SLUGS: string[] = [
   'ga4',
   'inbound-funnel',
   'hubspot-performance',
+  'request-a-report',
 ]

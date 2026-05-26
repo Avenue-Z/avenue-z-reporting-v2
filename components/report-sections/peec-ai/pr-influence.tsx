@@ -2,6 +2,9 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
+import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import { AI_REFERRER_DOMAINS } from '@/lib/constants'
+import { KpiCard } from '@/components/charts/kpi-card'
 import { Newspaper, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +15,7 @@ import { cn } from '@/lib/utils'
 // Live data:  Peec AI (visibility, position, citations, editorial domains,
 //             prompt cluster gap analysis)
 //             PR Proof Library (Google Sheet -- PR placement log)
+//             GA4 (AI referral sessions via AI_REFERRER_DOMAINS filter)
 // Cross-ref:  PR placement domains matched against Peec editorial citation data
 // ---------------------------------------------------------------------------
 
@@ -23,48 +27,24 @@ function Delta({ value, invert = false }: { value: number; invert?: boolean }) {
   const positive = invert ? value < 0 : value >= 0
   return (
     <span className={cn('text-xs font-semibold tabular-nums', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-      {value >= 0 ? '+' : ''}{value.toFixed(1)}
+      {value >= 0 ? '↑' : '↓'}{Math.abs(value).toFixed(1)}%
     </span>
   )
 }
 
-function KpiCard({
-  label,
-  value,
-  delta,
-  deltaInvert,
-  hint,
-  live = false,
-}: {
-  label: string
-  value: string
-  delta?: number
-  deltaInvert?: boolean
-  hint: string
-  live?: boolean
-}) {
+function Th({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-white/[0.06] bg-bg-surface p-4">
-      <span className="text-[11px] font-semibold text-text-muted">{label}</span>
-      <span className={cn('text-xl font-bold tabular-nums', live ? 'text-white' : 'text-white/20')}>{value}</span>
-      {delta !== undefined && live ? (
-        <Delta value={delta} invert={deltaInvert} />
-      ) : (
-        <span className="text-[10px] text-text-muted">{hint}</span>
-      )}
-    </div>
+    <th className="whitespace-nowrap pb-3 pr-5 text-left text-xs font-extrabold uppercase tracking-widest text-text-muted last:pr-0">
+      {children}
+    </th>
   )
 }
 
-function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function Td({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-      <div>
-        <h3 className="text-sm font-bold text-white">{title}</h3>
-        <p className="mt-1 text-xs text-text-muted">{description}</p>
-      </div>
+    <td className={cn('py-2.5 pr-5 text-xs last:pr-0', className)}>
       {children}
-    </div>
+    </td>
   )
 }
 
@@ -76,19 +56,15 @@ function TableEmpty({ cols, message }: { cols: number; message: string }) {
   )
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <th className="whitespace-nowrap pb-2.5 pr-5 text-left text-[10px] font-bold uppercase tracking-wider text-text-muted last:pr-0">
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
+      <div className="mb-5">
+        <h3 className="text-sm font-bold text-white">{title}</h3>
+        <p className="mt-1 text-xs text-text-muted">{description}</p>
+      </div>
       {children}
-    </th>
-  )
-}
-
-function Td({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <td className={cn('py-2.5 pr-5 text-xs last:pr-0', className)}>
-      {children}
-    </td>
+    </div>
   )
 }
 
@@ -117,14 +93,11 @@ function buildMatchback(
   // Build prompt cluster data for domain cross-reference
   // Count how many prompts mention sources that match each domain
   const domainPromptCount = new Map<string, number>()
-  const domainLLMs = new Map<string, Set<string>>()
   for (const prompt of trackedPrompts) {
     for (const source of prompt.sources) {
       const sourceLower = source.toLowerCase()
       const count = domainPromptCount.get(sourceLower) ?? 0
       domainPromptCount.set(sourceLower, count + 1)
-      if (!domainLLMs.has(sourceLower)) domainLLMs.set(sourceLower, new Set())
-      // The LLM sources are model names from tracked prompts
     }
   }
 
@@ -219,23 +192,68 @@ function computeOpportunityRows(
 
 // ── Main RSC ─────────────────────────────────────────────────────────────────
 
-export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) {
+export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days' }: { clientSlug: string; dateRange?: string }) {
+  // Date range setup for GA4 AI referral sessions
+  const resolvedMain = parseDateRange(dateRange)
+  const mainIso = `${resolvedMain.startDate},${resolvedMain.endDate}`
+  const resolvedCompare = deriveCompareRange(dateRange, 'previous_period')
+  const compareIso = resolvedCompare
+    ? `${resolvedCompare.startDate},${resolvedCompare.endDate}`
+    : null
+
   // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult] = await Promise.allSettled([
+  const [peecResult, prResult, aiReferralResult, compareAiResult] = await Promise.allSettled([
     getPeecOverview(),
     getPRProofData(clientSlug),
+    ga4Query({
+      clientSlug,
+      dateRange: mainIso,
+      metrics: ['sessions'],
+      dimensions: ['sessionSource'],
+      limit: 150,
+    }),
+    compareIso
+      ? ga4Query({
+          clientSlug,
+          dateRange: compareIso,
+          metrics: ['sessions'],
+          dimensions: ['sessionSource'],
+          limit: 150,
+        })
+      : Promise.resolve(null),
   ])
 
   const data   = peecResult.status === 'fulfilled' ? peecResult.value : null
   const prData = prResult.status   === 'fulfilled' ? prResult.value   : null
+  const aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
+  const compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
 
+  // GA4 AI referral sessions computation
+  const isAiSource = (source: unknown) =>
+    (AI_REFERRER_DOMAINS as readonly string[]).some(d =>
+      String(source ?? '').toLowerCase().includes(d)
+    )
+
+  const aiSessions = aiReferralRows
+    .filter(r => isAiSource(r.sessionSource))
+    .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
+
+  const compareAiSessions = compareAiRows
+    .filter(r => isAiSource(r.sessionSource))
+    .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
+
+  const aiSessionsDelta =
+    aiSessions > 0 && compareAiSessions > 0
+      ? ((aiSessions - compareAiSessions) / compareAiSessions) * 100
+      : undefined
+
   // Derive metrics
   const youMetrics = data?.brandRankings.find(b => b.isYou) ?? null
   const editorialDomains = (data?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Editorial')
-  const totalCitations = data?.totalCitationsByRange['YTD'] ?? 0
+  const totalCitations   = data?.totalCitationsByRange['YTD'] ?? 0
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
@@ -252,69 +270,53 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
   // Brand-absent editorial domains (Section D)
   const brandAbsentDomains = editorialDomains.filter(d => {
     // Domains cited by AI but NOT in our PR placement domains
-    const prDomains = new Set((prData?.uniqueDomains ?? []).map(d => d.toLowerCase()))
+    const prDomains = new Set((prData?.uniqueDomains ?? []).map(pd => pd.toLowerCase()))
     return !prDomains.has(d.domain.toLowerCase())
   })
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-8">
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#39A0FF]/10">
-          <Newspaper className="h-5 w-5 text-[#39A0FF]" />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-white">PR Influence on AI Visibility</h2>
-          <p className="mt-0.5 text-sm text-text-muted">
-            How earned media and press coverage drives brand visibility in AI-generated responses.
-          </p>
-        </div>
-      </div>
-
-      {/* ── Section A: KPI Strip (PRD: 5-6 cards) ── */}
+      {/* ── Section A: KPI Strip (PRD: 6 cards) ── */}
       <div>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">KPI Strip</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <KpiCard
-            label="AI Visibility %"
+            title="AI Visibility %"
             value={youMetrics ? fmt(youMetrics.visibility) : '--'}
             delta={youMetrics?.visibilityDelta}
-            hint="Peec AI, YTD"
-            live={!!youMetrics}
+            tooltip="Peec AI, YTD"
           />
           <KpiCard
-            label="Avg AI Position"
+            title="Avg AI Position"
             value={youMetrics ? youMetrics.position.toFixed(1) : '--'}
             delta={youMetrics ? -youMetrics.positionDelta : undefined}
-            deltaInvert
-            hint="Peec AI, YTD (lower = better)"
-            live={!!youMetrics}
+            invertDelta
+            tooltip="Peec AI, YTD (lower = better)"
           />
           <KpiCard
-            label="# AI Citations"
+            title="# AI Citations"
             value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
-            hint="Peec AI, total YTD"
-            live={totalCitations > 0}
+            tooltip="Peec AI, total YTD"
           />
           <KpiCard
-            label="PR Placements Cited by AI"
+            title="PR Placements Cited by AI"
             value={prData ? `${placementsCitedByAI} / ${prData.totalPlacements}` : '--'}
-            hint="PR Proof Library x Peec"
-            live={!!prData && prData.totalPlacements > 0}
+            tooltip="PR Proof Library x Peec"
           />
           <KpiCard
-            label="AI Referral Sessions"
-            value="--"
-            hint="Requires GA4 AI referral data"
+            title="AI Referral Sessions"
+            value={aiSessions > 0 ? aiSessions.toLocaleString() : '--'}
+            delta={aiSessionsDelta}
+            tooltip={aiSessions > 0 ? `GA4 · ${dateRange}` : 'Requires GA4 AI referral data'}
+            subValue={aiSessions === 0 ? 'Requires GA4 AI referral data' : undefined}
           />
           <KpiCard
-            label="Editorial Share, Brand Absent"
+            title="Editorial Share, Brand Absent"
             value={editorialDomains.length > 0
               ? `${brandAbsentDomains.length} / ${editorialDomains.length}`
               : '--'}
-            hint="Editorial domains citing AI but missing brand"
-            live={editorialDomains.length > 0}
+            tooltip="Editorial domains citing AI but missing brand"
           />
         </div>
       </div>
@@ -415,7 +417,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
           </table>
         </div>
         {matchbackRows.length > 0 && (
-          <p className="text-[10px] text-text-muted">
+          <p className="mt-4 text-[10px] text-text-muted">
             Showing {matchbackRows.length} placements across 14 columns. {placementsCitedByAI} cited by AI engines.
             Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.
           </p>
@@ -483,7 +485,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
         )}
       </SectionCard>
 
-      {/* ── Section D: Brand-Absent URLs (PRD: 9 columns) ── */}
+      {/* ── Section D: Brand-Absent Editorial Domains (PRD: 8 columns) ── */}
       <SectionCard
         title="D. Brand-Absent Editorial Domains"
         description="High-authority editorial domains that AI tools cite for your tracked prompts, but where your brand has no PR placement. These are the highest-priority pitch targets."
@@ -497,7 +499,6 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
                 <Th>URL</Th>
                 <Th>Citation Count</Th>
                 <Th>Competitors Mentioned</Th>
-                <Th>Competitors Present</Th>
                 <Th>Brand Mentioned</Th>
                 <Th>Opportunity Priority</Th>
                 <Th>Suggested PR Angle</Th>
@@ -519,7 +520,6 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
                       <Td><span className="text-white/20">--</span></Td>
                       <Td><span className="text-white/20">--</span></Td>
                       <Td><span className="tabular-nums text-white">{d.retrieved.toFixed(1)}%</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
                       <Td><span className="text-white/40">--</span></Td>
                       <Td>
                         <span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">
@@ -536,7 +536,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
                   )
                 })
               ) : (
-                <TableEmpty cols={9} message={
+                <TableEmpty cols={8} message={
                   editorialDomains.length === 0
                     ? 'No editorial domain data available from Peec AI'
                     : 'All editorial domains have PR placements. Great coverage!'
@@ -545,7 +545,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
             </tbody>
           </table>
         </div>
-        <p className="text-[10px] text-text-muted">
+        <p className="mt-4 text-[10px] text-text-muted">
           Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
         </p>
       </SectionCard>
@@ -560,7 +560,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-white/[0.06]">
+                  <tr className="border-b border-white/[0.08]">
                     <Th>Prompt Cluster</Th>
                     <Th>Prompts</Th>
                     <Th>Editorial Citation Density</Th>
@@ -615,7 +615,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
                 </tbody>
               </table>
             </div>
-            <p className="text-[10px] text-text-muted">
+            <p className="mt-4 text-[10px] text-text-muted">
               Opportunity Score = 35% editorial citation density + 30% brand absence + 20% competitor presence + 15% publication tier weight. Sorted by highest opportunity.
             </p>
           </>
@@ -723,6 +723,7 @@ export async function PRInfluenceReport({ clientSlug }: { clientSlug: string }) 
       <p className="text-xs text-text-muted">
         PR Influence on AI Visibility
         {data && ' . Peec AI (live)'}
+        {aiSessions > 0 && ` . GA4 AI referral sessions (live)`}
         {prData && prData.totalPlacements > 0 && ` . ${prData.totalPlacements} PR placements (${prData.dateRange?.earliest} to ${prData.dateRange?.latest})`}
       </p>
     </div>

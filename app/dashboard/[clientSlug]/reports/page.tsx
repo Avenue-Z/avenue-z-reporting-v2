@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/clients.config'
 import { REPORT_NAMES } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
@@ -13,10 +14,10 @@ import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
 import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
-import { ProfoundAIReport } from '@/components/report-sections/profound-ai'
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
 import { AISummariesReport } from '@/components/report-sections/ai-summaries'
 import { ReportGeneratorReport } from '@/components/report-sections/report-generator'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/period-selector'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import type { ReportSlug } from '@/lib/clients.config'
@@ -44,8 +45,11 @@ function getReportComponent(
   compareRange: string | null,
   subsection?: string,
   period?: SummaryPeriod,
+  submittedBy?: string,
 ) {
   switch (slug) {
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'ai-summaries':
       return <AISummariesReport clientSlug={clientSlug} period={period} />
     case 'report-generator':
@@ -56,6 +60,9 @@ function getReportComponent(
       if (subsection === 'conversion-journey') {
         return <ConversionJourneyReport clientSlug={clientSlug} dateRange={dateRange} />
       }
+      if (subsection === 'search-console') {
+        return <GoogleSearchConsoleReport clientSlug={clientSlug} />
+      }
       return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'google-search-console':
       return <GoogleSearchConsoleReport clientSlug={clientSlug} />
@@ -64,12 +71,10 @@ function getReportComponent(
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'peec-ai':
-      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} />
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} />
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
       return <PeecAIReport />
-    case 'profound-ai':
-      return <ProfoundAIReport />
     default:
       return null
   }
@@ -77,6 +82,7 @@ function getReportComponent(
 
 const GA4_SUBSECTION_NAMES: Record<string, string> = {
   'conversion-journey': 'Conversion Journey',
+  'search-console':     'Search Console',
 }
 
 const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
@@ -101,6 +107,9 @@ export default async function ReportPage({
   const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam } = await searchParams
   const client = getClientBySlug(clientSlug)
   if (!client) notFound()
+
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
 
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)
@@ -127,7 +136,7 @@ export default async function ReportPage({
   return (
     <>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl}>
-        {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && (
+        {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && subsection !== 'search-console' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
@@ -138,7 +147,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy)}
         </Suspense>
       </ReportErrorBoundary>
     </>
