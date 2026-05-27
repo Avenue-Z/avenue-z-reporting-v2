@@ -171,6 +171,26 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
     : null
 
+  // Prompt coverage and theme coverage per domain (PRD Section H)
+  const domainPromptCount = new Map<string, number>()
+  const domainThemes = new Map<string, Set<string>>()
+  const totalTrackedPrompts = peecData?.trackedPrompts.length ?? 0
+  for (const prompt of (peecData?.trackedPrompts ?? [])) {
+    const group = (prompt.group as string | undefined) ?? 'General'
+    for (const source of (prompt.sources as string[])) {
+      const key = source.toLowerCase()
+      domainPromptCount.set(key, (domainPromptCount.get(key) ?? 0) + 1)
+      if (!domainThemes.has(key)) domainThemes.set(key, new Set())
+      domainThemes.get(key)!.add(group)
+    }
+  }
+  const getPromptCoverage = (domain: string): number | null =>
+    totalTrackedPrompts > 0
+      ? Math.round((domainPromptCount.get(domain.toLowerCase()) ?? 0) / totalTrackedPrompts * 100)
+      : null
+  const getThemeCoverage = (domain: string): number =>
+    domainThemes.get(domain.toLowerCase())?.size ?? 0
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -234,9 +254,9 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
             live={unmatchedPct !== null}
           />
           <KpiCard
-            label="% Planned Content Cited in AI"
-            hint="Calendar URLs cited by AI"
-            value={ownDomains.length > 0 ? `${ownDomains.length} domains` : '--'}
+            label="Owned Domains Cited in AI"
+            hint="Peec AI brand-owned domains with citations"
+            value={ownDomains.length > 0 ? ownDomains.length.toLocaleString() : '--'}
             live={ownDomains.length > 0}
           />
         </div>
@@ -667,29 +687,55 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
         {/* Sub-view 1: Top Competitor Domains */}
         <div className="flex flex-col gap-3">
           <h4 className="text-xs font-bold text-white/60">Top Competitor / Corporate Domains Cited in AI</h4>
-          {competitorDomains.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {competitorDomains.slice(0, 10).map(d => {
-                const maxRetrieved = Math.max(...competitorDomains.slice(0, 10).map(x => x.retrieved), 1)
-                const barWidth = (d.retrieved / maxRetrieved) * 100
-                return (
-                  <div key={d.domain} className="flex items-center gap-3">
-                    <span className="w-36 shrink-0 truncate text-xs font-medium text-white/80" title={d.domain}>{d.domain}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="h-4 flex-1 overflow-hidden rounded bg-white/[0.04]">
-                          <div className="h-full rounded bg-[#FF4444]/40" style={{ width: `${barWidth}%` }} />
-                        </div>
-                        <span className="w-16 shrink-0 text-right text-[10px] tabular-nums text-white/60">{d.citationRate.toFixed(1)}%</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-text-muted">No competitor domain data available from Peec AI</p>
-          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <Th>Domain</Th>
+                  <Th>Citation Count</Th>
+                  <Th>Prompt Coverage %</Th>
+                  <Th>Theme Coverage</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {competitorDomains.length > 0 ? (
+                  competitorDomains.slice(0, 10).map(d => {
+                    const maxRetrieved = Math.max(...competitorDomains.slice(0, 10).map(x => x.retrieved), 1)
+                    const barWidth = (d.retrieved / maxRetrieved) * 100
+                    const promptCov = getPromptCoverage(d.domain)
+                    const themeCov  = getThemeCoverage(d.domain)
+                    return (
+                      <tr key={d.domain}>
+                        <Td>
+                          <span className="block max-w-[150px] truncate font-medium text-white/80" title={d.domain}>{d.domain}</span>
+                        </Td>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <div className="h-3 w-20 overflow-hidden rounded bg-white/[0.04]">
+                              <div className="h-full rounded bg-[#FF4444]/40" style={{ width: `${barWidth}%` }} />
+                            </div>
+                            <span className="tabular-nums text-white/60">{d.citationRate.toFixed(1)}%</span>
+                          </div>
+                        </Td>
+                        <Td>
+                          <span className="tabular-nums text-white">
+                            {promptCov !== null ? `${promptCov}%` : '--'}
+                          </span>
+                        </Td>
+                        <Td>
+                          <span className="tabular-nums text-white/60">
+                            {themeCov > 0 ? `${themeCov} theme${themeCov !== 1 ? 's' : ''}` : '--'}
+                          </span>
+                        </Td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <EmptyBody cols={4} message="No competitor domain data available from Peec AI" />
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="border-t border-white/[0.06]" />
@@ -702,10 +748,14 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
               <thead>
                 <tr className="border-b border-white/[0.06]">
                   <Th>Domain</Th>
+                  <Th>Article Title</Th>
+                  <Th>URL</Th>
                   <Th>Prompt Cluster</Th>
                   <Th>Citation Count</Th>
+                  <Th>Competitors Mentioned</Th>
                   <Th>Brand Mentioned</Th>
                   <Th>Opportunity Priority</Th>
+                  <Th>Suggested PR Angle</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
@@ -713,22 +763,33 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
                   editorialDomains.slice(0, 10).map(d => (
                     <tr key={d.domain}>
                       <Td><span className="font-medium text-white">{d.domain}</span></Td>
+                      <Td><span className="text-white/20">--</span></Td>
+                      <Td><span className="text-white/20">--</span></Td>
                       <Td><span className="text-white/40">--</span></Td>
                       <Td><span className="tabular-nums text-white">{d.citationRate.toFixed(1)}%</span></Td>
+                      <Td><span className="text-white/20">--</span></Td>
                       <Td><span className="text-white/40">--</span></Td>
                       <Td>
                         <span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">
                           Review
                         </span>
                       </Td>
+                      <Td>
+                        <span className="block max-w-[200px] text-[11px] text-white/50">
+                          Secure coverage on {d.domain} to displace competitor citations
+                        </span>
+                      </Td>
                     </tr>
                   ))
                 ) : (
-                  <EmptyBody cols={5} message="No editorial domain data from Peec AI" />
+                  <EmptyBody cols={9} message="No editorial domain data from Peec AI" />
                 )}
               </tbody>
             </table>
           </div>
+          <p className="text-[10px] text-text-muted">
+            Article Title, URL, and Competitors Mentioned require URL-level citation data from Peec AI (currently domain-level only).
+          </p>
         </div>
 
         <div className="border-t border-white/[0.06]" />
