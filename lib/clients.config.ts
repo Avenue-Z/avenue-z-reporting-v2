@@ -182,6 +182,9 @@ export const clients: ClientConfig[] = [
     sitebulbSheetId:       '1a-kMXV3VQg2_wo9r4xkSf3BRqw4ZLT8qBzdocrveNGs',
     peecCustomerProjectId: 'or_60dbe88c-7e3e-4cbc-b014-a8ae16912c86',
 
+    // PR Proof Library (shared sheet -- filtered to 'Renaissance' rows)
+    prProofSheetId: '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M',
+
     // Content Impact Tracker -- content calendar unlocks Sections B-E
     // Sheet must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com (Viewer)
     contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
