@@ -18,8 +18,13 @@ function periodDates(offsetDays: number, windowDays = 30) {
   return { start_date: isoDate(start), end_date: isoDate(end) }
 }
 
-async function peecPost<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  const projectId = process.env.PEEC_AI_PROJECT_ID
+// projectId: when provided, overrides PEEC_AI_PROJECT_ID env var (multi-client support)
+async function peecPost<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+  projectId?: string
+): Promise<T> {
+  const pid = projectId ?? process.env.PEEC_AI_PROJECT_ID
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: {
@@ -27,7 +32,7 @@ async function peecPost<T>(path: string, body: Record<string, unknown> = {}): Pr
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      ...(projectId ? { project_id: projectId } : {}),
+      ...(pid ? { project_id: pid } : {}),
       limit: 100,
       ...body,
     }),
@@ -41,10 +46,14 @@ async function peecPost<T>(path: string, body: Record<string, unknown> = {}): Pr
   return res.json()
 }
 
-async function peecGet<T>(path: string, params: Record<string, string> = {}): Promise<T> {
-  const projectId = process.env.PEEC_AI_PROJECT_ID
+async function peecGet<T>(
+  path: string,
+  params: Record<string, string> = {},
+  projectId?: string
+): Promise<T> {
+  const pid = projectId ?? process.env.PEEC_AI_PROJECT_ID
   const url = new URL(`${BASE_URL}${path}`)
-  if (projectId) url.searchParams.set('project_id', projectId)
+  if (pid) url.searchParams.set('project_id', pid)
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
   const res = await fetch(url.toString(), {
     headers: { 'X-API-Key': getKey() },
@@ -273,12 +282,19 @@ function groupByWeek(rows: ApiBrandRow[]): WeeklyVisibility[] {
 
 // --- Paginated fetch for YTD data ---
 
-async function fetchAllYtdRows(body: Record<string, unknown>): Promise<ApiBrandRow[]> {
+async function fetchAllYtdRows(
+  body: Record<string, unknown>,
+  projectId?: string
+): Promise<ApiBrandRow[]> {
   const limit = 500
   const allRows: ApiBrandRow[] = []
   let offset = 0
   while (offset < 10000) {
-    const page = await peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...body, limit, offset })
+    const page = await peecPost<{ data: ApiBrandRow[] }>(
+      '/reports/brands',
+      { ...body, limit, offset },
+      projectId
+    )
     const rows = page.data ?? []
     allRows.push(...rows)
     if (rows.length < limit) break
@@ -289,7 +305,23 @@ async function fetchAllYtdRows(body: Record<string, unknown>): Promise<ApiBrandR
 
 // --- Main export ---
 
-export async function getPeecOverview(): Promise<PeecOverview> {
+/**
+ * Fetches full Peec brand visibility overview for a given client.
+ *
+ * @param clientSlug  Optional. When provided, resolves the Peec project ID from
+ *                    clients.config.ts (peecCustomerProjectId). Falls back to the
+ *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
+ */
+export async function getPeecOverview(clientSlug?: string): Promise<PeecOverview> {
+  // Resolve project ID: per-client config takes precedence over env var
+  let resolvedProjectId: string | undefined
+  if (clientSlug) {
+    const { getClientBySlug } = await import('@/lib/clients.config')
+    const config = getClientBySlug(clientSlug)
+    resolvedProjectId = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+  }
+  // resolvedProjectId undefined = use env var inside peecPost/peecGet
+
   const yourBrand = process.env.PEEC_AI_YOUR_BRAND ?? ''
   const thisYear = new Date().getUTCFullYear()
   const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
@@ -299,20 +331,22 @@ export async function getPeecOverview(): Promise<PeecOverview> {
 
   const last30 = periodDates(0, 30)
 
+  const pid = resolvedProjectId // shorthand
+
   const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes] = await Promise.all([
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...last30 }),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...last30 }),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }),
-    peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id'], limit: 2000 }),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...last30 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...last30 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }, pid),
+    peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }, pid),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
   ])
 
-  const ytdRows = await fetchAllYtdRows({ ...ytd, dimensions: ['date'] })
+  const ytdRows = await fetchAllYtdRows({ ...ytd, dimensions: ['date'] }, pid)
 
   // --- Brand rankings ---
   const currentAgg = aggregateBrandRows(currentBrandsRes.data ?? [])

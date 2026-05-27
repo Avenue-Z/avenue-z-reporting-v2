@@ -111,6 +111,16 @@ export interface ClientConfig {
    */
   prProofSheetId?: string
 
+  /**
+   * Google Sheets ID for the Content Calendar tracker sheet.
+   * Governs the Content Impact Tracker dashboard (PRD FR2).
+   * Required columns (detected case-insensitively): Topic, URL, Content Type,
+   *   Status, Content Action, Publish Date, Update Date.
+   * Auth: shared GOOGLE_SERVICE_ACCOUNT_KEY (Sheets readonly scope).
+   * Sheet must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com (Viewer).
+   */
+  contentCalendarSheetId?: string
+
   enabledReports: ReportSlug[]
   hiddenReports?: ReportSlug[]
   prConfig?: PRConfig
@@ -156,8 +166,36 @@ export const clients: ClientConfig[] = [
       lookbackDays: 31,
     },
     users: [
-      { email: 'nick@avenuez.com',  role: 'INTERNAL_ADMIN' },
-      { email: 'demo@avenuez.com',  role: 'INTERNAL_ANALYST' },
+      { email: 'nick@avenuez.com',   role: 'INTERNAL_ADMIN' },
+      { email: 'demo@avenuez.com',   role: 'INTERNAL_ANALYST' },
+    ],
+  },
+
+  // ─── Renaissance ──────────────────────────────────────────────────────────
+  {
+    slug: 'renaissance',
+    name: 'Renaissance',
+    domain: 'renaissancebenefits.com',
+
+    // Technical Audit connectors (all three live data sources confirmed)
+    sfCsvFileId:           '10zM21GXKKfkQTLoZg8Q99YC38oioRFEs', // May 2026 SF Internal All CSV
+    sitebulbSheetId:       '1a-kMXV3VQg2_wo9r4xkSf3BRqw4ZLT8qBzdocrveNGs',
+    peecCustomerProjectId: 'or_60dbe88c-7e3e-4cbc-b014-a8ae16912c86',
+
+    // Content Impact Tracker -- content calendar unlocks Sections B-E
+    // Sheet must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com (Viewer)
+    contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
+
+    ga4PropertyId: 'GA4_PROPERTY_ID_RENAISSANCE',
+    // gscSiteUrl: 'GSC_SITE_URL_RENAISSANCE', // pending GSC property share
+
+    enabledReports: [
+      'peec-ai',
+      'request-a-report',
+    ],
+    users: [
+      { email: 'thomas.chang@avenuez.com', role: 'INTERNAL_ADMIN' },
+      { email: 'nick@avenuez.com',         role: 'INTERNAL_ADMIN' },
     ],
   },
 ]
