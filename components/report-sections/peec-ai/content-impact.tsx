@@ -6,6 +6,7 @@ import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarData, ContentCalendarRow, MatchStatus } from '@/lib/content-calendar/types'
+import { ga4Query } from '@/lib/ga4/client'
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -122,6 +123,28 @@ function getAiBotVisits(
   return match?.visits ?? 0
 }
 
+/** Look up GA4 page metrics for a content calendar URL */
+function getGA4Metrics(
+  url: string | null,
+  ga4Rows: import('@/lib/ga4/types').GA4Row[] | null
+): { sessions: number | null; users: number | null; views: number | null; engagementRate: number | null } {
+  const empty = { sessions: null, users: null, views: null, engagementRate: null }
+  if (!url || !ga4Rows) return empty
+  const path = extractPath(url)
+  if (!path) return empty
+  const row = ga4Rows.find(r => {
+    const p = String(r.pagePath ?? '')
+    return p === path || p === path.replace(/\/$/, '') || path === p.replace(/\/$/, '')
+  })
+  if (!row) return empty
+  return {
+    sessions:       row.sessions       !== null ? Number(row.sessions)       : null,
+    users:          row.activeUsers     !== null ? Number(row.activeUsers)    : null,
+    views:          row.screenPageViews !== null ? Number(row.screenPageViews): null,
+    engagementRate: row.engagementRate  !== null ? Number(row.engagementRate) : null,
+  }
+}
+
 /** Derive a recommended next action from available signals */
 function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
   if (row.matchStatus === 'unpublished') return 'Publish and monitor for AI indexing'
@@ -134,19 +157,28 @@ function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
 // ─── Main async RSC ──────────────────────────────────────────────────────────
 
 export async function ContentImpactReport({ clientSlug }: { clientSlug: string }) {
-  const [peecResult, agentResult, calendarResult] = await Promise.allSettled([
-    getPeecOverview(clientSlug),        // now multi-client: uses peecCustomerProjectId from config
+  const [peecResult, agentResult, calendarResult, ga4Result] = await Promise.allSettled([
+    getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
+    ga4Query({                          // page-level sessions for Section B -- requires ga4PropertyId
+      clientSlug,
+      dateRange: 'last_30_days',
+      metrics: ['sessions', 'activeUsers', 'screenPageViews', 'engagementRate'],
+      dimensions: ['pagePath'],
+      limit: 1000,
+    }),
   ])
 
   const peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
   const agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
   const calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
+  const ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
 
   if (peecResult.status     === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
   if (agentResult.status    === 'rejected') console.error('[content-impact] Agent analytics error:', agentResult.reason)
   if (calendarResult.status === 'rejected') console.error('[content-impact] Content calendar error:', calendarResult.reason)
+  if (ga4Result.status      === 'rejected') console.error('[content-impact] GA4 error:', ga4Result.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
   const ownDomains        = (peecData?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Own')
@@ -321,11 +353,34 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
                       </Td>
                       <Td><span className="text-white/40 text-[10px]">{row.publishDate ?? '--'}</span></Td>
                       <Td><span className="text-white/40 text-[10px]">{row.updateDate ?? '--'}</span></Td>
-                      {/* GA4 columns -- pending service-account grant */}
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
+                      {/* GA4 columns -- live when service account has GA4 access */}
+                      {(() => {
+                        const g = getGA4Metrics(row.url, ga4Rows)
+                        return (
+                          <>
+                            <Td>
+                              {g.sessions !== null
+                                ? <span className="tabular-nums text-white">{g.sessions.toLocaleString()}</span>
+                                : <span className="text-white/20">--</span>}
+                            </Td>
+                            <Td>
+                              {g.users !== null
+                                ? <span className="tabular-nums text-white/70">{g.users.toLocaleString()}</span>
+                                : <span className="text-white/20">--</span>}
+                            </Td>
+                            <Td>
+                              {g.views !== null
+                                ? <span className="tabular-nums text-white/70">{g.views.toLocaleString()}</span>
+                                : <span className="text-white/20">--</span>}
+                            </Td>
+                            <Td>
+                              {g.engagementRate !== null
+                                ? <span className="tabular-nums text-white/70">{(g.engagementRate * 100).toFixed(1)}%</span>
+                                : <span className="text-white/20">--</span>}
+                            </Td>
+                          </>
+                        )
+                      })()}
                       {/* AI data -- live when Peec URL-level data available */}
                       <Td><span className="text-white/20">--</span></Td>
                       <Td>
@@ -362,6 +417,11 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
         </div>
         {enrichedRows.length > 50 && (
           <p className="text-[10px] text-text-muted">Showing 50 of {enrichedRows.length} planned content rows.</p>
+        )}
+        {ga4Rows && (
+          <p className="text-[10px] text-text-muted">
+            Sessions, Users, Views, and Engagement Rate: GA4 page-level data (last 30d). Rows without a match show --.
+          </p>
         )}
         <div className="flex flex-col gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.02] p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Match Status Definitions</p>
@@ -1012,7 +1072,7 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
         {agentData && ` · ${totalBotVisits.toLocaleString()} AI bot visits (30d)`}
         {calendarData && ` · ${calendarData.plannedCount} planned URLs (content calendar)`}
         {!calendarData && ' · Content calendar pending connection'}
-        {' · GA4 page-level data pending'}
+        {ga4Rows ? ` · GA4 page-level data (live, ${ga4Rows.length} pages)` : ' · GA4 pending service-account access'}
       </p>
     </div>
   )

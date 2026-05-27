@@ -186,9 +186,8 @@ export const clients: ClientConfig[] = [
     // Sheet must be shared with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com (Viewer)
     contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
 
-    // GA4 / GSC pending service-account grant + GCP API enablement
-    // ga4PropertyId: 'GA4_PROPERTY_ID_RENAISSANCE',
-    // gscSiteUrl:    'GSC_SITE_URL_RENAISSANCE',
+    ga4PropertyId: 'GA4_PROPERTY_ID_RENAISSANCE',
+    // gscSiteUrl: 'GSC_SITE_URL_RENAISSANCE', // pending GSC property share
 
     enabledReports: [
       'peec-ai',
