@@ -77,6 +77,9 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   url: [
     'url', 'page url', 'live url', 'publish url', 'published url',
     'link', 'page link', 'target url', 'destination url',
+    // handles "Proposed Page Slug (or Live URL When Published)" and similar
+    'proposed page slug (or live url when published)',
+    'proposed page slug', 'page slug', 'slug', 'live url when published',
   ],
   contentType: [
     'content type', 'type', 'page type', 'asset type', 'content format',
@@ -122,17 +125,32 @@ function buildColumnMap(headers: string[]): Map<string, number> {
 
 /**
  * Classify raw content action string into canonical values (PRD FR5).
+ * Falls through to contentType-based heuristic when explicit action is absent.
  */
-function parseContentAction(raw: string): ContentAction {
+function parseContentAction(raw: string, contentTypeFallback = ''): ContentAction {
   const s = raw.trim().toLowerCase()
-  if (!s) return 'other'
-  if (s === 'new' || s === 'net-new' || s === 'net new' || s.startsWith('new ')) return 'new'
+  if (s) {
+    if (s === 'new' || s === 'net-new' || s === 'net new' || s.startsWith('new ')) return 'new'
+    if (
+      s === 'optimized' || s === 'optimised' || s === 'refresh' ||
+      s === 'refreshed' || s === 'updated' || s === 'rewrite' ||
+      s === 'rewritten' || s === 'expanded' || s.includes('optim') ||
+      s.includes('refresh') || s.includes('rewrit') || s.includes('updat')
+    ) return 'optimized'
+    if (s.includes('new') || s.includes('blog') || s.includes('article') || s.includes('creat')) return 'new'
+    return 'other'
+  }
+  // No explicit action column -- derive from Content Type (handles sheets like Renaissance's)
+  const ct = contentTypeFallback.trim().toLowerCase()
+  if (!ct) return 'other'
   if (
-    s === 'optimized' || s === 'optimised' || s === 'refresh' ||
-    s === 'refreshed' || s === 'updated' || s === 'rewrite' ||
-    s === 'rewritten' || s === 'expanded' || s.includes('optim') ||
-    s.includes('refresh') || s.includes('rewrit') || s.includes('updat')
+    ct.includes('optim') || ct.includes('existing') || ct.includes('refresh') ||
+    ct.includes('updat') || ct.includes('rewrit') || ct.includes('redesi')
   ) return 'optimized'
+  if (
+    ct.includes('new') || ct.includes('blog') || ct.includes('article') ||
+    ct.includes('creat') || ct.includes('net-new') || ct.includes('net new')
+  ) return 'new'
   return 'other'
 }
 
@@ -151,6 +169,9 @@ function normalizeUrl(raw: string | undefined): string | null {
   ) return null
   if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/')) return s
   if (s.includes('.')) return `https://${s}`
+  // Handle prefixed slugs like "(Keep existing) /guide/..." or "use: /path/"
+  const embedded = s.match(/(?:https?:\/\/\S+|\/[\w/-]+)/)
+  if (embedded) return embedded[0]
   return null
 }
 
@@ -219,7 +240,7 @@ export async function getContentCalendarData(
         url,
         contentType:   get('contentType')    || 'Unknown',
         status:        status                || 'Unknown',
-        contentAction: parseContentAction(get('contentAction')),
+        contentAction: parseContentAction(get('contentAction'), get('contentType')),
         publishDate:   normalizeDate(get('publishDate')),
         updateDate:    normalizeDate(get('updateDate')),
         matchStatus:   deriveMatchStatus(url, status),
