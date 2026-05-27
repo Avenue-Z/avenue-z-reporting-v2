@@ -30,6 +30,7 @@ export type ReportSlug =
   | 'demand-overview'
   | 'ai-summaries'
   | 'report-generator'
+  | 'request-a-report'
 
 export interface PRConfig {
   keywords: string[]
@@ -54,9 +55,15 @@ export const clients = pgTable('clients', {
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
   logoUrl: text('logo_url'),
+  domain: text('domain'),
   ga4PropertyId: text('ga4_property_id'),
   gscSiteUrl: text('gsc_site_url'),
   hubspotTokenEnvVar: text('hubspot_token_env_var'),
+  sfCsvFileId: text('sf_csv_file_id'),
+  sfPrevCsvFileId: text('sf_prev_csv_file_id'),
+  sitebulbSheetId: text('sitebulb_sheet_id'),
+  peecCustomerProjectId: text('peec_customer_project_id'),
+  prProofSheetId: text('pr_proof_sheet_id'),
   prConfig: jsonb('pr_config').$type<PRConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),

@@ -8,6 +8,13 @@
       "when": 1779285393735,
       "tag": "0000_boring_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779899341880,
+      "tag": "0001_many_namora",
+      "breakpoints": true
     }
   ]
 }
