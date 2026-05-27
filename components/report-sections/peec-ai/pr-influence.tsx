@@ -203,7 +203,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Fetch all data sources in parallel with graceful degradation
   const [peecResult, prResult, aiReferralResult, compareAiResult] = await Promise.allSettled([
-    getPeecOverview(),
+    getPeecOverview(clientSlug),
     getPRProofData(clientSlug),
     ga4Query({
       clientSlug,
