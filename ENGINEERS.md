@@ -227,28 +227,26 @@ Both auth paths redirect to `/` after success. The root `app/page.tsx` then rout
 
 ## Client Configuration
 
-`lib/clients.config.ts` is the only place clients are registered. There is no database.
+Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM. There is no `clients.config.ts` file anymore (deleted in the DB migration PR).
 
-```typescript
-// Current config — one client: Avenue Z internal
-{
-  slug: 'avenue-z',
-  name: 'Avenue Z',
-  ga4PropertyId: 'GA4_PROPERTY_ID_AVENUE_Z',     // env var name
-  gscSiteUrl: 'GSC_SITE_URL_AVENUE_Z',            // env var name
-  hubspotToken: 'HUBSPOT_ACCESS_TOKEN_AVENUE_Z',  // env var name
-  enabledReports: ['demand-overview', 'ga4', 'google-search-console',
-                   'hubspot-performance', 'inbound-funnel', 'peec-ai', 'profound-ai'],
-  hiddenReports: ['exec-summary'],
-  prConfig: { keywords: [...], excludeKeywords: [...], ... },
-  users: [
-    { email: 'nick@avenuez.com',  role: 'INTERNAL_ADMIN' },
-    { email: 'demo@avenuez.com',  role: 'INTERNAL_ANALYST' },
-  ],
-}
-```
+- **Schema:** `lib/db/schema.ts` — Drizzle table definitions for `clients` and `users`, plus inferred TS types (`Client`, `User`, `ClientRole`, `ReportSlug`, `PRConfig`).
+- **Helpers:** `lib/db/queries.ts` — three async functions wrapped in `React.cache()`:
+  - `getClientBySlug(slug)` → returns `Client & { users: User[] } | null`
+  - `getClientByEmail(email)` → returns `{ email, role, slug } | null` (flattened for auth.ts)
+  - `getAllClients()` → returns `Client[]` ordered by name
+- **Migrations:** `drizzle/*.sql`, generated from the schema. Apply with `npm run db:migrate`.
+- **Seed:** `scripts/seed.ts` — inline data for both clients; idempotent upsert. Run with `npm run db:seed`.
 
-**To add a new client:** append a new object to the `clients` array, add their env vars to Vercel, redeploy.
+The split:
+- **Identifiers in the DB** — slug, name, logo URL, GA4 property ID, GSC site URL, Peec customer project ID, sheet IDs, etc. Stored as direct values, no indirection.
+- **Secrets in env vars** — HubSpot tokens, the Google service account JSON, the Peec customer token, Auth.js secrets. The DB stores only the env-var *name* pointer when the secret is per-client (e.g. `hubspotTokenEnvVar = 'HUBSPOT_ACCESS_TOKEN_AVENUE_Z'`).
+
+**To add a new client:**
+
+1. Insert a row into the `clients` table via Drizzle Studio (`npm run db:studio`), the Neon dashboard SQL editor, or by extending `scripts/seed.ts` and re-running it.
+2. Insert a row into `users` for each user (email + role + client_id).
+3. If the client uses HubSpot, set their `hubspot_token_env_var` to the env var name and add that variable to Vercel.
+4. No code deploy required for routine onboarding.
 
 ---
 
@@ -257,23 +255,27 @@ Both auth paths redirect to `/` after success. The root `app/page.tsx` then rout
 ### GA4 (`lib/ga4/client.ts`)
 - Uses `@google-analytics/data` Node.js SDK
 - Auth via a shared Google Service Account (`GOOGLE_SERVICE_ACCOUNT_KEY` env var)
-- Property ID read from env var named in `clientConfig.ga4PropertyId`
+- Property ID read directly from `client.ga4PropertyId` (DB column, e.g. `properties/355114071`)
 - `ga4Query()` is the main helper — takes dimensions, metrics, date range, optional filters
 
 ### Google Search Console (`lib/gsc/client.ts`)
-- Uses `googleapis` Node.js SDK, same service account
-- Site URL read from env var named in `clientConfig.gscSiteUrl`
+- Uses `google-auth-library` JWT for service-account-with-impersonation
+- Site URL read directly from `client.gscSiteUrl` (DB column, e.g. `sc-domain:avenuez.com`)
+- Requires `GSC_IMPERSONATE_EMAIL` env var — domain-wide-delegation user the service account impersonates
 
 ### HubSpot (`lib/hubspot/client.ts`)
 - Uses `@hubspot/api-client`
-- Access token read from env var named in `clientConfig.hubspotToken`
+- Token env var **name** stored in `client.hubspotTokenEnvVar` (e.g. `'HUBSPOT_ACCESS_TOKEN_AVENUE_Z'`); the actual token still lives in env. Secrets stay in env; only the pointer is in DB.
 - React `cache()` wraps all functions — request-scoped memoization
 - **Rate limit:** CRM Search API is throttled to ~4 req/s. All year-level cache queries run sequentially (not `Promise.all`)
 - `getFormSubmissionCounts` has `[forms-debug]` console.log statements in place — these should be removed once the customer-column bug is resolved (see "Open Issues" below)
 
-### PEEC AI (`lib/peec/client.ts`)
-- Direct HTTP to PEEC AI API
-- Brand data configured per-client in `clients.config.ts`
+### Peec AI (`lib/peec/client.ts`)
+- Direct HTTP to Peec AI API at `https://api.peec.ai/customer/v1`
+- Uses `PEEC_AI_CUSTOMER_TOKEN` (the `skc-` multi-tenant key)
+- Per-client `peecCustomerProjectId` from DB is sent in the request body
+- Per-client "your brand" label from `client.peecYourBrand` (e.g. `'Avenue Z'` vs `'Renaissance'`) — drives the legend label and the "isYou" row matcher
+- Whole `getPeecOverview` is wrapped in `unstable_cache` keyed by `clientSlug` with 1-hour TTL, so each client has its own cache entry (avoids URL-keyed fetch-cache collisions on the same endpoint)
 
 ### Profound AI (`lib/profound/client.ts`)
 - Direct HTTP to Profound AI API
@@ -328,59 +330,73 @@ Both auth paths redirect to `/` after success. The root `app/page.tsx` then rout
 
 ## Environment Variables
 
-Copy this to `.env.local` for local development. All production values live in Vercel.
+Copy this to `.env.local` for local development. All production values live in Vercel (with separate Production and Preview scopes — see below). Per-client identifiers (GA4 property IDs, GSC site URLs, etc.) now live in the database, not env vars.
 
 ```env
 # Auth.js
 AUTH_SECRET=                          # openssl rand -base64 32
 AUTH_GOOGLE_ID=                       # Google Cloud Console → OAuth 2.0 client
 AUTH_GOOGLE_SECRET=                   # Same credential
+AUTH_TRUST_HOST=true                  # required in non-dev (NextAuth v5)
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 APP_URL=http://localhost:3000
 
-# Google service account (shared across all GA4 + GSC clients)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON stringified service account key
+# Database (Neon Postgres)
+DATABASE_URL=                         # pooled connection (app runtime)
+DATABASE_URL_UNPOOLED=                # direct connection (drizzle-kit migrations only)
 
-# Per-client data connections (env var name must match value in clients.config.ts)
-GA4_PROPERTY_ID_AVENUE_Z=            # "properties/XXXXXXXXX"
-GSC_SITE_URL_AVENUE_Z=               # "https://avenuez.com/" or "sc-domain:avenuez.com"
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=       # "pat-na1-..."
+# Google service account (shared across GA4 + GSC + Drive/Sheets for all clients)
+GOOGLE_SERVICE_ACCOUNT_KEY=           # base64-encoded JSON
+GSC_IMPERSONATE_EMAIL=                # user that the SA impersonates for GSC (domain-wide delegation)
 
-# Third-party APIs
-PEEC_API_KEY=
-PROFOUND_API_KEY=
+# HubSpot — per-client secret, name pointer stored in clients.hubspot_token_env_var
+HUBSPOT_ACCESS_TOKEN_AVENUE_Z=        # "pat-na1-..."
+
+# Peec AI (multi-tenant; project IDs come from DB)
+PEEC_AI_CUSTOMER_TOKEN=               # "skc-..." multi-tenant key
+PEEC_AI_PROJECT_ID=                   # legacy fallback for callers without clientSlug
+PEEC_AI_YOUR_BRAND=                   # legacy fallback for clients.peec_your_brand
+
+# Profound AI
+PROFOUND_AI_ACCESS_TOKEN=
+PROFOUND_AI_YOUR_BRAND=
+PROFOUND_CATEGORY_ID=
+
+# Other third-party
 NEWS_API_KEY=                         # newsapi.org
 GLEAN_API_TOKEN=
 
-# Supermetrics (add one per client)
-SUPERMETRICS_API_KEY_AVENUE_Z=
+# BigQuery
+BQ_PROJECT_ID=
+BQ_DATASET=
 ```
+
+### Vercel scoping
+
+Most env vars are shared across Production + Preview with the same value. Two exceptions:
+
+- **`DATABASE_URL` / `DATABASE_URL_UNPOOLED`** — different values per scope. Production points at the prod Neon project; Preview points at the dev Neon project (or per-PR Neon branches if branching is enabled). Add as two separate Vercel entries with non-overlapping scopes.
+- **`AUTH_TRUST_HOST`** — same value (`true`), but only meaningful in Production + Preview (dev auto-trusts localhost).
 
 ---
 
-## Immediate Fixes Needed Before Collaboration
+## Open Issues / Tech Debt
 
 ### 🔴 Security: No Password Validation
 
-`auth.ts` `authorize()` function currently accepts **any password** as long as the email exists in `clients.config.ts`. This is fine for internal-only preview but must be fixed before any client has login credentials.
+`auth.ts` `authorize()` function currently accepts **any password** as long as the email exists in the `users` table. This is fine for internal-only preview but must be fixed before any external client has login credentials.
 
-**Fix:** Add a `passwordHash` field to the `users` array in `clients.config.ts` and validate with `bcrypt.compare()` in the `authorize()` callback. Or switch all internal users to Google OAuth and reserve credentials-only for specific client accounts.
+**Fix:** Add a `password_hash` column to the `users` table (new migration) and validate with `bcrypt.compare()` in the `authorize()` callback. Or rely on Google OAuth for staff (already wired up — `@avenuez.com` domain-gated) and reserve credentials-only for specific external client accounts when those land.
 
-### 🔴 Google OAuth Not Configured
+### 🟢 Google OAuth — Configured
 
-`AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are blank. The "Sign in with Google" button on the login page currently throws a "Missing client_id" error.
+GWS-only OAuth is wired up: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` set in Vercel, `hd=avenuez.com` parameter on the provider, server-side `signIn` callback rejects non-`@avenuez.com` accounts as defense-in-depth, and the Google Cloud OAuth client's consent screen is set to Internal. Unlisted `@avenuez.com` staff are auto-provisioned as `INTERNAL_ANALYST` on `avenue-z` client.
 
-**Fix:**
-1. Go to [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services → Credentials
-2. Create an OAuth 2.0 client (Web application)
-3. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google` (dev) and `https://your-production-url.com/api/auth/callback/google` (prod)
-4. Copy client ID and secret into `.env.local` and Vercel environment variables
+### 🟡 `CLAUDE.md` mostly current
 
-### 🟡 `CLAUDE.md` Is Out of Sync
-
-`CLAUDE.md` still describes a Supermetrics-first architecture in the present tense as if it's the current data layer. In reality, the live report sections (GA4, HubSpot, GSC, PEEC, Profound) all use direct API clients, not Supermetrics. Supermetrics is scaffolded but not wired to any live section.
+The Postgres + Drizzle architecture is now reflected in `CLAUDE.md`. The Supermetrics section still describes the original aspirational architecture (Supermetrics as the data layer) — in practice, live report sections (GA4, HubSpot, GSC, Peec, Profound) all hit native APIs directly. Supermetrics scaffolding exists but isn't wired to any live section. Worth a future cleanup.
 
 **Fix:** Update `CLAUDE.md` to accurately reflect current vs. planned data sources. This avoids confusing new engineers about what's actually running.
 
