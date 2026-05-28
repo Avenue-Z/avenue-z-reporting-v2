@@ -190,7 +190,7 @@ export const clients: ClientConfig[] = [
     contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
 
     ga4PropertyId: 'GA4_PROPERTY_ID_RENAISSANCE',
-    // gscSiteUrl: 'GSC_SITE_URL_RENAISSANCE', // pending GSC property share
+    gscSiteUrl:    'GSC_SITE_URL_RENAISSANCE',
 
     enabledReports: [
       'peec-ai',
