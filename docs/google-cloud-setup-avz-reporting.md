@@ -138,21 +138,25 @@ Copy the entire output — it will be a long single-line string.
 
 #### In `.env.local` (development)
 
-Open `.env.local` in the project root and fill in:
+Open `.env.local` in the project root and add:
 
 ```env
 GOOGLE_SERVICE_ACCOUNT_KEY=<paste the base64 string here>
-GA4_PROPERTY_ID_AVENUE_Z=properties/123456789
+GSC_IMPERSONATE_EMAIL=<email of a user with GSC access — required for GSC API via domain-wide delegation>
 ```
 
-Replace `123456789` with the actual numeric property ID from Step 4.
+The GA4 property ID itself is **no longer an env var** — it lives in the database column `clients.ga4_property_id` (e.g., `properties/355114071`). Update the existing row (or insert a new client) via Drizzle Studio or the Neon dashboard SQL editor:
+
+```sql
+UPDATE clients SET ga4_property_id = 'properties/355114071' WHERE slug = 'avenue-z';
+```
 
 #### In Vercel (production)
 
 1. Go to your Vercel project → **Settings → Environment Variables**
-2. Add `GOOGLE_SERVICE_ACCOUNT_KEY` with the base64 string as the value
-3. Add `GA4_PROPERTY_ID_AVENUE_Z` with the value `properties/123456789`
-4. Set both to apply to **Production**, **Preview**, and **Development** environments
+2. Add `GOOGLE_SERVICE_ACCOUNT_KEY` with the base64 string as the value (Production + Preview)
+3. Add `GSC_IMPERSONATE_EMAIL` with the impersonation user's email (Production + Preview)
+4. Add `DATABASE_URL` + `DATABASE_URL_UNPOOLED` for both Production (prod Neon) and Preview (dev Neon) — see ENGINEERS.md for the per-scope split
 5. Redeploy for the changes to take effect
 
 ---
@@ -181,21 +185,21 @@ GA4 has a working API client in the app. Once the env vars are set:
 
 The Search Console API client is built and ready (`lib/gsc/client.ts`). Once access is granted in Step 5 and the env var below is set, the report loads live data automatically.
 
-### Set the Site URL Variable
+### Set the Site URL on the client row
 
-Add one more env var alongside `GOOGLE_SERVICE_ACCOUNT_KEY`:
+The GSC site URL lives in `clients.gsc_site_url`, **not** an env var. Update the row:
 
-#### In `.env.local` (development)
+```sql
+-- Domain property:
+UPDATE clients SET gsc_site_url = 'sc-domain:avenuez.com' WHERE slug = 'avenue-z';
 
-```env
-# Match the exact format of your GSC property type:
-GSC_SITE_URL_AVENUE_Z=sc-domain:avenuez.com     # domain property
-# GSC_SITE_URL_AVENUE_Z=https://avenuez.com/    # URL-prefix property (trailing slash required)
+-- OR URL-prefix property (trailing slash required):
+-- UPDATE clients SET gsc_site_url = 'https://avenuez.com/' WHERE slug = 'avenue-z';
 ```
 
-#### In Vercel (production)
+Match the exact format of your GSC property type (Domain vs URL-prefix).
 
-Add `GSC_SITE_URL_AVENUE_Z` with the same value to **Production**, **Preview**, and **Development** environments.
+The shared env vars `GOOGLE_SERVICE_ACCOUNT_KEY` + `GSC_IMPERSONATE_EMAIL` (from Step 6) provide the auth; no per-client env var is needed.
 
 ### Verify
 
@@ -209,8 +213,9 @@ Add `GSC_SITE_URL_AVENUE_Z` with the same value to **Production**, **Preview**, 
 | Error | Cause | Fix |
 |---|---|---|
 | `Missing GOOGLE_SERVICE_ACCOUNT_KEY` | Shared env var not set | Complete Step 6 |
+| `Missing GSC_IMPERSONATE_EMAIL` | Domain-wide delegation user not configured | Complete Step 6 |
 | `403 User does not have sufficient permission` | Service account not added to GSC | Repeat Step 5 |
-| `Missing env var: GSC_SITE_URL_AVENUE_Z` | Site URL var not set | Add it per the instructions above |
+| `GSC not configured for client: <slug>` | `gsc_site_url` is NULL in the DB | Set it via SQL: `UPDATE clients SET gsc_site_url = 'sc-domain:...' WHERE slug = '<slug>'` |
 | No data / empty rows | Wrong site URL format | Check whether your GSC property is domain or URL-prefix type |
 
 ---
@@ -220,8 +225,11 @@ Add `GSC_SITE_URL_AVENUE_Z` with the same value to **Production**, **Preview**, 
 | Variable | Format | Example |
 |---|---|---|
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | Base64-encoded JSON string | `eyJh...` |
-| `GA4_PROPERTY_ID_AVENUE_Z` | `properties/<numeric ID>` | `properties/123456789` |
-| `GSC_SITE_URL_AVENUE_Z` | Domain or URL-prefix property URL | `sc-domain:avenuez.com` |
+| `GSC_IMPERSONATE_EMAIL` | Workspace user the SA impersonates for GSC | `seo-admin@avenuez.com` |
+| `DATABASE_URL` | Neon pooled connection (per env scope) | `postgresql://...-pooler...` |
+| `DATABASE_URL_UNPOOLED` | Neon direct connection (migrations only) | `postgresql://...` |
+
+Per-client identifiers (GA4 property ID, GSC site URL) live in the `clients` table columns `ga4_property_id` and `gsc_site_url` — see ENGINEERS.md.
 
 | API | Name in GCP Library |
 |---|---|
