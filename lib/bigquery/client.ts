@@ -1,5 +1,5 @@
 import { BigQuery } from '@google-cloud/bigquery'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 const PROJECT_ID = process.env.BQ_PROJECT_ID!
 const DATASET = process.env.BQ_DATASET!
@@ -225,16 +225,20 @@ async function fetchDailySessionsImpl(
   }))
 }
 
-export const fetchFunSpotData = timed(
+export const fetchFunSpotData = cached(
   'bigquery',
   'fetchFunSpotData',
   fetchFunSpotDataImpl,
-  ([dateRange]) => ({ dateRange }),
+  {
+    extractTags: ([dateRange]) => ({ dateRange }),
+  },
 )
 
-export const fetchDailySessions = timed(
+export const fetchDailySessions = cached(
   'bigquery',
   'fetchDailySessions',
   fetchDailySessionsImpl,
-  ([ga4Account, dateRange]) => ({ client: ga4Account, dateRange }),
+  {
+    extractTags: ([ga4Account, dateRange]) => ({ client: ga4Account, dateRange }),
+  },
 )
