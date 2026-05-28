@@ -15,6 +15,7 @@ type SeedClient = {
   peecCustomerProjectId: string | null
   prProofSheetId: string | null
   contentCalendarSheetId: string | null
+  peecYourBrand: string | null
   prConfig: PRConfig | null
   enabledReports: ReportSlug[]
   hiddenReports: ReportSlug[]
@@ -38,6 +39,7 @@ const SEED: SeedClient[] = [
     peecCustomerProjectId: 'or_043ae735-9397-48cf-a754-6e346a55f394',
     prProofSheetId: '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M',
     contentCalendarSheetId: null,
+    peecYourBrand: 'Avenue Z',
     prConfig: {
       keywords: ['"Avenue Z"', '"Avenue Z Agency"', '"Avenue Z marketing"', 'avenuez.com'],
       excludeKeywords: ['"avenue z-line"', '"avenue zone"', '"avenue zip"'],
@@ -74,6 +76,7 @@ const SEED: SeedClient[] = [
     peecCustomerProjectId: 'or_60dbe88c-7e3e-4cbc-b014-a8ae16912c86',
     prProofSheetId: '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M',
     contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
+    peecYourBrand: 'Renaissance',
     prConfig: null,
     enabledReports: [
       'peec-ai',

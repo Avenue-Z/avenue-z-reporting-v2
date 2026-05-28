@@ -313,16 +313,19 @@ async function fetchAllYtdRows(
  *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
  */
 export async function getPeecOverview(clientSlug?: string): Promise<PeecOverview> {
-  // Resolve project ID: per-client config takes precedence over env var
+  // Resolve project ID and "your brand" label per-client; fall back to env vars
+  // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
+  let resolvedYourBrand: string | undefined
   if (clientSlug) {
     const { getClientBySlug } = await import('@/lib/db/queries')
     const config = await getClientBySlug(clientSlug)
     resolvedProjectId = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+    resolvedYourBrand = config?.peecYourBrand ?? undefined
   }
   // resolvedProjectId undefined = use env var inside peecPost/peecGet
 
-  const yourBrand = process.env.PEEC_AI_YOUR_BRAND ?? ''
+  const yourBrand = resolvedYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
   const thisYear = new Date().getUTCFullYear()
   const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
   const priorYtd = { start_date: `${thisYear - 1}-01-01`, end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}` }
