@@ -2,7 +2,8 @@ import { cache } from 'react'
 import { Client } from '@hubspot/api-client'
 import { FilterOperatorEnum as DealFilterOp } from '@hubspot/api-client/lib/codegen/crm/deals/models/Filter'
 import { getClientBySlug } from '@/lib/db/queries'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
+import { byClient } from '@/lib/perf'
 
 const _clients = new Map<string, Client>()
 
@@ -1153,7 +1154,7 @@ export interface FormSubmissionCount {
  * Wrapped in React cache() so multiple callers in the same request share one
  * execution — no duplicate API calls.
  */
-const getFormSubmissionCountsImpl = cache(async (
+const getFormSubmissionCountsImpl = async (
   clientSlug: string,
   startDate:  string,
   endDate:    string,
@@ -1306,32 +1307,33 @@ const getFormSubmissionCountsImpl = cache(async (
       return { formId: f.id, formName: f.name, total: fd.total, icp, mcp, unidentified, customers }
     })
     .sort((a, b) => b.total - a.total)
-})
+}
 
-// --- Profiling wrappers ---
-// `extractClient` assumes args[0] is the client slug for every wrapped fn below.
-// If you add a wrap for a function whose first arg is NOT the client slug,
-// write a per-call extractor inline instead — don't extend this helper.
-// The `as never` cast bypasses TS's tuple-shape verification on PerfExtractor;
-// it's the documented fallback for the 19 varying signatures here.
-const extractClient = (args: unknown[]) => ({ client: args[0] as string })
+// --- Cache wrappers ---
+// All 18 HubSpot fetchers below take `clientSlug` as their first arg, so
+// they share the typed `byClient` extractor from lib/perf. If you add a
+// wrap for a function whose first arg is NOT the client slug, write a
+// per-call extractor inline instead — don't extend byClient.
+//
+// `getHubSpotClient` is intentionally NOT wrapped: it returns the SDK
+// instance (memoized in module-scope _clients Map), not a data fetch.
+export const getHubSpotClient = getHubSpotClientImpl  // not cached; SDK constructor
 
-export const getHubSpotClient = timed('hubspot', 'getClient', getHubSpotClientImpl, extractClient as never)
-export const getPipelineDeals = timed('hubspot', 'getPipelineDeals', getPipelineDealsImpl, extractClient as never)
-export const getOwnerMap = timed('hubspot', 'getOwnerMap', getOwnerMapImpl, extractClient as never)
-export const getContactStats = timed('hubspot', 'getContactStats', getContactStatsImpl, extractClient as never)
-export const getContactStatsYoY = timed('hubspot', 'getContactStatsYoY', getContactStatsYoYImpl, extractClient as never)
-export const getContactBreakdown = timed('hubspot', 'getContactBreakdown', getContactBreakdownImpl, extractClient as never)
-export const getWeeklyContactStats = timed('hubspot', 'getWeeklyContactStats', getWeeklyContactStatsImpl, extractClient as never)
-export const getWeeklyYTDContacts = timed('hubspot', 'getWeeklyYTDContacts', getWeeklyYTDContactsImpl, extractClient as never)
-export const getMonthlyContactBreakdown = timed('hubspot', 'getMonthlyContactBreakdown', getMonthlyContactBreakdownImpl, extractClient as never)
-export const getQuarterlyContactStats = timed('hubspot', 'getQuarterlyContactStats', getQuarterlyContactStatsImpl, extractClient as never)
-export const getYearlyContactStats = timed('hubspot', 'getYearlyContactStats', getYearlyContactStatsImpl, extractClient as never)
-export const getDailyContactTrend = timed('hubspot', 'getDailyContactTrend', getDailyContactTrendImpl, extractClient as never)
-export const getContactStatsForRange = timed('hubspot', 'getContactStatsForRange', getContactStatsForRangeImpl, extractClient as never)
-export const getHubSpotSummary = timed('hubspot', 'getSummary', getHubSpotSummaryImpl, extractClient as never)
-export const getFormBreakdown = timed('hubspot', 'getFormBreakdown', getFormBreakdownImpl, extractClient as never)
-export const getDailyFormTrend = timed('hubspot', 'getDailyFormTrend', getDailyFormTrendImpl, extractClient as never)
-export const getLifecycleStageCounts = timed('hubspot', 'getLifecycleStageCounts', getLifecycleStageCountsImpl, extractClient as never)
-export const getFormMetadata = timed('hubspot', 'getFormMetadata', getFormMetadataImpl, extractClient as never)
-export const getFormSubmissionCounts = timed('hubspot', 'getFormSubmissionCounts', getFormSubmissionCountsImpl, extractClient as never)
+export const getPipelineDeals = cached('hubspot', 'getPipelineDeals', getPipelineDealsImpl, { extractTags: byClient })
+export const getOwnerMap = cached('hubspot', 'getOwnerMap', getOwnerMapImpl, { extractTags: byClient })
+export const getContactStats = cached('hubspot', 'getContactStats', getContactStatsImpl, { extractTags: byClient })
+export const getContactStatsYoY = cached('hubspot', 'getContactStatsYoY', getContactStatsYoYImpl, { extractTags: byClient })
+export const getContactBreakdown = cached('hubspot', 'getContactBreakdown', getContactBreakdownImpl, { extractTags: byClient })
+export const getWeeklyContactStats = cached('hubspot', 'getWeeklyContactStats', getWeeklyContactStatsImpl, { extractTags: byClient })
+export const getWeeklyYTDContacts = cached('hubspot', 'getWeeklyYTDContacts', getWeeklyYTDContactsImpl, { extractTags: byClient })
+export const getMonthlyContactBreakdown = cached('hubspot', 'getMonthlyContactBreakdown', getMonthlyContactBreakdownImpl, { extractTags: byClient })
+export const getQuarterlyContactStats = cached('hubspot', 'getQuarterlyContactStats', getQuarterlyContactStatsImpl, { extractTags: byClient })
+export const getYearlyContactStats = cached('hubspot', 'getYearlyContactStats', getYearlyContactStatsImpl, { extractTags: byClient })
+export const getDailyContactTrend = cached('hubspot', 'getDailyContactTrend', getDailyContactTrendImpl, { extractTags: byClient })
+export const getContactStatsForRange = cached('hubspot', 'getContactStatsForRange', getContactStatsForRangeImpl, { extractTags: byClient })
+export const getHubSpotSummary = cached('hubspot', 'getSummary', getHubSpotSummaryImpl, { extractTags: byClient })
+export const getFormBreakdown = cached('hubspot', 'getFormBreakdown', getFormBreakdownImpl, { extractTags: byClient })
+export const getDailyFormTrend = cached('hubspot', 'getDailyFormTrend', getDailyFormTrendImpl, { extractTags: byClient })
+export const getLifecycleStageCounts = cached('hubspot', 'getLifecycleStageCounts', getLifecycleStageCountsImpl, { extractTags: byClient })
+export const getFormMetadata = cached('hubspot', 'getFormMetadata', getFormMetadataImpl, { extractTags: byClient })
+export const getFormSubmissionCounts = cached('hubspot', 'getFormSubmissionCounts', getFormSubmissionCountsImpl, { extractTags: byClient })
