@@ -14,14 +14,15 @@ type SeedClient = {
   sitebulbSheetId: string | null
   peecCustomerProjectId: string | null
   prProofSheetId: string | null
+  contentCalendarSheetId: string | null
   prConfig: PRConfig | null
   enabledReports: ReportSlug[]
   hiddenReports: ReportSlug[]
   users: { email: string; role: 'INTERNAL_ADMIN' | 'INTERNAL_ANALYST' | 'CLIENT_ADMIN' | 'CLIENT_VIEWER' }[]
 }
 
-// Inline seed data — kept aligned with the deleted clients.config.ts and any
-// subsequent updates merged into main. Source of truth is the DB after this runs.
+// Inline seed data — kept aligned with the deleted clients.config.ts and
+// subsequent updates merged from main. DB is the source of truth after this runs.
 const SEED: SeedClient[] = [
   {
     slug: 'avenue-z',
@@ -36,6 +37,7 @@ const SEED: SeedClient[] = [
     sitebulbSheetId: '1cKW5k0aqeWEk3HVakIDpiCrSP_mMf5oxQW7HJOxqsiw',
     peecCustomerProjectId: 'or_043ae735-9397-48cf-a754-6e346a55f394',
     prProofSheetId: '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M',
+    contentCalendarSheetId: null,
     prConfig: {
       keywords: ['"Avenue Z"', '"Avenue Z Agency"', '"Avenue Z marketing"', 'avenuez.com'],
       excludeKeywords: ['"avenue z-line"', '"avenue zone"', '"avenue zip"'],
@@ -58,6 +60,31 @@ const SEED: SeedClient[] = [
       { email: 'demo@avenuez.com', role: 'INTERNAL_ANALYST' },
     ],
   },
+  {
+    slug: 'renaissance',
+    name: 'Renaissance',
+    logoUrl: '/logos/RenaissanceBenefits.jpeg',
+    domain: 'renaissancebenefits.com',
+    ga4PropertyId: process.env.GA4_PROPERTY_ID_RENAISSANCE ?? 'properties/310998391',
+    gscSiteUrl: 'sc-domain:renaissancebenefits.com',
+    hubspotTokenEnvVar: null,
+    sfCsvFileId: '10zM21GXKKfkQTLoZg8Q99YC38oioRFEs',
+    sfPrevCsvFileId: null,
+    sitebulbSheetId: '1a-kMXV3VQg2_wo9r4xkSf3BRqw4ZLT8qBzdocrveNGs',
+    peecCustomerProjectId: 'or_60dbe88c-7e3e-4cbc-b014-a8ae16912c86',
+    prProofSheetId: '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M',
+    contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
+    prConfig: null,
+    enabledReports: [
+      'peec-ai',
+      'request-a-report',
+    ],
+    hiddenReports: [],
+    users: [
+      { email: 'thomas.chang@avenuez.com', role: 'INTERNAL_ADMIN' },
+      { email: 'nick@avenuez.com', role: 'INTERNAL_ADMIN' },
+    ],
+  },
 ]
 
 async function main() {
@@ -75,6 +102,7 @@ async function main() {
       sitebulbSheetId: c.sitebulbSheetId,
       peecCustomerProjectId: c.peecCustomerProjectId,
       prProofSheetId: c.prProofSheetId,
+      contentCalendarSheetId: c.contentCalendarSheetId,
       prConfig: c.prConfig,
       enabledReports: c.enabledReports,
       hiddenReports: c.hiddenReports,

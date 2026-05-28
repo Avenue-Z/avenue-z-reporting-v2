@@ -74,7 +74,7 @@ function getReportComponent(
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} />
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
-      return <PeecAIReport />
+      return <PeecAIReport clientSlug={clientSlug} />
     default:
       return null
   }

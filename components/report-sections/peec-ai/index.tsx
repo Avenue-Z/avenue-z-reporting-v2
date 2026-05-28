@@ -238,9 +238,9 @@ function SectionDivider({ title }: { title: string }) {
 
 // --- Main report ---
 
-export async function PeecAIReport() {
+export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {}) {
   const [peec, profound] = await Promise.allSettled([
-    getPeecOverview(),
+    getPeecOverview(clientSlug),
     getProfoundOverview(),
   ])
 

@@ -203,7 +203,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Fetch all data sources in parallel with graceful degradation
   const [peecResult, prResult, aiReferralResult, compareAiResult] = await Promise.allSettled([
-    getPeecOverview(),
+    getPeecOverview(clientSlug),
     getPRProofData(clientSlug),
     ga4Query({
       clientSlug,
@@ -273,6 +273,20 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     const prDomains = new Set((prData?.uniqueDomains ?? []).map(pd => pd.toLowerCase()))
     return !prDomains.has(d.domain.toLowerCase())
   })
+
+  // Prompt Coverage % per editorial domain for Section C
+  const editorialPromptCount = new Map<string, number>()
+  const totalEditPrompts = data?.trackedPrompts.length ?? 0
+  for (const prompt of (data?.trackedPrompts ?? [])) {
+    for (const source of (prompt.sources as string[])) {
+      const key = source.toLowerCase()
+      editorialPromptCount.set(key, (editorialPromptCount.get(key) ?? 0) + 1)
+    }
+  }
+  const getEditorialPromptCoverage = (domain: string): number | null =>
+    totalEditPrompts > 0
+      ? Math.round((editorialPromptCount.get(domain.toLowerCase()) ?? 0) / totalEditPrompts * 100)
+      : null
 
   return (
     <div className="space-y-8">
@@ -424,50 +438,76 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         )}
       </SectionCard>
 
-      {/* ── Section C: Top Editorial Domains Cited by AI (PRD: horizontal bar chart) ── */}
+      {/* ── Section C: Top Editorial Domains Cited by AI (PRD: Citation Count + Prompt Coverage % + Avg Position + Domain) ── */}
       <SectionCard
         title="C. Top Editorial Domains Cited by AI"
         description="Editorial domains most frequently retrieved in AI responses. These outlets carry LLM citation weight; securing coverage here has direct AEO impact."
       >
         {editorialDomains.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {editorialDomains.slice(0, 15).map(d => {
-              const maxRetrieved = Math.max(...editorialDomains.slice(0, 15).map(x => x.retrieved), 1)
-              const barWidth = (d.retrieved / maxRetrieved) * 100
-
-              // Check if this domain has a PR placement
-              const hasPR = prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false
-
-              return (
-                <div key={d.domain} className="flex items-center gap-3">
-                  <span className="w-40 shrink-0 truncate text-xs font-medium text-white/80" title={d.domain}>
-                    {d.domain}
-                  </span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="h-5 flex-1 overflow-hidden rounded bg-white/[0.04]">
-                        <div
-                          className={cn('h-full rounded', hasPR ? 'bg-[#60FF80]/60' : 'bg-[#39A0FF]/60')}
-                          style={{ width: `${barWidth}%` }}
-                        />
-                      </div>
-                      <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-white/60">
-                        {fmt(d.retrieved)}
-                      </span>
-                      <span className="w-14 shrink-0 text-right text-[10px] tabular-nums">
-                        <Delta value={d.retrievedDelta} />
-                      </span>
-                    </div>
-                  </div>
-                  {hasPR && (
-                    <span className="shrink-0 rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#60FF80]">
-                      PR
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-            <div className="mt-2 flex items-center gap-4">
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    <Th>Domain</Th>
+                    <Th>Citation Count</Th>
+                    <Th>Prompt Coverage %</Th>
+                    <Th>Avg Position</Th>
+                    <Th>PR</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {editorialDomains.slice(0, 15).map(d => {
+                    const maxRetrieved = Math.max(...editorialDomains.slice(0, 15).map(x => x.retrieved), 1)
+                    const barWidth = (d.retrieved / maxRetrieved) * 100
+                    const hasPR = prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false
+                    const promptCov = getEditorialPromptCoverage(d.domain)
+                    return (
+                      <tr key={d.domain}>
+                        <Td>
+                          <span
+                            className={cn('font-medium', hasPR ? 'text-[#60FF80]' : 'text-white/80')}
+                            title={d.domain}
+                          >
+                            {d.domain}
+                          </span>
+                        </Td>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-24 overflow-hidden rounded bg-white/[0.04]">
+                              <div
+                                className={cn('h-full rounded', hasPR ? 'bg-[#60FF80]/60' : 'bg-[#39A0FF]/60')}
+                                style={{ width: `${barWidth}%` }}
+                              />
+                            </div>
+                            <span className="tabular-nums text-white/60">{fmt(d.retrieved)}</span>
+                            <Delta value={d.retrievedDelta} />
+                          </div>
+                        </Td>
+                        <Td>
+                          <span className="tabular-nums text-white">
+                            {promptCov !== null ? `${promptCov}%` : '--'}
+                          </span>
+                        </Td>
+                        <Td>
+                          <span className="tabular-nums text-white/30">--</span>
+                        </Td>
+                        <Td>
+                          {hasPR ? (
+                            <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#60FF80]">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="text-white/20">--</span>
+                          )}
+                        </Td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded bg-[#39A0FF]/60" />
                 <span className="text-[10px] text-text-muted">Editorial domain</span>
@@ -476,8 +516,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                 <span className="h-2.5 w-2.5 rounded bg-[#60FF80]/60" />
                 <span className="text-[10px] text-text-muted">Has PR placement</span>
               </div>
+              <span className="ml-auto text-[10px] text-text-muted">
+                Avg Position requires per-domain position data from Peec AI Pro
+              </span>
             </div>
-          </div>
+          </>
         ) : (
           <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
             <p className="text-xs text-text-muted">No editorial domains found in current Peec AI project</p>
