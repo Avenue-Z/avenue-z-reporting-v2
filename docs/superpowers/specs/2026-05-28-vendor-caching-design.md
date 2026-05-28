@@ -1,14 +1,14 @@
 # Vendor-Layer Caching — Design
 
-**Date:** 2026-05-28
-**Status:** Design approved, ready for implementation plan
+**Date:** 2026-05-28 (revised after design review)
+**Status:** Design approved with revisions, ready for implementation plan
 **Author:** Brainstorm between Paul and Claude
 
 ---
 
 ## Goal
 
-Cut report-page load time by caching repeat vendor API calls at the fetcher layer with a 1-hour TTL, applied broadly across every heavy vendor function in the platform.
+Cut report-page load time by caching repeat vendor API calls at the fetcher layer with a ~1-hour TTL, applied broadly across every heavy vendor function in the platform.
 
 ## Context
 
@@ -18,25 +18,25 @@ The profiling pass on the prior branch (see [2026-05-28-report-loading-profiling
 - HubSpot: 5.65s aggregate, with `getContactStats` peaking at 3.13s
 - Multiple sections re-fetch the same data inside the same TTL window — clients hopping between report tabs pay the full vendor latency every time
 
-The same caching pattern already in [lib/peec/client.ts:327](../../../lib/peec/client.ts#L327) (`unstable_cache` with 1-hour `revalidate`) generalizes cleanly to every heavy fetcher. This design applies it broadly.
+The same caching pattern already in [lib/peec/client.ts:327](../../../lib/peec/client.ts#L327) (`unstable_cache` with 1-hour `revalidate` and a `peec-overview-v2` version-bumpable key) generalizes cleanly to every heavy fetcher. This design applies it broadly while preserving the safety mechanisms the existing implementation relies on.
 
 ## Non-goals
 
-- Fixing individual slow queries (`getContactStats` 3.13s, `getClientByEmail` 720ms). Caching makes the *second* call free; the first still pays the cost. Underlying query optimization is its own brainstorm.
-- BigQuery consolidation (TODO.md "Larger initiatives"). Different architecture.
+- Fixing individual slow queries (`getContactStats` 3.13s, `getClientByEmail` 720ms). Caching makes the *second* call free; the first still pays. Underlying query optimization is its own brainstorm.
+- BigQuery consolidation (TODO.md "Larger initiatives").
 - Cache invalidation UI / explicit `revalidateTag()` triggers from outside the TTL cycle.
-- Distributed cache backend beyond what Next.js Data Cache provides on Vercel.
-- A unit test for `lib/cache.ts` itself — it's a thin composition of two well-tested primitives.
+- Caching `generateConversationalSummary`. The argument is a deeply-nested numeric object; keying on it is structurally broken (huge keys, floating-point instability, near-zero hit rate). The underlying `fetchFunSpotData(dateRange)` IS cached, so the summary regenerates at most once per hour anyway. If the Gemini cost becomes a concern, that's its own brainstorm — likely requires a function-signature change.
+- A unit test suite for `lib/cache.ts` beyond what `lib/perf.ts` already covers.
 
 ## Approach
 
-A new `lib/cache.ts` helper that stacks `unstable_cache` and the existing `timed()` HOF. Apply it at ~30 vendor-fetcher sites with the same mechanical pattern the profiling tool used.
+A new `lib/cache.ts` helper that stacks `unstable_cache` and the existing `timed()` HOF. Apply it at ~30 vendor-fetcher sites with the same mechanical pattern the profiling tool used, plus several safety mechanisms from the design review.
 
 ### Considered and rejected
 
-- **Per-vendor caching only (GA4 first).** Same infrastructure cost, narrower benefit. Caching is leveraged work — apply it once across all vendors.
-- **Stale-while-revalidate.** Better UX (always-instant loads), but requires per-tag invalidation plumbing we don't need yet. TTL-only is simpler and good enough.
-- **Separate `cached()` and `timed-and-cached()` helpers.** Two abstractions where one will do. `cached()` always logs via the internal `timed()` wrap because the cache-hit-rate signal is essential for verification.
+- **Per-vendor caching only (GA4 first).** Same infrastructure cost, narrower benefit.
+- **Stale-while-revalidate.** Better UX, but requires per-tag invalidation plumbing we don't need yet.
+- **Separate `cached()` and `timed-and-cached()` helpers.** Two abstractions where one will do — the cache-hit-rate signal is essential, so the inner `timed()` wrap is always there.
 
 ## Design
 
@@ -46,44 +46,81 @@ A new `lib/cache.ts` helper that stacks `unstable_cache` and the existing `timed
 import { unstable_cache } from 'next/cache'
 import { timed, type PerfExtractor } from '@/lib/perf'
 
+const CACHE_DISABLED = process.env.CACHE_DISABLE === '1'
+
+export interface CachedOptions<TArgs extends unknown[]> {
+  /** Cache-busting version string. Bump when response shape or fetch logic changes. */
+  version?: string
+  /** TTL in seconds. Default 3600 (1 hour). Actual TTL adds ≤300s of jitter unless jitter:false. */
+  ttlSeconds?: number
+  /** Disable per-call jitter on revalidate. Default false (jitter is on). */
+  jitter?: boolean
+  /** Optional Next.js cache tags for explicit invalidation via revalidateTag(). */
+  tags?: string[]
+  /** Tag extractor for the inner timed() wrap. */
+  extractTags?: PerfExtractor<TArgs>
+}
+
 export function cached<TArgs extends unknown[], TRet>(
   vendor: string,
   fn: string,
   impl: (...args: TArgs) => Promise<TRet>,
-  options?: {
-    extractTags?: PerfExtractor<TArgs>
-    ttlSeconds?: number  // default 3600
-    tags?: string[]      // optional Next.js cache tags for revalidation
-  },
+  options: CachedOptions<TArgs> = {},
 ): (...args: TArgs) => Promise<TRet>
 ```
 
-**Composition:** `cached(...)` returns `timed(vendor, fn, unstable_cache(impl, [vendor, fn], { revalidate, tags }), extractTags)`.
+**Composition (when enabled):**
 
-**Why this stacking order:**
-- Inner `unstable_cache(impl, ...)` does the actual caching.
-- Outer `timed(...)` wraps the cached function so PERF log lines reflect what the caller actually experienced: cache hits show as ~0ms, misses as the underlying call time. This is the verification signal.
+1. Inner `unstable_cache(implWithMarker, keyParts, { revalidate, tags })` does the caching.
+2. `implWithMarker` is a tiny wrapper around `impl` that sets a per-call `wasInvoked = true` flag visible to the outer `timed()` so PERF lines can emit `cached: false` on a cache miss vs. `cached: true` on a hit.
+3. Outer `timed(vendor, fn, ..., extractTags)` wraps everything so PERF lines reflect caller-observed latency and the cached field.
 
-**Cache key derivation:**
-- `keyParts: [vendor, fn]` — static prefix to avoid collisions across vendors.
-- Function args are auto-included by `unstable_cache` (it serializes them and folds into the key).
-- Result: `getFoo("avenue-z")` and `getFoo("renaissance")` get separate cache entries automatically. Per-client isolation is free.
+**Kill switch — `CACHE_DISABLE=1`:**
+When set at module load, `cached(...)` returns `timed(vendor, fn, impl, extractTags)` — the inner `unstable_cache` is bypassed entirely. This is the operational escape hatch from the prior Peec cross-client data-leak incident. If a key-collision bug ships, set `CACHE_DISABLE=1` in Vercel env, redeploy, all traffic skips the cache layer.
 
-**Defaults:**
-- `ttlSeconds`: 3600 (1 hour). Matches existing `getPeecOverview`.
-- `extractTags`, `tags`: undefined.
+**Cache key construction:**
+```
+keyParts = [vendor, fn, version ?? 'v1', todayISO()]
+```
+Plus the function args, which `unstable_cache` auto-includes.
 
-**Zero overhead when `PERF_LOG` is off:** the outer `timed(...)` returns `impl` unchanged. So `cached()` collapses to `unstable_cache(impl, ...)` in prod — same surface area as today's `getPeecOverview` pattern.
+- **`version`** — explicit cache-bust string. Bump when response shape or fetch logic changes. (Replaces the implicit `peec-overview-v2` mechanism, applied uniformly.)
+- **`todayISO()`** = `new Date().toISOString().slice(0, 10)` — invalidates the cache at every UTC day boundary. Necessary because many fetchers reference `new Date()` internally (resolving "today" without it appearing in args). With a 1-hour TTL spanning midnight, you'd otherwise get yesterday's "today" for up to an hour into the new day. Applied uniformly rather than per-fetcher to avoid forgetting to add it somewhere.
+
+**Cache-busting policy:**
+Any change to a fetcher's response shape OR its fetch logic (auth, endpoint, filters) requires bumping `version`. Documented in `lib/cache.ts` JSDoc. The reviewer of any vendor-client PR is expected to ask "did the response shape change? Did you bump version?"
+
+**TTL and jitter:**
+- Default `ttlSeconds`: 3600 (1 hour). Matches existing `getPeecOverview` and the vendor APIs' typical refresh cadence (most marketing APIs are hourly at best).
+- Default jitter: `Math.floor(Math.random() * 300)` added to the TTL on each `cached()` call site at module load. Prevents thundering-herd at exact-hour boundaries when many cached entries expire simultaneously.
+- Per-call override available via `options.ttlSeconds` and `options.jitter`.
+
+**`extractTags`:** unchanged from the existing `PerfExtractor` contract.
+
+**Zero overhead when PERF_LOG is off:** the outer `timed(...)` returns its inner argument unchanged when `PERF_LOG !== '1'`. Inner `unstable_cache` *is* the production behavior — it always runs. (Previous spec wording incorrectly implied the wrapper was free in prod; it's not. `unstable_cache` IS the prod cache layer.)
+
+### `byClient` convenience extractor
+
+Adding a typed helper to `lib/perf.ts` (re-exported from `lib/cache.ts`):
+
+```ts
+export const byClient: PerfExtractor<[string, ...unknown[]]> =
+  ([clientSlug]) => ({ client: clientSlug })
+```
+
+HubSpot's 18 wraps use it directly — no `as never` cast required. This replaces the cast across all 18 hubspot call sites.
+
+### Audit of request-scoped APIs
+
+`grep -rEn "cookies\(\)|headers\(\)|auth\(\)"` across `lib/ga4`, `lib/hubspot`, `lib/peec`, `lib/profound`, `lib/gsc`, `lib/sitebulb`, `lib/screaming-frog`, `lib/pr-proof`, `lib/content-calendar`, `lib/bigquery` returned **zero hits**. Safe to wrap — none of the fetchers use Next.js dynamic APIs that `unstable_cache` forbids inside its scope.
 
 ### What gets wrapped
-
-Apply `cached()` to every fetcher with median > ~200ms from the findings, plus the obvious heavy vendor calls not exercised in the profiling run.
 
 | File | Fetchers wrapped |
 |---|---|
 | `lib/ga4/client.ts` | `ga4Query` |
-| `lib/hubspot/client.ts` | All 18 data-fetching exports (skip `getHubSpotClient` — SDK constructor, no I/O). Includes `getFormSubmissionCounts`, which moves from React `cache()` to cross-render `cached()` — flagged separately below. |
-| `lib/peec/client.ts` | `getPeecOverview` (migrate from raw `unstable_cache`) |
+| `lib/hubspot/client.ts` | All 18 data-fetching exports (skip `getHubSpotClient`). Includes `getFormSubmissionCounts` — see migration note below. |
+| `lib/peec/client.ts` | `getPeecOverview` (migrate from raw `unstable_cache`, **carry forward `version: 'v2'`**) |
 | `lib/peec/agent-analytics.ts` | `getAgentAnalytics` |
 | `lib/profound/client.ts` | `getProfoundOverview` |
 | `lib/gsc/client.ts` | `getGSCOverview` |
@@ -92,16 +129,14 @@ Apply `cached()` to every fetcher with median > ~200ms from the findings, plus t
 | `lib/pr-proof/client.ts` | `getPRProofData` |
 | `lib/content-calendar/client.ts` | `getContentCalendarData` |
 | `lib/bigquery/client.ts` | `fetchFunSpotData`, `fetchDailySessions` |
-| `lib/bigquery/gemini.ts` | `generateConversationalSummary` |
-
-**Total: ~30 wraps.**
+| `lib/bigquery/gemini.ts` | **NOT wrapped** — see Non-goals |
 
 **Not wrapped:**
-- `lib/db/queries.ts` — auth path, React.cache() per-render is the right level. Caching session lookups across requests is security-sensitive and not what's slow.
-- `lib/hubspot/client.ts: getHubSpotClient` — returns the SDK instance, already memoized in module-scope Map.
-- Any report-section components, chart files, or `auth.ts` / `proxy.ts`.
+- `lib/db/queries.ts` — auth path, React.cache() per-render is the right level.
+- `lib/hubspot/client.ts: getHubSpotClient` — SDK constructor, already memoized in module-scope Map.
+- `lib/bigquery/gemini.ts: generateConversationalSummary` — see Non-goals.
 
-### Wrapping pattern (applied at each call site)
+### Wrapping pattern
 
 ```ts
 // before — the perf-wrap pattern from the prior branch
@@ -110,24 +145,38 @@ async function getFooImpl(slug: string) { ... }
 export const getFoo = timed('vendor', 'getFoo', getFooImpl, ([s]) => ({ client: s }))
 
 // after
-import { cached } from '@/lib/cache'
+import { cached, byClient } from '@/lib/cache'
 async function getFooImpl(slug: string) { ... }
 export const getFoo = cached('vendor', 'getFoo', getFooImpl, {
-  extractTags: ([s]) => ({ client: s }),
+  extractTags: byClient,
 })
 ```
 
 The `timed` import is removed from each file (cached() handles timing internally). Public export names are unchanged.
 
-**Two notable existing cases:**
+### Two notable migrations
 
-1. **`getPeecOverview` is currently `timed(unstable_cache(...))`.** Becomes `cached(...)` with the existing `revalidate: 3600` and `tags: ['peec-overview']` carried over via `options.ttlSeconds` and `options.tags`. Behavior unchanged.
+**1. `getPeecOverview`** ([lib/peec/client.ts:327](../../../lib/peec/client.ts#L327)) is currently `timed(unstable_cache(...))` with `['peec-overview-v2']` keyParts, `revalidate: 3600`, and `tags: ['peec-overview']`. Becomes:
 
-2. **`getFormSubmissionCounts` is currently `timed(cache(...))` (React per-render).** Becomes `cached(...)`. **This is a behavioral change** — it now caches across renders for 1 hour, not just within one render. The form submission counts don't change minute-to-minute, so a 1-hour cache is appropriate. Flagged in the PR description.
+```ts
+export const getPeecOverview = cached('peec', 'getOverview', getPeecOverviewImpl, {
+  version: 'v2',  // PRESERVES the existing cache-bust marker
+  tags: ['peec-overview'],
+  extractTags: ([clientSlug]) => ({ client: clientSlug }),
+})
+```
+
+No behavior change.
+
+**2. `getFormSubmissionCounts`** ([lib/hubspot/client.ts:1156](../../../lib/hubspot/client.ts#L1156)) is currently `timed(cache(...))` (React per-render). Migrating to `cached()` requires:
+- Drop the inner `cache(...)` wrap — the outer `cached()` provides both per-render dedup and cross-render TTL caching.
+- This IS a behavioral change: counts now cache for 1 hour across renders, not just within a single render. Form-submission counts don't change minute-to-minute, so a 1-hour cache is appropriate.
+
+**Inner React `cache()` calls — leave alone:** [lib/hubspot/client.ts:109](../../../lib/hubspot/client.ts#L109) (`load2025InboundContacts`), [line 181](../../../lib/hubspot/client.ts#L181) (`load2026InboundContacts`), and [line 949](../../../lib/hubspot/client.ts#L949) (`loadFormContactsForRange`) are NOT exported and NOT wrapped with `cached()`. They're React per-render helpers that coordinate multiple outer fetchers within a single render that all touch the same paginated load. On a cold-cache miss for any outer fetcher, these helpers still save redundant pagination within that render. Untouched by this design.
 
 ### Verification
 
-A new `scripts/perf-compare.ts` takes two log files (cold cache, warm cache) and prints a delta table per vendor:
+A new `scripts/perf-compare.ts` takes two log files and prints a delta table per vendor:
 
 ```
 vendor      cold_wait    warm_wait    delta     hit_rate
@@ -136,53 +185,86 @@ hubspot     5.65s        0.45s        -92%      96%
 peec        0.06s        0.00s        cached    100%
 ```
 
-`hit_rate` is derived from comparing per-call `ms` distributions — cache hits cluster near 0ms; misses look like the cold distribution. Concretely: hit_rate = (count of warm-call entries with ms < 10) / (total warm-call entries) per vendor.
+`hit_rate` is computed from the **`cached` field on each PERF entry** (emitted explicitly by `cached()` — see helper design above), not from a fabricated ms threshold. `hit_rate = count(cached === true) / count(any wrapped call)` per vendor.
+
+**Deterministic log splitting via boundary markers:**
+
+A new `app/api/_perf/boundary/route.ts` route handler:
+
+```ts
+import { NextResponse } from 'next/server'
+export const dynamic = 'force-dynamic'
+export async function GET(req: Request) {
+  const url = new URL(req.url)
+  const label = url.searchParams.get('label') ?? 'unlabeled'
+  console.log('PERF ' + JSON.stringify({
+    ts: new Date().toISOString(),
+    vendor: '_walk',
+    fn: 'boundary',
+    label,
+    ms: 0,
+    ok: true,
+  }))
+  return NextResponse.json({ ok: true, label })
+}
+```
+
+`scripts/perf-walk.ts` gets a new `--pass <label>` arg. Before walking, it hits `/api/_perf/boundary?label=<label>` with the session cookie. The marker emits as a PERF line to server stdout, captured by the existing `tee perf.log`. `perf-compare.ts` splits the log on those boundary entries:
+
+```
+PERF ... vendor=_walk fn=boundary label=cold     ← cold pass starts here
+... (cold-pass PERF lines)
+PERF ... vendor=_walk fn=boundary label=warm     ← warm pass starts here
+... (warm-pass PERF lines)
+```
+
+No `grep -n` guesswork. `perf-compare` takes one log file and the two labels: `perf-compare.ts perf.log cold warm`.
 
 **End-to-end flow:**
 
 ```bash
 npm run build
-PERF_LOG=1 npm run start 2>&1 | tee perf-cache-cold.log
+PERF_LOG=1 npm run start 2>&1 | tee perf.log
 
-# walk 1 — populates cache
-PERF_SESSION_COOKIE='...' npx tsx --env-file=.env.local scripts/perf-walk.ts
+# walks back-to-back, same server, deterministic boundaries
+PERF_SESSION_COOKIE='...' npx tsx --env-file=.env.local scripts/perf-walk.ts --pass cold
+PERF_SESSION_COOKIE='...' npx tsx --env-file=.env.local scripts/perf-walk.ts --pass warm
+# Ctrl-C server
 
-# walk 2 — should be near-instant
-PERF_SESSION_COOKIE='...' npx tsx --env-file=.env.local scripts/perf-walk.ts
-# Ctrl-C the server
-
-# split log at the boundary, compare
-npx tsx scripts/perf-compare.ts perf-cold-portion.log perf-warm-portion.log
+npx tsx scripts/perf-compare.ts perf.log cold warm
 ```
 
-(Log-splitting: we'll either write a small helper or just suggest doing it manually via `grep -n` for the boundary timestamp. Simpler is fine.)
-
-**Acceptance criterion:** the warm walk's Table 3 totals drop by 60–90% for the cached vendors; hit_rate ≥ 80% for any vendor wrapped with `cached()`.
+**Acceptance criteria:**
+- Hit rate (from explicit `cached: true|false` field) ≥ 80% for any vendor wrapped with `cached()`.
+- p50 total wait per vendor drops by ≥ 60% cold→warm.
+- No cross-client data exposure during the smoke step between walks (manually verified by loading a second client's report after the cold pass).
 
 **Risks the verification catches:**
-- Cache poisoning across clients (a warm hit on client A returns client B's data) — would show up as wrong UI in the manual smoke step between walks.
-- TTL too short / too long — warm-walk hit rate quantifies this.
-- Cache key misses on functions with optional args (e.g., `getPeecOverview(clientSlug?)`) — a 0% hit rate on that fn would surface it.
+- Cache poisoning across clients — would show up as wrong UI on the manual cross-client smoke step.
+- Cache key misses on functions with optional args — surface as 0% hit rate on that fn.
+- TTL too short / too long — quantified by hit rate.
 
-**Findings update:** after the verification run, append a "Caching results" section to [2026-05-28-report-loading-findings.md](2026-05-28-report-loading-findings.md) showing before/after — closes the loop on the prior brainstorm's recommendations.
+**Findings update:** after verification, append a "Caching results" section to [2026-05-28-report-loading-findings.md](2026-05-28-report-loading-findings.md) showing before/after.
 
 ## Cleanup
 
-Everything described here stays after the branch ships:
-- `lib/cache.ts` — permanent helper.
-- `scripts/perf-compare.ts` — reusable for future perf-change validation.
+Everything described here stays:
+- `lib/cache.ts`, `byClient` extractor in `lib/perf.ts` — permanent helpers.
+- `scripts/perf-compare.ts` — reusable.
+- `app/api/_perf/boundary/route.ts` — reusable for future perf comparisons.
 - `cached()` wraps at each fetcher site — permanent.
 
-Nothing gets removed. The `timed()` helper and its existing wraps remain unchanged.
+Nothing gets removed. `timed()` and its existing wraps remain.
 
 ## Risks accepted
 
-1. **First cold-cache load after deploy is no faster than today.** Every TTL revalidate pays the same cold cost. Acceptable because the typical session has > 1 page view, and the staleness window is bounded.
-2. **Up to 1 hour of staleness on relative date ranges** (`"last_30_days"`). Daily-grain marketing data won't shift inside an hour. Documented.
-3. **No explicit cache size limits.** Trust Next.js Data Cache defaults on Vercel. Mitigate if it ever bites.
-4. **`unstable_` API prefix.** `unstable_cache` is the only stable-enough Next.js API for this need today. If renamed, a single replacement in `lib/cache.ts` covers all 30 call sites.
+1. **First cold-cache load after deploy is no faster than today.** Every TTL revalidate pays the same cold cost. Acceptable because typical sessions have > 1 page view.
+2. **Up to ~1 hour of staleness within a UTC day.** Daily-grain marketing data won't shift inside an hour. Bounded.
+3. **No explicit cache size limits.** Trust Next.js Data Cache defaults on Vercel.
+4. **`unstable_` API prefix.** `unstable_cache` is the only stable-enough Next.js API for this need today. Single point of replacement at `lib/cache.ts`.
+5. **`/api/_perf/boundary` is unauthenticated.** It's a no-op route that emits a log line; no data exposure. Documented as dev/profiling-only — could be gated by a `PERF_LOG=1` check in the route to fail closed in prod, which we'll do.
 
 ## Open questions
 
-- **Cold cache after `revalidate` cycle hits everyone simultaneously.** If 50 clients reload at the same hour boundary, all 50 trigger the same backing API call. Next.js dedupes inflight requests in some configurations but not across serverless invocations. Could be a small thundering-herd issue on Vercel; flag if it shows up in practice.
-- **Some HubSpot calls have a 4 req/s rate limit** (per the explicit comment at [components/report-sections/hubspot-performance/index.tsx:85](../../../components/report-sections/hubspot-performance/index.tsx#L85)). Caching reduces the rate of API hits, so this should only help; flagging in case any production rollout surfaces unexpected throttling on the cold-cache path.
+- **Thundering herd at TTL boundaries.** Default ±300s jitter mitigates the worst case but doesn't eliminate it. If a 30-client cohort all refresh at minute 60, ~10% might still land within the same 30s window. Accept for now; revisit if Vercel surfaces serverless concurrency issues.
+- **`getFormSubmissionCounts` 1-hour TTL.** Form-submission counts during business hours tick upward minute-by-minute. A 1-hour cache means clients refreshing during a campaign launch might see stale counts. Acceptable for a reporting tool (not a real-time inbox), but flag as something to revisit if a customer asks.
