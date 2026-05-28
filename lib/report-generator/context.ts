@@ -195,9 +195,9 @@ async function fetchPipeline(clientSlug: string): Promise<PipelineSnapshot | und
   }
 }
 
-async function fetchPeec(): Promise<PeecSnapshot | undefined> {
+async function fetchPeec(clientSlug: string): Promise<PeecSnapshot | undefined> {
   try {
-    const data = await getPeecOverview()
+    const data = await getPeecOverview(clientSlug)
     const youBrand = data.brandRankings.find((b) => b.isYou)
     const topLLM   = data.llmBreakdown.length > 0
       ? data.llmBreakdown.reduce((a, b) => a.visibility > b.visibility ? a : b).model
@@ -244,7 +244,7 @@ export async function fetchDataSnapshot(
     enabled.has('ga4')                ? fetchGA4(clientSlug, days)      : Promise.resolve(undefined),
     enabled.has('inbound-funnel')     ? fetchInbound(clientSlug, days)  : Promise.resolve(undefined),
     enabled.has('hubspot-performance') ? fetchPipeline(clientSlug)      : Promise.resolve(undefined),
-    enabled.has('peec-ai')            ? fetchPeec()                     : Promise.resolve(undefined),
+    enabled.has('peec-ai')            ? fetchPeec(clientSlug)           : Promise.resolve(undefined),
   ])
 
   return {

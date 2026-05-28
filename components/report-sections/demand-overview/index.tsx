@@ -107,7 +107,7 @@ export async function DemandOverviewReport({ clientSlug }: DemandOverviewProps) 
       dimensions: ['pagePath', 'sessionSource'],
       limit: 500,
     }),
-    getPeecOverview(),
+    getPeecOverview(clientSlug),
   ])
 
   // ── Phase 2: HubSpot — sequential to respect 4 req/s rate limit ──────────
