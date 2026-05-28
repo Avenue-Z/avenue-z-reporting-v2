@@ -1,8 +1,16 @@
+import { unstable_cache } from 'next/cache'
+
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
 function getKey(): string {
-  const key = process.env.PEEC_AI_ACCESS_TOKEN
-  if (!key) throw new Error('Missing env var: PEEC_AI_ACCESS_TOKEN')
+  // The customer (skc-) token works across all customer projects in our Peec
+  // workspace, so the per-client peecCustomerProjectId we pass in the request
+  // body is honored. The legacy PEEC_AI_ACCESS_TOKEN was scoped to a single
+  // project (Avenue Z), which caused Renaissance requests to silently return
+  // Avenue Z data — the API ignored the project_id when the token couldn't
+  // access it.
+  const key = process.env.PEEC_AI_CUSTOMER_TOKEN
+  if (!key) throw new Error('Missing env var: PEEC_AI_CUSTOMER_TOKEN')
   return key
 }
 
@@ -36,7 +44,7 @@ async function peecPost<T>(
       limit: 100,
       ...body,
     }),
-    next: { revalidate: 3600 },
+    cache: 'no-store',
   })
   if (!res.ok) {
     const text = await res.text()
@@ -57,7 +65,7 @@ async function peecGet<T>(
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
   const res = await fetch(url.toString(), {
     headers: { 'X-API-Key': getKey() },
-    next: { revalidate: 3600 },
+    cache: 'no-store',
   })
   if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
   return res.json()
@@ -312,17 +320,25 @@ async function fetchAllYtdRows(
  *                    clients.config.ts (peecCustomerProjectId). Falls back to the
  *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
  */
-export async function getPeecOverview(clientSlug?: string): Promise<PeecOverview> {
-  // Resolve project ID: per-client config takes precedence over env var
+// Cached per-clientSlug for 1 hour. Cache key derives from the function args
+// (so 'avenue-z' and 'renaissance' each get their own entry). Without this
+// wrapper, all clients shared one cache entry per fetch URL because Next.js
+// fetch caching keys on URL — Peec puts project_id in the body.
+export const getPeecOverview = unstable_cache(
+  async (clientSlug?: string): Promise<PeecOverview> => {
+  // Resolve project ID and "your brand" label per-client; fall back to env vars
+  // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
+  let resolvedYourBrand: string | undefined
   if (clientSlug) {
-    const { getClientBySlug } = await import('@/lib/clients.config')
-    const config = getClientBySlug(clientSlug)
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
     resolvedProjectId = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+    resolvedYourBrand = config?.peecYourBrand ?? undefined
   }
   // resolvedProjectId undefined = use env var inside peecPost/peecGet
 
-  const yourBrand = process.env.PEEC_AI_YOUR_BRAND ?? ''
+  const yourBrand = resolvedYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
   const thisYear = new Date().getUTCFullYear()
   const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
   const priorYtd = { start_date: `${thisYear - 1}-01-01`, end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}` }
@@ -575,4 +591,11 @@ export async function getPeecOverview(clientSlug?: string): Promise<PeecOverview
     trackedPrompts,
     llmBreakdown,
   }
-}
+  },
+  // Bump the version string to invalidate all cached entries when the
+  // response shape or fetch logic changes. v2 = after switching from
+  // PEEC_AI_ACCESS_TOKEN to PEEC_AI_CUSTOMER_TOKEN; old cached entries
+  // were populated with Avenue Z's data regardless of clientSlug.
+  ['peec-overview-v2'],
+  { revalidate: 3600, tags: ['peec-overview'] }
+)

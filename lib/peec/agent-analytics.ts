@@ -27,7 +27,7 @@
 //     e.g. PEEC_AI_CUSTOMER_PROJECT_ID_AVENUE_Z=or_043ae735-...
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 
 // ── Config / auth ─────────────────────────────────────────────────────────────
 
@@ -39,12 +39,12 @@ function getCustomerToken(): string {
   return t
 }
 
-// Project IDs come from clients.config.ts — not secrets, no per-client env var needed.
-function getProjectId(clientSlug: string): string {
-  const config = getClientBySlug(clientSlug)
+// Project IDs come from the database — not secrets, no per-client env var needed.
+async function getProjectId(clientSlug: string): Promise<string> {
+  const config = await getClientBySlug(clientSlug)
   if (!config) throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.peecCustomerProjectId) {
-    throw new Error(`peecCustomerProjectId not configured for client: ${clientSlug}. Add it to clients.config.ts`)
+    throw new Error(`peecCustomerProjectId not configured for client: ${clientSlug}. Add it to the database.`)
   }
   return config.peecCustomerProjectId
 }
@@ -200,7 +200,7 @@ function isLowValue(path: string): boolean {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function getAgentAnalytics(clientSlug: string): Promise<AgentAnalyticsData> {
-  const projectId = getProjectId(clientSlug)
+  const projectId = await getProjectId(clientSlug)
   const { start_date, end_date } = last30Days()
 
   // Fetch logs and bot catalog in parallel

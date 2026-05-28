@@ -15,7 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { GoogleAuth } from 'google-auth-library'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import type { PRPlacement, PRProofData } from './types'
 
 // ── Singleton auth ────────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ function parseRows(rows: string[][], clientName: string): PRPlacement[] {
  * and returns structured PR placement data.
  */
 export async function getPRProofData(clientSlug: string): Promise<PRProofData> {
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) throw new Error(`Unknown client slug: ${clientSlug}`)
 
   const sheetId = client.prProofSheetId

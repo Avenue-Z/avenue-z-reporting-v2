@@ -14,7 +14,7 @@
  */
 
 import { GoogleAuth } from 'google-auth-library'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import type {
   SFData,
   SFIssue,
@@ -566,7 +566,7 @@ function weightedScore(snap: SFSnapshot): number {
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function getSFData(clientSlug: string): Promise<SFData> {
-  const config = getClientBySlug(clientSlug)
+  const config = await getClientBySlug(clientSlug)
   if (!config)         throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.sfCsvFileId) throw new Error(`sfCsvFileId not configured for client: ${clientSlug}`)
 

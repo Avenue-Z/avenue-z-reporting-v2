@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -76,7 +76,7 @@ export default async function PortalReportPage({
 }) {
   const { clientSlug, reportSlug } = await params
   const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   if (!client.enabledReports.includes(reportSlug as typeof client.enabledReports[number])) {

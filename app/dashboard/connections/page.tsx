@@ -1,4 +1,4 @@
-import { getAllClients } from '@/lib/clients.config'
+import { getAllClients } from '@/lib/db/queries'
 import { Header } from '@/components/layout/header'
 import { PLATFORM_IDS } from '@/lib/platforms/constants'
 import type { PlatformId } from '@/lib/platforms/constants'
@@ -13,8 +13,8 @@ const ACTIVE_PLATFORMS: PlatformId[] = [
   PLATFORM_IDS.HUBSPOT,
 ]
 
-export default function ConnectionsPage() {
-  const clients = getAllClients()
+export default async function ConnectionsPage() {
+  const clients = await getAllClients()
 
   return (
     <>
@@ -34,7 +34,7 @@ export default function ConnectionsPage() {
               client.ga4PropertyId && process.env[client.ga4PropertyId]
             ),
             [PLATFORM_IDS.HUBSPOT]: !!(
-              client.hubspotToken && process.env[client.hubspotToken]
+              client.hubspotTokenEnvVar && process.env[client.hubspotTokenEnvVar]
             ),
             // Remaining platforms — not yet integrated
             [PLATFORM_IDS.META]: false,

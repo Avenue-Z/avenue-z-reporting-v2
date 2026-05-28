@@ -17,7 +17,7 @@
  */
 
 import { GoogleAuth } from 'google-auth-library'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import type {
   ContentCalendarData,
   ContentCalendarRow,
@@ -209,13 +209,13 @@ function deriveMatchStatus(url: string | null, statusRaw: string): MatchStatus {
 export async function getContentCalendarData(
   clientSlug: string
 ): Promise<ContentCalendarData> {
-  const config = getClientBySlug(clientSlug)
+  const config = await getClientBySlug(clientSlug)
   if (!config) throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.contentCalendarSheetId) {
     throw new Error(
       `contentCalendarSheetId not configured for client: ${clientSlug}. ` +
-      `Add it to lib/clients.config.ts and share the sheet with ` +
-      `avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com (Viewer).`
+      `Share the sheet with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com ` +
+      `(Viewer) and set contentCalendarSheetId on the client row in the database.`
     )
   }
 

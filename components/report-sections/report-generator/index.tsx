@@ -1,4 +1,4 @@
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { fetchDataSnapshot } from '@/lib/report-generator/context'
 import { GeneratorInterface } from './generator-interface'
@@ -20,7 +20,7 @@ interface ReportGeneratorProps {
 }
 
 export async function ReportGeneratorReport({ clientSlug }: ReportGeneratorProps) {
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) return null
 
   const activeChannels = client.enabledReports

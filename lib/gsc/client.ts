@@ -2,16 +2,15 @@
  * Google Search Console API client — server-side only.
  *
  * Auth: shared GOOGLE_SERVICE_ACCOUNT_KEY service account (same as GA4).
- * Per-client site URLs stored as env var names in clients.config.ts.
- * e.g. gscSiteUrl: 'GSC_SITE_URL_AVENUE_Z'
- *      GSC_SITE_URL_AVENUE_Z = 'https://avenuez.com/'   (URL-prefix property)
- *      GSC_SITE_URL_AVENUE_Z = 'sc-domain:avenuez.com'  (domain property)
+ * Per-client site URLs stored directly in the database.
+ * e.g. gscSiteUrl: 'https://avenuez.com/'   (URL-prefix property)
+ *      gscSiteUrl: 'sc-domain:avenuez.com'  (domain property)
  *
  * Date windows: 28 days, ending 2 days ago (GSC has a 2-3 day data lag).
  * Current vs prior period comparison for KPI deltas.
  */
 import { JWT } from 'google-auth-library'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 
 const WINDOW = 28
 const LAG = 2 // days GSC lags behind today
@@ -135,14 +134,11 @@ export interface GSCOverview {
 }
 
 export async function getGSCOverview(clientSlug: string): Promise<GSCOverview> {
-  const config = getClientBySlug(clientSlug)
+  const config = await getClientBySlug(clientSlug)
   if (!config) throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.gscSiteUrl) throw new Error(`GSC not configured for client: ${clientSlug}`)
 
-  const rawSiteUrl = process.env[config.gscSiteUrl]
-  if (!rawSiteUrl) {
-    throw new Error(`Missing env var: ${config.gscSiteUrl}`)
-  }
+  const rawSiteUrl = config.gscSiteUrl
 
   const current = periodDates(0)
   const prior = periodDates(WINDOW)

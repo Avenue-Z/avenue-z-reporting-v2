@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { normalizeArticle, type RawArticle } from '@/lib/newsapi'
 
 const NEWSAPI_BASE = 'https://eventregistry.org/api/v1'
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'clientSlug required' }, { status: 400 })
   }
 
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }

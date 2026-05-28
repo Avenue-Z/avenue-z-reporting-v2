@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -20,7 +20,7 @@ import { ReportGeneratorReport } from '@/components/report-sections/report-gener
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/period-selector'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
-import type { ReportSlug } from '@/lib/clients.config'
+import type { ReportSlug } from '@/lib/db/schema'
 
 function SectionSkeleton() {
   return (
@@ -105,7 +105,7 @@ export default async function ReportPage({
 }) {
   const { clientSlug } = await params
   const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam } = await searchParams
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   const session = await auth()
@@ -135,7 +135,7 @@ export default async function ReportPage({
 
   return (
     <>
-      <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl}>
+      <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
         {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && subsection !== 'search-console' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />

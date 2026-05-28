@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
-import { getClientByEmail } from '@/lib/clients.config'
+import { getClientByEmail } from '@/lib/db/queries'
 
 const WORKSPACE_DOMAIN = 'avenuez.com'
 const WORKSPACE_DEFAULT_ROLE = 'INTERNAL_ANALYST'
@@ -28,7 +28,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = credentials?.email as string | undefined
         if (!email) return null
 
-        const user = getClientByEmail(email)
+        const user = await getClientByEmail(email)
         if (!user) return null
 
         return { id: email, email, name: email.split('@')[0] }
@@ -45,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user }) {
       if (user?.email) {
-        const clientConfig = getClientByEmail(user.email)
+        const clientConfig = await getClientByEmail(user.email)
         if (clientConfig) {
           token.role = clientConfig.role
           token.clientSlug = clientConfig.slug

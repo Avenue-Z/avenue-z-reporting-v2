@@ -1,6 +1,6 @@
 import { CHART_COLORS } from '@/lib/constants'
 import { KpiCard } from '@/components/charts/kpi-card'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import { calcSummary, formatSocialScore, normalizeArticle, type Placement, type RawArticle } from '@/lib/newsapi'
 import { CoverageChart } from './coverage-chart'
 
@@ -94,7 +94,7 @@ async function fetchLivePlacements(clientSlug: string): Promise<Placement[] | nu
   const apiKey = process.env.NEWSAPI_AI_KEY
   if (!apiKey) return null
 
-  const client = getClientBySlug(clientSlug)
+  const client = await getClientBySlug(clientSlug)
   if (!client?.prConfig) return null
 
   const { prConfig } = client

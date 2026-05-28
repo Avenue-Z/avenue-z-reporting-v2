@@ -4,14 +4,13 @@
  * Auth: Google Service Account stored as base64-encoded JSON in
  * the GOOGLE_SERVICE_ACCOUNT_KEY environment variable.
  *
- * Per-client GA4 property IDs are stored as env var names in clients.config.ts.
- * e.g. ga4PropertyId: 'GA4_PROPERTY_ID_AVENUE_Z'
- * and the env var GA4_PROPERTY_ID_AVENUE_Z = 'properties/123456789'
+ * Per-client GA4 property IDs are stored directly in the database.
+ * e.g. ga4PropertyId: 'properties/123456789'
  *
  * Run: npm install @google-analytics/data
  */
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import type { GA4QueryParams, GA4ReportResult, GA4Row } from './types'
 
 let _client: BetaAnalyticsDataClient | null = null
@@ -168,24 +167,16 @@ export function deriveCompareRange(
  * Server-side only — never call from a Client Component.
  */
 export async function ga4Query(params: GA4QueryParams): Promise<GA4ReportResult> {
-  const config = getClientBySlug(params.clientSlug)
+  const config = await getClientBySlug(params.clientSlug)
   if (!config) throw new Error(`Unknown client: ${params.clientSlug}`)
 
   if (!config.ga4PropertyId) {
     throw new Error(`GA4 not configured for client: ${params.clientSlug}`)
   }
 
-  const rawPropertyId = process.env[config.ga4PropertyId]
-  if (!rawPropertyId) {
-    throw new Error(
-      `Missing env var: ${config.ga4PropertyId}. ` +
-      'Set it to your GA4 property ID, e.g. "properties/123456789".'
-    )
-  }
-
-  const propertyId = rawPropertyId.startsWith('properties/')
-    ? rawPropertyId
-    : `properties/${rawPropertyId}`
+  const propertyId = config.ga4PropertyId.startsWith('properties/')
+    ? config.ga4PropertyId
+    : `properties/${config.ga4PropertyId}`
 
   const { startDate, endDate } = parseDateRange(params.dateRange)
 

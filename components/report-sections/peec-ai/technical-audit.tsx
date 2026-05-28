@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { getSFData } from '@/lib/screaming-frog/client'
 import { getSitebulbData, buildAEOChecklist } from '@/lib/sitebulb/client'
 import { getAgentAnalytics, deriveRobotsTxtStatus } from '@/lib/peec/agent-analytics'
-import { getClientBySlug } from '@/lib/clients.config'
+import { getClientBySlug } from '@/lib/db/queries'
 import type { SFData, SFIssueDelta, SFDeltaStatus } from '@/lib/screaming-frog/types'
 import type { AgentAnalyticsData, AgentBot } from '@/lib/peec/agent-analytics'
 import type { AEOChecklist, AEOChecklistItem, AEOStatus } from '@/lib/sitebulb/types'
@@ -696,7 +696,7 @@ function DataUnavailable({ label }: { label: string }) {
 
 export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string }) {
   // Get client config for domain and other client-specific settings
-  const clientConfig = getClientBySlug(clientSlug)
+  const clientConfig = await getClientBySlug(clientSlug)
   const clientDomain = clientConfig?.domain ?? ''
 
   // Fetch all data sources in parallel, with graceful degradation on each
@@ -763,7 +763,7 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
             ))}
           </div>
         ) : (
-          <DataUnavailable label="Screaming Frog CSV not configured — add sfCsvFileId to clients.config.ts" />
+          <DataUnavailable label="Screaming Frog CSV not configured for client" />
         )}
       </div>
 
@@ -801,7 +801,7 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
             <TrendSection sfData={sfData} />
             {!sfData.prev && (
               <p className="text-[11px] text-text-muted">
-                Only one crawl snapshot available — add sfPrevCsvFileId to clients.config.ts for delta trending.
+                Only one crawl snapshot available — configure sfPrevCsvFileId in database for delta trending.
               </p>
             )}
           </>
@@ -995,7 +995,7 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
       ) : (
         <div>
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">AEO Technical Checklist</h3>
-          <DataUnavailable label="Sitebulb Historical Hint Data unavailable — check sitebulbSheetId in clients.config.ts" />
+          <DataUnavailable label="Sitebulb Historical Hint Data unavailable for client" />
         </div>
       )}
 
