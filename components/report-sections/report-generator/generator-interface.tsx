@@ -158,7 +158,7 @@ function generateResponse(
   }
 
   function peecNarrative(): string {
-    if (!peec) return 'Peec AI data is not yet connected. Add the PEEC_AI_ACCESS_TOKEN to populate AI visibility metrics.'
+    if (!peec) return 'Peec AI data is not yet connected. Set PEEC_AI_CUSTOMER_TOKEN and the client\'s peecCustomerProjectId to populate AI visibility metrics.'
     return `The brand has ${fmtPct(peec.ownVisibility)} AI visibility across ${fmt(peec.trackedPrompts)} tracked prompts, with ${fmtPct(peec.ownSov)} share of voice. ${fmt(peec.totalCitations)} total citations tracked. Strongest performance is on ${peec.topLLM}.`
   }
 
