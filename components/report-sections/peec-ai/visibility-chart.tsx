@@ -44,7 +44,7 @@ export function VisibilityChart({
         <div className="flex items-center gap-4 text-[10px] text-text-muted">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-sm bg-[#60FDFF]" />
-            Avenue Z
+            {brandName ?? 'You'}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-4 border-t border-dashed border-[#8A8A8A]" />

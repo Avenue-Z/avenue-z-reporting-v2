@@ -108,8 +108,9 @@ function GroupRow({ group }: { group: PromptGroup }) {
   )
 }
 
-export function TrackedPromptsChart({ prompts }: { prompts: TrackedPrompt[] }) {
+export function TrackedPromptsChart({ prompts, brandName }: { prompts: TrackedPrompt[]; brandName?: string }) {
   const groups = buildGroups(prompts)
+  const brand = brandName ?? 'your brand'
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
@@ -141,9 +142,9 @@ export function TrackedPromptsChart({ prompts }: { prompts: TrackedPrompt[] }) {
         <thead>
           <tr className="border-b border-white/[0.04]">
             <th className="px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left">Topic / Prompt</th>
-            <ColHeader label="Visibility" tooltip="% of AI responses that mention Avenue Z for this prompt." />
-            <ColHeader label="SOV"        tooltip="Avenue Z's share of all brand mentions for this prompt." />
-            <ColHeader label="Position"   tooltip="Avg rank when Avenue Z appears in AI responses for this prompt. Lower is better." />
+            <ColHeader label="Visibility" tooltip={`% of AI responses that mention ${brand} for this prompt.`} />
+            <ColHeader label="SOV"        tooltip={`${brand}'s share of all brand mentions for this prompt.`} />
+            <ColHeader label="Position"   tooltip={`Avg rank when ${brand} appears in AI responses for this prompt. Lower is better.`} />
           </tr>
         </thead>
         <tbody>
