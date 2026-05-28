@@ -169,7 +169,14 @@ function main() {
     console.error('Usage: tsx scripts/perf-report.ts <perf.log>')
     process.exit(1)
   }
-  const lines = readFileSync(path, 'utf-8').split('\n')
+  let lines: string[]
+  try {
+    lines = readFileSync(path, 'utf-8').split('\n')
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`Could not read perf log at "${path}": ${message}`)
+    process.exit(1)
+  }
   const entries = parseLines(lines)
   console.log(`Parsed ${entries.length} PERF entries from ${path}\n`)
   printCallTable(perCall(entries))

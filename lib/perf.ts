@@ -1,3 +1,17 @@
+/**
+ * Wraps an async function. When `PERF_LOG=1`, emits one JSON log line per call
+ * (`PERF {...}`). When off, returns the impl unchanged (zero per-call overhead).
+ *
+ * Pattern for adding to a new vendor client:
+ *   async function getFooImpl(slug: string) { ... }
+ *   export const getFoo = timed(
+ *     'vendor', 'getFoo', getFooImpl,
+ *     ([slug]) => ({ client: slug }),
+ *   )
+ *
+ * `PERF_LOG` is read once at module import — set it in the environment of the
+ * process that imports this file (e.g. `PERF_LOG=1 npm run start`).
+ */
 const ENABLED = process.env.PERF_LOG === '1'
 
 export type PerfTags = Record<string, string | number | undefined>

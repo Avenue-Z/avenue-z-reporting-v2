@@ -1309,6 +1309,11 @@ const getFormSubmissionCountsImpl = cache(async (
 })
 
 // --- Profiling wrappers ---
+// `extractClient` assumes args[0] is the client slug for every wrapped fn below.
+// If you add a wrap for a function whose first arg is NOT the client slug,
+// write a per-call extractor inline instead — don't extend this helper.
+// The `as never` cast bypasses TS's tuple-shape verification on PerfExtractor;
+// it's the documented fallback for the 19 varying signatures here.
 const extractClient = (args: unknown[]) => ({ client: args[0] as string })
 
 export const getHubSpotClient = timed('hubspot', 'getClient', getHubSpotClientImpl, extractClient as never)

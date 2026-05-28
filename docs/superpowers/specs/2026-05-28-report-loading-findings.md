@@ -44,7 +44,7 @@ peec            1             63ms          63ms
 1. **`ga4/runReport` — biggest aggregate spend.** 33 calls totaling 16.82s, median 364ms, p95 1.49s, max 2.02s. This is the GA4 19-call fan-out per render the design predicted. The slowest single GA4 call sets the floor for every GA4-driven report.
 2. **`hubspot/getContactStats` — single-call outlier at 3.13s.** Largest single observation in the whole run. Worth opening up to see whether it's a quota/throttling issue, a large date range, or a slow endpoint.
 3. **`hubspot/getPipelineDeals` at ~1.03s median (2 calls).** Paginated deal search across pipeline `714699412`; pagination is sequential which compounds.
-4. **`db/getClientByEmail` at 720ms median.** This is on the **auth path** — runs on every authenticated request. Neon serverless shouldn't be this slow; likely cold-connection warm-up or a missed index, but worth confirming. If real, every request pays this tax.
+4. **`db/getClientByEmail` at 720ms median (n=2, suggestive only).** This is on the **auth path** — runs on every authenticated request. Neon serverless shouldn't be this slow; likely cold-connection warm-up on the first walker request, or a missed index. n=2 means median ≈ mean of two samples, so the headline number is suggestive rather than characterized. Worth a targeted re-measurement before acting.
 5. **HubSpot performance section appears to be effectively sequential** — one section showing 9 fetches, 4.66s wall, sum 4.66s, parallelism 1.0x. The calls should be parallelized via `Promise.all`.
 
 ## Things that are NOT a problem
