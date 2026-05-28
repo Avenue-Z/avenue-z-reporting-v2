@@ -1,4 +1,5 @@
 import { BigQuery } from '@google-cloud/bigquery'
+import { timed } from '@/lib/perf'
 
 const PROJECT_ID = process.env.BQ_PROJECT_ID!
 const DATASET = process.env.BQ_DATASET!
@@ -93,7 +94,7 @@ const ACCOUNT_FILTERS = {
  * Fetch aggregated Fun Spot data from BigQuery tables for the given date range.
  * Filters by account name to ensure only Fun Spot data is returned.
  */
-export async function fetchFunSpotData(dateRange: string): Promise<FunSpotData> {
+async function fetchFunSpotDataImpl(dateRange: string): Promise<FunSpotData> {
   const bq = getClient()
   const { startDate, endDate } = parseDateRange(dateRange)
   const table = (name: string) => `\`${PROJECT_ID}.${DATASET}.${name}\``
@@ -190,7 +191,7 @@ export async function fetchFunSpotData(dateRange: string): Promise<FunSpotData> 
  * Fetch daily GA4 sessions for a client over a date range.
  * Used by the FFCI report to correlate PR hits with traffic.
  */
-export async function fetchDailySessions(
+async function fetchDailySessionsImpl(
   ga4Account: string,
   dateRange: string
 ): Promise<DailySessions[]> {
@@ -223,3 +224,17 @@ export async function fetchDailySessions(
     revenue: Number(r.revenue ?? 0),
   }))
 }
+
+export const fetchFunSpotData = timed(
+  'bigquery',
+  'fetchFunSpotData',
+  fetchFunSpotDataImpl,
+  ([dateRange]) => ({ dateRange }),
+)
+
+export const fetchDailySessions = timed(
+  'bigquery',
+  'fetchDailySessions',
+  fetchDailySessionsImpl,
+  ([ga4Account, dateRange]) => ({ client: ga4Account, dateRange }),
+)
