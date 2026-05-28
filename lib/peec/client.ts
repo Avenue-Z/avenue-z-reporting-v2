@@ -3,8 +3,14 @@ import { unstable_cache } from 'next/cache'
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
 function getKey(): string {
-  const key = process.env.PEEC_AI_ACCESS_TOKEN
-  if (!key) throw new Error('Missing env var: PEEC_AI_ACCESS_TOKEN')
+  // The customer (skc-) token works across all customer projects in our Peec
+  // workspace, so the per-client peecCustomerProjectId we pass in the request
+  // body is honored. The legacy PEEC_AI_ACCESS_TOKEN was scoped to a single
+  // project (Avenue Z), which caused Renaissance requests to silently return
+  // Avenue Z data — the API ignored the project_id when the token couldn't
+  // access it.
+  const key = process.env.PEEC_AI_CUSTOMER_TOKEN
+  if (!key) throw new Error('Missing env var: PEEC_AI_CUSTOMER_TOKEN')
   return key
 }
 
