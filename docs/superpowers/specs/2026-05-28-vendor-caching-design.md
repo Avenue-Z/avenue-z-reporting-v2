@@ -25,39 +25,44 @@ The same caching pattern already in [lib/peec/client.ts:327](../../../lib/peec/c
 - Fixing individual slow queries (`getContactStats` 3.13s, `getClientByEmail` 720ms). Caching makes the *second* call free; the first still pays. Underlying query optimization is its own brainstorm.
 - BigQuery consolidation (TODO.md "Larger initiatives").
 - Cache invalidation UI / explicit `revalidateTag()` triggers from outside the TTL cycle.
-- Caching `generateConversationalSummary`. The argument is a deeply-nested numeric object; keying on it is structurally broken (huge keys, floating-point instability, near-zero hit rate). The underlying `fetchFunSpotData(dateRange)` IS cached, so the summary regenerates at most once per hour anyway. If the Gemini cost becomes a concern, that's its own brainstorm — likely requires a function-signature change.
+- Caching `generateConversationalSummary`. The argument is a deeply-nested numeric object; keying on it is structurally broken (huge keys, floating-point instability, near-zero hit rate). Caching the underlying `fetchFunSpotData` doesn't help here — the Gemini call still fires on every render regardless of whether its input was a cache hit. To cache the summary itself would require a function-signature change (pass `dateRange` as a separate keyable arg) — its own brainstorm.
 - A unit test suite for `lib/cache.ts` beyond what `lib/perf.ts` already covers.
 
 ## Approach
 
-A new `lib/cache.ts` helper that stacks `unstable_cache` and the existing `timed()` HOF. Apply it at ~30 vendor-fetcher sites with the same mechanical pattern the profiling tool used, plus several safety mechanisms from the design review.
+A new `lib/cache.ts` helper that wraps each fetcher with `unstable_cache` (when enabled) and emits its own PERF logs with explicit `cached: true|false` via AsyncLocalStorage. Apply it at ~30 vendor-fetcher sites with the same mechanical pattern the profiling tool used, plus the safety mechanisms surfaced during design review (version cache-bust, daily UTC key invalidation, CACHE_DISABLE kill switch).
 
 ### Considered and rejected
 
 - **Per-vendor caching only (GA4 first).** Same infrastructure cost, narrower benefit.
 - **Stale-while-revalidate.** Better UX, but requires per-tag invalidation plumbing we don't need yet.
-- **Separate `cached()` and `timed-and-cached()` helpers.** Two abstractions where one will do — the cache-hit-rate signal is essential, so the inner `timed()` wrap is always there.
+- **Outer `timed()` composition for PERF emission.** Initially considered; doesn't work for cached:true|false signaling because the outer wrapper can't see whether the inner impl was invoked without a race-free per-call signal. `cached()` does its own PERF emission directly via AsyncLocalStorage — see helper design below. The standalone `timed()` HOF stays available for non-cached call sites.
+- **Per-call jitter on TTL.** `Math.random()` evaluated at `cached()` wrap time is constant per fetcher (set at module load), not per cache entry. It would shift the herd, not disperse it. `unstable_cache` doesn't accept dynamic `revalidate` per entry. Dropped from the design; herd risk documented under Risks accepted.
 
 ## Design
 
 ### `lib/cache.ts` — the helper
 
 ```ts
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { unstable_cache } from 'next/cache'
 import { timed, type PerfExtractor } from '@/lib/perf'
 
 const CACHE_DISABLED = process.env.CACHE_DISABLE === '1'
+const PERF_LOG_ENABLED = process.env.PERF_LOG === '1'
+
+// Per-call store. Each invocation of a cached() wrapper runs inside its own
+// store, so concurrent calls don't trample each other's wasInvoked flag.
+const cacheStore = new AsyncLocalStorage<{ wasInvoked: { current: boolean } }>()
 
 export interface CachedOptions<TArgs extends unknown[]> {
   /** Cache-busting version string. Bump when response shape or fetch logic changes. */
   version?: string
-  /** TTL in seconds. Default 3600 (1 hour). Actual TTL adds ≤300s of jitter unless jitter:false. */
+  /** TTL in seconds. Default 3600 (1 hour). */
   ttlSeconds?: number
-  /** Disable per-call jitter on revalidate. Default false (jitter is on). */
-  jitter?: boolean
   /** Optional Next.js cache tags for explicit invalidation via revalidateTag(). */
   tags?: string[]
-  /** Tag extractor for the inner timed() wrap. */
+  /** Tag extractor for PERF log lines. */
   extractTags?: PerfExtractor<TArgs>
 }
 
@@ -69,35 +74,77 @@ export function cached<TArgs extends unknown[], TRet>(
 ): (...args: TArgs) => Promise<TRet>
 ```
 
-**Composition (when enabled):**
+**Mechanism (when enabled):**
 
-1. Inner `unstable_cache(implWithMarker, keyParts, { revalidate, tags })` does the caching.
-2. `implWithMarker` is a tiny wrapper around `impl` that sets a per-call `wasInvoked = true` flag visible to the outer `timed()` so PERF lines can emit `cached: false` on a cache miss vs. `cached: true` on a hit.
-3. Outer `timed(vendor, fn, ..., extractTags)` wraps everything so PERF lines reflect caller-observed latency and the cached field.
+`cached()` does its own PERF emission directly — it does **not** compose with the outer `timed()` helper. Reason: detecting cache hits vs. misses requires a per-call signal that `timed()`'s outside-the-cache vantage can't observe race-free. AsyncLocalStorage provides that signal.
+
+The construction (sketch — exact code in the implementation plan):
+
+```ts
+// implWithMarker runs INSIDE unstable_cache. When called, it means cache missed.
+// It sets the per-call flag and strips the prepended `today` arg before
+// calling the real impl (impl's signature is unchanged).
+const implWithMarker = async (...allArgs: unknown[]): Promise<TRet> => {
+  const store = cacheStore.getStore()
+  if (store) store.wasInvoked.current = true
+  const [_today, ...realArgs] = allArgs
+  return impl(...(realArgs as TArgs))
+}
+
+const cachedFn = unstable_cache(
+  implWithMarker,
+  [vendor, fn, version ?? 'v1'],          // static keyParts
+  { revalidate: ttlSeconds ?? 3600, tags },
+)
+
+return async (...args: TArgs): Promise<TRet> => {
+  const wasInvoked = { current: false }
+  const today = new Date().toISOString().slice(0, 10)
+  return cacheStore.run({ wasInvoked }, async () => {
+    const start = performance.now()
+    try {
+      const result = await cachedFn(today, ...args)  // prepend today as first arg
+      const ms = Math.round(performance.now() - start)
+      if (PERF_LOG_ENABLED) emit({ vendor, fn, ms, ok: true, cached: !wasInvoked.current, ...tags })
+      return result
+    } catch (err) {
+      const ms = Math.round(performance.now() - start)
+      if (PERF_LOG_ENABLED) emit({ vendor, fn, ms, ok: false, cached: false, ...tags, err: err.message })
+      throw err
+    }
+  })
+}
+```
+
+Three things the mechanism gets right:
+1. **Cache-hit detection** — `wasInvoked.current` is only set if `implWithMarker` runs, which only happens on a cache miss. ALS gives each concurrent call its own store; no races.
+2. **Daily UTC invalidation** — `today` is injected as the first arg, so `unstable_cache` serializes it into the entry key. At 00:00 UTC the date string changes and the next call for any wrapped fetcher gets a miss. `implWithMarker` strips it before calling the real impl, so the impl's signature is unchanged.
+3. **PERF emission** — done directly by `cached()`, including `cached: true|false`. No composition with `timed()` (that path was abandoned because it can't see the inner-impl invocation).
 
 **Kill switch — `CACHE_DISABLE=1`:**
-When set at module load, `cached(...)` returns `timed(vendor, fn, impl, extractTags)` — the inner `unstable_cache` is bypassed entirely. This is the operational escape hatch from the prior Peec cross-client data-leak incident. If a key-collision bug ships, set `CACHE_DISABLE=1` in Vercel env, redeploy, all traffic skips the cache layer.
+When set at module load, `cached(...)` returns `timed(vendor, fn, impl, extractTags)` — the inner `unstable_cache` is bypassed entirely. Same PERF logging via the existing `timed()` helper. This is the operational escape hatch. If a key-collision bug ships, set `CACHE_DISABLE=1` in Vercel env, redeploy, all traffic skips the cache layer.
 
 **Cache key construction:**
 ```
-keyParts = [vendor, fn, version ?? 'v1', todayISO()]
+unstable_cache keyParts = [vendor, fn, version ?? 'v1']
+Plus auto-included args: [today, ...originalArgs]
+Effective key = vendor + fn + version + serialize([today, ...originalArgs])
 ```
-Plus the function args, which `unstable_cache` auto-includes.
 
 - **`version`** — explicit cache-bust string. Bump when response shape or fetch logic changes. (Replaces the implicit `peec-overview-v2` mechanism, applied uniformly.)
-- **`todayISO()`** = `new Date().toISOString().slice(0, 10)` — invalidates the cache at every UTC day boundary. Necessary because many fetchers reference `new Date()` internally (resolving "today" without it appearing in args). With a 1-hour TTL spanning midnight, you'd otherwise get yesterday's "today" for up to an hour into the new day. Applied uniformly rather than per-fetcher to avoid forgetting to add it somewhere.
+- **`today`** = `new Date().toISOString().slice(0, 10)` (UTC). Prepended to args at call time so the cache key varies per UTC day. Required because many fetchers reference `new Date()` internally without it appearing in their signatures.
 
 **Cache-busting policy:**
 Any change to a fetcher's response shape OR its fetch logic (auth, endpoint, filters) requires bumping `version`. Documented in `lib/cache.ts` JSDoc. The reviewer of any vendor-client PR is expected to ask "did the response shape change? Did you bump version?"
 
-**TTL and jitter:**
-- Default `ttlSeconds`: 3600 (1 hour). Matches existing `getPeecOverview` and the vendor APIs' typical refresh cadence (most marketing APIs are hourly at best).
-- Default jitter: `Math.floor(Math.random() * 300)` added to the TTL on each `cached()` call site at module load. Prevents thundering-herd at exact-hour boundaries when many cached entries expire simultaneously.
-- Per-call override available via `options.ttlSeconds` and `options.jitter`.
+**TTL:**
+- Default 3600s (1 hour). Matches existing `getPeecOverview` and the vendor APIs' typical refresh cadence.
+- Per-call override via `options.ttlSeconds`.
+- No jitter. See "Risks accepted" for the thundering-herd discussion at TTL and UTC boundaries.
 
 **`extractTags`:** unchanged from the existing `PerfExtractor` contract.
 
-**Zero overhead when PERF_LOG is off:** the outer `timed(...)` returns its inner argument unchanged when `PERF_LOG !== '1'`. Inner `unstable_cache` *is* the production behavior — it always runs. (Previous spec wording incorrectly implied the wrapper was free in prod; it's not. `unstable_cache` IS the prod cache layer.)
+**Behavior when PERF_LOG is off:** the `cached()` wrapper still runs the ALS+unstable_cache machinery (that IS the production cache layer), but skips the `emit()` call. Per-call ALS overhead is a few µs; production observers won't notice it.
 
 ### `byClient` convenience extractor
 
@@ -152,7 +199,7 @@ export const getFoo = cached('vendor', 'getFoo', getFooImpl, {
 })
 ```
 
-The `timed` import is removed from each file (cached() handles timing internally). Public export names are unchanged.
+The `timed` import is removed from each wrapped file (cached() handles PERF emission internally and does not compose with `timed()`). Public export names are unchanged.
 
 ### Two notable migrations
 
@@ -185,7 +232,7 @@ hubspot     5.65s        0.45s        -92%      96%
 peec        0.06s        0.00s        cached    100%
 ```
 
-`hit_rate` is computed from the **`cached` field on each PERF entry** (emitted explicitly by `cached()` — see helper design above), not from a fabricated ms threshold. `hit_rate = count(cached === true) / count(any wrapped call)` per vendor.
+`hit_rate` is computed from the **`cached` field on each PERF entry** (emitted directly by `cached()` via the ALS+marker mechanism — see helper design above), not from a fabricated ms threshold. `hit_rate = count(cached === true) / count(any wrapped call)` per vendor. `perf-compare.ts` filters out boundary entries (`vendor === '_walk'`) before computing any aggregate — boundary entries are split markers only and would otherwise pollute the totals.
 
 **Deterministic log splitting via boundary markers:**
 
@@ -194,7 +241,15 @@ A new `app/api/_perf/boundary/route.ts` route handler:
 ```ts
 import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
+
+// Fail closed in prod: returns 404 unless PERF_LOG=1 at module load.
+// Same gate as lib/perf.ts — the route only exists when profiling is on.
+const PERF_LOG_ENABLED = process.env.PERF_LOG === '1'
+
 export async function GET(req: Request) {
+  if (!PERF_LOG_ENABLED) {
+    return new NextResponse('Not Found', { status: 404 })
+  }
   const url = new URL(req.url)
   const label = url.searchParams.get('label') ?? 'unlabeled'
   console.log('PERF ' + JSON.stringify({
@@ -260,11 +315,10 @@ Nothing gets removed. `timed()` and its existing wraps remain.
 
 1. **First cold-cache load after deploy is no faster than today.** Every TTL revalidate pays the same cold cost. Acceptable because typical sessions have > 1 page view.
 2. **Up to ~1 hour of staleness within a UTC day.** Daily-grain marketing data won't shift inside an hour. Bounded.
-3. **No explicit cache size limits.** Trust Next.js Data Cache defaults on Vercel.
-4. **`unstable_` API prefix.** `unstable_cache` is the only stable-enough Next.js API for this need today. Single point of replacement at `lib/cache.ts`.
-5. **`/api/_perf/boundary` is unauthenticated.** It's a no-op route that emits a log line; no data exposure. Documented as dev/profiling-only — could be gated by a `PERF_LOG=1` check in the route to fail closed in prod, which we'll do.
-
-## Open questions
-
-- **Thundering herd at TTL boundaries.** Default ±300s jitter mitigates the worst case but doesn't eliminate it. If a 30-client cohort all refresh at minute 60, ~10% might still land within the same 30s window. Accept for now; revisit if Vercel surfaces serverless concurrency issues.
-- **`getFormSubmissionCounts` 1-hour TTL.** Form-submission counts during business hours tick upward minute-by-minute. A 1-hour cache means clients refreshing during a campaign launch might see stale counts. Acceptable for a reporting tool (not a real-time inbox), but flag as something to revisit if a customer asks.
+3. **Thundering herd at TTL boundaries.** No per-entry jitter (see Considered-and-rejected). Cache entries created at near-identical times expire at near-identical times; clients refreshing at the boundary all hit the cold path. Acceptable at current 2-client scale. Revisit if Vercel concurrency surfaces issues — at that point the fix is likely per-client-stable key salting, not jitter.
+4. **Daily UTC rollover invalidates all wrapped caches simultaneously.** Cost of the `today` injection in #2 above: at 00:00 UTC (5–8pm US local), every wrapped fetcher's cache is invalidated across all clients in one tick. At current scale, fine. At 50+ clients in US business hours, this matters — revisit if Vercel surfaces concurrent cold-start issues.
+5. **`getFormSubmissionCounts` 1-hour TTL during business hours.** Form-submission counts tick upward minute-by-minute during campaigns. A 1-hour cache means clients refreshing during a launch might see stale counts. Acceptable for a reporting tool (not a real-time inbox), but flag for revisit if a customer asks. Per-call TTL override available if needed.
+6. **No explicit cache size limits.** Trust Next.js Data Cache defaults on Vercel.
+7. **`unstable_` API prefix.** `unstable_cache` is the only stable-enough Next.js API for this need today. Single point of replacement at `lib/cache.ts`.
+8. **UTC vs local time in `parseDateRange`.** `lib/ga4/client.ts:79` resolves "today" in local time; our key uses UTC. For US-east Vercel functions, the two diverge for ~5 hours each evening. For daily-grain reporting data, this is invisible (the resolved date range still covers the same calendar day from the user's perspective in most cases). If we ever cache an hourly-grain fetcher, this needs revisiting.
+9. **AsyncLocalStorage on Edge runtime.** Next.js App Router defaults to Node.js runtime for server components, where ALS is fully supported. If a route is later forced to Edge runtime and imports a `cached()`-wrapped fetcher, behavior is best-effort (Edge has partial ALS support depending on Next.js version). All current call sites are server components running on Node.
