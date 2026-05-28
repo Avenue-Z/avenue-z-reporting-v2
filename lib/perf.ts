@@ -52,3 +52,16 @@ export function timed<TArgs extends unknown[], TRet>(
 function emit(payload: Record<string, unknown>): void {
   console.log('PERF ' + JSON.stringify(payload))
 }
+
+/**
+ * Convenience extractor: tags PERF lines with `{ client: <first arg as string> }`.
+ * Use when the wrapped function's first positional arg is the client slug.
+ *
+ * Example:
+ *   export const getFoo = cached('vendor', 'getFoo', getFooImpl, { extractTags: byClient })
+ *
+ * Properly typed so callers don't need `as never` casts even when wrapped
+ * function signatures vary in their trailing args.
+ */
+export const byClient: PerfExtractor<[string, ...unknown[]]> =
+  ([clientSlug]) => ({ client: clientSlug })
