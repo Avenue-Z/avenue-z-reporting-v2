@@ -28,7 +28,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getClientBySlug } from '@/lib/db/queries'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 // ── Config / auth ─────────────────────────────────────────────────────────────
 
@@ -302,11 +302,13 @@ async function getAgentAnalyticsImpl(clientSlug: string): Promise<AgentAnalytics
 //   fail    = bots are hitting 4xx/5xx
 //   pending = no bot visits at all
 
-export const getAgentAnalytics = timed(
+export const getAgentAnalytics = cached(
   'peec',
   'getAgentAnalytics',
   getAgentAnalyticsImpl,
-  ([clientSlug]) => ({ client: clientSlug }),
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
 )
 
 export function deriveRobotsTxtStatus(

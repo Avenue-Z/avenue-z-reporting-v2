@@ -14,7 +14,7 @@
 import { GoogleAuth } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { SitebulbData, SitebulbHintRow, AEOChecklist, AEOChecklistItem, AEOStatus } from './types'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 // ── Singleton auth ────────────────────────────────────────────────────────────
 
@@ -105,11 +105,13 @@ async function getSitebulbDataImpl(clientSlug: string): Promise<SitebulbData> {
   }
 }
 
-export const getSitebulbData = timed(
+export const getSitebulbData = cached(
   'sitebulb',
   'getData',
   getSitebulbDataImpl,
-  ([clientSlug]) => ({ client: clientSlug }),
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
 )
 
 // ── AEO checklist builder ─────────────────────────────────────────────────────

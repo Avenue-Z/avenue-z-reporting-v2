@@ -17,7 +17,7 @@
 import { GoogleAuth } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { PRPlacement, PRProofData } from './types'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 // ── Singleton auth ────────────────────────────────────────────────────────────
 
@@ -167,11 +167,13 @@ async function getPRProofDataImpl(clientSlug: string): Promise<PRProofData> {
   }
 }
 
-export const getPRProofData = timed(
+export const getPRProofData = cached(
   'pr-proof',
   'getData',
   getPRProofDataImpl,
-  ([clientSlug]) => ({ client: clientSlug }),
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
 )
 
 // ── Matchback helper (cross-reference with Peec data) ─────────────────────────

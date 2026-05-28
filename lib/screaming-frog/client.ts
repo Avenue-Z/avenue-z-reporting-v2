@@ -24,7 +24,7 @@ import type {
   SFSeverity,
   SFSnapshot,
 } from './types'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -609,11 +609,13 @@ async function getSFDataImpl(clientSlug: string): Promise<SFData> {
   }
 }
 
-export const getSFData = timed(
+export const getSFData = cached(
   'screaming-frog',
   'getData',
   getSFDataImpl,
-  ([clientSlug]) => ({ client: clientSlug }),
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
 )
 
 // Re-export types for convenience

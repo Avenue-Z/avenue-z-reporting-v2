@@ -11,7 +11,7 @@
  */
 import { JWT } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 const WINDOW = 28
 const LAG = 2 // days GSC lags behind today
@@ -198,9 +198,11 @@ async function getGSCOverviewImpl(clientSlug: string): Promise<GSCOverview> {
   return { kpis, trend, topQueries, topPages, dateRange: { start: current.startDate, end: current.endDate } }
 }
 
-export const getGSCOverview = timed(
+export const getGSCOverview = cached(
   'gsc',
   'getOverview',
   getGSCOverviewImpl,
-  ([clientSlug]) => ({ client: clientSlug }),
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
 )

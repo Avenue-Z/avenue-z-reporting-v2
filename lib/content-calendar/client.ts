@@ -24,7 +24,7 @@ import type {
   ContentAction,
   MatchStatus,
 } from './types'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -261,11 +261,13 @@ async function getContentCalendarDataImpl(
   }
 }
 
-export const getContentCalendarData = timed(
+export const getContentCalendarData = cached(
   'content-calendar',
   'getData',
   getContentCalendarDataImpl,
-  ([clientSlug]) => ({ client: clientSlug }),
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
 )
 
 function emptyData(): ContentCalendarData {

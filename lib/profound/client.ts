@@ -1,4 +1,4 @@
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 const BASE_URL = 'https://api.tryprofound.com'
 
@@ -417,4 +417,4 @@ async function getProfoundOverviewImpl(): Promise<ProfoundOverview> {
   }
 }
 
-export const getProfoundOverview = timed('profound', 'getOverview', getProfoundOverviewImpl)
+export const getProfoundOverview = cached('profound', 'getOverview', getProfoundOverviewImpl)
