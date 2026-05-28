@@ -12,7 +12,7 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { GA4QueryParams, GA4ReportResult, GA4Row } from './types'
-import { timed } from '@/lib/perf'
+import { cached } from '@/lib/cache'
 
 let _client: BetaAnalyticsDataClient | null = null
 
@@ -228,9 +228,11 @@ export async function ga4Totals(
   return result.rows[0] ?? {}
 }
 
-export const ga4Query = timed(
+export const ga4Query = cached(
   'ga4',
   'runReport',
   ga4QueryImpl,
-  ([params]) => ({ client: params.clientSlug, dateRange: params.dateRange }),
+  {
+    extractTags: ([params]) => ({ client: params.clientSlug, dateRange: params.dateRange }),
+  },
 )
