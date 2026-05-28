@@ -106,6 +106,7 @@ async function main() {
       peecCustomerProjectId: c.peecCustomerProjectId,
       prProofSheetId: c.prProofSheetId,
       contentCalendarSheetId: c.contentCalendarSheetId,
+      peecYourBrand: c.peecYourBrand,
       prConfig: c.prConfig,
       enabledReports: c.enabledReports,
       hiddenReports: c.hiddenReports,
