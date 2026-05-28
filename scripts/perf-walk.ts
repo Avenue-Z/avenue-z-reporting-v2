@@ -3,18 +3,50 @@
  * (client, enabledReport) URL so a single `next start` run captures
  * timing data for the whole platform.
  *
- * Usage:
- *   1. In one terminal: PERF_LOG=1 npm run start 2>&1 | tee perf.log
- *   2. In a browser, sign in. Open DevTools > Application > Cookies and
- *      copy the entire Cookie header value for http://localhost:3000.
- *   3. In another terminal:
- *      PERF_SESSION_COOKIE='<paste here>' npx tsx --env-file=.env.local scripts/perf-walk.ts
+ * Usage (basic):
+ *   PERF_SESSION_COOKIE='...' tsx --env-file=.env.local scripts/perf-walk.ts
+ *
+ * Usage (cold/warm comparison):
+ *   In one terminal: PERF_LOG=1 npm run start 2>&1 | tee perf.log
+ *   Sign in via browser, copy session cookie from DevTools.
+ *   PERF_SESSION_COOKIE='...' tsx --env-file=.env.local scripts/perf-walk.ts --pass cold
+ *   PERF_SESSION_COOKIE='...' tsx --env-file=.env.local scripts/perf-walk.ts --pass warm
+ *   Then: tsx scripts/perf-compare.ts perf.log cold warm
+ *
+ * The --pass flag (optional) makes the walker hit /api/_perf/boundary?label=<pass>
+ * before walking URLs, so perf-compare.ts can split cold/warm passes
+ * deterministically.
  */
 import { getAllClients } from '../lib/db/queries'
 
 const BASE = process.env.PERF_BASE_URL ?? 'http://localhost:3000'
 const COOKIE = process.env.PERF_SESSION_COOKIE
 const DATE_RANGE = process.env.PERF_DATE_RANGE ?? 'last_30_days'
+
+function parsePassArg(): string | null {
+  const idx = process.argv.indexOf('--pass')
+  if (idx === -1) return null
+  const label = process.argv[idx + 1]
+  if (!label || label.startsWith('--')) {
+    console.error('--pass requires a label argument (e.g. --pass cold)')
+    process.exit(1)
+  }
+  return label
+}
+
+async function emitBoundary(label: string): Promise<void> {
+  const url = `${BASE}/api/_perf/boundary?label=${encodeURIComponent(label)}`
+  const res = await fetch(url, { headers: { Cookie: COOKIE! } })
+  if (res.status === 404) {
+    console.error(`Boundary route returned 404 — make sure the server was started with PERF_LOG=1`)
+    process.exit(1)
+  }
+  if (!res.ok) {
+    console.error(`Boundary marker emit failed: HTTP ${res.status}`)
+    process.exit(1)
+  }
+  await res.text()
+}
 
 async function main() {
   if (!COOKIE) {
@@ -23,8 +55,14 @@ async function main() {
     process.exit(1)
   }
 
+  const pass = parsePassArg()
+  if (pass) {
+    console.log(`Emitting boundary marker for pass="${pass}"...`)
+    await emitBoundary(pass)
+  }
+
   const clients = await getAllClients()
-  console.log(`Walking ${clients.length} clients...`)
+  console.log(`Walking ${clients.length} clients${pass ? ` (pass=${pass})` : ''}...`)
 
   let total = 0
   let ok = 0
@@ -46,7 +84,6 @@ async function main() {
         if (status >= 200 && status < 400) {
           ok++
           console.log(`  ✓ ${client.slug}/${report}  ${status}  ${ms}ms`)
-          // Drain the body so the server completes the render and emits all PERF lines.
           await res.text()
         } else {
           failed++
