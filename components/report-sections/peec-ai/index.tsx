@@ -326,7 +326,7 @@ export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {})
           </div>
 
           {peecData.trackedPrompts.length > 0 && (
-            <TrackedPromptsChart prompts={peecData.trackedPrompts} />
+            <TrackedPromptsChart prompts={peecData.trackedPrompts} brandName={peecYou?.name ?? process.env.PEEC_AI_YOUR_BRAND} />
           )}
 
           <p className="text-xs text-text-muted">Live data from Peec AI</p>
