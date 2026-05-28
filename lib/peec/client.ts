@@ -1,3 +1,5 @@
+import { unstable_cache } from 'next/cache'
+
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
 function getKey(): string {
@@ -36,7 +38,7 @@ async function peecPost<T>(
       limit: 100,
       ...body,
     }),
-    next: { revalidate: 3600 },
+    cache: 'no-store',
   })
   if (!res.ok) {
     const text = await res.text()
@@ -57,7 +59,7 @@ async function peecGet<T>(
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
   const res = await fetch(url.toString(), {
     headers: { 'X-API-Key': getKey() },
-    next: { revalidate: 3600 },
+    cache: 'no-store',
   })
   if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
   return res.json()
@@ -312,7 +314,12 @@ async function fetchAllYtdRows(
  *                    clients.config.ts (peecCustomerProjectId). Falls back to the
  *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
  */
-export async function getPeecOverview(clientSlug?: string): Promise<PeecOverview> {
+// Cached per-clientSlug for 1 hour. Cache key derives from the function args
+// (so 'avenue-z' and 'renaissance' each get their own entry). Without this
+// wrapper, all clients shared one cache entry per fetch URL because Next.js
+// fetch caching keys on URL — Peec puts project_id in the body.
+export const getPeecOverview = unstable_cache(
+  async (clientSlug?: string): Promise<PeecOverview> => {
   // Resolve project ID and "your brand" label per-client; fall back to env vars
   // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
@@ -578,4 +585,7 @@ export async function getPeecOverview(clientSlug?: string): Promise<PeecOverview
     trackedPrompts,
     llmBreakdown,
   }
-}
+  },
+  ['peec-overview-v1'],
+  { revalidate: 3600, tags: ['peec-overview'] }
+)
