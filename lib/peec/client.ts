@@ -592,6 +592,10 @@ export const getPeecOverview = unstable_cache(
     llmBreakdown,
   }
   },
-  ['peec-overview-v1'],
+  // Bump the version string to invalidate all cached entries when the
+  // response shape or fetch logic changes. v2 = after switching from
+  // PEEC_AI_ACCESS_TOKEN to PEEC_AI_CUSTOMER_TOKEN; old cached entries
+  // were populated with Avenue Z's data regardless of clientSlug.
+  ['peec-overview-v2'],
   { revalidate: 3600, tags: ['peec-overview'] }
 )
