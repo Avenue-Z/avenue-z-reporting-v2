@@ -12,6 +12,7 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { GA4QueryParams, GA4ReportResult, GA4Row } from './types'
+import { timed } from '@/lib/perf'
 
 let _client: BetaAnalyticsDataClient | null = null
 
@@ -166,7 +167,7 @@ export function deriveCompareRange(
  * Run a GA4 Data API report for a given client.
  * Server-side only — never call from a Client Component.
  */
-export async function ga4Query(params: GA4QueryParams): Promise<GA4ReportResult> {
+async function ga4QueryImpl(params: GA4QueryParams): Promise<GA4ReportResult> {
   const config = await getClientBySlug(params.clientSlug)
   if (!config) throw new Error(`Unknown client: ${params.clientSlug}`)
 
@@ -226,3 +227,10 @@ export async function ga4Totals(
   const result = await ga4Query({ clientSlug, metrics, dateRange })
   return result.rows[0] ?? {}
 }
+
+export const ga4Query = timed(
+  'ga4',
+  'runReport',
+  ga4QueryImpl,
+  ([params]) => ({ client: params.clientSlug, dateRange: params.dateRange }),
+)
