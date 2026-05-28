@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache'
+import { timed } from '@/lib/perf'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
@@ -324,7 +325,7 @@ async function fetchAllYtdRows(
 // (so 'avenue-z' and 'renaissance' each get their own entry). Without this
 // wrapper, all clients shared one cache entry per fetch URL because Next.js
 // fetch caching keys on URL — Peec puts project_id in the body.
-export const getPeecOverview = unstable_cache(
+const getPeecOverviewImpl = unstable_cache(
   async (clientSlug?: string): Promise<PeecOverview> => {
   // Resolve project ID and "your brand" label per-client; fall back to env vars
   // when no clientSlug is provided (legacy single-tenant callers).
@@ -598,4 +599,11 @@ export const getPeecOverview = unstable_cache(
   // were populated with Avenue Z's data regardless of clientSlug.
   ['peec-overview-v2'],
   { revalidate: 3600, tags: ['peec-overview'] }
+)
+
+export const getPeecOverview = timed(
+  'peec',
+  'getOverview',
+  getPeecOverviewImpl,
+  ([clientSlug]) => ({ client: clientSlug }),
 )

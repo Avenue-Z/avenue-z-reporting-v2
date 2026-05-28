@@ -24,6 +24,7 @@ import type {
   SFSeverity,
   SFSnapshot,
 } from './types'
+import { timed } from '@/lib/perf'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -565,7 +566,7 @@ function weightedScore(snap: SFSnapshot): number {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export async function getSFData(clientSlug: string): Promise<SFData> {
+async function getSFDataImpl(clientSlug: string): Promise<SFData> {
   const config = await getClientBySlug(clientSlug)
   if (!config)         throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.sfCsvFileId) throw new Error(`sfCsvFileId not configured for client: ${clientSlug}`)
@@ -607,6 +608,13 @@ export async function getSFData(clientSlug: string): Promise<SFData> {
     prevWeightedScore: prev ? weightedScore(prev) : null,
   }
 }
+
+export const getSFData = timed(
+  'screaming-frog',
+  'getData',
+  getSFDataImpl,
+  ([clientSlug]) => ({ client: clientSlug }),
+)
 
 // Re-export types for convenience
 export type { SFData, SFSnapshot, SFIssueSummary, SFIssueDelta, SFSeverity } from './types'

@@ -24,6 +24,7 @@ import type {
   ContentAction,
   MatchStatus,
 } from './types'
+import { timed } from '@/lib/perf'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -206,7 +207,7 @@ function deriveMatchStatus(url: string | null, statusRaw: string): MatchStatus {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export async function getContentCalendarData(
+async function getContentCalendarDataImpl(
   clientSlug: string
 ): Promise<ContentCalendarData> {
   const config = await getClientBySlug(clientSlug)
@@ -259,6 +260,13 @@ export async function getContentCalendarData(
     unmatchedCount: rows.filter(r => r.matchStatus !== 'matched').length,
   }
 }
+
+export const getContentCalendarData = timed(
+  'content-calendar',
+  'getData',
+  getContentCalendarDataImpl,
+  ([clientSlug]) => ({ client: clientSlug }),
+)
 
 function emptyData(): ContentCalendarData {
   return {

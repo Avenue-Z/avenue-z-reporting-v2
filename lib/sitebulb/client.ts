@@ -14,6 +14,7 @@
 import { GoogleAuth } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { SitebulbData, SitebulbHintRow, AEOChecklist, AEOChecklistItem, AEOStatus } from './types'
+import { timed } from '@/lib/perf'
 
 // ── Singleton auth ────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ function parseHintRow(headers: string[], dataRow: string[]): SitebulbHintRow {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export async function getSitebulbData(clientSlug: string): Promise<SitebulbData> {
+async function getSitebulbDataImpl(clientSlug: string): Promise<SitebulbData> {
   const config = await getClientBySlug(clientSlug)
   if (!config) throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.sitebulbSheetId) throw new Error(`sitebulbSheetId not configured for client: ${clientSlug}`)
@@ -103,6 +104,13 @@ export async function getSitebulbData(clientSlug: string): Promise<SitebulbData>
     prev:    prevRow ? parseHintRow(headers, prevRow) : null,
   }
 }
+
+export const getSitebulbData = timed(
+  'sitebulb',
+  'getData',
+  getSitebulbDataImpl,
+  ([clientSlug]) => ({ client: clientSlug }),
+)
 
 // ── AEO checklist builder ─────────────────────────────────────────────────────
 //

@@ -1,3 +1,5 @@
+import { timed } from '@/lib/perf'
+
 const BASE_URL = 'https://api.tryprofound.com'
 
 function getKey(): string {
@@ -282,7 +284,7 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
 
 // --- Main export ---
 
-export async function getProfoundOverview(): Promise<ProfoundOverview> {
+async function getProfoundOverviewImpl(): Promise<ProfoundOverview> {
   const yourBrand =
     process.env.PROFOUND_AI_YOUR_BRAND ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
   const categoryId = await getCategoryId()
@@ -414,3 +416,5 @@ export async function getProfoundOverview(): Promise<ProfoundOverview> {
     llmBreakdown,
   }
 }
+
+export const getProfoundOverview = timed('profound', 'getOverview', getProfoundOverviewImpl)
