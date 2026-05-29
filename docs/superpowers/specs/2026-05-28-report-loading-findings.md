@@ -214,3 +214,59 @@ hubspot         11ms        4ms         -64%      100%
 2. **`content-calendar/getData` has 50% error rate.** Half the calls succeed, half don't.
 
 These are independent of caching but are the kind of thing a verification walk is supposed to surface.
+
+## Caching results — Round 4 (2026-05-29 — wall-clock user-perceived)
+
+Rounds 1-3 measured aggregate vendor-side wait via PERF logs. That's directionally honest but the magnitude overstates user impact because parallel fetches mean a real user waits for the slowest branch, not the sum.
+
+Round 4 introduces `scripts/perf-wallclock.ts` — a walker that times each URL from `fetch()` start to **full body drain**, which is the closest approximation to "data is on the user's screen." Ran against a fresh `.next/cache` to get truly cold numbers.
+
+### Methodology
+
+- `rm -rf .next/cache` before `PERF_LOG=1 npm run start`
+- `tsx scripts/perf-wallclock.ts --passes 2 --surface both`
+- Pass 1 = cold (cache empty), Pass 2 = warm (populated by pass 1)
+- Note: the walker hits portal URLs first, so dashboard URLs share the portal pass's cache warmth on the cold pass — except for subsection-only fetchers (`getAgentAnalytics`), which portal doesn't exercise.
+
+### Results — portal pages (true cold)
+
+```
+page                                    cold     warm    delta
+portal/avenue-z/demand-overview         10030ms    68ms   -99%
+portal/avenue-z/peec-ai                  9473ms   127ms   -99%
+portal/renaissance/peec-ai               5763ms   134ms   -98%
+portal/avenue-z/inbound-funnel           3366ms    53ms   -98%
+portal/avenue-z/ga4                      1698ms    64ms   -96%
+portal/avenue-z/hubspot-performance       276ms    80ms   -71%
+portal/avenue-z/request-a-report          178ms    50ms   -72%
+portal/renaissance/request-a-report       166ms    53ms   -68%
+```
+
+### Results — dashboard subsections (true cold for getAgentAnalytics)
+
+```
+page                                            cold     warm    delta
+dashboard/avenue-z/peec-ai/technical-audit     3559ms    65ms   -98%
+dashboard/avenue-z/peec-ai/pr-influence        1087ms   288ms   -74%
+dashboard/renaissance/peec-ai/technical-audit   937ms    61ms   -93%
+dashboard/renaissance/peec-ai/content-impact    772ms   170ms   -78%
+dashboard/avenue-z/peec-ai/content-impact       541ms    80ms   -85%
+dashboard/renaissance/peec-ai/pr-influence      278ms   308ms    +11%   (noise — single sample)
+```
+
+### Aggregate
+
+**38.8s total cold → 2.3s total warm across all 22 URLs = -94%.**
+
+### Observations
+
+- **The biggest user-facing wins are on the slowest pages.** `demand-overview` and `peec-ai` at portal are 5-10 seconds cold and ~100ms warm. That's a 100-150× speedup for the second user.
+- **First-user cost is real.** Caching doesn't help the very first visit after a deploy or cache eviction. `demand-overview` at 10s cold is a UX problem for whoever lands first. The relevant follow-up brainstorm is whether to pre-warm critical caches at deploy time or via cron.
+- **Even cold, ga4 (1.7s) and hubspot-performance (276ms) are tolerable.** The aggregate fetcher-wait numbers from Rounds 1-3 made it look like ga4 was 13s+; in practice the parallel fan-out keeps the user wait under 2s on cold.
+- **Wall-clock delta (94%) closely matches the per-fetcher delta** (99-100%) for the slow pages. The discrepancy is on pages already fast cold (hubspot-performance, request-a-report) where shell-render + db overhead dominates and caching has less room to help.
+
+### What the prior rounds got wrong
+
+Rounds 1-3 reported things like "ga4 13.48s → 26ms". That number is the sum of every individual GA4 fetch logged during the walk — across 16 walked URLs, multiple Suspense boundaries per page, parallel branches. No single user ever waited 13.48s. They waited ~1.7s (slowest single ga4 query branch on the slowest page) on cold, and ~64ms on warm.
+
+The aggregate numbers were not wrong — they're an honest measure of cumulative server work eliminated — but they answer a different question than "how long does the user wait?" Round 4 answers that question.
