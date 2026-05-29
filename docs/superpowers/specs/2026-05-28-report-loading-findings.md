@@ -169,5 +169,48 @@ db              3.63s       1.72s       -52%      0%
 
 ### What's left
 
-- Portal subsections for `peec-ai` (pr-influence, content-impact, technical-audit), `inbound-funnel` (forms, pacing), and `ga4` (conversion-journey, search-console) are still dashboard-only. They use the same `cached()` fetchers under the hood, so caching should behave identically — but it's untested at the portal surface. Decide whether portal should expose them or stay scoped.
+- Portal subsections for `peec-ai` (pr-influence, content-impact, technical-audit), `inbound-funnel` (forms, pacing), and `ga4` (conversion-journey, search-console) are still dashboard-only. They use the same `cached()` fetchers under the hood, so caching should behave identically — but it's untested at the portal surface. Decide whether portal should expose them or stay scoped. (Update: dashboard subsection walking added in Round 3 — see below.)
 - BigQuery's `conversational-summary` section has wraps but no walker coverage; if it ever becomes an enabled report, re-run.
+
+## Caching results — Round 3 (2026-05-29 — subsection coverage)
+
+Re-run after extending the walker with a `SUBSECTIONS` map so `peec-ai/pr-influence`, `peec-ai/content-impact`, and `peec-ai/technical-audit` get hit on the dashboard surface. These subsections call additional cached fetchers (`getAgentAnalytics` notably) that Round 2 missed entirely.
+
+### Methodology
+
+- Same prod build, same walker.
+- 22 URLs per pass (16 from Round 2 + 6 new subsection URLs across 2 clients).
+- **Caveat: Round 3 "cold" is partially warm.** Next.js's `unstable_cache` data cache persists in `.next/cache/` across `next start` restarts. We didn't `rm -rf .next/cache` between Round 2 and Round 3, so vendors that were already cached in Round 2 (ga4, hubspot, peec, profound) have small cold totals here. The genuinely-new subsection vendors (`getAgentAnalytics`, sitebulb, screaming-frog, content-calendar, pr-proof) are truly cold because nothing in Round 2 invoked them.
+
+### Results
+
+```
+Parsed 154 cold + 144 warm entries from perf-cache.log
+
+vendor          cold_wait   warm_wait   delta     hit_rate
+screaming-frog  3.46s       0ms         -100%     100%
+ga4             2.52s       407ms       -84%      93%
+db              2.39s       2.43s       2%        0%
+sitebulb        2.21s       0ms         -100%     100%
+pr-proof        1.31s       579ms       -56%      0%
+content-calendar1.09s       5ms         -100%     50%
+peec            973ms       42ms        -96%      100%
+profound        37ms        23ms        -38%      100%
+hubspot         11ms        4ms         -64%      100%
+```
+
+### Observations
+
+- **`peec/getAgentAnalytics` is verified.** 2 true cold calls (224ms, 668ms) → all subsequent calls `cached:true` at 0–3ms. This was the headline gap Round 3 was designed to close.
+- **3 new clean wins surfaced via subsections.** `sitebulb` (3.46s → 0ms), `screaming-frog` (2.21s → 0ms), `content-calendar` (1.09s → 5ms successful-path) — all show the same -100%/100% pattern.
+- **`pr-proof` is broken at the fetcher level, not the cache layer.** All 4 calls returned `ok:false` (errors). `cached()` correctly does NOT cache failed results, so each subsequent call retries and re-errors → 0% hit rate. This is a real bug in pr-proof itself, surfaced by Wave 3 but unrelated to caching. Worth a separate brainstorm.
+- **`content-calendar` half-failed.** 2 calls succeeded (and one cached cleanly), 2 returned `ok:false`. Same shape as pr-proof's issue but partial. Worth investigating which calls fail and why.
+- **GA4 hit_rate at 93% (one miss in warm).** One ga4Query variant in a subsection presumably used a dynamic date that didn't match its cold counterpart. Below threshold but not a cache regression — investigate the specific call key if it matters.
+- **Existing-vendor cold totals are not Round-2-comparable.** Carrying over from the caveat above — ga4 2.52s / hubspot 11ms here vs Round 2's 7.09s / 7.32s is the persistent data cache, not a regression. The hit-rate numbers are still meaningful.
+
+### Outstanding bugs surfaced by Round 3
+
+1. **`pr-proof/getData` returns errors for all walked clients/subsections.** Investigate the fetcher.
+2. **`content-calendar/getData` has 50% error rate.** Half the calls succeed, half don't.
+
+These are independent of caching but are the kind of thing a verification walk is supposed to surface.
