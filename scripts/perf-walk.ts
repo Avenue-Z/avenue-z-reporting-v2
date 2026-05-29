@@ -13,7 +13,7 @@
  *   PERF_SESSION_COOKIE='...' tsx --env-file=.env.local scripts/perf-walk.ts --pass warm
  *   Then: tsx scripts/perf-compare.ts perf.log cold warm
  *
- * The --pass flag (optional) makes the walker hit /api/_perf/boundary?label=<pass>
+ * The --pass flag (optional) makes the walker hit /api/perf/boundary?label=<pass>
  * before walking URLs, so perf-compare.ts can split cold/warm passes
  * deterministically.
  */
@@ -35,7 +35,7 @@ function parsePassArg(): string | null {
 }
 
 async function emitBoundary(label: string): Promise<void> {
-  const url = `${BASE}/api/_perf/boundary?label=${encodeURIComponent(label)}`
+  const url = `${BASE}/api/perf/boundary?label=${encodeURIComponent(label)}`
   const res = await fetch(url, { headers: { Cookie: COOKIE! } })
   if (res.status === 404) {
     console.error(`Boundary route returned 404 — make sure the server was started with PERF_LOG=1`)

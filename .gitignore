@@ -47,3 +47,4 @@ yarn-error.log*
 next-env.d.ts
 .claude/
 perf.log
+perf-cache.log
