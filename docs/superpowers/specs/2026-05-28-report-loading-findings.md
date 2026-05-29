@@ -132,7 +132,42 @@ The caching layer is verified for the surfaces that did exercise it. The rest is
 
 ### Outstanding items
 
-1. **Portal report route is missing 4 cases.** Either wire `demand-overview`, `peec-ai`, `inbound-funnel`, `request-a-report` into the portal switch (mirroring dashboard), or document that those reports are dashboard-only. This is a real product bug surfaced by Wave 3, independent of caching.
-2. **Re-run cold/warm after the route gap is closed** to verify `peec`, `bigquery`, `profound`, and the remaining HubSpot fetchers behave as expected (hypothesis: same -100% deltas, 100% hit rates given the same `cached()` wrap pattern).
-3. **Walker should optionally cover dashboard routes too** — for internal users (the typical caller), dashboard is where the bulk of the data lives. A `--surface portal|dashboard|both` flag would close the gap without forcing the portal fix first.
+1. ~~**Portal report route is missing 4 cases.**~~ Done in this branch — `demand-overview`, `peec-ai`, `inbound-funnel`, `request-a-report` now wired into the portal switch (base cases; subsections still dashboard-only).
+2. ~~**Re-run cold/warm after the route gap is closed.**~~ Done — see Round 2 below.
+3. ~~**Walker should optionally cover dashboard routes too.**~~ Done — `scripts/perf-walk.ts` now accepts `--surface portal|dashboard|both`.
 4. **HTTP response times reported by the walker are not wall-clock data wait.** Streaming RSC + Suspense closes the initial chunk fast (~60-200ms) while cached fetches continue. The PERF log between boundaries is the correct measurement surface; the walker's per-URL ms column is informational only.
+
+## Caching results — Round 2 (2026-05-29 — extended coverage)
+
+Re-run after closing the portal route coverage gap and adding `--surface both` to the walker. Same prod build, same methodology as Round 1.
+
+### Methodology
+
+- `npx tsx scripts/perf-walk.ts --pass cold --surface both` then `--pass warm --surface both`.
+- 16 URLs per pass (2 clients × 6 portal + 8 dashboard reports — note enabledReports lists vary by client).
+
+### Results
+
+```
+Parsed 112 cold + 102 warm entries from perf-cache.log
+
+vendor          cold_wait   warm_wait   delta     hit_rate
+peec            13.79s      28ms        -100%     100%
+profound        9.19s       22ms        -100%     100%
+hubspot         7.32s       4ms         -100%     100%
+ga4             7.09s       62ms        -99%      100%
+db              3.63s       1.72s       -52%      0%
+```
+
+### Observations
+
+- **All four `cached()`-wrapped vendors hit 100% hit rate with -99% or -100% delta.** Peec, profound, and hubspot were not exercised at all in Round 1 — they are now and they behave the same as ga4. The `cached()` pattern is uniform across vendors.
+- **Peec was the biggest single hidden win.** 13.79s cold spend → 28ms warm. Round 1 missed this entirely.
+- **`db` shows -52% delta but still 0% hit rate.** Expected — React.cache only. The improvement is connection warm-up (cold pass first hit pays the Neon serverless cold start), not caching.
+- **BigQuery still not exercised** — only `components/report-sections/conversational-summary` imports it, and that section isn't in any client's `enabledReports`. Out of scope for this walker until a client enables it.
+- **Cross-client smoke (round 2).** Both clients walked clean on both surfaces, no errors. PERF log shows correct `client:` tags on per-client fetches. No cross-client contamination observed.
+
+### What's left
+
+- Portal subsections for `peec-ai` (pr-influence, content-impact, technical-audit), `inbound-funnel` (forms, pacing), and `ga4` (conversion-journey, search-console) are still dashboard-only. They use the same `cached()` fetchers under the hood, so caching should behave identically — but it's untested at the portal surface. Decide whether portal should expose them or stay scoped.
+- BigQuery's `conversational-summary` section has wraps but no walker coverage; if it ever becomes an enabled report, re-run.
