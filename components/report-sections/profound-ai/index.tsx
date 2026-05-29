@@ -175,8 +175,8 @@ function KpiCard({
   )
 }
 
-export async function ProfoundAIReport() {
-  const data = await getProfoundOverview()
+export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } = {}) {
+  const data = await getProfoundOverview(clientSlug)
   const youBrand = data.brandRankings.find((b) => b.isYou)
 
   return (

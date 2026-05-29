@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "profound_category_id" text;

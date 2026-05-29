@@ -241,7 +241,7 @@ function SectionDivider({ title }: { title: string }) {
 export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {}) {
   const [peec, profound] = await Promise.allSettled([
     getPeecOverview(clientSlug),
-    getProfoundOverview(),
+    getProfoundOverview(clientSlug),
   ])
 
   const peecData   = peec.status      === 'fulfilled' ? peec.value      : null
