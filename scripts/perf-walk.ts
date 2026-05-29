@@ -30,6 +30,14 @@ const BASE = process.env.PERF_BASE_URL ?? 'http://localhost:3000'
 const COOKIE = process.env.PERF_SESSION_COOKIE
 const DATE_RANGE = process.env.PERF_DATE_RANGE ?? 'last_30_days'
 
+// Subsections walked on the dashboard surface. Portal doesn't render
+// subsections, so these are dashboard-only. Currently scoped to peec-ai
+// because content-impact + technical-audit are the only subsections that
+// call a cached fetcher (getAgentAnalytics) the base case doesn't.
+const SUBSECTIONS: Record<string, string[]> = {
+  'peec-ai': ['pr-influence', 'content-impact', 'technical-audit'],
+}
+
 function parsePassArg(): string | null {
   const idx = process.argv.indexOf('--pass')
   if (idx === -1) return null
@@ -52,12 +60,14 @@ function parseSurfaceArg(): Surface[] {
   process.exit(1)
 }
 
-function buildUrl(surface: Surface, slug: string, report: string): string {
+function buildUrl(surface: Surface, slug: string, report: string, subsection?: string): string {
   const dr = encodeURIComponent(DATE_RANGE)
   if (surface === 'portal') {
+    // Portal doesn't route subsections; caller shouldn't pass one.
     return `${BASE}/portal/${slug}/reports/${report}?dateRange=${dr}`
   }
-  return `${BASE}/dashboard/${slug}/reports?section=${encodeURIComponent(report)}&dateRange=${dr}`
+  const sub = subsection ? `&subsection=${encodeURIComponent(subsection)}` : ''
+  return `${BASE}/dashboard/${slug}/reports?section=${encodeURIComponent(report)}${sub}&dateRange=${dr}`
 }
 
 async function emitBoundary(label: string): Promise<void> {
@@ -99,28 +109,39 @@ async function main() {
   for (const surface of surfaces) {
     for (const client of clients) {
       for (const report of client.enabledReports) {
-        total++
-        const url = buildUrl(surface, client.slug, report)
-        const reqStart = Date.now()
-        try {
-          const res = await fetch(url, {
-            headers: { Cookie: COOKIE },
-            redirect: 'manual',
-          })
-          const ms = Date.now() - reqStart
-          const status = res.status
-          if (status >= 200 && status < 400) {
-            ok++
-            console.log(`  ✓ ${surface}/${client.slug}/${report}  ${status}  ${ms}ms`)
-            await res.text()
-          } else {
-            failed++
-            console.log(`  ✗ ${surface}/${client.slug}/${report}  ${status}  ${ms}ms`)
+        // Each report is at least one URL (the base case). On dashboard,
+        // any registered subsections add additional URLs.
+        const variants: Array<{ subsection?: string; label: string }> = [{ label: report }]
+        if (surface === 'dashboard' && SUBSECTIONS[report]) {
+          for (const sub of SUBSECTIONS[report]) {
+            variants.push({ subsection: sub, label: `${report}/${sub}` })
           }
-        } catch (err) {
-          failed++
-          const message = err instanceof Error ? err.message : String(err)
-          console.log(`  ✗ ${surface}/${client.slug}/${report}  ERROR  ${message}`)
+        }
+
+        for (const variant of variants) {
+          total++
+          const url = buildUrl(surface, client.slug, report, variant.subsection)
+          const reqStart = Date.now()
+          try {
+            const res = await fetch(url, {
+              headers: { Cookie: COOKIE },
+              redirect: 'manual',
+            })
+            const ms = Date.now() - reqStart
+            const status = res.status
+            if (status >= 200 && status < 400) {
+              ok++
+              console.log(`  ✓ ${surface}/${client.slug}/${variant.label}  ${status}  ${ms}ms`)
+              await res.text()
+            } else {
+              failed++
+              console.log(`  ✗ ${surface}/${client.slug}/${variant.label}  ${status}  ${ms}ms`)
+            }
+          } catch (err) {
+            failed++
+            const message = err instanceof Error ? err.message : String(err)
+            console.log(`  ✗ ${surface}/${client.slug}/${variant.label}  ERROR  ${message}`)
+          }
         }
       }
     }
