@@ -44,8 +44,14 @@ async function fetchSheetValues(sheetId: string): Promise<string[][]> {
   const auth  = getAuth()
   const token = await auth.getAccessToken()
 
-  // Read the entire first sheet (no tab name needed since PR Proof uses Sheet1)
-  const url = `${SHEETS_BASE}/${sheetId}/values/A:G?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`
+  // Read the entire first sheet (no tab name needed since PR Proof uses Sheet1).
+  // valueRenderOption=FORMATTED_VALUE returns each cell as its display string.
+  // UNFORMATTED_VALUE returns dates as Sheets serial numbers and numerics as
+  // numbers — the parseRows() parser below calls .trim() on each cell and
+  // `new Date(publicationDate)` downstream, both of which assume strings.
+  // The response type annotation (string[][]) already reflects the intended
+  // runtime; aligning the request keeps the contract honest.
+  const url = `${SHEETS_BASE}/${sheetId}/values/A:G?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
