@@ -36,6 +36,13 @@
       "when": 1780071545486,
       "tag": "0004_sad_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780346849786,
+      "tag": "0005_even_inertia",
+      "breakpoints": true
     }
   ]
 }
