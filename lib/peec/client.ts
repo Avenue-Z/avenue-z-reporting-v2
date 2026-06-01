@@ -1,4 +1,4 @@
-import { unstable_cache } from 'next/cache'
+import { cached } from '@/lib/cache'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
@@ -324,8 +324,7 @@ async function fetchAllYtdRows(
 // (so 'avenue-z' and 'renaissance' each get their own entry). Without this
 // wrapper, all clients shared one cache entry per fetch URL because Next.js
 // fetch caching keys on URL — Peec puts project_id in the body.
-export const getPeecOverview = unstable_cache(
-  async (clientSlug?: string): Promise<PeecOverview> => {
+async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   // Resolve project ID and "your brand" label per-client; fall back to env vars
   // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
@@ -591,11 +590,23 @@ export const getPeecOverview = unstable_cache(
     trackedPrompts,
     llmBreakdown,
   }
+}
+
+export const getPeecOverview = cached(
+  'peec',
+  'getOverview',
+  getPeecOverviewImpl,
+  {
+    // Bump version when response shape or fetch logic changes.
+    // v2 = after PEEC_AI_ACCESS_TOKEN → PEEC_AI_CUSTOMER_TOKEN migration;
+    //      old cached entries were populated with Avenue Z's data regardless
+    //      of clientSlug.
+    // v3 = after fixing the PEEC_AI_CUSTOMER_TOKEN value from a project-scoped
+    //      `skp-` token to a customer-scoped `skc-` token. v2 cached entries
+    //      contain the wrong project's data (Peec was ignoring project_id
+    //      against the skp- token), so they need to be evicted.
+    version: 'v3',
+    tags: ['peec-overview'],
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
-  // Bump the version string to invalidate all cached entries when the
-  // response shape or fetch logic changes. v2 = after switching from
-  // PEEC_AI_ACCESS_TOKEN to PEEC_AI_CUSTOMER_TOKEN; old cached entries
-  // were populated with Avenue Z's data regardless of clientSlug.
-  ['peec-overview-v2'],
-  { revalidate: 3600, tags: ['peec-overview'] }
 )

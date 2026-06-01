@@ -1,3 +1,5 @@
+import { cached } from '@/lib/cache'
+
 const BASE_URL = 'https://api.tryprofound.com'
 
 function getKey(): string {
@@ -282,10 +284,39 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
 
 // --- Main export ---
 
-export async function getProfoundOverview(): Promise<ProfoundOverview> {
-  const yourBrand =
-    process.env.PROFOUND_AI_YOUR_BRAND ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
-  const categoryId = await getCategoryId()
+function emptyOverview(): ProfoundOverview {
+  return {
+    weeklyVisibility:           [],
+    competitorWeeklyVisibility: [],
+    competitorAverages:         { visibility: 0, sov: 0, sentiment: 0, position: 0 },
+    brandRankings:              [],
+    brandRankingsByRange:       { 'YTD': [], 'Last 30 days': [] },
+    domainsByRange:             { 'YTD': [], 'Last 30 days': [] },
+    totalCitationsByRange:      { 'YTD': 0, 'Last 30 days': 0 },
+    domainTypes:                [],
+    trackedPrompts:             [],
+    llmBreakdown:               [],
+  }
+}
+
+async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOverview> {
+  let yourBrand: string
+  let categoryId: string
+
+  if (clientSlug) {
+    // Per-client mode: look up brand and category from DB. Do NOT fall back
+    // to env vars when a slug is given — that would re-leak Avenue Z's
+    // Profound data into other clients' reports (the pre-v2 behavior).
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
+    if (!config?.profoundCategoryId) return emptyOverview()
+    categoryId = config.profoundCategoryId
+    yourBrand  = config.peecYourBrand ?? ''
+  } else {
+    // Legacy no-arg path. Kept for safety; all in-tree callers now pass a slug.
+    yourBrand  = process.env.PROFOUND_AI_YOUR_BRAND ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
+    categoryId = await getCategoryId()
+  }
 
   const thisYear = new Date().getUTCFullYear()
   const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
@@ -414,3 +445,16 @@ export async function getProfoundOverview(): Promise<ProfoundOverview> {
     llmBreakdown,
   }
 }
+
+export const getProfoundOverview = cached(
+  'profound',
+  'getOverview',
+  getProfoundOverviewImpl,
+  {
+    // v2 = post per-client refactor. Old v1 entries were populated with
+    // Avenue Z's data regardless of caller; do not drop this without a
+    // production cache flush.
+    version: 'v2',
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
+)

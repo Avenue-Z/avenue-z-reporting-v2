@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import type { FunSpotData } from './client'
+import { timed } from '@/lib/perf'
 
 const PROJECT_ID = process.env.BQ_PROJECT_ID!
 
@@ -84,7 +85,7 @@ export interface ConversationalSummaryResponse {
   closing: string
 }
 
-export async function generateConversationalSummary(data: FunSpotData): Promise<ConversationalSummaryResponse> {
+async function generateConversationalSummaryImpl(data: FunSpotData): Promise<ConversationalSummaryResponse> {
   const client = getClient()
 
   const dataContext = buildDataContext(data)
@@ -148,3 +149,9 @@ All numbers must come from the actual data provided — do not fabricate or esti
 
   return JSON.parse(text) as ConversationalSummaryResponse
 }
+
+export const generateConversationalSummary = timed(
+  'gemini',
+  'generateConversationalSummary',
+  generateConversationalSummaryImpl,
+)

@@ -17,6 +17,7 @@
 import { GoogleAuth } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { PRPlacement, PRProofData } from './types'
+import { cached } from '@/lib/cache'
 
 // ── Singleton auth ────────────────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ function parseRows(rows: string[][], clientName: string): PRPlacement[] {
  * Reads the Google Sheet, filters to rows where column A matches the client name,
  * and returns structured PR placement data.
  */
-export async function getPRProofData(clientSlug: string): Promise<PRProofData> {
+async function getPRProofDataImpl(clientSlug: string): Promise<PRProofData> {
   const client = await getClientBySlug(clientSlug)
   if (!client) throw new Error(`Unknown client slug: ${clientSlug}`)
 
@@ -165,6 +166,15 @@ export async function getPRProofData(clientSlug: string): Promise<PRProofData> {
       : null,
   }
 }
+
+export const getPRProofData = cached(
+  'pr-proof',
+  'getData',
+  getPRProofDataImpl,
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
+)
 
 // ── Matchback helper (cross-reference with Peec data) ─────────────────────────
 

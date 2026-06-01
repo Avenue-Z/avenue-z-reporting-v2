@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -16,6 +17,10 @@ import { ShopifyPerformanceReport } from '@/components/report-sections/shopify-p
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
 import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
+import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { PeecAIReport } from '@/components/report-sections/peec-ai'
+import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { PortalReportDateRange } from './report-date-range'
 
 function ReportSkeleton() {
@@ -34,7 +39,13 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null) {
+function getReportSection(
+  reportSlug: string,
+  clientSlug: string,
+  dateRange: string,
+  compareRange: string | null,
+  submittedBy: string | undefined,
+) {
   switch (reportSlug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -62,6 +73,14 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
       return <RedditAdsReport clientSlug={clientSlug} />
     case 'bing-ads':
       return <BingAdsReport clientSlug={clientSlug} />
+    case 'demand-overview':
+      return <DemandOverviewReport clientSlug={clientSlug} />
+    case 'peec-ai':
+      return <PeecAIReport clientSlug={clientSlug} />
+    case 'inbound-funnel':
+      return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     default:
       return null
   }
@@ -82,6 +101,9 @@ export default async function PortalReportPage({
   if (!client.enabledReports.includes(reportSlug as typeof client.enabledReports[number])) {
     notFound()
   }
+
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
@@ -107,7 +129,7 @@ export default async function PortalReportPage({
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy)}
         </Suspense>
       </ReportErrorBoundary>
     </div>

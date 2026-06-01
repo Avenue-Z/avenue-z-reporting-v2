@@ -66,6 +66,7 @@ export const clients = pgTable('clients', {
   prProofSheetId: text('pr_proof_sheet_id'),
   contentCalendarSheetId: text('content_calendar_sheet_id'),
   peecYourBrand: text('peec_your_brand'),
+  profoundCategoryId: text('profound_category_id'),
   prConfig: jsonb('pr_config').$type<PRConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),

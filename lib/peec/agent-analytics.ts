@@ -28,6 +28,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getClientBySlug } from '@/lib/db/queries'
+import { cached } from '@/lib/cache'
 
 // ── Config / auth ─────────────────────────────────────────────────────────────
 
@@ -199,7 +200,7 @@ function isLowValue(path: string): boolean {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export async function getAgentAnalytics(clientSlug: string): Promise<AgentAnalyticsData> {
+async function getAgentAnalyticsImpl(clientSlug: string): Promise<AgentAnalyticsData> {
   const projectId = await getProjectId(clientSlug)
   const { start_date, end_date } = last30Days()
 
@@ -300,6 +301,15 @@ export async function getAgentAnalytics(clientSlug: string): Promise<AgentAnalyt
 //   warn    = bots are visiting but all/most hits are 3xx redirects
 //   fail    = bots are hitting 4xx/5xx
 //   pending = no bot visits at all
+
+export const getAgentAnalytics = cached(
+  'peec',
+  'getAgentAnalytics',
+  getAgentAnalyticsImpl,
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
+)
 
 export function deriveRobotsTxtStatus(
   data: AgentAnalyticsData,

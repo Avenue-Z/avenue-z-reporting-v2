@@ -2,10 +2,12 @@ import { cache } from 'react'
 import { Client } from '@hubspot/api-client'
 import { FilterOperatorEnum as DealFilterOp } from '@hubspot/api-client/lib/codegen/crm/deals/models/Filter'
 import { getClientBySlug } from '@/lib/db/queries'
+import { cached } from '@/lib/cache'
+import { byClient } from '@/lib/perf'
 
 const _clients = new Map<string, Client>()
 
-export async function getHubSpotClient(clientSlug: string): Promise<Client> {
+async function getHubSpotClientImpl(clientSlug: string): Promise<Client> {
   if (_clients.has(clientSlug)) return _clients.get(clientSlug)!
 
   const config = await getClientBySlug(clientSlug)
@@ -37,7 +39,7 @@ export type HubSpotDeal = {
 export type OwnerMap = Record<string, string>
 
 /** Fetch all deals in pipeline 714699412, paginating until exhausted. */
-export async function getPipelineDeals(clientSlug: string): Promise<HubSpotDeal[]> {
+async function getPipelineDealsImpl(clientSlug: string): Promise<HubSpotDeal[]> {
   const hs = await getHubSpotClient(clientSlug)
   const deals: HubSpotDeal[] = []
   let after: string | undefined
@@ -69,7 +71,7 @@ export async function getPipelineDeals(clientSlug: string): Promise<HubSpotDeal[
 }
 
 /** Fetch all owners and return a map of id → display name. */
-export async function getOwnerMap(clientSlug: string): Promise<OwnerMap> {
+async function getOwnerMapImpl(clientSlug: string): Promise<OwnerMap> {
   const hs = await getHubSpotClient(clientSlug)
   const map: OwnerMap = {}
 
@@ -270,7 +272,7 @@ function sumDays(byDay: Record<string, ProfileBucket>, startDate: Date, endDate:
 // ---------------------------------------------------------------------------
 
 /** Fetch inbound funnel contact counts by source and profile. */
-export async function getContactStats(clientSlug: string) {
+async function getContactStatsImpl(clientSlug: string) {
   const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
@@ -311,7 +313,7 @@ export type ContactSourceBreakdown = {
  * Uses the cached 2025 data — no extra pagination if getWeeklyYTDContacts
  * has already been called in the same request.
  */
-export async function getContactStatsYoY(clientSlug: string): Promise<{
+async function getContactStatsYoYImpl(clientSlug: string): Promise<{
   online: number
   icp: number
   mcp: number
@@ -350,7 +352,7 @@ export async function getContactStatsYoY(clientSlug: string): Promise<{
 }
 
 /** Return 2026 inbound contact counts grouped by source × profile. */
-export async function getContactBreakdown(clientSlug: string): Promise<ContactSourceBreakdown> {
+async function getContactBreakdownImpl(clientSlug: string): Promise<ContactSourceBreakdown> {
   const { bySource } = await load2026InboundContacts(clientSlug)
 
   return Object.entries(bySource)
@@ -390,7 +392,7 @@ function countWorkingDays(start: Date, end: Date): number {
 }
 
 /** Current-week daily breakdown vs previous-quarter working average. */
-export async function getWeeklyContactStats(clientSlug: string): Promise<WeeklyContactStats> {
+async function getWeeklyContactStatsImpl(clientSlug: string): Promise<WeeklyContactStats> {
   const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
@@ -488,7 +490,7 @@ export type WeeklyYTDEntry = {
 }
 
 /** All calendar weeks from the start of 2026 through the current week, Mon–Sun. */
-export async function getWeeklyYTDContacts(clientSlug: string): Promise<WeeklyYTDEntry[]> {
+async function getWeeklyYTDContactsImpl(clientSlug: string): Promise<WeeklyYTDEntry[]> {
   const [data, prev] = await Promise.all([
     load2026InboundContacts(clientSlug),
     load2025InboundContacts(clientSlug),
@@ -566,7 +568,7 @@ export type MonthlyContactResult = {
 }
 
 /** Monthly breakdown of 2026 inbound contacts by profile, plus KPI stats. */
-export async function getMonthlyContactBreakdown(clientSlug: string): Promise<MonthlyContactResult> {
+async function getMonthlyContactBreakdownImpl(clientSlug: string): Promise<MonthlyContactResult> {
   const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
@@ -659,7 +661,7 @@ export type QuarterlyContactResult = {
   totalDaysInQuarter:     number
 }
 
-export async function getQuarterlyContactStats(clientSlug: string): Promise<QuarterlyContactResult> {
+async function getQuarterlyContactStatsImpl(clientSlug: string): Promise<QuarterlyContactResult> {
   const [data2026, data2025] = await Promise.all([
     load2026InboundContacts(clientSlug),
     load2025InboundContacts(clientSlug),
@@ -741,7 +743,7 @@ export type YearlyContactStats = {
 }
 
 /** Current YTD vs same period last year, full last year, and full year before that. */
-export async function getYearlyContactStats(clientSlug: string): Promise<YearlyContactStats> {
+async function getYearlyContactStatsImpl(clientSlug: string): Promise<YearlyContactStats> {
   const hs   = await getHubSpotClient(clientSlug)
   const data = await load2026InboundContacts(clientSlug)
 
@@ -817,7 +819,7 @@ export interface DailyContactEntry {
  * Returns a daily contact-creation series for the given ISO date range.
  * Reuses the load2026/load2025 caches — no extra pagination per request.
  */
-export async function getDailyContactTrend(
+async function getDailyContactTrendImpl(
   clientSlug: string,
   startDate: string,  // "2026-04-07"
   endDate:   string,  // "2026-05-07"
@@ -860,7 +862,7 @@ export async function getDailyContactTrend(
  * Online/ICP/MCP come from the cached byDay buckets — no extra pagination.
  * Offline requires a live count query (not in the day cache).
  */
-export async function getContactStatsForRange(
+async function getContactStatsForRangeImpl(
   clientSlug: string,
   startDate:  string,  // "2026-04-07"
   endDate:    string,  // "2026-05-07" inclusive
@@ -908,7 +910,7 @@ export async function getContactStatsForRange(
 }
 
 /** Fetch total contact and deal counts plus recent closed-won deals. */
-export async function getHubSpotSummary(clientSlug: string) {
+async function getHubSpotSummaryImpl(clientSlug: string) {
   const hs = await getHubSpotClient(clientSlug)
 
   const [contactsRes, dealsRes, closedDealsRes] = await Promise.all([
@@ -998,7 +1000,7 @@ const loadFormContactsForRange = cache(async (
   return { byForm, byDayForm }
 })
 
-export async function getFormBreakdown(
+async function getFormBreakdownImpl(
   clientSlug: string,
   startDate:  string,
   endDate:    string,
@@ -1015,7 +1017,7 @@ export interface DailyFormEntry {
   forms: Record<string, number>
 }
 
-export async function getDailyFormTrend(
+async function getDailyFormTrendImpl(
   clientSlug: string,
   startDate:  string,
   endDate:    string,
@@ -1075,7 +1077,7 @@ const LIFECYCLE_STAGES: { stage: string; label: string }[] = [
   { stage: 'customer',               label: 'Customer'    },
 ]
 
-export async function getLifecycleStageCounts(
+async function getLifecycleStageCountsImpl(
   clientSlug: string,
   startDate:  string,
   endDate:    string,
@@ -1112,7 +1114,7 @@ export interface FormMetaEntry {
   createdAt: Date
 }
 
-export async function getFormMetadata(clientSlug: string): Promise<FormMetaEntry[]> {
+async function getFormMetadataImpl(clientSlug: string): Promise<FormMetaEntry[]> {
   const hs = await getHubSpotClient(clientSlug)
   const forms: FormMetaEntry[] = []
   let after: string | undefined
@@ -1152,7 +1154,7 @@ export interface FormSubmissionCount {
  * Wrapped in React cache() so multiple callers in the same request share one
  * execution — no duplicate API calls.
  */
-export const getFormSubmissionCounts = cache(async (
+const getFormSubmissionCountsImpl = async (
   clientSlug: string,
   startDate:  string,
   endDate:    string,
@@ -1305,4 +1307,33 @@ export const getFormSubmissionCounts = cache(async (
       return { formId: f.id, formName: f.name, total: fd.total, icp, mcp, unidentified, customers }
     })
     .sort((a, b) => b.total - a.total)
-})
+}
+
+// --- Cache wrappers ---
+// All 18 HubSpot fetchers below take `clientSlug` as their first arg, so
+// they share the typed `byClient` extractor from lib/perf. If you add a
+// wrap for a function whose first arg is NOT the client slug, write a
+// per-call extractor inline instead — don't extend byClient.
+//
+// `getHubSpotClient` is intentionally NOT wrapped: it returns the SDK
+// instance (memoized in module-scope _clients Map), not a data fetch.
+export const getHubSpotClient = getHubSpotClientImpl  // not cached; SDK constructor
+
+export const getPipelineDeals = cached('hubspot', 'getPipelineDeals', getPipelineDealsImpl, { extractTags: byClient })
+export const getOwnerMap = cached('hubspot', 'getOwnerMap', getOwnerMapImpl, { extractTags: byClient })
+export const getContactStats = cached('hubspot', 'getContactStats', getContactStatsImpl, { extractTags: byClient })
+export const getContactStatsYoY = cached('hubspot', 'getContactStatsYoY', getContactStatsYoYImpl, { extractTags: byClient })
+export const getContactBreakdown = cached('hubspot', 'getContactBreakdown', getContactBreakdownImpl, { extractTags: byClient })
+export const getWeeklyContactStats = cached('hubspot', 'getWeeklyContactStats', getWeeklyContactStatsImpl, { extractTags: byClient })
+export const getWeeklyYTDContacts = cached('hubspot', 'getWeeklyYTDContacts', getWeeklyYTDContactsImpl, { extractTags: byClient })
+export const getMonthlyContactBreakdown = cached('hubspot', 'getMonthlyContactBreakdown', getMonthlyContactBreakdownImpl, { extractTags: byClient })
+export const getQuarterlyContactStats = cached('hubspot', 'getQuarterlyContactStats', getQuarterlyContactStatsImpl, { extractTags: byClient })
+export const getYearlyContactStats = cached('hubspot', 'getYearlyContactStats', getYearlyContactStatsImpl, { extractTags: byClient })
+export const getDailyContactTrend = cached('hubspot', 'getDailyContactTrend', getDailyContactTrendImpl, { extractTags: byClient })
+export const getContactStatsForRange = cached('hubspot', 'getContactStatsForRange', getContactStatsForRangeImpl, { extractTags: byClient })
+export const getHubSpotSummary = cached('hubspot', 'getSummary', getHubSpotSummaryImpl, { extractTags: byClient })
+export const getFormBreakdown = cached('hubspot', 'getFormBreakdown', getFormBreakdownImpl, { extractTags: byClient })
+export const getDailyFormTrend = cached('hubspot', 'getDailyFormTrend', getDailyFormTrendImpl, { extractTags: byClient })
+export const getLifecycleStageCounts = cached('hubspot', 'getLifecycleStageCounts', getLifecycleStageCountsImpl, { extractTags: byClient })
+export const getFormMetadata = cached('hubspot', 'getFormMetadata', getFormMetadataImpl, { extractTags: byClient })
+export const getFormSubmissionCounts = cached('hubspot', 'getFormSubmissionCounts', getFormSubmissionCountsImpl, { extractTags: byClient })

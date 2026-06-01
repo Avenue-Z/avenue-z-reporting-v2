@@ -11,6 +11,7 @@
  */
 import { JWT } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
+import { cached } from '@/lib/cache'
 
 const WINDOW = 28
 const LAG = 2 // days GSC lags behind today
@@ -133,7 +134,7 @@ export interface GSCOverview {
   dateRange: { start: string; end: string }
 }
 
-export async function getGSCOverview(clientSlug: string): Promise<GSCOverview> {
+async function getGSCOverviewImpl(clientSlug: string): Promise<GSCOverview> {
   const config = await getClientBySlug(clientSlug)
   if (!config) throw new Error(`Unknown client: ${clientSlug}`)
   if (!config.gscSiteUrl) throw new Error(`GSC not configured for client: ${clientSlug}`)
@@ -196,3 +197,12 @@ export async function getGSCOverview(clientSlug: string): Promise<GSCOverview> {
 
   return { kpis, trend, topQueries, topPages, dateRange: { start: current.startDate, end: current.endDate } }
 }
+
+export const getGSCOverview = cached(
+  'gsc',
+  'getOverview',
+  getGSCOverviewImpl,
+  {
+    extractTags: ([clientSlug]) => ({ client: clientSlug }),
+  },
+)
