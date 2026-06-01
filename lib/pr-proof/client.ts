@@ -1,12 +1,15 @@
 // ─── PR Proof Library Client ─────────────────────────────────────────────────
 //
-// Reads the PR Proof Library Google Sheet via Sheets API v4.
-// Sheet layout:
-//   Row 0 : header — Client | Outlet | Headline | Publication Date | Link | Impact | Date Added
-//   Rows 1+: PR placement entries across all clients
+// Reads a per-client Google Sheet via Sheets API v4 and returns PR placement
+// data. Each client can have a differently-structured sheet — the column
+// layout is declared on the `clients` row as `prProofColumnMap`.
 //
-// This client filters to a single client by matching column A (Client) against
-// the client name from clients.config.ts.
+// Default (legacy avenue-z) layout:
+//   Row 0 : header — Client | Outlet | Headline | Publication Date | Link | Impact | Date Added
+//   Rows 1+: PR placement entries
+//
+// When `prProofColumnMap` is null on the client row, the parser falls back
+// to the default layout above.
 //
 // Auth: shared GOOGLE_SERVICE_ACCOUNT_KEY service account (base64 JSON)
 //       scopes: spreadsheets.readonly
@@ -16,8 +19,30 @@
 
 import { GoogleAuth } from 'google-auth-library'
 import { getClientBySlug } from '@/lib/db/queries'
+import type { PRProofColumnMap } from '@/lib/db/schema'
 import type { PRPlacement, PRProofData } from './types'
 import { cached } from '@/lib/cache'
+
+const DEFAULT_COLUMN_MAP: PRProofColumnMap = {
+  client:          'A',
+  outlet:          'B',
+  headline:        'C',
+  publicationDate: 'D',
+  link:            'E',
+  impact:          'F',
+  dateAdded:       'G',
+}
+
+function colIndex(letter: string): number {
+  // Supports multi-letter columns ("AA" → 26, "AB" → 27, …).
+  let idx = 0
+  for (const c of letter.toUpperCase()) {
+    const code = c.charCodeAt(0)
+    if (code < 65 || code > 90) throw new Error(`Invalid column letter: "${letter}"`)
+    idx = idx * 26 + (code - 64)
+  }
+  return idx - 1
+}
 
 // ── Singleton auth ────────────────────────────────────────────────────────────
 
@@ -44,8 +69,15 @@ async function fetchSheetValues(sheetId: string): Promise<string[][]> {
   const auth  = getAuth()
   const token = await auth.getAccessToken()
 
-  // Read the entire first sheet (no tab name needed since PR Proof uses Sheet1)
-  const url = `${SHEETS_BASE}/${sheetId}/values/A:G?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`
+  // Read A:Z of the first tab. The actual columns used depend on the per-
+  // client prProofColumnMap; reading a wide range avoids capping it at the
+  // default layout's width.
+  //
+  // valueRenderOption=FORMATTED_VALUE returns each cell as its display
+  // string. UNFORMATTED_VALUE returns dates as Sheets serial numbers and
+  // numerics as numbers — the parser below calls .trim() on each cell and
+  // `new Date(publicationDate)` downstream, both of which assume strings.
+  const url = `${SHEETS_BASE}/${sheetId}/values/A:Z?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
@@ -75,39 +107,39 @@ function extractDomain(url: string): string {
 
 // ── Parse rows into PRPlacement objects ───────────────────────────────────────
 
-function parseRows(rows: string[][], clientName: string): PRPlacement[] {
+function parseRows(rows: string[][], clientName: string, map: PRProofColumnMap): PRPlacement[] {
   if (rows.length < 2) return [] // need at least header + 1 data row
 
   // Skip header row (index 0)
   const dataRows = rows.slice(1)
-
   const placements: PRPlacement[] = []
 
+  // Cell accessor: undefined column letter → empty string. Trims at the source.
+  const cell = (row: string[], letter: string | undefined): string => {
+    if (!letter) return ''
+    return (row[colIndex(letter)] ?? '').trim()
+  }
+
   for (const row of dataRows) {
-    const rowClient       = (row[0] ?? '').trim()
-    const outlet          = (row[1] ?? '').trim()
-    const headline        = (row[2] ?? '').trim()
-    const publicationDate = (row[3] ?? '').trim()
-    const link            = (row[4] ?? '').trim()
-    const impact          = (row[5] ?? '').trim()
-    const dateAdded       = (row[6] ?? '').trim()
+    // Only filter by client if the map declares a client column.
+    // Single-tenant sheets omit `map.client` and include every data row.
+    if (map.client) {
+      const rowClient = cell(row, map.client)
+      if (rowClient.toLowerCase() !== clientName.toLowerCase()) continue
+    }
 
-    // Filter: only include rows matching the requested client
-    // Case-insensitive comparison to handle variations
-    if (rowClient.toLowerCase() !== clientName.toLowerCase()) continue
-
-    // Skip rows with no link (incomplete entries)
-    if (!link) continue
+    const link = cell(row, map.link)
+    if (!link) continue // skip incomplete entries
 
     placements.push({
-      client: rowClient,
-      outlet,
-      headline,
-      publicationDate,
+      client:          map.client ? cell(row, map.client) : clientName,
+      outlet:          cell(row, map.outlet),
+      headline:        cell(row, map.headline),
+      publicationDate: cell(row, map.publicationDate),
       link,
-      domain: extractDomain(link),
-      impact,
-      dateAdded,
+      domain:          extractDomain(link),
+      impact:          cell(row, map.impact),
+      dateAdded:       cell(row, map.dateAdded),
     })
   }
 
@@ -146,7 +178,8 @@ async function getPRProofDataImpl(clientSlug: string): Promise<PRProofData> {
   }
 
   const rows = await fetchSheetValues(sheetId)
-  const placements = parseRows(rows, client.name)
+  const columnMap = client.prProofColumnMap ?? DEFAULT_COLUMN_MAP
+  const placements = parseRows(rows, client.name, columnMap)
 
   const uniqueOutlets = new Set(placements.map((p) => p.outlet))
   const uniqueDomains = [...new Set(placements.map((p) => p.domain))]

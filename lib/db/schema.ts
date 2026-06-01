@@ -41,6 +41,33 @@ export interface PRConfig {
   lookbackDays?: number
 }
 
+/**
+ * Per-client column layout for the PR Proof Library Google Sheet.
+ *
+ * Each value is the sheet column letter ("A", "B", "C", …). The parser
+ * looks up cell values by column letter at runtime, so each client can
+ * have a differently-structured sheet.
+ *
+ * - `client` is optional. When omitted, the parser does not filter by
+ *   client name — useful for client-dedicated sheets (one client per file).
+ * - `link` is required because rows without a link are treated as
+ *   incomplete entries and skipped.
+ * - Other fields are optional; missing fields render as empty strings.
+ *
+ * When the client row has no `prProofColumnMap` set, the parser falls back
+ * to the legacy A–G layout (Client | Outlet | Headline | Publication Date
+ * | Link | Impact | Date Added).
+ */
+export interface PRProofColumnMap {
+  client?:          string
+  outlet?:          string
+  headline?:        string
+  publicationDate?: string
+  link:             string
+  impact?:          string
+  dateAdded?:       string
+}
+
 // --- Drizzle schema ---
 
 export const clientRoleEnum = pgEnum('client_role', [
@@ -64,6 +91,7 @@ export const clients = pgTable('clients', {
   sitebulbSheetId: text('sitebulb_sheet_id'),
   peecCustomerProjectId: text('peec_customer_project_id'),
   prProofSheetId: text('pr_proof_sheet_id'),
+  prProofColumnMap: jsonb('pr_proof_column_map').$type<PRProofColumnMap>(),
   contentCalendarSheetId: text('content_calendar_sheet_id'),
   peecYourBrand: text('peec_your_brand'),
   profoundCategoryId: text('profound_category_id'),
