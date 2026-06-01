@@ -599,10 +599,13 @@ export const getPeecOverview = cached(
   {
     // Bump version when response shape or fetch logic changes.
     // v2 = after PEEC_AI_ACCESS_TOKEN → PEEC_AI_CUSTOMER_TOKEN migration;
-    // old cached entries were populated with Avenue Z's data regardless of
-    // clientSlug. Don't drop this without confirming a fresh deploy clears
-    // the Vercel Data Cache.
-    version: 'v2',
+    //      old cached entries were populated with Avenue Z's data regardless
+    //      of clientSlug.
+    // v3 = after fixing the PEEC_AI_CUSTOMER_TOKEN value from a project-scoped
+    //      `skp-` token to a customer-scoped `skc-` token. v2 cached entries
+    //      contain the wrong project's data (Peec was ignoring project_id
+    //      against the skp- token), so they need to be evicted.
+    version: 'v3',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
