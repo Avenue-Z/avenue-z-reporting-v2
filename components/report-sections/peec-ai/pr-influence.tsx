@@ -2,6 +2,8 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
+import { samplePRProofData } from '@/lib/demo-data/pr-proof'
+import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { AI_REFERRER_DOMAINS } from '@/lib/constants'
 import { KpiCard } from '@/components/charts/kpi-card'
@@ -192,7 +194,7 @@ function computeOpportunityRows(
 
 // ── Main RSC ─────────────────────────────────────────────────────────────────
 
-export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days' }: { clientSlug: string; dateRange?: string }) {
+export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
   // Date range setup for GA4 AI referral sessions
   const resolvedMain = parseDateRange(dateRange)
   const mainIso = `${resolvedMain.startDate},${resolvedMain.endDate}`
@@ -223,8 +225,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       : Promise.resolve(null),
   ])
 
-  const data   = peecResult.status === 'fulfilled' ? peecResult.value : null
-  const prData = prResult.status   === 'fulfilled' ? prResult.value   : null
+  const data    = peecResult.status === 'fulfilled' ? peecResult.value : null
+  let   prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
+
+  // Demo mode: when PR Proof returned null/empty or errored, fall back to
+  // realistic sample placements so the section renders fully for demos.
+  const prIsDemo = demoMode && (!prData || prData.placements.length === 0)
+  if (prIsDemo) {
+    prData = samplePRProofData()
+  }
   const aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
   const compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
 
@@ -290,6 +299,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   return (
     <div className="space-y-8">
+
+      {prIsDemo && (
+        <div><SampleDataBadge note="PR Proof Library sample shown — connect a sheet to see real placements" /></div>
+      )}
 
       {/* ── Section A: KPI Strip (PRD: 6 cards) ── */}
       <div>

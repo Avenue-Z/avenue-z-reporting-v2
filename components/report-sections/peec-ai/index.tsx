@@ -13,6 +13,8 @@ import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-d
 import { VisibilityChart as ProfoundVisibilityChart } from '../profound-ai/visibility-chart'
 import { TrackedPromptsChart as ProfoundTrackedPromptsChart } from '../profound-ai/tracked-prompts-chart'
 import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/llm-breakdown-table'
+import { sampleProfoundOverview } from '@/lib/demo-data/profound'
+import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { cn } from '@/lib/utils'
 
 // --- Helpers ---
@@ -238,14 +240,23 @@ function SectionDivider({ title }: { title: string }) {
 
 // --- Main report ---
 
-export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {}) {
+export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlug?: string; demoMode?: boolean } = {}) {
   const [peec, profound] = await Promise.allSettled([
     getPeecOverview(clientSlug),
     getProfoundOverview(clientSlug),
   ])
 
   const peecData   = peec.status      === 'fulfilled' ? peec.value      : null
-  const profoundData = profound.status === 'fulfilled' ? profound.value  : null
+  let   profoundData = profound.status === 'fulfilled' ? profound.value  : null
+
+  // Demo mode: when the real Profound fetch returned an empty shape
+  // (client has no profoundCategoryId) or errored, substitute realistic
+  // sample data so the section renders fully. Marked with a Sample badge
+  // so it's not mistaken for the client's real data.
+  const profoundIsDemo = demoMode && (!profoundData || profoundData.brandRankings.length === 0)
+  if (profoundIsDemo) {
+    profoundData = sampleProfoundOverview()
+  }
 
   const peecYou    = peecData?.brandRankings.find((b) => b.isYou)
   const profoundYou = profoundData?.brandRankings.find((b) => b.isYou)
@@ -337,6 +348,10 @@ export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {})
 
       <SectionDivider title="Profound" />
 
+      {profoundIsDemo && (
+        <div><SampleDataBadge note="Profound not yet configured for this client" /></div>
+      )}
+
       {profoundData && (
         <>
           {profoundData.weeklyVisibility.length > 0 && (
@@ -402,7 +417,7 @@ export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {})
             <ProfoundTrackedPromptsChart prompts={profoundData.trackedPrompts} />
           )}
 
-          <p className="text-xs text-text-muted">Live data from Profound</p>
+          <p className="text-xs text-text-muted">{profoundIsDemo ? 'Sample data shown — Profound not yet configured for this client' : 'Live data from Profound'}</p>
         </>
       )}
 

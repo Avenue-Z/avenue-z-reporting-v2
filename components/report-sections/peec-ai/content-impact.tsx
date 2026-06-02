@@ -6,6 +6,8 @@ import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarData, ContentCalendarRow, MatchStatus } from '@/lib/content-calendar/types'
+import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
+import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query } from '@/lib/ga4/client'
 
 // ---------------------------------------------------------------------------
@@ -156,7 +158,7 @@ function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
 
 // ─── Main async RSC ──────────────────────────────────────────────────────────
 
-export async function ContentImpactReport({ clientSlug }: { clientSlug: string }) {
+export async function ContentImpactReport({ clientSlug, demoMode = false }: { clientSlug: string; demoMode?: boolean }) {
   const [peecResult, agentResult, calendarResult, ga4Result] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
@@ -172,8 +174,15 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
 
   const peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
   const agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
-  const calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
+  let   calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
   const ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
+
+  // Demo mode: when the calendar fetch returned null (client has no
+  // contentCalendarSheetId) or errored, substitute realistic sample data.
+  const calendarIsDemo = demoMode && (!calendarData || calendarData.rows.length === 0)
+  if (calendarIsDemo) {
+    calendarData = sampleContentCalendarData()
+  }
 
   if (peecResult.status     === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
   if (agentResult.status    === 'rejected') console.error('[content-impact] Agent analytics error:', agentResult.reason)
@@ -240,6 +249,10 @@ export async function ContentImpactReport({ clientSlug }: { clientSlug: string }
           </p>
         </div>
       </div>
+
+      {calendarIsDemo && (
+        <div><SampleDataBadge note="content calendar not yet configured for this client" /></div>
+      )}
 
       {/* ── Section A: KPI Strip (PRD: 6-8 cards) ─────────────────────────── */}
       <div>

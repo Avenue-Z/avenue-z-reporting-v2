@@ -46,6 +46,7 @@ function getReportComponent(
   subsection?: string,
   period?: SummaryPeriod,
   submittedBy?: string,
+  demoMode?: boolean,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -71,10 +72,10 @@ function getReportComponent(
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'peec-ai':
-      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} />
-      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} />
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
+      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} demoMode={demoMode} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
-      return <PeecAIReport clientSlug={clientSlug} />
+      return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
     default:
       return null
   }
@@ -101,10 +102,11 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; demo?: string }>
 }) {
   const { clientSlug } = await params
-  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam } = await searchParams
+  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, demo: demoParam } = await searchParams
+  const demoMode = demoParam === '1' || demoParam === 'true'
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -147,7 +149,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode)}
         </Suspense>
       </ReportErrorBoundary>
     </>

@@ -45,6 +45,7 @@ function getReportSection(
   dateRange: string,
   compareRange: string | null,
   submittedBy: string | undefined,
+  demoMode: boolean,
 ) {
   switch (reportSlug) {
     case 'exec-summary':
@@ -76,7 +77,7 @@ function getReportSection(
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'peec-ai':
-      return <PeecAIReport clientSlug={clientSlug} />
+      return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'request-a-report':
@@ -91,10 +92,11 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; demo?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, demo: demoParam } = await searchParams
+  const demoMode = demoParam === '1' || demoParam === 'true'
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -129,7 +131,7 @@ export default async function PortalReportPage({
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy, demoMode)}
         </Suspense>
       </ReportErrorBoundary>
     </div>
