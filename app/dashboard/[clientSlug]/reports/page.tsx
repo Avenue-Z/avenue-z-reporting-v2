@@ -1,7 +1,9 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
+import { resolveDemoMode } from '@/lib/demo-data/resolve'
 import { REPORT_NAMES } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -112,10 +114,14 @@ export default async function ReportPage({
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
-  // Demo mode is on when EITHER the signed-in user has demoMode=true on
-  // their users row, OR the URL has ?demo=1. The URL flag works as an
-  // ad-hoc override for non-demo users (e.g. you, doing a one-off check).
-  const demoMode = session?.user?.demoMode === true || urlDemoOverride
+  // See lib/demo-data/resolve.ts for the resolution rules. The toggle
+  // in the sidebar writes a cookie; this reads it.
+  const cookieStore = await cookies()
+  const demoMode = resolveDemoMode({
+    userDemoFlag:    session?.user?.demoMode === true,
+    cookieValue:     cookieStore.get('demoMode')?.value,
+    urlDemoOverride,
+  })
 
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)

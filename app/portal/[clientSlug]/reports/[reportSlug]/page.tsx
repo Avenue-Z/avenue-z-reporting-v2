@@ -1,7 +1,9 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
+import { resolveDemoMode } from '@/lib/demo-data/resolve'
 import { REPORT_NAMES } from '@/lib/constants'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -106,8 +108,12 @@ export default async function PortalReportPage({
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
-  // Demo mode is on when EITHER the user has demoMode=true OR the URL has ?demo=1.
-  const demoMode = session?.user?.demoMode === true || urlDemoOverride
+  const cookieStore = await cookies()
+  const demoMode = resolveDemoMode({
+    userDemoFlag:    session?.user?.demoMode === true,
+    cookieValue:     cookieStore.get('demoMode')?.value,
+    urlDemoOverride,
+  })
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
