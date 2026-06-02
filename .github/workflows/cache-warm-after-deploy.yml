@@ -14,27 +14,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hit /api/cache-warm
-        # PRODUCTION_URL must point at the canonical production origin
-        # (e.g. https://reports.avenuez.com). CRON_SECRET must match the
-        # same env var configured on the Vercel project's Production env.
-        # Secrets are passed via env: rather than interpolated directly
-        # into the run: script — avoids shell expansion / escape issues
-        # if a secret value ever contains special characters.
+        # PRODUCTION_URL should point at the canonical https origin (e.g.
+        # https://reports.avenuez.com) so the request lands on the warm
+        # endpoint without a redirect. If it does redirect, --location
+        # follows the hop — but curl's default cross-host behaviour
+        # strips the Authorization header, so a redirect to a different
+        # host (apex↔www, vercel.app → custom domain, etc.) will arrive
+        # without the bearer token and return 401. The status-code check
+        # below surfaces that clearly instead of crashing jq.
+        #
+        # We deliberately avoid --location-trusted: it would forward the
+        # bearer token across any host the URL redirects to, which leaks
+        # CRON_SECRET if PRODUCTION_URL is ever misconfigured to a
+        # third-party host. Plain --location only forwards the token
+        # when the redirect target is the same host.
+        #
+        # CRON_SECRET must match the env var on the Vercel Production env.
+        # Secrets are passed via env: rather than direct interpolation —
+        # avoids shell expansion / escape issues if a value ever contains
+        # special characters.
         env:
           CRON_SECRET:    ${{ secrets.CRON_SECRET }}
           PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
         run: |
-          curl --fail --silent --show-error \
+          # Capture body and status code separately so a non-JSON response
+          # (a stray redirect HTML, an auth 401, etc.) gets logged clearly
+          # instead of crashing jq.
+          status=$(curl --silent --show-error \
+            --location \
             --max-time 120 \
+            --output /tmp/warm-result.json \
+            --write-out '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$PRODUCTION_URL/api/cache-warm" \
-            | tee /tmp/warm-result.json
-          ok=$(jq -r '.ok' < /tmp/warm-result.json)
-          total=$(jq -r '.total' < /tmp/warm-result.json)
+            "$PRODUCTION_URL/api/cache-warm")
+
+          echo "HTTP $status"
+          echo "── body (first 500 chars) ──"
+          head -c 500 /tmp/warm-result.json
+          echo
+          echo "──────────────────────────"
+
+          if [ "$status" != "200" ]; then
+            echo "warm endpoint returned non-200; not parsing as JSON"
+            # Non-fatal: the hourly cron will retry. Switch to `exit 1` to
+            # fail loudly on the deployment_status check if you'd prefer.
+            exit 0
+          fi
+
+          ok=$(jq -r '.ok'     < /tmp/warm-result.json)
+          total=$(jq -r '.total'  < /tmp/warm-result.json)
           failed=$(jq -r '.failed' < /tmp/warm-result.json)
           echo "Warmed $ok/$total URLs ($failed failed)"
-          # Non-fatal: even if some URLs failed, the hourly cron will retry.
-          # The fail flag is set explicitly to 0 so transient warming
-          # failures don't block deploy notifications. Switch to
-          # `exit $failed` if you want the workflow to fail loudly.
           exit 0
