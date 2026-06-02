@@ -14,12 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hit /api/cache-warm
-        # PRODUCTION_URL should point at the canonical production origin
-        # (e.g. https://reports.avenuez.com). If it lands on a Vercel
-        # redirect (http→https, non-canonical host, etc.) we follow it
-        # via --location-trusted so the Authorization header is preserved
-        # across the hop. The redirect target is our own deployment, so
-        # forwarding the bearer token across it is acceptable.
+        # PRODUCTION_URL should point at the canonical https origin (e.g.
+        # https://reports.avenuez.com) so the request lands on the warm
+        # endpoint without a redirect. If it does redirect, --location
+        # follows the hop — but curl's default cross-host behaviour
+        # strips the Authorization header, so a redirect to a different
+        # host (apex↔www, vercel.app → custom domain, etc.) will arrive
+        # without the bearer token and return 401. The status-code check
+        # below surfaces that clearly instead of crashing jq.
+        #
+        # We deliberately avoid --location-trusted: it would forward the
+        # bearer token across any host the URL redirects to, which leaks
+        # CRON_SECRET if PRODUCTION_URL is ever misconfigured to a
+        # third-party host. Plain --location only forwards the token
+        # when the redirect target is the same host.
         #
         # CRON_SECRET must match the env var on the Vercel Production env.
         # Secrets are passed via env: rather than direct interpolation —
@@ -30,10 +38,10 @@ jobs:
           PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
         run: |
           # Capture body and status code separately so a non-JSON response
-          # (e.g. a stray redirect HTML or an auth 401) gets logged clearly
+          # (a stray redirect HTML, an auth 401, etc.) gets logged clearly
           # instead of crashing jq.
           status=$(curl --silent --show-error \
-            --location-trusted \
+            --location \
             --max-time 120 \
             --output /tmp/warm-result.json \
             --write-out '%{http_code}' \
