@@ -106,12 +106,16 @@ export default async function ReportPage({
 }) {
   const { clientSlug } = await params
   const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, demo: demoParam } = await searchParams
-  const demoMode = demoParam === '1' || demoParam === 'true'
+  const urlDemoOverride = demoParam === '1' || demoParam === 'true'
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
+  // Demo mode is on when EITHER the signed-in user has demoMode=true on
+  // their users row, OR the URL has ?demo=1. The URL flag works as an
+  // ad-hoc override for non-demo users (e.g. you, doing a one-off check).
+  const demoMode = session?.user?.demoMode === true || urlDemoOverride
 
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)

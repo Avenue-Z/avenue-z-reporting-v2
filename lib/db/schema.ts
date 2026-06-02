@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // --- Domain types preserved from the deleted clients.config.ts ---
@@ -109,6 +109,11 @@ export const users = pgTable('users', {
   clientId: uuid('client_id')
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
+  // When true, the user automatically gets demoMode on every page they
+  // view — empty/unconfigured sections fill with sample data and show a
+  // "Sample data" badge. Used for sales-demo accounts (e.g. demo@avenuez.com).
+  // The ?demo=1 URL flag works as an ad-hoc override for everyone else.
+  demoMode: boolean('demo_mode').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   clientIdIdx: index('users_client_id_idx').on(table.clientId),

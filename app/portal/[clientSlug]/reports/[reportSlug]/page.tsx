@@ -96,7 +96,7 @@ export default async function PortalReportPage({
 }) {
   const { clientSlug, reportSlug } = await params
   const { dateRange: dateRangeParam, compareRange: compareRangeParam, demo: demoParam } = await searchParams
-  const demoMode = demoParam === '1' || demoParam === 'true'
+  const urlDemoOverride = demoParam === '1' || demoParam === 'true'
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -106,6 +106,8 @@ export default async function PortalReportPage({
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
+  // Demo mode is on when EITHER the user has demoMode=true OR the URL has ?demo=1.
+  const demoMode = session?.user?.demoMode === true || urlDemoOverride
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
