@@ -278,8 +278,9 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
           />
           <KpiCard
             label="Total Sessions"
-            hint="GA4 page-level required"
-            value="--"
+            hint={calendarIsDemo ? 'Sample · last 30d' : 'GA4 page-level required'}
+            value={calendarIsDemo ? '9,910' : '--'}
+            live={calendarIsDemo}
           />
           <KpiCard
             label="AI Citations"
@@ -289,8 +290,9 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
           />
           <KpiCard
             label="AI-Referred Sessions"
-            hint="GA4 AI-source sessions required"
-            value="--"
+            hint={calendarIsDemo ? 'Sample · last 30d' : 'GA4 AI-source sessions required'}
+            value={calendarIsDemo ? '1,243' : '--'}
+            live={calendarIsDemo}
           />
           <KpiCard
             label="Owned URLs with AI Activity"
@@ -464,25 +466,29 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { icon: Clock, label: 'Median Days to First Traffic', color: '#39A0FF' },
-            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF' },
-            { icon: TrendingUp, label: 'Fastest AI-Indexed Content', color: '#60FF80' },
-            { icon: TrendingDown, label: 'Slowest AI-Indexed Content', color: '#FF4444' },
-          ].map(({ icon: Icon, label, color }) => (
+            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', demo: '14 days' },
+            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', demo: '22 days' },
+            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', demo: '4 days' },
+            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', demo: '47 days' },
+          ].map(({ icon: Icon, label, color, demo }) => (
             <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
-              <span className="text-lg font-bold text-white/20">--</span>
+              <span className={cn('text-lg font-bold', calendarIsDemo ? 'text-white' : 'text-white/20')}>
+                {calendarIsDemo ? demo : '--'}
+              </span>
             </div>
           ))}
         </div>
-        <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-          <p className="text-xs text-text-muted">
-            {calendarData
-              ? 'Connect GA4 to calculate days-to-first-traffic per planned URL'
-              : 'Requires content calendar publish dates + GA4 page-level first-session data'}
-          </p>
-        </div>
+        {!calendarIsDemo && (
+          <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
+            <p className="text-xs text-text-muted">
+              {calendarData
+                ? 'Connect GA4 to calculate days-to-first-traffic per planned URL'
+                : 'Requires content calendar publish dates + GA4 page-level first-session data'}
+            </p>
+          </div>
+        )}
       </SectionCard>
 
       {/* ── Section D: Net-New vs Optimized Content Lift ───────────────────── */}
@@ -493,9 +499,11 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
         {calendarData && (newRows.length > 0 || optimizedRows.length > 0) ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              { label: 'Net-New Content', rows: newRows, color: '#60FF80' },
-              { label: 'Optimized Content', rows: optimizedRows, color: '#39A0FF' },
-            ].map(({ label, rows: group, color }) => (
+              { label: 'Net-New Content',   rows: newRows,       color: '#60FF80',
+                demoAvgSessions: '1,012', demoCitationRate: '26%', demoAiRefSessions: '847', demoTimeToAI: '18 days' },
+              { label: 'Optimized Content', rows: optimizedRows, color: '#39A0FF',
+                demoAvgSessions: '715',   demoCitationRate: '18%', demoAiRefSessions: '315', demoTimeToAI: '9 days' },
+            ].map(({ label, rows: group, color, demoAvgSessions, demoCitationRate, demoAiRefSessions, demoTimeToAI }) => (
               <div key={label} className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
@@ -514,10 +522,10 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                       value: group.filter(r => (r.aiBotVisits ?? 0) > 0).length.toString(),
                       live: true,
                     },
-                    { metric: 'Avg Sessions (30d)',          value: '--', live: false },
-                    { metric: 'AI Citation Rate',            value: '--', live: false },
-                    { metric: 'AI-Referred Sessions',        value: '--', live: false },
-                    { metric: 'Time to First AI Activity',   value: '--', live: false },
+                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : '--',  live: calendarIsDemo },
+                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : '--', live: calendarIsDemo },
+                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : '--', live: calendarIsDemo },
+                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : '--',     live: calendarIsDemo },
                   ].map(({ metric, value, live }) => (
                     <div key={metric} className="flex items-center justify-between text-xs">
                       <span className="text-text-muted">{metric}</span>
@@ -557,24 +565,28 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {[
-            { label: 'Compounding URLs',       color: '#60FF80', desc: 'Traffic accelerating + AI cited' },
-            { label: 'Stable URLs',            color: '#FFFC60', desc: 'Flat traffic, some AI activity' },
-            { label: 'Decaying URLs',          color: '#FF4444', desc: 'Declining traffic, low AI citation' },
-            { label: 'High AI / Low Traffic',  color: '#60FDFF', desc: 'AI-cited but no human traffic yet' },
-            { label: 'High Traffic / No AI',   color: '#39A0FF', desc: 'Popular but not AI-indexed' },
-            { label: 'No Activity',            color: '#8A8A8A', desc: 'Neither traffic nor AI citations' },
-          ].map(({ label, color, desc }) => (
+            { label: 'Compounding URLs',       color: '#60FF80', desc: 'Traffic accelerating + AI cited',     demoCount: 5 },
+            { label: 'Stable URLs',            color: '#FFFC60', desc: 'Flat traffic, some AI activity',      demoCount: 4 },
+            { label: 'Decaying URLs',          color: '#FF4444', desc: 'Declining traffic, low AI citation',  demoCount: 2 },
+            { label: 'High AI / Low Traffic',  color: '#60FDFF', desc: 'AI-cited but no human traffic yet',   demoCount: 2 },
+            { label: 'High Traffic / No AI',   color: '#39A0FF', desc: 'Popular but not AI-indexed',          demoCount: 1 },
+            { label: 'No Activity',            color: '#8A8A8A', desc: 'Neither traffic nor AI citations',    demoCount: 1 },
+          ].map(({ label, color, desc, demoCount }) => (
             <div key={label} className="flex flex-col gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
                 <span className="text-[11px] font-semibold text-white/60">{label}</span>
               </div>
-              <span className="text-lg font-bold text-white/20">--</span>
+              <span className={cn('text-lg font-bold', calendarIsDemo ? 'text-white' : 'text-white/20')}>
+                {calendarIsDemo ? demoCount : '--'}
+              </span>
               <span className="text-[10px] text-text-muted">{desc}</span>
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-text-muted">Requires GA4 page-level session trends (MoM) + Peec AI citation data to classify content trajectory.</p>
+        {!calendarIsDemo && (
+          <p className="text-[10px] text-text-muted">Requires GA4 page-level session trends (MoM) + Peec AI citation data to classify content trajectory.</p>
+        )}
       </SectionCard>
 
       {/* ── Section F: Owned Content Cited in AI (PRD: 9 columns) ─────────── */}
@@ -599,25 +611,32 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
               {ownDomains.length > 0 ? (
-                ownDomains.map(d => (
-                  <tr key={d.domain}>
-                    <Td><span className="font-medium text-white">{d.domain}</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
-                    <Td><span className="tabular-nums text-white">{d.citationRate > 0 ? d.citationRate.toFixed(1) + '%' : '--'}</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
-                    <Td>
-                      {d.retrievedDelta !== 0 ? (
-                        <span className={cn('text-xs font-semibold tabular-nums', d.retrievedDelta > 0 ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-                          {d.retrievedDelta > 0 ? '+' : ''}{d.retrievedDelta.toFixed(1)}%
-                        </span>
-                      ) : <span className="text-white/40">--</span>}
-                    </Td>
-                    <Td><span className="text-[11px] text-white/50">Monitor and protect citation position</span></Td>
-                  </tr>
-                ))
+                ownDomains.map((d, i) => {
+                  const demoTopics  = ['AEO Strategy',           'AI Marketing Trends',  'Brand Visibility',     'Content Performance', 'Citation Patterns']
+                  const demoClusters = ['Discovery',              'Comparison',           'How-to',               'Research',            'Brand Authority']
+                  const demoEngines  = ['ChatGPT, Claude',        'ChatGPT, Perplexity',  'Claude, Gemini',       'ChatGPT, Copilot',    'Perplexity, Claude']
+                  const demoPositions = [1.8, 2.3, 1.5, 2.7, 2.1]
+                  const demoAiSessions = [284, 197, 412, 156, 203]
+                  return (
+                    <tr key={d.domain}>
+                      <Td><span className="font-medium text-white">{d.domain}</span></Td>
+                      <Td>{calendarIsDemo ? <span className="text-white/70">{demoTopics[i % demoTopics.length]}</span> : <span className="text-white/40">--</span>}</Td>
+                      <Td>{calendarIsDemo ? <span className="text-white/70">{demoClusters[i % demoClusters.length]}</span> : <span className="text-white/40">--</span>}</Td>
+                      <Td><span className="tabular-nums text-white">{d.citationRate > 0 ? d.citationRate.toFixed(1) + '%' : '--'}</span></Td>
+                      <Td>{calendarIsDemo ? <span className="text-white/70">{demoEngines[i % demoEngines.length]}</span> : <span className="text-white/40">--</span>}</Td>
+                      <Td>{calendarIsDemo ? <span className="tabular-nums text-white">#{demoPositions[i % demoPositions.length]}</span> : <span className="text-white/40">--</span>}</Td>
+                      <Td>{calendarIsDemo ? <span className="tabular-nums text-white">{demoAiSessions[i % demoAiSessions.length]}</span> : <span className="text-white/40">--</span>}</Td>
+                      <Td>
+                        {d.retrievedDelta !== 0 ? (
+                          <span className={cn('text-xs font-semibold tabular-nums', d.retrievedDelta > 0 ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
+                            {d.retrievedDelta > 0 ? '+' : ''}{d.retrievedDelta.toFixed(1)}%
+                          </span>
+                        ) : <span className="text-white/40">--</span>}
+                      </Td>
+                      <Td><span className="text-[11px] text-white/50">Monitor and protect citation position</span></Td>
+                    </tr>
+                  )
+                })
               ) : (
                 <EmptyBody cols={9} message="No owned-domain citation data available from Peec AI" />
               )}
@@ -653,8 +672,25 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                   <Th>Opportunity Note</Th>
                 </tr>
               </thead>
-              <tbody>
-                <EmptyBody cols={5} message="Requires GA4 page sessions + Peec AI owned-domain URL-level data" />
+              <tbody className="divide-y divide-white/[0.04]">
+                {calendarIsDemo ? (
+                  [
+                    { url: '/services',                          topic: 'Services Overview',       sessions: 827,  cites: 0, note: 'Add structured data + brand authority signals to surface in agency-comparison queries' },
+                    { url: '/about',                             topic: 'About Avenue Z',          sessions: 1042, cites: 0, note: 'Add founder story + clear capability statement for "who is Avenue Z" type prompts' },
+                    { url: '/blog/audit-brand-chatgpt',          topic: 'How to Audit Brand',      sessions: 447,  cites: 0, note: 'Already strong page — needs interlinking from AEO pillar to compound citation signal' },
+                    { url: '/pricing',                           topic: 'Pricing',                 sessions: 274,  cites: 0, note: 'Add ROI calculator + comparison framing for "agency pricing" prompts' },
+                  ].map(r => (
+                    <tr key={r.url}>
+                      <Td><span className="font-mono text-[10px] text-white/70">{r.url}</span></Td>
+                      <Td><span className="text-white/70">{r.topic}</span></Td>
+                      <Td><span className="tabular-nums text-white">{r.sessions.toLocaleString()}</span></Td>
+                      <Td><span className="tabular-nums text-white/40">{r.cites}</span></Td>
+                      <Td><span className="text-[11px] text-white/60">{r.note}</span></Td>
+                    </tr>
+                  ))
+                ) : (
+                  <EmptyBody cols={5} message="Requires GA4 page sessions + Peec AI owned-domain URL-level data" />
+                )}
               </tbody>
             </table>
           </div>
@@ -680,8 +716,25 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                   <Th>Opportunity Note</Th>
                 </tr>
               </thead>
-              <tbody>
-                <EmptyBody cols={5} message="Requires GA4 + Peec AI URL-level citation data" />
+              <tbody className="divide-y divide-white/[0.04]">
+                {calendarIsDemo ? (
+                  [
+                    { url: '/methodology/brand-authority',        topic: 'Brand Authority',         cites: 18, sessions: 524, note: 'Highly cited but low human traffic — add prominent CTA to drive trial sign-ups' },
+                    { url: '/press/techcrunch-feature',           topic: 'Press: TechCrunch',       cites:  9, sessions: 213, note: 'Press coverage drives AI citation but doesn\'t convert — add follow-up content path' },
+                    { url: '/case-studies/renaissance-benefits',  topic: 'Renaissance Case Study',  cites: 14, sessions: 392, note: 'Industry credibility piece — link from services page to convert authority into demos' },
+                    { url: '/resources/geo-glossary',             topic: 'GEO Glossary',            cites: 36, sessions: 983, note: 'Strong organic citation — embed in-context CTAs without disrupting reference utility' },
+                  ].map(r => (
+                    <tr key={r.url}>
+                      <Td><span className="font-mono text-[10px] text-white/70">{r.url}</span></Td>
+                      <Td><span className="text-white/70">{r.topic}</span></Td>
+                      <Td><span className="tabular-nums text-white">{r.cites}</span></Td>
+                      <Td><span className="tabular-nums text-white">{r.sessions.toLocaleString()}</span></Td>
+                      <Td><span className="text-[11px] text-white/60">{r.note}</span></Td>
+                    </tr>
+                  ))
+                ) : (
+                  <EmptyBody cols={5} message="Requires GA4 + Peec AI URL-level citation data" />
+                )}
               </tbody>
             </table>
           </div>
