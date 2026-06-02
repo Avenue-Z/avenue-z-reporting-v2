@@ -411,7 +411,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                       </a>
                     </Td>
                     <Td><span className="tabular-nums text-white/60">{row.publicationDate}</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
+                    <Td>{prIsDemo ? (
+                      <span className="text-white/70">{['Discovery', 'Comparison', 'How-to', 'Research'][i % 4]}</span>
+                    ) : (
+                      <span className="text-white/40">--</span>
+                    )}</Td>
                     <Td>
                       <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[10px] font-semibold text-[#60FF80]">
                         Yes
@@ -427,7 +431,14 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                         {row.brandMentioned ? 'Yes' : 'No'}
                       </span>
                     </Td>
-                    <Td><span className="text-white/40">--</span></Td>
+                    <Td>{prIsDemo ? (
+                      <span className={cn(
+                        'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                        i % 3 !== 0 ? 'bg-[#60FF80]/10 text-[#60FF80]' : 'bg-white/[0.06] text-white/40',
+                      )}>{i % 3 !== 0 ? 'Yes' : 'No'}</span>
+                    ) : (
+                      <span className="text-white/40">--</span>
+                    )}</Td>
                     <Td>
                       <span className={cn(
                         'rounded-full px-2 py-0.5 text-[10px] font-semibold',
@@ -441,7 +452,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                     <Td><span className="text-white/60">{row.aiEnginesCiting.length > 0 ? row.aiEnginesCiting.join(', ') : '--'}</span></Td>
                     <Td><span className="tabular-nums text-white">{row.promptCount > 0 ? row.promptCount : '--'}</span></Td>
                     <Td><span className="tabular-nums text-white/60">{row.averagePosition !== null ? row.averagePosition.toFixed(1) : '--'}</span></Td>
-                    <Td><span className="text-white/20">--</span></Td>
+                    <Td>{prIsDemo ? (
+                      <span className="tabular-nums text-[#60FF80]">↑ {[18, 24, 12, 31, 9, 17, 28, 14, 22, 11, 26, 19][i % 12]}%</span>
+                    ) : (
+                      <span className="text-white/20">--</span>
+                    )}</Td>
                   </tr>
                 ))
               ) : (
@@ -483,7 +498,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {editorialDomains.slice(0, 15).map(d => {
+                  {editorialDomains.slice(0, 15).map((d, idx) => {
                     const maxRetrieved = Math.max(...editorialDomains.slice(0, 15).map(x => x.retrieved), 1)
                     const barWidth = (d.retrieved / maxRetrieved) * 100
                     const hasPR = prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false
@@ -516,7 +531,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                           </span>
                         </Td>
                         <Td>
-                          <span className="tabular-nums text-white/30">--</span>
+                          <span className="tabular-nums text-white/30">
+                            {prIsDemo ? `#${(1.5 + (idx % 5) * 0.4).toFixed(1)}` : '--'}
+                          </span>
                         </Td>
                         <Td>
                           {hasPR ? (
@@ -575,7 +592,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
               {brandAbsentDomains.length > 0 ? (
-                brandAbsentDomains.slice(0, 20).map(d => {
+                brandAbsentDomains.slice(0, 20).map((d, i) => {
                   const priority = d.retrieved > 15 ? 'High' : d.retrieved > 5 ? 'Medium' : 'Low'
                   const priorityColor = priority === 'High'
                     ? 'bg-[#FF4444]/10 text-[#FF4444]'
@@ -583,13 +600,55 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                     ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
                     : 'bg-white/[0.06] text-white/40'
 
+                  const demoArticleTitles = [
+                    'How AI is reshaping editorial coverage',
+                    'Inside the AEO playbook for 2026',
+                    'Five brands winning in AI search',
+                    'The new SEO is AEO',
+                    'Why traditional PR is broken',
+                    'What ChatGPT cites and why it matters',
+                    'The agencies leading AI-first marketing',
+                    'How brand visibility is changing in the LLM era',
+                  ]
+                  const demoSlugs = [
+                    'ai-editorial-shift', 'aeo-playbook-2026', 'brands-winning-ai-search',
+                    'aeo-new-seo', 'pr-is-broken', 'what-chatgpt-cites',
+                    'ai-first-agencies', 'brand-visibility-llm-era',
+                  ]
+                  const demoCompetitors = [
+                    ['Ogilvy', 'Edelman'],
+                    ['Weber Shandwick'],
+                    ['FleishmanHillard', 'BCW'],
+                    ['Burson'],
+                    ['Edelman', 'Praytell'],
+                    ['Ogilvy'],
+                    ['BCW', 'Weber Shandwick'],
+                    ['FleishmanHillard'],
+                  ]
+
                   return (
                     <tr key={d.domain}>
                       <Td><span className="font-medium text-white">{d.domain}</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
+                      <Td>{prIsDemo ? (
+                        <span className="text-white/80">{demoArticleTitles[i % demoArticleTitles.length]}</span>
+                      ) : (
+                        <span className="text-white/20">--</span>
+                      )}</Td>
+                      <Td>{prIsDemo ? (
+                        <a href={`https://${d.domain}/${demoSlugs[i % demoSlugs.length]}`} target="_blank" rel="noopener noreferrer"
+                           className="font-mono text-[10px] text-white/40 hover:text-[#39A0FF] max-w-[160px] truncate block"
+                           title={`https://${d.domain}/${demoSlugs[i % demoSlugs.length]}`}>
+                          {d.domain}/{demoSlugs[i % demoSlugs.length]}
+                        </a>
+                      ) : (
+                        <span className="text-white/20">--</span>
+                      )}</Td>
                       <Td><span className="tabular-nums text-white">{d.retrieved.toFixed(1)}%</span></Td>
-                      <Td><span className="text-white/40">--</span></Td>
+                      <Td>{prIsDemo ? (
+                        <span className="text-white/70 text-[11px]">{demoCompetitors[i % demoCompetitors.length].join(', ')}</span>
+                      ) : (
+                        <span className="text-white/40">--</span>
+                      )}</Td>
                       <Td>
                         <span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">
                           No
