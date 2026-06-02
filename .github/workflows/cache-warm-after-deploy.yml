@@ -1,0 +1,40 @@
+name: Warm cache after deploy
+
+# Fires every time GitHub records a deployment_status event from Vercel.
+# Only acts when state is success AND the deployment was to Production —
+# preview deployments are warmed too aggressively otherwise.
+on:
+  deployment_status:
+
+jobs:
+  warm:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment == 'Production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cache-warm
+        # PRODUCTION_URL must point at the canonical production origin
+        # (e.g. https://reports.avenuez.com). CRON_SECRET must match the
+        # same env var configured on the Vercel project's Production env.
+        # Secrets are passed via env: rather than interpolated directly
+        # into the run: script — avoids shell expansion / escape issues
+        # if a secret value ever contains special characters.
+        env:
+          CRON_SECRET:    ${{ secrets.CRON_SECRET }}
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          curl --fail --silent --show-error \
+            --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$PRODUCTION_URL/api/cache-warm" \
+            | tee /tmp/warm-result.json
+          ok=$(jq -r '.ok' < /tmp/warm-result.json)
+          total=$(jq -r '.total' < /tmp/warm-result.json)
+          failed=$(jq -r '.failed' < /tmp/warm-result.json)
+          echo "Warmed $ok/$total URLs ($failed failed)"
+          # Non-fatal: even if some URLs failed, the hourly cron will retry.
+          # The fail flag is set explicitly to 0 so transient warming
+          # failures don't block deploy notifications. Switch to
+          # `exit $failed` if you want the workflow to fail loudly.
+          exit 0
