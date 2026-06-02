@@ -3,6 +3,7 @@ import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
 import { samplePRProofData } from '@/lib/demo-data/pr-proof'
+import { SAMPLE_GA4_AI_REFERRAL_ROWS, SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS } from '@/lib/demo-data/ga4-pr-influence'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { AI_REFERRER_DOMAINS } from '@/lib/constants'
@@ -227,15 +228,27 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   const data    = peecResult.status === 'fulfilled' ? peecResult.value : null
   let   prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
+  let   aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
+  let   compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
 
-  // Demo mode: when PR Proof returned null/empty or errored, fall back to
-  // realistic sample placements so the section renders fully for demos.
-  const prIsDemo = demoMode && (!prData || prData.placements.length === 0)
+  // Demo mode: force sample data when demoMode is on so the section
+  // demos consistently regardless of whether the signed-in client has
+  // sparse / no real data. Real clients (no demoMode) keep showing
+  // their actual data.
+  //
+  // Substitutes:
+  //   - prData: 12 sample PR placements at high-profile outlets,
+  //     so Section B (Matchback) has a rich table instead of 0-3 rows
+  //   - aiReferralRows: realistic chatgpt/claude/perplexity referrals
+  //     so Section A "AI Referral Sessions" KPI populates with a
+  //     meaningful number instead of '--' (most real clients have
+  //     small or zero AI-source GA4 traffic today)
+  const prIsDemo = demoMode
   if (prIsDemo) {
     prData = samplePRProofData()
+    aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
+    compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
   }
-  const aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
-  const compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
