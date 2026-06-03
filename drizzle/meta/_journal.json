@@ -43,6 +43,13 @@
       "when": 1780346849786,
       "tag": "0005_even_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780426451792,
+      "tag": "0006_old_black_tarantula",
+      "breakpoints": true
     }
   ]
 }

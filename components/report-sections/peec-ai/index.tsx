@@ -13,6 +13,9 @@ import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-d
 import { VisibilityChart as ProfoundVisibilityChart } from '../profound-ai/visibility-chart'
 import { TrackedPromptsChart as ProfoundTrackedPromptsChart } from '../profound-ai/tracked-prompts-chart'
 import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/llm-breakdown-table'
+import { sampleProfoundOverview } from '@/lib/demo-data/profound'
+import { samplePeecOverview } from '@/lib/demo-data/peec'
+import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { cn } from '@/lib/utils'
 
 // --- Helpers ---
@@ -238,14 +241,22 @@ function SectionDivider({ title }: { title: string }) {
 
 // --- Main report ---
 
-export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {}) {
+export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlug?: string; demoMode?: boolean } = {}) {
   const [peec, profound] = await Promise.allSettled([
     getPeecOverview(clientSlug),
     getProfoundOverview(clientSlug),
   ])
 
-  const peecData   = peec.status      === 'fulfilled' ? peec.value      : null
-  const profoundData = profound.status === 'fulfilled' ? profound.value  : null
+  let peecData     = peec.status     === 'fulfilled' ? peec.value     : null
+  let profoundData = profound.status === 'fulfilled' ? profound.value : null
+
+  // Demo mode: force-substitute BOTH Peec and Profound with sample data
+  // so the demo never mixes real client data with synthetic. The Sample
+  // badge surfaces in each section so it's clear what's going on.
+  const peecIsDemo     = demoMode
+  const profoundIsDemo = demoMode
+  if (peecIsDemo)     peecData     = samplePeecOverview()
+  if (profoundIsDemo) profoundData = sampleProfoundOverview()
 
   const peecYou    = peecData?.brandRankings.find((b) => b.isYou)
   const profoundYou = profoundData?.brandRankings.find((b) => b.isYou)
@@ -259,9 +270,12 @@ export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {})
         <p className="text-sm font-bold uppercase tracking-widest text-text-muted">
           Answer Engine Optimization
         </p>
-        <h2 className="text-3xl font-extrabold uppercase text-white">
-          Overview
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-3xl font-extrabold uppercase text-white">
+            Overview
+          </h2>
+          {peecIsDemo && <SampleDataBadge />}
+        </div>
       </div>
 
       {peecData && (
@@ -329,13 +343,17 @@ export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {})
             <TrackedPromptsChart prompts={peecData.trackedPrompts} brandName={peecYou?.name ?? process.env.PEEC_AI_YOUR_BRAND} />
           )}
 
-          <p className="text-xs text-text-muted">Live data from Peec AI</p>
+          <p className="text-xs text-text-muted">{peecIsDemo ? 'Sample data — demo mode' : 'Live data from Peec AI'}</p>
         </>
       )}
 
       {/* ── PROFOUND SECTION ────────────────────────────────────────────── */}
 
       <SectionDivider title="Profound" />
+
+      {profoundIsDemo && (
+        <div><SampleDataBadge /></div>
+      )}
 
       {profoundData && (
         <>
@@ -402,7 +420,7 @@ export async function PeecAIReport({ clientSlug }: { clientSlug?: string } = {})
             <ProfoundTrackedPromptsChart prompts={profoundData.trackedPrompts} />
           )}
 
-          <p className="text-xs text-text-muted">Live data from Profound</p>
+          <p className="text-xs text-text-muted">{profoundIsDemo ? 'Sample data — demo mode' : 'Live data from Profound'}</p>
         </>
       )}
 

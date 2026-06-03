@@ -24,17 +24,19 @@ export const getClientBySlug = timed(
 )
 
 /**
- * Find one user by email, returning a flattened shape that matches
- * the legacy getClientByEmail contract: { email, role, slug }.
+ * Find one user by email. `demoMode` is the users.demoMode column —
+ * when true, the auth callback bakes a `demoMode: true` claim into the
+ * session JWT and the route handlers flip on the demo-fill behavior for
+ * every page that user views.
  * Returns null if not found.
  */
-const getClientByEmailImpl = cache(async (email: string): Promise<{ email: string; role: ClientRole; slug: string } | null> => {
+const getClientByEmailImpl = cache(async (email: string): Promise<{ email: string; role: ClientRole; slug: string; demoMode: boolean } | null> => {
   const row = await db.query.users.findFirst({
     where: eq(users.email, email.toLowerCase()),
     with: { client: true },
   })
   if (!row) return null
-  return { email: row.email, role: row.role, slug: row.client.slug }
+  return { email: row.email, role: row.role, slug: row.client.slug, demoMode: row.demoMode }
 })
 
 export const getClientByEmail = timed('db', 'getClientByEmail', getClientByEmailImpl)

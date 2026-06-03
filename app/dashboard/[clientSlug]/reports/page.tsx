@@ -1,7 +1,9 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
+import { resolveDemoMode } from '@/lib/demo-data/resolve'
 import { REPORT_NAMES } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -46,6 +48,7 @@ function getReportComponent(
   subsection?: string,
   period?: SummaryPeriod,
   submittedBy?: string,
+  demoMode?: boolean,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -71,10 +74,10 @@ function getReportComponent(
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'peec-ai':
-      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} />
-      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} />
-      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
-      return <PeecAIReport clientSlug={clientSlug} />
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
+      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} demoMode={demoMode} />
+      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} demoMode={demoMode} />
+      return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
     default:
       return null
   }
@@ -110,6 +113,14 @@ export default async function ReportPage({
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
+  // See lib/demo-data/resolve.ts for the resolution rules. Demo mode
+  // is strictly gated by users.demoMode; the sidebar toggle's cookie
+  // can only turn it off, not on.
+  const cookieStore = await cookies()
+  const demoMode = resolveDemoMode({
+    userDemoFlag: session?.user?.demoMode === true,
+    cookieValue:  cookieStore.get('demoMode')?.value,
+  })
 
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)
@@ -147,7 +158,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode)}
         </Suspense>
       </ReportErrorBoundary>
     </>

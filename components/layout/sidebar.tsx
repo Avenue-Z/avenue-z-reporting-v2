@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
+import { DemoModeToggle } from './demo-mode-toggle'
 import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
@@ -43,14 +44,20 @@ interface SidebarUser {
   name?: string | null
   email?: string | null
   image?: string | null
+  /** True when the signed-in user has the users.demoMode DB flag set. */
+  demoMode?: boolean
 }
 
 interface SidebarProps {
   user?: SidebarUser
   clients: Client[]
+  /** Whether demoMode is currently effective for this render — drives the
+   *  toggle's visual state. Computed by the layout from the user's flag
+   *  AND the demoMode cookie (which the user can flip via the toggle). */
+  demoModeEffective?: boolean
 }
 
-export function Sidebar({ user, clients }: SidebarProps) {
+export function Sidebar({ user, clients, demoModeEffective = false }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
@@ -75,6 +82,7 @@ export function Sidebar({ user, clients }: SidebarProps) {
         clients={clients}
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
+        demoModeEffective={demoModeEffective}
       />
     )
   }
@@ -86,6 +94,7 @@ export function Sidebar({ user, clients }: SidebarProps) {
       clients={clients}
       collapsed={collapsed}
       onToggle={() => setCollapsed((c) => !c)}
+      demoModeEffective={demoModeEffective}
     />
   )
 }
@@ -116,12 +125,14 @@ function MainSidebar({
   clients,
   collapsed,
   onToggle,
+  demoModeEffective,
 }: {
   pathname: string
   user?: SidebarUser
   clients: Client[]
   collapsed: boolean
   onToggle: () => void
+  demoModeEffective: boolean
 }) {
 
   return (
@@ -238,7 +249,7 @@ function MainSidebar({
 
       {/* User section */}
       <div className="mt-auto border-t border-white/[0.06] p-2">
-        <UserFooter user={user} collapsed={collapsed} />
+        <UserFooter user={user} collapsed={collapsed} demoModeEffective={demoModeEffective} />
       </div>
     </aside>
   )
@@ -262,6 +273,7 @@ function ClientSidebar({
   clients,
   collapsed,
   onToggle,
+  demoModeEffective,
 }: {
   clientSlug: string
   pathname: string
@@ -272,6 +284,7 @@ function ClientSidebar({
   clients: Client[]
   collapsed: boolean
   onToggle: () => void
+  demoModeEffective: boolean
 }) {
   const client = clients.find((c) => c.slug === clientSlug)
   const clientName = client?.name ?? clientSlug
@@ -566,7 +579,7 @@ function ClientSidebar({
 
       {/* User section */}
       <div className={cn('border-t border-white/[0.06] p-2', !collapsed && 'mt-auto')}>
-        <UserFooter user={user} collapsed={collapsed} />
+        <UserFooter user={user} collapsed={collapsed} demoModeEffective={demoModeEffective} />
       </div>
     </aside>
   )
@@ -574,7 +587,7 @@ function ClientSidebar({
 
 // ─── User footer ─────────────────────────────────────────────────────────────
 
-function UserFooter({ user, collapsed }: { user?: SidebarUser; collapsed: boolean }) {
+function UserFooter({ user, collapsed, demoModeEffective }: { user?: SidebarUser; collapsed: boolean; demoModeEffective: boolean }) {
   const displayName = user?.name ?? user?.email ?? 'Avenue Z'
   const initials = displayName
     .split(' ')
@@ -598,6 +611,10 @@ function UserFooter({ user, collapsed }: { user?: SidebarUser; collapsed: boolea
   )
 
   return (
+    <div className="flex flex-col gap-2">
+      {user?.demoMode && (
+        <DemoModeToggle enabled={demoModeEffective} collapsed={collapsed} />
+      )}
     <form action={signOutAction}>
       <button
         type="submit"
@@ -623,6 +640,7 @@ function UserFooter({ user, collapsed }: { user?: SidebarUser; collapsed: boolea
         )}
       </button>
     </form>
+    </div>
   )
 }
 

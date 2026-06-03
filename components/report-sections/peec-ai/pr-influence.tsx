@@ -2,6 +2,10 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
+import { samplePRProofData } from '@/lib/demo-data/pr-proof'
+import { samplePeecOverview } from '@/lib/demo-data/peec'
+import { SAMPLE_GA4_AI_REFERRAL_ROWS, SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS } from '@/lib/demo-data/ga4-pr-influence'
+import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { AI_REFERRER_DOMAINS } from '@/lib/constants'
 import { KpiCard } from '@/components/charts/kpi-card'
@@ -192,7 +196,7 @@ function computeOpportunityRows(
 
 // ── Main RSC ─────────────────────────────────────────────────────────────────
 
-export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days' }: { clientSlug: string; dateRange?: string }) {
+export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
   // Date range setup for GA4 AI referral sessions
   const resolvedMain = parseDateRange(dateRange)
   const mainIso = `${resolvedMain.startDate},${resolvedMain.endDate}`
@@ -223,10 +227,21 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       : Promise.resolve(null),
   ])
 
-  const data   = peecResult.status === 'fulfilled' ? peecResult.value : null
-  const prData = prResult.status   === 'fulfilled' ? prResult.value   : null
-  const aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
-  const compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
+  let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
+  let prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
+  let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
+  let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
+
+  // Demo mode: force-substitute every data source so the demo never
+  // mixes real client data with synthetic. `prIsDemo` is retained as
+  // the boolean some render paths read, but it now equals demoMode.
+  const prIsDemo = demoMode
+  if (demoMode) {
+    data           = samplePeecOverview()
+    prData         = samplePRProofData()
+    aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
+    compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
+  }
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
@@ -290,6 +305,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   return (
     <div className="space-y-8">
+
+      {prIsDemo && (
+        <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
+      )}
 
       {/* ── Section A: KPI Strip (PRD: 6 cards) ── */}
       <div>
@@ -385,7 +404,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                       </a>
                     </Td>
                     <Td><span className="tabular-nums text-white/60">{row.publicationDate}</span></Td>
-                    <Td><span className="text-white/40">--</span></Td>
+                    <Td>{prIsDemo ? (
+                      <span className="text-white/70">{['Discovery', 'Comparison', 'How-to', 'Research'][i % 4]}</span>
+                    ) : (
+                      <span className="text-white/40">--</span>
+                    )}</Td>
                     <Td>
                       <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[10px] font-semibold text-[#60FF80]">
                         Yes
@@ -401,7 +424,14 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                         {row.brandMentioned ? 'Yes' : 'No'}
                       </span>
                     </Td>
-                    <Td><span className="text-white/40">--</span></Td>
+                    <Td>{prIsDemo ? (
+                      <span className={cn(
+                        'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                        i % 3 !== 0 ? 'bg-[#60FF80]/10 text-[#60FF80]' : 'bg-white/[0.06] text-white/40',
+                      )}>{i % 3 !== 0 ? 'Yes' : 'No'}</span>
+                    ) : (
+                      <span className="text-white/40">--</span>
+                    )}</Td>
                     <Td>
                       <span className={cn(
                         'rounded-full px-2 py-0.5 text-[10px] font-semibold',
@@ -412,10 +442,45 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                         {row.citedByAI ? 'Yes' : 'No'}
                       </span>
                     </Td>
-                    <Td><span className="text-white/60">{row.aiEnginesCiting.length > 0 ? row.aiEnginesCiting.join(', ') : '--'}</span></Td>
-                    <Td><span className="tabular-nums text-white">{row.promptCount > 0 ? row.promptCount : '--'}</span></Td>
-                    <Td><span className="tabular-nums text-white/60">{row.averagePosition !== null ? row.averagePosition.toFixed(1) : '--'}</span></Td>
-                    <Td><span className="text-white/20">--</span></Td>
+                    <Td>
+                      {prIsDemo ? (
+                        <span className="text-white/70">{[
+                          'ChatGPT, Claude',
+                          'Perplexity',
+                          'ChatGPT, Gemini',
+                          'Claude, Perplexity, Copilot',
+                          'ChatGPT',
+                          'Gemini, Perplexity',
+                          'ChatGPT, Claude, Gemini',
+                          'Perplexity, Copilot',
+                          'ChatGPT, Perplexity',
+                          'Claude',
+                          'ChatGPT, Gemini, Copilot',
+                          'Perplexity, Claude',
+                        ][i % 12]}</span>
+                      ) : (
+                        <span className="text-white/60">{row.aiEnginesCiting.length > 0 ? row.aiEnginesCiting.join(', ') : '--'}</span>
+                      )}
+                    </Td>
+                    <Td>
+                      {prIsDemo ? (
+                        <span className="tabular-nums text-white">{[14, 9, 22, 6, 31, 11, 18, 4, 27, 13, 8, 16][i % 12]}</span>
+                      ) : (
+                        <span className="tabular-nums text-white">{row.promptCount > 0 ? row.promptCount : '--'}</span>
+                      )}
+                    </Td>
+                    <Td>
+                      {prIsDemo ? (
+                        <span className="tabular-nums text-white">#{(1.4 + (i % 7) * 0.45).toFixed(1)}</span>
+                      ) : (
+                        <span className="tabular-nums text-white/60">{row.averagePosition !== null ? row.averagePosition.toFixed(1) : '--'}</span>
+                      )}
+                    </Td>
+                    <Td>{prIsDemo ? (
+                      <span className="tabular-nums text-[#60FF80]">↑ {[18, 24, 12, 31, 9, 17, 28, 14, 22, 11, 26, 19][i % 12]}%</span>
+                    ) : (
+                      <span className="text-white/20">--</span>
+                    )}</Td>
                   </tr>
                 ))
               ) : (
@@ -433,7 +498,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         {matchbackRows.length > 0 && (
           <p className="mt-4 text-[10px] text-text-muted">
             Showing {matchbackRows.length} placements across 14 columns. {placementsCitedByAI} cited by AI engines.
-            Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.
+            {!prIsDemo && ' Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.'}
           </p>
         )}
       </SectionCard>
@@ -457,10 +522,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {editorialDomains.slice(0, 15).map(d => {
+                  {editorialDomains.slice(0, 15).map((d, idx) => {
                     const maxRetrieved = Math.max(...editorialDomains.slice(0, 15).map(x => x.retrieved), 1)
                     const barWidth = (d.retrieved / maxRetrieved) * 100
-                    const hasPR = prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false
+                    // In demo mode, deterministically vary so ~half of rows
+                    // get a "Yes" and the other half "No" — gives a realistic
+                    // mix instead of a single category dominating.
+                    const hasPR = prIsDemo
+                      ? [true, false, true, true, false, true, false, true, false, true, false, true, true, false, true][idx % 15]
+                      : (prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false)
                     const promptCov = getEditorialPromptCoverage(d.domain)
                     return (
                       <tr key={d.domain}>
@@ -490,12 +560,18 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                           </span>
                         </Td>
                         <Td>
-                          <span className="tabular-nums text-white/30">--</span>
+                          <span className="tabular-nums text-white/30">
+                            {prIsDemo ? `#${(1.5 + (idx % 5) * 0.4).toFixed(1)}` : '--'}
+                          </span>
                         </Td>
                         <Td>
                           {hasPR ? (
                             <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#60FF80]">
                               Yes
+                            </span>
+                          ) : prIsDemo ? (
+                            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold text-white/40">
+                              No
                             </span>
                           ) : (
                             <span className="text-white/20">--</span>
@@ -516,9 +592,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                 <span className="h-2.5 w-2.5 rounded bg-[#60FF80]/60" />
                 <span className="text-[10px] text-text-muted">Has PR placement</span>
               </div>
-              <span className="ml-auto text-[10px] text-text-muted">
-                Avg Position requires per-domain position data from Peec AI Pro
-              </span>
+              {!prIsDemo && (
+                <span className="ml-auto text-[10px] text-text-muted">
+                  Avg Position requires per-domain position data from Peec AI Pro
+                </span>
+              )}
             </div>
           </>
         ) : (
@@ -549,7 +627,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
               {brandAbsentDomains.length > 0 ? (
-                brandAbsentDomains.slice(0, 20).map(d => {
+                brandAbsentDomains.slice(0, 20).map((d, i) => {
                   const priority = d.retrieved > 15 ? 'High' : d.retrieved > 5 ? 'Medium' : 'Low'
                   const priorityColor = priority === 'High'
                     ? 'bg-[#FF4444]/10 text-[#FF4444]'
@@ -557,13 +635,55 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                     ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
                     : 'bg-white/[0.06] text-white/40'
 
+                  const demoArticleTitles = [
+                    'How AI is reshaping editorial coverage',
+                    'Inside the AEO playbook for 2026',
+                    'Five brands winning in AI search',
+                    'The new SEO is AEO',
+                    'Why traditional PR is broken',
+                    'What ChatGPT cites and why it matters',
+                    'The agencies leading AI-first marketing',
+                    'How brand visibility is changing in the LLM era',
+                  ]
+                  const demoSlugs = [
+                    'ai-editorial-shift', 'aeo-playbook-2026', 'brands-winning-ai-search',
+                    'aeo-new-seo', 'pr-is-broken', 'what-chatgpt-cites',
+                    'ai-first-agencies', 'brand-visibility-llm-era',
+                  ]
+                  const demoCompetitors = [
+                    ['Ogilvy', 'Edelman'],
+                    ['Weber Shandwick'],
+                    ['FleishmanHillard', 'BCW'],
+                    ['Burson'],
+                    ['Edelman', 'Praytell'],
+                    ['Ogilvy'],
+                    ['BCW', 'Weber Shandwick'],
+                    ['FleishmanHillard'],
+                  ]
+
                   return (
                     <tr key={d.domain}>
                       <Td><span className="font-medium text-white">{d.domain}</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
+                      <Td>{prIsDemo ? (
+                        <span className="text-white/80">{demoArticleTitles[i % demoArticleTitles.length]}</span>
+                      ) : (
+                        <span className="text-white/20">--</span>
+                      )}</Td>
+                      <Td>{prIsDemo ? (
+                        <a href={`https://${d.domain}/${demoSlugs[i % demoSlugs.length]}`} target="_blank" rel="noopener noreferrer"
+                           className="font-mono text-[10px] text-white/40 hover:text-[#39A0FF] max-w-[160px] truncate block"
+                           title={`https://${d.domain}/${demoSlugs[i % demoSlugs.length]}`}>
+                          {d.domain}/{demoSlugs[i % demoSlugs.length]}
+                        </a>
+                      ) : (
+                        <span className="text-white/20">--</span>
+                      )}</Td>
                       <Td><span className="tabular-nums text-white">{d.retrieved.toFixed(1)}%</span></Td>
-                      <Td><span className="text-white/40">--</span></Td>
+                      <Td>{prIsDemo ? (
+                        <span className="text-white/70 text-[11px]">{demoCompetitors[i % demoCompetitors.length].join(', ')}</span>
+                      ) : (
+                        <span className="text-white/40">--</span>
+                      )}</Td>
                       <Td>
                         <span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">
                           No
@@ -588,9 +708,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
             </tbody>
           </table>
         </div>
-        <p className="mt-4 text-[10px] text-text-muted">
-          Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
-        </p>
+        {!prIsDemo && (
+          <p className="mt-4 text-[10px] text-text-muted">
+            Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
+          </p>
+        )}
       </SectionCard>
 
       {/* ── Section E: Prompt Cluster Opportunity Matrix (PRD: heatmap/matrix) ── */}

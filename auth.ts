@@ -49,12 +49,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (clientConfig) {
           token.role = clientConfig.role
           token.clientSlug = clientConfig.slug
+          token.demoMode = clientConfig.demoMode
         } else if (user.email.endsWith(`@${WORKSPACE_DOMAIN}`)) {
           token.role = WORKSPACE_DEFAULT_ROLE
           token.clientSlug = WORKSPACE_DEFAULT_SLUG
+          token.demoMode = false
         } else {
           token.role = 'CLIENT_VIEWER'
           token.clientSlug = null
+          token.demoMode = false
         }
       }
       return token
@@ -62,6 +65,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       session.user.role = token.role as string
       session.user.clientSlug = token.clientSlug as string | null
+      session.user.demoMode = (token.demoMode as boolean | undefined) ?? false
       return session
     },
   },
