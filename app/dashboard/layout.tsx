@@ -20,15 +20,10 @@ export default async function DashboardLayout({
 
   const clients = await getAllClients()
 
-  // The layout doesn't have access to searchParams, so the URL ?demo=1
-  // override is ignored here for the toggle's display state. The route
-  // handler is the source of truth for the actual demoMode the page
-  // renders with; the toggle here only reflects the cookie state.
   const cookieStore = await cookies()
   const demoModeEffective = resolveDemoMode({
-    userDemoFlag:    session.user.demoMode === true,
-    cookieValue:     cookieStore.get('demoMode')?.value,
-    urlDemoOverride: false,
+    userDemoFlag: session.user.demoMode === true,
+    cookieValue:  cookieStore.get('demoMode')?.value,
   })
 
   return (

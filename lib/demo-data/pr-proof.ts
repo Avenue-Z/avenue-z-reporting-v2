@@ -1,6 +1,6 @@
 /**
- * Sample PRProofData for demo mode. Used when ?demo=1 is on the URL
- * AND the real pr-proof fetch returned empty or errored.
+ * Sample PRProofData for demo mode. Used when demoMode is on AND the
+ * real pr-proof fetch returned empty or errored.
  */
 import type { PRProofData, PRPlacement } from '@/lib/pr-proof/types'
 

@@ -104,23 +104,22 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; demo?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string }>
 }) {
   const { clientSlug } = await params
-  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, demo: demoParam } = await searchParams
-  const urlDemoOverride = demoParam === '1' || demoParam === 'true'
+  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
-  // See lib/demo-data/resolve.ts for the resolution rules. The toggle
-  // in the sidebar writes a cookie; this reads it.
+  // See lib/demo-data/resolve.ts for the resolution rules. Demo mode
+  // is strictly gated by users.demoMode; the sidebar toggle's cookie
+  // can only turn it off, not on.
   const cookieStore = await cookies()
   const demoMode = resolveDemoMode({
-    userDemoFlag:    session?.user?.demoMode === true,
-    cookieValue:     cookieStore.get('demoMode')?.value,
-    urlDemoOverride,
+    userDemoFlag: session?.user?.demoMode === true,
+    cookieValue:  cookieStore.get('demoMode')?.value,
   })
 
   const activeSection = (

@@ -94,11 +94,10 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string; demo?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, demo: demoParam } = await searchParams
-  const urlDemoOverride = demoParam === '1' || demoParam === 'true'
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -110,9 +109,8 @@ export default async function PortalReportPage({
   const submittedBy = session?.user?.email ?? undefined
   const cookieStore = await cookies()
   const demoMode = resolveDemoMode({
-    userDemoFlag:    session?.user?.demoMode === true,
-    cookieValue:     cookieStore.get('demoMode')?.value,
-    urlDemoOverride,
+    userDemoFlag: session?.user?.demoMode === true,
+    cookieValue:  cookieStore.get('demoMode')?.value,
   })
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug

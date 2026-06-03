@@ -1,6 +1,6 @@
 /**
- * Sample ProfoundOverview for demo mode. Used when ?demo=1 is on the URL
- * AND the real profound fetch returned empty (no profoundCategoryId
+ * Sample ProfoundOverview for demo mode. Used when demoMode is on AND
+ * the real profound fetch returned empty (no profoundCategoryId
  * configured) or errored. Lets a sales demo show the report fully
  * populated without needing every client's Profound to be wired up.
  *

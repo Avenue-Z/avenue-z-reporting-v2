@@ -109,10 +109,10 @@ export const users = pgTable('users', {
   clientId: uuid('client_id')
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
-  // When true, the user automatically gets demoMode on every page they
-  // view — empty/unconfigured sections fill with sample data and show a
-  // "Sample data" badge. Used for sales-demo accounts (e.g. demo@avenuez.com).
-  // The ?demo=1 URL flag works as an ad-hoc override for everyone else.
+  // When true, the user gets demoMode on every page they view —
+  // empty/unconfigured sections fill with sample data and show a "Sample
+  // data" badge. Strictly gated to sales-demo accounts (e.g.
+  // demo@avenuez.com); non-demo users cannot bypass this flag.
   demoMode: boolean('demo_mode').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

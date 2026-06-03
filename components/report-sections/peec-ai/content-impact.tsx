@@ -403,7 +403,11 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                         )
                       })()}
                       {/* AI data -- live when Peec URL-level data available */}
-                      <Td><span className="text-white/20">--</span></Td>
+                      <Td>
+                        {calendarIsDemo
+                          ? <span className="tabular-nums text-white">{[12, 8, 5, 14, 3, 18, 7, 0, 9, 22, 4, 11, 6][i % 13]}</span>
+                          : <span className="text-white/20">--</span>}
+                      </Td>
                       <Td>
                         {hasBotVisits ? (
                           <span className="tabular-nums text-[#60FDFF]">{row.aiBotVisits}</span>
@@ -411,7 +415,11 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                           <span className="text-white/20">0</span>
                         )}
                       </Td>
-                      <Td><span className="text-white/20">--</span></Td>
+                      <Td>
+                        {calendarIsDemo
+                          ? <span className="tabular-nums text-white">{[238, 152, 87, 412, 64, 524, 109, 31, 196, 671, 78, 245, 134][i % 13].toLocaleString()}</span>
+                          : <span className="text-white/20">--</span>}
+                      </Td>
                       <Td>
                         <span className={cn(
                           'rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize',
@@ -892,36 +900,115 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
                 {editorialDomains.length > 0 ? (
-                  editorialDomains.slice(0, 10).map(d => (
-                    <tr key={d.domain}>
-                      <Td><span className="font-medium text-white">{d.domain}</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/40">--</span></Td>
-                      <Td><span className="tabular-nums text-white">{d.citationRate.toFixed(1)}%</span></Td>
-                      <Td><span className="text-white/20">--</span></Td>
-                      <Td><span className="text-white/40">--</span></Td>
-                      <Td>
-                        <span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">
-                          Review
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="block max-w-[200px] text-[11px] text-white/50">
-                          Secure coverage on {d.domain} to displace competitor citations
-                        </span>
-                      </Td>
-                    </tr>
-                  ))
+                  editorialDomains.slice(0, 10).map((d, i) => {
+                    const demoArticleTitles2 = [
+                      'How AI is rewriting brand discovery',
+                      'The 2026 PR-to-LLM playbook',
+                      'Why brand authority matters more than backlinks',
+                      'Inside the AEO arms race',
+                      'Earned media in the age of generative AI',
+                      'How Fortune 500s rank inside ChatGPT',
+                      'The new rules of editorial citation',
+                      'Building defensible brand share-of-voice',
+                      'AI-first brand strategy for 2026',
+                      'Decoding citation patterns across LLMs',
+                    ]
+                    const demoSlugs2 = [
+                      '/insights/ai-brand-discovery',
+                      '/guides/pr-llm-playbook-2026',
+                      '/analysis/brand-authority-vs-links',
+                      '/features/aeo-arms-race',
+                      '/columns/earned-media-genai',
+                      '/data/fortune-500-chatgpt-rankings',
+                      '/op-ed/new-editorial-citation-rules',
+                      '/research/defensible-share-of-voice',
+                      '/strategy/ai-first-brand-2026',
+                      '/data/citation-patterns-llms',
+                    ]
+                    const demoClusters2 = [
+                      'Brand authority',
+                      'Buying-stage research',
+                      'Reputation / trust',
+                      'Brand authority',
+                      'Industry expertise',
+                      'Competitive comparison',
+                      'Reputation / trust',
+                      'Buying-stage research',
+                      'Brand authority',
+                      'Industry expertise',
+                    ]
+                    const demoCompetitorsAbsent = [
+                      ['Ogilvy', 'Edelman'],
+                      ['Weber Shandwick'],
+                      ['BCW', 'FleishmanHillard'],
+                      ['Edelman', 'Ogilvy', 'Weber Shandwick'],
+                      ['MSL'],
+                      ['Edelman'],
+                      ['Ogilvy', 'BCW'],
+                      ['Weber Shandwick', 'MSL'],
+                      ['Edelman', 'Ogilvy'],
+                      ['FleishmanHillard'],
+                    ]
+                    const demoBrandMentioned = ['No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No']
+                    const title = calendarIsDemo ? demoArticleTitles2[i % demoArticleTitles2.length] : null
+                    const slug  = calendarIsDemo ? demoSlugs2[i % demoSlugs2.length] : null
+                    const url   = slug ? `https://${d.domain}${slug}` : null
+                    const cluster = calendarIsDemo ? demoClusters2[i % demoClusters2.length] : null
+                    const comps   = calendarIsDemo ? demoCompetitorsAbsent[i % demoCompetitorsAbsent.length] : null
+                    const brand   = calendarIsDemo ? demoBrandMentioned[i % demoBrandMentioned.length] : null
+                    return (
+                      <tr key={d.domain}>
+                        <Td><span className="font-medium text-white">{d.domain}</span></Td>
+                        <Td>
+                          {title
+                            ? <span className="text-white/70 max-w-[180px] block truncate" title={title}>{title}</span>
+                            : <span className="text-white/20">--</span>}
+                        </Td>
+                        <Td>
+                          {url
+                            ? <span className="font-mono text-[10px] text-white/50 max-w-[180px] block truncate" title={url}>{url}</span>
+                            : <span className="text-white/20">--</span>}
+                        </Td>
+                        <Td>
+                          {cluster
+                            ? <span className="text-white/60">{cluster}</span>
+                            : <span className="text-white/40">--</span>}
+                        </Td>
+                        <Td><span className="tabular-nums text-white">{d.citationRate.toFixed(1)}%</span></Td>
+                        <Td>
+                          {comps
+                            ? <span className="text-white/70">{comps.join(', ')}</span>
+                            : <span className="text-white/20">--</span>}
+                        </Td>
+                        <Td>
+                          {brand
+                            ? <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', brand === 'No' ? 'bg-[#FF4444]/10 text-[#FF4444]' : 'bg-[#60FF80]/10 text-[#60FF80]')}>{brand}</span>
+                            : <span className="text-white/40">--</span>}
+                        </Td>
+                        <Td>
+                          <span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">
+                            Review
+                          </span>
+                        </Td>
+                        <Td>
+                          <span className="block max-w-[200px] text-[11px] text-white/50">
+                            Secure coverage on {d.domain} to displace competitor citations
+                          </span>
+                        </Td>
+                      </tr>
+                    )
+                  })
                 ) : (
                   <EmptyBody cols={9} message="No editorial domain data from Peec AI" />
                 )}
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-text-muted">
-            Article Title, URL, and Competitors Mentioned require URL-level citation data from Peec AI (currently domain-level only).
-          </p>
+          {!calendarIsDemo && (
+            <p className="text-[10px] text-text-muted">
+              Article Title, URL, and Competitors Mentioned require URL-level citation data from Peec AI (currently domain-level only).
+            </p>
+          )}
         </div>
 
         <div className="border-t border-white/[0.06]" />
@@ -932,9 +1019,53 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
           <p className="text-xs text-text-muted">
             Specific competitor pages cited across multiple prompt clusters. These are the pages your content needs to outperform.
           </p>
-          <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-            <p className="text-xs text-text-muted">Requires URL-level citation data from Peec AI Pro</p>
-          </div>
+          {calendarIsDemo ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    <Th>Competitor URL</Th>
+                    <Th>Competitor</Th>
+                    <Th>Prompt Clusters Cited In</Th>
+                    <Th>Total Citations</Th>
+                    <Th>Avg Position</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {[
+                    { url: 'ogilvy.com/insights/brand-authority-in-llms',     competitor: 'Ogilvy',           clusters: ['Brand authority', 'Reputation / trust', 'Industry expertise'], citations: 24, avgPos: 2.1 },
+                    { url: 'edelman.com/research/trust-barometer-2026',       competitor: 'Edelman',          clusters: ['Reputation / trust', 'Buying-stage research'],                 citations: 19, avgPos: 2.4 },
+                    { url: 'webershandwick.com/work/ai-pr-case-studies',      competitor: 'Weber Shandwick',  clusters: ['Industry expertise', 'Competitive comparison'],                citations: 17, avgPos: 3.0 },
+                    { url: 'bcw-global.com/expertise/aeo-services',           competitor: 'BCW',              clusters: ['Brand authority', 'Buying-stage research'],                    citations: 14, avgPos: 3.3 },
+                    { url: 'fleishmanhillard.com/2026/ai-search-report',      competitor: 'FleishmanHillard', clusters: ['Industry expertise', 'Reputation / trust', 'Brand authority'], citations: 13, avgPos: 2.7 },
+                    { url: 'mslgroup.com/insights/generative-pr',             competitor: 'MSL',              clusters: ['Industry expertise', 'Competitive comparison'],                citations: 11, avgPos: 3.5 },
+                  ].map(row => (
+                    <tr key={row.url}>
+                      <Td>
+                        <span className="font-mono text-[10px] text-white/70 max-w-[220px] block truncate" title={row.url}>
+                          {row.url}
+                        </span>
+                      </Td>
+                      <Td><span className="font-medium text-white/80">{row.competitor}</span></Td>
+                      <Td>
+                        <div className="flex flex-wrap gap-1">
+                          {row.clusters.map(c => (
+                            <span key={c} className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/60">{c}</span>
+                          ))}
+                        </div>
+                      </Td>
+                      <Td><span className="tabular-nums text-white">{row.citations}</span></Td>
+                      <Td><span className="tabular-nums text-white">#{row.avgPos.toFixed(1)}</span></Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
+              <p className="text-xs text-text-muted">Requires URL-level citation data from Peec AI Pro</p>
+            </div>
+          )}
         </div>
       </SectionCard>
 

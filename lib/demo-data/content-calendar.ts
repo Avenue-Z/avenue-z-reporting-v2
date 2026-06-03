@@ -1,7 +1,7 @@
 /**
- * Sample ContentCalendarData for demo mode. Used when ?demo=1 is on the
- * URL AND the real fetch returned null (no contentCalendarSheetId
- * configured) or errored.
+ * Sample ContentCalendarData for demo mode. Used when demoMode is on AND
+ * the real fetch returned null (no contentCalendarSheetId configured) or
+ * errored.
  */
 import type { ContentCalendarData, ContentCalendarRow } from '@/lib/content-calendar/types'
 

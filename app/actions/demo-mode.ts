@@ -6,14 +6,11 @@ import { revalidatePath } from 'next/cache'
 /**
  * Toggle the demoMode cookie for the current session.
  *
- * Used by the <DemoModeToggle> control in the sidebar. The cookie
- * overrides the user's `users.demoMode` DB flag — letting a demo user
- * temporarily turn demo content off (to look at real data) without
- * needing a DB write or sign-out / sign-in.
- *
- * Logic in the route handlers:
- *   if (user is a demo user) demoMode = cookie !== 'off'
- *   else                      demoMode = cookie === 'on' || ?demo=1
+ * Used by the <DemoModeToggle> control in the sidebar. Demo mode is
+ * gated by the users.demoMode DB flag; this cookie only lets a demo
+ * user temporarily turn it OFF for the session (to look at real data)
+ * without a DB write or sign-out / sign-in. Non-demo users cannot set
+ * this cookie to anything meaningful — the resolver ignores it.
  */
 export async function setDemoMode(value: 'on' | 'off') {
   const store = await cookies()
