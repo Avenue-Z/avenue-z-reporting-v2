@@ -192,7 +192,11 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
     calendarData = sampleContentCalendarData()
     ga4Rows = SAMPLE_GA4_CONTENT_IMPACT_ROWS
   }
-  if (demoMode && (!agentData || agentData.totalBotVisits === 0)) {
+  // Force-substitute agentData when demoMode is on (not just when empty)
+  // so the demo shows consistent bot activity even if the signed-in
+  // client has real Peec data with unhelpful values (e.g. visits but
+  // 0% success rates).
+  if (demoMode) {
     agentData = sampleAgentAnalytics()
   }
 

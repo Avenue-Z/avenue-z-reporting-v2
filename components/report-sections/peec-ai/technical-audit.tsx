@@ -730,8 +730,11 @@ export async function TechnicalAuditReport({ clientSlug, demoMode = false }: { c
   // B (delta), C (trends), D (bot activity), E (page overlap), and
   // F (anomalies) so the audit demos consistently regardless of which
   // integrations the signed-in client has wired up.
-  if (demoMode && !sfData)                                      sfData    = sampleSFData()
-  if (demoMode && (!agentData || agentData.totalBotVisits === 0)) agentData = sampleAgentAnalytics()
+  // Force-substitute when demoMode is on (not just when the real fetch
+  // came back empty) so the demo shows consistent SF + bot activity
+  // even if the signed-in client has real data with unhelpful values.
+  if (demoMode) sfData    = sampleSFData()
+  if (demoMode) agentData = sampleAgentAnalytics()
 
   // Log any errors server-side (visible in Vercel logs / local dev)
   if (sfResult.status       === 'rejected') console.error('[technical-audit] SF data error:', sfResult.reason)
