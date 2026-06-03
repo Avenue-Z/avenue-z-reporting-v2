@@ -7,6 +7,9 @@ import { getClientBySlug } from '@/lib/db/queries'
 import type { SFData, SFIssueDelta, SFDeltaStatus } from '@/lib/screaming-frog/types'
 import type { AgentAnalyticsData, AgentBot } from '@/lib/peec/agent-analytics'
 import type { AEOChecklist, AEOChecklistItem, AEOStatus } from '@/lib/sitebulb/types'
+import { sampleSFData } from '@/lib/demo-data/screaming-frog'
+import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
+import { SampleDataBadge } from '@/lib/demo-data/badge'
 
 // ── UI primitives ─────────────────────────────────────────────────────────────
 
@@ -396,7 +399,7 @@ function BotTable({ bots }: { bots: AgentBot[] }) {
 
 // ── Section E: High-value page overlap ────────────────────────────────────────
 
-function PageOverlapTable({ agentData, sfData, clientDomain }: { agentData: AgentAnalyticsData; sfData: SFData; clientDomain: string }) {
+function PageOverlapTable({ agentData, sfData, clientDomain, demoMode = false }: { agentData: AgentAnalyticsData; sfData: SFData; clientDomain: string; demoMode?: boolean }) {
   const severityRank: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 }
   const issuesByUrl = new Map<string, { count: number; highestSeverity: string }>()
 
@@ -430,9 +433,15 @@ function PageOverlapTable({ agentData, sfData, clientDomain }: { agentData: Agen
     return <EmptyBody cols={11} message="No AI bot visit data available" />
   }
 
+  const demoCites    = [12, 8, 5, 0, 18, 3, 14, 0, 9, 22, 4, 11, 6, 0, 16]
+  const demoIndex    = [187, 142, 98, 56, 234, 43, 168, 31, 121, 289, 52, 147, 76, 24, 192]
+  const demoTraining = [89, 64, 47, 23, 112, 19, 81, 14, 58, 137, 27, 71, 36, 11, 92]
+  const demoHumans   = [42, 28, 19, 8, 51, 6, 36, 4, 24, 67, 12, 31, 17, 3, 38]
+  const demoDeltas   = ['+3 new', 'unchanged', '−1 resolved', 'unchanged', '+2 new', 'unchanged', '+1 new', 'unchanged', '−2 resolved', '+4 new', 'unchanged', '+1 new', 'unchanged', 'unchanged', '−1 resolved']
+
   return (
     <>
-      {rows.map((p) => (
+      {rows.map((p, rIdx) => (
         <tr key={p.path}>
           <Td><span className="font-mono text-[10px] text-white/60 max-w-[140px] truncate block" title={p.path}>{p.path}</span></Td>
           <Td>
@@ -442,11 +451,11 @@ function PageOverlapTable({ agentData, sfData, clientDomain }: { agentData: Agen
               {p.type}
             </span>
           </Td>
-          <Td><span className="text-white/20 tabular-nums">--</span></Td>
-          <Td><span className="text-white/20 tabular-nums">--</span></Td>
-          <Td><span className="text-white/20 tabular-nums">--</span></Td>
+          <Td>{demoMode ? <span className="tabular-nums text-white">{demoCites[rIdx % demoCites.length]}</span> : <span className="text-white/20 tabular-nums">--</span>}</Td>
+          <Td>{demoMode ? <span className="tabular-nums text-white/70">{demoIndex[rIdx % demoIndex.length]}</span> : <span className="text-white/20 tabular-nums">--</span>}</Td>
+          <Td>{demoMode ? <span className="tabular-nums text-white/70">{demoTraining[rIdx % demoTraining.length]}</span> : <span className="text-white/20 tabular-nums">--</span>}</Td>
           <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
-          <Td><span className="text-white/20 tabular-nums">--</span></Td>
+          <Td>{demoMode ? <span className="tabular-nums text-white/70">{demoHumans[rIdx % demoHumans.length]}</span> : <span className="text-white/20 tabular-nums">--</span>}</Td>
           <Td><span className="tabular-nums text-white">{p.issueData?.count ?? 0}</span></Td>
           <Td>
             {p.issueData ? (
@@ -455,7 +464,13 @@ function PageOverlapTable({ agentData, sfData, clientDomain }: { agentData: Agen
               </span>
             ) : <span className="text-white/20">--</span>}
           </Td>
-          <Td><span className="text-white/20">--</span></Td>
+          <Td>{demoMode ? (
+            <span className={cn('text-[10px] font-semibold',
+              demoDeltas[rIdx % demoDeltas.length].startsWith('+') ? 'text-[#FF4444]' :
+              demoDeltas[rIdx % demoDeltas.length].startsWith('−') ? 'text-[#60FF80]' :
+              'text-white/40'
+            )}>{demoDeltas[rIdx % demoDeltas.length]}</span>
+          ) : <span className="text-white/20">--</span>}</Td>
           <Td>
             {p.priorityFlag ? (
               <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
@@ -694,7 +709,7 @@ function DataUnavailable({ label }: { label: string }) {
 
 // ── Main RSC ──────────────────────────────────────────────────────────────────
 
-export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string }) {
+export async function TechnicalAuditReport({ clientSlug, demoMode = false }: { clientSlug: string; demoMode?: boolean }) {
   // Get client config for domain and other client-specific settings
   const clientConfig = await getClientBySlug(clientSlug)
   const clientDomain = clientConfig?.domain ?? ''
@@ -706,9 +721,17 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
     getAgentAnalytics(clientSlug),
   ])
 
-  const sfData       = sfResult.status       === 'fulfilled' ? sfResult.value       : null
+  let sfData       = sfResult.status       === 'fulfilled' ? sfResult.value       : null
   const sitebulbData = sitebulbResult.status === 'fulfilled' ? sitebulbResult.value : null
-  const agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
+  let agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
+
+  // Demo mode: substitute realistic sample data for SF + agent analytics
+  // when the real fetches returned null/empty. Powers Sections A (KPIs),
+  // B (delta), C (trends), D (bot activity), E (page overlap), and
+  // F (anomalies) so the audit demos consistently regardless of which
+  // integrations the signed-in client has wired up.
+  if (demoMode && !sfData)                                      sfData    = sampleSFData()
+  if (demoMode && (!agentData || agentData.totalBotVisits === 0)) agentData = sampleAgentAnalytics()
 
   // Log any errors server-side (visible in Vercel logs / local dev)
   if (sfResult.status       === 'rejected') console.error('[technical-audit] SF data error:', sfResult.reason)
@@ -745,8 +768,11 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFFC60]/10">
           <Settings className="h-5 w-5 text-[#FFFC60]" />
         </span>
-        <div>
-          <h2 className="text-lg font-bold text-white">Technical Audit Logs</h2>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-white">Technical Audit Logs</h2>
+            {demoMode && <SampleDataBadge />}
+          </div>
           <p className="mt-0.5 text-sm text-text-muted">
             AEO technical health — structured data, crawlability, AI bot behavior, and the issue delta between crawl snapshots.
           </p>
@@ -877,7 +903,7 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} />
+                <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} demoMode={demoMode} />
               </tbody>
             </table>
           </div>
@@ -924,7 +950,7 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
                   {agentData.topPaths.length > 0 ? (
-                    agentData.topPaths.map((p) => {
+                    agentData.topPaths.map((p, pIdx) => {
                       const LOW_VALUE = ['/robots.txt', '/sitemap', '/wp-json/', '/oembed', '/.well-known/', '/feed/', '/xmlrpc', '/wp-admin']
                       const isLowValue = LOW_VALUE.some(lv => p.path.toLowerCase().includes(lv))
                       const isRedirected = p.status >= 300 && p.status < 400
@@ -935,10 +961,22 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
                         : isRedirected ? 'Consolidate redirect chain to direct URL'
                         : isLowValue ? 'Verify robots.txt — limit unnecessary bot access'
                         : 'Monitor — strategic page with healthy bot activity'
+                      const demoPlatforms = ['OpenAI', 'OpenAI', 'Anthropic', 'Perplexity', 'Google', 'Anthropic', 'OpenAI', 'Perplexity', 'Google', 'Anthropic', 'OpenAI', 'Perplexity']
+                      const demoBotTypes  = ['search', 'training', 'training', 'retrieval', 'training', 'retrieval', 'search', 'retrieval', 'training', 'training', 'search', 'retrieval']
+                      const demoLastSeen  = ['2026-06-02T10:34Z', '2026-06-02T08:51Z', '2026-06-02T03:18Z', '2026-06-01T22:07Z', '2026-06-01T19:42Z', '2026-06-01T14:23Z', '2026-06-01T11:18Z', '2026-06-01T06:51Z', '2026-05-31T20:04Z', '2026-05-31T15:27Z', '2026-05-31T09:43Z', '2026-05-30T23:18Z']
+                      const platform = demoMode ? demoPlatforms[pIdx % demoPlatforms.length] : null
+                      const botType  = demoMode ? demoBotTypes[pIdx % demoBotTypes.length] : null
+                      const lastSeen = demoMode ? demoLastSeen[pIdx % demoLastSeen.length] : null
                       return (
                         <tr key={p.path}>
-                          <Td><span className="text-white/20">--</span></Td>
-                          <Td><span className="text-white/20">--</span></Td>
+                          <Td>{platform ? <span className="text-white/70">{platform}</span> : <span className="text-white/20">--</span>}</Td>
+                          <Td>{botType ? (
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize',
+                              botType === 'training'  ? 'bg-[#FFFC60]/10 text-[#FFFC60]' :
+                              botType === 'retrieval' ? 'bg-[#60FDFF]/10 text-[#60FDFF]' :
+                              'bg-[#60FF80]/10 text-[#60FF80]'
+                            )}>{botType}</span>
+                          ) : <span className="text-white/20">--</span>}</Td>
                           <Td><span className="font-mono text-[10px] text-white/60 max-w-[140px] truncate block" title={p.path}>{p.path}</span></Td>
                           <Td>
                             <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
@@ -971,7 +1009,7 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
                               {isStrategic ? 'Yes' : 'No'}
                             </span>
                           </Td>
-                          <Td><span className="text-white/20">--</span></Td>
+                          <Td>{lastSeen ? <span className="font-mono text-[10px] text-white/30">{lastSeen}</span> : <span className="text-white/20">--</span>}</Td>
                           <Td><span className="text-[11px] text-white/50">{action}</span></Td>
                         </tr>
                       )
@@ -982,7 +1020,9 @@ export async function TechnicalAuditReport({ clientSlug }: { clientSlug: string 
                 </tbody>
               </table>
             </div>
-            <p className="text-[10px] text-text-muted">AI Platform and Bot Type per path require per-path bot breakdown (currently aggregated across bots). Last Seen requires extended log retention from Peec.</p>
+            {!demoMode && (
+              <p className="text-[10px] text-text-muted">AI Platform and Bot Type per path require per-path bot breakdown (currently aggregated across bots). Last Seen requires extended log retention from Peec.</p>
+            )}
           </>
         ) : (
           <DataUnavailable label="Peec agent analytics unavailable" />

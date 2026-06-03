@@ -76,7 +76,7 @@ function getReportComponent(
     case 'peec-ai':
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} demoMode={demoMode} />
-      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} />
+      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} demoMode={demoMode} />
       return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
     default:
       return null

@@ -449,9 +449,40 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                         {row.citedByAI ? 'Yes' : 'No'}
                       </span>
                     </Td>
-                    <Td><span className="text-white/60">{row.aiEnginesCiting.length > 0 ? row.aiEnginesCiting.join(', ') : '--'}</span></Td>
-                    <Td><span className="tabular-nums text-white">{row.promptCount > 0 ? row.promptCount : '--'}</span></Td>
-                    <Td><span className="tabular-nums text-white/60">{row.averagePosition !== null ? row.averagePosition.toFixed(1) : '--'}</span></Td>
+                    <Td>
+                      {prIsDemo ? (
+                        <span className="text-white/70">{[
+                          'ChatGPT, Claude',
+                          'Perplexity',
+                          'ChatGPT, Gemini',
+                          'Claude, Perplexity, Copilot',
+                          'ChatGPT',
+                          'Gemini, Perplexity',
+                          'ChatGPT, Claude, Gemini',
+                          'Perplexity, Copilot',
+                          'ChatGPT, Perplexity',
+                          'Claude',
+                          'ChatGPT, Gemini, Copilot',
+                          'Perplexity, Claude',
+                        ][i % 12]}</span>
+                      ) : (
+                        <span className="text-white/60">{row.aiEnginesCiting.length > 0 ? row.aiEnginesCiting.join(', ') : '--'}</span>
+                      )}
+                    </Td>
+                    <Td>
+                      {prIsDemo ? (
+                        <span className="tabular-nums text-white">{[14, 9, 22, 6, 31, 11, 18, 4, 27, 13, 8, 16][i % 12]}</span>
+                      ) : (
+                        <span className="tabular-nums text-white">{row.promptCount > 0 ? row.promptCount : '--'}</span>
+                      )}
+                    </Td>
+                    <Td>
+                      {prIsDemo ? (
+                        <span className="tabular-nums text-white">#{(1.4 + (i % 7) * 0.45).toFixed(1)}</span>
+                      ) : (
+                        <span className="tabular-nums text-white/60">{row.averagePosition !== null ? row.averagePosition.toFixed(1) : '--'}</span>
+                      )}
+                    </Td>
                     <Td>{prIsDemo ? (
                       <span className="tabular-nums text-[#60FF80]">↑ {[18, 24, 12, 31, 9, 17, 28, 14, 22, 11, 26, 19][i % 12]}%</span>
                     ) : (
@@ -501,7 +532,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                   {editorialDomains.slice(0, 15).map((d, idx) => {
                     const maxRetrieved = Math.max(...editorialDomains.slice(0, 15).map(x => x.retrieved), 1)
                     const barWidth = (d.retrieved / maxRetrieved) * 100
-                    const hasPR = prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false
+                    // In demo mode, deterministically vary so ~half of rows
+                    // get a "Yes" and the other half "No" — gives a realistic
+                    // mix instead of a single category dominating.
+                    const hasPR = prIsDemo
+                      ? [true, false, true, true, false, true, false, true, false, true, false, true, true, false, true][idx % 15]
+                      : (prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false)
                     const promptCov = getEditorialPromptCoverage(d.domain)
                     return (
                       <tr key={d.domain}>
@@ -539,6 +575,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                           {hasPR ? (
                             <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#60FF80]">
                               Yes
+                            </span>
+                          ) : prIsDemo ? (
+                            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold text-white/40">
+                              No
                             </span>
                           ) : (
                             <span className="text-white/20">--</span>

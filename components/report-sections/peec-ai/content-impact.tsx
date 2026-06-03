@@ -7,6 +7,7 @@ import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarData, ContentCalendarRow, MatchStatus } from '@/lib/content-calendar/types'
 import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
+import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query } from '@/lib/ga4/client'
@@ -174,7 +175,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
   ])
 
   const peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
-  const agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
+  let   agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
   let   calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
   let   ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
 
@@ -184,10 +185,15 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
   // the per-row Sessions/Users/Views/Engagement Rate columns in
   // Section B (and the downstream aggregates in C/D) populate instead
   // of joining sample URLs against real GA4 and finding nothing.
+  // Agent analytics gets the same treatment so Sections G-3 and I
+  // (which read agentData.topPaths / .bots) populate fully.
   const calendarIsDemo = demoMode && (!calendarData || calendarData.rows.length === 0)
   if (calendarIsDemo) {
     calendarData = sampleContentCalendarData()
     ga4Rows = SAMPLE_GA4_CONTENT_IMPACT_ROWS
+  }
+  if (demoMode && (!agentData || agentData.totalBotVisits === 0)) {
+    agentData = sampleAgentAnalytics()
   }
 
   if (peecResult.status     === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
@@ -372,8 +378,16 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                           {row.contentAction}
                         </span>
                       </Td>
-                      <Td><span className="text-white/40 text-[10px]">{row.publishDate ?? '--'}</span></Td>
-                      <Td><span className="text-white/40 text-[10px]">{row.updateDate ?? '--'}</span></Td>
+                      <Td>
+                        <span className="text-white/40 text-[10px]">
+                          {row.publishDate ?? (calendarIsDemo ? ['2026-05-12', '2026-04-28', '2026-04-09', '2026-03-22', '2026-03-04', '2026-02-15', '2026-01-30', '2026-01-14', '2025-12-22', '2025-12-05', '2025-11-19', '2025-10-30', '2025-10-12'][i % 13] : '--')}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-white/40 text-[10px]">
+                          {row.updateDate ?? (calendarIsDemo ? ['2026-05-28', '2026-05-04', '2026-04-22', '2026-04-08', '2026-03-18', '2026-03-01', '2026-02-12', '2026-01-25', '2026-01-08', '2025-12-18', '2025-12-01', '2025-11-09', '2025-10-24'][i % 13] : '--')}
+                        </span>
+                      </Td>
                       {/* GA4 columns -- live when service account has GA4 access */}
                       {(() => {
                         const g = getGA4Metrics(row.url, ga4Rows)
@@ -411,6 +425,8 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                       <Td>
                         {hasBotVisits ? (
                           <span className="tabular-nums text-[#60FDFF]">{row.aiBotVisits}</span>
+                        ) : calendarIsDemo ? (
+                          <span className="tabular-nums text-[#60FDFF]">{[47, 23, 18, 89, 12, 156, 31, 8, 64, 212, 27, 73, 41][i % 13]}</span>
                         ) : (
                           <span className="text-white/20">0</span>
                         )}
@@ -692,7 +708,11 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                       <Td><span className="font-mono text-[10px] text-white/70">{r.url}</span></Td>
                       <Td><span className="text-white/70">{r.topic}</span></Td>
                       <Td><span className="tabular-nums text-white">{r.sessions.toLocaleString()}</span></Td>
-                      <Td><span className="tabular-nums text-white/40">{r.cites}</span></Td>
+                      <Td>
+                        <span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">
+                          {r.cites} citations
+                        </span>
+                      </Td>
                       <Td><span className="text-[11px] text-white/60">{r.note}</span></Td>
                     </tr>
                   ))
@@ -771,19 +791,22 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {agentData.topPaths.slice(0, 10).map(p => {
+                  {agentData.topPaths.slice(0, 10).map((p, idx) => {
                     // Try to match this path to a content calendar row
                     const calMatch = enrichedRows.find(r => {
                       const rPath = extractPath(r.url)
                       return rPath && (rPath === p.path || rPath === p.path.replace(/\/$/, ''))
                     })
+                    const demoTopic = ['Services Overview', 'About Avenue Z', 'Brand Authority', 'GEO Glossary', 'How to Audit Brand', 'Renaissance Case Study', 'Press: TechCrunch', 'Pricing', 'AEO Services', '2026 AI Trends'][idx % 10]
+                    const demoCites = [3, 1, 8, 12, 5, 2, 4, 0, 6, 9][idx % 10]
+                    const demoSessions = [42, 18, 87, 156, 64, 31, 53, 12, 78, 109][idx % 10]
                     return (
                       <tr key={p.path}>
                         <Td><span className="font-mono text-[10px] text-white/60">{p.path}</span></Td>
-                        <Td><span className="text-white/50">{calMatch?.topic ?? '--'}</span></Td>
+                        <Td><span className="text-white/50">{calMatch?.topic ?? (calendarIsDemo ? demoTopic : '--')}</span></Td>
                         <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
-                        <Td><span className="text-white/40">--</span></Td>
-                        <Td><span className="text-white/20">--</span></Td>
+                        <Td>{calendarIsDemo ? <span className="tabular-nums text-white">{demoCites}</span> : <span className="text-white/40">--</span>}</Td>
+                        <Td>{calendarIsDemo ? <span className="tabular-nums text-white/70">{demoSessions}</span> : <span className="text-white/20">--</span>}</Td>
                         <Td>
                           <span className="text-[11px] text-white/50">
                             {p.status >= 400 ? 'Error page -- fix or redirect'
@@ -839,11 +862,15 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
                 {competitorDomains.length > 0 ? (
-                  competitorDomains.slice(0, 10).map(d => {
+                  competitorDomains.slice(0, 10).map((d, i) => {
                     const maxRetrieved = Math.max(...competitorDomains.slice(0, 10).map(x => x.retrieved), 1)
                     const barWidth = (d.retrieved / maxRetrieved) * 100
-                    const promptCov = getPromptCoverage(d.domain)
-                    const themeCov  = getThemeCoverage(d.domain)
+                    const promptCovReal = getPromptCoverage(d.domain)
+                    const themeCovReal  = getThemeCoverage(d.domain)
+                    const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
+                    const demoThemeCov  = [3, 2, 4, 1, 5, 1, 3, 4, 2, 2][i % 10]
+                    const promptCov = promptCovReal !== null && promptCovReal > 0 ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
+                    const themeCov  = themeCovReal > 0 ? themeCovReal : (calendarIsDemo ? demoThemeCov : 0)
                     return (
                       <tr key={d.domain}>
                         <Td>
