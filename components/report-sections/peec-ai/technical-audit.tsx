@@ -9,6 +9,7 @@ import type { AgentAnalyticsData, AgentBot } from '@/lib/peec/agent-analytics'
 import type { AEOChecklist, AEOChecklistItem, AEOStatus } from '@/lib/sitebulb/types'
 import { sampleSFData } from '@/lib/demo-data/screaming-frog'
 import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
+import { sampleSitebulbData } from '@/lib/demo-data/sitebulb'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 
 // ── UI primitives ─────────────────────────────────────────────────────────────
@@ -722,19 +723,18 @@ export async function TechnicalAuditReport({ clientSlug, demoMode = false }: { c
   ])
 
   let sfData       = sfResult.status       === 'fulfilled' ? sfResult.value       : null
-  const sitebulbData = sitebulbResult.status === 'fulfilled' ? sitebulbResult.value : null
+  let sitebulbData = sitebulbResult.status === 'fulfilled' ? sitebulbResult.value : null
   let agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
 
-  // Demo mode: substitute realistic sample data for SF + agent analytics
-  // when the real fetches returned null/empty. Powers Sections A (KPIs),
-  // B (delta), C (trends), D (bot activity), E (page overlap), and
-  // F (anomalies) so the audit demos consistently regardless of which
-  // integrations the signed-in client has wired up.
-  // Force-substitute when demoMode is on (not just when the real fetch
-  // came back empty) so the demo shows consistent SF + bot activity
-  // even if the signed-in client has real data with unhelpful values.
-  if (demoMode) sfData    = sampleSFData()
-  if (demoMode) agentData = sampleAgentAnalytics()
+  // Demo mode: force-substitute every data source so the demo is
+  // exclusively synthetic. Powers Sections A (KPIs), B (delta), C
+  // (trends), D (bot activity), E (page overlap), F (anomalies), and
+  // the AEO Checklist at the bottom.
+  if (demoMode) {
+    sfData       = sampleSFData()
+    agentData    = sampleAgentAnalytics()
+    sitebulbData = sampleSitebulbData()
+  }
 
   // Log any errors server-side (visible in Vercel logs / local dev)
   if (sfResult.status       === 'rejected') console.error('[technical-audit] SF data error:', sfResult.reason)

@@ -8,6 +8,7 @@ import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarData, ContentCalendarRow, MatchStatus } from '@/lib/content-calendar/types'
 import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
 import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
+import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query } from '@/lib/ga4/client'
@@ -174,30 +175,21 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
     }),
   ])
 
-  const peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
-  let   agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
-  let   calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
-  let   ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
+  let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
+  let agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
+  let calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
+  let ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
 
-  // Demo mode: when the calendar fetch returned null (client has no
-  // contentCalendarSheetId) or errored, substitute realistic sample data.
-  // We also substitute the GA4 page rows with matching sample data so
-  // the per-row Sessions/Users/Views/Engagement Rate columns in
-  // Section B (and the downstream aggregates in C/D) populate instead
-  // of joining sample URLs against real GA4 and finding nothing.
-  // Agent analytics gets the same treatment so Sections G-3 and I
-  // (which read agentData.topPaths / .bots) populate fully.
-  const calendarIsDemo = demoMode && (!calendarData || calendarData.rows.length === 0)
-  if (calendarIsDemo) {
-    calendarData = sampleContentCalendarData()
-    ga4Rows = SAMPLE_GA4_CONTENT_IMPACT_ROWS
-  }
-  // Force-substitute agentData when demoMode is on (not just when empty)
-  // so the demo shows consistent bot activity even if the signed-in
-  // client has real Peec data with unhelpful values (e.g. visits but
-  // 0% success rates).
+  // Demo mode: force-substitute every data source so the demo is
+  // exclusively synthetic — no mixing of real client data with sample
+  // data. `calendarIsDemo` is retained as the boolean some downstream
+  // render paths read, but it now equals `demoMode` (no empty guard).
+  const calendarIsDemo = demoMode
   if (demoMode) {
-    agentData = sampleAgentAnalytics()
+    peecData     = samplePeecOverview()
+    agentData    = sampleAgentAnalytics()
+    calendarData = sampleContentCalendarData()
+    ga4Rows      = SAMPLE_GA4_CONTENT_IMPACT_ROWS
   }
 
   if (peecResult.status     === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
