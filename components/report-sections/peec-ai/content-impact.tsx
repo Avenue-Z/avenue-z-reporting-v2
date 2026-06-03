@@ -1217,31 +1217,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
-              {/* Recommendation 1: Error pages visited by AI bots */}
-              {agentData && agentData.errorPageHits > 0 && (
-                <tr>
-                  <Td><span className="font-medium text-white">Error pages (4xx/5xx)</span></Td>
-                  <Td><span className="text-white/60">{agentData.errorPageHits} AI bot visits hitting errors</span></Td>
-                  <Td><span className="text-white/50">AI Bot Data</span></Td>
-                  <Td><span className="text-white/60">Fix or redirect error pages visited by AI bots</span></Td>
-                  <Td><span className="text-white/50">Bots wasting crawl budget on dead pages</span></Td>
-                  <Td><span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">High</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Dev</span></Td>
-                </tr>
-              )}
-              {/* Recommendation 2: Redirect chains */}
-              {agentData && agentData.redirectHits > 10 && (
-                <tr>
-                  <Td><span className="font-medium text-white">Redirect chains</span></Td>
-                  <Td><span className="text-white/60">{agentData.redirectHits} AI bot visits hitting redirects</span></Td>
-                  <Td><span className="text-white/50">AI Bot Data</span></Td>
-                  <Td><span className="text-white/60">Consolidate redirect chains to direct canonical URLs</span></Td>
-                  <Td><span className="text-white/50">AI bots may not follow all redirect hops</span></Td>
-                  <Td><span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">Medium</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Dev</span></Td>
-                </tr>
-              )}
-              {/* Recommendation 3: Unpublished planned content */}
+              {/* Recommendation 1: Unpublished planned content */}
               {calendarData && calendarData.rows.filter(r => r.matchStatus === 'unpublished').length > 0 && (
                 <tr>
                   <Td><span className="font-medium text-white">Unpublished planned content</span></Td>
@@ -1255,19 +1231,19 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                   <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
                 </tr>
               )}
-              {/* Recommendation 4: Bot-crawled but zero citations */}
-              {agentData && agentData.topPaths.length > 0 && ownDomains.length === 0 && (
+              {/* Recommendation 2: Owned content cited by AI bots but not earning citations */}
+              {agentData && agentData.topPaths.length > 0 && (
                 <tr>
-                  <Td><span className="font-medium text-white">All crawled pages</span></Td>
-                  <Td><span className="text-white/60">{agentData.uniquePagesVisited} pages crawled by AI with 0 citations</span></Td>
+                  <Td><span className="font-medium text-white">High-crawl pages without citations</span></Td>
+                  <Td><span className="text-white/60">{agentData.uniquePagesVisited} pages crawled by AI bots; many earn 0 citations</span></Td>
                   <Td><span className="text-white/50">AI Bot + Peec AI</span></Td>
-                  <Td><span className="text-white/60">Add structured data (FAQ schema, Article schema) and direct answer blocks to key pages</span></Td>
-                  <Td><span className="text-white/50">Structured content earns higher AI citation rates than unstructured pages</span></Td>
+                  <Td><span className="text-white/60">Add direct answer blocks, FAQ schema, and clearer entity definitions on top-crawled pages</span></Td>
+                  <Td><span className="text-white/50">LLMs extract better from structured, definitional content than narrative copy</span></Td>
                   <Td><span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">Medium</span></Td>
                   <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
                 </tr>
               )}
-              {/* Recommendation 5: Competitor-dominated clusters */}
+              {/* Recommendation 3: Competitor-dominated clusters */}
               {competitorDomains.length > 0 && (
                 <tr>
                   <Td><span className="font-medium text-white">Competitor-dominated clusters</span></Td>
@@ -1279,8 +1255,34 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                   <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
                 </tr>
               )}
+              {/* Recommendation 4: Brand-absent editorial domains -- pitch coverage */}
+              {editorialDomains.length > 0 && (
+                <tr>
+                  <Td><span className="font-medium text-white">High-cite editorial outlets w/o brand mention</span></Td>
+                  <Td><span className="text-white/60">{editorialDomains.length} editorial domains AI cites where brand is absent</span></Td>
+                  <Td><span className="text-white/50">Peec AI</span></Td>
+                  <Td><span className="text-white/60">Brief PR / editorial team to pitch contributed pieces, expert quotes, or data exclusives to these outlets</span></Td>
+                  <Td><span className="text-white/50">Earned coverage on AI-trusted outlets compounds brand citation share</span></Td>
+                  <Td><span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">Medium</span></Td>
+                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content / PR</span></Td>
+                </tr>
+              )}
+              {/* Recommendation 5: Low-visibility tracked prompts -- create direct-answer content */}
+              {peecData && peecData.trackedPrompts.filter(p => p.visibility < 30).length > 0 && (
+                <tr>
+                  <Td><span className="font-medium text-white">Low-visibility tracked prompts</span></Td>
+                  <Td><span className="text-white/60">
+                    {peecData.trackedPrompts.filter(p => p.visibility < 30).length} prompts where brand visibility &lt; 30%
+                  </span></Td>
+                  <Td><span className="text-white/50">Peec AI</span></Td>
+                  <Td><span className="text-white/60">Write direct-answer pages targeting each low-visibility prompt: clear definition, comparison table, and named-entity references</span></Td>
+                  <Td><span className="text-white/50">Direct-answer pages are the highest-yield format for LLM citation</span></Td>
+                  <Td><span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">High</span></Td>
+                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
+                </tr>
+              )}
               {/* Fallback: no data */}
-              {!agentData && !calendarData && ownDomains.length === 0 && competitorDomains.length === 0 && (
+              {!agentData && !calendarData && ownDomains.length === 0 && competitorDomains.length === 0 && editorialDomains.length === 0 && !peecData && (
                 <EmptyBody cols={7} message="Connect content calendar and GA4 to generate URL-level recommendations" />
               )}
             </tbody>
