@@ -343,7 +343,7 @@ export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlu
             <TrackedPromptsChart prompts={peecData.trackedPrompts} brandName={peecYou?.name ?? process.env.PEEC_AI_YOUR_BRAND} />
           )}
 
-          <p className="text-xs text-text-muted">Live data from Peec AI</p>
+          <p className="text-xs text-text-muted">{peecIsDemo ? 'Sample data — demo mode' : 'Live data from Peec AI'}</p>
         </>
       )}
 
@@ -420,7 +420,7 @@ export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlu
             <ProfoundTrackedPromptsChart prompts={profoundData.trackedPrompts} />
           )}
 
-          <p className="text-xs text-text-muted">{profoundIsDemo ? 'Sample data shown — Profound not yet configured for this client' : 'Live data from Profound'}</p>
+          <p className="text-xs text-text-muted">{profoundIsDemo ? 'Sample data — demo mode' : 'Live data from Profound'}</p>
         </>
       )}
 

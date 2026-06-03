@@ -259,7 +259,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
       </div>
 
       {calendarIsDemo && (
-        <div><SampleDataBadge note="content calendar not yet configured for this client" /></div>
+        <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
       )}
 
       {/* ── Section A: KPI Strip (PRD: 6-8 cards) ─────────────────────────── */}

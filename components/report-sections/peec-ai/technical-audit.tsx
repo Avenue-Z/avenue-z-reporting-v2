@@ -711,9 +711,12 @@ function DataUnavailable({ label }: { label: string }) {
 // ── Main RSC ──────────────────────────────────────────────────────────────────
 
 export async function TechnicalAuditReport({ clientSlug, demoMode = false }: { clientSlug: string; demoMode?: boolean }) {
-  // Get client config for domain and other client-specific settings
+  // Get client config for domain and other client-specific settings.
+  // In demo mode, override with the sample SF fixture's domain so the
+  // page-overlap matching and FixList URL stripping behave consistently
+  // — otherwise the real client's domain leaks into a sample render.
   const clientConfig = await getClientBySlug(clientSlug)
-  const clientDomain = clientConfig?.domain ?? ''
+  const clientDomain = demoMode ? 'avenuez.com' : (clientConfig?.domain ?? '')
 
   // Fetch all data sources in parallel, with graceful degradation on each
   const [sfResult, sitebulbResult, agentResult] = await Promise.allSettled([

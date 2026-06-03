@@ -307,7 +307,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     <div className="space-y-8">
 
       {prIsDemo && (
-        <div><SampleDataBadge note="PR Proof Library sample shown — connect a sheet to see real placements" /></div>
+        <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
       )}
 
       {/* ── Section A: KPI Strip (PRD: 6 cards) ── */}
@@ -498,7 +498,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         {matchbackRows.length > 0 && (
           <p className="mt-4 text-[10px] text-text-muted">
             Showing {matchbackRows.length} placements across 14 columns. {placementsCitedByAI} cited by AI engines.
-            Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.
+            {!prIsDemo && ' Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.'}
           </p>
         )}
       </SectionCard>
@@ -592,9 +592,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
                 <span className="h-2.5 w-2.5 rounded bg-[#60FF80]/60" />
                 <span className="text-[10px] text-text-muted">Has PR placement</span>
               </div>
-              <span className="ml-auto text-[10px] text-text-muted">
-                Avg Position requires per-domain position data from Peec AI Pro
-              </span>
+              {!prIsDemo && (
+                <span className="ml-auto text-[10px] text-text-muted">
+                  Avg Position requires per-domain position data from Peec AI Pro
+                </span>
+              )}
             </div>
           </>
         ) : (
@@ -706,9 +708,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
             </tbody>
           </table>
         </div>
-        <p className="mt-4 text-[10px] text-text-muted">
-          Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
-        </p>
+        {!prIsDemo && (
+          <p className="mt-4 text-[10px] text-text-muted">
+            Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
+          </p>
+        )}
       </SectionCard>
 
       {/* ── Section E: Prompt Cluster Opportunity Matrix (PRD: heatmap/matrix) ── */}
