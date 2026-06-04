@@ -362,7 +362,7 @@ function ClientSidebar({
                 }
 
                 const visibleSlugs = group.slugs.filter((slug) =>
-                  client.enabledReports.includes(slug as any)
+                  client.enabledReports.includes(slug as any) || AEO_TOOLS[slug]
                 )
                 if (visibleSlugs.length === 0) return null
                 return (
