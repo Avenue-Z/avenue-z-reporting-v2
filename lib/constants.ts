@@ -121,3 +121,9 @@ export const ALL_REPORT_SLUGS: string[] = [
   'seo-to-aeo-converter',
   'prompt-demand-navigator',
 ]
+
+/** External AEO tool links */
+export const AEO_TOOLS: Record<string, string> = {
+  'seo-to-aeo-converter': 'https://seo-to-aeo-converter.vercel.app/',
+  'prompt-demand-navigator': 'https://prompt-demand-navigator.vercel.app/',
+}
