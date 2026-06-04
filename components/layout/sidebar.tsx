@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { DemoModeToggle } from './demo-mode-toggle'
-import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, AEO_TOOLS } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
@@ -554,17 +554,31 @@ function ClientSidebar({
 
                         return (
                           <li key={slug}>
-                            <Link
-                              href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
-                              className={cn(
-                                'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-                                isActive
-                                  ? 'bg-white/[0.08] text-white'
-                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
-                              )}
-                            >
-                              {REPORT_NAMES[slug] ?? slug}
-                            </Link>
+                            {AEO_TOOLS[slug] ? (
+                              <a
+                                href={AEO_TOOLS[slug]}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(
+                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                                )}
+                              >
+                                {REPORT_NAMES[slug] ?? slug}
+                              </a>
+                            ) : (
+                              <Link
+                                href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
+                                className={cn(
+                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  isActive
+                                    ? 'bg-white/[0.08] text-white'
+                                    : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                                )}
+                              >
+                                {REPORT_NAMES[slug] ?? slug}
+                              </Link>
+                            )}
                           </li>
                         )
                       })}

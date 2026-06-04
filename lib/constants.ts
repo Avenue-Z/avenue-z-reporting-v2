@@ -70,6 +70,8 @@ export const REPORT_NAMES: Record<string, string> = {
   gohighlevel: 'GoHighLevel',
   'ticket-sales': 'Ticket Sales',
   'request-a-report': 'Request a Report',
+  'seo-to-aeo-converter': 'SEO → AEO Converter',
+  'prompt-demand-navigator': 'Prompt Demand Navigator',
 }
 
 /** Sidebar nav groups in display order */
@@ -86,7 +88,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
   },
   {
     label: 'Tools',
-    slugs: ['request-a-report'],
+    slugs: ['request-a-report', 'seo-to-aeo-converter', 'prompt-demand-navigator'],
   },
 ]
 
@@ -116,4 +118,12 @@ export const ALL_REPORT_SLUGS: string[] = [
   'inbound-funnel',
   'hubspot-performance',
   'request-a-report',
+  'seo-to-aeo-converter',
+  'prompt-demand-navigator',
 ]
+
+/** External AEO tool links */
+export const AEO_TOOLS: Record<string, string> = {
+  'seo-to-aeo-converter': 'https://seo-to-aeo-converter.vercel.app/',
+  'prompt-demand-navigator': 'https://prompt-demand-navigator.vercel.app/',
+}
