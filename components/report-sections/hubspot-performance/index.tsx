@@ -1,4 +1,5 @@
-import { getPipelineDeals, getOwnerMap } from '@/lib/hubspot/client'
+import { getPipelineDeals, getOwnerMap, HUBSPOT_SEARCH_CONCURRENCY, type OwnerMap } from '@/lib/hubspot/client'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { PipelineStageAccordion } from './pipeline-stage-accordion'
 import { LeadSourceChart } from './lead-source-chart'
@@ -82,9 +83,17 @@ function yoyDelta(current: number, prior: number): number | undefined {
 }
 
 export async function HubSpotPerformanceReport({ clientSlug }: HubSpotPerformanceProps) {
-  // Sequential — HubSpot search API is rate-limited to 4 req/s
-  const deals    = await getPipelineDeals(clientSlug)
-  const ownerMap = await getOwnerMap(clientSlug)
+  // Parallel with a per-render concurrency gate (HubSpot search ~4 req/s).
+  // deals is load-bearing → rethrow on failure (preserves error-boundary
+  // behavior). ownerMap degrades to {} — call sites already fall back to the
+  // raw owner id via `ownerMap[id] ?? id`.
+  const [dealsRes, ownerMapRes] = await mapWithConcurrency(
+    [() => getPipelineDeals(clientSlug), () => getOwnerMap(clientSlug)],
+    HUBSPOT_SEARCH_CONCURRENCY,
+  )
+  if (dealsRes.status === 'rejected') throw dealsRes.reason
+  const deals = dealsRes.value
+  const ownerMap: OwnerMap = ownerMapRes.status === 'fulfilled' ? ownerMapRes.value : {}
 
   const closeYear = (d: { properties: { closedate: string | null } }, yr: number) => {
     const cd = d.properties.closedate
