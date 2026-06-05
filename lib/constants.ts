@@ -70,8 +70,6 @@ export const REPORT_NAMES: Record<string, string> = {
   gohighlevel: 'GoHighLevel',
   'ticket-sales': 'Ticket Sales',
   'request-a-report': 'Request a Report',
-  'seo-to-aeo-converter': 'SEO → AEO Converter',
-  'prompt-demand-navigator': 'Prompt Demand Navigator',
 }
 
 /** Sidebar nav groups in display order */
@@ -88,7 +86,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
   },
   {
     label: 'Tools',
-    slugs: ['request-a-report', 'seo-to-aeo-converter', 'prompt-demand-navigator'],
+    slugs: ['request-a-report'],
   },
 ]
 
@@ -118,12 +116,43 @@ export const ALL_REPORT_SLUGS: string[] = [
   'inbound-funnel',
   'hubspot-performance',
   'request-a-report',
-  'seo-to-aeo-converter',
-  'prompt-demand-navigator',
 ]
 
-/** External AEO tool links */
-export const AEO_TOOLS: Record<string, string> = {
-  'seo-to-aeo-converter': 'https://seo-to-aeo-converter.vercel.app/',
-  'prompt-demand-navigator': 'https://prompt-demand-navigator.vercel.app/',
+/**
+ * Internal team-tools registry for the /tools area.
+ *
+ * Hardcoded for now (single team). Forward path to make teams dynamic: promote
+ * this to a `teams` table + Drizzle query helper mirroring `clients` in lib/db/,
+ * keeping the TeamDef/ToolDef shape so page and sidebar code need not change.
+ */
+export interface ToolDef {
+  slug: string
+  name: string
+  url: string
+  description?: string
 }
+
+export interface TeamDef {
+  slug: string
+  name: string
+  tools: ToolDef[]
+}
+
+export const TEAMS: TeamDef[] = [
+  {
+    slug: 'aeo',
+    name: 'AEO',
+    tools: [
+      {
+        slug: 'seo-to-aeo-converter',
+        name: 'SEO → AEO Converter',
+        url: 'https://seo-to-aeo-converter.vercel.app/',
+      },
+      {
+        slug: 'prompt-demand-navigator',
+        name: 'Prompt Demand Navigator',
+        url: 'https://prompt-demand-navigator.vercel.app/',
+      },
+    ],
+  },
+]

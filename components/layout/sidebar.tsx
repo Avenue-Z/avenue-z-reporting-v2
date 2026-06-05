@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { DemoModeToggle } from './demo-mode-toggle'
-import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, AEO_TOOLS } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, TEAMS } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
@@ -16,6 +16,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Wrench,
 } from 'lucide-react'
 import { AvenueZLogo } from './avenue-z-logo'
 
@@ -50,19 +51,46 @@ interface SidebarUser {
 
 interface SidebarProps {
   user?: SidebarUser
-  clients: Client[]
+  clients?: Client[]
   /** Whether demoMode is currently effective for this render — drives the
    *  toggle's visual state. Computed by the layout from the user's flag
    *  AND the demoMode cookie (which the user can flip via the toggle). */
   demoModeEffective?: boolean
 }
 
-export function Sidebar({ user, clients, demoModeEffective = false }: SidebarProps) {
+export function Sidebar({ user, clients = [], demoModeEffective = false }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
 
   const pathParts = pathname.split('/')
+
+  // Tools area: /tools (teams list) and /tools/[teamSlug] (a team's tools)
+  if (pathParts[1] === 'tools') {
+    const teamSlug =
+      pathParts.length >= 3 && pathParts[2] !== '' ? pathParts[2] : null
+    if (teamSlug) {
+      return (
+        <TeamSidebar
+          teamSlug={teamSlug}
+          user={user}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((c) => !c)}
+          demoModeEffective={demoModeEffective}
+        />
+      )
+    }
+    return (
+      <ToolsSidebar
+        pathname={pathname}
+        user={user}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+        demoModeEffective={demoModeEffective}
+      />
+    )
+  }
+
   const clientSlug =
     pathParts[1] === 'dashboard' && pathParts.length >= 3 && pathParts[2] !== ''
       ? pathParts[2]
@@ -178,6 +206,31 @@ function MainSidebar({
             >
               <LayoutGrid className="h-5 w-5 shrink-0" />
               {!collapsed && <span>Dashboard</span>}
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/tools"
+              title="Tools"
+              className={cn(
+                'flex items-center rounded-md transition-colors',
+                collapsed
+                  ? cn(
+                      'h-9 w-9 justify-center',
+                      pathname.startsWith('/tools')
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-text-muted hover:bg-white/[0.06] hover:text-white'
+                    )
+                  : cn(
+                      'gap-3 px-2 py-2 text-sm font-semibold',
+                      pathname.startsWith('/tools')
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )
+              )}
+            >
+              <Wrench className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>Tools</span>}
             </Link>
           </li>
         </ul>
@@ -362,7 +415,7 @@ function ClientSidebar({
                 }
 
                 const visibleSlugs = group.slugs.filter((slug) =>
-                  client.enabledReports.includes(slug as any) || AEO_TOOLS[slug]
+                  client.enabledReports.includes(slug as any)
                 )
                 if (visibleSlugs.length === 0) return null
                 return (
@@ -554,31 +607,17 @@ function ClientSidebar({
 
                         return (
                           <li key={slug}>
-                            {AEO_TOOLS[slug] ? (
-                              <a
-                                href={AEO_TOOLS[slug]}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={cn(
-                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-                                  'text-text-muted hover:bg-white/[0.04] hover:text-white'
-                                )}
-                              >
-                                {REPORT_NAMES[slug] ?? slug}
-                              </a>
-                            ) : (
-                              <Link
-                                href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
-                                className={cn(
-                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-                                  isActive
-                                    ? 'bg-white/[0.08] text-white'
-                                    : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
-                                )}
-                              >
-                                {REPORT_NAMES[slug] ?? slug}
-                              </Link>
-                            )}
+                            <Link
+                              href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                isActive
+                                  ? 'bg-white/[0.08] text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                              )}
+                            >
+                              {REPORT_NAMES[slug] ?? slug}
+                            </Link>
                           </li>
                         )
                       })}
@@ -588,6 +627,227 @@ function ClientSidebar({
               })}
             </div>
           )}
+        </nav>
+      )}
+
+      {/* User section */}
+      <div className={cn('border-t border-white/[0.06] p-2', !collapsed && 'mt-auto')}>
+        <UserFooter user={user} collapsed={collapsed} demoModeEffective={demoModeEffective} />
+      </div>
+    </aside>
+  )
+}
+
+// ─── Tools sidebar (tools home — teams list) ─────────────────────────────────
+
+function ToolsSidebar({
+  pathname,
+  user,
+  collapsed,
+  onToggle,
+  demoModeEffective,
+}: {
+  pathname: string
+  user?: SidebarUser
+  collapsed: boolean
+  onToggle: () => void
+  demoModeEffective: boolean
+}) {
+  return (
+    <aside
+      className={cn(
+        'flex h-screen flex-col bg-bg-surface transition-all duration-200',
+        collapsed ? 'w-14' : 'w-64'
+      )}
+    >
+      {/* Logo + toggle */}
+      <div className="flex h-16 shrink-0 items-center justify-between px-3">
+        {!collapsed && (
+          <Link href="/dashboard" className="px-3 text-white">
+            <AvenueZLogo height={20} />
+          </Link>
+        )}
+        <CollapseToggle collapsed={collapsed} onToggle={onToggle} />
+      </div>
+
+      {/* Navigation */}
+      <nav className={cn('flex flex-1 flex-col', collapsed ? 'items-center px-1 pt-1' : 'px-2')}>
+        <ul className="flex flex-col gap-1">
+          <li>
+            <Link
+              href="/dashboard"
+              title="Dashboard"
+              className={cn(
+                'flex items-center rounded-md transition-colors',
+                collapsed
+                  ? 'h-9 w-9 justify-center text-text-muted hover:bg-white/[0.06] hover:text-white'
+                  : 'gap-3 px-2 py-2 text-sm font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white'
+              )}
+            >
+              <LayoutGrid className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>Dashboard</span>}
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/tools"
+              title="Tools"
+              className={cn(
+                'flex items-center rounded-md transition-colors',
+                collapsed
+                  ? cn(
+                      'h-9 w-9 justify-center',
+                      pathname === '/tools'
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-text-muted hover:bg-white/[0.06] hover:text-white'
+                    )
+                  : cn(
+                      'gap-3 px-2 py-2 text-sm font-semibold',
+                      pathname === '/tools'
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )
+              )}
+            >
+              <Wrench className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>Tools</span>}
+            </Link>
+          </li>
+        </ul>
+
+        {/* Teams section */}
+        <div className={collapsed ? 'mt-2 flex flex-col gap-1' : 'mt-6'}>
+          {!collapsed && (
+            <p className="mb-2 px-2 text-xs font-semibold text-text-muted">Teams</p>
+          )}
+          <ul className="flex flex-col gap-1">
+            {TEAMS.map((team) => {
+              const isActive = pathname.startsWith(`/tools/${team.slug}`)
+              return (
+                <li key={team.slug}>
+                  <Link
+                    href={`/tools/${team.slug}`}
+                    title={team.name}
+                    className={cn(
+                      'group flex items-center rounded-md transition-colors',
+                      collapsed
+                        ? cn(
+                            'h-9 w-9 justify-center',
+                            isActive
+                              ? 'bg-white/[0.08] text-white'
+                              : 'text-text-muted hover:bg-white/[0.06] hover:text-white'
+                          )
+                        : cn(
+                            'gap-3 px-2 py-2 text-sm font-semibold',
+                            isActive
+                              ? 'bg-white/[0.08] text-white'
+                              : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                          )
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold',
+                        isActive
+                          ? 'text-black'
+                          : 'border border-white/[0.12] text-text-muted group-hover:text-white'
+                      )}
+                      style={
+                        isActive
+                          ? {
+                              backgroundImage:
+                                'linear-gradient(135deg, #FFFC60, #60FF80, #60FDFF, #39A0FF, #6034FF)',
+                            }
+                          : undefined
+                      }
+                    >
+                      {getInitial(team.name)}
+                    </span>
+                    {!collapsed && <span className="truncate">{team.name}</span>}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </nav>
+
+      {/* User section */}
+      <div className="mt-auto border-t border-white/[0.06] p-2">
+        <UserFooter user={user} collapsed={collapsed} demoModeEffective={demoModeEffective} />
+      </div>
+    </aside>
+  )
+}
+
+// ─── Team sidebar (a single team's tools) ────────────────────────────────────
+
+function TeamSidebar({
+  teamSlug,
+  user,
+  collapsed,
+  onToggle,
+  demoModeEffective,
+}: {
+  teamSlug: string
+  user?: SidebarUser
+  collapsed: boolean
+  onToggle: () => void
+  demoModeEffective: boolean
+}) {
+  const team = TEAMS.find((t) => t.slug === teamSlug)
+  const teamName = team?.name ?? teamSlug
+
+  return (
+    <aside
+      className={cn(
+        'flex h-screen flex-col bg-bg-surface transition-all duration-200',
+        collapsed ? 'w-14' : 'w-64'
+      )}
+    >
+      {/* Logo + toggle */}
+      <div className="flex h-16 shrink-0 items-center justify-between px-3">
+        {!collapsed && (
+          <Link href="/dashboard" className="px-3 text-white">
+            <AvenueZLogo height={20} />
+          </Link>
+        )}
+        <CollapseToggle collapsed={collapsed} onToggle={onToggle} />
+      </div>
+
+      {/* Back to teams */}
+      {!collapsed && (
+        <div className="px-3">
+          <Link
+            href="/tools"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition-colors hover:bg-white/[0.04] hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            All Teams
+          </Link>
+        </div>
+      )}
+
+      {/* Team name + tools */}
+      {!collapsed && (
+        <nav className="flex-1 overflow-y-auto px-2 pt-2">
+          <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+            {teamName}
+          </p>
+          <ul className="flex flex-col gap-0.5">
+            {team?.tools.map((tool) => (
+              <li key={tool.slug}>
+                <a
+                  href={tool.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition-colors hover:bg-white/[0.04] hover:text-white"
+                >
+                  {tool.name}
+                </a>
+              </li>
+            ))}
+          </ul>
         </nav>
       )}
 
