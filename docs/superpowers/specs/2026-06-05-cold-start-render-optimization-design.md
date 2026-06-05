@@ -1,7 +1,7 @@
 # Cold-Start Render Optimization — Design
 
 **Date:** 2026-06-05
-**Status:** Approved (revised after code review)
+**Status:** Approved (revised after code review; **Part 2 dropped** — see Part 2)
 
 ## Problem
 
@@ -26,8 +26,8 @@ concurrency.
 ## Goals / Success Criteria
 
 1. Reduce cold (cache-miss) render wall-time for the HubSpot-heavy sections.
-2. Reduce *perceived* cold-start on the heaviest mixed-vendor section
-   (`demand-overview`) by painting fast tiles before slow ones.
+2. ~~Reduce *perceived* cold-start on `demand-overview` via progressive
+   streaming.~~ **Dropped** — see Part 2.
 3. 429s are **self-healing**, not fatal: under concurrent cold load there are
    **zero unrecovered** HubSpot 429s (no `ok:false` rate-limit errors reach the
    render).
@@ -130,42 +130,33 @@ measured cost/429 driver, add request coalescing then.
 
 ---
 
-## Part 2 — Progressive Suspense streaming (`demand-overview` only)
+## Part 2 — Progressive Suspense streaming — DROPPED
 
-`demand-overview` is the one section that spans data sources with very
-different cold latencies: **fast GA4 + Peec** vs **slow HubSpot**. Today it is a
-single monolithic async component behind the page-level `<Suspense>`, so the
-skeleton holds until the *slowest* (HubSpot) data resolves.
+**Decision (2026-06-05): dropped during planning.** The premise was that
+`demand-overview` could be split into a fast (GA4+Peec) and a slow (HubSpot)
+Suspense boundary. Reading the full component
+(`components/report-sections/demand-overview/index.tsx`) showed the fast and
+slow data are **co-mingled inside single presentational components**, so no
+clean seam exists:
 
-### Change
+- `<DemandJourney stages={stages} />` renders one connected 4-stage funnel:
+  AEO (Peec) → Sessions (GA4) → **Online Contacts (HubSpot)** → **Open Pipeline
+  (HubSpot)**. One array, one component — the GA4 stage can't stream without the
+  HubSpot stages.
+- `<ContentFunnel stages={contentStages} />` likewise mixes Peec + GA4 +
+  HubSpot in one funnel.
+- Only the bottom `ContentMatrix` / `CitationBreakdown` are HubSpot-free, and
+  they sit below the fold.
 
-Split the monolith into independent async children, each owning its own
-`await` (a boundary can only suspend on data it fetches itself):
+The HubSpot-gated content is the headline funnel at the top; a "fast-first"
+split would either wrap the top funnel behind the HubSpot boundary anyway (no
+benefit) or require rebuilding `DemandJourney`/`ContentFunnel` for per-stage
+streaming (deep refactor + layout-shift risk on the primary visual — exactly
+what the granularity rationale warns against).
 
-- `GA4PeecTiles` (fast) — GA4 + Peec fetch/derive/render, own `<Suspense>`.
-- `HubSpotTiles` (slow) — contacts + deals fetch/derive/render, own
-  `<Suspense>` with a tile-dimension-matched skeleton.
-
-The parent renders the layout shell synchronously with two Suspense holes. GA4
-/ Peec tiles paint as soon as they resolve; HubSpot tiles stream in behind
-their skeleton. Final layout is unchanged.
-
-### Boundary granularity — rationale
-
-A Suspense boundary only earns its keep when its data is **independent** and
-resolves at a **meaningfully different time** than its siblings; otherwise it
-just adds skeleton flicker and layout-shift risk. That is why the split is
-per–independent-data-source, **not** per-section (only one section renders at a
-time, already behind the page-level Suspense) and **not** per-tile (tiles that
-derive from the same fetch can't suspend independently without duplicating the
-fetch).
-
-### Documented option — three-way split
-
-GA4 and Peec currently share the "fast" block, gated by `max(GA4, Peec)`. If
-`PERF_LOG` shows Peec is materially slower than GA4 on cold, split into three
-boundaries (GA4 / Peec / HubSpot) so GA4 doesn't wait on Peec. **Decision:**
-start two-way; promote to three-way only if cold timings justify it.
+Part 1 still speeds `demand-overview`'s cold render by parallelizing its four
+HubSpot calls; the section renders as one unit behind the existing page-level
+skeleton.
 
 ---
 
@@ -181,8 +172,8 @@ start two-way; promote to three-way only if cold timings justify it.
    HubSpot `ok:false` rate-limit lines in `PERF` output (429s all recovered by
    retry).
 4. Typecheck, lint, and existing tests green.
-5. Visually confirm `demand-overview` streams (GA4/Peec first, HubSpot skeleton
-   → fills) with no layout shift.
+5. Confirm `demand-overview` still renders correctly (no visual regression)
+   after its Phase 2 parallelization.
 
 ## Risks & Mitigations
 
@@ -200,5 +191,5 @@ start two-way; promote to three-way only if cold timings justify it.
 - `lib/concurrency.ts` (new — `mapWithConcurrency`)
 - `lib/hubspot/client.ts` (set `numberOfApiCallRetries: 3`)
 - `components/report-sections/inbound-funnel/index.tsx` (parallelize + gate)
-- `components/report-sections/demand-overview/index.tsx` (parallelize + gate + split)
+- `components/report-sections/demand-overview/index.tsx` (parallelize Phase 2 + gate)
 - `components/report-sections/hubspot-performance/index.tsx` (parallelize + gate)
