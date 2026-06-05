@@ -39,7 +39,7 @@ async function run() {
   assert.equal(mixed[1].status, 'rejected')
   assert.equal(mixed[2].status, 'fulfilled')
 
-  // 4) empty input returns empty array
+  // 4) empty input — spawns 1 worker that immediately exits; returns []
   assert.deepEqual(await mapWithConcurrency([], 4), [])
 
   console.log('OK lib/concurrency.test.ts passed')

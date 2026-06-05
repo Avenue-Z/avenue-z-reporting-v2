@@ -16,7 +16,7 @@ export async function mapWithConcurrency<
 ): Promise<{
   -readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>
 }> {
-  const results = new Array(thunks.length)
+  const results: PromiseSettledResult<unknown>[] = new Array(thunks.length)
   let next = 0
 
   async function worker(): Promise<void> {
