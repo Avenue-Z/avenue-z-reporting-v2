@@ -1,7 +1,7 @@
 # Cold-Start Render Optimization — Design
 
 **Date:** 2026-06-05
-**Status:** Approved (pending spec review)
+**Status:** Approved (revised after code review)
 
 ## Problem
 
@@ -14,78 +14,119 @@ shape the cache doesn't hold yet (a freshly deployed build, a user-selected
 date range or comparison the warm cron never populated, or any load in local
 dev where the cron never runs). On a cold render the section's wall-time is
 gated by how long its upstream vendor calls take, and several HubSpot-heavy
-sections fetch **serially on purpose** because there is no shared rate limiter.
+sections fetch **serially on purpose** because there is no rate-limit handling.
+
+Cold is also the *dangerous* path: post-deploy traffic, the warm cron, and real
+users can stampede the same uncached shapes at once. The warm cron itself fires
+`Promise.all` over **every** client×report URL
+(`app/api/cache-warm/route.ts`), a self-inflicted concurrent cold storm. The
+design must make the cold path faster **and** keep it safe under that
+concurrency.
 
 ## Goals / Success Criteria
 
 1. Reduce cold (cache-miss) render wall-time for the HubSpot-heavy sections.
 2. Reduce *perceived* cold-start on the heaviest mixed-vendor section
    (`demand-overview`) by painting fast tiles before slow ones.
-3. No regressions:
-   - Warm path and cache keys unchanged.
-   - No HubSpot `429` (rate-limit) errors under parallel load.
-   - Typecheck + lint + existing tests green.
-4. Measured with `PERF_LOG=1` + `CACHE_DISABLE=1`: cold render wall-time for
-   each touched section is materially lower after the change.
+3. 429s are **self-healing**, not fatal: under concurrent cold load there are
+   **zero unrecovered** HubSpot 429s (no `ok:false` rate-limit errors reach the
+   render).
+4. No regressions: warm path and cache keys unchanged; typecheck + lint +
+   existing tests green.
+5. Falsifiable target: per touched section, cold render wall-time after the
+   change is **≥ 30% lower** than its measured baseline (exact per-section
+   targets pinned from the baseline measurement in step 1 of Verification).
 
 ## Non-Goals
 
-- Expanding the cache-warm matrix (warm-coverage work was explicitly deferred —
-  defaults are already warm; deviations are combinatorial and low-yield).
+- A **distributed** (cross-instance) rate limiter. We accept best-effort
+  per-instance emission and rely on retry to absorb account-wide contention
+  (see Rate-limit strategy). Revisit only if real 429 pain is observed.
+- **Single-flight / request coalescing** of concurrent cold misses — named as a
+  known limitation below, not engineered now.
+- Expanding the cache-warm matrix (warm-coverage work was deferred; defaults
+  are already warm).
 - Changing the `cached()` / `unstable_cache` layer or TTLs.
-- Touching sections that are single-vendor and already parallel
-  (e.g. `ga4`) or that gain nothing from a Suspense split.
 
 ---
 
-## Part 1 — Shared HubSpot scheduler + parallelize
+## Part 1 — Make HubSpot fetches parallel and 429-safe
 
-### New unit: `lib/hubspot/scheduler.ts`
+Three changes, in dependency order. **There is no custom token-bucket
+scheduler** — an earlier draft proposed one; it was the wrong tool (a
+per-process bucket cannot bound an account-wide limit across serverless
+instances, and a single global FIFO would serialize every section to the
+limit, fighting the parallelism it was meant to enable).
 
-A module-level token-bucket rate limiter with a single responsibility: cap the
-global HubSpot request rate so callers can fire in parallel safely.
+### 1a. Enable the SDK's built-in 429 retry (the real defense)
 
-**Interface:**
+`@hubspot/api-client` v12 ships `RetryDecorator`
+(`node_modules/@hubspot/api-client/lib/src/services/decorators/RetryDecorator.js`),
+activated by passing `numberOfApiCallRetries` to `new Client(...)`. It is
+**search-aware**: on a 429 whose body message is `"You have reached your
+secondly limit."` it backs off `1000ms × attempt`; on the `TEN_SECONDLY_ROLLING`
+policy it backs off `10s × attempt`; on 5xx it backs off `200ms × attempt`.
 
-```ts
-// Queue a HubSpot call; resolves when the call completes, released at
-// no more than RATE requests per second (FIFO).
-export function schedule<T>(fn: () => Promise<T>): Promise<T>
-```
+Our client is currently `new Client({ accessToken: token })`
+(`lib/hubspot/client.ts:20`) — retries default to 0. Change to
+`new Client({ accessToken: token, numberOfApiCallRetries: 3 })`.
 
-- Default rate: **4 req/s** (HubSpot search API limit). Single source of truth
-  via a constant; easy to raise if the plan allows a higher search rate.
-- Module-level singleton — one shared bucket per server instance.
-- FIFO queue; no priorities, no cancellation (YAGNI).
+This makes a 429 a brief, self-healing backoff instead of a failure. Worst-case
+added latency for a single throttled call is `1s + 2s + 3s = 6s` across 3
+retries; in practice the secondly limit clears after the first 1s backoff.
 
-### Wiring
+### 1b. Parallelize the serial sections (graceful partial failure)
 
-Route the `hs.crm.*.searchApi.doSearch(...)` calls inside
-`lib/hubspot/client.ts` through `schedule(...)` at the lowest level, so **all**
-HubSpot search requests are governed globally regardless of how callers invoke
-them. Scope to `doSearch` (the 4 req/s endpoint); other HubSpot endpoints have
-higher limits and need not be throttled to the search rate.
-
-### Section changes — serial → parallel
-
-Once the limit is enforced globally, replace the hand-written serial awaits
-with parallel fetches:
+Replace the hand-written serial awaits with parallel fetches using
+**`Promise.allSettled`** + per-tile empty/error states (the pattern
+`demand-overview` already uses), so one bad vendor call degrades a single tile
+rather than the whole section:
 
 - `components/report-sections/inbound-funnel/index.tsx` — `OverviewView`:
-  6 serial awaits (`rangeStats`, `compareStats`, `mainTrend`, `compareTrend`,
-  `lifecycle`, `breakdown`) → `Promise.all` / `Promise.allSettled`.
+  6 serial awaits → parallel.
 - `components/report-sections/demand-overview/index.tsx` — Phase 2 HubSpot
   block (contacts / deals / yearly / breakdown) → parallel.
 - `components/report-sections/hubspot-performance/index.tsx` — `deals` +
-  `ownerMap` → `Promise.all`.
+  `ownerMap` → parallel.
 
-### Key safety property
+### 1c. Per-render concurrency gate (efficiency, not correctness)
 
-The scheduler lives **below** the `cached()` layer. A cache **hit** never runs
-the wrapped impl, so it makes no HubSpot call and never touches the scheduler —
-the warm path is completely unaffected. The scheduler only governs the cold
-path (actual upstream calls). Net cold effect: ~N serial round-trips →
-~⌈N / RATE⌉ batches.
+New helper `lib/concurrency.ts`:
+
+```ts
+// Run thunks with at most `limit` in flight at once. Fixed input array,
+// no growable queue — bounded by construction. Returns settled results.
+export function mapWithConcurrency<T>(
+  thunks: Array<() => Promise<T>>,
+  limit: number,
+): Promise<PromiseSettledResult<T>[]>
+```
+
+Each parallelized section above runs its HubSpot fetch thunks through
+`mapWithConcurrency(thunks, HUBSPOT_SEARCH_CONCURRENCY)` where
+`HUBSPOT_SEARCH_CONCURRENCY = 4` (single constant; tune in one place). This caps
+**a single render's own burst** at the secondly search limit, so a render that
+fires >4 search calls avoids self-inflicting a 429 + backoff.
+
+This is explicitly **per-render and best-effort** — it makes no account-wide
+rate guarantee. Cross-render / cross-instance contention is handled by 1a
+(retry), not by this gate. It is bounded by construction (fixed thunk array, at
+most `limit` concurrent, no unbounded queue, no per-call timeout needed).
+
+### Rate-limit strategy (summary)
+
+- **Correctness** (no unrecovered 429): SDK retry (1a). Holds across instances.
+- **Efficiency** (avoid self-inflicted 429s within one render): per-render gate
+  (1c).
+- We do **not** guarantee account-wide ≤ 4 req/s; we guarantee 429s are
+  absorbed. This is the deliberate trade for not adding distributed infra.
+
+### Known limitation — no single-flight coalescing
+
+`unstable_cache` does not coalesce concurrent misses, so two simultaneous cold
+requests for the same shape both fetch and both call HubSpot. With retry (1a)
+this is **wasteful, not fatal**. We accept it; if duplicate cold work becomes a
+measured cost/429 driver, add request coalescing then.
 
 ---
 
@@ -130,31 +171,34 @@ start two-way; promote to three-way only if cold timings justify it.
 
 ## Verification
 
-1. `PERF_LOG=1 CACHE_DISABLE=1`, load each touched section cold; record render
-   wall-time before vs after. Expect HubSpot sections materially faster.
-2. Under parallel load, confirm no HubSpot `429` responses (check error logs /
-   PERF `ok:false` lines).
-3. Confirm warm path unchanged: with the cache populated, cold-path changes are
-   inert (cache hit skips impl → no scheduler, no extra fetches).
+1. **Baseline.** `PERF_LOG=1 CACHE_DISABLE=1`, load each touched section cold,
+   record render wall-time. Pin the per-section ≥30% target (Goal 5) from these
+   numbers.
+2. **After.** Re-measure cold wall-time for each section; confirm it meets its
+   target.
+3. **Concurrency / 429 safety.** Hit `/api/cache-warm` (its `Promise.all` over
+   all URLs is the concurrent cold storm) with the cache cold; assert **zero**
+   HubSpot `ok:false` rate-limit lines in `PERF` output (429s all recovered by
+   retry).
 4. Typecheck, lint, and existing tests green.
 5. Visually confirm `demand-overview` streams (GA4/Peec first, HubSpot skeleton
    → fills) with no layout shift.
 
 ## Risks & Mitigations
 
-- **Over-throttling non-search HubSpot calls** — only `doSearch` is 4 req/s.
-  Mitigation: scope the scheduler to `doSearch` calls only.
-- **Scheduler starvation / unbounded queue growth** — keep FIFO and simple;
-  cold render fan-out is small (single section per request). No priority logic.
+- **Retry latency tail** — a throttled call can add up to ~6s across 3 retries.
+  Mitigation: cap at 3 retries; the per-render gate (1c) keeps most renders
+  under the secondly limit so retries are rare.
 - **Layout shift from the Suspense split** — match skeleton dimensions to the
   real tiles.
-- **Double rate-limiting** if a future caller wraps `schedule` again — keep the
-  scheduler call at exactly one layer (inside the low-level client helper).
+- **Per-render gate over-throttling** — gate wraps only the parallelized
+  HubSpot fan-out in the three sections, not unrelated calls; non-search HubSpot
+  calls are unaffected by the gate, and SDK retry only fires on actual 429s.
 
 ## Touched Files (anticipated)
 
-- `lib/hubspot/scheduler.ts` (new)
-- `lib/hubspot/client.ts` (route `doSearch` through `schedule`)
-- `components/report-sections/inbound-funnel/index.tsx`
-- `components/report-sections/demand-overview/index.tsx` (parallelize + split)
-- `components/report-sections/hubspot-performance/index.tsx`
+- `lib/concurrency.ts` (new — `mapWithConcurrency`)
+- `lib/hubspot/client.ts` (set `numberOfApiCallRetries: 3`)
+- `components/report-sections/inbound-funnel/index.tsx` (parallelize + gate)
+- `components/report-sections/demand-overview/index.tsx` (parallelize + gate + split)
+- `components/report-sections/hubspot-performance/index.tsx` (parallelize + gate)
