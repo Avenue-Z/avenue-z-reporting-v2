@@ -1,6 +1,7 @@
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { getPeecOverview } from '@/lib/peec/client'
-import { getContactStats, getYearlyContactStats, getPipelineDeals, getContactBreakdown } from '@/lib/hubspot/client'
+import { getContactStats, getYearlyContactStats, getPipelineDeals, getContactBreakdown, HUBSPOT_SEARCH_CONCURRENCY } from '@/lib/hubspot/client'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import { CHART_COLORS, AI_REFERRER_DOMAINS } from '@/lib/constants'
 import { DemandJourney } from './demand-journey'
 import { ContentFunnel } from './content-funnel'
@@ -110,16 +111,19 @@ export async function DemandOverviewReport({ clientSlug }: DemandOverviewProps) 
     getPeecOverview(clientSlug),
   ])
 
-  // ── Phase 2: HubSpot — sequential to respect 4 req/s rate limit ──────────
-  // getContactStats and getPipelineDeals both paginate heavily; running them
-  // concurrently alongside GA4 reliably triggers rate-limit rejections.
-  const [contactRes]      = await Promise.allSettled([getContactStats(clientSlug)])
-  const [dealsRes]        = await Promise.allSettled([getPipelineDeals(clientSlug)])
-  // These two reuse the React cache() from getContactStats — no extra pagination
-  const [contactYearlyRes, breakdownRes] = await Promise.allSettled([
-    getYearlyContactStats(clientSlug),
-    getContactBreakdown(clientSlug),
-  ])
+  // ── Phase 2: HubSpot — parallel with a per-render concurrency gate ────────
+  // Search ~4 req/s; SDK retry (numberOfApiCallRetries) absorbs any 429s from
+  // the heavy internal pagination. Results keep the same PromiseSettledResult
+  // shape the derivations below already consume.
+  const [contactRes, dealsRes, contactYearlyRes, breakdownRes] = await mapWithConcurrency(
+    [
+      () => getContactStats(clientSlug),
+      () => getPipelineDeals(clientSlug),
+      () => getYearlyContactStats(clientSlug),
+      () => getContactBreakdown(clientSlug),
+    ],
+    HUBSPOT_SEARCH_CONCURRENCY,
+  )
 
   // ── GA4 ──────────────────────────────────────────────────────────────────
   const ga4      = ga4Res.status      === 'fulfilled' ? ga4Res.value?.rows[0]    ?? {} : {}
