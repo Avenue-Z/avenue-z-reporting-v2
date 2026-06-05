@@ -8,7 +8,9 @@ import {
   getContactStatsForRange,
   getFormSubmissionCounts,
   getLifecycleStageCounts,
+  HUBSPOT_SEARCH_CONCURRENCY,
 } from '@/lib/hubspot/client'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { ContactsTrendChart } from './ytd-contact-chart'
@@ -77,19 +79,33 @@ async function OverviewView({
   const main    = parseDateRange(dateRange)
   const compare = deriveCompareRange(dateRange, compareRange)
 
-  // Sequential — HubSpot search API is rate-limited to 4 req/s
-  const rangeStats   = await getContactStatsForRange(clientSlug, main.startDate, main.endDate)
-  const compareStats = compare
-    ? await getContactStatsForRange(clientSlug, compare.startDate, compare.endDate)
-    : null
+  // Parallel with a per-render concurrency gate (HubSpot search ~4 req/s).
+  // rangeStats feeds every KPI → rethrow on failure (preserves error-boundary
+  // behavior). The independent blocks (trend chart, lifecycle funnel, quality
+  // mix) degrade to empty on their own failure rather than killing the section.
+  const [
+    rangeStatsRes, compareStatsRes,
+    mainTrendRes, compareTrendRes,
+    lifecycleRes, breakdownRes,
+  ] = await mapWithConcurrency(
+    [
+      () => getContactStatsForRange(clientSlug, main.startDate, main.endDate),
+      () => (compare ? getContactStatsForRange(clientSlug, compare.startDate, compare.endDate) : Promise.resolve(null)),
+      () => getDailyContactTrend(clientSlug, main.startDate, main.endDate),
+      () => (compare ? getDailyContactTrend(clientSlug, compare.startDate, compare.endDate) : Promise.resolve(null)),
+      () => getLifecycleStageCounts(clientSlug, main.startDate, main.endDate),
+      () => getContactBreakdown(clientSlug),
+    ],
+    HUBSPOT_SEARCH_CONCURRENCY,
+  )
 
-  const mainTrend    = await getDailyContactTrend(clientSlug, main.startDate, main.endDate)
-  const compareTrend = compare
-    ? await getDailyContactTrend(clientSlug, compare.startDate, compare.endDate)
-    : null
-
-  const lifecycle  = await getLifecycleStageCounts(clientSlug, main.startDate, main.endDate)
-  const breakdown  = await getContactBreakdown(clientSlug)
+  if (rangeStatsRes.status === 'rejected') throw rangeStatsRes.reason
+  const rangeStats   = rangeStatsRes.value
+  const compareStats = compareStatsRes.status === 'fulfilled' ? compareStatsRes.value : null
+  const mainTrend    = mainTrendRes.status    === 'fulfilled' ? mainTrendRes.value    : []
+  const compareTrend = compareTrendRes.status === 'fulfilled' ? compareTrendRes.value : null
+  const lifecycle    = lifecycleRes.status    === 'fulfilled' ? lifecycleRes.value    : []
+  const breakdown    = breakdownRes.status    === 'fulfilled' ? breakdownRes.value    : []
 
   // Zip main + compare daily series into TrendRow[]
   const chartData = mainTrend.map((row, i) => {
