@@ -1,23 +1,6 @@
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { TEAMS } from '@/lib/constants'
 import { ArrowRight } from 'lucide-react'
-
-const AVATAR_COLORS = [
-  'bg-brand-yellow text-black',
-  'bg-brand-green text-black',
-  'bg-brand-cyan text-black',
-  'bg-brand-blue text-white',
-  'bg-brand-purple text-white',
-]
-
-function getAvatarColor(name: string) {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
 
 export default function ToolsPage() {
   return (
@@ -39,10 +22,11 @@ export default function ToolsPage() {
             className="group relative flex items-center gap-4 rounded-lg border border-white/[0.06] bg-bg-surface p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.02]"
           >
             <span
-              className={cn(
-                'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base font-bold',
-                getAvatarColor(team.name)
-              )}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base font-extrabold text-black"
+              style={{
+                backgroundImage:
+                  'linear-gradient(135deg, #FFFC60, #60FF80, #60FDFF, #39A0FF, #6034FF)',
+              }}
             >
               {team.name.charAt(0).toUpperCase()}
             </span>

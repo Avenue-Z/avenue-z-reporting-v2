@@ -749,9 +749,17 @@ function ToolsSidebar({
                       className={cn(
                         'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold',
                         isActive
-                          ? getAvatarColor(team.name)
+                          ? 'text-black'
                           : 'border border-white/[0.12] text-text-muted group-hover:text-white'
                       )}
+                      style={
+                        isActive
+                          ? {
+                              backgroundImage:
+                                'linear-gradient(135deg, #FFFC60, #60FF80, #60FDFF, #39A0FF, #6034FF)',
+                            }
+                          : undefined
+                      }
                     >
                       {getInitial(team.name)}
                     </span>
