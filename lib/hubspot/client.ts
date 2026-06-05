@@ -5,6 +5,14 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { cached } from '@/lib/cache'
 import { byClient } from '@/lib/perf'
 
+/**
+ * Max concurrent HubSpot search calls a single render should fire. Matches the
+ * search API's ~4 req/s ceiling. Used as the `limit` for mapWithConcurrency in
+ * report sections. Best-effort per-render cap only — cross-render contention is
+ * absorbed by the SDK retry (numberOfApiCallRetries above).
+ */
+export const HUBSPOT_SEARCH_CONCURRENCY = 4
+
 const _clients = new Map<string, Client>()
 
 async function getHubSpotClientImpl(clientSlug: string): Promise<Client> {
@@ -17,7 +25,11 @@ async function getHubSpotClientImpl(clientSlug: string): Promise<Client> {
   const token = process.env[config.hubspotTokenEnvVar]
   if (!token) throw new Error(`Missing env var: ${config.hubspotTokenEnvVar}`)
 
-  const client = new Client({ accessToken: token })
+  // numberOfApiCallRetries activates the SDK's RetryDecorator, which is
+  // search-aware: it backs off on the "secondly limit" 429 (1s × attempt) and
+  // the ten-secondly rolling policy (10s × attempt), plus 5xx. This — not the
+  // per-render gate — is what makes a 429 self-healing under concurrent load.
+  const client = new Client({ accessToken: token, numberOfApiCallRetries: 3 })
   _clients.set(clientSlug, client)
   return client
 }
