@@ -6,6 +6,7 @@ import type { SFIssueDelta, SFDeltaStatus, SFData } from '@/lib/screaming-frog/t
 import type { AgentBot, AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, SITEBULB, SCREAMING_FROG } from '@/lib/peec/metric-definitions'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 // ── Shared style constants ────────────────────────────────────────────────────
 
@@ -69,13 +70,7 @@ function SectionCard({
         <div className="flex items-center gap-1.5">
           <h3 className="text-sm font-bold text-white">{title}</h3>
           {tooltip && (
-            <span className="group relative flex-shrink-0">
-              <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-              <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-                {tooltip}
-                <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-              </span>
-            </span>
+            <InfoTooltip text={tooltip} />
           )}
         </div>
         <p className="mt-1 text-xs text-text-muted">{description}</p>
@@ -873,13 +868,7 @@ export function FixListTable({ rows, hasDelta, errorPageHits }: FixListTableProp
       <div className="mb-4 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-[#60FDFF]" />
         <span className="text-sm font-bold text-white">What should SEO and dev fix next?</span>
-        <span className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            {AVZ_RECOMMENDED_ACTION}
-            <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </span>
-        </span>
+        <InfoTooltip text={AVZ_RECOMMENDED_ACTION} />
         {!hasDelta && (
           <span className="ml-2 text-[10px] text-white/30">Showing top current issues — upload a prior crawl CSV for delta-based prioritization</span>
         )}

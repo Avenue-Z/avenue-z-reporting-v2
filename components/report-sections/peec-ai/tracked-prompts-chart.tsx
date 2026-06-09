@@ -3,26 +3,14 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { TrackedPrompt } from '@/lib/peec/client'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 function ColHeader({ label, tooltip }: { label: string; tooltip?: string }) {
-  if (!tooltip) {
-    return (
-      <th className="px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right">
-        {label}
-      </th>
-    )
-  }
   return (
     <th className="px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right">
       <span className="inline-flex items-center gap-1 justify-end">
         {label}
-        <span className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-52 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            {tooltip}
-            <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </span>
-        </span>
+        {tooltip && <InfoTooltip text={tooltip} />}
       </span>
     </th>
   )
@@ -117,24 +105,12 @@ export function TrackedPromptsChart({ prompts, brandName }: { prompts: TrackedPr
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which prompts are AI engines answering with our brand?</p>
-          <span className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
-            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              Prompt metrics are live data from Peec.AI. Topic groupings are AI-inferred based on keyword patterns and may not be accurate — verify before sharing externally.
-              <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </span>
-          </span>
+          <InfoTooltip text="Prompt metrics are live data from Peec.AI. Topic groupings are AI-inferred based on keyword patterns and may not be accurate — verify before sharing externally." />
         </div>
         {prompts.length > 0 && (
           <p className="text-xs text-text-muted flex items-center gap-1">
             Total prompts: <span className="font-semibold text-white">{prompts.length.toLocaleString()}</span>
-            <span className="group relative flex-shrink-0">
-              <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-              <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 w-52 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-                Total number of unique prompts tracked in Peec.AI across all AI models and channels.
-                <span className="absolute right-2 top-full border-4 border-transparent border-t-white/[0.08]" />
-              </span>
-            </span>
+            <InfoTooltip text="Total number of unique prompts tracked in Peec.AI across all AI models and channels." />
           </p>
         )}
       </div>

@@ -18,6 +18,7 @@ import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
 import { cn } from '@/lib/utils'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 // --- Helpers ---
 
@@ -48,13 +49,7 @@ function KpiCard({
       <div className="flex items-center gap-1.5">
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{title}</p>
         {tooltip && (
-          <div className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              {tooltip}
-              <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </div>
-          </div>
+          <InfoTooltip text={tooltip} />
         )}
       </div>
       <p className="mt-2 text-3xl font-extrabold tabular-nums text-white">{value}</p>
@@ -94,13 +89,7 @@ function BrandSOVChart({ brands }: { brands: { name: string; sov: number }[] }) 
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-1">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which categories of brands earn AI share of voice?</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            {AVENUE_Z.brandTypes.text}
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text={AVENUE_Z.brandTypes.text} />
       </div>
       <p className="text-xs text-text-muted mb-4">Avg share of voice by category</p>
       <div className="space-y-2.5">
@@ -126,13 +115,7 @@ function BrandDefinitions() {
     <div className="flex-1 rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
       <div className="flex items-center gap-1.5 mb-3">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What do these brand categories mean?</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            {AVENUE_Z.brandTypes.text}
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text={AVENUE_Z.brandTypes.text} />
       </div>
       {BRAND_TYPE_DEFINITIONS.map(({ type, desc }) => (
         <div key={type} className="flex gap-2">
@@ -162,13 +145,7 @@ function DomainTypesChart({ types, source }: { types: { type: string; percentage
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-4">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What kinds of sources do AI models cite?</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Distribution of domain types across all sources cited by AI models. {AVENUE_Z.domainTypes.text}
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text={`Distribution of domain types across all sources cited by AI models. ${AVENUE_Z.domainTypes.text}`} />
       </div>
       <div className="space-y-2.5">
         {types.map((t) => (
@@ -193,13 +170,7 @@ function DomainTypeDefinitions({ source }: { source: 'peec' | 'profound' }) {
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
       <div className="flex items-center gap-1.5 mb-3">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What do these domain types mean?</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Domain types are classified by {source === 'profound' ? 'Profound' : 'Peec AI'} based on each domain's content and category.
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text={`Domain types are classified by ${source === 'profound' ? 'Profound' : 'Peec AI'} based on each domain's content and category.`} />
       </div>
       {[
         { type: 'Own',           color: '#60FDFF', desc: 'Your own owned domains.' },

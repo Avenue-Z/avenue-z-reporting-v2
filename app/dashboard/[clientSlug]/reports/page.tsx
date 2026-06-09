@@ -23,6 +23,7 @@ import { RequestAReportReport } from '@/components/report-sections/request-a-rep
 import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/period-selector'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import type { ReportSlug } from '@/lib/db/schema'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 function SectionSkeleton() {
   return (
@@ -145,7 +146,7 @@ export default async function ReportPage({
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
-    <>
+    <TooltipProvider delayDuration={150} skipDelayDuration={50}>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
         {((activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && subsection !== 'search-console') && (
           <Suspense fallback={null}>
@@ -166,6 +167,6 @@ export default async function ReportPage({
           {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode)}
         </Suspense>
       </ReportErrorBoundary>
-    </>
+    </TooltipProvider>
   )
 }

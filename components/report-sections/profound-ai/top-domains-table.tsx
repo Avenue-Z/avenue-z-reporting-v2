@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import type { TopDomain } from '@/lib/profound/client'
 import { PROFOUND } from '@/lib/peec/metric-definitions'
 import { SortableTable, type SortableColumn } from '../peec-ai/sortable-table'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 const TYPE_COLORS: Record<string, string> = {
   Own:           '#8A8A8A',
@@ -110,25 +111,13 @@ export function TopDomainsTable({
       <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which domains do AI engines cite most? (Profound)</p>
-          <span className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              {PROFOUND.citationShare.text}
-              <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </span>
-          </span>
+          <InfoTooltip text={PROFOUND.citationShare.text} />
         </div>
         <div className="flex items-center gap-3">
           {totalCitations > 0 && (
             <p className="flex items-center gap-1 text-xs text-text-muted">
               Total citations: <span className="font-semibold text-white">{totalCitations.toLocaleString()}</span>
-              <span className="group relative flex-shrink-0">
-                <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-                <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 w-52 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-                  {PROFOUND.citationShare.text}
-                  <span className="absolute right-2 top-full border-4 border-transparent border-t-white/[0.08]" />
-                </span>
-              </span>
+              <InfoTooltip text={PROFOUND.citationShare.text} />
             </p>
           )}
           <select
