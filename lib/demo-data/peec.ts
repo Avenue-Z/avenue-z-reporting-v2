@@ -83,7 +83,8 @@ const TOP_DOMAINS_YTD: TopDomain[] = [
   { domain: 'reddit.com',                  retrieved:  2.6, retrievedDelta:  0.4, citationRate:  3.9, citationRateDelta:  0.5, type: 'UGC' },
 ]
 
-const TRACKED_PROMPTS: TrackedPrompt[] = [
+// topicSource is added in samplePeecOverview() via .map, so it's omitted here.
+const TRACKED_PROMPTS: Omit<TrackedPrompt, 'topicSource'>[] = [
   // Agency Selection
   { text: 'best PR agency for tech startups',                    sources: ['ChatGPT', 'Claude', 'Perplexity'], visibility: 58.4, sov: 24.1, position: 1.8, group: 'Agency Selection' },
   { text: 'top digital marketing agencies 2026',                 sources: ['ChatGPT', 'Gemini'],               visibility: 48.2, sov: 19.3, position: 2.4, group: 'Agency Selection' },
