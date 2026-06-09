@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { WeeklyVisibility } from '@/lib/profound/client'
+import { PROFOUND } from '@/lib/peec/metric-definitions'
 
 export function VisibilityChart({
   data,
@@ -35,7 +36,16 @@ export function VisibilityChart({
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-text-muted">AI Visibility — Year to Date</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold uppercase tracking-widest text-text-muted">How has AI visibility grown this year? (Profound)</p>
+            <span className="group relative flex-shrink-0">
+              <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                {PROFOUND.visibility.text} This chart is fixed to year-to-date and does not respond to the page date picker.
+                <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
+              </span>
+            </span>
+          </div>
           {brandName && <p className="text-xs text-text-muted mt-0.5">{brandName} · weekly</p>}
         </div>
         <div className="flex items-center gap-4 text-[10px] text-text-muted">

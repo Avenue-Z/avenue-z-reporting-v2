@@ -412,22 +412,24 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
 
       {/* ── Section D: AI Bot Activity ── */}
       {agentData ? (
-        <>
-          <div className={cn(
-            'grid gap-3',
-            agentData.bots.length > 0
-              ? `grid-cols-2 sm:grid-cols-${Math.min(agentData.bots.length, 4)} lg:grid-cols-${Math.min(agentData.bots.length, 6)}`
-              : '',
-          )}>
-            {agentData.bots.slice(0, 6).map((bot) => (
-              <BotCard key={bot.botId} bot={bot} />
-            ))}
-            {agentData.bots.length === 0 && (
-              <p className="col-span-full text-xs text-text-muted">No AI bots detected in the last 30 days.</p>
-            )}
-          </div>
-          <BotActivityTable bots={agentData.bots} />
-        </>
+        <BotActivityTable
+          bots={agentData.bots}
+          summary={
+            <div className={cn(
+              'grid gap-3',
+              agentData.bots.length > 0
+                ? `grid-cols-2 sm:grid-cols-${Math.min(agentData.bots.length, 4)} lg:grid-cols-${Math.min(agentData.bots.length, 6)}`
+                : '',
+            )}>
+              {agentData.bots.slice(0, 6).map((bot) => (
+                <BotCard key={bot.botId} bot={bot} />
+              ))}
+              {agentData.bots.length === 0 && (
+                <p className="col-span-full text-xs text-text-muted">No AI bots detected in the last 30 days.</p>
+              )}
+            </div>
+          }
+        />
       ) : (
         <SectionCard
           title="Which AI platforms and bots are visiting the site?"

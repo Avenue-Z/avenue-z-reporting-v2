@@ -242,6 +242,7 @@ export function WhatChangedTable({ delta, hasPrev }: WhatChangedTableProps) {
 
 export interface BotActivityTableProps {
   bots: AgentBot[]
+  summary?: React.ReactNode
 }
 
 function botTypeLabel(botType: string | null): string {
@@ -251,7 +252,7 @@ function botTypeLabel(botType: string | null): string {
   return 'Agent'
 }
 
-export function BotActivityTable({ bots }: BotActivityTableProps) {
+export function BotActivityTable({ bots, summary }: BotActivityTableProps) {
   const columns: SortableColumn<AgentBot>[] = [
     {
       key: 'botName',
@@ -333,6 +334,7 @@ export function BotActivityTable({ bots }: BotActivityTableProps) {
       description="Which AI crawlers are actively visiting the site, at what frequency, and whether they are successfully accessing content or hitting blocks."
       tooltip={AVZ_BOT_PLATFORM}
     >
+      {summary && <div>{summary}</div>}
       <SortableTable
         columns={columns}
         rows={bots}
