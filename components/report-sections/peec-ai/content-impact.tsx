@@ -1,17 +1,48 @@
-import { FileText, Sparkles, Clock, TrendingUp, TrendingDown, Globe2 } from 'lucide-react'
+import { FileText, Clock, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
-import type { ContentCalendarData, ContentCalendarRow, MatchStatus } from '@/lib/content-calendar/types'
+import type { ContentCalendarData, ContentCalendarRow } from '@/lib/content-calendar/types'
 import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
 import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query } from '@/lib/ga4/client'
+import {
+  PlannedContentPerformanceTable,
+  OwnedContentCitedTable,
+  TrafficNoCitationsTable,
+  CitationsLittleTrafficTable,
+  BotAttentionNoCitationsTable,
+  CompetitorDomainsCitedTable,
+  CompetitorUrlsBrandAbsentTable,
+  RepeatedCompetitorPagesTable,
+  AISystemsInteractingTable,
+  ContentTeamRecommendationsTable,
+  type PlannedContentRow,
+  type OwnedContentCitedRow,
+  type TrafficNoCitationsRow,
+  type CitationsLittleTrafficRow,
+  type BotAttentionNoCitationsRow,
+  type CompetitorDomainsCitedRow,
+  type CompetitorUrlsBrandAbsentRow,
+  type RepeatedCompetitorPagesRow,
+  type AISystemsInteractingRow,
+  type ContentTeamRecommendationsRow,
+} from './content-impact-tables'
+/**
+ * Peec only returns 'YTD' and 'Last 30 days' aggregates from getPeecOverview.
+ * Map the page-level dateRange to one of those two keys for the relevant tiles.
+ */
+function peecRangeKey(dateRange?: string): 'YTD' | 'Last 30 days' {
+  if (!dateRange) return 'Last 30 days'
+  if (['last_7_days', 'last_14_days', 'last_30_days', 'this_month'].includes(dateRange)) return 'Last 30 days'
+  return 'YTD'
+}
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -84,30 +115,6 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
   )
 }
 
-function EmptyBody({ cols, message }: { cols: number; message: string }) {
-  return (
-    <tr>
-      <td colSpan={cols} className="py-10 text-center text-xs text-text-muted">{message}</td>
-    </tr>
-  )
-}
-
-// ─── Status badge helpers ──────────────────────────────────────────────────────
-
-const MATCH_STATUS_COLORS: Record<MatchStatus, string> = {
-  matched:     'bg-[#60FF80]/10 text-[#60FF80]',
-  unmatched:   'bg-white/[0.06] text-white/40',
-  redirected:  'bg-[#FFFC60]/10 text-[#FFFC60]',
-  unpublished: 'bg-[#FF4444]/10 text-[#FF4444]',
-  unknown:     'bg-white/[0.06] text-white/30',
-}
-
-const ACTION_COLORS: Record<string, string> = {
-  new:       'bg-[#60FF80]/10 text-[#60FF80]',
-  optimized: 'bg-[#39A0FF]/10 text-[#39A0FF]',
-  other:     'bg-white/[0.06] text-white/40',
-}
-
 // ─── Cross-reference helpers ───────────────────────────────────────────────────
 
 /** Extract path from a URL for agent analytics matching */
@@ -161,14 +168,14 @@ function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
 
 // ─── Main async RSC ──────────────────────────────────────────────────────────
 
-export async function ContentImpactReport({ clientSlug, demoMode = false }: { clientSlug: string; demoMode?: boolean }) {
+export async function ContentImpactReport({ clientSlug, dateRange, demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
   const [peecResult, agentResult, calendarResult, ga4Result] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
     ga4Query({                          // page-level sessions for Section B -- requires ga4PropertyId
       clientSlug,
-      dateRange: 'last_30_days',
+      dateRange: dateRange ?? 'last_30_days',
       metrics: ['sessions', 'activeUsers', 'screenPageViews', 'engagementRate'],
       dimensions: ['pagePath'],
       limit: 1000,
@@ -198,9 +205,11 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
   if (ga4Result.status      === 'rejected') console.error('[content-impact] GA4 error:', ga4Result.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
-  const ownDomains        = (peecData?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Own')
-  const competitorDomains = (peecData?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Competitor')
-  const editorialDomains  = (peecData?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Editorial')
+  const rangeKey          = peecRangeKey(dateRange)
+  const ownDomains        = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Own')
+  const competitorDomains = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Competitor')
+  const editorialDomains  = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Editorial')
+  // AI Citations KPI tile shows "YTD" in its label, so keep that lookup explicit.
   const totalCitations    = peecData?.totalCitationsByRange['YTD'] ?? 0
 
   const bots          = agentData?.bots ?? []
@@ -251,7 +260,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
           <FileText className="h-5 w-5 text-[#60FF80]" />
         </span>
         <div>
-          <h2 className="text-lg font-bold text-white">Content Impact Tracker</h2>
+          <h2 className="text-lg font-bold text-white">How is content performing across AI and human channels?</h2>
           <p className="mt-0.5 text-sm text-text-muted">
             Which content assets earn LLM citations, where content investments translate into AI visibility, and what the content team should build next.
           </p>
@@ -264,7 +273,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
 
       {/* ── Section A: KPI Strip (PRD: 6-8 cards) ─────────────────────────── */}
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">A. Content Impact Snapshot</h3>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">How is content performing at a glance?</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <KpiCard
             label="Planned URLs in Scope"
@@ -318,170 +327,49 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
       </div>
 
       {/* ── Section B: Planned Content Performance Table (PRD: 16 columns) ── */}
-      <SectionCard
-        title="B. Planned Content Performance"
-        description="Each content-calendar URL tracked against AI citations and bot activity. Connect GA4 for sessions, users, views, and engagement rate."
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <Th>Topic</Th>
-                <Th>URL</Th>
-                <Th>Content Type</Th>
-                <Th>Status</Th>
-                <Th>Content Action</Th>
-                <Th>Publish Date</Th>
-                <Th>Update Date</Th>
-                <Th>Sessions</Th>
-                <Th>Users</Th>
-                <Th>Views</Th>
-                <Th>Engagement Rate</Th>
-                <Th>AI Citations</Th>
-                <Th>AI Bot Activity</Th>
-                <Th>AI-Referred Sessions</Th>
-                <Th>Match Status</Th>
-                <Th>Recommended Action</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04]">
-              {enrichedRows.length > 0 ? (
-                enrichedRows.slice(0, 50).map((row, i) => {
-                  const hasBotVisits = (row.aiBotVisits ?? 0) > 0
-                  return (
-                    <tr key={`${row.url ?? row.topic}-${i}`}>
-                      <Td>
-                        <span className="font-medium text-white max-w-[160px] block truncate" title={row.topic}>
-                          {row.topic}
-                        </span>
-                      </Td>
-                      <Td>
-                        {row.url ? (
-                          <span className="font-mono text-[10px] text-white/50 max-w-[180px] block truncate" title={row.url}>
-                            {row.url}
-                          </span>
-                        ) : (
-                          <span className="text-white/20">--</span>
-                        )}
-                      </Td>
-                      <Td><span className="text-white/60">{row.contentType}</span></Td>
-                      <Td><span className="text-white/60">{row.status}</span></Td>
-                      <Td>
-                        <span className={cn(
-                          'rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize',
-                          ACTION_COLORS[row.contentAction]
-                        )}>
-                          {row.contentAction}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="text-white/40 text-[10px]">
-                          {row.publishDate ?? (calendarIsDemo ? ['2026-05-12', '2026-04-28', '2026-04-09', '2026-03-22', '2026-03-04', '2026-02-15', '2026-01-30', '2026-01-14', '2025-12-22', '2025-12-05', '2025-11-19', '2025-10-30', '2025-10-12'][i % 13] : '--')}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="text-white/40 text-[10px]">
-                          {row.updateDate ?? (calendarIsDemo ? ['2026-05-28', '2026-05-04', '2026-04-22', '2026-04-08', '2026-03-18', '2026-03-01', '2026-02-12', '2026-01-25', '2026-01-08', '2025-12-18', '2025-12-01', '2025-11-09', '2025-10-24'][i % 13] : '--')}
-                        </span>
-                      </Td>
-                      {/* GA4 columns -- live when service account has GA4 access */}
-                      {(() => {
-                        const g = getGA4Metrics(row.url, ga4Rows)
-                        return (
-                          <>
-                            <Td>
-                              {g.sessions !== null
-                                ? <span className="tabular-nums text-white">{g.sessions.toLocaleString()}</span>
-                                : <span className="text-white/20">--</span>}
-                            </Td>
-                            <Td>
-                              {g.users !== null
-                                ? <span className="tabular-nums text-white/70">{g.users.toLocaleString()}</span>
-                                : <span className="text-white/20">--</span>}
-                            </Td>
-                            <Td>
-                              {g.views !== null
-                                ? <span className="tabular-nums text-white/70">{g.views.toLocaleString()}</span>
-                                : <span className="text-white/20">--</span>}
-                            </Td>
-                            <Td>
-                              {g.engagementRate !== null
-                                ? <span className="tabular-nums text-white/70">{(g.engagementRate * 100).toFixed(1)}%</span>
-                                : <span className="text-white/20">--</span>}
-                            </Td>
-                          </>
-                        )
-                      })()}
-                      {/* AI data -- live when Peec URL-level data available */}
-                      <Td>
-                        {calendarIsDemo
-                          ? <span className="tabular-nums text-white">{[12, 8, 5, 14, 3, 18, 7, 0, 9, 22, 4, 11, 6][i % 13]}</span>
-                          : <span className="text-white/20">--</span>}
-                      </Td>
-                      <Td>
-                        {hasBotVisits ? (
-                          <span className="tabular-nums text-[#60FDFF]">{row.aiBotVisits}</span>
-                        ) : calendarIsDemo ? (
-                          <span className="tabular-nums text-[#60FDFF]">{[47, 23, 18, 89, 12, 156, 31, 8, 64, 212, 27, 73, 41][i % 13]}</span>
-                        ) : (
-                          <span className="text-white/20">0</span>
-                        )}
-                      </Td>
-                      <Td>
-                        {calendarIsDemo
-                          ? <span className="tabular-nums text-white">{[238, 152, 87, 412, 64, 524, 109, 31, 196, 671, 78, 245, 134][i % 13].toLocaleString()}</span>
-                          : <span className="text-white/20">--</span>}
-                      </Td>
-                      <Td>
-                        <span className={cn(
-                          'rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize',
-                          MATCH_STATUS_COLORS[row.matchStatus]
-                        )}>
-                          {row.matchStatus}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="text-[11px] text-white/50 max-w-[200px] block">
-                          {deriveAction(row, hasBotVisits)}
-                        </span>
-                      </Td>
-                    </tr>
-                  )
-                })
-              ) : calendarData ? (
-                <EmptyBody cols={16} message="Content calendar loaded but no rows found -- check sheet format and column headers" />
-              ) : (
-                <EmptyBody cols={16} message="Connect content calendar (Google Sheet) + GA4 page-level data to populate" />
-              )}
-            </tbody>
-          </table>
-        </div>
-        {enrichedRows.length > 50 && (
-          <p className="text-[10px] text-text-muted">Showing 50 of {enrichedRows.length} planned content rows.</p>
-        )}
-        {ga4Rows && (
-          <p className="text-[10px] text-text-muted">
-            Sessions, Users, Views, and Engagement Rate: GA4 page-level data (last 30d). Rows without a match show --.
-          </p>
-        )}
-        <div className="flex flex-col gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.02] p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Match Status Definitions</p>
-          <div className="flex flex-wrap gap-3">
-            {(Object.entries(MATCH_STATUS_COLORS) as [MatchStatus, string][]).map(([status, cls]) => (
-              <span key={status} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${cls}`}>{status}</span>
-            ))}
-          </div>
-          <p className="text-[10px] text-text-muted">
-            Content Action: <span className="text-white/40">New</span> = net-new publish,{' '}
-            <span className="text-white/40">Optimized</span> = existing page refreshed or rewritten,{' '}
-            <span className="text-white/40">Other</span> = unclassified
-          </p>
-        </div>
-      </SectionCard>
+      {(() => {
+        const sectionBDemoPub = ['2026-05-12', '2026-04-28', '2026-04-09', '2026-03-22', '2026-03-04', '2026-02-15', '2026-01-30', '2026-01-14', '2025-12-22', '2025-12-05', '2025-11-19', '2025-10-30', '2025-10-12']
+        const sectionBDemoUpd = ['2026-05-28', '2026-05-04', '2026-04-22', '2026-04-08', '2026-03-18', '2026-03-01', '2026-02-12', '2026-01-25', '2026-01-08', '2025-12-18', '2025-12-01', '2025-11-09', '2025-10-24']
+        const sectionBDemoCite = [12, 8, 5, 14, 3, 18, 7, 0, 9, 22, 4, 11, 6]
+        const sectionBDemoBot  = [47, 23, 18, 89, 12, 156, 31, 8, 64, 212, 27, 73, 41]
+        const sectionBDemoRef  = [238, 152, 87, 412, 64, 524, 109, 31, 196, 671, 78, 245, 134]
+        const sectionBRows: PlannedContentRow[] = enrichedRows.map((row, i) => {
+          const g = getGA4Metrics(row.url, ga4Rows)
+          const hasBotVisits = (row.aiBotVisits ?? 0) > 0
+          return {
+            topic: row.topic,
+            url: row.url,
+            contentType: row.contentType,
+            status: row.status,
+            contentAction: row.contentAction,
+            publishDate: row.publishDate ?? (calendarIsDemo ? sectionBDemoPub[i % 13] : null),
+            updateDate: row.updateDate ?? (calendarIsDemo ? sectionBDemoUpd[i % 13] : null),
+            sessions: g.sessions,
+            users: g.users,
+            views: g.views,
+            engagementRate: g.engagementRate,
+            aiCitations: calendarIsDemo ? sectionBDemoCite[i % 13] : null,
+            aiBotActivity: hasBotVisits ? (row.aiBotVisits ?? null) : (calendarIsDemo ? sectionBDemoBot[i % 13] : 0),
+            aiReferredSessions: calendarIsDemo ? sectionBDemoRef[i % 13] : null,
+            matchStatus: row.matchStatus,
+            recommendedAction: deriveAction(row, hasBotVisits),
+            _key: `${row.url ?? row.topic}-${i}`,
+          }
+        })
+        return (
+          <PlannedContentPerformanceTable
+            rows={sectionBRows}
+            ga4Connected={!!ga4Rows}
+            emptyMessage={calendarData
+              ? 'Content calendar loaded but no rows found -- check sheet format and column headers'
+              : 'Connect content calendar (Google Sheet) + GA4 page-level data to populate'}
+          />
+        )
+      })()}
 
       {/* ── Section C: Time to First Traffic / AI Activity ─────────────────── */}
       <SectionCard
-        title="C. Time to First Traffic and First AI Activity"
+        title="How quickly does new content earn traffic and AI citations?"
         description="For each published URL, measures days from publish date to first GA4 session and first AI citation or bot crawl."
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -513,7 +401,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
 
       {/* ── Section D: Net-New vs Optimized Content Lift ───────────────────── */}
       <SectionCard
-        title="D. Net-New vs Optimized Content Lift"
+        title="Which delivers more lift — new content or optimization?"
         description="Compares performance between net-new content launches and optimized (refreshed/expanded) pages."
       >
         {calendarData && (newRows.length > 0 || optimizedRows.length > 0) ? (
@@ -580,7 +468,7 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
 
       {/* ── Section E: Decay vs Compounding Content ────────────────────────── */}
       <SectionCard
-        title="E. Decay vs Compounding Content"
+        title="Which content is decaying vs. compounding over time?"
         description="Classifies owned content by trajectory. Compounding content with AI citation activity represents the highest-value assets to protect and scale."
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -610,320 +498,144 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
       </SectionCard>
 
       {/* ── Section F: Owned Content Cited in AI (PRD: 9 columns) ─────────── */}
-      <SectionCard
-        title="F. Owned Content Cited in AI"
-        description="Your owned domains and URLs that appear in AI-generated responses. Ranked by citation frequency."
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <Th>URL / Domain</Th>
-                <Th>Topic</Th>
-                <Th>Prompt Cluster</Th>
-                <Th>AI Citation Count</Th>
-                <Th>AI Engines Citing</Th>
-                <Th>Average Position</Th>
-                <Th>AI-Referred Sessions</Th>
-                <Th>Post-Launch AI Lift</Th>
-                <Th>Recommended Action</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04]">
-              {ownDomains.length > 0 ? (
-                ownDomains.map((d, i) => {
-                  const demoTopics  = ['AEO Strategy',           'AI Marketing Trends',  'Brand Visibility',     'Content Performance', 'Citation Patterns']
-                  const demoClusters = ['Discovery',              'Comparison',           'How-to',               'Research',            'Brand Authority']
-                  const demoEngines  = ['ChatGPT, Claude',        'ChatGPT, Perplexity',  'Claude, Gemini',       'ChatGPT, Copilot',    'Perplexity, Claude']
-                  const demoPositions = [1.8, 2.3, 1.5, 2.7, 2.1]
-                  const demoAiSessions = [284, 197, 412, 156, 203]
-                  return (
-                    <tr key={d.domain}>
-                      <Td><span className="font-medium text-white">{d.domain}</span></Td>
-                      <Td>{calendarIsDemo ? <span className="text-white/70">{demoTopics[i % demoTopics.length]}</span> : <span className="text-white/40">--</span>}</Td>
-                      <Td>{calendarIsDemo ? <span className="text-white/70">{demoClusters[i % demoClusters.length]}</span> : <span className="text-white/40">--</span>}</Td>
-                      <Td><span className="tabular-nums text-white">{d.citationRate > 0 ? d.citationRate.toFixed(1) + '%' : '--'}</span></Td>
-                      <Td>{calendarIsDemo ? <span className="text-white/70">{demoEngines[i % demoEngines.length]}</span> : <span className="text-white/40">--</span>}</Td>
-                      <Td>{calendarIsDemo ? <span className="tabular-nums text-white">#{demoPositions[i % demoPositions.length]}</span> : <span className="text-white/40">--</span>}</Td>
-                      <Td>{calendarIsDemo ? <span className="tabular-nums text-white">{demoAiSessions[i % demoAiSessions.length]}</span> : <span className="text-white/40">--</span>}</Td>
-                      <Td>
-                        {d.retrievedDelta !== 0 ? (
-                          <span className={cn('text-xs font-semibold tabular-nums', d.retrievedDelta > 0 ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-                            {d.retrievedDelta > 0 ? '+' : ''}{d.retrievedDelta.toFixed(1)}%
-                          </span>
-                        ) : <span className="text-white/40">--</span>}
-                      </Td>
-                      <Td><span className="text-[11px] text-white/50">Monitor and protect citation position</span></Td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <EmptyBody cols={9} message="No owned-domain citation data available from Peec AI" />
-              )}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
+      {(() => {
+        const demoTopics    = ['AEO Strategy', 'AI Marketing Trends', 'Brand Visibility', 'Content Performance', 'Citation Patterns']
+        const demoClusters  = ['Discovery', 'Comparison', 'How-to', 'Research', 'Brand Authority']
+        const demoEngines   = ['ChatGPT, Claude', 'ChatGPT, Perplexity', 'Claude, Gemini', 'ChatGPT, Copilot', 'Perplexity, Claude']
+        const demoPositions = [1.8, 2.3, 1.5, 2.7, 2.1]
+        const demoAiSessions = [284, 197, 412, 156, 203]
+        const ownedRows: OwnedContentCitedRow[] = ownDomains.map((d, i) => ({
+          urlOrDomain: d.domain,
+          topic: calendarIsDemo ? demoTopics[i % demoTopics.length] : null,
+          promptCluster: calendarIsDemo ? demoClusters[i % demoClusters.length] : null,
+          aiCitationCount: d.citationRate,
+          aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length] : null,
+          averagePosition: calendarIsDemo ? demoPositions[i % demoPositions.length] : null,
+          aiReferredSessions: calendarIsDemo ? demoAiSessions[i % demoAiSessions.length] : null,
+          postLaunchAILift: d.retrievedDelta,
+          recommendedAction: 'Monitor and protect citation position',
+        }))
+        return (
+          <OwnedContentCitedTable
+            rows={ownedRows}
+            emptyMessage="No owned-domain citation data available from Peec AI"
+          />
+        )
+      })()}
 
       {/* ── Section G: Content Gaps (PRD: 3 sub-views) ────────────────────── */}
       <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
         <div>
-          <h3 className="text-sm font-bold text-white">G. Content Gaps and Disconnects</h3>
+          <h3 className="text-sm font-bold text-white">Where is content disconnected from AI demand?</h3>
           <p className="mt-1 text-xs text-text-muted">
             Three views of content gap: pages with traffic but no AI citations, AI-cited pages without human traffic, and bot-crawled pages without citations or visits.
           </p>
         </div>
 
         {/* Sub-view 1: Traffic but No AI Citations */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#39A0FF]/10 text-[10px] font-bold text-[#39A0FF]">1</span>
-            <span className="text-xs font-bold text-white/70">Traffic but No AI Citations</span>
-          </div>
-          <p className="text-[11px] text-text-muted">High-traffic owned pages not cited by any AI tool. Priority AEO optimization candidates.</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <Th>URL</Th>
-                  <Th>Topic</Th>
-                  <Th>Sessions</Th>
-                  <Th>AI Citations</Th>
-                  <Th>Opportunity Note</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {calendarIsDemo ? (
-                  [
-                    { url: '/services',                          topic: 'Services Overview',       sessions: 827,  cites: 0, note: 'Add structured data + brand authority signals to surface in agency-comparison queries' },
-                    { url: '/about',                             topic: 'About Avenue Z',          sessions: 1042, cites: 0, note: 'Add founder story + clear capability statement for "who is Avenue Z" type prompts' },
-                    { url: '/blog/audit-brand-chatgpt',          topic: 'How to Audit Brand',      sessions: 447,  cites: 0, note: 'Already strong page — needs interlinking from AEO pillar to compound citation signal' },
-                    { url: '/pricing',                           topic: 'Pricing',                 sessions: 274,  cites: 0, note: 'Add ROI calculator + comparison framing for "agency pricing" prompts' },
-                  ].map(r => (
-                    <tr key={r.url}>
-                      <Td><span className="font-mono text-[10px] text-white/70">{r.url}</span></Td>
-                      <Td><span className="text-white/70">{r.topic}</span></Td>
-                      <Td><span className="tabular-nums text-white">{r.sessions.toLocaleString()}</span></Td>
-                      <Td>
-                        <span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">
-                          {r.cites} citations
-                        </span>
-                      </Td>
-                      <Td><span className="text-[11px] text-white/60">{r.note}</span></Td>
-                    </tr>
-                  ))
-                ) : (
-                  <EmptyBody cols={5} message="Requires GA4 page sessions + Peec AI owned-domain URL-level data" />
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {(() => {
+          const g1Rows: TrafficNoCitationsRow[] = calendarIsDemo
+            ? [
+                { url: '/services',                          topic: 'Services Overview',       sessions: 827,  aiCitations: 0, opportunityNote: 'Add structured data + brand authority signals to surface in agency-comparison queries' },
+                { url: '/about',                             topic: 'About Avenue Z',          sessions: 1042, aiCitations: 0, opportunityNote: 'Add founder story + clear capability statement for "who is Avenue Z" type prompts' },
+                { url: '/blog/audit-brand-chatgpt',          topic: 'How to Audit Brand',      sessions: 447,  aiCitations: 0, opportunityNote: 'Already strong page — needs interlinking from AEO pillar to compound citation signal' },
+                { url: '/pricing',                           topic: 'Pricing',                 sessions: 274,  aiCitations: 0, opportunityNote: 'Add ROI calculator + comparison framing for "agency pricing" prompts' },
+              ]
+            : []
+          return (
+            <TrafficNoCitationsTable
+              rows={g1Rows}
+              emptyMessage="Requires GA4 page sessions + Peec AI owned-domain URL-level data"
+            />
+          )
+        })()}
 
         <div className="border-t border-white/[0.06]" />
 
         {/* Sub-view 2: AI Citations but Little Human Traffic */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#60FF80]/10 text-[10px] font-bold text-[#60FF80]">2</span>
-            <span className="text-xs font-bold text-white/70">AI Citations but Little Human Traffic</span>
-          </div>
-          <p className="text-[11px] text-text-muted">Pages AI tools cite frequently but with low GA4 sessions. Indicates CTA or UX conversion gap.</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <Th>URL</Th>
-                  <Th>Topic</Th>
-                  <Th>AI Citations</Th>
-                  <Th>Sessions</Th>
-                  <Th>Opportunity Note</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {calendarIsDemo ? (
-                  [
-                    { url: '/methodology/brand-authority',        topic: 'Brand Authority',         cites: 18, sessions: 524, note: 'Highly cited but low human traffic — add prominent CTA to drive trial sign-ups' },
-                    { url: '/press/techcrunch-feature',           topic: 'Press: TechCrunch',       cites:  9, sessions: 213, note: 'Press coverage drives AI citation but doesn\'t convert — add follow-up content path' },
-                    { url: '/case-studies/renaissance-benefits',  topic: 'Renaissance Case Study',  cites: 14, sessions: 392, note: 'Industry credibility piece — link from services page to convert authority into demos' },
-                    { url: '/resources/geo-glossary',             topic: 'GEO Glossary',            cites: 36, sessions: 983, note: 'Strong organic citation — embed in-context CTAs without disrupting reference utility' },
-                  ].map(r => (
-                    <tr key={r.url}>
-                      <Td><span className="font-mono text-[10px] text-white/70">{r.url}</span></Td>
-                      <Td><span className="text-white/70">{r.topic}</span></Td>
-                      <Td><span className="tabular-nums text-white">{r.cites}</span></Td>
-                      <Td><span className="tabular-nums text-white">{r.sessions.toLocaleString()}</span></Td>
-                      <Td><span className="text-[11px] text-white/60">{r.note}</span></Td>
-                    </tr>
-                  ))
-                ) : (
-                  <EmptyBody cols={5} message="Requires GA4 + Peec AI URL-level citation data" />
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {(() => {
+          const g2Rows: CitationsLittleTrafficRow[] = calendarIsDemo
+            ? [
+                { url: '/methodology/brand-authority',        topic: 'Brand Authority',         aiCitations: 18, sessions: 524, opportunityNote: 'Highly cited but low human traffic — add prominent CTA to drive trial sign-ups' },
+                { url: '/press/techcrunch-feature',           topic: 'Press: TechCrunch',       aiCitations:  9, sessions: 213, opportunityNote: 'Press coverage drives AI citation but doesn\'t convert — add follow-up content path' },
+                { url: '/case-studies/renaissance-benefits',  topic: 'Renaissance Case Study',  aiCitations: 14, sessions: 392, opportunityNote: 'Industry credibility piece — link from services page to convert authority into demos' },
+                { url: '/resources/geo-glossary',             topic: 'GEO Glossary',            aiCitations: 36, sessions: 983, opportunityNote: 'Strong organic citation — embed in-context CTAs without disrupting reference utility' },
+              ]
+            : []
+          return (
+            <CitationsLittleTrafficTable
+              rows={g2Rows}
+              emptyMessage="Requires GA4 + Peec AI URL-level citation data"
+            />
+          )
+        })()}
 
         <div className="border-t border-white/[0.06]" />
 
         {/* Sub-view 3: AI Bot Attention but No Citations/Visits (LIVE from agent-analytics) */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#FFFC60]/10 text-[10px] font-bold text-[#FFFC60]">3</span>
-            <span className="text-xs font-bold text-white/70">AI Bot Attention but No Citations or Human Visits</span>
-          </div>
-          <p className="text-[11px] text-text-muted">Pages AI crawlers visit but don't cite. Signals content quality or format issues preventing LLM extraction.</p>
-          {agentData && agentData.topPaths.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/[0.06]">
-                    <Th>URL Path</Th>
-                    <Th>Topic (Calendar)</Th>
-                    <Th>AI Bot Visits</Th>
-                    <Th>AI Citations</Th>
-                    <Th>AI-Referred Sessions</Th>
-                    <Th>Opportunity Note</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {agentData.topPaths.slice(0, 10).map((p, idx) => {
-                    // Try to match this path to a content calendar row
-                    const calMatch = enrichedRows.find(r => {
-                      const rPath = extractPath(r.url)
-                      return rPath && (rPath === p.path || rPath === p.path.replace(/\/$/, ''))
-                    })
-                    const demoTopic = ['Services Overview', 'About Avenue Z', 'Brand Authority', 'GEO Glossary', 'How to Audit Brand', 'Renaissance Case Study', 'Press: TechCrunch', 'Pricing', 'AEO Services', '2026 AI Trends'][idx % 10]
-                    const demoCites = [3, 1, 8, 12, 5, 2, 4, 0, 6, 9][idx % 10]
-                    const demoSessions = [42, 18, 87, 156, 64, 31, 53, 12, 78, 109][idx % 10]
-                    return (
-                      <tr key={p.path}>
-                        <Td><span className="font-mono text-[10px] text-white/60">{p.path}</span></Td>
-                        <Td><span className="text-white/50">{calMatch?.topic ?? (calendarIsDemo ? demoTopic : '--')}</span></Td>
-                        <Td><span className="tabular-nums text-white">{p.visits}</span></Td>
-                        <Td>{calendarIsDemo ? <span className="tabular-nums text-white">{demoCites}</span> : <span className="text-white/40">--</span>}</Td>
-                        <Td>{calendarIsDemo ? <span className="tabular-nums text-white/70">{demoSessions}</span> : <span className="text-white/20">--</span>}</Td>
-                        <Td>
-                          <span className="text-[11px] text-white/50">
-                            {p.status >= 400 ? 'Error page -- fix or redirect'
-                              : p.status >= 300 ? 'Redirect -- verify final destination'
-                              : 'Crawled but not cited -- check content format for LLM extraction'}
-                          </span>
-                        </Td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/[0.06]">
-                    <Th>URL</Th>
-                    <Th>Topic</Th>
-                    <Th>AI Bot Visits</Th>
-                    <Th>AI Citations</Th>
-                    <Th>AI-Referred Sessions</Th>
-                    <Th>Opportunity Note</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <EmptyBody cols={6} message="No AI bot crawl data available -- check PEEC_AI_CUSTOMER_TOKEN configuration." />
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {(() => {
+          const g3DemoTopics = ['Services Overview', 'About Avenue Z', 'Brand Authority', 'GEO Glossary', 'How to Audit Brand', 'Renaissance Case Study', 'Press: TechCrunch', 'Pricing', 'AEO Services', '2026 AI Trends']
+          const g3DemoCites = [3, 1, 8, 12, 5, 2, 4, 0, 6, 9]
+          const g3DemoSessions = [42, 18, 87, 156, 64, 31, 53, 12, 78, 109]
+          const g3Rows: BotAttentionNoCitationsRow[] = (agentData?.topPaths ?? []).slice(0, 10).map((p, idx) => {
+            const calMatch = enrichedRows.find(r => {
+              const rPath = extractPath(r.url)
+              return rPath && (rPath === p.path || rPath === p.path.replace(/\/$/, ''))
+            })
+            return {
+              urlPath: p.path,
+              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : '--'),
+              aiBotVisits: p.visits,
+              aiCitations: calendarIsDemo ? g3DemoCites[idx % 10] : null,
+              aiReferredSessions: calendarIsDemo ? g3DemoSessions[idx % 10] : null,
+              opportunityNote: p.status >= 400 ? 'Error page -- fix or redirect'
+                : p.status >= 300 ? 'Redirect -- verify final destination'
+                : 'Crawled but not cited -- check content format for LLM extraction',
+            }
+          })
+          return (
+            <BotAttentionNoCitationsTable
+              rows={g3Rows}
+              emptyMessage="No AI bot crawl data available -- check PEEC_AI_CUSTOMER_TOKEN configuration."
+            />
+          )
+        })()}
       </div>
 
       {/* ── Section H: Competitor / Third-Party Content (PRD: 3 sub-views) ── */}
       <SectionCard
-        title="H. Competitor and Third-Party Content Cited for Your Prompts"
+        title="Which competitor or third-party pages are cited for our prompts?"
         description="Non-owned content that AI tools cite for your tracked prompts. Understanding what wins informs what to create or pitch."
       >
         {/* Sub-view 1: Top Competitor Domains */}
-        <div className="flex flex-col gap-3">
-          <h4 className="text-xs font-bold text-white/60">Top Competitor / Corporate Domains Cited in AI</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <Th>Domain</Th>
-                  <Th>Citation Count</Th>
-                  <Th>Prompt Coverage %</Th>
-                  <Th>Theme Coverage</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {competitorDomains.length > 0 ? (
-                  competitorDomains.slice(0, 10).map((d, i) => {
-                    const maxRetrieved = Math.max(...competitorDomains.slice(0, 10).map(x => x.retrieved), 1)
-                    const barWidth = (d.retrieved / maxRetrieved) * 100
-                    const promptCovReal = getPromptCoverage(d.domain)
-                    const themeCovReal  = getThemeCoverage(d.domain)
-                    const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
-                    const demoThemeCov  = [3, 2, 4, 1, 5, 1, 3, 4, 2, 2][i % 10]
-                    const promptCov = promptCovReal !== null && promptCovReal > 0 ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
-                    const themeCov  = themeCovReal > 0 ? themeCovReal : (calendarIsDemo ? demoThemeCov : 0)
-                    return (
-                      <tr key={d.domain}>
-                        <Td>
-                          <span className="block max-w-[150px] truncate font-medium text-white/80" title={d.domain}>{d.domain}</span>
-                        </Td>
-                        <Td>
-                          <div className="flex items-center gap-2">
-                            <div className="h-3 w-20 overflow-hidden rounded bg-white/[0.04]">
-                              <div className="h-full rounded bg-[#FF4444]/40" style={{ width: `${barWidth}%` }} />
-                            </div>
-                            <span className="tabular-nums text-white/60">{d.citationRate.toFixed(1)}%</span>
-                          </div>
-                        </Td>
-                        <Td>
-                          <span className="tabular-nums text-white">
-                            {promptCov !== null ? `${promptCov}%` : '--'}
-                          </span>
-                        </Td>
-                        <Td>
-                          <span className="tabular-nums text-white/60">
-                            {themeCov > 0 ? `${themeCov} theme${themeCov !== 1 ? 's' : ''}` : '--'}
-                          </span>
-                        </Td>
-                      </tr>
-                    )
-                  })
-                ) : (
-                  <EmptyBody cols={4} message="No competitor domain data available from Peec AI" />
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {(() => {
+          const h1Rows: CompetitorDomainsCitedRow[] = competitorDomains.slice(0, 10).map((d, i) => {
+            const promptCovReal = getPromptCoverage(d.domain)
+            const themeCovReal  = getThemeCoverage(d.domain)
+            const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
+            const demoThemeCov  = [3, 2, 4, 1, 5, 1, 3, 4, 2, 2][i % 10]
+            const promptCov = promptCovReal !== null && promptCovReal > 0 ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
+            const themeCov  = themeCovReal > 0 ? themeCovReal : (calendarIsDemo ? demoThemeCov : 0)
+            return {
+              domain: d.domain,
+              citationCount: d.citationRate,
+              promptCoverage: promptCov,
+              themeCoverage: themeCov,
+            }
+          })
+          return (
+            <CompetitorDomainsCitedTable
+              rows={h1Rows}
+              emptyMessage="No competitor domain data available from Peec AI"
+            />
+          )
+        })()}
 
         <div className="border-t border-white/[0.06]" />
 
         {/* Sub-view 2: Brand-Absent Editorial URLs */}
-        <div className="flex flex-col gap-3">
-          <h4 className="text-xs font-bold text-white/60">Top Competitor / Corporate URLs Where Brand is Absent</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <Th>Domain</Th>
-                  <Th>Article Title</Th>
-                  <Th>URL</Th>
-                  <Th>Prompt Cluster</Th>
-                  <Th>Citation Count</Th>
-                  <Th>Competitors Mentioned</Th>
-                  <Th>Brand Mentioned</Th>
-                  <Th>Opportunity Priority</Th>
-                  <Th>Suggested PR Angle</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {editorialDomains.length > 0 ? (
-                  editorialDomains.slice(0, 10).map((d, i) => {
+        {(() => {
+          const h2Rows: CompetitorUrlsBrandAbsentRow[] = editorialDomains.slice(0, 10).map((d, i) => {
                     const demoArticleTitles2 = [
                       'How AI is rewriting brand discovery',
                       'The 2026 PR-to-LLM playbook',
@@ -972,326 +684,150 @@ export async function ContentImpactReport({ clientSlug, demoMode = false }: { cl
                       ['Edelman', 'Ogilvy'],
                       ['FleishmanHillard'],
                     ]
-                    const demoBrandMentioned = ['No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No']
-                    const title = calendarIsDemo ? demoArticleTitles2[i % demoArticleTitles2.length] : null
-                    const slug  = calendarIsDemo ? demoSlugs2[i % demoSlugs2.length] : null
-                    const url   = slug ? `https://${d.domain}${slug}` : null
-                    const cluster = calendarIsDemo ? demoClusters2[i % demoClusters2.length] : null
-                    const comps   = calendarIsDemo ? demoCompetitorsAbsent[i % demoCompetitorsAbsent.length] : null
-                    const brand   = calendarIsDemo ? demoBrandMentioned[i % demoBrandMentioned.length] : null
-                    return (
-                      <tr key={d.domain}>
-                        <Td><span className="font-medium text-white">{d.domain}</span></Td>
-                        <Td>
-                          {title
-                            ? <span className="text-white/70 max-w-[180px] block truncate" title={title}>{title}</span>
-                            : <span className="text-white/20">--</span>}
-                        </Td>
-                        <Td>
-                          {url
-                            ? <span className="font-mono text-[10px] text-white/50 max-w-[180px] block truncate" title={url}>{url}</span>
-                            : <span className="text-white/20">--</span>}
-                        </Td>
-                        <Td>
-                          {cluster
-                            ? <span className="text-white/60">{cluster}</span>
-                            : <span className="text-white/40">--</span>}
-                        </Td>
-                        <Td><span className="tabular-nums text-white">{d.citationRate.toFixed(1)}%</span></Td>
-                        <Td>
-                          {comps
-                            ? <span className="text-white/70">{comps.join(', ')}</span>
-                            : <span className="text-white/20">--</span>}
-                        </Td>
-                        <Td>
-                          {brand
-                            ? <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', brand === 'No' ? 'bg-[#FF4444]/10 text-[#FF4444]' : 'bg-[#60FF80]/10 text-[#60FF80]')}>{brand}</span>
-                            : <span className="text-white/40">--</span>}
-                        </Td>
-                        <Td>
-                          <span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">
-                            Review
-                          </span>
-                        </Td>
-                        <Td>
-                          <span className="block max-w-[200px] text-[11px] text-white/50">
-                            Secure coverage on {d.domain} to displace competitor citations
-                          </span>
-                        </Td>
-                      </tr>
-                    )
-                  })
-                ) : (
-                  <EmptyBody cols={9} message="No editorial domain data from Peec AI" />
-                )}
-              </tbody>
-            </table>
-          </div>
-          {!calendarIsDemo && (
-            <p className="text-[10px] text-text-muted">
-              Article Title, URL, and Competitors Mentioned require URL-level citation data from Peec AI (currently domain-level only).
-            </p>
-          )}
-        </div>
+            const demoBrandMentioned = ['No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No']
+            const title = calendarIsDemo ? demoArticleTitles2[i % demoArticleTitles2.length] : null
+            const slug  = calendarIsDemo ? demoSlugs2[i % demoSlugs2.length] : null
+            const url   = slug ? `https://${d.domain}${slug}` : null
+            const cluster = calendarIsDemo ? demoClusters2[i % demoClusters2.length] : null
+            const comps   = calendarIsDemo ? demoCompetitorsAbsent[i % demoCompetitorsAbsent.length] : null
+            const brand   = calendarIsDemo ? demoBrandMentioned[i % demoBrandMentioned.length] : null
+            return {
+              domain: d.domain,
+              articleTitle: title,
+              url,
+              promptCluster: cluster,
+              citationCount: d.citationRate,
+              competitorsMentioned: comps ? comps.join(', ') : null,
+              brandMentioned: brand,
+              opportunityPriority: 'Review',
+              suggestedPRAngle: `Secure coverage on ${d.domain} to displace competitor citations`,
+            }
+          })
+          return (
+            <div className="flex flex-col gap-3">
+              <CompetitorUrlsBrandAbsentTable
+                rows={h2Rows}
+                emptyMessage="No editorial domain data from Peec AI"
+              />
+              {!calendarIsDemo && (
+                <p className="text-[10px] text-text-muted">
+                  Article Title, URL, and Competitors Mentioned require URL-level citation data from Peec AI (currently domain-level only).
+                </p>
+              )}
+            </div>
+          )
+        })()}
 
         <div className="border-t border-white/[0.06]" />
 
         {/* Sub-view 3: Repeated Competitor Pages Across Themes */}
-        <div className="flex flex-col gap-3">
-          <h4 className="text-xs font-bold text-white/60">Repeated Competitor Pages Across Target Themes</h4>
-          <p className="text-xs text-text-muted">
-            Specific competitor pages cited across multiple prompt clusters. These are the pages your content needs to outperform.
-          </p>
-          {calendarIsDemo ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/[0.06]">
-                    <Th>Competitor URL</Th>
-                    <Th>Competitor</Th>
-                    <Th>Prompt Clusters Cited In</Th>
-                    <Th>Total Citations</Th>
-                    <Th>Avg Position</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {[
-                    { url: 'ogilvy.com/insights/brand-authority-in-llms',     competitor: 'Ogilvy',           clusters: ['Brand authority', 'Reputation / trust', 'Industry expertise'], citations: 24, avgPos: 2.1 },
-                    { url: 'edelman.com/research/trust-barometer-2026',       competitor: 'Edelman',          clusters: ['Reputation / trust', 'Buying-stage research'],                 citations: 19, avgPos: 2.4 },
-                    { url: 'webershandwick.com/work/ai-pr-case-studies',      competitor: 'Weber Shandwick',  clusters: ['Industry expertise', 'Competitive comparison'],                citations: 17, avgPos: 3.0 },
-                    { url: 'bcw-global.com/expertise/aeo-services',           competitor: 'BCW',              clusters: ['Brand authority', 'Buying-stage research'],                    citations: 14, avgPos: 3.3 },
-                    { url: 'fleishmanhillard.com/2026/ai-search-report',      competitor: 'FleishmanHillard', clusters: ['Industry expertise', 'Reputation / trust', 'Brand authority'], citations: 13, avgPos: 2.7 },
-                    { url: 'mslgroup.com/insights/generative-pr',             competitor: 'MSL',              clusters: ['Industry expertise', 'Competitive comparison'],                citations: 11, avgPos: 3.5 },
-                  ].map(row => (
-                    <tr key={row.url}>
-                      <Td>
-                        <span className="font-mono text-[10px] text-white/70 max-w-[220px] block truncate" title={row.url}>
-                          {row.url}
-                        </span>
-                      </Td>
-                      <Td><span className="font-medium text-white/80">{row.competitor}</span></Td>
-                      <Td>
-                        <div className="flex flex-wrap gap-1">
-                          {row.clusters.map(c => (
-                            <span key={c} className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/60">{c}</span>
-                          ))}
-                        </div>
-                      </Td>
-                      <Td><span className="tabular-nums text-white">{row.citations}</span></Td>
-                      <Td><span className="tabular-nums text-white">#{row.avgPos.toFixed(1)}</span></Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-              <p className="text-xs text-text-muted">Requires URL-level citation data from Peec AI Pro</p>
-            </div>
-          )}
-        </div>
+        {(() => {
+          const h3Rows: RepeatedCompetitorPagesRow[] = calendarIsDemo
+            ? [
+                { url: 'ogilvy.com/insights/brand-authority-in-llms',     competitor: 'Ogilvy',           clusters: ['Brand authority', 'Reputation / trust', 'Industry expertise'], citations: 24, avgPos: 2.1 },
+                { url: 'edelman.com/research/trust-barometer-2026',       competitor: 'Edelman',          clusters: ['Reputation / trust', 'Buying-stage research'],                 citations: 19, avgPos: 2.4 },
+                { url: 'webershandwick.com/work/ai-pr-case-studies',      competitor: 'Weber Shandwick',  clusters: ['Industry expertise', 'Competitive comparison'],                citations: 17, avgPos: 3.0 },
+                { url: 'bcw-global.com/expertise/aeo-services',           competitor: 'BCW',              clusters: ['Brand authority', 'Buying-stage research'],                    citations: 14, avgPos: 3.3 },
+                { url: 'fleishmanhillard.com/2026/ai-search-report',      competitor: 'FleishmanHillard', clusters: ['Industry expertise', 'Reputation / trust', 'Brand authority'], citations: 13, avgPos: 2.7 },
+                { url: 'mslgroup.com/insights/generative-pr',             competitor: 'MSL',              clusters: ['Industry expertise', 'Competitive comparison'],                citations: 11, avgPos: 3.5 },
+              ]
+            : []
+          return (
+            <RepeatedCompetitorPagesTable
+              rows={h3Rows}
+              emptyMessage="Requires URL-level citation data from Peec AI Pro"
+            />
+          )
+        })()}
       </SectionCard>
 
       {/* ── Section I: AI Systems Interacting with Our Content (LIVE) ─────── */}
-      <SectionCard
-        title="I. AI Systems Interacting with Our Content"
-        description="Which AI crawlers are actively indexing owned content, their visit frequency, and which pages they target most."
-      >
-        {agentData && bots.length > 0 ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {bots.slice(0, 6).map((bot) => (
-                <div key={bot.botId} className="flex flex-col gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-                  <div className="flex items-center gap-1.5">
-                    <Globe2 className="h-3.5 w-3.5 text-text-muted" />
-                    <span className="text-[11px] font-bold text-white/70">{bot.botName}</span>
-                  </div>
-                  <span className="text-lg font-bold text-white">{bot.totalVisits.toLocaleString()}</span>
-                  <span className="text-[10px] text-text-muted">visits / 30d</span>
-                  <span className="text-[10px] text-text-muted">{bot.uniquePages} pages crawled</span>
-                  {bot.successRate !== null && (
-                    <div className="mt-1 flex items-center gap-1">
-                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
-                        <div
-                          className={cn('h-full rounded-full',
-                            bot.successRate >= 0.8 ? 'bg-[#60FF80]'
-                              : bot.successRate >= 0.4 ? 'bg-[#FFFC60]'
-                              : 'bg-[#FF4444]'
-                          )}
-                          style={{ width: `${Math.round(bot.successRate * 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-[9px] text-white/30">{Math.round(bot.successRate * 100)}% 2xx</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/[0.06]">
-                    <Th>AI Platform / Bot</Th>
-                    <Th>Bot Type</Th>
-                    <Th>Total Visits (30d)</Th>
-                    <Th>Unique Pages</Th>
-                    <Th>2xx Success Rate</Th>
-                    <Th>Last Seen</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {bots.map(bot => {
-                    const typeLabel = bot.botType === 'training' ? 'Training'
-                      : bot.botType === 'retrieval' ? 'Retrieval'
-                      : bot.botType === 'search' ? 'Search'
-                      : 'Agent'
-                    return (
-                      <tr key={bot.botId}>
-                        <Td><span className="font-medium text-white">{bot.botName}</span></Td>
-                        <Td>
-                          <span className={cn(
-                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                            bot.botType === 'training'  ? 'bg-[#FFFC60]/10 text-[#FFFC60]' :
-                            bot.botType === 'retrieval' ? 'bg-[#60FDFF]/10 text-[#60FDFF]' :
-                            bot.botType === 'search'    ? 'bg-[#60FF80]/10 text-[#60FF80]' :
-                            'bg-white/[0.06] text-white/40'
-                          )}>
-                            {typeLabel}
-                          </span>
-                        </Td>
-                        <Td><span className="tabular-nums text-white">{bot.totalVisits.toLocaleString()}</span></Td>
-                        <Td><span className="tabular-nums text-white/60">{bot.uniquePages}</span></Td>
-                        <Td>
-                          {bot.successRate !== null ? (
-                            <span className={cn('font-semibold tabular-nums',
-                              bot.successRate >= 0.8 ? 'text-[#60FF80]' : bot.successRate >= 0.4 ? 'text-[#FFFC60]' : 'text-[#FF4444]'
-                            )}>
-                              {Math.round(bot.successRate * 100)}%
-                            </span>
-                          ) : <span className="text-white/20">--</span>}
-                        </Td>
-                        <Td><span className="font-mono text-[10px] text-white/30">{bot.lastSeen ?? '--'}</span></Td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-[10px] text-text-muted">
-              {totalBotVisits.toLocaleString()} total AI bot visits in the last 30 days across {bots.length} platforms.
-            </p>
-          </>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {['GPTBot', 'ClaudeBot', 'PerplexityBot', 'GoogleBot-AI', 'CCBot', 'Applebot'].map((bot) => (
-              <div key={bot} className="flex flex-col gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-                <div className="flex items-center gap-1.5">
-                  <Globe2 className="h-3.5 w-3.5 text-text-muted" />
-                  <span className="text-[11px] font-bold text-white/50">{bot}</span>
-                </div>
-                <span className="text-sm font-bold text-white/20">--</span>
-                <span className="text-[10px] text-text-muted">visits, pending</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
+      {(() => {
+        const sectionIRows: AISystemsInteractingRow[] = (agentData && bots.length > 0)
+          ? bots.map(b => ({
+              botId:       b.botId,
+              botName:     b.botName,
+              botType:     b.botType,
+              totalVisits: b.totalVisits,
+              uniquePages: b.uniquePages,
+              successRate: b.successRate,
+              lastSeen:    b.lastSeen,
+            }))
+          : []
+        return (
+          <AISystemsInteractingTable
+            rows={sectionIRows}
+            totalBotVisits={totalBotVisits}
+            emptyMessage="No AI bot crawl data available -- check PEEC_AI_CUSTOMER_TOKEN configuration."
+          />
+        )
+      })()}
 
       {/* ── Section J: Recommended Actions (PRD: 7-column data table) ─────── */}
-      <div className="rounded-xl border border-[#60FDFF]/20 bg-[#60FDFF]/[0.03] p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#60FDFF]" />
-          <span className="text-sm font-bold text-white">J. What the Content Team Should Do Next</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <Th>URL / Topic</Th>
-                <Th>Issue / Opportunity</Th>
-                <Th>Evidence Type</Th>
-                <Th>Suggested Action</Th>
-                <Th>Reason</Th>
-                <Th>Priority</Th>
-                <Th>Owner</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04]">
-              {/* Recommendation 1: Unpublished planned content */}
-              {calendarData && calendarData.rows.filter(r => r.matchStatus === 'unpublished').length > 0 && (
-                <tr>
-                  <Td><span className="font-medium text-white">Unpublished planned content</span></Td>
-                  <Td><span className="text-white/60">
-                    {calendarData.rows.filter(r => r.matchStatus === 'unpublished').length} calendar URLs not yet live
-                  </span></Td>
-                  <Td><span className="text-white/50">Content Calendar</span></Td>
-                  <Td><span className="text-white/60">Prioritize publishing -- planned content generates zero AI visibility until live</span></Td>
-                  <Td><span className="text-white/50">Unpublished content earns no citations or crawls</span></Td>
-                  <Td><span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">High</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
-                </tr>
-              )}
-              {/* Recommendation 2: Owned content cited by AI bots but not earning citations */}
-              {agentData && agentData.topPaths.length > 0 && (
-                <tr>
-                  <Td><span className="font-medium text-white">High-crawl pages without citations</span></Td>
-                  <Td><span className="text-white/60">{agentData.uniquePagesVisited} pages crawled by AI bots; many earn 0 citations</span></Td>
-                  <Td><span className="text-white/50">AI Bot + Peec AI</span></Td>
-                  <Td><span className="text-white/60">Add direct answer blocks, FAQ schema, and clearer entity definitions on top-crawled pages</span></Td>
-                  <Td><span className="text-white/50">LLMs extract better from structured, definitional content than narrative copy</span></Td>
-                  <Td><span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">Medium</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
-                </tr>
-              )}
-              {/* Recommendation 3: Competitor-dominated clusters */}
-              {competitorDomains.length > 0 && (
-                <tr>
-                  <Td><span className="font-medium text-white">Competitor-dominated clusters</span></Td>
-                  <Td><span className="text-white/60">{competitorDomains.length} competitor domains cited in AI for your prompts</span></Td>
-                  <Td><span className="text-white/50">Peec AI</span></Td>
-                  <Td><span className="text-white/60">Create targeted content for each competitor-dominated prompt cluster</span></Td>
-                  <Td><span className="text-white/50">Displace competitor citations with higher-quality owned content</span></Td>
-                  <Td><span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">Medium</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
-                </tr>
-              )}
-              {/* Recommendation 4: Brand-absent editorial domains -- pitch coverage */}
-              {editorialDomains.length > 0 && (
-                <tr>
-                  <Td><span className="font-medium text-white">High-cite editorial outlets w/o brand mention</span></Td>
-                  <Td><span className="text-white/60">{editorialDomains.length} editorial domains AI cites where brand is absent</span></Td>
-                  <Td><span className="text-white/50">Peec AI</span></Td>
-                  <Td><span className="text-white/60">Brief PR / editorial team to pitch contributed pieces, expert quotes, or data exclusives to these outlets</span></Td>
-                  <Td><span className="text-white/50">Earned coverage on AI-trusted outlets compounds brand citation share</span></Td>
-                  <Td><span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">Medium</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content / PR</span></Td>
-                </tr>
-              )}
-              {/* Recommendation 5: Low-visibility tracked prompts -- create direct-answer content */}
-              {peecData && peecData.trackedPrompts.filter(p => p.visibility < 30).length > 0 && (
-                <tr>
-                  <Td><span className="font-medium text-white">Low-visibility tracked prompts</span></Td>
-                  <Td><span className="text-white/60">
-                    {peecData.trackedPrompts.filter(p => p.visibility < 30).length} prompts where brand visibility &lt; 30%
-                  </span></Td>
-                  <Td><span className="text-white/50">Peec AI</span></Td>
-                  <Td><span className="text-white/60">Write direct-answer pages targeting each low-visibility prompt: clear definition, comparison table, and named-entity references</span></Td>
-                  <Td><span className="text-white/50">Direct-answer pages are the highest-yield format for LLM citation</span></Td>
-                  <Td><span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">High</span></Td>
-                  <Td><span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/40">Content</span></Td>
-                </tr>
-              )}
-              {/* Fallback: no data */}
-              {!agentData && !calendarData && ownDomains.length === 0 && competitorDomains.length === 0 && editorialDomains.length === 0 && !peecData && (
-                <EmptyBody cols={7} message="Connect content calendar and GA4 to generate URL-level recommendations" />
-              )}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-4 text-[10px] text-text-muted">
-          Opportunity Score = 30% human performance potential + 25% AI citation gap + 20% competitor pressure + 15% AI bot attention + 10% content freshness
-        </p>
-      </div>
+      {(() => {
+        const sectionJRows: ContentTeamRecommendationsRow[] = []
+        if (calendarData && calendarData.rows.filter(r => r.matchStatus === 'unpublished').length > 0) {
+          sectionJRows.push({
+            urlOrTopic:       'Unpublished planned content',
+            issueOpportunity: `${calendarData.rows.filter(r => r.matchStatus === 'unpublished').length} calendar URLs not yet live`,
+            evidenceType:     'Content Calendar',
+            suggestedAction:  'Prioritize publishing -- planned content generates zero AI visibility until live',
+            reason:           'Unpublished content earns no citations or crawls',
+            priority:         'High',
+            owner:            'Content',
+          })
+        }
+        if (agentData && agentData.topPaths.length > 0) {
+          sectionJRows.push({
+            urlOrTopic:       'High-crawl pages without citations',
+            issueOpportunity: `${agentData.uniquePagesVisited} pages crawled by AI bots; many earn 0 citations`,
+            evidenceType:     'AI Bot + Peec AI',
+            suggestedAction:  'Add direct answer blocks, FAQ schema, and clearer entity definitions on top-crawled pages',
+            reason:           'LLMs extract better from structured, definitional content than narrative copy',
+            priority:         'Medium',
+            owner:            'Content',
+          })
+        }
+        if (competitorDomains.length > 0) {
+          sectionJRows.push({
+            urlOrTopic:       'Competitor-dominated clusters',
+            issueOpportunity: `${competitorDomains.length} competitor domains cited in AI for your prompts`,
+            evidenceType:     'Peec AI',
+            suggestedAction:  'Create targeted content for each competitor-dominated prompt cluster',
+            reason:           'Displace competitor citations with higher-quality owned content',
+            priority:         'Medium',
+            owner:            'Content',
+          })
+        }
+        if (editorialDomains.length > 0) {
+          sectionJRows.push({
+            urlOrTopic:       'High-cite editorial outlets w/o brand mention',
+            issueOpportunity: `${editorialDomains.length} editorial domains AI cites where brand is absent`,
+            evidenceType:     'Peec AI',
+            suggestedAction:  'Brief PR / editorial team to pitch contributed pieces, expert quotes, or data exclusives to these outlets',
+            reason:           'Earned coverage on AI-trusted outlets compounds brand citation share',
+            priority:         'Medium',
+            owner:            'Content / PR',
+          })
+        }
+        if (peecData && peecData.trackedPrompts.filter(p => p.visibility < 30).length > 0) {
+          sectionJRows.push({
+            urlOrTopic:       'Low-visibility tracked prompts',
+            issueOpportunity: `${peecData.trackedPrompts.filter(p => p.visibility < 30).length} prompts where brand visibility < 30%`,
+            evidenceType:     'Peec AI',
+            suggestedAction:  'Write direct-answer pages targeting each low-visibility prompt: clear definition, comparison table, and named-entity references',
+            reason:           'Direct-answer pages are the highest-yield format for LLM citation',
+            priority:         'High',
+            owner:            'Content',
+          })
+        }
+        return (
+          <ContentTeamRecommendationsTable
+            rows={sectionJRows}
+            emptyMessage="Connect content calendar and GA4 to generate URL-level recommendations"
+          />
+        )
+      })()}
 
       {/* Footer */}
       <p className="text-xs text-text-muted">
