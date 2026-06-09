@@ -16,6 +16,7 @@ import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/l
 import { sampleProfoundOverview } from '@/lib/demo-data/profound'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
+import { PEEC, AVENUE_Z } from '@/lib/peec/metric-definitions'
 import { cn } from '@/lib/utils'
 
 // --- Helpers ---
@@ -92,11 +93,11 @@ function BrandSOVChart({ brands }: { brands: { name: string; sov: number }[] }) 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-1">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Brand Types</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which categories of brands earn AI share of voice?</p>
         <div className="group relative flex-shrink-0">
           <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
           <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Brand types are AI-inferred based on each brand's name and positioning. Verify accuracy before sharing externally.
+            {AVENUE_Z.brandTypes.text}
             <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
           </div>
         </div>
@@ -124,11 +125,11 @@ function BrandDefinitions() {
   return (
     <div className="flex-1 rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
       <div className="flex items-center gap-1.5 mb-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Brand Type Definitions</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What do these brand categories mean?</p>
         <div className="group relative flex-shrink-0">
           <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
           <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Brand types are AI-inferred based on each brand's name and positioning. Verify accuracy before sharing externally.
+            {AVENUE_Z.brandTypes.text}
             <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
           </div>
         </div>
@@ -160,11 +161,11 @@ function DomainTypesChart({ types, source }: { types: { type: string; percentage
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-4">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Domain Types</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What kinds of sources do AI models cite?</p>
         <div className="group relative flex-shrink-0">
           <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
           <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Distribution of domain types across all sources cited by AI models.
+            Distribution of domain types across all sources cited by AI models. {AVENUE_Z.domainTypes.text}
             <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
           </div>
         </div>
@@ -191,7 +192,7 @@ function DomainTypeDefinitions({ source }: { source: 'peec' | 'profound' }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
       <div className="flex items-center gap-1.5 mb-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Domain Type Definitions</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What do these domain types mean?</p>
         <div className="group relative flex-shrink-0">
           <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
           <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
@@ -241,7 +242,7 @@ function SectionDivider({ title }: { title: string }) {
 
 // --- Main report ---
 
-export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlug?: string; demoMode?: boolean } = {}) {
+export async function PeecAIReport({ clientSlug, dateRange, demoMode = false }: { clientSlug?: string; dateRange?: string; demoMode?: boolean } = {}) {
   const [peec, profound] = await Promise.allSettled([
     getPeecOverview(clientSlug),
     getProfoundOverview(clientSlug),
@@ -296,21 +297,21 @@ export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlu
                   value: `${peecYou.visibility.toFixed(1)}%`,
                   delta: peecYou.visibilityDelta,
                   subtitle: `Competitor avg · ${peecData.competitorAverages.visibility.toFixed(1)}%`,
-                  tooltip: `% of AI responses mentioning your brand, Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+                  tooltip: `${PEEC.visibility.text} (Peec AI.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
                 },
                 {
                   title: 'Share of Voice',
                   value: `${peecYou.sov.toFixed(1)}%`,
                   delta: peecYou.sovDelta,
                   subtitle: `Competitor avg · ${peecData.competitorAverages.sov.toFixed(1)}%`,
-                  tooltip: `Your share of all AI brand mentions, Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+                  tooltip: `${PEEC.sov.text} (Peec AI.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
                 },
                 {
                   title: 'Position',
                   value: `#${peecYou.position.toFixed(1)}`,
                   delta: peecYou.positionDelta,
                   subtitle: `Competitor avg · #${peecData.competitorAverages.position.toFixed(1)}`,
-                  tooltip: `Avg rank when your brand appears in AI responses (lower is better), Jan 1 – today vs. same period last year.`,
+                  tooltip: `${PEEC.position.text} (Peec AI.) Shown YTD vs. same period last year.`,
                   invertDelta: true,
                 },
               ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
@@ -373,21 +374,24 @@ export async function PeecAIReport({ clientSlug, demoMode = false }: { clientSlu
                   value: `${profoundYou.visibility.toFixed(1)}%`,
                   delta: profoundYou.visibilityDelta,
                   subtitle: `Competitor avg · ${profoundData.competitorAverages.visibility.toFixed(1)}%`,
-                  tooltip: `% of AI responses mentioning your brand, Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+                  // TODO: replace with verbatim definition from Profound's official docs.
+                  tooltip: `${PEEC.visibility.text} (Profound — pending verbatim source.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
                 },
                 {
                   title: 'Share of Voice',
                   value: `${profoundYou.sov.toFixed(1)}%`,
                   delta: profoundYou.sovDelta,
                   subtitle: `Competitor avg · ${profoundData.competitorAverages.sov.toFixed(1)}%`,
-                  tooltip: `Your share of all AI brand mentions, Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+                  // TODO: replace with verbatim definition from Profound's official docs.
+                  tooltip: `${PEEC.sov.text} (Profound — pending verbatim source.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
                 },
                 {
                   title: 'Position',
                   value: `#${profoundYou.position.toFixed(1)}`,
                   delta: profoundYou.positionDelta,
                   subtitle: `Competitor avg · #${profoundData.competitorAverages.position.toFixed(1)}`,
-                  tooltip: `Avg rank when your brand appears in AI responses (lower is better), Jan 1 – today vs. same period last year.`,
+                  // TODO: replace with verbatim definition from Profound's official docs.
+                  tooltip: `${PEEC.position.text} (Profound — pending verbatim source.) Shown YTD vs. same period last year.`,
                   invertDelta: true,
                 },
               ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
