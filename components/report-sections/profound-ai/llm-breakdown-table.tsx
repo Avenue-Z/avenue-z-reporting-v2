@@ -1,3 +1,5 @@
+'use client'
+
 import type { LLMBreakdown } from '@/lib/profound/client'
 import { PROFOUND } from '@/lib/peec/metric-definitions'
 import { SortableTable, type SortableColumn } from '../peec-ai/sortable-table'
