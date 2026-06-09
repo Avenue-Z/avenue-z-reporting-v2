@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, GA4, PR_PROOF } from '@/lib/peec/metric-definitions'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -18,13 +19,7 @@ function SectionHeading({ title, tooltip, subtitle }: { title: string; tooltip: 
     <div className="mb-5">
       <div className="flex items-center gap-1.5">
         <h3 className="text-sm font-bold text-white">{title}</h3>
-        <span className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            {tooltip}
-            <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </span>
-        </span>
+        <InfoTooltip text={tooltip} />
       </div>
       {subtitle && <p className="mt-1 text-xs text-text-muted">{subtitle}</p>}
     </div>

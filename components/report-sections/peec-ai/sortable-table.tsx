@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, FilterIcon, XIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 export interface SortableColumn<T> {
   key: string
@@ -178,13 +179,7 @@ export function SortableTable<T>({
                       )}
 
                       {col.tooltip && (
-                        <span className="group/tooltip relative flex-shrink-0">
-                          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-                          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover/tooltip:opacity-100">
-                            {col.tooltip}
-                            <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-                          </span>
-                        </span>
+                        <InfoTooltip text={col.tooltip} />
                       )}
 
                       {isFilterable && (

@@ -7,6 +7,7 @@ import { VisibilityChart } from './visibility-chart'
 import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
 import { cn } from '@/lib/utils'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 function fmt(n: number, suffix = '%') {
   return `${n.toFixed(1)}${suffix}`
@@ -43,13 +44,7 @@ function BrandSOVChart({ brands }: { brands: BrandRanking[] }) {
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-1">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Brand Types</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Brand types are AI-inferred based on each brand's name and positioning. Verify accuracy before sharing externally.
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text="Brand types are AI-inferred based on each brand's name and positioning. Verify accuracy before sharing externally." />
       </div>
       <p className="text-xs text-text-muted mb-4">Avg share of voice by category</p>
       <div className="space-y-2.5">
@@ -75,13 +70,7 @@ function BrandDefinitions() {
     <div className="flex-1 rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
       <div className="flex items-center gap-1.5 mb-3">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Brand Type Definitions</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-[#FF4444]/60 text-[9px] font-bold leading-none text-[#FF4444]">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Brand types are AI-inferred based on each brand's name and positioning. Verify accuracy before sharing externally.
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text="Brand types are AI-inferred based on each brand's name and positioning. Verify accuracy before sharing externally." />
       </div>
       {BRAND_TYPE_DEFINITIONS.map(({ type, desc }) => (
         <div key={type} className="flex gap-2">
@@ -111,13 +100,7 @@ function DomainTypesChart({ types }: { types: DomainType[] }) {
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-4">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Domain Types</p>
-        <div className="group relative flex-shrink-0">
-          <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-            Distribution of domain types across all sources cited by AI models.
-            <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-          </div>
-        </div>
+        <InfoTooltip text="Distribution of domain types across all sources cited by AI models." />
       </div>
       <div className="space-y-2.5">
         {types.map((t) => (
@@ -153,13 +136,7 @@ function KpiCard({
       <div className="flex items-center gap-1.5">
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{title}</p>
         {tooltip && (
-          <div className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              {tooltip}
-              <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </div>
-          </div>
+          <InfoTooltip text={tooltip} />
         )}
       </div>
       <p className="mt-2 text-3xl font-extrabold tabular-nums text-white">{value}</p>
@@ -254,13 +231,7 @@ export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } =
           <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
             <div className="flex items-center gap-1.5 mb-3">
               <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Domain Type Definitions</p>
-              <div className="group relative flex-shrink-0">
-                <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-                <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-                  Domain types are classified by Profound based on each domain's content and category.
-                  <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-                </div>
-              </div>
+              <InfoTooltip text="Domain types are classified by Profound based on each domain's content and category." />
             </div>
             {[
               { type: 'Own',           color: '#60FDFF', desc: 'Your own owned domains.' },

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import type { BrandRanking } from '@/lib/profound/client'
 import { PROFOUND } from '@/lib/peec/metric-definitions'
 import { SortableTable, type SortableColumn } from '../peec-ai/sortable-table'
+import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 function fmtPct(n: number) {
   return `${n.toFixed(1)}%`
@@ -93,13 +94,7 @@ export function BrandRankingsTable({ rankingsByRange }: { rankingsByRange: Recor
       <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which brands appear most often in AI answers? (Profound)</p>
-          <span className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
-            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              Brand visibility across all brands tracked in Profound. {PROFOUND.visibility.text}
-              <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </span>
-          </span>
+          <InfoTooltip text={`Brand visibility across all brands tracked in Profound. ${PROFOUND.visibility.text}`} />
         </div>
         <select
           value={selectedRange}
