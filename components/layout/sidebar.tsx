@@ -106,6 +106,7 @@ export function Sidebar({ user, clients = [], demoModeEffective = false }: Sideb
         activeSection={searchParams.get('section')}
         activeSubsection={searchParams.get('subsection')}
         dateRange={searchParams.get('dateRange')}
+        compareRange={searchParams.get('compareRange')}
         user={user}
         clients={clients}
         collapsed={collapsed}
@@ -322,6 +323,7 @@ function ClientSidebar({
   activeSection,
   activeSubsection,
   dateRange,
+  compareRange,
   user,
   clients,
   collapsed,
@@ -333,6 +335,7 @@ function ClientSidebar({
   activeSection: string | null
   activeSubsection: string | null
   dateRange: string | null
+  compareRange: string | null
   user?: SidebarUser
   clients: Client[]
   collapsed: boolean
@@ -486,6 +489,7 @@ function ClientSidebar({
                           const aeoBaseParams = new URLSearchParams()
                           aeoBaseParams.set('section', 'peec-ai')
                           if (dateRange) aeoBaseParams.set('dateRange', dateRange)
+                          if (compareRange) aeoBaseParams.set('compareRange', compareRange)
                           return (
                             <li key={slug}>
                               <Link
@@ -520,6 +524,7 @@ function ClientSidebar({
                                     subParams.set('section', 'peec-ai')
                                     if (sub.id) subParams.set('subsection', sub.id)
                                     if (dateRange) subParams.set('dateRange', dateRange)
+                                    if (compareRange) subParams.set('compareRange', compareRange)
                                     const subIsActive = sub.id === null
                                       ? !activeSubsection
                                       : activeSubsection === sub.id
