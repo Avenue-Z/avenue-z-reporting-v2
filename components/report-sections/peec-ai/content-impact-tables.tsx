@@ -772,7 +772,7 @@ export function CompetitorUrlsBrandAbsentTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-xs font-bold text-white/60">Where are competitors cited and we're absent?</h4>
+      <h4 className="text-xs font-bold text-white/60">Where are competitors cited and we&apos;re absent?</h4>
       <SortableTable
         columns={columns}
         rows={rows}
