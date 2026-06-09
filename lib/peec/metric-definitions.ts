@@ -13,7 +13,7 @@ export interface MetricDefinition {
   /** Verbatim quote from the source tool's docs. */
   text: string
   /** Which source tool the definition is pulled from. */
-  source: 'Peec AI' | 'GA4' | 'Sitebulb' | 'Screaming Frog' | 'Avenue Z'
+  source: 'Peec AI' | 'GA4' | 'Sitebulb' | 'Screaming Frog' | 'Profound' | 'Avenue Z'
   /** URL of the source page where this definition lives. */
   sourceUrl?: string
   /** Optional framing — e.g. "Shown YTD vs. prior year" — appended to the
@@ -166,24 +166,30 @@ export const SCREAMING_FROG: Record<string, MetricDefinition> = {
   },
 }
 
-// ─── Profound (verbatim source PENDING — replace text when Profound docs available) ───
+// ─── Profound ────────────────────────────────────────────────────────────────
+// Verbatim from Profound's own published article at
+// tryprofound.com/blog/how-to-track-your-visibility-in-ai-search.
 
 export const PROFOUND: Record<string, MetricDefinition> = {
   visibility: {
-    text: "Profound's Visibility Score measures the percentage of mentions out of the total responses tracked.",
-    source: 'Avenue Z',
+    text: "Profound's Visibility Score measures the percentage of mentions out of the total responses tracked. Think of it as a quick snapshot of your brand's visibility within the prompts you've chosen.",
+    source: 'Profound',
     sourceUrl: 'https://www.tryprofound.com/blog/how-to-track-your-visibility-in-ai-search',
-    framing: '(Verbatim Profound source pending — verify before sharing externally.)',
   },
   sov: {
-    text: 'Share of voice measures the percentage of brand mentions a company receives compared to competitors across AI-generated responses.',
-    source: 'Avenue Z',
-    framing: '(Verbatim Profound source pending — verify before sharing externally.)',
+    text: "Profound's Share of Voice score compares your brand mentions to competitors' mentions across all responses tracked. It's a quick way to benchmark your brand against the competition.",
+    source: 'Profound',
+    sourceUrl: 'https://www.tryprofound.com/blog/how-to-track-your-visibility-in-ai-search',
   },
   position: {
-    text: 'Average position when your brand appears in AI search responses across the tracked prompt set.',
-    source: 'Avenue Z',
-    framing: '(Verbatim Profound source pending — verify before sharing externally.)',
+    text: "Profound's Average Position data shows where your brand ranks in relevant AI-generated answers. Think of it as a way to gauge if your brand typically appears before competitors in AI responses.",
+    source: 'Profound',
+    sourceUrl: 'https://www.tryprofound.com/blog/how-to-track-your-visibility-in-ai-search',
+  },
+  citationShare: {
+    text: 'Citation Share data shows how often your brand is cited in AI-generated answers.',
+    source: 'Profound',
+    sourceUrl: 'https://www.tryprofound.com/blog/how-to-track-your-visibility-in-ai-search',
   },
 }
 

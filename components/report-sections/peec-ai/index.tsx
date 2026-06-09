@@ -16,7 +16,7 @@ import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/l
 import { sampleProfoundOverview } from '@/lib/demo-data/profound'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { PEEC, AVENUE_Z } from '@/lib/peec/metric-definitions'
+import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
 import { cn } from '@/lib/utils'
 
 // --- Helpers ---
@@ -374,24 +374,21 @@ export async function PeecAIReport({ clientSlug, dateRange, demoMode = false }: 
                   value: `${profoundYou.visibility.toFixed(1)}%`,
                   delta: profoundYou.visibilityDelta,
                   subtitle: `Competitor avg · ${profoundData.competitorAverages.visibility.toFixed(1)}%`,
-                  // TODO: replace with verbatim definition from Profound's official docs.
-                  tooltip: `${PEEC.visibility.text} (Profound — pending verbatim source.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+                  tooltip: `${PROFOUND.visibility.text} (Profound.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
                 },
                 {
                   title: 'Share of Voice',
                   value: `${profoundYou.sov.toFixed(1)}%`,
                   delta: profoundYou.sovDelta,
                   subtitle: `Competitor avg · ${profoundData.competitorAverages.sov.toFixed(1)}%`,
-                  // TODO: replace with verbatim definition from Profound's official docs.
-                  tooltip: `${PEEC.sov.text} (Profound — pending verbatim source.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+                  tooltip: `${PROFOUND.sov.text} (Profound.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
                 },
                 {
                   title: 'Position',
                   value: `#${profoundYou.position.toFixed(1)}`,
                   delta: profoundYou.positionDelta,
                   subtitle: `Competitor avg · #${profoundData.competitorAverages.position.toFixed(1)}`,
-                  // TODO: replace with verbatim definition from Profound's official docs.
-                  tooltip: `${PEEC.position.text} (Profound — pending verbatim source.) Shown YTD vs. same period last year.`,
+                  tooltip: `${PROFOUND.position.text} (Profound.) Shown YTD vs. same period last year.`,
                   invertDelta: true,
                 },
               ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
