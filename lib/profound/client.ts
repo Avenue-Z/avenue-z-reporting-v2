@@ -350,13 +350,14 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     start_date: `${thisYear - 1}-01-01`,
     end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}`,
   }
+  // Two equal, contiguous 30-day windows: last30 = days -29..0, prior30 = -59..-30.
   const last30Start = new Date()
-  last30Start.setDate(last30Start.getDate() - 30)
+  last30Start.setDate(last30Start.getDate() - 29)
   const last30 = { start_date: isoDate(last30Start), end_date: isoDate(new Date()) }
   const prior30Start = new Date()
-  prior30Start.setDate(prior30Start.getDate() - 60)
+  prior30Start.setDate(prior30Start.getDate() - 59)
   const prior30End = new Date()
-  prior30End.setDate(prior30End.getDate() - 31)
+  prior30End.setDate(prior30End.getDate() - 30)
   const prior30 = { start_date: isoDate(prior30Start), end_date: isoDate(prior30End) }
 
   const base = (dates: { start_date: string; end_date: string }) => ({
