@@ -485,6 +485,7 @@ function ClientSidebar({
                         if (slug === 'peec-ai') {
                           const aeoBaseParams = new URLSearchParams()
                           aeoBaseParams.set('section', 'peec-ai')
+                          if (dateRange) aeoBaseParams.set('dateRange', dateRange)
                           return (
                             <li key={slug}>
                               <Link
@@ -518,6 +519,7 @@ function ClientSidebar({
                                     const subParams = new URLSearchParams()
                                     subParams.set('section', 'peec-ai')
                                     if (sub.id) subParams.set('subsection', sub.id)
+                                    if (dateRange) subParams.set('dateRange', dateRange)
                                     const subIsActive = sub.id === null
                                       ? !activeSubsection
                                       : activeSubsection === sub.id
