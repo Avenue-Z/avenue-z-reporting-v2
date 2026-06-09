@@ -604,3 +604,118 @@ deployed successfully at 18:17:36Z.
 - 2 pre-existing ESLint errors on `main` (apostrophe in
   `peec-ai/index.tsx:199` and `any` cast in `sidebar.tsx:418`) — blamed to
   May/June commits before this branch, out of scope.
+
+---
+
+## Post-merge bug fixes (same day)
+
+After PR #27 shipped, Thomas surfaced two follow-up bugs against the same
+spec. Both were fixed and shipped same day on top of `854c3d6`.
+
+### PR #28 — Tooltips appeared behind other elements
+
+**Reported:** "The tooltips aren't working correctly, if you test them out
+you can see that when you hover over them, they appear behind other
+objects."
+
+**Root cause (two-layered):**
+
+1. `SortableTable` wraps its `<table>` in `overflow-hidden` +
+   `overflow-x-auto`, clipping any absolutely-positioned tooltip child.
+2. `StickyReportHeader` (`sticky z-30 backdrop-blur-md`) and `ReportNav`
+   (`sticky z-20 backdrop-blur-md`) create stacking contexts via
+   `backdrop-filter`. No `z-index` value inside the report tree can
+   paint above them.
+
+**Fix:** Replaced the hand-rolled CSS-only hover pattern with a Radix
+`Tooltip` wrapper whose `TooltipContent` renders via `<Tooltip.Portal>`
+to `document.body` — escaping both the clipping ancestor and the
+sticky-bar stacking contexts.
+
+**Files:**
+
+- New: `components/ui/tooltip.tsx` (shadcn-style Radix wrapper with
+  Portal — matches the existing `components/ui/popover.tsx` pattern)
+- New: `components/ui/info-tooltip.tsx` (thin `?` icon + tooltip
+  convenience wrapper)
+- Wired `<TooltipProvider>` into
+  `app/dashboard/[clientSlug]/reports/page.tsx`
+- Swapped 30 hand-rolled tooltip blocks across AEO + Profound tables,
+  charts, and KPI cards
+- Net **-178 lines** (removed duplicated tooltip markup)
+
+**Tooltip text content unchanged** — still pulled verbatim from
+`lib/peec/metric-definitions.ts`. This was a render-mechanism fix only.
+
+**Note:** the red `?` icon variant on a few Overview headers
+(`BrandSOVChart`, `BrandDefinitions`, tracked-prompts headers) was
+visually normalized to the standard white `InfoTooltip`. Thomas
+approved white.
+
+**Commits:** `b25f1a8` (fix) → `36522c9` (merge of PR #28)
+**Shipped:** 2026-06-09 20:51:38Z, Vercel Production success.
+
+### PR #29 — compareRange dropped on AEO sub-tab clicks
+
+**Reported:** "I tested this and when you select a date + comparison
+period on one page and move to the next page, it doesn't stick."
+
+**Root cause:** The AEO date picker writes BOTH `?dateRange=` and
+`?compareRange=` to the URL on Apply, but `components/layout/sidebar.tsx`
+was only reading and forwarding `dateRange`. Every AEO sub-tab link
+rebuilt the URL from scratch using only `dateRange`, silently dropping
+`compareRange` on every click.
+
+**Fix:** Surgical 4-line addition in `sidebar.tsx` mirroring the
+existing `dateRange` plumbing for `compareRange`:
+
+1. Read `searchParams.get('compareRange')` in the `Sidebar` wrapper.
+2. Add `compareRange: string \| null` to `ClientSidebar` prop type +
+   destructured params.
+3. Forward `compareRange` on the AEO base link
+   (`aeoBaseParams.set('compareRange', compareRange)`).
+4. Forward `compareRange` on AEO sub-tab links
+   (`subParams.set('compareRange', compareRange)`).
+
+**Scope:** AEO sub-tab navigation only. GA4 / inbound-funnel / generic
+section links unchanged (they also drop both params by current design;
+not in scope for this fix).
+
+**Process note:** The compareRange commit (`bb17c7c`) was originally
+pushed to `fix/tooltip-portal-clipping` ~12 min AFTER PR #28 was already
+merged — it landed on a defunct branch and did NOT ship. Caught the
+gap when verifying sync state, cherry-picked the commit onto a fresh
+branch and opened PR #29.
+
+**Commits:** `1e8c88b` (cherry-pick) → `e604bae` (merge of PR #29)
+**Shipped:** 2026-06-09 21:09:01Z, Vercel Production success.
+
+### Final post-fix state (2026-06-09 21:09Z)
+
+| Layer | SHA |
+|---|---|
+| Local `main` | `e604bae` |
+| `origin/main` | `e604bae` |
+| Vercel Production | `e604bae` (success) |
+
+All four spec items + both follow-up bugs closed.
+
+### Open follow-ups (not blocking, deferred)
+
+- Stickiness across non-AEO sections: leaving AEO (e.g. clicking GA4
+  tab) then returning still resets `dateRange` and `compareRange` to
+  defaults. Same for closing/reopening the tab (no localStorage backup).
+  Per Thomas's call, AEO-only stickiness is sufficient; broader
+  persistence is a future enhancement.
+- Overview tab accepts `dateRange` as a prop but `getPeecOverviewImpl`
+  in `lib/peec/client.ts:341` hardcodes YTD for all queries — so the
+  date picker has no effect on Overview data. Spec carved out the YTD
+  trend chart specifically; whether the whole Overview tab should be
+  YTD-locked is a separate product decision.
+- 4 hardcoded tooltip text duplicates remain
+  (`peec-ai/visibility-chart.tsx:45`, `tracked-prompts-chart.tsx:145-147`,
+  `content-impact-tables.tsx:12-13`, `profound-ai/index.tsx` ×5).
+  Content is correct but bypasses `metric-definitions.ts` SoT file.
+  Cosmetic, deferred.
+- 16 lint warnings (unused imports leftover from tooltip swap).
+  Non-blocking, can clean in a follow-up.
