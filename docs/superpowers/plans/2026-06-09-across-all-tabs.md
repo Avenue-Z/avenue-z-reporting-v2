@@ -553,3 +553,54 @@ Two ways to run this:
 2. **Inline** — Main session executes every task sequentially with checkpoints.
 
 The plan is designed for option 1.
+
+---
+
+## Outcome (2026-06-09)
+
+Shipped via PR #27, merged to `main` as commit `907c4da`. Vercel Production
+deployed successfully at 18:17:36Z.
+
+10 commits landed:
+
+| SHA | What |
+|---|---|
+| `37fb846` | Shared infra — SortableTable primitive, verbatim metric definitions, sticky date picker |
+| `1a72b25` | Overview tab refactor |
+| `f2b98eb` | PR Influence — 5 tables extracted to client file, headlines, verbatim tooltips |
+| `6033c49` | Content Impact — 10 tables, `dateRange` wired into GA4 query |
+| `4bd99f9` | Technical Performance — 5 tables, verbatim Sitebulb tooltips |
+| `e175e62` | Apostrophe lint fix |
+| `868bd42` | Verbatim Profound definitions (was TODO) |
+| `115aff9` | Profound sub-section refactor + Section D unified card |
+| `34cc8ec` | Fix: missing `'use client'` on Profound LLM breakdown table |
+| `907c4da` | Merge commit |
+
+### Final state vs. spec
+
+- **Sticky date picker across all 4 AEO tabs** ✅
+- **YTD exception preserved** (Overview YTD trend chart, Overview KPI strip,
+  PR Influence's 3 Peec KPI tiles) ✅
+- **Sort + filter on every table column** — 23 AEO tables + 3 Profound tables
+  migrated to `SortableTable` ✅
+- **Question-based headlines** — ~46 declarative titles rewritten ✅
+- **Verbatim source-of-truth tooltips** — Peec, GA4, Sitebulb, Profound
+  pulled word-for-word from each tool's docs; Avenue Z internal metrics
+  explicitly attributed in-tooltip ✅
+
+### Key new files (production)
+
+- `components/report-sections/peec-ai/sortable-table.tsx` — generic
+  client-side sortable/filterable table primitive
+- `lib/peec/metric-definitions.ts` — single source-of-truth file for every
+  AEO metric tooltip (`PEEC`, `GA4`, `SITEBULB`, `SCREAMING_FROG`, `PROFOUND`,
+  `PR_PROOF`, `AVENUE_Z`)
+- `components/report-sections/peec-ai/{pr-influence,content-impact,technical-audit}-tables.tsx`
+  — `'use client'` sibling files holding the SortableTable wrappers; the
+  parent RSC tab files pass plain serializable data in
+
+### Known follow-ups (not blocking)
+
+- 2 pre-existing ESLint errors on `main` (apostrophe in
+  `peec-ai/index.tsx:199` and `any` cast in `sidebar.tsx:418`) — blamed to
+  May/June commits before this branch, out of scope.
