@@ -26,7 +26,10 @@ export function ProviderTabs({
     if (availableProviders.length < 2) return
     const saved = window.localStorage.getItem(storageKey) as AeoProvider | null
     if (saved && availableProviders.includes(saved)) setSelected(saved)
-  }, [storageKey, availableProviders])
+    // Restore once on mount; storageKey (per client slug) and the configured
+    // providers are stable for the component's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function pick(p: AeoProvider) {
     setSelected(p)
