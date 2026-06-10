@@ -146,17 +146,41 @@ function normalizeModel(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1)
 }
 
+// Maps Profound's citation_category taxonomy (owned, competition, earned_media,
+// pr_wire, earned_institutions, social, other) onto the shared DomainType labels
+// the table colors/definitions key on. Legacy labels are kept for safety.
 function normalizeDomainType(c: string | null | undefined): string {
   switch ((c ?? '').toLowerCase()) {
-    case 'own':           return 'Own'
-    case 'ugc':           return 'UGC'
-    case 'editorial':     return 'Editorial'
-    case 'corporate':     return 'Corporate'
-    case 'competitor':    return 'Competitor'
-    case 'reference':     return 'Reference'
-    case 'institutional': return 'Institutional'
-    default:              return c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Other'
+    case 'owned':
+    case 'own':                 return 'Own'
+    case 'competition':
+    case 'competitor':          return 'Competitor'
+    case 'earned_media':
+    case 'pr_wire':
+    case 'editorial':           return 'Editorial'
+    case 'social':
+    case 'ugc':                 return 'UGC'
+    case 'earned_institutions':
+    case 'institutional':       return 'Institutional'
+    case 'reference':           return 'Reference'
+    case 'corporate':           return 'Corporate'
+    case 'other':               return 'Other'
+    default:                    return c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Other'
   }
+}
+
+// Profound returns citation rows ordered alphabetically by dimension name, so a
+// ['hostname','citation_category'] query comes back as [citation_category,
+// hostname]. Identify each field by shape (hostnames contain a dot).
+function splitHostnameCategory(dims: (string | null)[]): { hostname: string | null; category: string | null } {
+  let hostname: string | null = null
+  let category: string | null = null
+  for (const d of dims) {
+    if (d == null) continue
+    if (d.includes('.')) hostname = d
+    else category = d
+  }
+  return { hostname, category }
 }
 
 function categorizePrompt(text: string): string {
@@ -281,7 +305,7 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
   const priorShareMap = new Map<string, number>()
   const priorCountMap = new Map<string, number>()
   for (const row of priorRows ?? []) {
-    const domain = row.dimensions[0]
+    const { hostname: domain } = splitHostnameCategory(row.dimensions)
     if (!domain) continue
     priorShareMap.set(domain, (priorShareMap.get(domain) ?? 0) + (row.metrics[0] ?? 0) * 100)
     priorCountMap.set(domain, (priorCountMap.get(domain) ?? 0) + (row.metrics[1] ?? 0))
@@ -291,9 +315,9 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
   type Agg = { citShare: number; count: number; type: string; maxShare: number }
   const aggMap = new Map<string, Agg>()
   for (const row of currentRows ?? []) {
-    const domain = row.dimensions[0]
+    const { hostname: domain, category } = splitHostnameCategory(row.dimensions)
     if (!domain) continue
-    const type = normalizeDomainType(row.dimensions[1])
+    const type = normalizeDomainType(category)
     const citShare = (row.metrics[0] ?? 0) * 100
     const count = row.metrics[1] ?? 0
     const e = aggMap.get(domain)
@@ -450,14 +474,16 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     'Last 30 days': (domains30Res.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0),
   }
 
-  // --- Domain types ---
+  // --- Domain types (aggregate Profound categories onto shared type labels) ---
   const totalShare = (domainTypesRes.data ?? []).reduce((s, r) => s + (r.metrics[0] ?? 0), 0) || 1
-  const domainTypes: DomainType[] = (domainTypesRes.data ?? [])
-    .filter((r) => r.dimensions[0])
-    .map((r) => ({
-      type: normalizeDomainType(r.dimensions[0]),
-      percentage: Math.round(((r.metrics[0] ?? 0) / totalShare) * 100),
-    }))
+  const typeShareMap = new Map<string, number>()
+  for (const r of domainTypesRes.data ?? []) {
+    if (!r.dimensions[0]) continue
+    const type = normalizeDomainType(r.dimensions[0])
+    typeShareMap.set(type, (typeShareMap.get(type) ?? 0) + (r.metrics[0] ?? 0))
+  }
+  const domainTypes: DomainType[] = Array.from(typeShareMap.entries())
+    .map(([type, share]) => ({ type, percentage: Math.round((share / totalShare) * 100) }))
     .sort((a, b) => b.percentage - a.percentage)
 
   // --- LLM breakdown ---
@@ -498,7 +524,7 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
   const domainShare = (rows: ProfoundRow[]) => {
     const m = new Map<string, number>()
     for (const r of rows ?? []) {
-      const domain = r.dimensions[0]
+      const { hostname: domain } = splitHostnameCategory(r.dimensions)
       if (!domain) continue
       m.set(domain, (m.get(domain) ?? 0) + (r.metrics[0] ?? 0) * 100)
     }
