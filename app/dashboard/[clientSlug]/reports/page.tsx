@@ -13,6 +13,7 @@ import { GoogleSearchConsoleReport } from '@/components/report-sections/google-s
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
+import { PaidMediaReport } from '@/components/report-sections/paid-media'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
 import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
@@ -79,6 +80,8 @@ function getReportComponent(
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
       return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
+    case 'paid-media':
+      return <PaidMediaReport />
     default:
       return null
   }

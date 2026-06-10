@@ -18,6 +18,7 @@ import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-p
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
+import { PaidMediaReport } from '@/components/report-sections/paid-media'
 import { ReportDateRange } from './report-date-range'
 
 function ReportSkeleton() {
@@ -66,6 +67,8 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
       return <RedditAdsReport clientSlug={clientSlug} />
     case 'bing-ads':
       return <BingAdsReport clientSlug={clientSlug} />
+    case 'paid-media':
+      return <PaidMediaReport />
     default:
       return null
   }
