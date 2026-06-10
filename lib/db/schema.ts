@@ -26,6 +26,7 @@ export type ReportSlug =
   | 'gohighlevel'
   | 'ticket-sales'
   | 'peec-ai'
+  | 'paid-media'
   | 'profound-ai'
   | 'demand-overview'
   | 'ai-summaries'

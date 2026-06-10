@@ -57,6 +57,7 @@ export const REPORT_NAMES: Record<string, string> = {
   'hubspot-performance': 'Pipeline Performance',
   'inbound-funnel': 'Inbound Funnel',
   'peec-ai': 'Answer Engine Optimization',
+  'paid-media': 'Paid Media',
   'profound-ai': 'Profound',
   'ai-summaries': 'AI Summaries',
   'report-generator': 'Report Generator',
@@ -82,7 +83,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
     label: 'Reports',
     // peec-ai renders as the "Answer Engine Optimization" expandable group;
     // profound-ai and google-search-console are handled as Soon sub-items inside their parents.
-    slugs: ['peec-ai', 'ga4', 'inbound-funnel', 'hubspot-performance'],
+    slugs: ['peec-ai', 'paid-media', 'ga4', 'inbound-funnel', 'hubspot-performance'],
   },
   {
     label: 'Tools',
@@ -112,6 +113,7 @@ export const SOON_REPORT_SLUGS = new Set<string>([])
 export const ALL_REPORT_SLUGS: string[] = [
   'demand-overview',
   'peec-ai',
+  'paid-media',
   'ga4',
   'inbound-funnel',
   'hubspot-performance',
