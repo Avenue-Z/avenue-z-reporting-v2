@@ -177,14 +177,28 @@ function categorizePrompt(text: string): string {
 
 // --- Aggregation helpers ---
 
+// Profound returns multi-dimension rows ordered alphabetically by dimension
+// name, so a ['date','asset_name'] query comes back as [asset_name, date].
+// Identify each field by shape rather than trusting positional order.
+const DATE_DIM_RE = /^\d{4}-\d{2}-\d{2}/
+function splitDateAsset(dims: (string | null)[]): { dateStr: string | null; asset: string } {
+  let dateStr: string | null = null
+  let asset = ''
+  for (const d of dims) {
+    if (d == null) continue
+    if (DATE_DIM_RE.test(d)) dateStr = d
+    else asset = d
+  }
+  return { dateStr, asset }
+}
+
 function groupByWeekFromRows(
   rows: ProfoundRow[],
   filterFn: (asset: string) => boolean,
 ): WeeklyVisibility[] {
   const weekMap = new Map<string, { visSum: number; count: number }>()
   for (const row of rows) {
-    const dateStr = row.dimensions[0]
-    const asset = row.dimensions[1] ?? ''
+    const { dateStr, asset } = splitDateAsset(row.dimensions)
     if (!dateStr || !filterFn(asset)) continue
     const vis = (row.metrics[0] ?? 0) * 100
     const d = new Date(dateStr)
@@ -211,8 +225,7 @@ function groupByWeekFromRows(
 function groupByDayFromRows(rows: ProfoundRow[], filterFn: (asset: string) => boolean): DailyPoint[] {
   const dayMap = new Map<string, { sum: number; count: number }>()
   for (const row of rows) {
-    const dateStr = row.dimensions[0]
-    const asset = row.dimensions[1] ?? ''
+    const { dateStr, asset } = splitDateAsset(row.dimensions)
     if (!dateStr || !filterFn(asset)) continue
     const key = dateStr.slice(0, 10)
     const vis = (row.metrics[0] ?? 0) * 100
