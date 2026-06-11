@@ -687,7 +687,12 @@ export async function ContentImpactReport({
 
         <div className="border-t border-white/[0.06]" />
 
-        {/* Sub-view 3: AI Bot Attention but No Citations/Visits (LIVE from agent-analytics) */}
+        {/* Sub-view 3: AI Bot Attention but No Citations/Visits (LIVE from agent-analytics)
+            v1 limitation: this table is built from agentData.topPaths, which is path-level
+            and not segmented by bot identity. We cannot honor the model filter here without
+            backend changes to expose per-bot path breakdowns. When a model filter is active,
+            this table shows the all-bots view as-is. Future enhancement: add a
+            topPathsByBot field to AgentAnalyticsData. */}
         {(() => {
           const g3DemoTopics = ['Services Overview', 'About Avenue Z', 'Brand Authority', 'GEO Glossary', 'How to Audit Brand', 'Renaissance Case Study', 'Press: TechCrunch', 'Pricing', 'AEO Services', '2026 AI Trends']
           const g3DemoCites = [3, 1, 8, 12, 5, 2, 4, 0, 6, 9]
