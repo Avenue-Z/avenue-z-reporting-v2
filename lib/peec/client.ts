@@ -1,4 +1,6 @@
 import { cached } from '@/lib/cache'
+import type { AEOModel } from './models'
+import type { ByModel } from './by-model'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
@@ -185,6 +187,11 @@ export type PeecOverview = {
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
+  /** Per-domain citation counts broken out by AI model. Built from the per-model
+   *  domain fetch already done for llmBreakdown. */
+  domainCitationsByModel: ByModel<string, number>
+  /** Per-brand visibility scores broken out by AI model. */
+  brandVisibilityByModel: ByModel<string, number>
 }
 
 // --- Aggregation helpers ---
@@ -566,6 +573,36 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     })
     .sort((a, b) => b.visibility - a.visibility)
 
+  // --- Per-model domain citation counts ---
+  // Uses the llmDomainsRes already fetched above (dimensions: ['model_channel_id']).
+  const domainCitationsByModel: ByModel<string, number> = {}
+  for (const row of llmDomainsRes.data ?? []) {
+    const rawId = row.model_channel?.id ?? ''
+    const modelName = normalizeSource(rawId)
+    if (!modelName) continue
+    const domain = row.domain
+    const count = row.citation_count ?? 0
+    if (!domainCitationsByModel[domain]) domainCitationsByModel[domain] = {}
+    const existing = domainCitationsByModel[domain][modelName as AEOModel] ?? 0
+    domainCitationsByModel[domain][modelName as AEOModel] = existing + count
+  }
+
+  // --- Per-model brand visibility scores ---
+  // Uses the llmBrandsRes already fetched above (dimensions: ['model_channel_id']).
+  // visibility is a percentage (visCount/visTotal*100); we take the last value per
+  // (brand, model) rather than summing, since percentages must not be summed across rows.
+  const brandVisibilityByModel: ByModel<string, number> = {}
+  for (const row of llmBrandsRes.data ?? []) {
+    const rawId = row.model_channel?.id ?? row.model?.id ?? ''
+    const modelName = normalizeSource(rawId)
+    if (!modelName) continue
+    const brandName = row.brand.name
+    const vis = row.visibility_total > 0 ? (row.visibility_count / row.visibility_total) * 100 : 0
+    if (!brandVisibilityByModel[brandName]) brandVisibilityByModel[brandName] = {}
+    // Last value wins — API returns one row per (brand, model) for this dimension grouping.
+    brandVisibilityByModel[brandName][modelName as AEOModel] = vis
+  }
+
   // --- Competitor averages (current period, all non-you brands) ---
   const competitorAggs = Array.from(currentAgg.entries())
     .filter(([, agg]) => !yourBrand || !agg.name.toLowerCase().includes(yourBrand.toLowerCase()))
@@ -589,6 +626,8 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     domainTypes,
     trackedPrompts,
     llmBreakdown,
+    domainCitationsByModel,
+    brandVisibilityByModel,
   }
 }
 
