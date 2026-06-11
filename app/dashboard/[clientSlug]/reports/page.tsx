@@ -157,7 +157,10 @@ export default async function ReportPage({
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
         )}
-        {activeSection === 'peec-ai' && (
+        {/* AEO subsections (PR Influence, Content Impact, Technical Audit) honor
+            the page date range; the Overview is fixed to year-to-date, so the
+            picker is hidden there to avoid implying a control it doesn't have. */}
+        {activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection] && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>

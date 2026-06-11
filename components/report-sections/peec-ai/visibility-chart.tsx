@@ -1,93 +1,115 @@
+// components/report-sections/peec-ai/visibility-chart.tsx
 'use client'
 
-import { useState } from 'react'
-import type { WeeklyVisibility } from '@/lib/peec/client'
+import { useMemo, useState } from 'react'
+import { cn } from '@/lib/utils'
+import { bucketDaily } from '@/lib/aeo/bucket'
+import type { DailyPoint, BucketGranularity } from '@/lib/aeo/types'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+
+const GRANULARITIES: { id: BucketGranularity; label: string }[] = [
+  { id: 'daily',     label: 'Daily'     },
+  { id: 'weekly',    label: 'Weekly'    },
+  { id: 'monthly',   label: 'Monthly'   },
+  { id: 'quarterly', label: 'Quarterly' },
+]
 
 export function VisibilityChart({
   data,
   competitorData,
   brandName,
 }: {
-  data: WeeklyVisibility[]
-  competitorData: WeeklyVisibility[]
+  data: DailyPoint[]
+  competitorData: DailyPoint[]
   brandName?: string
 }) {
   const [hovered, setHovered] = useState<number | null>(null)
+  const [granularity, setGranularity] = useState<BucketGranularity>('weekly')
 
-  if (data.length === 0) return null
+  const buckets = useMemo(() => bucketDaily(data, granularity), [data, granularity])
+  const compBuckets = useMemo(() => bucketDaily(competitorData, granularity), [competitorData, granularity])
 
-  const CHART_MAX = Math.max(...data.map((d) => d.visibility), ...competitorData.map((d) => d.visibility), 1)
-  const n = data.length
+  if (buckets.length === 0) return null
 
-  // Build a map of competitor visibility by weekStart for alignment
-  const competitorMap = new Map(competitorData.map((d) => [d.weekStart, d.visibility]))
+  const CHART_MAX = Math.max(...buckets.map((d) => d.visibility), ...compBuckets.map((d) => d.visibility), 1)
+  const n = buckets.length
+  const compMap = new Map(compBuckets.map((d) => [d.key, d.visibility]))
+  const trackingStart = data.length > 0 ? bucketDaily(data, 'weekly')[0]?.label : undefined
 
-  // SVG line points: x = center of each bar slot (0..1), y = visibility / 100
-  const competitorPoints = data.map((week, i) => {
-    const x = (i + 0.5) / n
-    const vis = competitorMap.get(week.weekStart) ?? null
-    return { x, vis }
-  }).filter((p): p is { x: number; vis: number } => p.vis !== null)
-
-  // Build SVG polyline points string (y is inverted: 0% vis = bottom = 100% svg y)
+  const competitorPoints = buckets
+    .map((b, i) => ({ x: (i + 0.5) / n, vis: compMap.get(b.key) ?? null }))
+    .filter((p): p is { x: number; vis: number } => p.vis !== null)
   const svgPoints = competitorPoints
     .map((p) => `${(p.x * 100).toFixed(2)},${(100 - (p.vis / CHART_MAX) * 100).toFixed(2)}`)
     .join(' ')
 
+  // Label every Nth bucket so the axis never crowds.
+  const labelEvery = Math.max(1, Math.ceil(n / 16))
+
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">How has AI visibility grown this year?</p>
-            <InfoTooltip text="Percentage of AI responses where your brand appears. (Peec AI.) This chart is fixed to year-to-date and does not respond to the page date picker." />
+            <InfoTooltip text="Percentage of AI responses where your brand appears. This chart is fixed to year-to-date and does not respond to the page date picker." />
           </div>
-          {brandName && <p className="text-xs text-text-muted mt-0.5">{brandName} · weekly</p>}
+          {brandName && <p className="mt-0.5 text-xs text-text-muted">{brandName} · {granularity}</p>}
+          {trackingStart && <p className="mt-0.5 text-[11px] text-text-muted">Tracking began {trackingStart}</p>}
         </div>
-        <div className="flex items-center gap-4 text-[10px] text-text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-sm bg-[#60FDFF]" />
-            {brandName ?? 'You'}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-4 border-t border-dashed border-[#8A8A8A]" />
-            Competitor avg
-          </span>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">
+            {GRANULARITIES.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setGranularity(id)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all',
+                  granularity === id ? 'bg-white text-black shadow-sm' : 'text-text-muted hover:text-white',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-4 text-[10px] text-text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-sm bg-[#60FDFF]" />
+              {brandName ?? 'You'}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-4 border-t border-dashed border-[#8A8A8A]" />
+              Competitor avg
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Chart */}
       <div className="flex gap-2">
-        {/* Bars + SVG overlay */}
-        <div className="relative flex-1 h-40">
-          {/* Gridlines */}
-          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+        <div className="relative h-40 flex-1">
+          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className="w-full border-t border-white/[0.04]" />
             ))}
           </div>
 
-          {/* Bars */}
-          <div className="relative flex gap-1 h-full">
-            {data.map((week, i) => {
-              const heightPct = (week.visibility / CHART_MAX) * 100
+          <div className="relative flex h-full gap-1">
+            {buckets.map((b, i) => {
+              const heightPct = (b.visibility / CHART_MAX) * 100
               const isHovered = hovered === i
-              const compVis = competitorMap.get(week.weekStart)
+              const compVis = compMap.get(b.key)
               return (
                 <div
-                  key={week.weekStart}
-                  className="relative flex-1 h-full group cursor-default"
+                  key={b.key}
+                  className="group relative h-full flex-1 cursor-default"
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                 >
                   {isHovered && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs shadow-xl pointer-events-none">
-                      <p className="font-bold text-white">{week.visibility.toFixed(1)}%</p>
-                      {compVis !== undefined && (
-                        <p className="text-text-muted">Competitors: {compVis.toFixed(1)}%</p>
-                      )}
-                      <p className="text-text-muted">{week.weekLabel}</p>
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs shadow-xl">
+                      <p className="font-bold text-white">{b.visibility.toFixed(1)}%</p>
+                      {compVis !== undefined && <p className="text-text-muted">Competitors: {compVis.toFixed(1)}%</p>}
+                      <p className="text-text-muted">{b.label}</p>
                     </div>
                   )}
                   <div
@@ -103,33 +125,18 @@ export function VisibilityChart({
             })}
           </div>
 
-          {/* SVG competitor line overlay */}
           {competitorPoints.length > 1 && (
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points={svgPoints}
-                fill="none"
-                stroke="#8A8A8A"
-                strokeWidth="1.5"
-                strokeDasharray="3 3"
-                vectorEffect="non-scaling-stroke"
-              />
+            <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polyline points={svgPoints} fill="none" stroke="#8A8A8A" strokeWidth="1.5" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
             </svg>
           )}
         </div>
       </div>
 
-      {/* X-axis labels — every other week */}
-      <div className="flex gap-1 mt-2">
-        {data.map((week, i) => (
-          <div key={week.weekStart} className="flex-1 text-center overflow-hidden">
-            {i % 2 === 0 && (
-              <span className="text-[9px] text-text-muted tabular-nums">{week.weekLabel}</span>
-            )}
+      <div className="mt-2 flex gap-1">
+        {buckets.map((b, i) => (
+          <div key={b.key} className="flex-1 overflow-hidden text-center">
+            {i % labelEvery === 0 && <span className="text-[9px] tabular-nums text-text-muted">{b.label}</span>}
           </div>
         ))}
       </div>

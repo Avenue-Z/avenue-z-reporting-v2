@@ -1,4 +1,6 @@
 import { cached } from '@/lib/cache'
+import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
+import { buildPeriodChange } from '@/lib/aeo/period-change'
 
 const BASE_URL = 'https://api.tryprofound.com'
 
@@ -98,6 +100,7 @@ export type TrackedPrompt = {
   sov: number
   position: number
   group: string
+  topicSource: TopicSource
 }
 
 export type LLMBreakdown = {
@@ -118,6 +121,8 @@ export type CompetitorAverages = {
 export type ProfoundOverview = {
   weeklyVisibility: WeeklyVisibility[]
   competitorWeeklyVisibility: WeeklyVisibility[]
+  dailyVisibility: DailyPoint[]
+  competitorDailyVisibility: DailyPoint[]
   competitorAverages: CompetitorAverages
   brandRankings: BrandRanking[]
   brandRankingsByRange: Record<string, BrandRanking[]>
@@ -126,6 +131,7 @@ export type ProfoundOverview = {
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
+  periodChange: PeriodChange
 }
 
 // --- Normalization helpers ---
@@ -140,17 +146,41 @@ function normalizeModel(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1)
 }
 
+// Maps Profound's citation_category taxonomy (owned, competition, earned_media,
+// pr_wire, earned_institutions, social, other) onto the shared DomainType labels
+// the table colors/definitions key on. Legacy labels are kept for safety.
 function normalizeDomainType(c: string | null | undefined): string {
   switch ((c ?? '').toLowerCase()) {
-    case 'own':           return 'Own'
-    case 'ugc':           return 'UGC'
-    case 'editorial':     return 'Editorial'
-    case 'corporate':     return 'Corporate'
-    case 'competitor':    return 'Competitor'
-    case 'reference':     return 'Reference'
-    case 'institutional': return 'Institutional'
-    default:              return c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Other'
+    case 'owned':
+    case 'own':                 return 'Own'
+    case 'competition':
+    case 'competitor':          return 'Competitor'
+    case 'earned_media':
+    case 'pr_wire':
+    case 'editorial':           return 'Editorial'
+    case 'social':
+    case 'ugc':                 return 'UGC'
+    case 'earned_institutions':
+    case 'institutional':       return 'Institutional'
+    case 'reference':           return 'Reference'
+    case 'corporate':           return 'Corporate'
+    case 'other':               return 'Other'
+    default:                    return c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Other'
   }
+}
+
+// Profound returns citation rows ordered alphabetically by dimension name, so a
+// ['hostname','citation_category'] query comes back as [citation_category,
+// hostname]. Identify each field by shape (hostnames contain a dot).
+function splitHostnameCategory(dims: (string | null)[]): { hostname: string | null; category: string | null } {
+  let hostname: string | null = null
+  let category: string | null = null
+  for (const d of dims) {
+    if (d == null) continue
+    if (d.includes('.')) hostname = d
+    else category = d
+  }
+  return { hostname, category }
 }
 
 function categorizePrompt(text: string): string {
@@ -171,14 +201,28 @@ function categorizePrompt(text: string): string {
 
 // --- Aggregation helpers ---
 
+// Profound returns multi-dimension rows ordered alphabetically by dimension
+// name, so a ['date','asset_name'] query comes back as [asset_name, date].
+// Identify each field by shape rather than trusting positional order.
+const DATE_DIM_RE = /^\d{4}-\d{2}-\d{2}/
+function splitDateAsset(dims: (string | null)[]): { dateStr: string | null; asset: string } {
+  let dateStr: string | null = null
+  let asset = ''
+  for (const d of dims) {
+    if (d == null) continue
+    if (DATE_DIM_RE.test(d)) dateStr = d
+    else asset = d
+  }
+  return { dateStr, asset }
+}
+
 function groupByWeekFromRows(
   rows: ProfoundRow[],
   filterFn: (asset: string) => boolean,
 ): WeeklyVisibility[] {
   const weekMap = new Map<string, { visSum: number; count: number }>()
   for (const row of rows) {
-    const dateStr = row.dimensions[0]
-    const asset = row.dimensions[1] ?? ''
+    const { dateStr, asset } = splitDateAsset(row.dimensions)
     if (!dateStr || !filterFn(asset)) continue
     const vis = (row.metrics[0] ?? 0) * 100
     const d = new Date(dateStr)
@@ -200,6 +244,22 @@ function groupByWeekFromRows(
       const day = date.getUTCDate()
       return { weekStart, weekLabel: `${month} ${day}`, visibility: visSum / count }
     })
+}
+
+function groupByDayFromRows(rows: ProfoundRow[], filterFn: (asset: string) => boolean): DailyPoint[] {
+  const dayMap = new Map<string, { sum: number; count: number }>()
+  for (const row of rows) {
+    const { dateStr, asset } = splitDateAsset(row.dimensions)
+    if (!dateStr || !filterFn(asset)) continue
+    const key = dateStr.slice(0, 10)
+    const vis = (row.metrics[0] ?? 0) * 100
+    const e = dayMap.get(key)
+    if (e) { e.sum += vis; e.count += 1 }
+    else dayMap.set(key, { sum: vis, count: 1 })
+  }
+  return Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { sum, count }]) => ({ date, visibility: sum / count }))
 }
 
 function buildBrandRankings(
@@ -245,7 +305,7 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
   const priorShareMap = new Map<string, number>()
   const priorCountMap = new Map<string, number>()
   for (const row of priorRows ?? []) {
-    const domain = row.dimensions[0]
+    const { hostname: domain } = splitHostnameCategory(row.dimensions)
     if (!domain) continue
     priorShareMap.set(domain, (priorShareMap.get(domain) ?? 0) + (row.metrics[0] ?? 0) * 100)
     priorCountMap.set(domain, (priorCountMap.get(domain) ?? 0) + (row.metrics[1] ?? 0))
@@ -255,9 +315,9 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
   type Agg = { citShare: number; count: number; type: string; maxShare: number }
   const aggMap = new Map<string, Agg>()
   for (const row of currentRows ?? []) {
-    const domain = row.dimensions[0]
+    const { hostname: domain, category } = splitHostnameCategory(row.dimensions)
     if (!domain) continue
-    const type = normalizeDomainType(row.dimensions[1])
+    const type = normalizeDomainType(category)
     const citShare = (row.metrics[0] ?? 0) * 100
     const count = row.metrics[1] ?? 0
     const e = aggMap.get(domain)
@@ -288,6 +348,8 @@ function emptyOverview(): ProfoundOverview {
   return {
     weeklyVisibility:           [],
     competitorWeeklyVisibility: [],
+    dailyVisibility:            [],
+    competitorDailyVisibility:  [],
     competitorAverages:         { visibility: 0, sov: 0, sentiment: 0, position: 0 },
     brandRankings:              [],
     brandRankingsByRange:       { 'YTD': [], 'Last 30 days': [] },
@@ -296,6 +358,7 @@ function emptyOverview(): ProfoundOverview {
     domainTypes:                [],
     trackedPrompts:             [],
     llmBreakdown:               [],
+    periodChange:               { visibilityMover: null, domainMover: null, competitorShift: null, promptOpportunity: null },
   }
 }
 
@@ -324,9 +387,15 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     start_date: `${thisYear - 1}-01-01`,
     end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}`,
   }
+  // Two equal, contiguous 30-day windows: last30 = days -29..0, prior30 = -59..-30.
   const last30Start = new Date()
-  last30Start.setDate(last30Start.getDate() - 30)
+  last30Start.setDate(last30Start.getDate() - 29)
   const last30 = { start_date: isoDate(last30Start), end_date: isoDate(new Date()) }
+  const prior30Start = new Date()
+  prior30Start.setDate(prior30Start.getDate() - 59)
+  const prior30End = new Date()
+  prior30End.setDate(prior30End.getDate() - 30)
+  const prior30 = { start_date: isoDate(prior30Start), end_date: isoDate(prior30End) }
 
   const base = (dates: { start_date: string; end_date: string }) => ({
     category_id: categoryId,
@@ -351,6 +420,9 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     domains30Res,
     domainTypesRes,
     promptsRes,
+    brandsPrior30Res,
+    domainsPrior30Res,
+    promptTopicsRes,
   ] = await Promise.all([
     profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
     profoundPost('/v1/reports/visibility', { ...base(priorYtd), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
@@ -362,6 +434,9 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     profoundPost('/v1/reports/citations', { ...base(last30), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
     profoundPost('/v1/reports/citations', { ...base(ytd), metrics: ['citation_share'], dimensions: ['citation_category'] }),
     profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: BRAND_METRICS, dimensions: ['prompt'], ...brandFilter }),
+    profoundPost('/v1/reports/visibility', { ...base(prior30), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
+    profoundPost('/v1/reports/citations', { ...base(prior30), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
+    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: ['visibility_score'], dimensions: ['prompt', 'topic'] }),
   ])
 
   // --- Brand rankings ---
@@ -376,6 +451,8 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     yourBrand ? asset.toLowerCase().includes(yourBrand.toLowerCase()) : false
   const weeklyVisibility = groupByWeekFromRows(weeklyRes.data, isYou)
   const competitorWeeklyVisibility = groupByWeekFromRows(weeklyRes.data, (a) => !isYou(a))
+  const dailyVisibility = groupByDayFromRows(weeklyRes.data, isYou)
+  const competitorDailyVisibility = groupByDayFromRows(weeklyRes.data, (a) => !isYou(a))
 
   // --- Competitor averages ---
   const competitors = brandRankings.filter((b) => !b.isYou)
@@ -397,14 +474,16 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     'Last 30 days': (domains30Res.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0),
   }
 
-  // --- Domain types ---
+  // --- Domain types (aggregate Profound categories onto shared type labels) ---
   const totalShare = (domainTypesRes.data ?? []).reduce((s, r) => s + (r.metrics[0] ?? 0), 0) || 1
-  const domainTypes: DomainType[] = (domainTypesRes.data ?? [])
-    .filter((r) => r.dimensions[0])
-    .map((r) => ({
-      type: normalizeDomainType(r.dimensions[0]),
-      percentage: Math.round(((r.metrics[0] ?? 0) / totalShare) * 100),
-    }))
+  const typeShareMap = new Map<string, number>()
+  for (const r of domainTypesRes.data ?? []) {
+    if (!r.dimensions[0]) continue
+    const type = normalizeDomainType(r.dimensions[0])
+    typeShareMap.set(type, (typeShareMap.get(type) ?? 0) + (r.metrics[0] ?? 0))
+  }
+  const domainTypes: DomainType[] = Array.from(typeShareMap.entries())
+    .map(([type, share]) => ({ type, percentage: Math.round((share / totalShare) * 100) }))
     .sort((a, b) => b.percentage - a.percentage)
 
   // --- LLM breakdown ---
@@ -420,21 +499,50 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     .sort((a, b) => b.visibility - a.visibility)
 
   // --- Tracked prompts ---
+  const promptTopic = new Map<string, string>()
+  for (const r of promptTopicsRes.data ?? []) {
+    const prompt = r.dimensions[0]
+    const topic = r.dimensions[1]
+    if (prompt && topic) promptTopic.set(prompt, topic)
+  }
   const trackedPrompts: TrackedPrompt[] = (promptsRes.data ?? [])
     .filter((r) => r.dimensions[0])
     .map((r) => ({
-      text:       r.dimensions[0]!,
-      sources:    [],
-      visibility: (r.metrics[0] ?? 0) * 100,
-      sov:        (r.metrics[1] ?? 0) * 100,
-      position:   r.metrics[2] ?? 0,
-      group:      categorizePrompt(r.dimensions[0]!),
+      text:        r.dimensions[0]!,
+      sources:     [],
+      visibility:  (r.metrics[0] ?? 0) * 100,
+      sov:         (r.metrics[1] ?? 0) * 100,
+      position:    r.metrics[2] ?? 0,
+      group:       promptTopic.get(r.dimensions[0]!) ?? categorizePrompt(r.dimensions[0]!),
+      topicSource: (promptTopic.has(r.dimensions[0]!) ? 'provider' : 'inferred') as TopicSource,
     }))
     .sort((a, b) => b.visibility - a.visibility)
+
+  // --- Period change (last 30 vs prior 30) ---
+  const brands30 = buildBrandRankings(brands30Res.data, [], yourBrand)
+  const brandsPrior30 = buildBrandRankings(brandsPrior30Res.data, [], yourBrand)
+  const domainShare = (rows: ProfoundRow[]) => {
+    const m = new Map<string, number>()
+    for (const r of rows ?? []) {
+      const { hostname: domain } = splitHostnameCategory(r.dimensions)
+      if (!domain) continue
+      m.set(domain, (m.get(domain) ?? 0) + (r.metrics[0] ?? 0) * 100)
+    }
+    return Array.from(m.entries()).map(([domain, share]) => ({ domain, share }))
+  }
+  const periodChange = buildPeriodChange({
+    brandsCurrent: brands30.map((b) => ({ name: b.name, visibility: b.visibility, isYou: !!b.isYou })),
+    brandsPrior:   brandsPrior30.map((b) => ({ name: b.name, visibility: b.visibility, isYou: !!b.isYou })),
+    domainsCurrent: domainShare(domains30Res.data),
+    domainsPrior:   domainShare(domainsPrior30Res.data),
+    prompts: trackedPrompts.map((p) => ({ text: p.text, visibility: p.visibility })),
+  })
 
   return {
     weeklyVisibility,
     competitorWeeklyVisibility,
+    dailyVisibility,
+    competitorDailyVisibility,
     competitorAverages,
     brandRankings,
     brandRankingsByRange,
@@ -443,6 +551,7 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     domainTypes,
     trackedPrompts,
     llmBreakdown,
+    periodChange,
   }
 }
 
@@ -454,7 +563,7 @@ export const getProfoundOverview = cached(
     // v2 = post per-client refactor. Old v1 entries were populated with
     // Avenue Z's data regardless of caller; do not drop this without a
     // production cache flush.
-    version: 'v2',
+    version: 'v3',
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )
