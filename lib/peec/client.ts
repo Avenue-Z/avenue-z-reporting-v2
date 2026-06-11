@@ -581,6 +581,7 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     const modelName = normalizeSource(rawId)
     if (!modelName) continue
     const domain = row.domain
+    if (!domain) continue
     const count = row.citation_count ?? 0
     if (!domainCitationsByModel[domain]) domainCitationsByModel[domain] = {}
     const existing = domainCitationsByModel[domain][modelName as AEOModel] ?? 0

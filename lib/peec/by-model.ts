@@ -19,7 +19,11 @@ export function sumByModel<K extends string, V extends number>(
   return selected.reduce<number>((acc, m) => acc + (entry[m] ?? 0), 0)
 }
 
-/** Average the per-model values for a given key, restricted to the selected models. */
+/** Average the per-model values for a given key, restricted to the selected models.
+ *  Missing models are excluded from BOTH numerator and denominator — this returns the
+ *  average over the models that actually have data among `selected`, not over
+ *  `selected.length`. Callers that want zero-fill should use
+ *  `sumByModel(...) / selected.length` directly. */
 export function avgByModel<K extends string, V extends number>(
   byModel: ByModel<K, V>,
   key: K,
