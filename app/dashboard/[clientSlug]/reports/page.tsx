@@ -22,6 +22,7 @@ import { ReportGeneratorReport } from '@/components/report-sections/report-gener
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/period-selector'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
+import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import type { ReportSlug } from '@/lib/db/schema'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam } from '@/lib/peec/models'
@@ -159,6 +160,11 @@ export default async function ReportPage({
         {activeSection === 'peec-ai' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
+        {activeSection === 'peec-ai' && (subsection === 'pr-influence' || subsection === 'content-impact') && (
+          <Suspense fallback={null}>
+            <ModelFilter selected={models} />
           </Suspense>
         )}
       </StickyReportHeader>
