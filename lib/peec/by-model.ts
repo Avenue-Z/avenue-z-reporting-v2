@@ -19,6 +19,24 @@ export function sumByModel<K extends string, V extends number>(
   return selected.reduce<number>((acc, m) => acc + (entry[m] ?? 0), 0)
 }
 
+/** Filter and recompute citation rows by selected AI models.
+ *  Recomputes `citationCount` from per-model data, drops rows with 0 citations
+ *  under the filter, and re-sorts descending by the new count.
+ *  Delta fields (e.g. citationCountDelta) are intentionally NOT cleared — stale
+ *  deltas are a known v1 limitation when a filter is active. Clearing them would
+ *  require fetching prior-period per-model data which is not currently fetched. */
+export function filterDomainRowsByModel<T extends { domain: string; citationCount: number }>(
+  rows: T[],
+  byModel: ByModel<string, number>,
+  selected: AEOModel[] | null,
+): T[] {
+  if (!selected) return rows
+  return rows
+    .map((row) => ({ ...row, citationCount: sumByModel(byModel, row.domain, selected) }))
+    .filter((row) => row.citationCount > 0)
+    .sort((a, b) => b.citationCount - a.citationCount)
+}
+
 /** Average the per-model values for a given key, restricted to the selected models.
  *  Missing models are excluded from BOTH numerator and denominator — this returns the
  *  average over the models that actually have data among `selected`, not over

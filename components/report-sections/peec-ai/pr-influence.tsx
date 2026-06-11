@@ -13,8 +13,7 @@ import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PEEC, GA4 } from '@/lib/peec/metric-definitions'
 import type { AEOModel } from '@/lib/peec/models'
-import { sumByModel } from '@/lib/peec/by-model'
-import type { ByModel } from '@/lib/peec/by-model'
+import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
   PRPlacementMatchbackTable,
   TopEditorialDomainsTable,
@@ -27,24 +26,6 @@ import {
   type PromptClusterOpportunityRow,
   type NextPitchOpportunityRow,
 } from './pr-influence-tables'
-
-// ── Editorial-domain row filter by selected AI models ────────────────────────
-// Recomputes citationCount from per-model data, drops rows with 0 citations
-// under the filter, and re-sorts descending by the new count.
-// Delta fields (citationCountDelta) are intentionally NOT cleared — stale
-// deltas are a known v1 limitation when a filter is active. Clearing them
-// would require recomputing prior-period per-model data which is not fetched.
-function filterDomainRowsByModel<T extends { domain: string; citationCount: number }>(
-  rows: T[],
-  byModel: ByModel<string, number>,
-  selected: AEOModel[] | null,
-): T[] {
-  if (!selected) return rows
-  return rows
-    .map((row) => ({ ...row, citationCount: sumByModel(byModel, row.domain, selected) }))
-    .filter((row) => row.citationCount > 0)
-    .sort((a, b) => b.citationCount - a.citationCount)
-}
 
 // ---------------------------------------------------------------------------
 // PR Influence on AI Visibility
