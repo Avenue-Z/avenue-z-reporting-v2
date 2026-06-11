@@ -403,7 +403,7 @@ export async function ContentImpactReport({
             hint={
               calendarIsDemo
                 ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
-                : 'GA4 AI-source sessions required'
+                : `GA4 AI-source sessions required${models ? ' · across all AI engines' : ''}`
             }
             value={calendarIsDemo ? '1,243' : '--'}
             live={calendarIsDemo}
