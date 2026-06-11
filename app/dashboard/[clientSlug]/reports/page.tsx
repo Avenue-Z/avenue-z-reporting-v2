@@ -24,6 +24,7 @@ import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/pe
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import type { ReportSlug } from '@/lib/db/schema'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { parseModelsParam } from '@/lib/peec/models'
 
 function SectionSkeleton() {
   return (
@@ -50,6 +51,7 @@ function getReportComponent(
   period?: SummaryPeriod,
   submittedBy?: string,
   demoMode?: boolean,
+  models?: import('@/lib/peec/models').AEOModel[] | null,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -75,8 +77,8 @@ function getReportComponent(
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'peec-ai':
-      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
-      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
+      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
       return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
     default:
@@ -105,10 +107,10 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string }>
 }) {
   const { clientSlug } = await params
-  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam } = await searchParams
+  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -131,6 +133,7 @@ export default async function ReportPage({
 
   const dateRange    = dateRangeParam  ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
+  const models       = parseModelsParam(modelsParam)
   const period       = (['weekly', 'monthly', 'quarterly'].includes(periodParam ?? '')
     ? periodParam
     : 'monthly') as SummaryPeriod
@@ -164,7 +167,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode, models)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>
