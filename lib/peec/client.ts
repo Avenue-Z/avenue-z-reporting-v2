@@ -369,7 +369,7 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, brandsPrior30Res, domainsPrior30Res] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, brandsPrior30Res, domainsPrior30Res, tagsRes, promptsRes] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...last30 }, pid),
@@ -382,6 +382,10 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior30 }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior30 }, pid),
+    // Real prompt taxonomy: tag id→name + each prompt's tags, for grouping by
+    // the prompt's primary subject tag instead of keyword inference.
+    peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
+    peecGet<{ data: { id: string; messages?: { content?: string }[]; tags?: { id: string }[] }[]; totalCount: number }>('/prompts', { limit: '1000' }, pid),
   ])
 
   const ytdRows = await fetchAllYtdRows({ ...ytd, dimensions: ['date'] }, pid)
@@ -494,27 +498,39 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     promptMetricsById.set(uuid, metric)
   }
 
-  // Deduplicate queries by text, collecting sources and the prompt UUID (if returned)
-  const promptMap = new Map<string, { sources: Set<string>; uuid?: string }>()
+  // Sources cited per prompt UUID (which AI models surfaced each prompt).
+  const sourcesByUuid = new Map<string, Set<string>>()
   for (const q of queriesRes.data ?? []) {
-    const text = q.query?.text
-    const uuid = q.prompt?.id
+    const uuid = q.prompt?.id ? String(q.prompt.id) : null
+    if (!uuid) continue
     const source = normalizeSource(q.model_channel?.id ?? q.model?.id ?? '')
-    if (!text) continue
-    if (!promptMap.has(text)) promptMap.set(text, { sources: new Set(), uuid })
-    if (source) promptMap.get(text)!.sources.add(source)
+    if (!sourcesByUuid.has(uuid)) sourcesByUuid.set(uuid, new Set())
+    if (source) sourcesByUuid.get(uuid)!.add(source)
   }
 
-  const trackedPrompts: TrackedPrompt[] = Array.from(promptMap.entries()).map(([text, { sources, uuid }]) => {
-    const m = uuid ? promptMetricsById.get(uuid) : undefined
+  // Peec organizes prompts with faceted tags (subject + intent + branded), not a
+  // single topic. Group each prompt by its first *subject* tag, excluding the
+  // intent and branded/non-branded facets; fall back to keyword inference when a
+  // prompt carries no subject tag. Built from the real tracked prompts (one row
+  // per prompt) rather than per-query-text rows.
+  const FACET_TAGS = new Set(['commercial', 'informational', 'transactional', 'branded', 'non-branded'])
+  const tagNameById = new Map((tagsRes.data ?? []).map((t) => [t.id, t.name]))
+
+  const trackedPrompts: TrackedPrompt[] = (promptsRes.data ?? []).map((p) => {
+    const uuid = p.id
+    const text = (p.messages ?? []).map((m) => m.content).filter(Boolean).join(' ').trim() || '(untitled prompt)'
+    const subjectTag = (p.tags ?? [])
+      .map((t) => tagNameById.get(t.id))
+      .find((name): name is string => !!name && !FACET_TAGS.has(name.toLowerCase()))
+    const m = promptMetricsById.get(uuid)
     return {
       text,
-      sources: Array.from(sources),
+      sources: Array.from(sourcesByUuid.get(uuid) ?? []),
       visibility: m?.visibility ?? 0,
       sov: m?.sov ?? 0,
       position: m?.position ?? 0,
-      group: categorizePrompt(text),
-      topicSource: 'inferred',
+      group: subjectTag ?? categorizePrompt(text),
+      topicSource: subjectTag ? 'provider' : 'inferred',
     }
   })
 
@@ -651,7 +667,7 @@ export const getPeecOverview = cached(
     //      `skp-` token to a customer-scoped `skc-` token. v2 cached entries
     //      contain the wrong project's data (Peec was ignoring project_id
     //      against the skp- token), so they need to be evicted.
-    version: 'v4',
+    version: 'v5',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

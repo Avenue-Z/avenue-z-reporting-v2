@@ -86,7 +86,8 @@ function GroupRow({ group }: { group: PromptGroup }) {
 
 export function TrackedPromptsChart({ prompts }: { prompts: TrackedPrompt[] }) {
   const groups = buildGroups(prompts)
-  const topicsFromProvider = prompts.length > 0 && prompts.every((p) => p.topicSource === 'provider')
+  const topicsFromProvider =
+    prompts.length > 0 && prompts.filter((p) => p.topicSource === 'provider').length >= prompts.length / 2
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">

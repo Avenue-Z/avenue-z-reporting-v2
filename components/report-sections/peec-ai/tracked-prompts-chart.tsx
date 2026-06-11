@@ -99,7 +99,10 @@ function GroupRow({ group }: { group: PromptGroup }) {
 export function TrackedPromptsChart({ prompts, brandName }: { prompts: TrackedPrompt[]; brandName?: string }) {
   const groups = buildGroups(prompts)
   const brand = brandName ?? 'your brand'
-  const topicsFromProvider = prompts.length > 0 && prompts.every((p) => p.topicSource === 'provider')
+  // Provider-grouped when the majority of prompts carry a real provider topic/tag;
+  // a few untagged prompts fall back to keyword inference without flipping the label.
+  const topicsFromProvider =
+    prompts.length > 0 && prompts.filter((p) => p.topicSource === 'provider').length >= prompts.length / 2
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
@@ -107,7 +110,7 @@ export function TrackedPromptsChart({ prompts, brandName }: { prompts: TrackedPr
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which prompts are AI engines answering with our brand?</p>
           <InfoTooltip text={topicsFromProvider
-            ? 'Prompt metrics and topic groupings are live data from Peec.AI.'
+            ? "Prompt metrics and topic groupings are live data from Peec.AI — grouped by each prompt's tags. A few prompts without a subject tag are keyword-grouped."
             : 'Prompt metrics are live data from Peec.AI. Topic groupings are AI-inferred based on keyword patterns and may not be accurate — verify before sharing externally.'} />
         </div>
         {prompts.length > 0 && (
