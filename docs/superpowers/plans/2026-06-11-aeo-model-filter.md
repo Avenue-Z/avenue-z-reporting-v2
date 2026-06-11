@@ -855,3 +855,64 @@ git push
 - Per-prompt filtering and date-range coupling (the model filter currently operates over the YTD data already in `PeecOverview`).
 - Profound section model filter — Profound has the same data shape but its tabs (Overview Profound section) are not in scope.
 - Surface "filter affects N of M tables on this page" indicator.
+- BotAttentionNoCitations (Content Impact): not filtered — needs backend `topPathsByBot` field to support per-bot path breakdowns.
+- Stale `citationCountDelta` fields when filter is active (would need prior-period per-model data).
+- Pre-existing ESLint error in `sidebar.tsx:424` (`@typescript-eslint/no-explicit-any`) — touched but not introduced by this branch; flagged in final review for future cleanup.
+
+---
+
+## Outcome (shipped 2026-06-11)
+
+- **PR:** [#31](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/31)
+- **Merge commit:** `61989b8`
+- **Vercel Production:** deployed 2026-06-11 20:01:04Z, status **success**
+- **Branch:** `feat/aeo-model-filter` — 11 commits + 1 merge resolution
+- **Diff:** 12 files changed, +1419 / −69
+
+### Process notes
+
+- Used `superpowers:writing-plans` to author this plan and
+  `superpowers:subagent-driven-development` to execute it.
+- 6 implementation phases dispatched as Sonnet 4.6 subagents (one per
+  phase). Each phase had a two-stage review (spec compliance + code
+  quality) by independent Sonnet reviewers before moving on.
+- Two-stage reviews caught real issues that were fixed inline before
+  merging the next phase:
+  - Phase 1: `serializeModelsParam` duplicate-input footgun fixed.
+  - Phase 2: `avgByModel` JSDoc clarified; defensive `domain` guard
+    added.
+  - Phase 6: `BotAttentionNoCitations` v1 limitation documented inline.
+  - Final review: live-mode "across all AI engines" disclaimer fix on
+    the AI-Referred Sessions card.
+- One mid-flight merge conflict with PR #30 (`feat/aeo-overview-enhancements`)
+  on `lib/peec/client.ts` — all 4 conflict points were purely additive
+  (both PRs extended the same regions of the file with different
+  content). Resolved by keeping both sides. No semantic overlap; tsc
+  clean post-merge.
+
+### Commit chain
+
+| SHA | Description |
+|---|---|
+| `f7af9a6` | feat(aeo): canonical models module + migrate MODEL_COLORS usages |
+| `447a657` | fix(aeo/models): dedupe inputs in parse/serialize |
+| `14003ba` | feat(aeo): surface per-model citations on PeecOverview |
+| `f81baf7` | fix(aeo/by-model): document avgByModel semantics + guard empty rows |
+| `aa5bcb2` | feat(aeo): plumb ?models= URL param (page.tsx + sidebar) |
+| `b9decb4` | feat(aeo): add ModelFilter Popover + render in sticky header |
+| `6f8fe58` | feat(aeo/pr-influence): apply AI model filter |
+| `fa86f95` | feat(aeo/content-impact): apply AI model filter |
+| `d90cb9c` | docs(aeo/content-impact): v1 limitation on BotAttentionNoCitationsTable |
+| `8c03e4f` | fix(aeo/content-impact): live-mode "across all AI engines" disclaimer |
+| `242b7a4` | merge: resolve conflicts with main (PR #30 additive overlap) |
+| `61989b8` | Merge pull request #31 from Avenue-Z/feat/aeo-model-filter |
+
+### Final state vs spec
+
+- **PR Influence: AI model checkbox filter** ✅
+- **Content Impact: AI model checkbox filter** ✅
+- **Sticky across AEO sub-tabs** ✅ (`?models=` carried via sidebar; same plumbing as `dateRange`/`compareRange`)
+- **Default = all models active** ✅ (URL param omitted in that state)
+- **Filter actually affects data** ✅ for 12 surfaces (5 KPIs + 7 tables) across both tabs
+- **GA4-derived KPIs honestly disclosed** ✅ ("across all AI engines" subtitle when filter active)
+- **No new API calls** ✅ (per-model data derived from existing `dimensions: ['model_channel_id']` fetches)
