@@ -14,22 +14,25 @@ export const MODEL_COLORS: Record<AEOModel, string> = {
 }
 
 /** Parse `?models=ChatGPT,Gemini` → canonical subset. Returns null when no filter is active
- *  (param missing, empty, or contains all 6 — treat all of those as "no filter"). */
+ *  (param missing, empty, all-invalid, or contains all 6 — all treated as "no filter").
+ *  Case-sensitive: assumes the param is always written by `serializeModelsParam`, so casing
+ *  is canonical. Wrong-case input silently drops to null. */
 export function parseModelsParam(raw: string | null | undefined): AEOModel[] | null {
   if (!raw) return null
   const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
   const valid = parts.filter((p): p is AEOModel => (AEO_MODELS as readonly string[]).includes(p))
-  if (valid.length === 0) return null
-  if (valid.length === AEO_MODELS.length) return null
-  return Array.from(new Set(valid))
+  const unique = Array.from(new Set(valid))
+  if (unique.length === 0) return null
+  if (unique.length === AEO_MODELS.length) return null
+  return unique
 }
 
 /** Serialize a subset back to URL form. Returns null when no filter should be written. */
 export function serializeModelsParam(selected: AEOModel[]): string | null {
-  if (selected.length === 0) return null
-  if (selected.length === AEO_MODELS.length) return null
-  const ordered = AEO_MODELS.filter((m) => selected.includes(m))
-  return ordered.join(',')
+  const unique = Array.from(new Set(selected))
+  if (unique.length === 0) return null
+  if (unique.length === AEO_MODELS.length) return null
+  return AEO_MODELS.filter((m) => unique.includes(m)).join(',')
 }
 
 /** Returns true when no filter is active (all models effectively selected). */
