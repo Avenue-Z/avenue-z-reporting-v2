@@ -1,37 +1,28 @@
 import { getPeecOverview } from '@/lib/peec/client'
-import type { DomainType, BrandRanking } from '@/lib/peec/client'
+import type { PeecOverview } from '@/lib/peec/client'
 import { getProfoundOverview } from '@/lib/profound/client'
-import type { DomainType as ProfoundDomainType, BrandRanking as ProfoundBrandRanking } from '@/lib/profound/client'
+import type { ProfoundOverview } from '@/lib/profound/client'
 import { BRAND_TYPE_MAP, BRAND_TYPE_COLORS, BRAND_TYPE_DEFINITIONS } from '@/lib/peec/brand-types'
 import { BrandRankingsTable } from './brand-rankings-table'
 import { TopDomainsTable } from './top-domains-table'
 import { VisibilityChart } from './visibility-chart'
 import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
+import { PeriodRibbon } from './period-ribbon'
+import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
-import { VisibilityChart as ProfoundVisibilityChart } from '../profound-ai/visibility-chart'
 import { TrackedPromptsChart as ProfoundTrackedPromptsChart } from '../profound-ai/tracked-prompts-chart'
 import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/llm-breakdown-table'
 import { sampleProfoundOverview } from '@/lib/demo-data/profound'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
+import { getClientBySlug } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 
 // --- Helpers ---
-
-function Delta({ value, invert = false }: { value: number; invert?: boolean }) {
-  const positive = invert ? value < 0 : value >= 0
-  return (
-    <span className={cn('text-xs font-semibold tabular-nums', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-      {value >= 0 ? '+' : ''}{value.toFixed(1)}
-    </span>
-  )
-}
-
-// --- Shared KPI card ---
 
 function KpiCard({
   title, value, delta, tooltip, subtitle, invertDelta = false,
@@ -194,208 +185,149 @@ function DomainTypeDefinitions({ source }: { source: 'peec' | 'profound' }) {
   )
 }
 
-// --- Section divider ---
+// --- Per-provider section (shared markup; provider-specific tables + definitions) ---
 
-function SectionDivider({ title }: { title: string }) {
+type Overview = PeecOverview | ProfoundOverview
+
+function ProviderSection({
+  data,
+  provider,
+  isDemo,
+}: {
+  data: Overview
+  provider: AeoProvider
+  isDemo: boolean
+}) {
+  const isPeec = provider === 'peec'
+  const you = data.brandRankings.find((b) => b.isYou)
+  const brandName = you?.name ?? (isPeec ? process.env.PEEC_AI_YOUR_BRAND : process.env.PROFOUND_AI_YOUR_BRAND)
+  const Rankings = isPeec ? BrandRankingsTable : ProfoundBrandRankingsTable
+  const Domains  = isPeec ? TopDomainsTable : ProfoundTopDomainsTable
+  const LLM      = isPeec ? LLMBreakdownTable : ProfoundLLMBreakdownTable
+  const DEF      = isPeec ? PEEC : PROFOUND
+  const label    = isPeec ? 'Peec AI' : 'Profound'
+
   return (
-    <div className="flex items-center gap-4 pt-4">
-      <div className="h-px flex-1 bg-white/[0.06]" />
+    <div className="space-y-8">
       <div>
-        <p className="text-sm font-bold uppercase tracking-widest text-text-muted">
-          Answer Engine Optimization
-        </p>
-        <h2 className="text-3xl font-extrabold uppercase text-white">{title}</h2>
+        <p className="text-sm font-bold uppercase tracking-widest text-text-muted">Answer Engine Optimization</p>
+        <div className="flex items-center gap-2">
+          <h2 className="text-3xl font-extrabold uppercase text-white">Overview</h2>
+          {isDemo && <SampleDataBadge />}
+        </div>
       </div>
-      <div className="h-px flex-1 bg-white/[0.06]" />
+
+      <PeriodRibbon change={data.periodChange} />
+
+      {data.dailyVisibility.length > 0 && (
+        <VisibilityChart
+          data={data.dailyVisibility}
+          competitorData={data.competitorDailyVisibility}
+          brandName={brandName}
+        />
+      )}
+
+      {you && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          {[
+            {
+              title: 'Visibility',
+              value: `${you.visibility.toFixed(1)}%`,
+              delta: you.visibilityDelta,
+              subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
+              tooltip: `${DEF.visibility.text} (${label}.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+            },
+            {
+              title: 'Share of Voice',
+              value: `${you.sov.toFixed(1)}%`,
+              delta: you.sovDelta,
+              subtitle: `Competitor avg · ${data.competitorAverages.sov.toFixed(1)}%`,
+              tooltip: `${DEF.sov.text} (${label}.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+            },
+            {
+              title: 'Position',
+              value: `#${you.position.toFixed(1)}`,
+              delta: you.positionDelta,
+              subtitle: `Competitor avg · #${data.competitorAverages.position.toFixed(1)}`,
+              tooltip: `${DEF.position.text} (${label}.) Shown YTD vs. same period last year.`,
+              invertDelta: true,
+            },
+          ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
+            <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} invertDelta={invertDelta} />
+          ))}
+        </div>
+      )}
+
+      {data.llmBreakdown.length > 0 && <LLM breakdown={data.llmBreakdown} />}
+
+      <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
+        <Rankings rankingsByRange={data.brandRankingsByRange} />
+        <div className="flex flex-col gap-5 h-full">
+          <BrandSOVChart brands={data.brandRankings} />
+          <BrandDefinitions />
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+        <Domains domainsByRange={data.domainsByRange} totalCitationsByRange={data.totalCitationsByRange} />
+        <div className="flex flex-col gap-5">
+          <DomainTypesChart types={data.domainTypes} source={provider} />
+          <DomainTypeDefinitions source={provider} />
+        </div>
+      </div>
+
+      {data.trackedPrompts.length > 0 && (
+        isPeec
+          ? <TrackedPromptsChart prompts={data.trackedPrompts} brandName={brandName} />
+          : <ProfoundTrackedPromptsChart prompts={data.trackedPrompts} />
+      )}
+
+      <p className="text-xs text-text-muted">{isDemo ? 'Sample data — demo mode' : `Live data from ${label}`}</p>
     </div>
   )
 }
 
 // --- Main report ---
 
-export async function PeecAIReport({ clientSlug, dateRange, demoMode = false }: { clientSlug?: string; dateRange?: string; demoMode?: boolean } = {}) {
-  const [peec, profound] = await Promise.allSettled([
-    getPeecOverview(clientSlug),
-    getProfoundOverview(clientSlug),
+export async function PeecAIReport({
+  clientSlug,
+  dateRange,
+  demoMode = false,
+}: { clientSlug?: string; dateRange?: string; demoMode?: boolean } = {}) {
+  void dateRange // AEO charts are fixed to year-to-date; the page date picker does not apply.
+
+  const config = clientSlug ? await getClientBySlug(clientSlug) : null
+  const peecConfigured = demoMode || !!config?.peecCustomerProjectId
+  const profoundConfigured = demoMode || !!config?.profoundCategoryId
+
+  const [peecRes, profoundRes] = await Promise.allSettled([
+    peecConfigured ? getPeecOverview(clientSlug) : Promise.resolve(null),
+    profoundConfigured ? getProfoundOverview(clientSlug) : Promise.resolve(null),
   ])
 
-  let peecData     = peec.status     === 'fulfilled' ? peec.value     : null
-  let profoundData = profound.status === 'fulfilled' ? profound.value : null
+  let peecData     = peecRes.status     === 'fulfilled' ? peecRes.value     : null
+  let profoundData = profoundRes.status === 'fulfilled' ? profoundRes.value : null
 
-  // Demo mode: force-substitute BOTH Peec and Profound with sample data
-  // so the demo never mixes real client data with synthetic. The Sample
-  // badge surfaces in each section so it's clear what's going on.
-  const peecIsDemo     = demoMode
-  const profoundIsDemo = demoMode
-  if (peecIsDemo)     peecData     = samplePeecOverview()
-  if (profoundIsDemo) profoundData = sampleProfoundOverview()
+  // Demo mode: force-substitute BOTH providers with sample data so the demo
+  // never mixes real client data with synthetic.
+  if (demoMode) {
+    peecData     = samplePeecOverview()
+    profoundData = sampleProfoundOverview()
+  }
 
-  const peecYou    = peecData?.brandRankings.find((b) => b.isYou)
-  const profoundYou = profoundData?.brandRankings.find((b) => b.isYou)
+  const availableProviders: AeoProvider[] = []
+  if (peecData)     availableProviders.push('peec')
+  if (profoundData) availableProviders.push('profound')
+
+  if (availableProviders.length === 0) {
+    return <p className="text-sm text-text-muted">No AEO provider is configured for this client.</p>
+  }
+
+  const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
+  if (peecData)     sections.peec     = <ProviderSection data={peecData} provider="peec" isDemo={demoMode} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} />
 
   return (
-    <div className="space-y-8">
-
-      {/* ── PEEC AI SECTION ─────────────────────────────────────────────── */}
-
-      <div>
-        <p className="text-sm font-bold uppercase tracking-widest text-text-muted">
-          Answer Engine Optimization
-        </p>
-        <div className="flex items-center gap-2">
-          <h2 className="text-3xl font-extrabold uppercase text-white">
-            Overview
-          </h2>
-          {peecIsDemo && <SampleDataBadge />}
-        </div>
-      </div>
-
-      {peecData && (
-        <>
-          {peecData.weeklyVisibility.length > 0 && (
-            <VisibilityChart
-              data={peecData.weeklyVisibility}
-              competitorData={peecData.competitorWeeklyVisibility}
-              brandName={peecYou?.name ?? process.env.PEEC_AI_YOUR_BRAND}
-            />
-          )}
-
-          {peecYou && (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-              {[
-                {
-                  title: 'Visibility',
-                  value: `${peecYou.visibility.toFixed(1)}%`,
-                  delta: peecYou.visibilityDelta,
-                  subtitle: `Competitor avg · ${peecData.competitorAverages.visibility.toFixed(1)}%`,
-                  tooltip: `${PEEC.visibility.text} (Peec AI.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
-                },
-                {
-                  title: 'Share of Voice',
-                  value: `${peecYou.sov.toFixed(1)}%`,
-                  delta: peecYou.sovDelta,
-                  subtitle: `Competitor avg · ${peecData.competitorAverages.sov.toFixed(1)}%`,
-                  tooltip: `${PEEC.sov.text} (Peec AI.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
-                },
-                {
-                  title: 'Position',
-                  value: `#${peecYou.position.toFixed(1)}`,
-                  delta: peecYou.positionDelta,
-                  subtitle: `Competitor avg · #${peecData.competitorAverages.position.toFixed(1)}`,
-                  tooltip: `${PEEC.position.text} (Peec AI.) Shown YTD vs. same period last year.`,
-                  invertDelta: true,
-                },
-              ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
-                <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} invertDelta={invertDelta} />
-              ))}
-            </div>
-          )}
-
-          {peecData.llmBreakdown.length > 0 && (
-            <LLMBreakdownTable breakdown={peecData.llmBreakdown} />
-          )}
-
-          <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
-            <BrandRankingsTable rankingsByRange={peecData.brandRankingsByRange} />
-            <div className="flex flex-col gap-5 h-full">
-              <BrandSOVChart brands={peecData.brandRankings} />
-              <BrandDefinitions />
-            </div>
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-            <TopDomainsTable domainsByRange={peecData.domainsByRange} totalCitationsByRange={peecData.totalCitationsByRange} />
-            <div className="flex flex-col gap-5">
-              <DomainTypesChart types={peecData.domainTypes} source="peec" />
-              <DomainTypeDefinitions source="peec" />
-            </div>
-          </div>
-
-          {peecData.trackedPrompts.length > 0 && (
-            <TrackedPromptsChart prompts={peecData.trackedPrompts} brandName={peecYou?.name ?? process.env.PEEC_AI_YOUR_BRAND} />
-          )}
-
-          <p className="text-xs text-text-muted">{peecIsDemo ? 'Sample data — demo mode' : 'Live data from Peec AI'}</p>
-        </>
-      )}
-
-      {/* ── PROFOUND SECTION ────────────────────────────────────────────── */}
-
-      <SectionDivider title="Profound" />
-
-      {profoundIsDemo && (
-        <div><SampleDataBadge /></div>
-      )}
-
-      {profoundData && (
-        <>
-          {profoundData.weeklyVisibility.length > 0 && (
-            <ProfoundVisibilityChart
-              data={profoundData.weeklyVisibility}
-              competitorData={profoundData.competitorWeeklyVisibility}
-              brandName={profoundYou?.name ?? process.env.PROFOUND_AI_YOUR_BRAND}
-            />
-          )}
-
-          {profoundYou && (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-              {[
-                {
-                  title: 'Visibility',
-                  value: `${profoundYou.visibility.toFixed(1)}%`,
-                  delta: profoundYou.visibilityDelta,
-                  subtitle: `Competitor avg · ${profoundData.competitorAverages.visibility.toFixed(1)}%`,
-                  tooltip: `${PROFOUND.visibility.text} (Profound.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
-                },
-                {
-                  title: 'Share of Voice',
-                  value: `${profoundYou.sov.toFixed(1)}%`,
-                  delta: profoundYou.sovDelta,
-                  subtitle: `Competitor avg · ${profoundData.competitorAverages.sov.toFixed(1)}%`,
-                  tooltip: `${PROFOUND.sov.text} (Profound.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
-                },
-                {
-                  title: 'Position',
-                  value: `#${profoundYou.position.toFixed(1)}`,
-                  delta: profoundYou.positionDelta,
-                  subtitle: `Competitor avg · #${profoundData.competitorAverages.position.toFixed(1)}`,
-                  tooltip: `${PROFOUND.position.text} (Profound.) Shown YTD vs. same period last year.`,
-                  invertDelta: true,
-                },
-              ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
-                <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} invertDelta={invertDelta} />
-              ))}
-            </div>
-          )}
-
-          {profoundData.llmBreakdown.length > 0 && (
-            <ProfoundLLMBreakdownTable breakdown={profoundData.llmBreakdown} />
-          )}
-
-          <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
-            <ProfoundBrandRankingsTable rankingsByRange={profoundData.brandRankingsByRange} />
-            <div className="flex flex-col gap-5 h-full">
-              <BrandSOVChart brands={profoundData.brandRankings} />
-              <BrandDefinitions />
-            </div>
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-            <ProfoundTopDomainsTable domainsByRange={profoundData.domainsByRange} totalCitationsByRange={profoundData.totalCitationsByRange} />
-            <div className="flex flex-col gap-5">
-              <DomainTypesChart types={profoundData.domainTypes} source="profound" />
-              <DomainTypeDefinitions source="profound" />
-            </div>
-          </div>
-
-          {profoundData.trackedPrompts.length > 0 && (
-            <ProfoundTrackedPromptsChart prompts={profoundData.trackedPrompts} />
-          )}
-
-          <p className="text-xs text-text-muted">{profoundIsDemo ? 'Sample data — demo mode' : 'Live data from Profound'}</p>
-        </>
-      )}
-
-    </div>
+    <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
   )
 }

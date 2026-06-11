@@ -3,7 +3,6 @@ import type { DomainType, BrandRanking } from '@/lib/profound/client'
 import { BRAND_TYPE_MAP, BRAND_TYPE_COLORS, BRAND_TYPE_DEFINITIONS } from '@/lib/peec/brand-types'
 import { BrandRankingsTable } from './brand-rankings-table'
 import { TopDomainsTable } from './top-domains-table'
-import { VisibilityChart } from './visibility-chart'
 import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
 import { cn } from '@/lib/utils'
@@ -167,15 +166,6 @@ export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } =
           Profound
         </h2>
       </div>
-
-      {/* Visibility chart */}
-      {data.weeklyVisibility.length > 0 && (
-        <VisibilityChart
-          data={data.weeklyVisibility}
-          competitorData={data.competitorWeeklyVisibility}
-          brandName={youBrand?.name ?? process.env.PROFOUND_AI_YOUR_BRAND}
-        />
-      )}
 
       {/* KPI cards */}
       {youBrand && (

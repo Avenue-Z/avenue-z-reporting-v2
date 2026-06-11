@@ -43,6 +43,19 @@ function weeklyTrend(start: number, range: number, weeks = 16, noise = 0.6): Wee
   return result
 }
 
+function dailyTrend(start: number, range: number, days = 112, noise = 0.6): import('@/lib/aeo/types').DailyPoint[] {
+  const result: import('@/lib/aeo/types').DailyPoint[] = []
+  const base = new Date('2026-02-09')
+  for (let i = 0; i < days; i++) {
+    const d = new Date(base)
+    d.setDate(d.getDate() + i)
+    const t = i / Math.max(days - 1, 1)
+    const wave = Math.sin(i * 0.3) * noise
+    result.push({ date: d.toISOString().slice(0, 10), visibility: Math.max(0, start + range * t + wave) })
+  }
+  return result
+}
+
 const TOP_DOMAINS_YTD: TopDomain[] = [
   // Own
   { domain: 'avenuez.com',                 retrieved: 24.3, retrievedDelta:  3.1, citationRate: 32.1, citationRateDelta: 4.2, type: 'Own' },
@@ -70,7 +83,8 @@ const TOP_DOMAINS_YTD: TopDomain[] = [
   { domain: 'reddit.com',                  retrieved:  2.6, retrievedDelta:  0.4, citationRate:  3.9, citationRateDelta:  0.5, type: 'UGC' },
 ]
 
-const TRACKED_PROMPTS: TrackedPrompt[] = [
+// topicSource is added in samplePeecOverview() via .map, so it's omitted here.
+const TRACKED_PROMPTS: Omit<TrackedPrompt, 'topicSource'>[] = [
   // Agency Selection
   { text: 'best PR agency for tech startups',                    sources: ['ChatGPT', 'Claude', 'Perplexity'], visibility: 58.4, sov: 24.1, position: 1.8, group: 'Agency Selection' },
   { text: 'top digital marketing agencies 2026',                 sources: ['ChatGPT', 'Gemini'],               visibility: 48.2, sov: 19.3, position: 2.4, group: 'Agency Selection' },
@@ -134,6 +148,14 @@ export function samplePeecOverview(): PeecOverview {
   return {
     weeklyVisibility:           weeklyTrend(34, 9),
     competitorWeeklyVisibility: weeklyTrend(28, 1),
+    dailyVisibility:            dailyTrend(34, 9),
+    competitorDailyVisibility:  dailyTrend(28, 1),
+    periodChange: {
+      visibilityMover: { label: 'Avenue Z', delta: 6.1 },
+      domainMover:     { label: 'techcrunch.com', delta: 2.4 },
+      competitorShift: { label: 'Ogilvy', delta: 2.0 },
+      promptOpportunity: { text: 'tracking citations in LLMs', visibility: 19.4 },
+    },
     competitorAverages:         COMPETITOR_AVERAGES,
     brandRankings:              BRANDS,
     brandRankingsByRange: {
@@ -149,7 +171,7 @@ export function samplePeecOverview(): PeecOverview {
       'Last 30 days': 1184,
     },
     domainTypes:    DOMAIN_TYPES,
-    trackedPrompts: TRACKED_PROMPTS,
+    trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
     llmBreakdown:   LLM_BREAKDOWN,
   }
 }

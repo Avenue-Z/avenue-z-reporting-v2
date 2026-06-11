@@ -1,4 +1,6 @@
 import { cached } from '@/lib/cache'
+import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
+import { buildPeriodChange } from '@/lib/aeo/period-change'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
@@ -165,6 +167,7 @@ export type TrackedPrompt = {
   sov: number
   position: number
   group: string
+  topicSource: TopicSource
 }
 
 export type CompetitorAverages = {
@@ -177,6 +180,8 @@ export type CompetitorAverages = {
 export type PeecOverview = {
   weeklyVisibility: WeeklyVisibility[]
   competitorWeeklyVisibility: WeeklyVisibility[]
+  dailyVisibility: DailyPoint[]
+  competitorDailyVisibility: DailyPoint[]
   competitorAverages: CompetitorAverages
   brandRankings: BrandRanking[]
   brandRankingsByRange: Record<string, BrandRanking[]>
@@ -185,6 +190,7 @@ export type PeecOverview = {
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
+  periodChange: PeriodChange
 }
 
 // --- Aggregation helpers ---
@@ -288,6 +294,20 @@ function groupByWeek(rows: ApiBrandRow[]): WeeklyVisibility[] {
     })
 }
 
+function groupByDay(rows: ApiBrandRow[]): DailyPoint[] {
+  const dayMap = new Map<string, { visCount: number; visTotal: number }>()
+  for (const row of rows) {
+    if (!row.date) continue
+    const key = row.date.slice(0, 10)
+    const e = dayMap.get(key)
+    if (e) { e.visCount += row.visibility_count; e.visTotal += row.visibility_total }
+    else dayMap.set(key, { visCount: row.visibility_count, visTotal: row.visibility_total })
+  }
+  return Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { visCount, visTotal }]) => ({ date, visibility: visTotal > 0 ? (visCount / visTotal) * 100 : 0 }))
+}
+
 // --- Paginated fetch for YTD data ---
 
 async function fetchAllYtdRows(
@@ -345,10 +365,11 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   const prior = priorYtd
 
   const last30 = periodDates(0, 30)
+  const prior30 = periodDates(30, 30)
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, brandsPrior30Res, domainsPrior30Res, tagsRes, promptsRes] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...last30 }, pid),
@@ -359,6 +380,12 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior30 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior30 }, pid),
+    // Real prompt taxonomy: tag id→name + each prompt's tags, for grouping by
+    // the prompt's primary subject tag instead of keyword inference.
+    peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
+    peecGet<{ data: { id: string; messages?: { content?: string }[]; tags?: { id: string }[] }[]; totalCount: number }>('/prompts', { limit: '1000' }, pid),
   ])
 
   const ytdRows = await fetchAllYtdRows({ ...ytd, dimensions: ['date'] }, pid)
@@ -471,26 +498,39 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     promptMetricsById.set(uuid, metric)
   }
 
-  // Deduplicate queries by text, collecting sources and the prompt UUID (if returned)
-  const promptMap = new Map<string, { sources: Set<string>; uuid?: string }>()
+  // Sources cited per prompt UUID (which AI models surfaced each prompt).
+  const sourcesByUuid = new Map<string, Set<string>>()
   for (const q of queriesRes.data ?? []) {
-    const text = q.query?.text
-    const uuid = q.prompt?.id
+    const uuid = q.prompt?.id ? String(q.prompt.id) : null
+    if (!uuid) continue
     const source = normalizeSource(q.model_channel?.id ?? q.model?.id ?? '')
-    if (!text) continue
-    if (!promptMap.has(text)) promptMap.set(text, { sources: new Set(), uuid })
-    if (source) promptMap.get(text)!.sources.add(source)
+    if (!sourcesByUuid.has(uuid)) sourcesByUuid.set(uuid, new Set())
+    if (source) sourcesByUuid.get(uuid)!.add(source)
   }
 
-  const trackedPrompts: TrackedPrompt[] = Array.from(promptMap.entries()).map(([text, { sources, uuid }]) => {
-    const m = uuid ? promptMetricsById.get(uuid) : undefined
+  // Peec organizes prompts with faceted tags (subject + intent + branded), not a
+  // single topic. Group each prompt by its first *subject* tag, excluding the
+  // intent and branded/non-branded facets; fall back to keyword inference when a
+  // prompt carries no subject tag. Built from the real tracked prompts (one row
+  // per prompt) rather than per-query-text rows.
+  const FACET_TAGS = new Set(['commercial', 'informational', 'transactional', 'branded', 'non-branded'])
+  const tagNameById = new Map((tagsRes.data ?? []).map((t) => [t.id, t.name]))
+
+  const trackedPrompts: TrackedPrompt[] = (promptsRes.data ?? []).map((p) => {
+    const uuid = p.id
+    const text = (p.messages ?? []).map((m) => m.content).filter(Boolean).join(' ').trim() || '(untitled prompt)'
+    const subjectTag = (p.tags ?? [])
+      .map((t) => tagNameById.get(t.id))
+      .find((name): name is string => !!name && !FACET_TAGS.has(name.toLowerCase()))
+    const m = promptMetricsById.get(uuid)
     return {
       text,
-      sources: Array.from(sources),
+      sources: Array.from(sourcesByUuid.get(uuid) ?? []),
       visibility: m?.visibility ?? 0,
       sov: m?.sov ?? 0,
       position: m?.position ?? 0,
-      group: categorizePrompt(text),
+      group: subjectTag ?? categorizePrompt(text),
+      topicSource: subjectTag ? 'provider' : 'inferred',
     }
   })
 
@@ -503,6 +543,8 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   )
   const weeklyVisibility = groupByWeek(filteredYtdRows)
   const competitorWeeklyVisibility = groupByWeek(competitorYtdRows)
+  const dailyVisibility = groupByDay(filteredYtdRows)
+  const competitorDailyVisibility = groupByDay(competitorYtdRows)
 
   // --- Additional date ranges for brand rankings (no deltas) ---
   function buildRankings(rows: ApiBrandRow[]): BrandRanking[] {
@@ -566,6 +608,23 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     })
     .sort((a, b) => b.visibility - a.visibility)
 
+  // --- Period change (last 30 vs prior 30) ---
+  const brandsCurrentPts = Array.from(aggregateBrandRows(brands30Res.data ?? []).entries()).map(([, a]) => ({
+    name: a.name, visibility: aggToMetrics(a).visibility,
+    isYou: yourBrand ? a.name.toLowerCase().includes(yourBrand.toLowerCase()) : false,
+  }))
+  const brandsPriorPts = Array.from(aggregateBrandRows(brandsPrior30Res.data ?? []).entries()).map(([, a]) => ({
+    name: a.name, visibility: aggToMetrics(a).visibility,
+    isYou: yourBrand ? a.name.toLowerCase().includes(yourBrand.toLowerCase()) : false,
+  }))
+  const periodChange = buildPeriodChange({
+    brandsCurrent: brandsCurrentPts,
+    brandsPrior: brandsPriorPts,
+    domainsCurrent: (domains30Res.data ?? []).map((d) => ({ domain: d.domain, share: d.retrieved_percentage * 100 })),
+    domainsPrior:   (domainsPrior30Res.data ?? []).map((d) => ({ domain: d.domain, share: d.retrieved_percentage * 100 })),
+    prompts: trackedPrompts.map((p) => ({ text: p.text, visibility: p.visibility })),
+  })
+
   // --- Competitor averages (current period, all non-you brands) ---
   const competitorAggs = Array.from(currentAgg.entries())
     .filter(([, agg]) => !yourBrand || !agg.name.toLowerCase().includes(yourBrand.toLowerCase()))
@@ -581,6 +640,8 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   return {
     weeklyVisibility,
     competitorWeeklyVisibility,
+    dailyVisibility,
+    competitorDailyVisibility,
     competitorAverages,
     brandRankings,
     brandRankingsByRange,
@@ -589,6 +650,7 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     domainTypes,
     trackedPrompts,
     llmBreakdown,
+    periodChange,
   }
 }
 
@@ -605,7 +667,7 @@ export const getPeecOverview = cached(
     //      `skp-` token to a customer-scoped `skc-` token. v2 cached entries
     //      contain the wrong project's data (Peec was ignoring project_id
     //      against the skp- token), so they need to be evicted.
-    version: 'v3',
+    version: 'v5',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

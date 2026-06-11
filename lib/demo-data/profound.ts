@@ -41,6 +41,18 @@ const COMPETITOR_WEEKLY = WEEKLY_VISIBILITY.map((w) => ({
   visibility: w.visibility * 0.85, // competitor avg slightly lower
 }))
 
+function dailyFromWeekly(weekly: typeof WEEKLY_VISIBILITY): import('@/lib/aeo/types').DailyPoint[] {
+  const out: import('@/lib/aeo/types').DailyPoint[] = []
+  for (const w of weekly) {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(w.weekStart)
+      d.setUTCDate(d.getUTCDate() + i)
+      out.push({ date: d.toISOString().slice(0, 10), visibility: w.visibility })
+    }
+  }
+  return out
+}
+
 const TOP_DOMAINS = [
   { domain: 'forbes.com',          type: 'Editorial' as const,     retrieved: 287, retrievedDelta:  42, citationRate: 0.184, citationRateDelta:  0.024 },
   { domain: 'techcrunch.com',      type: 'Editorial' as const,     retrieved: 213, retrievedDelta:  28, citationRate: 0.142, citationRateDelta:  0.018 },
@@ -85,6 +97,14 @@ export function sampleProfoundOverview(): ProfoundOverview {
   return {
     weeklyVisibility:           WEEKLY_VISIBILITY,
     competitorWeeklyVisibility: COMPETITOR_WEEKLY,
+    dailyVisibility:            dailyFromWeekly(WEEKLY_VISIBILITY),
+    competitorDailyVisibility:  dailyFromWeekly(COMPETITOR_WEEKLY),
+    periodChange: {
+      visibilityMover: { label: 'Praytell', delta: 3.8 },
+      domainMover:     { label: 'forbes.com', delta: 4.2 },
+      competitorShift: { label: 'BCW', delta: 2.4 },
+      promptOpportunity: { text: 'marketing agency vs in-house team comparison', visibility: 28.9 },
+    },
     competitorAverages: {
       visibility: 32.1,
       sov:        12.8,
@@ -105,7 +125,7 @@ export function sampleProfoundOverview(): ProfoundOverview {
       'Last 30 days':  427,
     },
     domainTypes:   DOMAIN_TYPES,
-    trackedPrompts: TRACKED_PROMPTS,
+    trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
     llmBreakdown:  LLM_BREAKDOWN,
   }
 }

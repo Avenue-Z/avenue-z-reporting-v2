@@ -86,13 +86,17 @@ function GroupRow({ group }: { group: PromptGroup }) {
 
 export function TrackedPromptsChart({ prompts }: { prompts: TrackedPrompt[] }) {
   const groups = buildGroups(prompts)
+  const topicsFromProvider =
+    prompts.length > 0 && prompts.filter((p) => p.topicSource === 'provider').length >= prompts.length / 2
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which prompts are AI engines answering with our brand? (Profound)</p>
-          <InfoTooltip text="Prompt metrics are live data from Profound. Topic groupings are AI-inferred based on keyword patterns and may not be accurate — verify before sharing externally." />
+          <InfoTooltip text={topicsFromProvider
+            ? 'Prompt metrics and topic groupings are live data from Profound.'
+            : 'Prompt metrics are live data from Profound. Topic groupings are AI-inferred based on keyword patterns and may not be accurate — verify before sharing externally.'} />
         </div>
         {prompts.length > 0 && (
           <p className="text-xs text-text-muted flex items-center gap-1">
