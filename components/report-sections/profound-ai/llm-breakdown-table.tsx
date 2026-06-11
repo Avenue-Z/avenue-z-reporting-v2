@@ -4,15 +4,7 @@ import type { LLMBreakdown } from '@/lib/profound/client'
 import { PROFOUND } from '@/lib/peec/metric-definitions'
 import { SortableTable, type SortableColumn } from '../peec-ai/sortable-table'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
-
-const MODEL_COLORS: Record<string, string> = {
-  ChatGPT:    '#10A37F',
-  Perplexity: '#26C7C8',
-  Gemini:     '#4285F4',
-  Claude:     '#CC785C',
-  Copilot:    '#0078D4',
-  Google:     '#34A853',
-}
+import { MODEL_COLORS } from '@/lib/peec/models'
 
 function VisibilityBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0
@@ -39,7 +31,7 @@ export function LLMBreakdownTable({ breakdown }: { breakdown: LLMBreakdown[] }) 
       align: 'left',
       accessor: (b) => b.model,
       render: (b) => {
-        const color = MODEL_COLORS[b.model] ?? '#8A8A8A'
+        const color = MODEL_COLORS[b.model as keyof typeof MODEL_COLORS] ?? '#8A8A8A'
         return (
           <span className="flex items-center gap-2">
             <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
@@ -55,7 +47,7 @@ export function LLMBreakdownTable({ breakdown }: { breakdown: LLMBreakdown[] }) 
       tooltip: PROFOUND.visibility.text,
       accessor: (b) => b.visibility,
       render: (b) => {
-        const color = MODEL_COLORS[b.model] ?? '#8A8A8A'
+        const color = MODEL_COLORS[b.model as keyof typeof MODEL_COLORS] ?? '#8A8A8A'
         return <VisibilityBar value={b.visibility} max={maxVisibility} color={color} />
       },
     },

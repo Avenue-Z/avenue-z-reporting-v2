@@ -12,6 +12,8 @@ import { KpiCard } from '@/components/charts/kpi-card'
 import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PEEC, GA4 } from '@/lib/peec/metric-definitions'
+import type { AEOModel } from '@/lib/peec/models'
+import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
   PRPlacementMatchbackTable,
   TopEditorialDomainsTable,
@@ -164,7 +166,7 @@ function computeOpportunityRows(
 
 // ── Main RSC ─────────────────────────────────────────────────────────────────
 
-export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
+export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', demoMode = false, models = null }: { clientSlug: string; dateRange?: string; demoMode?: boolean; models?: AEOModel[] | null }) {
   // Date range setup for GA4 AI referral sessions
   const resolvedMain = parseDateRange(dateRange)
   const mainIso = `${resolvedMain.startDate},${resolvedMain.endDate}`
@@ -236,14 +238,64 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // Derive metrics
   const youMetrics = data?.brandRankings.find(b => b.isYou) ?? null
   const editorialDomains = (data?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Editorial')
-  const totalCitations   = data?.totalCitationsByRange['YTD'] ?? 0
+
+  // ── KPI: AI Visibility % + Avg AI Position (model-filtered) ─────────────────
+  // When a model filter is active, recompute from llmBreakdown filtered to
+  // selected models. When no filter is active, fall back to the youMetrics
+  // brand ranking (which aggregates across all models).
+  const llmFiltered = models
+    ? (data?.llmBreakdown ?? []).filter((row) => models.includes(row.model as AEOModel))
+    : (data?.llmBreakdown ?? [])
+
+  const filteredAiVisibilityPct = llmFiltered.length > 0
+    ? llmFiltered.reduce((s, r) => s + r.visibility, 0) / llmFiltered.length
+    : null
+
+  const filteredAvgPosition = llmFiltered.length > 0
+    ? llmFiltered.reduce((s, r) => s + r.position, 0) / llmFiltered.length
+    : null
+
+  // When a model filter is active, use the filtered llmBreakdown aggregates.
+  // When no filter, use youMetrics (brand-level YTD aggregate) for display,
+  // which includes delta. We only show the derived filtered values when models
+  // is non-null so the delta is not misleadingly stale.
+  const displayAiVisibility = models !== null
+    ? (filteredAiVisibilityPct !== null ? fmt(filteredAiVisibilityPct) : '--')
+    : (youMetrics ? fmt(youMetrics.visibility) : '--')
+  const displayAiVisibilityDelta = models !== null ? undefined : youMetrics?.visibilityDelta
+
+  const displayAvgPosition = models !== null
+    ? (filteredAvgPosition !== null ? filteredAvgPosition.toFixed(1) : '--')
+    : (youMetrics ? youMetrics.position.toFixed(1) : '--')
+  const displayAvgPositionDelta = models !== null ? undefined : (youMetrics ? -youMetrics.positionDelta : undefined)
+
+  // ── KPI: # AI Citations (model-filtered) ────────────────────────────────────
+  // When a model filter is active, sum domainCitationsByModel across selected
+  // models for all domains. When no filter, use the pre-aggregated totalCitations.
+  const totalCitations = models !== null && data?.domainCitationsByModel
+    ? Object.keys(data.domainCitationsByModel).reduce(
+        (acc, domain) => acc + sumByModel(data!.domainCitationsByModel, domain, models),
+        0,
+      )
+    : (data?.totalCitationsByRange['YTD'] ?? 0)
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
     ? buildMatchback(prData.placements, editorialDomains, data.trackedPrompts)
     : []
 
-  const placementsCitedByAI = matchbackRows.filter(r => r.citedByAI).length
+  // ── Filter PR placement matchback rows by selected AI models ─────────────────
+  // When a filter is active, keep only rows that have at least one cited AI
+  // engine matching the selection. Rows with no AI engines at all are DROPPED
+  // when a filter is active — they provide no signal for model-specific analysis.
+  const filteredMatchbackRows = models
+    ? matchbackRows.filter((r) => {
+        if (!r.citedByAI || r.aiEnginesCiting.length === 0) return false
+        return r.aiEnginesCiting.some((e) => models.includes(e as AEOModel))
+      })
+    : matchbackRows
+
+  const placementsCitedByAI = filteredMatchbackRows.filter(r => r.citedByAI).length
 
   // Build opportunity rows (Section E)
   const opportunityRows = data
@@ -293,8 +345,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   const DEMO_PROMPT_COUNT = [14, 9, 22, 6, 31, 11, 18, 4, 27, 13, 8, 16]
   const DEMO_POST_PUBLISH_TREND = [18, 24, 12, 31, 9, 17, 28, 14, 22, 11, 26, 19]
 
-  // 1. PR Placement Matchback rows
-  const matchbackTableRows: PRPlacementMatchbackRow[] = matchbackRows.map((row, i) => ({
+  // 1. PR Placement Matchback rows — use filteredMatchbackRows (filtered by
+  // selected AI models above) so the table and summary counts reflect the filter.
+  const matchbackTableRows: PRPlacementMatchbackRow[] = filteredMatchbackRows.map((row, i) => ({
     outlet: row.outlet,
     domain: row.domain,
     headline: row.headline,
@@ -314,8 +367,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : null,
   }))
 
-  // 2. Top Editorial Domains rows
-  const topEditorialRows: TopEditorialDomainRow[] = editorialDomains.slice(0, 15).map((d, idx) => {
+  // 2. Top Editorial Domains rows — apply model filter via filterDomainRowsByModel.
+  // First build the full list up to 15, then pass through the filter helper which
+  // recomputes citationCount from per-model data and drops zero-count rows.
+  // Note: citationCountDelta is intentionally left stale (v1 limitation — see helper).
+  const rawTopEditorialRows: TopEditorialDomainRow[] = editorialDomains.slice(0, 15).map((d, idx) => {
     const hasPR = prIsDemo
       ? [true, false, true, true, false, true, false, true, false, true, false, true, true, false, true][idx % 15]
       : (prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false)
@@ -328,6 +384,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       hasPR,
     }
   })
+  const topEditorialRows: TopEditorialDomainRow[] = data?.domainCitationsByModel
+    ? filterDomainRowsByModel(rawTopEditorialRows, data.domainCitationsByModel, models)
+    : rawTopEditorialRows
 
   // 3. Brand-Absent Editorial Domains rows
   const DEMO_BRAND_ABSENT_TITLES = [
@@ -355,7 +414,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ['BCW', 'Weber Shandwick'],
     ['FleishmanHillard'],
   ]
-  const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentDomains.slice(0, 20).map((d, i) => {
+  // Build brand-absent rows using unfiltered citationCount first (needed for
+  // priority bucketing), then apply the model filter. Priority is derived from
+  // the base d.retrieved value so it reflects the real editorial weight of the
+  // domain, not just the per-model slice.
+  const rawBrandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentDomains.slice(0, 20).map((d, i) => {
     const priority: 'High' | 'Medium' | 'Low' = d.retrieved > 15 ? 'High' : d.retrieved > 5 ? 'Medium' : 'Low'
     const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
     return {
@@ -371,6 +434,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       suggestedAngle: 'Secure coverage or citation on this domain',
     }
   })
+  const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = data?.domainCitationsByModel
+    ? filterDomainRowsByModel(rawBrandAbsentTableRows, data.domainCitationsByModel, models)
+    : rawBrandAbsentTableRows
 
   // 4. Prompt Cluster Opportunity Matrix rows
   const opportunityTableRows: PromptClusterOpportunityRow[] = opportunityRows.map((row) => ({
@@ -423,50 +489,64 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       <div>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">How is AI-driven PR coverage performing?</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {/* AI Visibility %: filtered by selected models via llmBreakdown average */}
           <KpiCard
             title="AI Visibility %"
-            value={youMetrics ? fmt(youMetrics.visibility) : '--'}
-            delta={youMetrics?.visibilityDelta}
-            tooltip={`${PEEC.visibility.text} (Peec AI.) Shown YTD.`}
+            value={displayAiVisibility}
+            delta={displayAiVisibilityDelta}
+            tooltip={`${PEEC.visibility.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
           />
+          {/* Avg AI Position: filtered by selected models via llmBreakdown average */}
           <KpiCard
             title="Avg AI Position"
-            value={youMetrics ? youMetrics.position.toFixed(1) : '--'}
-            delta={youMetrics ? -youMetrics.positionDelta : undefined}
+            value={displayAvgPosition}
+            delta={displayAvgPositionDelta}
             invertDelta
-            tooltip={`${PEEC.position.text} (Peec AI.) Shown YTD.`}
+            tooltip={`${PEEC.position.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
           />
+          {/* # AI Citations: filtered via domainCitationsByModel sum when models active */}
           <KpiCard
             title="# AI Citations"
             value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
-            tooltip={`${PEEC.citations.text} (Peec AI.) Shown YTD.`}
+            tooltip={`${PEEC.citations.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
           />
+          {/* PR Placements Cited by AI: denominator reflects total filtered placements */}
           <KpiCard
             title="PR Placements Cited by AI"
-            value={prData ? `${placementsCitedByAI} / ${prData.totalPlacements}` : '--'}
-            tooltip="PR Proof Library x Peec"
+            value={prData ? `${placementsCitedByAI} / ${models ? filteredMatchbackRows.length : prData.totalPlacements}` : '--'}
+            tooltip={`PR Proof Library x Peec${models ? '. Filtered to selected AI models.' : ''}`}
           />
+          {/* AI Referral Sessions: GA4 has no model dimension — not filtered.
+              When a model filter is active, append a subtitle to make this clear. */}
           <KpiCard
             title="AI Referral Sessions"
             value={aiSessions > 0 ? aiSessions.toLocaleString() : '--'}
             delta={aiSessionsDelta}
             tooltip={aiSessions > 0 ? `${GA4.session.text} (GA4.) Shown for the selected date range.` : 'Requires GA4 AI referral data'}
-            subValue={aiSessions === 0 ? 'Requires GA4 AI referral data' : undefined}
+            subValue={
+              aiSessions === 0
+                ? 'Requires GA4 AI referral data'
+                : models
+                  ? 'across all AI engines'
+                  : undefined
+            }
           />
+          {/* Editorial Share, Brand Absent: reflects filtered brand-absent rows */}
           <KpiCard
             title="Editorial Share, Brand Absent"
             value={editorialDomains.length > 0
-              ? `${brandAbsentDomains.length} / ${editorialDomains.length}`
+              ? `${brandAbsentTableRows.length} / ${models ? topEditorialRows.length + brandAbsentTableRows.length : editorialDomains.length}`
               : '--'}
-            tooltip="Editorial domains citing AI but missing brand"
+            tooltip={`Editorial domains citing AI but missing brand${models ? '. Filtered to selected AI models.' : ''}`}
           />
         </div>
       </div>
 
       {/* ── Section B: PR Placement Matchback ── */}
+      {/* totalPlacements reflects filtered set when a model filter is active */}
       <PRPlacementMatchbackTable
         rows={matchbackTableRows}
-        totalPlacements={prData?.totalPlacements ?? 0}
+        totalPlacements={models ? filteredMatchbackRows.length : (prData?.totalPlacements ?? 0)}
         placementsCitedByAI={placementsCitedByAI}
         prDataAvailable={!!prData}
         isDemo={prIsDemo}
@@ -483,6 +563,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       />
 
       {/* ── Section E: Prompt Cluster Opportunity Matrix ── */}
+      {/* v1 limitation: opportunity scores (editorialCitationDensity, brandCitationRate,
+          competitorPresence, opportunityScore) are computed from aggregated Peec data
+          and are NOT re-computed per selected AI model. The matrix reflects all-model
+          data regardless of the active model filter. Recomputing would require
+          fetching per-model prompt cluster aggregates which is a Phase 6+ concern. */}
       <PromptClusterOpportunityMatrix rows={opportunityTableRows} />
 
       {/* ── Section F: Next Pitch Opportunities ── */}
