@@ -513,11 +513,17 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
         const demoEngines   = ['ChatGPT, Claude', 'ChatGPT, Perplexity', 'Claude, Gemini', 'ChatGPT, Copilot', 'Perplexity, Claude']
         const demoPositions = [1.8, 2.3, 1.5, 2.7, 2.1]
         const demoAiSessions = [284, 197, 412, 156, 203]
+        // Engines citing each owned domain. Key on a normalized host so the
+        // raw Peec /reports/domains value (d.domain) joins to the host derived
+        // from /reports/urls. Do NOT filter on mentionsYourBrand: an engine can
+        // cite an owned-domain page in an answer that never names the brand —
+        // the owned-domain lookup below already scopes this to our pages.
+        const domainKey = (s: string) => s.toLowerCase().replace(/^www\./, '')
         const enginesByDomain = new Map<string, Set<string>>()
         for (const c of urlCitations) {
-          if (!c.mentionsYourBrand) continue
-          if (!enginesByDomain.has(c.domain)) enginesByDomain.set(c.domain, new Set())
-          for (const e of c.engines) enginesByDomain.get(c.domain)!.add(e)
+          const k = domainKey(c.domain)
+          if (!enginesByDomain.has(k)) enginesByDomain.set(k, new Set())
+          for (const e of c.engines) enginesByDomain.get(k)!.add(e)
         }
         const ownedRows: OwnedContentCitedRow[] = ownDomains.map((d, i) => ({
           urlOrDomain: d.domain,
@@ -525,7 +531,7 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
           promptCluster: calendarIsDemo ? demoClusters[i % demoClusters.length] : null,
           aiCitationCount: d.citationRate,
           aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length]
-            : (enginesByDomain.get(d.domain)?.size ? Array.from(enginesByDomain.get(d.domain)!).join(', ') : null),
+            : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).join(', ') : null),
           averagePosition: calendarIsDemo ? demoPositions[i % demoPositions.length] : null,
           aiReferredSessions: calendarIsDemo ? demoAiSessions[i % demoAiSessions.length] : null,
           postLaunchAILift: d.retrievedDelta,

@@ -1,5 +1,8 @@
 // lib/peec/agent-analytics.test.ts
-// Run: npx tsx lib/peec/agent-analytics.test.ts
+// Run: npx tsx --env-file=.env.local lib/peec/agent-analytics.test.ts
+// (--env-file is required: importing ./agent-analytics transitively loads the DB
+//  client, which throws at module init without DATABASE_URL. The helpers under
+//  test are pure and need no network.)
 import { strict as assert } from 'node:assert'
 import { bucketBotType, aggregateVisitsByPath, type RawVisitRow } from './agent-analytics'
 
