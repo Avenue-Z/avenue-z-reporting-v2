@@ -7,6 +7,7 @@ import type { AgentBot, AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, SITEBULB, SCREAMING_FROG } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import type { FixListRow } from '@/lib/peec/fix-list'
 
 // ── Shared style constants ────────────────────────────────────────────────────
 
@@ -757,20 +758,6 @@ export function LogAnomaliesTable({ agentData, demoMode = false }: LogAnomaliesT
 // 5. What SEO / Dev Should Fix Next
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface FixListRow {
-  checkId: string
-  checkName: string
-  severity: string
-  status: SFDeltaStatus
-  exampleUrl: string
-  recommendedAction: string
-  owner: string
-  priorityScore: number
-  aiActive: boolean
-  whyItMatters: string
-  priorityLabel: string
-}
-
 export interface FixListTableProps {
   rows: FixListRow[]
   hasDelta: boolean
@@ -891,92 +878,5 @@ export function FixListTable({ rows, hasDelta, errorPageHits }: FixListTableProp
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FixList row-building helper — called from the RSC to compute priority scores
-// and "why it matters" copy. Kept in the client file so all FixList logic lives
-// in one place; the function itself is pure data transformation.
-// ─────────────────────────────────────────────────────────────────────────────
-
-function computeFixPriority(
-  issue: SFIssueDelta,
-  botPaths: Set<string>,
-): number {
-  const severityMap: Record<string, number> = { Critical: 1.0, High: 0.75, Medium: 0.5, Low: 0.25 }
-  const persistenceMap: Record<string, number> = { New: 0.8, Persistent: 1.0, Improved: 0.3, Resolved: 0, Unchanged: 0.5 }
-
-  const severity    = severityMap[issue.severity] ?? 0.25
-  let hasAI = 0
-  try {
-    hasAI = issue.exampleUrl && botPaths.has(new URL(issue.exampleUrl).pathname) ? 1 : 0
-  } catch {
-    hasAI = 0
-  }
-  const humanFromAI = 0
-  const persistence = persistenceMap[issue.status] ?? 0.5
-
-  return 0.35 * severity + 0.25 * hasAI + 0.20 * humanFromAI + 0.20 * persistence
-}
-
-export function buildFixListRows(sfData: SFData, agentData: AgentAnalyticsData | null): { rows: FixListRow[]; hasDelta: boolean } {
-  const botPaths = new Set<string>(agentData?.topPaths.map((p) => p.path) ?? [])
-  const hasDelta = sfData.delta.length > 0
-
-  function whyItMatters(fix: { severity: string; status: string }): string {
-    if (fix.severity === 'Critical') return 'Blocks crawler access and AI indexing directly'
-    if (fix.status === 'New') return 'Newly introduced this crawl — requires immediate investigation'
-    if (fix.status === 'Persistent') return 'Unresolved across multiple crawls — systemic issue'
-    if (fix.severity === 'High') return 'High-severity issue impacting AI crawlability'
-    return 'Ongoing technical debt affecting crawl health'
-  }
-
-  function hasAIActivity(exampleUrl: string): boolean {
-    if (!exampleUrl) return false
-    try { return botPaths.has(new URL(exampleUrl).pathname) } catch { return false }
-  }
-
-  function priorityLabel(score: number, severity: string): string {
-    if (!hasDelta) return severity
-    return score >= 0.6 ? 'Critical' : score >= 0.4 ? 'High' : score >= 0.2 ? 'Medium' : 'Low'
-  }
-
-  const rows: FixListRow[] = hasDelta
-    ? sfData.delta
-        .filter((d) => d.status !== 'Resolved' && d.status !== 'Unchanged')
-        .map((d) => {
-          const priorityScore = computeFixPriority(d, botPaths)
-          return {
-            checkId: d.checkId,
-            checkName: d.checkName,
-            severity: d.severity,
-            status: d.status,
-            exampleUrl: d.exampleUrl ?? '',
-            recommendedAction: d.recommendedAction,
-            owner: d.owner,
-            priorityScore,
-            aiActive: hasAIActivity(d.exampleUrl ?? ''),
-            whyItMatters: whyItMatters(d),
-            priorityLabel: priorityLabel(priorityScore, d.severity),
-          }
-        })
-        .sort((a, b) => b.priorityScore - a.priorityScore)
-        .slice(0, 10)
-    : sfData.current.topIssues.slice(0, 10).map((issue) => {
-        const recommendedAction = (issue as unknown as { recommendedAction?: string }).recommendedAction ?? 'Review and remediate'
-        const owner = (issue as unknown as { owner?: string }).owner ?? 'SEO'
-        return {
-          checkId: issue.checkId,
-          checkName: issue.checkName,
-          severity: issue.severity,
-          status: 'Unchanged' as const,
-          exampleUrl: '',
-          recommendedAction,
-          owner,
-          priorityScore: 0,
-          aiActive: false,
-          whyItMatters: whyItMatters({ severity: issue.severity, status: 'Unchanged' }),
-          priorityLabel: priorityLabel(0, issue.severity),
-        }
-      })
-
-  return { rows, hasDelta }
-}
+// buildFixListRows + FixListRow type live in @/lib/peec/fix-list (non-'use-client')
+// so the Technical Audit RSC can import the helper. See the comment in that file.
