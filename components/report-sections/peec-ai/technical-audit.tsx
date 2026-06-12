@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { getSFData } from '@/lib/screaming-frog/client'
 import { getSitebulbData, buildAEOChecklist } from '@/lib/sitebulb/client'
 import { getAgentAnalytics, deriveRobotsTxtStatus } from '@/lib/peec/agent-analytics'
+import { getUrlCitations } from '@/lib/peec/url-citations'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { SFData } from '@/lib/screaming-frog/types'
 import type { AgentBot } from '@/lib/peec/agent-analytics'
@@ -296,15 +297,17 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
   const clientDomain = demoMode ? 'avenuez.com' : (clientConfig?.domain ?? '')
 
   // Fetch all data sources in parallel, with graceful degradation on each
-  const [sfResult, sitebulbResult, agentResult] = await Promise.allSettled([
+  const [sfResult, sitebulbResult, agentResult, urlCitationsResult] = await Promise.allSettled([
     getSFData(clientSlug),
     getSitebulbData(clientSlug),
     getAgentAnalytics(clientSlug),
+    getUrlCitations(clientSlug),
   ])
 
   let sfData       = sfResult.status       === 'fulfilled' ? sfResult.value       : null
   let sitebulbData = sitebulbResult.status === 'fulfilled' ? sitebulbResult.value : null
   let agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
+  let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic. Powers Sections A (KPIs), B (delta), C
@@ -314,12 +317,14 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
     sfData       = sampleSFData()
     agentData    = sampleAgentAnalytics()
     sitebulbData = sampleSitebulbData()
+    urlCitations = []   // demo: PageOverlapTable uses its own demo arrays
   }
 
   // Log any errors server-side (visible in Vercel logs / local dev)
-  if (sfResult.status       === 'rejected') console.error('[technical-audit] SF data error:', sfResult.reason)
-  if (sitebulbResult.status === 'rejected') console.error('[technical-audit] Sitebulb error:', sitebulbResult.reason)
-  if (agentResult.status    === 'rejected') console.error('[technical-audit] Agent analytics error:', agentResult.reason)
+  if (sfResult.status            === 'rejected') console.error('[technical-audit] SF data error:', sfResult.reason)
+  if (sitebulbResult.status      === 'rejected') console.error('[technical-audit] Sitebulb error:', sitebulbResult.reason)
+  if (agentResult.status         === 'rejected') console.error('[technical-audit] Agent analytics error:', agentResult.reason)
+  if (urlCitationsResult.status  === 'rejected') console.error('[technical-audit] URL citations error:', urlCitationsResult.reason)
 
   // Derive AEO checklist
   const robotsTxtStatus = agentData ? deriveRobotsTxtStatus(agentData) : undefined
@@ -441,7 +446,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
 
       {/* ── Section E: Pages with AI + Issues ── */}
       {sfData && agentData ? (
-        <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} demoMode={demoMode} />
+        <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} urlCitations={urlCitations} demoMode={demoMode} />
       ) : (
         <SectionCard
           title="Where do AI activity and technical issues overlap?"
