@@ -390,6 +390,10 @@ export const getAgentAnalytics = cached(
   'getAgentAnalytics',
   getAgentAnalyticsImpl,
   {
+    // v2: response shape gained `byPath` (per-path-per-bot). Bumping the cache
+    // version invalidates pre-change entries that lacked it — without this, a
+    // persisted Data Cache object is served to new code that reads byPath.
+    version: 'v2',
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )

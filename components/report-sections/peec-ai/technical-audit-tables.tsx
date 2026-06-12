@@ -415,9 +415,9 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
       aiCitations:      demoMode ? demoCites[idx % demoCites.length]
                                  : (citeByKey.get(urlJoinKey(fullUrl) ?? '')?.citationCount ?? null),
       aiIndexingVisits: demoMode ? demoIndex[idx % demoIndex.length]
-                                 : (agentData.byPath[urlJoinKey(p.path) ?? '']?.byType.indexing ?? null),
+                                 : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.indexing ?? null),
       aiTrainingVisits: demoMode ? demoTraining[idx % demoTraining.length]
-                                 : (agentData.byPath[urlJoinKey(p.path) ?? '']?.byType.training ?? null),
+                                 : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.training ?? null),
       aiAgentVisits:    p.visits,
       humanFromAI:      demoMode ? demoHumans[idx % demoHumans.length]     : null,
       technicalIssues:  issueData?.count ?? 0,
@@ -602,7 +602,7 @@ export function LogAnomaliesTable({ agentData, demoMode = false }: LogAnomaliesT
       : isLowValue ? 'Verify robots.txt — limit unnecessary bot access'
       : 'Monitor — strategic page with healthy bot activity'
 
-    const pathAgg = agentData.byPath[urlJoinKey(p.path) ?? '']
+    const pathAgg = agentData.byPath?.[urlJoinKey(p.path) ?? '']
     const topBot = pathAgg?.bots[0] ?? null   // bots sorted by visits desc
     const lastSeenReal = pathAgg
       ? pathAgg.bots.reduce<string | null>((max, b) => (b.lastSeen && (!max || b.lastSeen > max) ? b.lastSeen : max), null)
