@@ -17,8 +17,8 @@ import {
   PageOverlapTable,
   LogAnomaliesTable,
   FixListTable,
-  buildFixListRows,
 } from './technical-audit-tables'
+import { buildFixListRows } from '@/lib/peec/fix-list'
 
 // ── UI primitives ─────────────────────────────────────────────────────────────
 
