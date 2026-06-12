@@ -221,14 +221,25 @@ Expected: FAIL — `Cannot find module './url-citations'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `lib/peec/url-citations.ts`. Reuse the existing `normalizeSource` engine-label mapper from `lib/peec/client.ts` (export it in Step 3b if not already exported).
+Create `lib/peec/url-citations.ts`. It defines its own tiny `normalizeEngine` mapper (the equivalent in `client.ts` is a nested closure, not exportable; duplicating ~8 lines is cheaper than extracting a closure from a 700-line function — and keeps this task to NEW FILES ONLY).
 ```ts
 // lib/peec/url-citations.ts
 import { cached } from '@/lib/cache'
 import { urlJoinKey } from '@/lib/url'
-import { normalizeSource } from './client'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
+
+/** Map a Peec model_channel id (e.g. "openai-0") to a friendly engine label. */
+function normalizeEngine(id: string): string | null {
+  const s = id.toLowerCase()
+  if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
+  if (s.includes('perplexity')) return 'Perplexity'
+  if (s.includes('gemini')) return 'Gemini'
+  if (s.includes('claude')) return 'Claude'
+  if (s.includes('copilot')) return 'Copilot'
+  if (s.includes('google')) return 'Google'
+  return null
+}
 
 export type ApiUrlRow = {
   url: string
@@ -284,8 +295,10 @@ export function mergeUrlCitations(
   for (const r of perEngine) {
     const key = urlJoinKey(r.url)
     if (!key || !r.model_channel?.id) continue
+    const engine = normalizeEngine(r.model_channel.id)
+    if (!engine) continue
     if (!enginesByKey.has(key)) enginesByKey.set(key, new Set())
-    enginesByKey.get(key)!.add(normalizeSource(r.model_channel.id))
+    enginesByKey.get(key)!.add(engine)
   }
   const yours = new Set(yourBrandIds)
   const out: UrlCitation[] = []
@@ -371,13 +384,6 @@ export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitations
 })
 ```
 
-- [ ] **Step 3b: Export `normalizeSource` from `lib/peec/client.ts` if not already exported**
-
-In `lib/peec/client.ts`, find `function normalizeSource(` and ensure it reads `export function normalizeSource(`. If it is already exported, skip. Run to confirm location:
-```bash
-grep -n "function normalizeSource" lib/peec/client.ts
-```
-
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx tsx lib/peec/url-citations.test.ts`
@@ -391,7 +397,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/peec/url-citations.ts lib/peec/url-citations.test.ts lib/peec/client.ts
+git add lib/peec/url-citations.ts lib/peec/url-citations.test.ts
 git commit -m "feat(peec): add getUrlCitations for URL-level AI citation data"
 ```
 
