@@ -29,6 +29,7 @@
 
 import { getClientBySlug } from '@/lib/db/queries'
 import { cached } from '@/lib/cache'
+import { urlJoinKey } from '@/lib/url'
 
 // ── Config / auth ─────────────────────────────────────────────────────────────
 
@@ -70,6 +71,67 @@ interface RawBotCatalog {
   type?:     string   // "training" | "retrieval" | "search" | ...
 }
 
+// ── Per-path-per-bot visit types and pure helpers ─────────────────────────────
+
+export type RawVisitRow = { bot_id: string; request_path: string; time_bucket: string; visits: number }
+
+export type PathBot = {
+  botId: string
+  provider: string | null
+  type: string | null
+  visits: number
+  lastSeen: string | null
+}
+export type PathAgg = {
+  totalVisits: number
+  byType: { training: number; indexing: number; other: number }
+  bots: PathBot[]
+}
+
+export function bucketBotType(type: string | null): 'training' | 'indexing' | 'other' {
+  if (type === 'training') return 'training'
+  if (type === 'search' || type === 'userQuery') return 'indexing'
+  return 'other'
+}
+
+/** Aggregate /agent-analytics/visits rows (grouped by bot_id+request_path+day)
+ *  into a per-path map keyed by urlJoinKey(request_path). */
+export function aggregateVisitsByPath(
+  rows: RawVisitRow[],
+  catalog: Map<string, { provider?: string; type?: string }>,
+): Record<string, PathAgg> {
+  // key -> bot_id -> accumulator
+  const paths = new Map<string, Map<string, { visits: number; lastSeen: string }>>()
+  for (const r of rows) {
+    const key = urlJoinKey(r.request_path)
+    if (!key) continue
+    const day = r.time_bucket.slice(0, 10)
+    if (!paths.has(key)) paths.set(key, new Map())
+    const bots = paths.get(key)!
+    const cur = bots.get(r.bot_id) ?? { visits: 0, lastSeen: day }
+    cur.visits += r.visits
+    if (day > cur.lastSeen) cur.lastSeen = day
+    bots.set(r.bot_id, cur)
+  }
+  const out: Record<string, PathAgg> = {}
+  for (const [key, bots] of paths) {
+    const list: PathBot[] = Array.from(bots.entries())
+      .map(([botId, acc]) => ({
+        botId,
+        provider: catalog.get(botId)?.provider ?? null,
+        type: catalog.get(botId)?.type ?? null,
+        visits: acc.visits,
+        lastSeen: acc.lastSeen || null,
+      }))
+      .sort((a, b) => b.visits - a.visits)
+    const byType = { training: 0, indexing: 0, other: 0 }
+    let total = 0
+    for (const b of list) { byType[bucketBotType(b.type)] += b.visits; total += b.visits }
+    out[key] = { totalVisits: total, byType, bots: list }
+  }
+  return out
+}
+
 // ── Exported types ────────────────────────────────────────────────────────────
 
 export interface AgentBot {
@@ -104,6 +166,8 @@ export interface AgentAnalyticsData {
   visitsByBot: Record<string, number>
   /** The raw window: start/end dates used for this query */
   window: { startDate: string; endDate: string }
+  /** Per-path-per-bot crawl breakdown, keyed by urlJoinKey(request_path). */
+  byPath: Record<string, PathAgg>
 }
 
 // ── Friendly display names (augmented by /bots catalog at runtime) ───────────
@@ -187,6 +251,21 @@ function botDisplayName(botId: string, catalog: Map<string, RawBotCatalog>): str
   return STATIC_BOT_NAMES[botId] ?? catalog.get(botId)?.provider ?? botId
 }
 
+async function fetchVisitRows(projectId: string, start: string, end: string): Promise<RawVisitRow[]> {
+  const url = new URL(`${BASE_URL}/agent-analytics/visits`)
+  url.searchParams.set('project_id', projectId)
+  url.searchParams.set('start_date', start)
+  url.searchParams.set('end_date', end)
+  url.searchParams.append('group_by', 'bot_id')
+  url.searchParams.append('group_by', 'request_path')
+  url.searchParams.set('time_bucket', 'day')
+  url.searchParams.set('limit', '10000')
+  const res = await fetch(url.toString(), { headers: { 'X-API-Key': getCustomerToken() }, cache: 'no-store' })
+  if (!res.ok) return []   // degrade: byPath stays empty, never throws the whole report
+  const json = await res.json() as { data?: RawVisitRow[] } | RawVisitRow[]
+  return Array.isArray(json) ? json : (json.data ?? [])
+}
+
 // ── Core aggregation ──────────────────────────────────────────────────────────
 
 const LOW_VALUE_PATHS = new Set([
@@ -204,13 +283,14 @@ async function getAgentAnalyticsImpl(clientSlug: string): Promise<AgentAnalytics
   const projectId = await getProjectId(clientSlug)
   const { start_date, end_date } = last30Days()
 
-  // Fetch logs and bot catalog in parallel
-  const [logsResult, catalog] = await Promise.all([
+  // Fetch logs, bot catalog, and visit rows in parallel
+  const [logsResult, catalog, visitRows] = await Promise.all([
     agentGet<{ data?: RawLog[] } | RawLog[]>(
       '/agent-analytics/logs',
       { project_id: projectId, start_date, end_date, limit: '10000' },
     ),
     getBotCatalog(projectId),
+    fetchVisitRows(projectId, start_date, end_date),
   ])
 
   const logs: RawLog[] = Array.isArray(logsResult)
@@ -280,6 +360,8 @@ async function getAgentAnalyticsImpl(clientSlug: string): Promise<AgentAnalytics
   const visitsByBot: Record<string, number> = {}
   for (const b of bots) visitsByBot[b.botId] = b.totalVisits
 
+  const byPath = aggregateVisitsByPath(visitRows, catalog)
+
   return {
     bots,
     topPaths,
@@ -291,6 +373,7 @@ async function getAgentAnalyticsImpl(clientSlug: string): Promise<AgentAnalytics
     highValuePageBotHits,
     visitsByBot,
     window: { startDate: start_date, endDate: end_date },
+    byPath,
   }
 }
 

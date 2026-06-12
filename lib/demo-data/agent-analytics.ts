@@ -45,5 +45,6 @@ export function sampleAgentAnalytics(): AgentAnalyticsData {
     highValuePageBotHits: 1842,
     visitsByBot,
     window: { startDate: '2026-05-03', endDate: '2026-06-02' },
+    byPath: {},
   }
 }
