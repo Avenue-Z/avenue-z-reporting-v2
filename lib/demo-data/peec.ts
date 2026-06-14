@@ -11,6 +11,7 @@ import type {
   PeecOverview, BrandRanking, TopDomain, WeeklyVisibility,
   TrackedPrompt, LLMBreakdown, CompetitorAverages, DomainType,
 } from '@/lib/peec/client'
+import type { ByModel } from '@/lib/peec/by-model'
 
 const YOUR_BRAND = 'Avenue Z'
 
@@ -144,6 +145,27 @@ function rankingsCopy(base: BrandRanking[]): BrandRanking[] {
   }))
 }
 
+const DOMAIN_CITATIONS_BY_MODEL: ByModel<string, number> = {
+  'avenuez.com':        { ChatGPT: 142, Claude: 98,  Perplexity: 187, Gemini: 76,  Copilot: 54 },
+  'blog.avenuez.com':   { ChatGPT:  54, Claude: 41,  Perplexity:  72, Gemini: 28,  Copilot: 19 },
+  'techcrunch.com':     { ChatGPT: 214, Claude: 161, Perplexity: 248, Gemini: 134, Copilot: 97 },
+  'forbes.com':         { ChatGPT: 189, Claude: 142, Perplexity: 221, Gemini: 118, Copilot: 83 },
+  'edelman.com':        { ChatGPT: 167, Claude: 124, Perplexity: 198, Gemini: 104, Copilot: 72 },
+  'ogilvy.com':         { ChatGPT: 143, Claude: 107, Perplexity: 171, Gemini:  89, Copilot: 62 },
+  'en.wikipedia.org':   { ChatGPT:  48,               Perplexity:  62, Gemini:  34              },
+}
+
+const BRAND_VISIBILITY_BY_MODEL: ByModel<string, number> = {
+  'Avenue Z':         { ChatGPT: 44.7, Claude: 41.3, Perplexity: 47.9, Gemini: 36.8, Copilot: 32.1 },
+  'Edelman':          { ChatGPT: 40.1, Claude: 37.6, Perplexity: 43.2, Gemini: 33.4, Copilot: 29.0 },
+  'Ogilvy':           { ChatGPT: 36.4, Claude: 34.1, Perplexity: 39.7, Gemini: 30.2, Copilot: 26.5 },
+  'Weber Shandwick':  { ChatGPT: 32.8, Claude: 30.6, Perplexity: 35.4, Gemini: 27.1, Copilot: 23.7 },
+  'BCW':              { ChatGPT: 29.0, Claude: 27.1, Perplexity: 31.3, Gemini: 24.0, Copilot: 20.9 },
+  'FleishmanHillard': { ChatGPT: 25.4, Claude: 23.8, Perplexity: 27.6, Gemini: 21.0, Copilot: 18.3 },
+  'MSL':              { ChatGPT: 22.7, Claude: 21.2, Perplexity: 24.5, Gemini: 18.7, Copilot: 16.3 },
+  'Hill+Knowlton':    { ChatGPT: 19.0, Claude: 17.8, Perplexity: 20.6, Gemini: 15.7, Copilot: 13.7 },
+}
+
 export function samplePeecOverview(): PeecOverview {
   return {
     weeklyVisibility:           weeklyTrend(34, 9),
@@ -173,6 +195,8 @@ export function samplePeecOverview(): PeecOverview {
     domainTypes:    DOMAIN_TYPES,
     trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
     llmBreakdown:   LLM_BREAKDOWN,
+    domainCitationsByModel: DOMAIN_CITATIONS_BY_MODEL,
+    brandVisibilityByModel: BRAND_VISIBILITY_BY_MODEL,
   }
 }
 

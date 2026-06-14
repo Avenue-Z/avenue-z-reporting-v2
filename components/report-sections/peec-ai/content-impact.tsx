@@ -6,6 +6,8 @@ import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getUrlCitations } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
+import type { AEOModel } from '@/lib/peec/models'
+import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarData, ContentCalendarRow } from '@/lib/content-calendar/types'
 import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
@@ -170,7 +172,42 @@ function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
 
 // ─── Main async RSC ──────────────────────────────────────────────────────────
 
-export async function ContentImpactReport({ clientSlug, dateRange, demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
+// ── Bot-ID → AEOModel mapping ─────────────────────────────────────────────────
+// Maps Peec agent-analytics bot_id values (from STATIC_BOT_NAMES in
+// agent-analytics.ts and demo-data/agent-analytics.ts) to AEOModel.
+//
+// OAI-SearchBot / GPTBot  → ChatGPT   (both are OpenAI crawlers)
+// ClaudeBot / Claude-User → Claude    (Anthropic training + retrieval bots)
+// PerplexityBot           → Perplexity
+// Google-Extended         → Gemini    (Google's generative-AI training bot)
+// Bingbot / Bingbot-Video → Copilot   (Microsoft Bing powers Copilot)
+//
+// CCBot (Common Crawl), Applebot, Ai2Bot, Amazonbot, Bytespider,
+// DuckDuckBot, meta-externalagent: not mapped — no single AEOModel owns these.
+// When `models` filter is active, unmapped bots are dropped from filtered view.
+const BOT_TO_MODEL: Record<string, AEOModel> = {
+  'OAI-SearchBot':  'ChatGPT',
+  'GPTBot':         'ChatGPT',
+  'Claude-User':    'Claude',
+  'ClaudeBot':      'Claude',
+  'PerplexityBot':  'Perplexity',
+  'Google-Extended':'Gemini',
+  'Googlebot':      'Google',
+  'Bingbot':        'Copilot',
+  'Bingbot-Video':  'Copilot',
+}
+
+export async function ContentImpactReport({
+  clientSlug,
+  dateRange,
+  demoMode = false,
+  models,
+}: {
+  clientSlug: string
+  dateRange?: string
+  demoMode?: boolean
+  models?: AEOModel[] | null
+}) {
   const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
@@ -215,11 +252,64 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
   const ownDomains        = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Own')
   const competitorDomains = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Competitor')
   const editorialDomains  = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Editorial')
-  // AI Citations KPI tile shows "YTD" in its label, so keep that lookup explicit.
-  const totalCitations    = peecData?.totalCitationsByRange['YTD'] ?? 0
 
-  const bots          = agentData?.bots ?? []
-  const totalBotVisits = agentData?.totalBotVisits ?? 0
+  // ── AI Citations KPI: filtered by selected models when active ───────────────
+  // When a model filter is active, sum domainCitationsByModel across selected
+  // models for all domains. When no filter, use the pre-aggregated YTD total.
+  const totalCitations = models != null && peecData?.domainCitationsByModel
+    ? Object.keys(peecData.domainCitationsByModel).reduce(
+        (acc, domain) => acc + sumByModel(peecData!.domainCitationsByModel, domain, models),
+        0,
+      )
+    : (peecData?.totalCitationsByRange['YTD'] ?? 0)
+
+  // ── Bot filtering by selected AI models ─────────────────────────────────────
+  // When a model filter is active, keep only bots mapped to a selected model.
+  // Unmapped bots (Common Crawl, Applebot, Meta AI, etc.) have no single-model
+  // association and are dropped from the filtered view — v1 limitation: these
+  // bots are not attributable to a specific conversational AI model.
+  const allBots = agentData?.bots ?? []
+  const filteredBots = models != null
+    ? allBots.filter((b) => {
+        const m = BOT_TO_MODEL[b.botId]
+        return m != null && models.includes(m)
+      })
+    : allBots
+
+  // Recompute aggregates from filteredBots so KPI cards stay consistent.
+  const bots = filteredBots
+  const totalBotVisits = models != null
+    ? filteredBots.reduce((s, b) => s + b.totalVisits, 0)
+    : (agentData?.totalBotVisits ?? 0)
+
+  // ── Model-filtered domain lists ──────────────────────────────────────────────
+  // For Peec citation tables: recompute citationCount from per-model data when
+  // a filter is active. Falls back to unfiltered domain list when no filter.
+  // Note: `citationRate` (the citationCount field on TopDomain) is a percentage
+  // float. We treat it as citationCount for the filter helper since the shape matches.
+  const filteredOwnDomains: TopDomain[] = peecData?.domainCitationsByModel
+    ? filterDomainRowsByModel(
+        ownDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        peecData.domainCitationsByModel,
+        models ?? null,
+      ).map(d => ({ ...d, citationRate: d.citationCount }))
+    : ownDomains
+
+  const filteredCompetitorDomains: TopDomain[] = peecData?.domainCitationsByModel
+    ? filterDomainRowsByModel(
+        competitorDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        peecData.domainCitationsByModel,
+        models ?? null,
+      ).map(d => ({ ...d, citationRate: d.citationCount }))
+    : competitorDomains
+
+  const filteredEditorialDomains: TopDomain[] = peecData?.domainCitationsByModel
+    ? filterDomainRowsByModel(
+        editorialDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        peecData.domainCitationsByModel,
+        models ?? null,
+      ).map(d => ({ ...d, citationRate: d.citationCount }))
+    : editorialDomains
 
   // Enrich content calendar rows with agent analytics data (path matching)
   const enrichedRows: ContentCalendarRow[] = (calendarData?.rows ?? []).map(row => ({
@@ -295,28 +385,49 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
             value={calendarData ? calendarData.liveCount.toLocaleString() : '--'}
             live={!!calendarData && calendarData.liveCount > 0}
           />
+          {/* Total Sessions: GA4 has no model dimension — not filtered.
+              When a model filter is active, append a disclaimer to the hint. */}
           <KpiCard
             label="Total Sessions"
-            hint={calendarIsDemo ? 'Sample · last 30d' : 'GA4 page-level required'}
+            hint={
+              calendarIsDemo
+                ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
+                : 'GA4 page-level required'
+            }
             value={calendarIsDemo ? '9,910' : '--'}
             live={calendarIsDemo}
           />
+          {/* AI Citations: filtered by selected models via domainCitationsByModel sum */}
           <KpiCard
             label="AI Citations"
-            hint="Peec AI, owned domains YTD"
+            hint={`Peec AI, owned domains YTD${models ? ' · filtered to selected AI models' : ''}`}
             value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
             live={totalCitations > 0}
           />
+          {/* AI-Referred Sessions: GA4 has no model dimension — not filtered.
+              When a model filter is active, append a disclaimer to the hint. */}
           <KpiCard
             label="AI-Referred Sessions"
-            hint={calendarIsDemo ? 'Sample · last 30d' : 'GA4 AI-source sessions required'}
+            hint={
+              calendarIsDemo
+                ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
+                : `GA4 AI-source sessions required${models ? ' · across all AI engines' : ''}`
+            }
             value={calendarIsDemo ? '1,243' : '--'}
             live={calendarIsDemo}
           />
+          {/* Owned URLs with AI Activity: when model filter active, sum uniquePages
+              across filteredBots. When no filter, fall back to the pre-aggregated
+              uniquePagesVisited from the agent-analytics response. */}
           <KpiCard
             label="Owned URLs with AI Activity"
-            hint="Bot-crawled pages (30d)"
-            value={agentData ? `${agentData.uniquePagesVisited} pages` : '--'}
+            hint={`Bot-crawled pages (30d)${models ? ' · filtered to selected AI models' : ''}`}
+            value={agentData
+              ? `${models != null
+                  ? filteredBots.reduce((s, b) => s + b.uniquePages, 0)
+                  : agentData.uniquePagesVisited
+                } pages`
+              : '--'}
             live={!!agentData && agentData.uniquePagesVisited > 0}
           />
           <KpiCard
@@ -325,11 +436,12 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
             value={unmatchedPct !== null ? `${unmatchedPct}%` : '--'}
             live={unmatchedPct !== null}
           />
+          {/* Owned Domains Cited in AI: filtered by selected models via per-model citation data */}
           <KpiCard
             label="Owned Domains Cited in AI"
-            hint="Peec AI brand-owned domains with citations"
-            value={ownDomains.length > 0 ? ownDomains.length.toLocaleString() : '--'}
-            live={ownDomains.length > 0}
+            hint={`Peec AI brand-owned domains with citations${models ? ' · filtered to selected AI models' : ''}`}
+            value={filteredOwnDomains.length > 0 ? filteredOwnDomains.length.toLocaleString() : '--'}
+            live={filteredOwnDomains.length > 0}
           />
         </div>
       </div>
@@ -525,7 +637,10 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
           if (!enginesByDomain.has(k)) enginesByDomain.set(k, new Set())
           for (const e of c.engines) enginesByDomain.get(k)!.add(e)
         }
-        const ownedRows: OwnedContentCitedRow[] = ownDomains.map((d, i) => ({
+        // filteredOwnDomains: model-filtered when models filter is active (uses
+        // per-model citation data from domainCitationsByModel). Unfiltered when
+        // no model filter or domainCitationsByModel is unavailable.
+        const ownedRows: OwnedContentCitedRow[] = filteredOwnDomains.map((d, i) => ({
           urlOrDomain: d.domain,
           topic: calendarIsDemo ? demoTopics[i % demoTopics.length] : null,
           promptCluster: calendarIsDemo ? demoClusters[i % demoClusters.length] : null,
@@ -594,7 +709,12 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
 
         <div className="border-t border-white/[0.06]" />
 
-        {/* Sub-view 3: AI Bot Attention but No Citations/Visits (LIVE from agent-analytics) */}
+        {/* Sub-view 3: AI Bot Attention but No Citations/Visits (LIVE from agent-analytics)
+            v1 limitation: this table is built from agentData.topPaths, which is path-level
+            and not segmented by bot identity. We cannot honor the model filter here without
+            backend changes to expose per-bot path breakdowns. When a model filter is active,
+            this table shows the all-bots view as-is. Future enhancement: add a
+            topPathsByBot field to AgentAnalyticsData. */}
         {(() => {
           const g3DemoTopics = ['Services Overview', 'About Avenue Z', 'Brand Authority', 'GEO Glossary', 'How to Audit Brand', 'Renaissance Case Study', 'Press: TechCrunch', 'Pricing', 'AEO Services', '2026 AI Trends']
           const g3DemoCites = [3, 1, 8, 12, 5, 2, 4, 0, 6, 9]
@@ -631,7 +751,10 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
       >
         {/* Sub-view 1: Top Competitor Domains */}
         {(() => {
-          const h1Rows: CompetitorDomainsCitedRow[] = competitorDomains.slice(0, 10).map((d, i) => {
+          // filteredCompetitorDomains: model-filtered when models filter is active.
+          // v1 limitation: promptCoverage and themeCoverage are not re-computed
+          // per selected model — they reflect all-model aggregates from Peec data.
+          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 10).map((d, i) => {
             const promptCovReal = getPromptCoverage(d.domain)
             const themeCovReal  = getThemeCoverage(d.domain)
             const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
@@ -706,7 +829,7 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
             ['FleishmanHillard'],
           ]
           const demoBrandMentioned = ['No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No']
-          const demoH2Rows: CompetitorUrlsBrandAbsentRow[] = editorialDomains.slice(0, 10).map((d, i) => {
+          const demoH2Rows: CompetitorUrlsBrandAbsentRow[] = filteredEditorialDomains.slice(0, 10).map((d, i) => {
             const title   = demoArticleTitles2[i % demoArticleTitles2.length]
             const slug    = demoSlugs2[i % demoSlugs2.length]
             const url     = `https://${d.domain}${slug}`
@@ -830,10 +953,10 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
             owner:            'Content',
           })
         }
-        if (competitorDomains.length > 0) {
+        if (filteredCompetitorDomains.length > 0) {
           sectionJRows.push({
             urlOrTopic:       'Competitor-dominated clusters',
-            issueOpportunity: `${competitorDomains.length} competitor domains cited in AI for your prompts`,
+            issueOpportunity: `${filteredCompetitorDomains.length} competitor domains cited in AI for your prompts`,
             evidenceType:     'Peec AI',
             suggestedAction:  'Create targeted content for each competitor-dominated prompt cluster',
             reason:           'Displace competitor citations with higher-quality owned content',
@@ -841,10 +964,10 @@ export async function ContentImpactReport({ clientSlug, dateRange, demoMode = fa
             owner:            'Content',
           })
         }
-        if (editorialDomains.length > 0) {
+        if (filteredEditorialDomains.length > 0) {
           sectionJRows.push({
             urlOrTopic:       'High-cite editorial outlets w/o brand mention',
-            issueOpportunity: `${editorialDomains.length} editorial domains AI cites where brand is absent`,
+            issueOpportunity: `${filteredEditorialDomains.length} editorial domains AI cites where brand is absent`,
             evidenceType:     'Peec AI',
             suggestedAction:  'Brief PR / editorial team to pitch contributed pieces, expert quotes, or data exclusives to these outlets',
             reason:           'Earned coverage on AI-trusted outlets compounds brand citation share',

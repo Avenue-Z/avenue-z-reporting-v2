@@ -7,9 +7,9 @@ import type { AgentBot, AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import type { UrlCitation } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 import { SortableTable, type SortableColumn } from './sortable-table'
-import type { FixListRow } from '@/lib/peec/fix-list'
 import { PEEC, SITEBULB, SCREAMING_FROG } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import type { FixListRow } from '@/lib/peec/fix-list'
 
 // ── Shared style constants ────────────────────────────────────────────────────
 
@@ -893,3 +893,4 @@ export function FixListTable({ rows, hasDelta, errorPageHits }: FixListTableProp
 }
 
 // buildFixListRows + FixListRow type live in @/lib/peec/fix-list (non-'use-client')
+// so the Technical Audit RSC can import the helper. See the comment in that file.
