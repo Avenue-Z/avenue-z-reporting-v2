@@ -414,7 +414,9 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
       path: p.path,
       type,
       aiCitations:      demoMode ? demoCites[idx % demoCites.length]
-                                 : (citeByKey.get(urlJoinKey(fullUrl) ?? '')?.citationCount ?? null),
+                                 // Crawled-but-not-cited pages have a known 0 citations
+                                 // (not "unknown") — show 0, like the visit columns.
+                                 : (citeByKey.get(urlJoinKey(fullUrl) ?? '')?.citationCount ?? 0),
       aiIndexingVisits: demoMode ? demoIndex[idx % demoIndex.length]
                                  : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.indexing ?? null),
       aiTrainingVisits: demoMode ? demoTraining[idx % demoTraining.length]
@@ -516,7 +518,7 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
         <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', PRIORITY_STYLE[r.highestSeverity as Priority] ?? 'bg-white/[0.06] text-white/40')}>
           {r.highestSeverity}
         </span>
-      ) : <span className="text-white/20">--</span>,
+      ) : <span className="text-white/30">None</span>,
     },
     {
       key: 'changeSinceLastCrawl',
@@ -544,7 +546,7 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
         )}>
           {r.priorityFlag}
         </span>
-      ) : <span className="text-white/20">--</span>,
+      ) : <span className="text-white/30">None</span>,
     },
   ]
 
