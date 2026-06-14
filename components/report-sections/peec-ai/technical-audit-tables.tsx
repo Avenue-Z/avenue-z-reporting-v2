@@ -7,7 +7,7 @@ import type { AgentBot, AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import type { UrlCitation } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 import { SortableTable, type SortableColumn } from './sortable-table'
-import type { FixListRow } from './technical-audit-fix-list'
+import type { FixListRow } from '@/lib/peec/fix-list'
 import { PEEC, SITEBULB, SCREAMING_FROG } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 
@@ -892,6 +892,4 @@ export function FixListTable({ rows, hasDelta, errorPageHits }: FixListTableProp
   )
 }
 
-// FixList row-building logic (computeFixPriority + buildFixListRows) moved to
-// ./technical-audit-fix-list so the server component can call it — a function
-// exported from this 'use client' module cannot be invoked during RSC render.
+// buildFixListRows + FixListRow type live in @/lib/peec/fix-list (non-'use-client')

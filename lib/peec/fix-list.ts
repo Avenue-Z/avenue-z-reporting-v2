@@ -1,10 +1,11 @@
-// Pure data transforms for the Technical Audit "Fix List" section.
-//
-// These live OUTSIDE the sibling `'use client'` module (technical-audit-tables.tsx)
-// so the server component (technical-audit.tsx) can CALL them directly. A function
-// exported from a 'use client' module becomes a client reference and throws
-// "Attempted to call X from the server" when invoked during RSC render.
-import type { SFData, SFDeltaStatus, SFIssueDelta } from '@/lib/screaming-frog/types'
+// Pure data-transformation helpers for the AEO Technical Performance FixList.
+// MUST NOT have a 'use client' directive — this file is imported by both the
+// Technical Audit RSC (server) and the technical-audit-tables.tsx client file.
+// Originally lived inside technical-audit-tables.tsx but the RSC's call to
+// buildFixListRows() failed in production because Next.js forbids calling a
+// client-file export from a server component.
+
+import type { SFIssueDelta, SFDeltaStatus, SFData } from '@/lib/screaming-frog/types'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 
 export interface FixListRow {

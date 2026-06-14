@@ -19,7 +19,7 @@ import {
   LogAnomaliesTable,
   FixListTable,
 } from './technical-audit-tables'
-import { buildFixListRows } from './technical-audit-fix-list'
+import { buildFixListRows } from '@/lib/peec/fix-list'
 
 // ── UI primitives ─────────────────────────────────────────────────────────────
 
