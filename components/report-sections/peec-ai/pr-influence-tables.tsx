@@ -280,7 +280,7 @@ export function PRPlacementMatchbackTable({
         <p className="mt-4 text-[10px] text-text-muted">
           Showing {rows.length} placements across 14 columns. {placementsCitedByAI} cited by AI engines.
           {!isDemo &&
-            ' Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.'}
+            ' Linked Mention requires a PR Proof sheet column. Post-Publish Traffic Trend requires GA4 integration.'}
         </p>
       )}
     </div>
@@ -419,11 +419,6 @@ export function TopEditorialDomainsTable({
               <span className="h-2.5 w-2.5 rounded bg-[#60FF80]/60" />
               <span className="text-[10px] text-text-muted">Has PR placement</span>
             </div>
-            {!isDemo && (
-              <span className="ml-auto text-[10px] text-text-muted">
-                Avg Position requires per-domain position data from Peec AI Pro
-              </span>
-            )}
           </div>
         </>
       ) : (
@@ -583,8 +578,8 @@ export function BrandAbsentEditorialDomainsTable({
       />
       {!isDemo && rows.length > 0 && (
         <p className="mt-4 text-[10px] text-text-muted">
-          Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation
-          Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
+          Article Title, URL, and Competitors Mentioned show the top brand-absent URL cited on each domain (Peec AI,
+          per-URL). Citation Count shown as retrieved frequency %.
         </p>
       )}
     </div>

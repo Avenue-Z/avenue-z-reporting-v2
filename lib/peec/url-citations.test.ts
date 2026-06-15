@@ -7,6 +7,8 @@ import {
   aggregateDomainCoverage,
   domainPromptIds,
   domainTagIds,
+  domainTagNames,
+  avgPositionByDomain,
   type ApiUrlRow,
 } from './url-citations'
 
@@ -40,6 +42,8 @@ assert.equal(merged[0].mentionsYourBrand, true)
 assert.deepEqual(merged[0].engines.sort(), ['ChatGPT', 'Perplexity'])
 // competitor names exclude your own brand
 assert.deepEqual(merged[0].competitorBrandNames, ['Edelman'])
+// citation_avg (average citation position) passes through
+assert.equal(merged[0].citationAvg, 3)
 
 // competitor-only URL → mentionsYourBrand false, your brand absent
 const compRow: ApiUrlRow[] = [{ ...base[0], url: 'https://edelman.com/x', mentioned_brands: [{ id: 'kw_comp' }] }]
@@ -74,5 +78,31 @@ assert.deepEqual(domainTagIds(cov, 'forbes.com').sort(), ['tg_1', 'tg_2'])
 assert.deepEqual(domainTagIds(cov, 'edelman.com'), [])            // no tag rows → []
 // Coverage %: forbes cited in 2 of 4 tracked prompts → 50%
 assert.equal(Math.round(domainPromptIds(cov, 'forbes.com').length / 4 * 100), 50)
+
+// avgPositionByDomain: citation_count-weighted mean of citation_avg per host
+const posBase: ApiUrlRow[] = [
+  row('https://www.acme.com/a', { citation_avg: 2, citation_count: 10 }),
+  row('https://acme.com/b',     { citation_avg: 4, citation_count: 30 }), // same host, www-stripped
+  row('https://solo.com/x',     { citation_avg: 5, citation_count: 7 }),
+  row('https://zero.com/z',     { citation_avg: 6, citation_count: 0 }),  // all weights 0 → simple mean
+]
+const byDom = avgPositionByDomain(mergeUrlCitations(posBase, [], [], new Map()))
+assert.equal(byDom['acme.com'], 3.5) // (2*10 + 4*30) / 40
+assert.equal(byDom['solo.com'], 5)
+assert.equal(byDom['zero.com'], 6)   // zero total weight → falls back to simple mean
+
+// domainTagNames: map a host's tag ids → names, dropping ids with no name
+const covNamed = aggregateDomainCoverage(
+  [],
+  [
+    row('https://www.forbes.com/a', { tag: { id: 'tg_1' } }),
+    row('https://forbes.com/b',     { tag: { id: 'tg_2' } }),
+    row('https://forbes.com/c',     { tag: { id: 'tg_x' } }), // no name → dropped
+  ],
+  { tg_1: 'Discovery', tg_2: 'Comparison' },
+)
+assert.deepEqual(domainTagNames(covNamed, 'forbes.com').sort(), ['Comparison', 'Discovery'])
+assert.deepEqual(domainTagNames(covNamed, 'www.Forbes.com').sort(), ['Comparison', 'Discovery']) // lookup normalizes
+assert.deepEqual(domainTagNames(covNamed, 'unknown.com'), []) // missing host → []
 
 console.log('url-citations.test.ts: all assertions passed')
