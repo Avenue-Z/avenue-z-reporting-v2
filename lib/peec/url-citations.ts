@@ -191,7 +191,7 @@ async function getUrlCitationsImpl(
 }
 
 export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
-  version: 'v1',
+  version: 'v2',  // v2: added citationAvg to UrlCitation
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 
@@ -280,6 +280,6 @@ async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverag
 }
 
 export const getDomainCoverage = cached('peec', 'getDomainCoverage', getDomainCoverageImpl, {
-  version: 'v1',
+  version: 'v2',  // v2: added tagNameById to DomainCoverage
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
