@@ -611,7 +611,7 @@ export interface CompetitorDomainsCitedRow {
   domain: string
   citationCount: number
   promptCoverage: number | null
-  themeCoverage: number
+  themeCoverage: number | null
 }
 
 export function CompetitorDomainsCitedTable({
@@ -660,10 +660,10 @@ export function CompetitorDomainsCitedTable({
     {
       key: 'themeCoverage', label: 'Theme Coverage', align: 'right',
       tooltip: TT.themeCoverage,
-      accessor: (r) => r.themeCoverage,
+      accessor: (r) => r.themeCoverage ?? -1,
       render: (r) => (
         <span className="tabular-nums text-white/60">
-          {r.themeCoverage > 0 ? `${r.themeCoverage} theme${r.themeCoverage !== 1 ? 's' : ''}` : '--'}
+          {r.themeCoverage != null ? `${r.themeCoverage} theme${r.themeCoverage !== 1 ? 's' : ''}` : '--'}
         </span>
       ),
     },

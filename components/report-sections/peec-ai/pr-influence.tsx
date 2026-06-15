@@ -195,7 +195,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   let prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
   let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
   let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
-  const coverage     = coverageResult.status === 'fulfilled'
+  let coverage       = coverageResult.status === 'fulfilled'
     ? coverageResult.value
     : { promptIdsByDomain: {}, tagIdsByDomain: {} }
 
@@ -208,6 +208,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     prData         = samplePRProofData()
     aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
     compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
+    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {} }  // demo: matchback/§C use demo fallbacks
   }
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
@@ -315,7 +316,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // prompts in which a URL on the domain is cited (from per-URL citation data).
   const totalEditPrompts = data?.trackedPrompts.length ?? 0
   const getEditorialPromptCoverage = (domain: string): number | null =>
-    totalEditPrompts > 0
+    coverageAvailable && totalEditPrompts > 0
       ? Math.round(domainPromptIds(coverage, domain).length / totalEditPrompts * 100)
       : null
 

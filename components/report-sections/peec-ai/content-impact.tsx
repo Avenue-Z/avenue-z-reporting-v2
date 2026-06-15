@@ -228,7 +228,7 @@ export async function ContentImpactReport({
   let calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
   let ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
-  const coverage   = coverageResult.status === 'fulfilled'
+  let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
     : { promptIdsByDomain: {}, tagIdsByDomain: {} }
 
@@ -243,6 +243,7 @@ export async function ContentImpactReport({
     calendarData = sampleContentCalendarData()
     ga4Rows      = SAMPLE_GA4_CONTENT_IMPACT_ROWS
     urlCitations = []   // demo: §B/§F/§H use their own demo arrays
+    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {} }  // demo: §H uses demo fallbacks
   }
 
   if (peecResult.status         === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
@@ -332,13 +333,19 @@ export async function ContentImpactReport({
   // Prompt coverage and theme coverage per domain (PRD Section H).
   // Derived from per-URL citation data (prompt_id / tag_id dimensions) joined by
   // host — not trackedPrompts[].sources, which are AI-engine ids, never domains.
+  // coverageAvailable distinguishes a known 0 (domain cited by no prompt/theme)
+  // from missing data (fetch failed / unconfigured / demo) → only the former
+  // shows 0; the latter stays --.
   const totalTrackedPrompts = peecData?.trackedPrompts.length ?? 0
+  const coverageAvailable =
+    Object.keys(coverage.promptIdsByDomain).length > 0 ||
+    Object.keys(coverage.tagIdsByDomain).length > 0
   const getPromptCoverage = (domain: string): number | null =>
-    totalTrackedPrompts > 0
+    coverageAvailable && totalTrackedPrompts > 0
       ? Math.round(domainPromptIds(coverage, domain).length / totalTrackedPrompts * 100)
       : null
-  const getThemeCoverage = (domain: string): number =>
-    domainTagIds(coverage, domain).length
+  const getThemeCoverage = (domain: string): number | null =>
+    coverageAvailable ? domainTagIds(coverage, domain).length : null
 
   const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
 
@@ -754,8 +761,10 @@ export async function ContentImpactReport({
             const themeCovReal  = getThemeCoverage(d.domain)
             const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
             const demoThemeCov  = [3, 2, 4, 1, 5, 1, 3, 4, 2, 2][i % 10]
-            const promptCov = promptCovReal !== null && promptCovReal > 0 ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
-            const themeCov  = themeCovReal > 0 ? themeCovReal : (calendarIsDemo ? demoThemeCov : 0)
+            // Real coverage (incl. a known 0) is shown as-is; demo fills only
+            // when there's no real coverage (helpers return null).
+            const promptCov = promptCovReal !== null ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
+            const themeCov  = themeCovReal  !== null ? themeCovReal  : (calendarIsDemo ? demoThemeCov : null)
             return {
               domain: d.domain,
               citationCount: d.citationRate,
