@@ -43,6 +43,7 @@ export type UrlCitation = {
   title: string | null
   citationCount: number
   citationRate: number
+  citationAvg: number              // average citations per answer (Peec citation_avg)
   engines: string[]
   mentionedBrandIds: string[]
   competitorBrandNames: string[]   // mentioned brand names excluding "your brand"
@@ -95,11 +96,36 @@ export function mergeUrlCitations(
       title: r.title,
       citationCount: r.citation_count,
       citationRate: r.citation_rate,
+      citationAvg: r.citation_avg,
       engines: Array.from(enginesByKey.get(urlKey) ?? []),
       mentionedBrandIds: brandIds,
       competitorBrandNames,
       mentionsYourBrand: brandIds.some((id) => yours.has(id)),
     })
+  }
+  return out
+}
+
+/**
+ * Average citations-per-answer per domain (Peec `citation_avg`), citation-count
+ * weighted. URLs cited more often weigh more heavily; a host whose URLs all have
+ * zero citations falls back to a simple mean. Higher = cited more per answer.
+ */
+export function avgCitationsByDomain(citations: UrlCitation[]): Record<string, number> {
+  const agg = new Map<string, { weighted: number; weight: number; sum: number; n: number }>()
+  for (const c of citations) {
+    const host = lookupHost(c.domain)
+    if (!host) continue
+    const e = agg.get(host) ?? { weighted: 0, weight: 0, sum: 0, n: 0 }
+    e.weighted += c.citationAvg * c.citationCount
+    e.weight += c.citationCount
+    e.sum += c.citationAvg
+    e.n += 1
+    agg.set(host, e)
+  }
+  const out: Record<string, number> = {}
+  for (const [host, e] of agg) {
+    out[host] = e.weight > 0 ? e.weighted / e.weight : e.n > 0 ? e.sum / e.n : 0
   }
   return out
 }
@@ -117,6 +143,15 @@ async function post<T>(path: string, body: Record<string, unknown>, pid?: string
     body: JSON.stringify({ ...(pid ? { project_id: pid } : {}), ...body }),
     cache: 'no-store',
   })
+  if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
+  return res.json()
+}
+
+async function get<T>(path: string, params: Record<string, string>, pid?: string): Promise<T> {
+  const url = new URL(`${BASE_URL}${path}`)
+  if (pid) url.searchParams.set('project_id', pid)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const res = await fetch(url.toString(), { headers: { 'X-API-Key': getKey() }, cache: 'no-store' })
   if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
   return res.json()
 }
@@ -172,6 +207,8 @@ export type DomainCoverage = {
   promptIdsByDomain: Record<string, string[]>
   /** host → distinct theme (tag) ids */
   tagIdsByDomain: Record<string, string[]>
+  /** tag id → display name (from /tags), for resolving themes to Prompt Cluster labels */
+  tagNameById: Record<string, string>
 }
 
 /** Normalize a bare domain (e.g. "www.Forbes.com") to match hostOf() output. */
@@ -183,6 +220,7 @@ function lookupHost(domain: string): string {
 export function aggregateDomainCoverage(
   promptRows: ApiUrlRow[],
   tagRows: ApiUrlRow[],
+  tagNameById: Record<string, string> = {},
 ): DomainCoverage {
   const collect = (rows: ApiUrlRow[], idOf: (r: ApiUrlRow) => string | undefined) => {
     const sets = new Map<string, Set<string>>()
@@ -199,6 +237,7 @@ export function aggregateDomainCoverage(
   return {
     promptIdsByDomain: collect(promptRows, (r) => r.prompt?.id),
     tagIdsByDomain: collect(tagRows, (r) => r.tag?.id),
+    tagNameById,
   }
 }
 
@@ -212,7 +251,14 @@ export function domainTagIds(cov: DomainCoverage, domain: string): string[] {
   return cov.tagIdsByDomain[lookupHost(domain)] ?? []
 }
 
-const EMPTY_COVERAGE: DomainCoverage = { promptIdsByDomain: {}, tagIdsByDomain: {} }
+/** Theme display names (Prompt Clusters) for `domain`, dropping ids with no name. */
+export function domainTagNames(cov: DomainCoverage, domain: string): string[] {
+  return domainTagIds(cov, domain)
+    .map((id) => cov.tagNameById[id])
+    .filter((n): n is string => !!n)
+}
+
+const EMPTY_COVERAGE: DomainCoverage = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
 
 async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverage> {
   let pid: string | undefined
@@ -224,11 +270,13 @@ async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverag
   if (!pid && !process.env.PEEC_AI_PROJECT_ID) return EMPTY_COVERAGE
 
   const window = last30()
-  const [promptRes, tagRes] = await Promise.all([
+  const [promptRes, tagRes, tagsRes] = await Promise.all([
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['prompt_id'], limit: 2000 }, pid),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['tag_id'], limit: 2000 }, pid),
+    get<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
   ])
-  return aggregateDomainCoverage(promptRes.data ?? [], tagRes.data ?? [])
+  const tagNameById = Object.fromEntries((tagsRes.data ?? []).map((t) => [t.id, t.name]))
+  return aggregateDomainCoverage(promptRes.data ?? [], tagRes.data ?? [], tagNameById)
 }
 
 export const getDomainCoverage = cached('peec', 'getDomainCoverage', getDomainCoverageImpl, {

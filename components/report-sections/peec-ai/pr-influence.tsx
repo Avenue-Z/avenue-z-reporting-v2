@@ -1,6 +1,6 @@
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
-import { getDomainCoverage, domainPromptIds, type DomainCoverage } from '@/lib/peec/url-citations'
+import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
 import { samplePRProofData } from '@/lib/demo-data/pr-proof'
@@ -49,7 +49,6 @@ type MatchbackRow = PRPlacement & {
   citedByAI: boolean
   aiEnginesCiting: string[]
   promptCount: number
-  averagePosition: number | null
   brandMentioned: boolean
   citationRate: number
 }
@@ -88,7 +87,6 @@ function buildMatchback(
       citedByAI,
       aiEnginesCiting,
       promptCount,
-      averagePosition: null, // Position data not available at domain level
       brandMentioned: citedByAI, // If the domain cites us, brand is mentioned
       citationRate: editorialMatch?.citationRate ?? 0,
     }
@@ -169,7 +167,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     : null
 
   // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult] = await Promise.allSettled([
+  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),
     getPRProofData(clientSlug),
     ga4Query({
@@ -188,7 +186,8 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           limit: 150,
         })
       : Promise.resolve(null),
-    getDomainCoverage(clientSlug),   // per-domain prompt coverage (matchback + Section C)
+    getDomainCoverage(clientSlug),   // per-domain prompt coverage + tag names (matchback + Section C/D)
+    getUrlCitations(clientSlug),     // per-URL citations (Section D article fields, avg position)
   ])
 
   let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
@@ -197,7 +196,8 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
   let coverage       = coverageResult.status === 'fulfilled'
     ? coverageResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {} }
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
+  let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
 
   // Demo mode: force-substitute every data source so the demo never
   // mixes real client data with synthetic. `prIsDemo` is retained as
@@ -208,7 +208,8 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     prData         = samplePRProofData()
     aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
     compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
-    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {} }  // demo: matchback/§C use demo fallbacks
+    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }  // demo: matchback/§C/§D use demo fallbacks
+    urlCitations   = []  // demo: §D uses demo fallbacks
   }
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
@@ -291,6 +292,21 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // failed / project unconfigured → keep -- for prompt count.
   const coverageAvailable = Object.keys(coverage.promptIdsByDomain).length > 0
 
+  // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
+  // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
+  const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
+  // Citation-count-weighted avg citations-per-answer per domain (Peec citation_avg).
+  const avgCitByDomain = avgCitationsByDomain(urlCitations)
+  // Representative brand-absent URL per host: the highest-cited URL on that host
+  // where our brand is not mentioned — used for Section D Article Title/URL/Competitors.
+  const topBrandAbsentUrlByHost = new Map<string, UrlCitation>()
+  for (const c of urlCitations) {
+    if (c.mentionsYourBrand) continue
+    const k = hostKey(c.domain)
+    const cur = topBrandAbsentUrlByHost.get(k)
+    if (!cur || c.citationCount > cur.citationCount) topBrandAbsentUrlByHost.set(k, c)
+  }
+
   // ── Filter PR placement matchback rows by selected AI models ─────────────────
   // When a filter is active, keep only rows that have at least one cited AI
   // engine matching the selection. Rows with no AI engines at all are DROPPED
@@ -354,7 +370,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     headline: row.headline,
     link: row.link,
     publicationDate: row.publicationDate,
-    promptCluster: prIsDemo ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length] : null,
+    // Prompt Cluster = themes (tags) this domain is cited under, joined.
+    // "None" when coverage loaded but the domain has no theme; -- only when
+    // coverage is unavailable (fetch failed / unconfigured).
+    promptCluster: prIsDemo
+      ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length]
+      : coverageAvailable ? (domainTagNames(coverage, row.domain).join(', ') || 'None') : null,
     brandMentioned: row.brandMentioned,
     linkedMention: prIsDemo ? i % 3 !== 0 : null,
     citedByAI: row.citedByAI,
@@ -368,7 +389,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     promptCount: prIsDemo
       ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length]
       : coverageAvailable ? row.promptCount : null,
-    averagePosition: prIsDemo ? 1.4 + (i % 7) * 0.45 : row.averagePosition,
+    avgCitations: prIsDemo ? 1.4 + (i % 7) * 0.45 : (avgCitByDomain[hostKey(row.domain)] ?? null),
     postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : null,
   }))
 
@@ -385,7 +406,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       citationCount: d.retrieved,
       citationCountDelta: d.retrievedDelta,
       promptCoverage: getEditorialPromptCoverage(d.domain),
-      avgPosition: prIsDemo ? 1.5 + (idx % 5) * 0.4 : null,
+      avgCitations: prIsDemo ? 1.5 + (idx % 5) * 0.4 : (avgCitByDomain[hostKey(d.domain)] ?? null),
       hasPR,
     }
   })
@@ -426,14 +447,18 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   const rawBrandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentDomains.slice(0, 20).map((d, i) => {
     const priority: 'High' | 'Medium' | 'Low' = d.retrieved > 15 ? 'High' : d.retrieved > 5 ? 'Medium' : 'Low'
     const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
+    // Representative brand-absent URL cited on this editorial domain (top by citations).
+    const topUrl = topBrandAbsentUrlByHost.get(hostKey(d.domain))
     return {
       domain: d.domain,
-      articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : null,
-      articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : null,
+      articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : (topUrl?.title ?? null),
+      articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : (topUrl?.url ?? null),
       citationCount: d.retrieved,
+      // "None" when we found the article but it named no competitors; -- only
+      // when there's no representative article for the domain at all.
       competitorsMentioned: prIsDemo
         ? DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', ')
-        : null,
+        : (topUrl ? (topUrl.competitorBrandNames.length > 0 ? topUrl.competitorBrandNames.join(', ') : 'None') : null),
       brandMentioned: false,
       opportunityPriority: priority,
       suggestedAngle: 'Secure coverage or citation on this domain',

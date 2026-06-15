@@ -289,7 +289,7 @@ export interface OwnedContentCitedRow {
   promptCluster: string | null
   aiCitationCount: number       // citationRate %
   aiEnginesCiting: string | null
-  averagePosition: number | null
+  avgCitations: number | null
   aiReferredSessions: number | null
   postLaunchAILift: number      // retrievedDelta
   recommendedAction: string
@@ -338,11 +338,11 @@ export function OwnedContentCitedTable({
         : <span className="text-white/40">--</span>,
     },
     {
-      key: 'averagePosition', label: 'Average Position', align: 'right',
-      tooltip: TT.position,
-      accessor: (r) => r.averagePosition ?? 9999,
-      render: (r) => r.averagePosition !== null
-        ? <span className="tabular-nums text-white">#{r.averagePosition.toFixed(1)}</span>
+      key: 'avgCitations', label: 'Avg. Citations', align: 'right',
+      tooltip: "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
+      accessor: (r) => r.avgCitations ?? 0,
+      render: (r) => r.avgCitations !== null
+        ? <span className="tabular-nums text-white">{r.avgCitations.toFixed(1)}</span>
         : <span className="text-white/40">--</span>,
     },
     {
