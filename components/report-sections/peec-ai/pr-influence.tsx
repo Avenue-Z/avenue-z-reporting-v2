@@ -281,6 +281,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ? buildMatchback(prData.placements, editorialDomains, coverage)
     : []
 
+  // True once the coverage fetch returned data: a domain missing from it is a
+  // known 0 (cited by no tracked prompt), not unknown. Empty map = fetch
+  // failed / project unconfigured → keep -- for prompt count.
+  const coverageAvailable = Object.keys(coverage.promptIdsByDomain).length > 0
+
   // ── Filter PR placement matchback rows by selected AI models ─────────────────
   // When a filter is active, keep only rows that have at least one cited AI
   // engine matching the selection. Rows with no AI engines at all are DROPPED
@@ -353,7 +358,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       : row.aiEnginesCiting.length > 0
         ? row.aiEnginesCiting.join(', ')
         : '',
-    promptCount: prIsDemo ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length] : row.promptCount > 0 ? row.promptCount : null,
+    // Known 0 (no tracked prompt cites this domain) shows 0, not -- which reads
+    // as missing data. -- only when coverage is unavailable.
+    promptCount: prIsDemo
+      ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length]
+      : coverageAvailable ? row.promptCount : null,
     averagePosition: prIsDemo ? 1.4 + (i % 7) * 0.45 : row.averagePosition,
     postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : null,
   }))

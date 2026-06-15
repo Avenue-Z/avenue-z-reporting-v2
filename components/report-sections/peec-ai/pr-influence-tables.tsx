@@ -222,7 +222,7 @@ export function PRPlacementMatchbackTable({
         'Number of tracked prompts where this URL or its domain appears as a citation. (Peec AI source data.)',
       accessor: (r) => r.promptCount ?? 0,
       render: (r) =>
-        r.promptCount != null && r.promptCount > 0 ? (
+        r.promptCount != null ? (
           <span className="tabular-nums text-white">{r.promptCount}</span>
         ) : (
           <span className="tabular-nums text-white">--</span>
