@@ -22,6 +22,8 @@ export type ApiUrlRow = {
   title: string | null
   channel_title: string | null
   model_channel?: { id: string }
+  prompt?: { id: string }
+  tag?: { id: string }
   usage_count: number
   citation_count: number
   citation_avg: number
@@ -154,6 +156,82 @@ async function getUrlCitationsImpl(
 }
 
 export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
+  version: 'v1',
+  extractTags: ([slug]) => ({ client: slug ?? 'default' }),
+})
+
+// ── Domain → prompt / theme coverage ────────────────────────────────────────
+// Which tracked prompts and which themes (tags) each cited *domain* appears in.
+// Derived from per-URL citation rows dimensioned by prompt_id / tag_id, then
+// aggregated by host. This replaces the earlier (broken) approach that compared
+// domain names against trackedPrompts[].sources — sources are AI-engine ids
+// (e.g. "ChatGPT"), never domains, so coverage was always 0.
+
+export type DomainCoverage = {
+  /** host (lowercased, www-stripped) → distinct prompt ids citing a URL on that host */
+  promptIdsByDomain: Record<string, string[]>
+  /** host → distinct theme (tag) ids */
+  tagIdsByDomain: Record<string, string[]>
+}
+
+/** Normalize a bare domain (e.g. "www.Forbes.com") to match hostOf() output. */
+function lookupHost(domain: string): string {
+  return domain.trim().toLowerCase().replace(/^www\./, '')
+}
+
+/** Aggregate prompt/tag-dimensioned URL rows into per-domain id sets. */
+export function aggregateDomainCoverage(
+  promptRows: ApiUrlRow[],
+  tagRows: ApiUrlRow[],
+): DomainCoverage {
+  const collect = (rows: ApiUrlRow[], idOf: (r: ApiUrlRow) => string | undefined) => {
+    const sets = new Map<string, Set<string>>()
+    for (const r of rows) {
+      const id = idOf(r)
+      if (!id) continue
+      const host = hostOf(r.url)
+      if (!host) continue
+      if (!sets.has(host)) sets.set(host, new Set())
+      sets.get(host)!.add(id)
+    }
+    return Object.fromEntries([...sets].map(([k, v]) => [k, [...v]]))
+  }
+  return {
+    promptIdsByDomain: collect(promptRows, (r) => r.prompt?.id),
+    tagIdsByDomain: collect(tagRows, (r) => r.tag?.id),
+  }
+}
+
+/** Distinct tracked prompts in which any URL on `domain` is cited. */
+export function domainPromptIds(cov: DomainCoverage, domain: string): string[] {
+  return cov.promptIdsByDomain[lookupHost(domain)] ?? []
+}
+
+/** Distinct themes (tags) in which any URL on `domain` is cited. */
+export function domainTagIds(cov: DomainCoverage, domain: string): string[] {
+  return cov.tagIdsByDomain[lookupHost(domain)] ?? []
+}
+
+const EMPTY_COVERAGE: DomainCoverage = { promptIdsByDomain: {}, tagIdsByDomain: {} }
+
+async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverage> {
+  let pid: string | undefined
+  if (clientSlug) {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
+    pid = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+  }
+  if (!pid && !process.env.PEEC_AI_PROJECT_ID) return EMPTY_COVERAGE
+
+  const window = last30()
+  const [promptRes, tagRes] = await Promise.all([
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['prompt_id'], limit: 2000 }, pid),
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['tag_id'], limit: 2000 }, pid),
+  ])
+  return aggregateDomainCoverage(promptRes.data ?? [], tagRes.data ?? [])
+}
+
+export const getDomainCoverage = cached('peec', 'getDomainCoverage', getDomainCoverageImpl, {
   version: 'v1',
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })

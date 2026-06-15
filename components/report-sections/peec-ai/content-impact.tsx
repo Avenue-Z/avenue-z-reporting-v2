@@ -4,7 +4,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 import type { AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -208,7 +208,7 @@ export async function ContentImpactReport({
   demoMode?: boolean
   models?: AEOModel[] | null
 }) {
-  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult] = await Promise.allSettled([
+  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
@@ -220,6 +220,7 @@ export async function ContentImpactReport({
       limit: 1000,
     }),
     getUrlCitations(clientSlug),
+    getDomainCoverage(clientSlug),      // per-domain prompt/theme coverage (Section H)
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -227,6 +228,9 @@ export async function ContentImpactReport({
   let calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
   let ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
+  const coverage   = coverageResult.status === 'fulfilled'
+    ? coverageResult.value
+    : { promptIdsByDomain: {}, tagIdsByDomain: {} }
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
@@ -325,25 +329,16 @@ export async function ContentImpactReport({
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
     : null
 
-  // Prompt coverage and theme coverage per domain (PRD Section H)
-  const domainPromptCount = new Map<string, number>()
-  const domainThemes = new Map<string, Set<string>>()
+  // Prompt coverage and theme coverage per domain (PRD Section H).
+  // Derived from per-URL citation data (prompt_id / tag_id dimensions) joined by
+  // host — not trackedPrompts[].sources, which are AI-engine ids, never domains.
   const totalTrackedPrompts = peecData?.trackedPrompts.length ?? 0
-  for (const prompt of (peecData?.trackedPrompts ?? [])) {
-    const group = (prompt.group as string | undefined) ?? 'General'
-    for (const source of (prompt.sources as string[])) {
-      const key = source.toLowerCase()
-      domainPromptCount.set(key, (domainPromptCount.get(key) ?? 0) + 1)
-      if (!domainThemes.has(key)) domainThemes.set(key, new Set())
-      domainThemes.get(key)!.add(group)
-    }
-  }
   const getPromptCoverage = (domain: string): number | null =>
     totalTrackedPrompts > 0
-      ? Math.round((domainPromptCount.get(domain.toLowerCase()) ?? 0) / totalTrackedPrompts * 100)
+      ? Math.round(domainPromptIds(coverage, domain).length / totalTrackedPrompts * 100)
       : null
   const getThemeCoverage = (domain: string): number =>
-    domainThemes.get(domain.toLowerCase())?.size ?? 0
+    domainTagIds(coverage, domain).length
 
   const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
 

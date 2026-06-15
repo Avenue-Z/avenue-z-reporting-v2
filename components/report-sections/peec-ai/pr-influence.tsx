@@ -1,5 +1,6 @@
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
+import { getDomainCoverage, domainPromptIds, type DomainCoverage } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
 import { samplePRProofData } from '@/lib/demo-data/pr-proof'
@@ -56,23 +57,12 @@ type MatchbackRow = PRPlacement & {
 function buildMatchback(
   placements: PRPlacement[],
   editorialDomains: TopDomain[],
-  trackedPrompts: TrackedPrompt[],
+  coverage: DomainCoverage,
 ): MatchbackRow[] {
   // Build lookup: domain -> editorial domain data
   const domainLookup = new Map<string, TopDomain>()
   for (const d of editorialDomains) {
     domainLookup.set(d.domain.toLowerCase(), d)
-  }
-
-  // Build prompt cluster data for domain cross-reference
-  // Count how many prompts mention sources that match each domain
-  const domainPromptCount = new Map<string, number>()
-  for (const prompt of trackedPrompts) {
-    for (const source of prompt.sources) {
-      const sourceLower = source.toLowerCase()
-      const count = domainPromptCount.get(sourceLower) ?? 0
-      domainPromptCount.set(sourceLower, count + 1)
-    }
   }
 
   return placements.map((p) => {
@@ -81,7 +71,10 @@ function buildMatchback(
 
     // Check if the domain is cited in any AI response
     const citedByAI = !!editorialMatch
-    const promptCount = domainPromptCount.get(domainKey) ?? 0
+    // Distinct tracked prompts in which a URL on this domain is cited, derived
+    // from per-URL citation data (not trackedPrompts[].sources, which are
+    // AI-engine ids and never match a domain).
+    const promptCount = domainPromptIds(coverage, p.domain).length
 
     // Get LLMs that cite this domain (from editorial data type or prompt sources)
     const aiEnginesCiting: string[] = []
@@ -176,7 +169,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     : null
 
   // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult, aiReferralResult, compareAiResult] = await Promise.allSettled([
+  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),
     getPRProofData(clientSlug),
     ga4Query({
@@ -195,12 +188,16 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           limit: 150,
         })
       : Promise.resolve(null),
+    getDomainCoverage(clientSlug),   // per-domain prompt coverage (matchback + Section C)
   ])
 
   let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
   let prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
   let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
   let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
+  const coverage     = coverageResult.status === 'fulfilled'
+    ? coverageResult.value
+    : { promptIdsByDomain: {}, tagIdsByDomain: {} }
 
   // Demo mode: force-substitute every data source so the demo never
   // mixes real client data with synthetic. `prIsDemo` is retained as
@@ -281,7 +278,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
-    ? buildMatchback(prData.placements, editorialDomains, data.trackedPrompts)
+    ? buildMatchback(prData.placements, editorialDomains, coverage)
     : []
 
   // ── Filter PR placement matchback rows by selected AI models ─────────────────
@@ -309,18 +306,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     return !prDomains.has(d.domain.toLowerCase())
   })
 
-  // Prompt Coverage % per editorial domain for Section C
-  const editorialPromptCount = new Map<string, number>()
+  // Prompt Coverage % per editorial domain for Section C — share of tracked
+  // prompts in which a URL on the domain is cited (from per-URL citation data).
   const totalEditPrompts = data?.trackedPrompts.length ?? 0
-  for (const prompt of (data?.trackedPrompts ?? [])) {
-    for (const source of (prompt.sources as string[])) {
-      const key = source.toLowerCase()
-      editorialPromptCount.set(key, (editorialPromptCount.get(key) ?? 0) + 1)
-    }
-  }
   const getEditorialPromptCoverage = (domain: string): number | null =>
     totalEditPrompts > 0
-      ? Math.round((editorialPromptCount.get(domain.toLowerCase()) ?? 0) / totalEditPrompts * 100)
+      ? Math.round(domainPromptIds(coverage, domain).length / totalEditPrompts * 100)
       : null
 
   // ── Serialize data for client components ───────────────────────────────────
