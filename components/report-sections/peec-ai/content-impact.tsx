@@ -4,7 +4,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 import type { AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -208,7 +208,7 @@ export async function ContentImpactReport({
   demoMode?: boolean
   models?: AEOModel[] | null
 }) {
-  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult] = await Promise.allSettled([
+  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
@@ -220,6 +220,7 @@ export async function ContentImpactReport({
       limit: 1000,
     }),
     getUrlCitations(clientSlug),
+    getDomainCoverage(clientSlug),      // per-domain prompt/theme coverage (Section H)
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -227,6 +228,9 @@ export async function ContentImpactReport({
   let calendarData = calendarResult.status === 'fulfilled' ? calendarResult.value : null
   let ga4Rows      = ga4Result.status      === 'fulfilled' ? ga4Result.value.rows : null
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
+  let coverage     = coverageResult.status === 'fulfilled'
+    ? coverageResult.value
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
@@ -239,6 +243,7 @@ export async function ContentImpactReport({
     calendarData = sampleContentCalendarData()
     ga4Rows      = SAMPLE_GA4_CONTENT_IMPACT_ROWS
     urlCitations = []   // demo: §B/§F/§H use their own demo arrays
+    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }  // demo: §H uses demo fallbacks
   }
 
   if (peecResult.status         === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
@@ -325,27 +330,29 @@ export async function ContentImpactReport({
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
     : null
 
-  // Prompt coverage and theme coverage per domain (PRD Section H)
-  const domainPromptCount = new Map<string, number>()
-  const domainThemes = new Map<string, Set<string>>()
+  // Prompt coverage and theme coverage per domain (PRD Section H).
+  // Derived from per-URL citation data (prompt_id / tag_id dimensions) joined by
+  // host — not trackedPrompts[].sources, which are AI-engine ids, never domains.
+  // coverageAvailable distinguishes a known 0 (domain cited by no prompt/theme)
+  // from missing data (fetch failed / unconfigured / demo) → only the former
+  // shows 0; the latter stays --.
   const totalTrackedPrompts = peecData?.trackedPrompts.length ?? 0
-  for (const prompt of (peecData?.trackedPrompts ?? [])) {
-    const group = (prompt.group as string | undefined) ?? 'General'
-    for (const source of (prompt.sources as string[])) {
-      const key = source.toLowerCase()
-      domainPromptCount.set(key, (domainPromptCount.get(key) ?? 0) + 1)
-      if (!domainThemes.has(key)) domainThemes.set(key, new Set())
-      domainThemes.get(key)!.add(group)
-    }
-  }
+  const coverageAvailable =
+    Object.keys(coverage.promptIdsByDomain).length > 0 ||
+    Object.keys(coverage.tagIdsByDomain).length > 0
   const getPromptCoverage = (domain: string): number | null =>
-    totalTrackedPrompts > 0
-      ? Math.round((domainPromptCount.get(domain.toLowerCase()) ?? 0) / totalTrackedPrompts * 100)
+    coverageAvailable && totalTrackedPrompts > 0
+      ? Math.round(domainPromptIds(coverage, domain).length / totalTrackedPrompts * 100)
       : null
-  const getThemeCoverage = (domain: string): number =>
-    domainThemes.get(domain.toLowerCase())?.size ?? 0
+  const getThemeCoverage = (domain: string): number | null =>
+    coverageAvailable ? domainTagIds(coverage, domain).length : null
 
   const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
+
+  // Citation-count-weighted avg citations-per-answer per domain (§F owned pages).
+  // host key is www-stripped + lowercased to match avgCitationsByDomain()/domainTagNames().
+  const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
+  const avgCitByDomain = avgCitationsByDomain(urlCitations)
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -401,7 +408,7 @@ export async function ContentImpactReport({
           <KpiCard
             label="AI Citations"
             hint={`Peec AI, owned domains YTD${models ? ' · filtered to selected AI models' : ''}`}
-            value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
+            value={peecData ? totalCitations.toLocaleString() : '--'}
             live={totalCitations > 0}
           />
           {/* AI-Referred Sessions: GA4 has no model dimension — not filtered.
@@ -440,7 +447,7 @@ export async function ContentImpactReport({
           <KpiCard
             label="Owned Domains Cited in AI"
             hint={`Peec AI brand-owned domains with citations${models ? ' · filtered to selected AI models' : ''}`}
-            value={filteredOwnDomains.length > 0 ? filteredOwnDomains.length.toLocaleString() : '--'}
+            value={peecData ? filteredOwnDomains.length.toLocaleString() : '--'}
             live={filteredOwnDomains.length > 0}
           />
         </div>
@@ -643,11 +650,16 @@ export async function ContentImpactReport({
         const ownedRows: OwnedContentCitedRow[] = filteredOwnDomains.map((d, i) => ({
           urlOrDomain: d.domain,
           topic: calendarIsDemo ? demoTopics[i % demoTopics.length] : null,
-          promptCluster: calendarIsDemo ? demoClusters[i % demoClusters.length] : null,
+          // Prompt Cluster = themes (tags) this owned domain is cited under, joined.
+          // "None" when coverage loaded but the domain has no theme; -- only when
+          // coverage is unavailable.
+          promptCluster: calendarIsDemo
+            ? demoClusters[i % demoClusters.length]
+            : coverageAvailable ? (domainTagNames(coverage, d.domain).join(', ') || 'None') : null,
           aiCitationCount: d.citationRate,
           aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length]
             : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).join(', ') : null),
-          averagePosition: calendarIsDemo ? demoPositions[i % demoPositions.length] : null,
+          avgCitations: calendarIsDemo ? demoPositions[i % demoPositions.length] : (avgCitByDomain[hostKey(d.domain)] ?? null),
           aiReferredSessions: calendarIsDemo ? demoAiSessions[i % demoAiSessions.length] : null,
           postLaunchAILift: d.retrievedDelta,
           recommendedAction: 'Monitor and protect citation position',
@@ -759,8 +771,10 @@ export async function ContentImpactReport({
             const themeCovReal  = getThemeCoverage(d.domain)
             const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
             const demoThemeCov  = [3, 2, 4, 1, 5, 1, 3, 4, 2, 2][i % 10]
-            const promptCov = promptCovReal !== null && promptCovReal > 0 ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
-            const themeCov  = themeCovReal > 0 ? themeCovReal : (calendarIsDemo ? demoThemeCov : 0)
+            // Real coverage (incl. a known 0) is shown as-is; demo fills only
+            // when there's no real coverage (helpers return null).
+            const promptCov = promptCovReal !== null ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
+            const themeCov  = themeCovReal  !== null ? themeCovReal  : (calendarIsDemo ? demoThemeCov : null)
             return {
               domain: d.domain,
               citationCount: d.citationRate,
@@ -860,7 +874,9 @@ export async function ContentImpactReport({
                 domain: c.domain,
                 articleTitle: c.title,
                 url: c.url,
-                promptCluster: null,                       // needs tag_id dimension (follow-up)
+                // Themes (tags) this competitor domain is cited under, joined.
+                // "None" when coverage loaded but no theme; -- only when unavailable.
+                promptCluster: coverageAvailable ? (domainTagNames(coverage, c.domain).join(', ') || 'None') : null,
                 citationCount: c.citationCount,
                 competitorsMentioned: c.competitorBrandNames.join(', ') || null,
                 brandMentioned: 'No',
@@ -874,11 +890,6 @@ export async function ContentImpactReport({
                 rows={h2Rows}
                 emptyMessage="No editorial domain data from Peec AI"
               />
-              {!calendarIsDemo && (
-                <p className="text-[10px] text-text-muted">
-                  Prompt Cluster requires tag-level citation data from Peec AI (follow-up).
-                </p>
-              )}
             </div>
           )
         })()}

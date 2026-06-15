@@ -40,7 +40,7 @@ export interface PRPlacementMatchbackRow {
   citedByAI: boolean
   aiEnginesCiting: string
   promptCount: number | null
-  averagePosition: number | null
+  avgCitations: number | null
   postPublishTrend: number | null
 }
 
@@ -222,21 +222,22 @@ export function PRPlacementMatchbackTable({
         'Number of tracked prompts where this URL or its domain appears as a citation. (Peec AI source data.)',
       accessor: (r) => r.promptCount ?? 0,
       render: (r) =>
-        r.promptCount != null && r.promptCount > 0 ? (
+        r.promptCount != null ? (
           <span className="tabular-nums text-white">{r.promptCount}</span>
         ) : (
           <span className="tabular-nums text-white">--</span>
         ),
     },
     {
-      key: 'averagePosition',
-      label: 'Avg Position',
+      key: 'avgCitations',
+      label: 'Avg. Citations',
       align: 'right',
-      tooltip: PEEC.position.text,
-      accessor: (r) => r.averagePosition ?? Number.POSITIVE_INFINITY,
+      tooltip:
+        "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
+      accessor: (r) => r.avgCitations ?? 0,
       render: (r) =>
-        r.averagePosition != null ? (
-          <span className="tabular-nums text-white/60">#{r.averagePosition.toFixed(1)}</span>
+        r.avgCitations != null ? (
+          <span className="tabular-nums text-white/60">{r.avgCitations.toFixed(1)}</span>
         ) : (
           <span className="tabular-nums text-white/60">--</span>
         ),
@@ -280,7 +281,7 @@ export function PRPlacementMatchbackTable({
         <p className="mt-4 text-[10px] text-text-muted">
           Showing {rows.length} placements across 14 columns. {placementsCitedByAI} cited by AI engines.
           {!isDemo &&
-            ' Prompt Cluster and Linked Mention require URL-level citation data. Post-Publish Traffic Trend requires GA4 integration.'}
+            ' Linked Mention requires a PR Proof sheet column. Post-Publish Traffic Trend requires GA4 integration.'}
         </p>
       )}
     </div>
@@ -294,7 +295,7 @@ export interface TopEditorialDomainRow {
   citationCount: number      // d.retrieved (%)
   citationCountDelta: number // d.retrievedDelta
   promptCoverage: number | null
-  avgPosition: number | null
+  avgCitations: number | null
   hasPR: boolean
 }
 
@@ -364,14 +365,15 @@ export function TopEditorialDomainsTable({
       ),
     },
     {
-      key: 'avgPosition',
-      label: 'Avg Position',
+      key: 'avgCitations',
+      label: 'Avg. Citations',
       align: 'left',
-      tooltip: PEEC.position.text,
-      accessor: (r) => r.avgPosition ?? Number.POSITIVE_INFINITY,
+      tooltip:
+        "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
+      accessor: (r) => r.avgCitations ?? 0,
       render: (r) => (
         <span className="tabular-nums text-white/30">
-          {r.avgPosition != null ? `#${r.avgPosition.toFixed(1)}` : '--'}
+          {r.avgCitations != null ? r.avgCitations.toFixed(1) : '--'}
         </span>
       ),
     },
@@ -419,11 +421,6 @@ export function TopEditorialDomainsTable({
               <span className="h-2.5 w-2.5 rounded bg-[#60FF80]/60" />
               <span className="text-[10px] text-text-muted">Has PR placement</span>
             </div>
-            {!isDemo && (
-              <span className="ml-auto text-[10px] text-text-muted">
-                Avg Position requires per-domain position data from Peec AI Pro
-              </span>
-            )}
           </div>
         </>
       ) : (
@@ -583,8 +580,8 @@ export function BrandAbsentEditorialDomainsTable({
       />
       {!isDemo && rows.length > 0 && (
         <p className="mt-4 text-[10px] text-text-muted">
-          Article Title and URL require URL-level citation data from Peec AI (currently domain-level only). Citation
-          Count shown as retrieved frequency %. Competitors Mentioned requires competitor mention extraction.
+          Article Title, URL, and Competitors Mentioned show the top brand-absent URL cited on each domain (Peec AI,
+          per-URL). Citation Count shown as retrieved frequency %.
         </p>
       )}
     </div>
