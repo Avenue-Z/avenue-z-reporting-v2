@@ -220,6 +220,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       String(source ?? '').toLowerCase().includes(d)
     )
 
+  // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
+  // Only when the query failed / GA4 is unconfigured do we show -- (no data).
+  const aiReferralOk = demoMode || aiReferralResult.status === 'fulfilled'
+
   const aiSessions = aiReferralRows
     .filter(r => isAiSource(r.sessionSource))
     .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
@@ -508,7 +512,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           {/* # AI Citations: filtered via domainCitationsByModel sum when models active */}
           <KpiCard
             title="# AI Citations"
-            value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
+            value={data ? totalCitations.toLocaleString() : '--'}
             tooltip={`${PEEC.citations.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
           />
           {/* PR Placements Cited by AI: denominator reflects total filtered placements */}
@@ -521,11 +525,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
               When a model filter is active, append a subtitle to make this clear. */}
           <KpiCard
             title="AI Referral Sessions"
-            value={aiSessions > 0 ? aiSessions.toLocaleString() : '--'}
+            value={aiReferralOk ? aiSessions.toLocaleString() : '--'}
             delta={aiSessionsDelta}
-            tooltip={aiSessions > 0 ? `${GA4.session.text} (GA4.) Shown for the selected date range.` : 'Requires GA4 AI referral data'}
+            tooltip={aiReferralOk ? `${GA4.session.text} (GA4.) Shown for the selected date range.` : 'Requires GA4 AI referral data'}
             subValue={
-              aiSessions === 0
+              !aiReferralOk
                 ? 'Requires GA4 AI referral data'
                 : models
                   ? 'across all AI engines'

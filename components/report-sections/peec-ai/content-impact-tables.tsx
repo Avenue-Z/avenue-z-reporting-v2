@@ -327,7 +327,7 @@ export function OwnedContentCitedTable({
       key: 'aiCitationCount', label: 'AI Citation Count', align: 'right',
       tooltip: TT.aiCitations,
       accessor: (r) => r.aiCitationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.aiCitationCount > 0 ? r.aiCitationCount.toFixed(1) + '%' : '--'}</span>,
+      render: (r) => <span className="tabular-nums text-white">{r.aiCitationCount.toFixed(1)}%</span>,
     },
     {
       key: 'aiEnginesCiting', label: 'AI Engines Citing',
