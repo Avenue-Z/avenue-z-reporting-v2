@@ -8,7 +8,7 @@ import {
   domainPromptIds,
   domainTagIds,
   domainTagNames,
-  avgPositionByDomain,
+  avgCitationsByDomain,
   type ApiUrlRow,
 } from './url-citations'
 
@@ -79,14 +79,14 @@ assert.deepEqual(domainTagIds(cov, 'edelman.com'), [])            // no tag rows
 // Coverage %: forbes cited in 2 of 4 tracked prompts → 50%
 assert.equal(Math.round(domainPromptIds(cov, 'forbes.com').length / 4 * 100), 50)
 
-// avgPositionByDomain: citation_count-weighted mean of citation_avg per host
+// avgCitationsByDomain: citation_count-weighted mean of citation_avg per host
 const posBase: ApiUrlRow[] = [
   row('https://www.acme.com/a', { citation_avg: 2, citation_count: 10 }),
   row('https://acme.com/b',     { citation_avg: 4, citation_count: 30 }), // same host, www-stripped
   row('https://solo.com/x',     { citation_avg: 5, citation_count: 7 }),
   row('https://zero.com/z',     { citation_avg: 6, citation_count: 0 }),  // all weights 0 → simple mean
 ]
-const byDom = avgPositionByDomain(mergeUrlCitations(posBase, [], [], new Map()))
+const byDom = avgCitationsByDomain(mergeUrlCitations(posBase, [], [], new Map()))
 assert.equal(byDom['acme.com'], 3.5) // (2*10 + 4*30) / 40
 assert.equal(byDom['solo.com'], 5)
 assert.equal(byDom['zero.com'], 6)   // zero total weight → falls back to simple mean

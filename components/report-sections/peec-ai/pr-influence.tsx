@@ -1,6 +1,6 @@
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
-import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgPositionByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
+import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
 import { samplePRProofData } from '@/lib/demo-data/pr-proof'
@@ -49,7 +49,6 @@ type MatchbackRow = PRPlacement & {
   citedByAI: boolean
   aiEnginesCiting: string[]
   promptCount: number
-  averagePosition: number | null
   brandMentioned: boolean
   citationRate: number
 }
@@ -88,7 +87,6 @@ function buildMatchback(
       citedByAI,
       aiEnginesCiting,
       promptCount,
-      averagePosition: null, // Position data not available at domain level
       brandMentioned: citedByAI, // If the domain cites us, brand is mentioned
       citationRate: editorialMatch?.citationRate ?? 0,
     }
@@ -290,11 +288,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // failed / project unconfigured → keep -- for prompt count.
   const coverageAvailable = Object.keys(coverage.promptIdsByDomain).length > 0
 
-  // ── Per-URL citation derivations (Section C/D, matchback Avg Position) ───────
+  // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
   // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
-  // Citation-weighted average position per domain (lower = better).
-  const avgPosByDomain = avgPositionByDomain(urlCitations)
+  // Citation-count-weighted avg citations-per-answer per domain (Peec citation_avg).
+  const avgCitByDomain = avgCitationsByDomain(urlCitations)
   // Representative brand-absent URL per host: the highest-cited URL on that host
   // where our brand is not mentioned — used for Section D Article Title/URL/Competitors.
   const topBrandAbsentUrlByHost = new Map<string, UrlCitation>()
@@ -368,10 +366,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     headline: row.headline,
     link: row.link,
     publicationDate: row.publicationDate,
-    // Prompt Cluster = themes (tags) this domain is cited under, joined. -- when none.
+    // Prompt Cluster = themes (tags) this domain is cited under, joined.
+    // "None" when coverage loaded but the domain has no theme; -- only when
+    // coverage is unavailable (fetch failed / unconfigured).
     promptCluster: prIsDemo
       ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length]
-      : (domainTagNames(coverage, row.domain).join(', ') || null),
+      : coverageAvailable ? (domainTagNames(coverage, row.domain).join(', ') || 'None') : null,
     brandMentioned: row.brandMentioned,
     linkedMention: prIsDemo ? i % 3 !== 0 : null,
     citedByAI: row.citedByAI,
@@ -385,7 +385,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     promptCount: prIsDemo
       ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length]
       : coverageAvailable ? row.promptCount : null,
-    averagePosition: prIsDemo ? 1.4 + (i % 7) * 0.45 : (avgPosByDomain[hostKey(row.domain)] ?? null),
+    avgCitations: prIsDemo ? 1.4 + (i % 7) * 0.45 : (avgCitByDomain[hostKey(row.domain)] ?? null),
     postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : null,
   }))
 
@@ -402,7 +402,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       citationCount: d.retrieved,
       citationCountDelta: d.retrievedDelta,
       promptCoverage: getEditorialPromptCoverage(d.domain),
-      avgPosition: prIsDemo ? 1.5 + (idx % 5) * 0.4 : (avgPosByDomain[hostKey(d.domain)] ?? null),
+      avgCitations: prIsDemo ? 1.5 + (idx % 5) * 0.4 : (avgCitByDomain[hostKey(d.domain)] ?? null),
       hasPR,
     }
   })
@@ -450,9 +450,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : (topUrl?.title ?? null),
       articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : (topUrl?.url ?? null),
       citationCount: d.retrieved,
+      // "None" when we found the article but it named no competitors; -- only
+      // when there's no representative article for the domain at all.
       competitorsMentioned: prIsDemo
         ? DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', ')
-        : (topUrl && topUrl.competitorBrandNames.length > 0 ? topUrl.competitorBrandNames.join(', ') : null),
+        : (topUrl ? (topUrl.competitorBrandNames.length > 0 ? topUrl.competitorBrandNames.join(', ') : 'None') : null),
       brandMentioned: false,
       opportunityPriority: priority,
       suggestedAngle: 'Secure coverage or citation on this domain',

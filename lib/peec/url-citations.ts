@@ -43,7 +43,7 @@ export type UrlCitation = {
   title: string | null
   citationCount: number
   citationRate: number
-  citationAvg: number              // average citation position (lower = better)
+  citationAvg: number              // average citations per answer (Peec citation_avg)
   engines: string[]
   mentionedBrandIds: string[]
   competitorBrandNames: string[]   // mentioned brand names excluding "your brand"
@@ -107,11 +107,11 @@ export function mergeUrlCitations(
 }
 
 /**
- * Average citation position per domain, citation-count-weighted. URLs cited more
- * often weigh more heavily; a host whose URLs all have zero citations falls back
- * to a simple mean. Lower is better (position #1 = first cited).
+ * Average citations-per-answer per domain (Peec `citation_avg`), citation-count
+ * weighted. URLs cited more often weigh more heavily; a host whose URLs all have
+ * zero citations falls back to a simple mean. Higher = cited more per answer.
  */
-export function avgPositionByDomain(citations: UrlCitation[]): Record<string, number> {
+export function avgCitationsByDomain(citations: UrlCitation[]): Record<string, number> {
   const agg = new Map<string, { weighted: number; weight: number; sum: number; n: number }>()
   for (const c of citations) {
     const host = lookupHost(c.domain)

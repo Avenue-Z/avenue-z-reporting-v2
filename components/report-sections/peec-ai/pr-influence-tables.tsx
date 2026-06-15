@@ -40,7 +40,7 @@ export interface PRPlacementMatchbackRow {
   citedByAI: boolean
   aiEnginesCiting: string
   promptCount: number | null
-  averagePosition: number | null
+  avgCitations: number | null
   postPublishTrend: number | null
 }
 
@@ -229,14 +229,15 @@ export function PRPlacementMatchbackTable({
         ),
     },
     {
-      key: 'averagePosition',
-      label: 'Avg Position',
+      key: 'avgCitations',
+      label: 'Avg. Citations',
       align: 'right',
-      tooltip: PEEC.position.text,
-      accessor: (r) => r.averagePosition ?? Number.POSITIVE_INFINITY,
+      tooltip:
+        "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
+      accessor: (r) => r.avgCitations ?? 0,
       render: (r) =>
-        r.averagePosition != null ? (
-          <span className="tabular-nums text-white/60">#{r.averagePosition.toFixed(1)}</span>
+        r.avgCitations != null ? (
+          <span className="tabular-nums text-white/60">{r.avgCitations.toFixed(1)}</span>
         ) : (
           <span className="tabular-nums text-white/60">--</span>
         ),
@@ -294,7 +295,7 @@ export interface TopEditorialDomainRow {
   citationCount: number      // d.retrieved (%)
   citationCountDelta: number // d.retrievedDelta
   promptCoverage: number | null
-  avgPosition: number | null
+  avgCitations: number | null
   hasPR: boolean
 }
 
@@ -364,14 +365,15 @@ export function TopEditorialDomainsTable({
       ),
     },
     {
-      key: 'avgPosition',
-      label: 'Avg Position',
+      key: 'avgCitations',
+      label: 'Avg. Citations',
       align: 'left',
-      tooltip: PEEC.position.text,
-      accessor: (r) => r.avgPosition ?? Number.POSITIVE_INFINITY,
+      tooltip:
+        "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
+      accessor: (r) => r.avgCitations ?? 0,
       render: (r) => (
         <span className="tabular-nums text-white/30">
-          {r.avgPosition != null ? `#${r.avgPosition.toFixed(1)}` : '--'}
+          {r.avgCitations != null ? r.avgCitations.toFixed(1) : '--'}
         </span>
       ),
     },

@@ -4,7 +4,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgPositionByDomain } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 import type { AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -349,10 +349,10 @@ export async function ContentImpactReport({
 
   const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
 
-  // Citation-weighted average position per domain (§F owned pages). host key is
-  // www-stripped + lowercased to match avgPositionByDomain()/domainTagNames().
+  // Citation-count-weighted avg citations-per-answer per domain (§F owned pages).
+  // host key is www-stripped + lowercased to match avgCitationsByDomain()/domainTagNames().
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
-  const avgPosByDomain = avgPositionByDomain(urlCitations)
+  const avgCitByDomain = avgCitationsByDomain(urlCitations)
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -651,13 +651,15 @@ export async function ContentImpactReport({
           urlOrDomain: d.domain,
           topic: calendarIsDemo ? demoTopics[i % demoTopics.length] : null,
           // Prompt Cluster = themes (tags) this owned domain is cited under, joined.
+          // "None" when coverage loaded but the domain has no theme; -- only when
+          // coverage is unavailable.
           promptCluster: calendarIsDemo
             ? demoClusters[i % demoClusters.length]
-            : (domainTagNames(coverage, d.domain).join(', ') || null),
+            : coverageAvailable ? (domainTagNames(coverage, d.domain).join(', ') || 'None') : null,
           aiCitationCount: d.citationRate,
           aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length]
             : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).join(', ') : null),
-          averagePosition: calendarIsDemo ? demoPositions[i % demoPositions.length] : (avgPosByDomain[hostKey(d.domain)] ?? null),
+          avgCitations: calendarIsDemo ? demoPositions[i % demoPositions.length] : (avgCitByDomain[hostKey(d.domain)] ?? null),
           aiReferredSessions: calendarIsDemo ? demoAiSessions[i % demoAiSessions.length] : null,
           postLaunchAILift: d.retrievedDelta,
           recommendedAction: 'Monitor and protect citation position',
@@ -872,8 +874,9 @@ export async function ContentImpactReport({
                 domain: c.domain,
                 articleTitle: c.title,
                 url: c.url,
-                // Themes (tags) this competitor domain is cited under, joined. -- when none.
-                promptCluster: domainTagNames(coverage, c.domain).join(', ') || null,
+                // Themes (tags) this competitor domain is cited under, joined.
+                // "None" when coverage loaded but no theme; -- only when unavailable.
+                promptCluster: coverageAvailable ? (domainTagNames(coverage, c.domain).join(', ') || 'None') : null,
                 citationCount: c.citationCount,
                 competitorsMentioned: c.competitorBrandNames.join(', ') || null,
                 brandMentioned: 'No',
