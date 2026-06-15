@@ -403,7 +403,7 @@ export async function ContentImpactReport({
           <KpiCard
             label="AI Citations"
             hint={`Peec AI, owned domains YTD${models ? ' · filtered to selected AI models' : ''}`}
-            value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
+            value={peecData ? totalCitations.toLocaleString() : '--'}
             live={totalCitations > 0}
           />
           {/* AI-Referred Sessions: GA4 has no model dimension — not filtered.
@@ -442,7 +442,7 @@ export async function ContentImpactReport({
           <KpiCard
             label="Owned Domains Cited in AI"
             hint={`Peec AI brand-owned domains with citations${models ? ' · filtered to selected AI models' : ''}`}
-            value={filteredOwnDomains.length > 0 ? filteredOwnDomains.length.toLocaleString() : '--'}
+            value={peecData ? filteredOwnDomains.length.toLocaleString() : '--'}
             live={filteredOwnDomains.length > 0}
           />
         </div>
