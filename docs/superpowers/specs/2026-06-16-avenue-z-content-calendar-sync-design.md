@@ -107,15 +107,15 @@ Dedup key = **post URL** (column K).
 
 ## Trigger / consistency
 
-**Scheduled polling via Cloud Scheduler, daily** (decided). The job pulls the full
-post list each run and appends only new URLs (idempotent + self-healing — a skipped
-run auto-catches-up on the next). No WordPress-side changes.
+**Scheduled polling via Cloud Scheduler, every other day** (decided; cron
+`0 9 */2 * *`). The job pulls the full post list each run and appends only new URLs
+(idempotent + self-healing — a skipped run auto-catches-up on the next). No
+WordPress-side changes.
 
 A true event trigger ("fire on publish") was considered but rejected: it requires
 installing/maintaining a webhook plugin on the avenuez.com WordPress site, and even
-third-party "new post" triggers poll under the hood. Daily polling achieves the same
-result (new post appears within a day) with zero WP dependencies. Cadence is a
-one-line change (e.g. every-other-day) if desired.
+third-party "new post" triggers poll under the hood. Polling achieves the same
+result (new post appears within ~2 days) with zero WP dependencies.
 
 ## Stack & auth (mirrors `monthly-report-agent`)
 
@@ -167,7 +167,7 @@ Pure functions (`mapping`, `merge`) separated from I/O so logic is tested withou
 
 ## Resolved decisions
 
-1. **Schedule:** Cloud Scheduler, **daily** poll (no WordPress trigger). ✓
+1. **Schedule:** Cloud Scheduler, **every other day** poll (cron `0 9 */2 * *`; no WordPress trigger). ✓
 2. **Topic cell:** **hyperlinked** to the post URL. ✓
 3. **Tabs:** single **data tab** (first/leftmost) holding the blog posts — that's
    all the tracker needs. Backlog/quarter tabs not replicated (can add later for
