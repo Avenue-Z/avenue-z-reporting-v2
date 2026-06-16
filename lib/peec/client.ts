@@ -440,7 +440,9 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   }
   const domainsByRange: Record<string, TopDomain[]> = {
     'YTD':          buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? []),
-    'Last 30 days': buildTopDomains(domains30Res.data ?? []),
+    // Pass the prior-30-day window (already fetched) so retrievedDelta / Post-Launch
+    // AI Lift can be computed on the default 30-day view, not just YTD.
+    'Last 30 days': buildTopDomains(domains30Res.data ?? [], domainsPrior30Res.data ?? []),
   }
   const totalCitationsByRange: Record<string, number> = {
     'YTD':          (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0),
@@ -707,7 +709,9 @@ export const getPeecOverview = cached(
     //      `skp-` token to a customer-scoped `skc-` token. v2 cached entries
     //      contain the wrong project's data (Peec was ignoring project_id
     //      against the skp- token), so they need to be evicted.
-    version: 'v5',
+    // v6 = "Last 30 days" domains now carry a prior-30d baseline (retrievedDelta /
+    //      Post-Launch AI Lift); old v5 entries have retrievedDelta hard-0 for 30d.
+    version: 'v6',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

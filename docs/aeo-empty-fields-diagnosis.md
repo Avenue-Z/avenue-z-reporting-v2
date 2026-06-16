@@ -38,6 +38,12 @@ npx tsx --env-file=.env.local scripts/diagnose-google-sa.ts
 | **§G sub-view 3** AI Citations + AI-Referred cols | hard-coded `null` | Per-path citation count (Peec) + per-path AI-referred (GA4). |
 | **§H sub-view 3** (competitor pages across themes) | hard-coded `[]` | Extended `aggregateDomainCoverage` → `tagIdsByUrlKey`; competitor URLs cited under **2+ themes**. **Avg Position column dropped** (not sourceable — see Limits). Cache bumped to v3. |
 | **Misleading copy** | "Recommended action: Connect GA4 for full session analysis" (GA4 *is* connected) | "No AI citations or crawls yet — monitor and strengthen on-page signals" |
+| **§F "Post-Launch AI Lift"** | `--` for all owned domains on the 30-day view | The "Last 30 days" Peec domain set now carries a prior-30d baseline (`buildTopDomains(domains30Res, domainsPrior30Res)`; data was already fetched) so `retrievedDelta` is real, not hard-0. Peec cache bumped to v6. `--` now remains only for brand-new domains with no prior data (genuine "unmeasurable lift"). |
+| **PR · "AI Engines"** (matchback) | generic "AI Engines" / `--` | Real engine names from per-URL citations; "Not cited" instead of `--`; also repairs the model filter on that table. |
+| **PR · "PR" column** (Top Editorial Domains) | `--` for non-matches in prod | "No" when PR Proof data is loaded; `--` reserved for when it isn't. |
+| **§B "AI Citations"** | `--` for uncited URLs | `0` when the Peec citations query loaded (uncited = real 0); `--` only on query failure. |
+| **§D AI-Referred (empty group)** | `0` | `--` for an empty group (consistent with the other empty-group metrics). |
+| **§G topic fallback** | `--` for non-calendar pages | Readable label from the URL slug (`labelFromPath`). |
 
 **Key data-layer additions:** `lib/content-calendar/date.ts` (`parseCalendarDate`, `parseYearHint`);
 `monthContext` column alias in `lib/content-calendar/client.ts`; `DomainCoverage.tagIdsByUrlKey` +
@@ -59,11 +65,13 @@ Status, Publish Date, Suggested Author, …, Notes`). The parser maps it case-in
 but there is nothing to map. **Fix:** add an "Update Date" (or "Last Updated") column to the sheet.
 
 ### 2. Peec-sourced fields with no value for a given URL/domain
-- **§B "AI Citations"** (per planned URL) and **§F "Post-Launch AI Lift"** (`retrievedDelta` per owned
-  domain) come straight from Peec. They show `--`/blank where Peec returns nothing for that URL/domain.
-  Many avenue-z planned pieces are brand-new March-2026 news posts that simply aren't cited yet — likely
-  legitimately empty. **Action:** spot-check a couple of these URLs in the Peec dashboard to confirm it's
-  real absence, not a join-key mismatch.
+- **§B "AI Citations"** (per planned URL) comes straight from Peec; shows `0` for URLs Peec hasn't cited
+  (now a real 0, not `--`). Many avenue-z planned pieces are brand-new March-2026 news posts that simply
+  aren't cited yet — legitimately 0. **Action:** spot-check a couple of these URLs in the Peec dashboard
+  to confirm it's real absence, not a join-key mismatch.
+- **§F "Post-Launch AI Lift"** is now wired (prior-30d baseline, see Fixed table) but will still read `--`
+  for a brand-new owned domain that has no prior-period data to compute a delta against — that case is a
+  genuine "lift not yet measurable," not a bug.
 
 ### 3. "AI bot activity = 0" — infrastructure (Class 3, unchanged)
 `successRate`/bot activity are **real adverse data**: every logged AI-bot request to `www.avenuez.com`
