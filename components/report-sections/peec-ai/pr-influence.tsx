@@ -1,5 +1,6 @@
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
+import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
 import { samplePRProofData } from '@/lib/demo-data/pr-proof'
@@ -7,7 +8,8 @@ import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_AI_REFERRAL_ROWS, SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS } from '@/lib/demo-data/ga4-pr-influence'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { AI_REFERRER_DOMAINS } from '@/lib/constants'
+import { isAiSource } from '@/lib/constants'
+import { postPublishTrend, addDays } from '@/lib/ga4/content-derive'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -48,7 +50,6 @@ type MatchbackRow = PRPlacement & {
   citedByAI: boolean
   aiEnginesCiting: string[]
   promptCount: number
-  averagePosition: number | null
   brandMentioned: boolean
   citationRate: number
 }
@@ -56,23 +57,12 @@ type MatchbackRow = PRPlacement & {
 function buildMatchback(
   placements: PRPlacement[],
   editorialDomains: TopDomain[],
-  trackedPrompts: TrackedPrompt[],
+  coverage: DomainCoverage,
 ): MatchbackRow[] {
   // Build lookup: domain -> editorial domain data
   const domainLookup = new Map<string, TopDomain>()
   for (const d of editorialDomains) {
     domainLookup.set(d.domain.toLowerCase(), d)
-  }
-
-  // Build prompt cluster data for domain cross-reference
-  // Count how many prompts mention sources that match each domain
-  const domainPromptCount = new Map<string, number>()
-  for (const prompt of trackedPrompts) {
-    for (const source of prompt.sources) {
-      const sourceLower = source.toLowerCase()
-      const count = domainPromptCount.get(sourceLower) ?? 0
-      domainPromptCount.set(sourceLower, count + 1)
-    }
   }
 
   return placements.map((p) => {
@@ -81,7 +71,10 @@ function buildMatchback(
 
     // Check if the domain is cited in any AI response
     const citedByAI = !!editorialMatch
-    const promptCount = domainPromptCount.get(domainKey) ?? 0
+    // Distinct tracked prompts in which a URL on this domain is cited, derived
+    // from per-URL citation data (not trackedPrompts[].sources, which are
+    // AI-engine ids and never match a domain).
+    const promptCount = domainPromptIds(coverage, p.domain).length
 
     // Get LLMs that cite this domain (from editorial data type or prompt sources)
     const aiEnginesCiting: string[] = []
@@ -95,7 +88,6 @@ function buildMatchback(
       citedByAI,
       aiEnginesCiting,
       promptCount,
-      averagePosition: null, // Position data not available at domain level
       brandMentioned: citedByAI, // If the domain cites us, brand is mentioned
       citationRate: editorialMatch?.citationRate ?? 0,
     }
@@ -176,7 +168,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     : null
 
   // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult, aiReferralResult, compareAiResult] = await Promise.allSettled([
+  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),
     getPRProofData(clientSlug),
     ga4Query({
@@ -195,12 +187,18 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           limit: 150,
         })
       : Promise.resolve(null),
+    getDomainCoverage(clientSlug),   // per-domain prompt coverage + tag names (matchback + Section C/D)
+    getUrlCitations(clientSlug),     // per-URL citations (Section D article fields, avg position)
   ])
 
   let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
   let prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
   let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
   let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
+  let coverage       = coverageResult.status === 'fulfilled'
+    ? coverageResult.value
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
+  let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
 
   // Demo mode: force-substitute every data source so the demo never
   // mixes real client data with synthetic. `prIsDemo` is retained as
@@ -211,16 +209,16 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     prData         = samplePRProofData()
     aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
     compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
+    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }  // demo: matchback/§C/§D use demo fallbacks
+    urlCitations   = []  // demo: §D uses demo fallbacks
   }
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
 
-  // GA4 AI referral sessions computation
-  const isAiSource = (source: unknown) =>
-    (AI_REFERRER_DOMAINS as readonly string[]).some(d =>
-      String(source ?? '').toLowerCase().includes(d)
-    )
+  // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
+  // Only when the query failed / GA4 is unconfigured do we show -- (no data).
+  const aiReferralOk = demoMode || aiReferralResult.status === 'fulfilled'
 
   const aiSessions = aiReferralRows
     .filter(r => isAiSource(r.sessionSource))
@@ -281,8 +279,68 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
-    ? buildMatchback(prData.placements, editorialDomains, data.trackedPrompts)
+    ? buildMatchback(prData.placements, editorialDomains, coverage)
     : []
+
+  // True once the coverage fetch returned data: a domain missing from it is a
+  // known 0 (cited by no tracked prompt), not unknown. Empty map = fetch
+  // failed / project unconfigured → keep -- for prompt count.
+  const coverageAvailable = Object.keys(coverage.promptIdsByDomain).length > 0
+
+  // ── PR §B · Post-Publish Traffic Trend (GA4-5) ──────────────────────────────
+  // Per placement: signed % change in site-wide AI-referred sessions in the
+  // window after its publish date vs. an equal window before. One GA4 query of
+  // AI-referred sessions by date — from the earliest placement (minus a window)
+  // to today — feeds every row. Site-wide proxy: GA4 has no per-placement
+  // dimension, so this is the lift around publish, not causal attribution.
+  const trendToday = new Date().toISOString().slice(0, 10)
+  const toIsoDate = (s: string | null | undefined): string | null => {
+    if (!s) return null
+    const t = Date.parse(s)
+    return isNaN(t) ? null : new Date(t).toISOString().slice(0, 10)
+  }
+  const aiByDate: Record<string, number> = {}
+  let trendOk = false
+  const earliestPlacement = toIsoDate(prData?.dateRange?.earliest)
+  if (!demoMode && earliestPlacement && (prData?.placements.length ?? 0) > 0) {
+    try {
+      const res = await ga4Query({
+        clientSlug,
+        dateRange: `${addDays(earliestPlacement, -30)},${trendToday}`,
+        metrics: ['sessions'],
+        dimensions: ['date', 'sessionSource'],
+        limit: 100000,
+      })
+      trendOk = true
+      for (const row of res.rows) {
+        if (!isAiSource(row.sessionSource)) continue
+        const ds = String(row.date ?? '')
+        const iso = ds.length === 8 ? `${ds.slice(0, 4)}-${ds.slice(4, 6)}-${ds.slice(6, 8)}` : ds
+        aiByDate[iso] = (aiByDate[iso] ?? 0) + (Number(row.sessions) || 0)
+      }
+    } catch (e) {
+      console.error('[pr-influence] GA4 post-publish trend error:', e)
+    }
+  }
+  const placementTrend = (publicationDate: string): number | null => {
+    const pub = toIsoDate(publicationDate)
+    return trendOk && pub ? postPublishTrend(pub, trendToday, aiByDate) : null
+  }
+
+  // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
+  // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
+  const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
+  // Citation-count-weighted avg citations-per-answer per domain (Peec citation_avg).
+  const avgCitByDomain = avgCitationsByDomain(urlCitations)
+  // Representative brand-absent URL per host: the highest-cited URL on that host
+  // where our brand is not mentioned — used for Section D Article Title/URL/Competitors.
+  const topBrandAbsentUrlByHost = new Map<string, UrlCitation>()
+  for (const c of urlCitations) {
+    if (c.mentionsYourBrand) continue
+    const k = hostKey(c.domain)
+    const cur = topBrandAbsentUrlByHost.get(k)
+    if (!cur || c.citationCount > cur.citationCount) topBrandAbsentUrlByHost.set(k, c)
+  }
 
   // ── Filter PR placement matchback rows by selected AI models ─────────────────
   // When a filter is active, keep only rows that have at least one cited AI
@@ -309,18 +367,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     return !prDomains.has(d.domain.toLowerCase())
   })
 
-  // Prompt Coverage % per editorial domain for Section C
-  const editorialPromptCount = new Map<string, number>()
+  // Prompt Coverage % per editorial domain for Section C — share of tracked
+  // prompts in which a URL on the domain is cited (from per-URL citation data).
   const totalEditPrompts = data?.trackedPrompts.length ?? 0
-  for (const prompt of (data?.trackedPrompts ?? [])) {
-    for (const source of (prompt.sources as string[])) {
-      const key = source.toLowerCase()
-      editorialPromptCount.set(key, (editorialPromptCount.get(key) ?? 0) + 1)
-    }
-  }
   const getEditorialPromptCoverage = (domain: string): number | null =>
-    totalEditPrompts > 0
-      ? Math.round((editorialPromptCount.get(domain.toLowerCase()) ?? 0) / totalEditPrompts * 100)
+    coverageAvailable && totalEditPrompts > 0
+      ? Math.round(domainPromptIds(coverage, domain).length / totalEditPrompts * 100)
       : null
 
   // ── Serialize data for client components ───────────────────────────────────
@@ -353,7 +405,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     headline: row.headline,
     link: row.link,
     publicationDate: row.publicationDate,
-    promptCluster: prIsDemo ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length] : null,
+    // Prompt Cluster = themes (tags) this domain is cited under, joined.
+    // "None" when coverage loaded but the domain has no theme; -- only when
+    // coverage is unavailable (fetch failed / unconfigured).
+    promptCluster: prIsDemo
+      ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length]
+      : coverageAvailable ? (domainTagNames(coverage, row.domain).join(', ') || 'None') : null,
     brandMentioned: row.brandMentioned,
     linkedMention: prIsDemo ? i % 3 !== 0 : null,
     citedByAI: row.citedByAI,
@@ -362,9 +419,13 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       : row.aiEnginesCiting.length > 0
         ? row.aiEnginesCiting.join(', ')
         : '',
-    promptCount: prIsDemo ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length] : row.promptCount > 0 ? row.promptCount : null,
-    averagePosition: prIsDemo ? 1.4 + (i % 7) * 0.45 : row.averagePosition,
-    postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : null,
+    // Known 0 (no tracked prompt cites this domain) shows 0, not -- which reads
+    // as missing data. -- only when coverage is unavailable.
+    promptCount: prIsDemo
+      ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length]
+      : coverageAvailable ? row.promptCount : null,
+    avgCitations: prIsDemo ? 1.4 + (i % 7) * 0.45 : (avgCitByDomain[hostKey(row.domain)] ?? null),
+    postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : placementTrend(row.publicationDate),
   }))
 
   // 2. Top Editorial Domains rows — apply model filter via filterDomainRowsByModel.
@@ -380,7 +441,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       citationCount: d.retrieved,
       citationCountDelta: d.retrievedDelta,
       promptCoverage: getEditorialPromptCoverage(d.domain),
-      avgPosition: prIsDemo ? 1.5 + (idx % 5) * 0.4 : null,
+      avgCitations: prIsDemo ? 1.5 + (idx % 5) * 0.4 : (avgCitByDomain[hostKey(d.domain)] ?? null),
       hasPR,
     }
   })
@@ -421,14 +482,18 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   const rawBrandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentDomains.slice(0, 20).map((d, i) => {
     const priority: 'High' | 'Medium' | 'Low' = d.retrieved > 15 ? 'High' : d.retrieved > 5 ? 'Medium' : 'Low'
     const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
+    // Representative brand-absent URL cited on this editorial domain (top by citations).
+    const topUrl = topBrandAbsentUrlByHost.get(hostKey(d.domain))
     return {
       domain: d.domain,
-      articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : null,
-      articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : null,
+      articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : (topUrl?.title ?? null),
+      articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : (topUrl?.url ?? null),
       citationCount: d.retrieved,
+      // "None" when we found the article but it named no competitors; -- only
+      // when there's no representative article for the domain at all.
       competitorsMentioned: prIsDemo
         ? DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', ')
-        : null,
+        : (topUrl ? (topUrl.competitorBrandNames.length > 0 ? topUrl.competitorBrandNames.join(', ') : 'None') : null),
       brandMentioned: false,
       opportunityPriority: priority,
       suggestedAngle: 'Secure coverage or citation on this domain',
@@ -507,7 +572,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           {/* # AI Citations: filtered via domainCitationsByModel sum when models active */}
           <KpiCard
             title="# AI Citations"
-            value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
+            value={data ? totalCitations.toLocaleString() : '--'}
             tooltip={`${PEEC.citations.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
           />
           {/* PR Placements Cited by AI: denominator reflects total filtered placements */}
@@ -520,11 +585,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
               When a model filter is active, append a subtitle to make this clear. */}
           <KpiCard
             title="AI Referral Sessions"
-            value={aiSessions > 0 ? aiSessions.toLocaleString() : '--'}
+            value={aiReferralOk ? aiSessions.toLocaleString() : '--'}
             delta={aiSessionsDelta}
-            tooltip={aiSessions > 0 ? `${GA4.session.text} (GA4.) Shown for the selected date range.` : 'Requires GA4 AI referral data'}
+            tooltip={aiReferralOk ? `${GA4.session.text} (GA4.) Shown for the selected date range.` : 'Requires GA4 AI referral data'}
             subValue={
-              aiSessions === 0
+              !aiReferralOk
                 ? 'Requires GA4 AI referral data'
                 : models
                   ? 'across all AI engines'

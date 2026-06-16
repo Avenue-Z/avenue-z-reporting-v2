@@ -41,6 +41,12 @@ export const AI_REFERRER_DOMAINS = [
   'search.brave.com',
 ] as const
 
+/** True when a GA4 sessionSource matches a known AI assistant referrer. */
+export function isAiSource(source: unknown): boolean {
+  const s = String(source ?? '').toLowerCase()
+  return (AI_REFERRER_DOMAINS as readonly string[]).some((d) => s.includes(d))
+}
+
 /** Report display names */
 export const REPORT_NAMES: Record<string, string> = {
   'demand-overview': 'Overview',

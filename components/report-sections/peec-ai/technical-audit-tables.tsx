@@ -4,6 +4,8 @@ import { TrendingUp, TrendingDown, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SFIssueDelta, SFDeltaStatus, SFData } from '@/lib/screaming-frog/types'
 import type { AgentBot, AgentAnalyticsData } from '@/lib/peec/agent-analytics'
+import type { UrlCitation } from '@/lib/peec/url-citations'
+import { urlJoinKey } from '@/lib/url'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, SITEBULB, SCREAMING_FROG } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
@@ -363,6 +365,7 @@ export interface PageOverlapTableProps {
   agentData: AgentAnalyticsData
   sfData: SFData
   clientDomain: string
+  urlCitations?: UrlCitation[]
   demoMode?: boolean
 }
 
@@ -371,7 +374,7 @@ function pageType(path: string): 'Infrastructure' | 'Content' {
   return LOW_VALUE_PATTERNS.some((p) => path.toLowerCase().includes(p)) ? 'Infrastructure' : 'Content'
 }
 
-export function PageOverlapTable({ agentData, sfData, clientDomain, demoMode = false }: PageOverlapTableProps) {
+export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations = [], demoMode = false }: PageOverlapTableProps) {
   const severityRank: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 }
   const issuesByUrl = new Map<string, { count: number; highestSeverity: string }>()
 
@@ -395,6 +398,8 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, demoMode = f
   const demoHumans   = [42, 28, 19, 8, 51, 6, 36, 4, 24, 67, 12, 31, 17, 3, 38]
   const demoDeltas   = ['+3 new', 'unchanged', '−1 resolved', 'unchanged', '+2 new', 'unchanged', '+1 new', 'unchanged', '−2 resolved', '+4 new', 'unchanged', '+1 new', 'unchanged', 'unchanged', '−1 resolved']
 
+  const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
+
   const rows: PageOverlapRow[] = agentData.topPaths.slice(0, 15).map((p, idx) => {
     const fullUrl = `https://${domain}${p.path}`
     const issueData = issuesByUrl.get(fullUrl) ?? issuesByUrl.get(p.path) ?? null
@@ -408,9 +413,14 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, demoMode = f
     return {
       path: p.path,
       type,
-      aiCitations:      demoMode ? demoCites[idx % demoCites.length]       : null,
-      aiIndexingVisits: demoMode ? demoIndex[idx % demoIndex.length]       : null,
-      aiTrainingVisits: demoMode ? demoTraining[idx % demoTraining.length] : null,
+      aiCitations:      demoMode ? demoCites[idx % demoCites.length]
+                                 // Crawled-but-not-cited pages have a known 0 citations
+                                 // (not "unknown") — show 0, like the visit columns.
+                                 : (citeByKey.get(urlJoinKey(fullUrl) ?? '')?.citationCount ?? 0),
+      aiIndexingVisits: demoMode ? demoIndex[idx % demoIndex.length]
+                                 : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.indexing ?? null),
+      aiTrainingVisits: demoMode ? demoTraining[idx % demoTraining.length]
+                                 : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.training ?? null),
       aiAgentVisits:    p.visits,
       humanFromAI:      demoMode ? demoHumans[idx % demoHumans.length]     : null,
       technicalIssues:  issueData?.count ?? 0,
@@ -508,7 +518,7 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, demoMode = f
         <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', PRIORITY_STYLE[r.highestSeverity as Priority] ?? 'bg-white/[0.06] text-white/40')}>
           {r.highestSeverity}
         </span>
-      ) : <span className="text-white/20">--</span>,
+      ) : <span className="text-white/30">None</span>,
     },
     {
       key: 'changeSinceLastCrawl',
@@ -536,7 +546,7 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, demoMode = f
         )}>
           {r.priorityFlag}
         </span>
-      ) : <span className="text-white/20">--</span>,
+      ) : <span className="text-white/30">None</span>,
     },
   ]
 
@@ -595,16 +605,22 @@ export function LogAnomaliesTable({ agentData, demoMode = false }: LogAnomaliesT
       : isLowValue ? 'Verify robots.txt — limit unnecessary bot access'
       : 'Monitor — strategic page with healthy bot activity'
 
+    const pathAgg = agentData.byPath?.[urlJoinKey(p.path) ?? '']
+    const topBot = pathAgg?.bots[0] ?? null   // bots sorted by visits desc
+    const lastSeenReal = pathAgg
+      ? pathAgg.bots.reduce<string | null>((max, b) => (b.lastSeen && (!max || b.lastSeen > max) ? b.lastSeen : max), null)
+      : null
+
     return {
       path: p.path,
-      platform: demoMode ? demoPlatforms[idx % demoPlatforms.length] : null,
-      botType:  demoMode ? demoBotTypes[idx % demoBotTypes.length]   : null,
+      platform: demoMode ? demoPlatforms[idx % demoPlatforms.length] : (topBot?.provider ?? null),
+      botType:  demoMode ? demoBotTypes[idx % demoBotTypes.length]   : (topBot?.type ?? null),
       status:   p.status,
       visits:   p.visits,
       redirected: isRedirected,
       lowValue:   isLowValue,
       strategic:  isStrategic,
-      lastSeen:   demoMode ? demoLastSeen[idx % demoLastSeen.length] : null,
+      lastSeen:   demoMode ? demoLastSeen[idx % demoLastSeen.length] : lastSeenReal,
       action,
     }
   })

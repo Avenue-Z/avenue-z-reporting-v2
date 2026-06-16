@@ -289,7 +289,7 @@ export interface OwnedContentCitedRow {
   promptCluster: string | null
   aiCitationCount: number       // citationRate %
   aiEnginesCiting: string | null
-  averagePosition: number | null
+  avgCitations: number | null
   aiReferredSessions: number | null
   postLaunchAILift: number      // retrievedDelta
   recommendedAction: string
@@ -327,7 +327,7 @@ export function OwnedContentCitedTable({
       key: 'aiCitationCount', label: 'AI Citation Count', align: 'right',
       tooltip: TT.aiCitations,
       accessor: (r) => r.aiCitationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.aiCitationCount > 0 ? r.aiCitationCount.toFixed(1) + '%' : '--'}</span>,
+      render: (r) => <span className="tabular-nums text-white">{r.aiCitationCount.toFixed(1)}%</span>,
     },
     {
       key: 'aiEnginesCiting', label: 'AI Engines Citing',
@@ -338,11 +338,11 @@ export function OwnedContentCitedTable({
         : <span className="text-white/40">--</span>,
     },
     {
-      key: 'averagePosition', label: 'Average Position', align: 'right',
-      tooltip: TT.position,
-      accessor: (r) => r.averagePosition ?? 9999,
-      render: (r) => r.averagePosition !== null
-        ? <span className="tabular-nums text-white">#{r.averagePosition.toFixed(1)}</span>
+      key: 'avgCitations', label: 'Avg. Citations', align: 'right',
+      tooltip: "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
+      accessor: (r) => r.avgCitations ?? 0,
+      render: (r) => r.avgCitations !== null
+        ? <span className="tabular-nums text-white">{r.avgCitations.toFixed(1)}</span>
         : <span className="text-white/40">--</span>,
     },
     {
@@ -611,7 +611,7 @@ export interface CompetitorDomainsCitedRow {
   domain: string
   citationCount: number
   promptCoverage: number | null
-  themeCoverage: number
+  themeCoverage: number | null
 }
 
 export function CompetitorDomainsCitedTable({
@@ -660,10 +660,10 @@ export function CompetitorDomainsCitedTable({
     {
       key: 'themeCoverage', label: 'Theme Coverage', align: 'right',
       tooltip: TT.themeCoverage,
-      accessor: (r) => r.themeCoverage,
+      accessor: (r) => r.themeCoverage ?? -1,
       render: (r) => (
         <span className="tabular-nums text-white/60">
-          {r.themeCoverage > 0 ? `${r.themeCoverage} theme${r.themeCoverage !== 1 ? 's' : ''}` : '--'}
+          {r.themeCoverage != null ? `${r.themeCoverage} theme${r.themeCoverage !== 1 ? 's' : ''}` : '--'}
         </span>
       ),
     },

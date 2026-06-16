@@ -1,7 +1,13 @@
+import type { protos } from '@google-analytics/data'
+
 /** A single row of GA4 data, keyed by dimension/metric name */
 export interface GA4Row {
   [key: string]: string | number | null
 }
+
+/** GA4 Data API dimension filter expression (passed straight to runReport). */
+export type GA4DimensionFilter =
+  protos.google.analytics.data.v1beta.IRunReportRequest['dimensionFilter']
 
 /** Parsed GA4 response from runReport */
 export interface GA4ReportResult {
@@ -25,4 +31,6 @@ export interface GA4QueryParams {
    */
   dateRange: string
   limit?: number
+  /** Optional GA4 dimension filter, e.g. an inListFilter on pagePath. */
+  dimensionFilter?: GA4DimensionFilter
 }
