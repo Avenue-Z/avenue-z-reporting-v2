@@ -112,18 +112,8 @@ export function sampleProfoundOverview(): ProfoundOverview {
       position:   3.1,
     },
     brandRankings:        BRANDS,
-    brandRankingsByRange: {
-      'YTD':           BRANDS,
-      'Last 30 days':  BRANDS.map((b) => ({ ...b, visibility: b.visibility * 0.95, sov: b.sov * 0.95 })),
-    },
-    domainsByRange: {
-      'YTD':          TOP_DOMAINS,
-      'Last 30 days': TOP_DOMAINS.slice(0, 8),
-    },
-    totalCitationsByRange: {
-      'YTD':          1583,
-      'Last 30 days':  427,
-    },
+    topDomains:           TOP_DOMAINS,
+    totalCitations:       1583,
     domainTypes:   DOMAIN_TYPES,
     trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
     llmBreakdown:  LLM_BREAKDOWN,

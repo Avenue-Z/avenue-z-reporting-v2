@@ -10,6 +10,7 @@ import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
 import { PeriodRibbon } from './period-ribbon'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
+import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
 import { TrackedPromptsChart as ProfoundTrackedPromptsChart } from '../profound-ai/tracked-prompts-chart'
@@ -46,7 +47,7 @@ function KpiCard({
       <p className="mt-2 text-3xl font-extrabold tabular-nums text-white">{value}</p>
       {delta !== undefined && (
         <p className={cn('mt-1 text-sm font-bold', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-          {(invertDelta ? delta <= 0 : delta >= 0) ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs prior year
+          {(invertDelta ? delta <= 0 : delta >= 0) ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs previous period
         </p>
       )}
       {subtitle && (
@@ -193,13 +194,29 @@ function ProviderSection({
   data,
   provider,
   isDemo,
+  models = null,
 }: {
   data: Overview
   provider: AeoProvider
   isDemo: boolean
+  models?: AEOModel[] | null
 }) {
   const isPeec = provider === 'peec'
   const you = data.brandRankings.find((b) => b.isYou)
+
+  // Model filter: when active, recompute the headline KPIs and the LLM table from
+  // the per-model breakdown restricted to the selected models. Deltas are hidden
+  // while filtered (no per-model prior-period data is fetched) — same fidelity as
+  // the PR Influence / Content Impact pages.
+  const modelActive = models != null
+  const llmFiltered = modelActive
+    ? data.llmBreakdown.filter((r) => models!.includes(r.model as AEOModel))
+    : data.llmBreakdown
+  const avgFiltered = (sel: (r: (typeof llmFiltered)[number]) => number): number | null =>
+    llmFiltered.length > 0 ? llmFiltered.reduce((s, r) => s + sel(r), 0) / llmFiltered.length : null
+  const visFiltered = avgFiltered((r) => r.visibility)
+  const sovFiltered = avgFiltered((r) => r.sov)
+  const posFiltered = avgFiltered((r) => r.position)
   const brandName = you?.name ?? (isPeec ? process.env.PEEC_AI_YOUR_BRAND : process.env.PROFOUND_AI_YOUR_BRAND)
   const Rankings = isPeec ? BrandRankingsTable : ProfoundBrandRankingsTable
   const Domains  = isPeec ? TopDomainsTable : ProfoundTopDomainsTable
@@ -232,24 +249,24 @@ function ProviderSection({
           {[
             {
               title: 'Visibility',
-              value: `${you.visibility.toFixed(1)}%`,
-              delta: you.visibilityDelta,
+              value: modelActive ? (visFiltered != null ? `${visFiltered.toFixed(1)}%` : '--') : `${you.visibility.toFixed(1)}%`,
+              delta: modelActive ? undefined : you.visibilityDelta,
               subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
-              tooltip: `${DEF.visibility.text} (${label}.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+              tooltip: `${DEF.visibility.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
             },
             {
               title: 'Share of Voice',
-              value: `${you.sov.toFixed(1)}%`,
-              delta: you.sovDelta,
+              value: modelActive ? (sovFiltered != null ? `${sovFiltered.toFixed(1)}%` : '--') : `${you.sov.toFixed(1)}%`,
+              delta: modelActive ? undefined : you.sovDelta,
               subtitle: `Competitor avg · ${data.competitorAverages.sov.toFixed(1)}%`,
-              tooltip: `${DEF.sov.text} (${label}.) Shown YTD vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+              tooltip: `${DEF.sov.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
             },
             {
               title: 'Position',
-              value: `#${you.position.toFixed(1)}`,
-              delta: you.positionDelta,
+              value: modelActive ? (posFiltered != null ? `#${posFiltered.toFixed(1)}` : '--') : `#${you.position.toFixed(1)}`,
+              delta: modelActive ? undefined : you.positionDelta,
               subtitle: `Competitor avg · #${data.competitorAverages.position.toFixed(1)}`,
-              tooltip: `${DEF.position.text} (${label}.) Shown YTD vs. same period last year.`,
+              tooltip: `${DEF.position.text} (${label}.) Shown for the selected date range vs. the previous period.`,
               invertDelta: true,
             },
           ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
@@ -258,10 +275,10 @@ function ProviderSection({
         </div>
       )}
 
-      {data.llmBreakdown.length > 0 && <LLM breakdown={data.llmBreakdown} />}
+      {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
-        <Rankings rankingsByRange={data.brandRankingsByRange} />
+        <Rankings rankings={data.brandRankings} />
         <div className="flex flex-col gap-5 h-full">
           <BrandSOVChart brands={data.brandRankings} />
           <BrandDefinitions />
@@ -269,7 +286,7 @@ function ProviderSection({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-        <Domains domainsByRange={data.domainsByRange} totalCitationsByRange={data.totalCitationsByRange} />
+        <Domains domains={data.topDomains} totalCitations={data.totalCitations} />
         <div className="flex flex-col gap-5">
           <DomainTypesChart types={data.domainTypes} source={provider} />
           <DomainTypeDefinitions source={provider} />
@@ -293,16 +310,15 @@ export async function PeecAIReport({
   clientSlug,
   dateRange,
   demoMode = false,
-}: { clientSlug?: string; dateRange?: string; demoMode?: boolean } = {}) {
-  void dateRange // AEO charts are fixed to year-to-date; the page date picker does not apply.
-
+  models = null,
+}: { clientSlug?: string; dateRange?: string; demoMode?: boolean; models?: AEOModel[] | null } = {}) {
   const config = clientSlug ? await getClientBySlug(clientSlug) : null
   const peecConfigured = demoMode || !!config?.peecCustomerProjectId
   const profoundConfigured = demoMode || !!config?.profoundCategoryId
 
   const [peecRes, profoundRes] = await Promise.allSettled([
-    peecConfigured ? getPeecOverview(clientSlug) : Promise.resolve(null),
-    profoundConfigured ? getProfoundOverview(clientSlug) : Promise.resolve(null),
+    peecConfigured ? getPeecOverview(clientSlug, dateRange) : Promise.resolve(null),
+    profoundConfigured ? getProfoundOverview(clientSlug, dateRange) : Promise.resolve(null),
   ])
 
   let peecData     = peecRes.status     === 'fulfilled' ? peecRes.value     : null
@@ -324,8 +340,8 @@ export async function PeecAIReport({
   }
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData} provider="peec" isDemo={demoMode} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData} provider="peec" isDemo={demoMode} models={models} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} />
 
   return (
     <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />

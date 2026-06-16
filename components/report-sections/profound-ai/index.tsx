@@ -141,7 +141,7 @@ function KpiCard({
       <p className="mt-2 text-3xl font-extrabold tabular-nums text-white">{value}</p>
       {delta !== undefined && (
         <p className={cn('mt-1 text-sm font-bold', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-          {(invertDelta ? delta <= 0 : delta >= 0) ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs prior year
+          {(invertDelta ? delta <= 0 : delta >= 0) ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs previous period
         </p>
       )}
       {subtitle && (
@@ -151,8 +151,8 @@ function KpiCard({
   )
 }
 
-export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } = {}) {
-  const data = await getProfoundOverview(clientSlug)
+export async function ProfoundAIReport({ clientSlug, dateRange }: { clientSlug?: string; dateRange?: string } = {}) {
+  const data = await getProfoundOverview(clientSlug, dateRange)
   const youBrand = data.brandRankings.find((b) => b.isYou)
 
   return (
@@ -176,21 +176,21 @@ export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } =
               value: `${youBrand.visibility.toFixed(1)}%`,
               delta: youBrand.visibilityDelta,
               subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
-              tooltip: `% of AI responses mentioning your brand, Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+              tooltip: `% of AI responses mentioning your brand, for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
             },
             {
               title: 'Share of Voice',
               value: `${youBrand.sov.toFixed(1)}%`,
               delta: youBrand.sovDelta,
               subtitle: `Competitor avg · ${data.competitorAverages.sov.toFixed(1)}%`,
-              tooltip: `Your share of all AI brand mentions, Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+              tooltip: `Your share of all AI brand mentions, for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
             },
             {
               title: 'Position',
               value: `#${youBrand.position.toFixed(1)}`,
               delta: youBrand.positionDelta,
               subtitle: `Competitor avg · #${data.competitorAverages.position.toFixed(1)}`,
-              tooltip: `Avg rank when your brand appears in AI responses (lower is better), Jan 1 – today vs. same period last year. Competitor avg is the YTD mean across all tracked brands.`,
+              tooltip: `Avg rank when your brand appears in AI responses (lower is better), for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
               invertDelta: true,
             },
           ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
@@ -206,7 +206,7 @@ export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } =
 
       {/* Brand rankings + Brand types/definitions */}
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
-        <BrandRankingsTable rankingsByRange={data.brandRankingsByRange} />
+        <BrandRankingsTable rankings={data.brandRankings} />
         <div className="flex flex-col gap-5 h-full">
           <BrandSOVChart brands={data.brandRankings} />
           <BrandDefinitions />
@@ -215,7 +215,7 @@ export async function ProfoundAIReport({ clientSlug }: { clientSlug?: string } =
 
       {/* Top domains + Domain types */}
       <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-        <TopDomainsTable domainsByRange={data.domainsByRange} totalCitationsByRange={data.totalCitationsByRange} />
+        <TopDomainsTable domains={data.topDomains} totalCitations={data.totalCitations} />
         <div className="flex flex-col gap-5">
           <DomainTypesChart types={data.domainTypes} />
           <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">

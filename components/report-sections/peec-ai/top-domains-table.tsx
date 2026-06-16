@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { TopDomain } from '@/lib/peec/client'
 import { SortableTable, type SortableColumn } from './sortable-table'
@@ -18,8 +17,6 @@ const TYPE_COLORS: Record<string, string> = {
   Other:         '#8A8A8A',
 }
 
-const RANGE_KEYS = ['YTD', 'Last 30 days'] as const
-
 function Delta({ value }: { value: number }) {
   const positive = value >= 0
   return (
@@ -30,17 +27,13 @@ function Delta({ value }: { value: number }) {
 }
 
 export function TopDomainsTable({
-  domainsByRange,
-  totalCitationsByRange,
+  domains,
+  totalCitations,
 }: {
-  domainsByRange: Record<string, TopDomain[]>
-  totalCitationsByRange: Record<string, number>
+  domains: TopDomain[]
+  totalCitations: number
 }) {
-  const [selectedRange, setSelectedRange] = useState<string>('YTD')
-
-  const domains = domainsByRange[selectedRange] ?? domainsByRange['YTD'] ?? []
-  const totalCitations = totalCitationsByRange[selectedRange] ?? 0
-  const showDeltas = selectedRange === 'YTD'
+  const showDeltas = true
 
   const columns: SortableColumn<TopDomain>[] = [
     {
@@ -113,23 +106,12 @@ export function TopDomainsTable({
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which domains do AI engines cite most?</p>
           <InfoTooltip text={PEEC.sourceMetrics.text} />
         </div>
-        <div className="flex items-center gap-3">
-          {totalCitations > 0 && (
-            <p className="flex items-center gap-1 text-xs text-text-muted">
-              Total citations: <span className="font-semibold text-white">{totalCitations.toLocaleString()}</span>
-              <InfoTooltip text={PEEC.citations.text} />
-            </p>
-          )}
-          <select
-            value={selectedRange}
-            onChange={(e) => setSelectedRange(e.target.value)}
-            className="cursor-pointer rounded-md border border-white/[0.08] bg-bg-surface px-3 py-1.5 text-xs font-semibold text-white focus:outline-none"
-          >
-            {RANGE_KEYS.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
+        {totalCitations > 0 && (
+          <p className="flex items-center gap-1 text-xs text-text-muted">
+            Total citations: <span className="font-semibold text-white">{totalCitations.toLocaleString()}</span>
+            <InfoTooltip text={PEEC.citations.text} />
+          </p>
+        )}
       </div>
       <SortableTable
         columns={columns}

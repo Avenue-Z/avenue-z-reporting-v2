@@ -177,7 +177,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Fetch all data sources in parallel with graceful degradation
   const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult] = await Promise.allSettled([
-    getPeecOverview(clientSlug),
+    // Editorial domains / citations here are a stable all-time reference set, so
+    // request YTD explicitly rather than the page date range.
+    getPeecOverview(clientSlug, 'year_to_date'),
     getPRProofData(clientSlug),
     ga4Query({
       clientSlug,
@@ -243,7 +245,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Derive metrics
   const youMetrics = data?.brandRankings.find(b => b.isYou) ?? null
-  const editorialDomains = (data?.domainsByRange['YTD'] ?? []).filter(d => d.type === 'Editorial')
+  const editorialDomains = (data?.topDomains ?? []).filter(d => d.type === 'Editorial')
 
   // ── KPI: AI Visibility % + Avg AI Position (model-filtered) ─────────────────
   // When a model filter is active, recompute from llmBreakdown filtered to
@@ -283,7 +285,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         (acc, domain) => acc + sumByModel(data!.domainCitationsByModel, domain, models),
         0,
       )
-    : (data?.totalCitationsByRange['YTD'] ?? 0)
+    : (data?.totalCitations ?? 0)
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
