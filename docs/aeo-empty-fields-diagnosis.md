@@ -76,9 +76,23 @@ Peec exposes citation *position* only at the **brand** level, never per domain/U
 "Avg Position" column was **removed** rather than wired, and why per-URL/per-domain "Avg Position"
 elsewhere is permanently "Avg. Citations" (`citation_avg`) instead.
 
-### 5. Linked Mention (PR Influence)
-No source exists in the PR Proof sheet. Either add a sheet column or drop the field. (Carried over from
-the prior diagnosis; unchanged.)
+### 5. Linked Mention (PR Influence · "Which PR placements are being cited in AI?")
+**Decision: left as a `--` pending-data placeholder** (not dropped). It is hard-coded `null` in
+production at `pr-influence.tsx` (`linkedMention: prIsDemo ? … : null`).
+
+- **What it means:** a per-placement Yes/No — does this piece of earned media coverage contain an actual
+  **hyperlink (backlink) to the client's site**, vs. an unlinked brand mention. Pairing it with
+  cited-by-AI shows whether a placement builds LLM brand authority *and* passes a crawlable link, or only
+  the former (a cue to go request a link).
+- **Why it's missing:** the PR Proof sheet
+  (`1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M`) has no such column. Its columns are
+  `Client | Outlet | Headline | Publication Date | Link | Impact | Date Added` — and "Link" is the URL of
+  the placement article itself, not whether that article links back to the client. The fact lives in each
+  article's HTML; nothing in the sheet captures it.
+- **To enable later:** add a "Linked Mention" column (Yes/No, filled at logging time, or via a tool that
+  checks each article for a backlink to the client domain), then extend the PR Proof parser
+  (`lib/pr-proof/client.ts` — add `linkedMention` to `PRProofColumnMap` + `DEFAULT_COLUMN_MAP`, parse
+  Yes/No → boolean) and surface it on the matchback row. Until then it correctly shows `--`.
 
 ---
 

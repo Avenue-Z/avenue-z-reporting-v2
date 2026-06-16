@@ -420,6 +420,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length]
       : coverageAvailable ? (domainTagNames(coverage, row.domain).join(', ') || 'None') : null,
     brandMentioned: row.brandMentioned,
+    // Pending-data placeholder (--): the PR Proof sheet has no linked-mention /
+    // backlink column. Whether a placement hyperlinks to the client lives in the
+    // article HTML, not the sheet. To enable: add a "Linked Mention" Yes/No column
+    // + wire it in lib/pr-proof/client.ts. See docs/aeo-empty-fields-diagnosis.md §5.
     linkedMention: prIsDemo ? i % 3 !== 0 : null,
     citedByAI: row.citedByAI,
     aiEnginesCiting: prIsDemo
