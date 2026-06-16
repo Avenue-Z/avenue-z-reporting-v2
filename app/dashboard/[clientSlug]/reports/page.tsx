@@ -81,7 +81,7 @@ function getReportComponent(
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
-      return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
+      return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
     default:
       return null
   }
@@ -157,15 +157,15 @@ export default async function ReportPage({
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
         )}
-        {/* AEO subsections (PR Influence, Content Impact, Technical Audit) honor
-            the page date range; the Overview is fixed to year-to-date, so the
-            picker is hidden there to avoid implying a control it doesn't have. */}
-        {activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection] && (
+        {/* All AEO pages (Overview + PR Influence, Content Impact, Technical
+            Audit) honor the page date range, comparing against the previous
+            period of equal length. */}
+        {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
         )}
-        {activeSection === 'peec-ai' && (subsection === 'pr-influence' || subsection === 'content-impact') && (
+        {activeSection === 'peec-ai' && (!subsection || subsection === 'pr-influence' || subsection === 'content-impact') && (
           <Suspense fallback={null}>
             <ModelFilter selected={models} />
           </Suspense>

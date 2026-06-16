@@ -40,15 +40,6 @@ import {
   type AISystemsInteractingRow,
   type ContentTeamRecommendationsRow,
 } from './content-impact-tables'
-/**
- * Peec only returns 'YTD' and 'Last 30 days' aggregates from getPeecOverview.
- * Map the page-level dateRange to one of those two keys for the relevant tiles.
- */
-function peecRangeKey(dateRange?: string): 'YTD' | 'Last 30 days' {
-  if (!dateRange) return 'Last 30 days'
-  if (['last_7_days', 'last_14_days', 'last_30_days', 'this_month'].includes(dateRange)) return 'Last 30 days'
-  return 'YTD'
-}
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -217,7 +208,7 @@ export async function ContentImpactReport({
   const priorRangeStr = priorRange ? `${priorRange.startDate},${priorRange.endDate}` : effectiveRange
 
   const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4PriorResult, ga4AiPathResult] = await Promise.allSettled([
-    getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
+    getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
     ga4Query({                          // page-level sessions for Section B -- requires ga4PropertyId
@@ -292,20 +283,20 @@ export async function ContentImpactReport({
   if (urlCitationsResult.status === 'rejected') console.error('[content-impact] URL citations error:', urlCitationsResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
-  const rangeKey          = peecRangeKey(dateRange)
-  const ownDomains        = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Own')
-  const competitorDomains = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Competitor')
-  const editorialDomains  = (peecData?.domainsByRange[rangeKey] ?? []).filter(d => d.type === 'Editorial')
+  const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
+  const competitorDomains = (peecData?.topDomains ?? []).filter(d => d.type === 'Competitor')
+  const editorialDomains  = (peecData?.topDomains ?? []).filter(d => d.type === 'Editorial')
 
   // ── AI Citations KPI: filtered by selected models when active ───────────────
   // When a model filter is active, sum domainCitationsByModel across selected
-  // models for all domains. When no filter, use the pre-aggregated YTD total.
+  // models for all domains. When no filter, use the pre-aggregated total for the
+  // selected date range.
   const totalCitations = models != null && peecData?.domainCitationsByModel
     ? Object.keys(peecData.domainCitationsByModel).reduce(
         (acc, domain) => acc + sumByModel(peecData!.domainCitationsByModel, domain, models),
         0,
       )
-    : (peecData?.totalCitationsByRange['YTD'] ?? 0)
+    : (peecData?.totalCitations ?? 0)
 
   // ── Bot filtering by selected AI models ─────────────────────────────────────
   // When a model filter is active, keep only bots mapped to a selected model.

@@ -30,7 +30,7 @@ export function PeriodRibbon({ change }: { change: PeriodChange }) {
   return (
     <div>
       <p className="mb-2 text-xs font-bold uppercase tracking-widest text-text-muted">
-        What changed this period? <span className="font-normal normal-case tracking-normal">· last 30 days vs prior 30</span>
+        What changed this period? <span className="font-normal normal-case tracking-normal">· selected range vs the previous period</span>
       </p>
       <div className="flex flex-wrap gap-3">
         <Chip

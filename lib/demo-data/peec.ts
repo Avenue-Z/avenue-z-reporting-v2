@@ -128,23 +128,6 @@ const COMPETITOR_AVERAGES: CompetitorAverages = {
   visibility: 27.4, sov: 11.6, sentiment: 0.66, position: 3.5,
 }
 
-const TOP_DOMAINS_30D: TopDomain[] = TOP_DOMAINS_YTD.map(d => ({
-  ...d,
-  retrieved: Math.max(0, d.retrieved * 0.7 + (d.domain.length % 5) * 0.3),
-  retrievedDelta: 0,
-  citationRate: Math.max(0, d.citationRate * 0.65 + (d.domain.length % 7) * 0.4),
-  citationRateDelta: 0,
-}))
-
-function rankingsCopy(base: BrandRanking[]): BrandRanking[] {
-  return base.map(b => ({
-    ...b,
-    visibility: Math.max(0, b.visibility * 0.85 + (b.rank % 3) * 0.6),
-    sov:        Math.max(0, b.sov * 0.9 + (b.rank % 4) * 0.3),
-    visibilityDelta: 0, sovDelta: 0, sentimentDelta: 0, positionDelta: 0,
-  }))
-}
-
 const DOMAIN_CITATIONS_BY_MODEL: ByModel<string, number> = {
   'avenuez.com':        { ChatGPT: 142, Claude: 98,  Perplexity: 187, Gemini: 76,  Copilot: 54 },
   'blog.avenuez.com':   { ChatGPT:  54, Claude: 41,  Perplexity:  72, Gemini: 28,  Copilot: 19 },
@@ -180,18 +163,8 @@ export function samplePeecOverview(): PeecOverview {
     },
     competitorAverages:         COMPETITOR_AVERAGES,
     brandRankings:              BRANDS,
-    brandRankingsByRange: {
-      'YTD':          BRANDS,
-      'Last 30 days': rankingsCopy(BRANDS),
-    },
-    domainsByRange: {
-      'YTD':          TOP_DOMAINS_YTD,
-      'Last 30 days': TOP_DOMAINS_30D,
-    },
-    totalCitationsByRange: {
-      'YTD':          3247,
-      'Last 30 days': 1184,
-    },
+    topDomains:                 TOP_DOMAINS_YTD,
+    totalCitations:             3247,
     domainTypes:    DOMAIN_TYPES,
     trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
     llmBreakdown:   LLM_BREAKDOWN,
