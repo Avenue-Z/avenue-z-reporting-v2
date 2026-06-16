@@ -94,6 +94,24 @@ production at `pr-influence.tsx` (`linkedMention: prIsDemo ? … : null`).
   (`lib/pr-proof/client.ts` — add `linkedMention` to `PRProofColumnMap` + `DEFAULT_COLUMN_MAP`, parse
   Yes/No → boolean) and surface it on the matchback row. Until then it correctly shows `--`.
 
+### 6. §B "How is each planned content piece performing?" — `--`-heavy rows are a date-range artifact (by design)
+**Decision: left as-is — this is expected behavior, not a bug.** Some planned-content rows show `--` for
+**Sessions, Users, Views, Engagement Rate, and AI-Referred Sessions** (the GA4-derived columns) while the
+calendar columns (Topic, URL, Type, Status, Publish Date) still populate.
+
+- **Why:** GA4 only returns pages that had **sessions within the selected date range**. A planned piece
+  that has gone quiet isn't in the response, so the per-URL join finds nothing and those columns render
+  `--`. Verified for avenue-z (default last-30-days window): **122 / 134** planned URLs have traffic in
+  the last 30 days; the other **12** (mostly March/April posts that cooled off) show `--`. Over a
+  365-day window, **133 / 134** populate — so the pages are real and correctly matched, just not recently
+  trafficked.
+- **The `--` is intentional, not a missing 0.** A GA4 absence is ambiguous — it can mean "0 sessions this
+  period" *or* "this calendar URL didn't match any GA4 path" (a typo'd/wrong slug — 1 of 134 never
+  matches). Rendering `--` (rather than `0`) keeps those distinct, and the **Match Status** column
+  surfaces the mismatch case. Engagement Rate is a rate, so it is also `--` (undefined at 0 sessions),
+  consistent with Avg Citations (§4).
+- **To populate:** widen the dashboard date range (e.g. last 12 months); the historical traffic exists.
+
 ---
 
 ## Reference: file map
