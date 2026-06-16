@@ -136,6 +136,22 @@ and Time to First AI Activity** all render `--`:
   or add a Content Action column the parser already understands — `new`/`optimized`/`other`). Until the
   calendar contains optimized pieces, there is nothing to compare net-new against.
 
+### 8. §G sub-view 3 "Which pages have AI bot attention but no citations or human visits?" — AI-Referred Sessions mixes `0` and `--` (by design)
+**Decision: left as-is — the `0`/`--` split is intentional and a useful signal here.** This table's rows
+come from **AI bot crawl paths** (`agentData.topPaths`), and the AI-Referred Sessions column uses
+`aiReferredForPath(path)`, which separates two distinct cases:
+
+- **`0`** — GA4 **tracks** this page (it had sessions in the window) and **none were AI-referred**. A real,
+  measured zero: the page gets traffic, but no AI engine is sending visits.
+- **`--`** — GA4 has **no data for that crawled path** in the window, so AI-referred is *unknowable*, not
+  zero (we return `--` rather than a misleading `0`).
+
+**Why `--` is especially relevant in *this* table:** the rows are bot-crawled URLs, and many aren't normal
+content pages — `/robots.txt`, redirect targets, error pages, and the `www.avenuez.com` **301** paths
+(see §3). GA4 never records those as pages, so they correctly land on `--`. So the split is diagnostic:
+`--` rows are largely bots hitting non-page / redirected URLs (the §3 infra issue), while `0` rows are
+real pages bots crawl but AI isn't driving traffic to yet. Same 0-vs-no-data rule as everywhere else.
+
 ---
 
 ## Reference: file map
