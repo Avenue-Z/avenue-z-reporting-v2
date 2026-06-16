@@ -485,6 +485,11 @@ from googleapiclient.discovery import build
 
 from config import CREDENTIALS_PATH, SCOPES, HEADER
 
+# 0-based column indices holding date-like LABELS that must stay literal text.
+# Without this, USER_ENTERED (needed so =HYPERLINK in Topic parses) coerces
+# "July 2023" and "7/7" into date serial numbers (and assumes the current year).
+TEXT_COL_INDICES = [0, 5]  # A Date (month-year), F Publish Date (M/D)
+
 
 def build_sheets_service(credentials_path: str = CREDENTIALS_PATH):
     creds = service_account.Credentials.from_service_account_file(
@@ -493,13 +498,35 @@ def build_sheets_service(credentials_path: str = CREDENTIALS_PATH):
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
-def get_first_tab_title(service, sheet_id: str) -> str:
-    """Return the title of the first (leftmost) tab — the one the app reads."""
+def _first_tab_props(service, sheet_id: str) -> dict:
+    """Return {title, sheetId} of the first (leftmost) tab — the one the app reads."""
     meta = service.spreadsheets().get(
-        spreadsheetId=sheet_id, fields="sheets.properties(title,index)"
+        spreadsheetId=sheet_id, fields="sheets.properties(title,index,sheetId)"
     ).execute()
     sheets = sorted(meta["sheets"], key=lambda s: s["properties"]["index"])
-    return sheets[0]["properties"]["title"]
+    return sheets[0]["properties"]
+
+
+def get_first_tab_title(service, sheet_id: str) -> str:
+    """Return the title of the first (leftmost) tab — the one the app reads."""
+    return _first_tab_props(service, sheet_id)["title"]
+
+
+def _format_text_columns(service, sheet_id: str, gid: int) -> None:
+    """Force date-label columns to plain-text so USER_ENTERED writes stay literal."""
+    requests = []
+    for col in TEXT_COL_INDICES:
+        requests.append({
+            "repeatCell": {
+                "range": {"sheetId": gid, "startColumnIndex": col,
+                          "endColumnIndex": col + 1},
+                "cell": {"userEnteredFormat": {"numberFormat": {"type": "TEXT"}}},
+                "fields": "userEnteredFormat.numberFormat",
+            }
+        })
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet_id, body={"requests": requests}
+    ).execute()
 
 
 def read_rows(service, sheet_id: str, tab_title: str) -> list:
@@ -516,11 +543,15 @@ def write_data_region(service, sheet_id: str, tab_title: str, data_rows: list) -
     """Clear the tab then write HEADER (row 1) + all data rows, in order.
 
     A full rewrite (not append) so the date-sorted order is materialized every
-    run. USER_ENTERED so =HYPERLINK formulas are parsed into real links.
+    run. USER_ENTERED so =HYPERLINK formulas are parsed into real links; the
+    date-label columns are preformatted as text so they aren't coerced to serials.
     """
+    props = _first_tab_props(service, sheet_id)
+    gid = props["sheetId"]
     service.spreadsheets().values().clear(
         spreadsheetId=sheet_id, range=f"'{tab_title}'!A1:Z1000"
     ).execute()
+    _format_text_columns(service, sheet_id, gid)  # must precede the value write
     service.spreadsheets().values().update(
         spreadsheetId=sheet_id,
         range=f"'{tab_title}'!A1",
