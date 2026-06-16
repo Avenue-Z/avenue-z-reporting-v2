@@ -44,6 +44,7 @@ npx tsx --env-file=.env.local scripts/diagnose-google-sa.ts
 | **§B "AI Citations"** | `--` for uncited URLs | `0` when the Peec citations query loaded (uncited = real 0); `--` only on query failure. |
 | **§D AI-Referred (empty group)** | `0` | `--` for an empty group (consistent with the other empty-group metrics). |
 | **§G topic fallback** | `--` for non-calendar pages | Readable label from the URL slug (`labelFromPath`). |
+| **Technical Performance · "Human Visits from AI"** (Page Overlap) | hard-coded `null` (the report fetched no GA4) | Added a `pagePath × sessionSource` GA4 query to `TechnicalAuditReport`; per-path AI-referred sessions passed to `PageOverlapTable` (`aiReferredByPath`). Tracked path → count (0 if none); path GA4 doesn't cover → `--`. Verified live: 149 pages have AI-referred sessions. |
 
 **Key data-layer additions:** `lib/content-calendar/date.ts` (`parseCalendarDate`, `parseYearHint`);
 `monthContext` column alias in `lib/content-calendar/client.ts`; `DomainCoverage.tagIdsByUrlKey` +
