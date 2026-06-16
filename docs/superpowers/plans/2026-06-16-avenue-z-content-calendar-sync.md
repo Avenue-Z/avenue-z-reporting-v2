@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A scheduled Python job that pulls Avenue Z's published blog posts from the WordPress REST API and appends them (in the Renaissance 17-column format) to the first tab of the Avenue Z content-calendar Google Sheet, so the reporting dashboard's Content Impact Tracker reads them.
+**Goal:** A scheduled Python job that pulls Avenue Z's published blog posts from the WordPress REST API and writes them (in the Renaissance 17-column format, **sorted chronologically by publish date**) to the first tab of the Avenue Z content-calendar Google Sheet, so the reporting dashboard's Content Impact Tracker reads them.
 
-**Architecture:** Standalone Python repo mirroring the `monthly-report-agent` pattern (service-account auth, Cloud Run Job + Cloud Scheduler). Pure functions (`mapping`, `merge`, post filtering) are separated from I/O (`wp_reader` network, `sheets_writer` Google API) so the core logic is unit-tested without network access. The job is idempotent: each run reads the sheet, dedups by post URL, and appends only new posts.
+**Architecture:** Standalone Python repo mirroring the `monthly-report-agent` pattern (service-account auth, Cloud Run Job + Cloud Scheduler). Pure functions (`mapping`, `merge`, post filtering) are separated from I/O (`wp_reader` network, `sheets_writer` Google API) so the core logic is unit-tested without network access. The job is idempotent: each run reads the sheet, rebuilds the full data region from the live post list **sorted by publish date (oldest→newest)**, keyed by post URL — carrying over any human-filled strategy cells — and rewrites the tab. Because Avenue Z's sheet is machine-generated (no human-maintained calendar), a full date-sorted rewrite keeps posts perfectly ordered by date every run rather than letting new posts pile up at the bottom.
 
 **Tech Stack:** Python 3.11, `requests`, `google-api-python-client`, `google-auth`, `pytest`. Deployed as a Cloud Run Job triggered by Cloud Scheduler (cron `0 9 */2 * *`, every other day).
 
@@ -28,8 +28,8 @@
 - `config.py` — constants (URLs, sheet id, scopes, header, column indices, cron)
 - `wp_reader.py` — `filter_blog_posts()` (pure) + `fetch_blog_posts()` (network)
 - `mapping.py` — `hyperlink_formula()`, `post_to_row()` (pure)
-- `merge.py` — `existing_urls()`, `rows_to_append()` (pure)
-- `sheets_writer.py` — SA auth, read first tab, ensure header, append rows (Google API)
+- `merge.py` — `existing_strategy_by_url()`, `build_sheet_rows()` (pure, date-sorted)
+- `sheets_writer.py` — SA auth, read first tab, write data region (Google API)
 - `sync.py` — CLI entry point orchestrating the run (`--dry-run` supported)
 - `cloud_run_entrypoint.py` — decode base64 SA creds env → file, then run `sync.py`
 - `Dockerfile`, `deploy.sh`, `.env.template`, `README.md`
@@ -136,6 +136,11 @@ HEADER = [
 ]
 
 URL_COL_INDEX = 10  # column K (0-based) — dedup key
+
+# Observable columns the script owns (always regenerated from the post):
+# A Date(0), C Content Type(2), D Topic(3), E Status(4), F Publish Date(5), K URL(10).
+# Everything else is a human strategy column we carry over on re-run if filled.
+STRATEGY_COL_INDICES = [1, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16]
 ```
 
 - [ ] **Step 2: Commit**
@@ -254,7 +259,12 @@ git commit -m "feat: map WP post to 17-column calendar row"
 
 ---
 
-### Task 4: Merge (dedup by URL) — pure, TDD
+### Task 4: Merge (date-sorted rewrite, keyed by URL) — pure, TDD
+
+The full data region is rebuilt every run from the live post list, sorted by
+publish date (oldest→newest). Observable columns are regenerated from each post;
+any human-filled strategy cells on an existing row (matched by URL) are carried
+over so manual edits are never clobbered. Idempotent: same posts → identical rows.
 
 **Files:**
 - Create: `merge.py`
@@ -264,32 +274,46 @@ git commit -m "feat: map WP post to 17-column calendar row"
 
 ```python
 # tests/test_merge.py
-from merge import existing_urls, rows_to_append
+from merge import existing_strategy_by_url, build_sheet_rows
 
 POST_A = {"date": "2026-06-15T15:00:00", "link": "https://avenuez.com/blog/a/",
           "title": {"rendered": "A"}}
 POST_B = {"date": "2026-06-14T10:00:00", "link": "https://avenuez.com/blog/b/",
           "title": {"rendered": "B"}}
 
-def _row_with_url(url):
+def _row(url, **cells):
     r = [""] * 17
     r[10] = url
+    for i, v in cells.items():
+        r[i] = v
     return r
 
-def test_existing_urls_skips_header_and_reads_col_k():
-    rows = [["Date", "Priority"], _row_with_url("https://avenuez.com/blog/a/")]
-    assert existing_urls(rows) == {"https://avenuez.com/blog/a/"}
+def test_existing_strategy_by_url_indexes_col_k_skipping_header():
+    rows = [["Date"], _row("https://avenuez.com/blog/a/", **{16: "a note"})]
+    idx = existing_strategy_by_url(rows)
+    assert set(idx) == {"https://avenuez.com/blog/a/"}
+    assert idx["https://avenuez.com/blog/a/"][16] == "a note"
 
-def test_rows_to_append_only_returns_new_posts():
-    existing = [["Date"], _row_with_url("https://avenuez.com/blog/a/")]
-    new = rows_to_append(existing, [POST_A, POST_B])
-    assert len(new) == 1
-    assert new[0][10] == "https://avenuez.com/blog/b/"  # only B is new
+def test_build_sheet_rows_sorts_by_date_ascending():
+    # POST_A is newer than POST_B → B must come first
+    rows = build_sheet_rows([["Date"]], [POST_A, POST_B])
+    assert [r[10] for r in rows] == [
+        "https://avenuez.com/blog/b/",   # 6/14 (older) first
+        "https://avenuez.com/blog/a/",   # 6/15 (newer) second
+    ]
 
-def test_rows_to_append_empty_when_all_known():
-    existing = [["Date"], _row_with_url("https://avenuez.com/blog/a/"),
-                _row_with_url("https://avenuez.com/blog/b/")]
-    assert rows_to_append(existing, [POST_A, POST_B]) == []
+def test_build_sheet_rows_is_idempotent():
+    once = build_sheet_rows([["Date"]], [POST_A, POST_B])
+    twice = build_sheet_rows([["Date"]] + once, [POST_A, POST_B])
+    assert once == twice
+
+def test_build_sheet_rows_carries_over_human_strategy_cells():
+    existing = [["Date"], _row("https://avenuez.com/blog/a/", **{16: "keep me", 1: "High"})]
+    rows = build_sheet_rows(existing, [POST_A])
+    row_a = next(r for r in rows if r[10] == "https://avenuez.com/blog/a/")
+    assert row_a[16] == "keep me"          # Q Notes carried over
+    assert row_a[1] == "High"              # B Priority carried over
+    assert row_a[4] == "Published"         # E Status still regenerated
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -300,42 +324,54 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'merge'`.
 - [ ] **Step 3: Write `merge.py`**
 
 ```python
-"""Pure merge: given existing sheet rows + WP posts, return rows to append."""
-from config import URL_COL_INDEX
+"""Pure merge: rebuild the full data region, date-sorted, keyed by post URL.
+
+Observable columns are regenerated from each post; human-filled strategy cells
+on a matching existing row (by URL) are carried over. Posts are sorted by
+publish date ascending so the sheet stays in chronological order every run.
+"""
+from config import URL_COL_INDEX, STRATEGY_COL_INDICES
 from mapping import post_to_row
 
 
-def existing_urls(rows: list) -> set:
-    """Collect URLs already in the sheet (column K), skipping the header row."""
-    urls = set()
+def existing_strategy_by_url(rows: list) -> dict:
+    """Index existing data rows by URL (column K), skipping the header row."""
+    by_url = {}
     for row in rows[1:]:  # skip header
         if len(row) > URL_COL_INDEX:
             url = (row[URL_COL_INDEX] or "").strip()
             if url:
-                urls.add(url)
-    return urls
+                by_url[url] = row
+    return by_url
 
 
-def rows_to_append(existing_rows: list, posts: list) -> list:
-    """Map only posts whose URL is not already present. Preserves post order."""
-    known = existing_urls(existing_rows)
-    new_rows = []
-    for post in posts:
-        if post["link"].strip() not in known:
-            new_rows.append(post_to_row(post))
-    return new_rows
+def build_sheet_rows(existing_rows: list, posts: list) -> list:
+    """Return the full data region (no header), sorted by publish date ascending,
+    carrying over any human-filled strategy cells from matching existing rows."""
+    prior = existing_strategy_by_url(existing_rows)
+    ordered = sorted(posts, key=lambda p: p["date"])  # ISO dates sort lexically
+    out = []
+    for post in ordered:
+        row = post_to_row(post)
+        old = prior.get(post["link"].strip())
+        if old:
+            for i in STRATEGY_COL_INDICES:
+                if i < len(old) and old[i]:
+                    row[i] = old[i]
+        out.append(row)
+    return out
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `./venv/bin/pytest tests/test_merge.py -v`
-Expected: PASS (3 passed).
+Expected: PASS (4 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add merge.py tests/test_merge.py
-git commit -m "feat: dedup posts by URL against existing sheet rows"
+git commit -m "feat: date-sorted rewrite keyed by URL, preserving human strategy cells"
 ```
 
 ---
@@ -469,35 +505,29 @@ def get_first_tab_title(service, sheet_id: str) -> str:
 def read_rows(service, sheet_id: str, tab_title: str) -> list:
     """Read A1:Z1000 of the given tab as a list of rows (formatted values)."""
     resp = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range=f"'{tab_title}'!A1:Z1000"
+        spreadsheetId=sheet_id,
+        range=f"'{tab_title}'!A1:Z1000",
+        valueRenderOption="FORMULA",   # read =HYPERLINK back as formula, not display text
     ).execute()
     return resp.get("values", [])
 
 
-def ensure_header(service, sheet_id: str, tab_title: str, rows: list) -> None:
-    """If the tab is empty (no header), write HEADER to row 1."""
-    if rows:
-        return
+def write_data_region(service, sheet_id: str, tab_title: str, data_rows: list) -> int:
+    """Clear the tab then write HEADER (row 1) + all data rows, in order.
+
+    A full rewrite (not append) so the date-sorted order is materialized every
+    run. USER_ENTERED so =HYPERLINK formulas are parsed into real links.
+    """
+    service.spreadsheets().values().clear(
+        spreadsheetId=sheet_id, range=f"'{tab_title}'!A1:Z1000"
+    ).execute()
     service.spreadsheets().values().update(
         spreadsheetId=sheet_id,
         range=f"'{tab_title}'!A1",
         valueInputOption="USER_ENTERED",
-        body={"values": [HEADER]},
+        body={"values": [HEADER] + data_rows},
     ).execute()
-
-
-def append_rows(service, sheet_id: str, tab_title: str, new_rows: list) -> int:
-    """Append rows to the tab. USER_ENTERED so =HYPERLINK formulas are parsed."""
-    if not new_rows:
-        return 0
-    service.spreadsheets().values().append(
-        spreadsheetId=sheet_id,
-        range=f"'{tab_title}'!A1",
-        valueInputOption="USER_ENTERED",
-        insertDataOption="INSERT_ROWS",
-        body={"values": new_rows},
-    ).execute()
-    return len(new_rows)
+    return len(data_rows)
 ```
 
 - [ ] **Step 2: Copy the service-account key into the repo**
@@ -532,7 +562,7 @@ Expected: prints the first tab title and a row count (0 if blank). No auth error
 
 ```bash
 git add sheets_writer.py
-git commit -m "feat: sheets writer (SA auth, read first tab, ensure header, append)"
+git commit -m "feat: sheets writer (SA auth, read first tab, date-sorted full rewrite)"
 ```
 
 ---
@@ -545,14 +575,14 @@ git commit -m "feat: sheets writer (SA auth, read first tab, ensure header, appe
 - [ ] **Step 1: Write `sync.py`**
 
 ```python
-"""Entry point: fetch blog posts and append new ones to the Avenue Z sheet."""
+"""Entry point: fetch blog posts and rewrite the Avenue Z sheet, date-sorted."""
 import argparse
 
-from config import TARGET_SHEET_ID
+from config import TARGET_SHEET_ID, URL_COL_INDEX
 from wp_reader import fetch_blog_posts
-from merge import rows_to_append
+from merge import build_sheet_rows, existing_strategy_by_url
 from sheets_writer import (
-    build_sheets_service, get_first_tab_title, read_rows, ensure_header, append_rows,
+    build_sheets_service, get_first_tab_title, read_rows, write_data_region,
 )
 
 
@@ -563,20 +593,23 @@ def run(dry_run: bool = False) -> int:
     service = build_sheets_service()
     tab = get_first_tab_title(service, TARGET_SHEET_ID)
     rows = read_rows(service, TARGET_SHEET_ID, tab)
-    print(f"[sync] first tab '{tab}' has {len(rows)} existing rows")
+    print(f"[sync] first tab '{tab}' has {max(len(rows) - 1, 0)} existing data rows")
 
-    new_rows = rows_to_append(rows, posts)
-    print(f"[sync] {len(new_rows)} new posts to append")
+    data_rows = build_sheet_rows(rows, posts)
+    known = set(existing_strategy_by_url(rows))
+    new_count = sum(1 for r in data_rows if r[URL_COL_INDEX] not in known)
+    print(f"[sync] {len(data_rows)} total rows ({new_count} new) — date-sorted")
 
     if dry_run:
-        for r in new_rows[:5]:
-            print("  would append:", r[5], r[3])  # publish date, topic formula
+        for r in data_rows[:5]:
+            print("  row:", r[5], "|", r[10])  # publish date, URL (oldest first)
+        if len(data_rows) > 5:
+            print(f"  ... and {len(data_rows) - 5} more")
         print("[sync] dry-run: nothing written")
         return 0
 
-    ensure_header(service, TARGET_SHEET_ID, tab, rows)
-    written = append_rows(service, TARGET_SHEET_ID, tab, new_rows)
-    print(f"[sync] appended {written} rows to '{tab}'")
+    written = write_data_region(service, TARGET_SHEET_ID, tab, data_rows)
+    print(f"[sync] wrote {written} data rows to '{tab}' (header + date-sorted posts)")
     return 0
 
 
@@ -593,7 +626,7 @@ Run:
 ```bash
 cd ~/Desktop/avenuez-agents/content-calendar-sync && ./venv/bin/python sync.py --dry-run
 ```
-Expected: prints fetched count, existing-row count, "N new posts to append", and a few sample rows. Nothing written.
+Expected: prints fetched count, existing-row count, "N total rows (M new) — date-sorted", and the first few rows in oldest-first order. Nothing written.
 
 - [ ] **Step 3: Commit**
 
@@ -614,17 +647,17 @@ Run:
 ```bash
 cd ~/Desktop/avenuez-agents/content-calendar-sync && ./venv/bin/python sync.py
 ```
-Expected: "[sync] appended N rows". (N ≈ all `/blog/` posts on first run.)
+Expected: "[sync] wrote N data rows" (N ≈ all `/blog/` posts), all new on first run.
 
 - [ ] **Step 2: Verify in the sheet**
 
 Open `https://docs.google.com/spreadsheets/d/1-Ar5vGXLWHnO3qtbymFVsgGD6kpJxCZvGWUSK5NngyQ/edit`.
-Confirm: header row present; Topic column shows clickable hyperlinks; Content Type = "New Blog"; Status = "Published"; column K holds the post URLs.
+Confirm: header row present; rows are in **chronological order by Publish Date / Date month** (oldest at top); Topic column shows clickable hyperlinks; Content Type = "New Blog"; Status = "Published"; column K holds the post URLs.
 
 - [ ] **Step 3: Verify idempotency**
 
 Run `./venv/bin/python sync.py` again.
-Expected: "[sync] 0 new posts to append" — no duplicates added.
+Expected: "[sync] N total rows (0 new)" — same row count, no duplicates, identical order.
 
 ---
 
@@ -785,8 +818,8 @@ Expected: "Planned URLs in Scope" and the planned-content table now reflect the 
 
 ## Self-Review
 
-**Spec coverage:** Source (Task 5) ✓ · 17-col mapping incl. URL in col K + Topic hyperlink (Task 3) ✓ · observable-only, strategy blank (Task 3) ✓ · first-tab write (Tasks 6–7) ✓ · idempotent merge by URL (Task 4, verified Task 8.3) ✓ · SA auth via automation-agent (Task 6) ✓ · Sheets-only (no Drive/supportsAllDrives, per spec note) ✓ · Python + Cloud Run Job + Cloud Scheduler every-other-day (Task 9) ✓ · M/D publish date (Task 3) ✓ · go-live contentCalendarSheetId (Task 10) ✓ · dry-run (Task 7) ✓ · unit tests for mapping/merge/filter (Tasks 3–5) ✓.
+**Spec coverage:** Source (Task 5) ✓ · 17-col mapping incl. URL in col K + Topic hyperlink (Task 3) ✓ · observable-only, strategy blank (Task 3) ✓ · first-tab write (Tasks 6–7) ✓ · idempotent, **date-sorted** rewrite keyed by URL, preserving human strategy cells (Task 4, verified Task 8.3) ✓ · SA auth via automation-agent (Task 6) ✓ · Sheets-only (no Drive/supportsAllDrives, per spec note) ✓ · Python + Cloud Run Job + Cloud Scheduler every-other-day (Task 9) ✓ · M/D publish date (Task 3) ✓ · go-live contentCalendarSheetId (Task 10) ✓ · dry-run (Task 7) ✓ · unit tests for mapping/merge/filter (Tasks 3–5) ✓.
 
 **Placeholder scan:** No TBD/TODO; every code step has complete code; commands have expected output.
 
-**Type consistency:** `post_to_row` (mapping) used by `rows_to_append` (merge) — signature consistent. `HEADER`/`URL_COL_INDEX` defined in config, used in mapping/merge/sheets_writer consistently. `build_sheets_service`/`get_first_tab_title`/`read_rows`/`ensure_header`/`append_rows` defined in Task 6, called identically in Task 7.
+**Type consistency:** `post_to_row` (mapping) used by `build_sheet_rows` (merge) — signature consistent. `HEADER`/`URL_COL_INDEX`/`STRATEGY_COL_INDICES` defined in config, used in mapping/merge/sheets_writer consistently. `build_sheets_service`/`get_first_tab_title`/`read_rows`/`write_data_region` defined in Task 6, called identically in Task 7. `existing_strategy_by_url`/`build_sheet_rows` defined in Task 4, used in Task 7.
