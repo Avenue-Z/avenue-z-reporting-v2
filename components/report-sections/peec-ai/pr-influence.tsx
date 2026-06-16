@@ -58,6 +58,7 @@ function buildMatchback(
   placements: PRPlacement[],
   editorialDomains: TopDomain[],
   coverage: DomainCoverage,
+  urlCitations: UrlCitation[],
 ): MatchbackRow[] {
   // Build lookup: domain -> editorial domain data
   const domainLookup = new Map<string, TopDomain>()
@@ -65,23 +66,30 @@ function buildMatchback(
     domainLookup.set(d.domain.toLowerCase(), d)
   }
 
+  // Real AI engine names per host (ChatGPT/Perplexity/…) from per-URL citation
+  // data. These values match AEOModel, so the model filter works on them too.
+  const host = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
+  const enginesByHost = new Map<string, Set<string>>()
+  for (const c of urlCitations) {
+    if (!c.engines.length) continue
+    const k = host(c.domain)
+    if (!enginesByHost.has(k)) enginesByHost.set(k, new Set())
+    for (const e of c.engines) enginesByHost.get(k)!.add(e)
+  }
+
   return placements.map((p) => {
     const domainKey = p.domain.toLowerCase()
     const editorialMatch = domainLookup.get(domainKey)
 
-    // Check if the domain is cited in any AI response
-    const citedByAI = !!editorialMatch
+    // Real engine names citing a URL on this placement's host (empty when none).
+    const aiEnginesCiting = [...(enginesByHost.get(host(p.domain)) ?? [])]
+    // Cited if Peec lists the domain as an editorial citation OR a URL on it
+    // carries engine-level citation data.
+    const citedByAI = !!editorialMatch || aiEnginesCiting.length > 0
     // Distinct tracked prompts in which a URL on this domain is cited, derived
     // from per-URL citation data (not trackedPrompts[].sources, which are
     // AI-engine ids and never match a domain).
     const promptCount = domainPromptIds(coverage, p.domain).length
-
-    // Get LLMs that cite this domain (from editorial data type or prompt sources)
-    const aiEnginesCiting: string[] = []
-    if (editorialMatch) {
-      // We know at least one AI engine cites this domain since it appears in Peec data
-      aiEnginesCiting.push('AI Engines')
-    }
 
     return {
       ...p,
@@ -279,7 +287,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
-    ? buildMatchback(prData.placements, editorialDomains, coverage)
+    ? buildMatchback(prData.placements, editorialDomains, coverage, urlCitations)
     : []
 
   // True once the coverage fetch returned data: a domain missing from it is a
@@ -418,7 +426,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       ? DEMO_AI_ENGINES[i % DEMO_AI_ENGINES.length]
       : row.aiEnginesCiting.length > 0
         ? row.aiEnginesCiting.join(', ')
-        : '',
+        : row.citedByAI ? 'AI Engines' : 'Not cited',
     // Known 0 (no tracked prompt cites this domain) shows 0, not -- which reads
     // as missing data. -- only when coverage is unavailable.
     promptCount: prIsDemo
