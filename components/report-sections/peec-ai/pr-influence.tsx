@@ -8,7 +8,7 @@ import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_AI_REFERRAL_ROWS, SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS } from '@/lib/demo-data/ga4-pr-influence'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { AI_REFERRER_DOMAINS } from '@/lib/constants'
+import { isAiSource } from '@/lib/constants'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -214,12 +214,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
-
-  // GA4 AI referral sessions computation
-  const isAiSource = (source: unknown) =>
-    (AI_REFERRER_DOMAINS as readonly string[]).some(d =>
-      String(source ?? '').toLowerCase().includes(d)
-    )
 
   // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
   // Only when the query failed / GA4 is unconfigured do we show -- (no data).
