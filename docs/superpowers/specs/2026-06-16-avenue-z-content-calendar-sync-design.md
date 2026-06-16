@@ -1,160 +1,160 @@
-# Avenue Z Content Calendar Sync — Design
+# Avenue Z Content Calendar Sync — Design (v2)
 
 **Date:** 2026-06-16
-**Status:** Approved (brainstorming complete; pending spec review)
+**Status:** Revised after studying the Renaissance sheet + `monthly-report-agent`. Pending spec review.
 **Branch:** `feat/avez-content-calendar-sync`
 
 ## Problem & Goal
 
-Avenue Z (unlike real clients such as Renaissance) has no human-maintained content
-calendar, so its **Content Impact Tracker** (AEO → Content Impact) has no
-content-calendar data source and its calendar-driven sections render empty.
+Avenue Z (unlike clients such as Renaissance) has no human-maintained editorial
+content calendar, so its **Content Impact Tracker** (AEO → Content Impact) has no
+content-calendar source and its calendar-driven sections render empty.
 
-Real clients use a human-authored content-calendar Google Sheet. Avenue Z's
-equivalent should be **auto-generated from its own published blog**, in the exact
-format of the Renaissance master template, and kept current automatically as new
-posts publish.
+**Goal:** A scheduled Python job that reads Avenue Z's published blog posts and
+maintains a Google Sheet (replicating the Renaissance content-calendar format) so
+that setting Avenue Z's `contentCalendarSheetId` to that sheet makes its Content
+Impact Tracker show real data. Priority is **mapping to the Content Impact section
+perfectly** on the live dashboard; exact tab styling is secondary to that.
 
-**Goal:** A scheduled script that reads Avenue Z's published blog posts and
-maintains a Google Sheet (in the Renaissance 17-column layout) so that setting
-Avenue Z's `contentCalendarSheetId` to this sheet makes its Content Impact
-Tracker live.
+## How the dashboard reads the sheet (verified on production branch `feat/aeo-overview-enhancements`)
 
-## Source of Truth
+`lib/content-calendar/client.ts`:
+- Fetches **`A1:Z1000` of the FIRST (leftmost) tab** (no sheet/gid specified →
+  first sheet by position). → **Blog rows MUST be in the first tab.**
+- Row 1 = header; columns alias-matched case-insensitively.
+- Verified aliases that make the Renaissance format map cleanly:
+  - URL ← **"Proposed Page Slug (or Live URL When Published)"** (explicit alias).
+  - Content Type **"New Blog"** → `parseContentAction` derives Content Action = `new`.
+  - Status **"Published"** + a URL → `deriveMatchStatus` = `matched` (shows as live/tracked).
+- Consumes Topic, URL, Content Type, Status, Publish Date; derives Content Action
+  (from Content Type) and Match Status (from URL + Status).
 
-- **Master template:** `Renaissance_ContentCalendar_2026 - March – June 2026.csv`
-  — defines the canonical 17-column layout (see Column Mapping).
-- **Blog source:** Avenue Z WordPress **REST API** (verified working):
-  - Posts: `GET https://avenuez.com/wp-json/wp/v2/posts?per_page=100&page=N&_fields=id,date,modified,link,title,categories`
-  - Blog category: id `2`, slug `blog` (783 posts in category).
-  - **Filter:** include a post only if its `link` path contains `/blog/`.
-    (Category 2 is a broad catch-all that also tags some `/events/` and
-    `/press-release/` URLs; the URL-path filter is the clean definition of a
-    blog post and matches the user's `/category/blog/` intent.)
+**Discovery:** Renaissance's first tab is "July – September 2026" (empty planning
+quarter, 3 placeholder rows), so Renaissance's live tracker currently shows only
+those 3 rows — its 28 published posts sit in the "March – June 2026" tab the app
+never reads. For Avenue Z we deliberately put the published posts in the **first**
+tab so the tracker reads them.
 
-Chosen over sitemap XML (no clean title/category fields) and HTML scraping of
-`/category/blog/` (fragile, paginated). REST API returns structured JSON with all
-observable fields and is deterministic.
+## Renaissance workbook structure (studied 1:1, read-only) — to replicate
 
-## Output
+Workbook `Renaissance_ContentCalendar_2026`, three tabs, identical 17-column layout:
 
-- **A Google Sheet** in Avenue Z's shared client drive, written via a Google
-  service account, structured as the 17-column Renaissance layout (header row
-  identical to the master template).
-- Once populated, set Avenue Z's `clients.contentCalendarSheetId` (DB) to this
-  sheet → Content Impact Tracker reads it via the existing
-  `lib/content-calendar/client.ts` parser. No app code change required.
-
-## Column Mapping (17 columns)
-
-Only the "observable" columns are auto-filled; strategy columns are left blank
-for humans to fill later (and are preserved on re-run).
-
-| # | Column | Auto value |
+| Tab | gid | Role |
 |---|---|---|
-| 1 | Date | Month-year derived from publish date, e.g. `June 2026` |
-| 2 | Priority | *(blank)* |
-| 3 | Content Type | `New Blog` (→ app derives Content Action = `new`) |
-| 4 | Topic | Post title (`title.rendered`, HTML-entity-decoded) |
-| 5 | Status | `Published` |
-| 6 | Publish Date | From `date`, formatted **M/D** (e.g. `6/15`) to match master template |
-| 7 | Suggested Author (Blog Only) | *(blank)* |
-| 8 | Suggested Category Tags (Blog Only) | *(blank)* |
-| 9 | Why | *(blank)* |
-| 10 | How | *(blank)* |
-| 11 | Proposed Page Slug (or Live URL When Published) | Post `link` (full URL) — app reads this as the URL |
-| 12 | Relevant AI Queries | *(blank)* |
-| 13 | Keyword(s) | *(blank)* |
-| 14 | Internal Linking Opportunities | *(blank)* |
-| 15 | Inspiration / Competitor URLs | *(blank)* |
-| 16 | Organic Social Support | *(blank)* |
-| 17 | Notes | *(blank)* |
+| July – September 2026 | 0 | upcoming planning quarter (placeholder rows) |
+| March – June 2026 | 748532855 | populated published quarter (~28 rows) |
+| Backlog | 1757973412 | unscheduled ideas (Date = TBD) |
 
-The Content Impact Tracker parser consumes columns **4, 11, 3, 5, 6** (Topic, URL,
-Content Type, Status, Publish Date) and derives Content Action from Content Type
-and Match Status from URL+Status — so the auto-filled subset fully feeds the
-tracker.
+**17 columns (A→Q):** A Date (month, e.g. "March 2026") · B Priority (High/Med/Low,
+dropdown+color) · C Content Type (dropdown: Existing Page Optimization / Existing
+Blog Optimization / New Page / New Blog / Existing Guide Optimization) · D Topic
+(hyperlinked to URL) · E Status (dropdown+color: Published/Planned/Ready for
+Renaissance Review/Staging/In Progress) · F Publish Date (M/D) · G Suggested Author
+(Blog Only) · H Suggested Category Tags (Blog Only) · I Why · J How · K Proposed
+Page Slug (or Live URL When Published) · L Relevant AI Queries · M Keyword(s) ·
+N Internal Linking Opportunities · O Inspiration / Competitor URLs · P Organic
+Social Support · Q Notes.
 
-**Date-format caveat:** the master template uses bare M/D (no year). Avenue Z has
-posts spanning multiple years, so M/D is ambiguous across years. Per decision we
-match the template (M/D). Publish Date is not used for data matching (URL is), so
-this is cosmetic.
+Formatting: frozen bold header (dark bg), data-validation dropdowns + conditional
+colors on Priority/Content Type/Status, Topic as hyperlink.
 
-## Update Behavior (idempotent, safe to re-run)
+## Source
 
-Dedup key = **post URL** (column 11).
+Avenue Z WordPress **REST API** (verified working):
+- `GET https://avenuez.com/wp-json/wp/v2/posts?per_page=100&page=N&_fields=id,date,modified,link,title,categories`
+- Blog category id `2` (~783 posts). **Filter:** include only posts whose `link`
+  path contains `/blog/` (category 2 is a catch-all that also tags some
+  `/events/` and `/press-release/` URLs). Matches the user's `/category/blog/` source.
 
-1. Read all current rows from the target Google Sheet.
+Chosen over sitemap XML and HTML scraping (structured JSON, deterministic).
+
+## Output target
+
+- **Avenue Z Google Sheet** `1-Ar5vGXLWHnO3qtbymFVsgGD6kpJxCZvGWUSK5NngyQ`
+  (Editor access already granted to the service account).
+- The script writes blog rows into the **first (leftmost) tab** in the 17-column
+  Renaissance layout. (Optionally replicate the Backlog tab empty for visual
+  fidelity; not required for the tracker.)
+- **Go-live step (out of script scope):** set Avenue Z's `clients.contentCalendarSheetId`
+  = `1-Ar5…` in the DB → tracker reads it via the existing parser, no app code change.
+
+## Column mapping (blog post → row)
+
+Observable columns auto-filled; strategy columns left blank (preserved on re-run).
+
+| Column | Value |
+|---|---|
+| A Date | Month-year from publish date, e.g. `June 2026` |
+| B Priority | *(blank)* |
+| C Content Type | `New Blog` → derives Content Action `new` |
+| D Topic | Post title (HTML-decoded; hyperlink to URL optional) |
+| E Status | `Published` |
+| F Publish Date | From `date`, **M/D** to match the master template |
+| G–J, L–Q | *(blank)* — human strategy fields |
+| K Proposed Page Slug (or Live URL When Published) | Post `link` (full URL) — the column the parser reads as the URL |
+
+Date format M/D matches the template; Publish Date is not used for data matching
+(URL is), so multi-year ambiguity is cosmetic only.
+
+## Update behavior (idempotent, safe to re-run)
+
+Dedup key = **post URL** (column K).
+1. Read current rows from the first tab of the Avenue Z sheet.
 2. Fetch all `/blog/` posts from the REST API.
-3. For each post whose URL is **not** already a row → **append** a new row with
-   observable columns filled.
-4. For posts whose URL **already exists** → **leave the row untouched** (never
-   overwrite human-filled strategy columns or edited values).
-5. Posts removed from the site are left in the sheet (no deletion) — additive only.
+3. New URL → append a new row (observable columns filled).
+4. Existing URL → leave the row untouched (never clobber human-filled columns).
+5. Additive only (removed posts are not deleted from the sheet).
 
-This makes scheduled re-runs pick up only new posts and never clobber human edits.
+## Stack & auth (mirrors `monthly-report-agent`)
 
-## Scheduling
+- **Language/runtime:** Python; deployed as a **Cloud Run Job + Cloud Scheduler**
+  (the established Avenue Z automation pattern). New standalone repo/dir; the
+  `monthly-report-agent` repo stays untouched (reference-only).
+- **Service account:** `automation-agent@vertex-api-test-495415.iam.gserviceaccount.com`
+  via `google-credentials.json` (base64 env `GOOGLE_CREDENTIALS_JSON`, decoded at
+  startup). Scopes: `https://www.googleapis.com/auth/spreadsheets` (+ `drive` if
+  locating/creating files in the shared drive).
+- **Shared drive:** the target sheet lives in a shared drive; all Drive/Sheets
+  calls must pass `supportsAllDrives=True` / `includeItemsFromAllDrives=True`
+  (service accounts have no personal Drive quota). Pattern from
+  `monthly-report-agent/gdoc_writer.py`.
+- **Sheets write:** `build("sheets","v4")` — read first tab values, append new rows
+  (`values().append` or `batchUpdate`).
 
-- **Recommended:** GitHub Action on a cron schedule (e.g. daily), running the
-  TypeScript script via `tsx`. Service-account key stored as a GitHub Actions
-  secret. Decoupled from the app runtime.
-- **Alternative:** Vercel cron → API route (the app already uses Vercel cron in
-  `vercel.json` for `/api/cache-warm`). Heavier coupling to the app.
+## Components (new repo)
 
-Decision: GitHub Action cron unless review prefers Vercel.
+- `sync.py` — entry point: orchestrate fetch → map → merge → write.
+- `wp_reader.py` — paginated REST fetch + `/blog/` filter.
+- `mapping.py` — pure `post_to_row(post)` (post JSON → 17-col row). Unit-testable.
+- `merge.py` — pure `rows_to_append(existing, posts)` (dedup by URL). Unit-testable.
+- `sheets_writer.py` — SA auth + read first tab + append (shared-drive aware).
+- `Dockerfile`, `deploy.sh` (Cloud Run Job + Cloud Scheduler), `requirements.txt`.
 
-## Components
+Pure functions (`mapping`, `merge`) separated from I/O so logic is tested without network.
 
-- `scripts/avez-content-calendar-sync.ts` — entry point. Orchestrates:
-  - `fetchBlogPosts()` — paginated WP REST API fetch + `/blog/` filter + map to rows.
-  - `readSheet()` / `appendRows()` — Google Sheets API (service-account auth via
-    `google-auth-library`, `spreadsheets` scope). Mirrors the auth pattern in
-    `lib/content-calendar/client.ts` (which currently uses readonly scope).
-  - `mergeByUrl()` — pure function: given existing rows + fetched posts, returns
-    the new rows to append. Unit-testable in isolation.
-  - `toCalendarRow(post)` — pure mapping function (post JSON → 17-col row).
-    Unit-testable.
-- `.github/workflows/avez-content-calendar-sync.yml` — cron schedule (if GitHub
-  Action path chosen).
+## Configuration / prerequisites
 
-Pure functions (`toCalendarRow`, `mergeByUrl`) are separated from I/O (REST fetch,
-Sheets write) so the mapping and dedup logic can be tested without network access.
+- `google-credentials.json` for `automation-agent` (Sheets+Drive enabled).
+- Target sheet `1-Ar5…` shared with the SA as Editor (done).
+- Shared-drive id / folder if file creation is ever needed (sheet already exists).
+- Cloud Scheduler cadence (e.g. daily) — to confirm.
 
-## Configuration / Prerequisites (provided at implementation time)
+## Out of scope
 
-- **Target Google Sheet:** create a blank sheet in the shared client drive with
-  the 17-column header row (copy from master template); share it with the service
-  account as **Editor**. Provide its Sheet ID.
-- **Service account:** confirm whether to reuse `GOOGLE_SERVICE_ACCOUNT_KEY`
-  (`avenue-z-reporting@…`, already used by the app) or a different account. Needs
-  **write** (`spreadsheets`) scope, not just readonly.
-- **Secrets:** service-account JSON as env var locally and as a CI secret if
-  scheduled via GitHub Action.
-- **Final step (out of script scope):** set `contentCalendarSheetId` on Avenue
-  Z's `clients` row to the new sheet (DB update) to make the tracker live.
-
-## Out of Scope
-
-- Strategy columns (Why, How, AI Queries, Keywords, Internal Linking, Inspiration,
-  Priority, Author, Category Tags, Notes) — human-authored, left blank.
-- `/press-release/` and `/events/` posts — blog only.
-- Deleting/archiving rows for unpublished posts — additive only.
-- Backfilling AI citations / bot visits / sessions — those are enriched at render
-  time by the tracker from Peec/GA4, not stored in the calendar.
+- Strategy columns (Why/How/AI Queries/Keywords/Internal Linking/Inspiration/
+  Priority/Author/Category Tags/Notes) — human-authored, blank.
+- `/press-release/`, `/events/` posts — blog only.
+- Deleting/archiving rows — additive only.
+- AI citations / bot visits / sessions — enriched at render time by the tracker.
 
 ## Testing
 
-- Unit-test `toCalendarRow()` against sample WP post JSON (title decoding, M/D
-  date, URL passthrough, Content Type/Status constants).
-- Unit-test `mergeByUrl()` for: new post appended, existing URL skipped,
-  human-edited existing row preserved.
-- Dry-run mode (`--dry-run`) that logs the rows it would append without writing
-  to the sheet, for safe first execution against the real API.
+- Unit-test `post_to_row()` (title decode, M/D date, URL in col K, constants).
+- Unit-test `rows_to_append()` (new appended, existing skipped, human edits preserved).
+- `--dry-run` mode logs rows it would append without writing.
 
-## Open Questions
+## Open questions
 
-1. Service account: reuse the app's `avenue-z-reporting@…` or a separate one?
-2. Schedule cadence (daily? hourly?) and host (GitHub Action vs Vercel cron)?
-3. Should re-runs update the **Status** of an existing row if it changed on the
-   site, or stay strictly append-only? (Default: strictly append-only.)
+1. Cloud Scheduler cadence (daily? weekly?).
+2. Replicate the empty Backlog tab for visual fidelity, or single data tab only?
+3. Hyperlink the Topic cell to the URL (Renaissance does), or plain text?
