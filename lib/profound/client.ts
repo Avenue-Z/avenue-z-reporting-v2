@@ -1,4 +1,5 @@
 import { cached } from '@/lib/cache'
+import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
 import { buildPeriodChange } from '@/lib/aeo/period-change'
 
@@ -8,10 +9,6 @@ function getKey(): string {
   const key = process.env.PROFOUND_AI_ACCESS_TOKEN
   if (!key) throw new Error('Missing env var: PROFOUND_AI_ACCESS_TOKEN')
   return key
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().split('T')[0]
 }
 
 // --- Raw API types ---
@@ -125,9 +122,8 @@ export type ProfoundOverview = {
   competitorDailyVisibility: DailyPoint[]
   competitorAverages: CompetitorAverages
   brandRankings: BrandRanking[]
-  brandRankingsByRange: Record<string, BrandRanking[]>
-  domainsByRange: Record<string, TopDomain[]>
-  totalCitationsByRange: Record<string, number>
+  topDomains: TopDomain[]
+  totalCitations: number
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
@@ -352,9 +348,8 @@ function emptyOverview(): ProfoundOverview {
     competitorDailyVisibility:  [],
     competitorAverages:         { visibility: 0, sov: 0, sentiment: 0, position: 0 },
     brandRankings:              [],
-    brandRankingsByRange:       { 'YTD': [], 'Last 30 days': [] },
-    domainsByRange:             { 'YTD': [], 'Last 30 days': [] },
-    totalCitationsByRange:      { 'YTD': 0, 'Last 30 days': 0 },
+    topDomains:                 [],
+    totalCitations:             0,
     domainTypes:                [],
     trackedPrompts:             [],
     llmBreakdown:               [],
@@ -362,7 +357,7 @@ function emptyOverview(): ProfoundOverview {
   }
 }
 
-async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOverview> {
+async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string): Promise<ProfoundOverview> {
   let yourBrand: string
   let categoryId: string
 
@@ -381,21 +376,13 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     categoryId = await getCategoryId()
   }
 
-  const thisYear = new Date().getUTCFullYear()
-  const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
-  const priorYtd = {
-    start_date: `${thisYear - 1}-01-01`,
-    end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}`,
-  }
-  // Two equal, contiguous 30-day windows: last30 = days -29..0, prior30 = -59..-30.
-  const last30Start = new Date()
-  last30Start.setDate(last30Start.getDate() - 29)
-  const last30 = { start_date: isoDate(last30Start), end_date: isoDate(new Date()) }
-  const prior30Start = new Date()
-  prior30Start.setDate(prior30Start.getDate() - 59)
-  const prior30End = new Date()
-  prior30End.setDate(prior30End.getDate() - 30)
-  const prior30 = { start_date: isoDate(prior30Start), end_date: isoDate(prior30End) }
+  // Scope every metric to the page date range; compare deltas against the
+  // immediately-preceding period of equal length (matches the other AEO pages).
+  const range = dateRange ?? 'last_30_days'
+  const mainDates = parseDateRange(range)
+  const compareDates = deriveCompareRange(range, 'previous_period') ?? mainDates
+  const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
+  const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
   const base = (dates: { start_date: string; end_date: string }) => ({
     category_id: categoryId,
@@ -412,39 +399,27 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
   const [
     currentBrandsRes,
     priorBrandsRes,
-    brands30Res,
     weeklyRes,
     llmRes,
     domainsRes,
     priorDomainsRes,
-    domains30Res,
     domainTypesRes,
     promptsRes,
-    brandsPrior30Res,
-    domainsPrior30Res,
     promptTopicsRes,
   ] = await Promise.all([
-    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
-    profoundPost('/v1/reports/visibility', { ...base(priorYtd), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
-    profoundPost('/v1/reports/visibility', { ...base(last30), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
-    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: ['visibility_score'], dimensions: ['date', 'asset_name'], date_interval: 'day' }),
-    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: BRAND_METRICS, dimensions: ['model'], ...brandFilter }),
-    profoundPost('/v1/reports/citations', { ...base(ytd), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
-    profoundPost('/v1/reports/citations', { ...base(priorYtd), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
-    profoundPost('/v1/reports/citations', { ...base(last30), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
-    profoundPost('/v1/reports/citations', { ...base(ytd), metrics: ['citation_share'], dimensions: ['citation_category'] }),
-    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: BRAND_METRICS, dimensions: ['prompt'], ...brandFilter }),
-    profoundPost('/v1/reports/visibility', { ...base(prior30), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
-    profoundPost('/v1/reports/citations', { ...base(prior30), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
-    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: ['visibility_score'], dimensions: ['prompt', 'topic'] }),
+    profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
+    profoundPost('/v1/reports/visibility', { ...base(prior), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
+    profoundPost('/v1/reports/visibility', { ...base(current), metrics: ['visibility_score'], dimensions: ['date', 'asset_name'], date_interval: 'day' }),
+    profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['model'], ...brandFilter }),
+    profoundPost('/v1/reports/citations', { ...base(current), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
+    profoundPost('/v1/reports/citations', { ...base(prior), metrics: DOMAIN_METRICS, dimensions: ['hostname', 'citation_category'] }),
+    profoundPost('/v1/reports/citations', { ...base(current), metrics: ['citation_share'], dimensions: ['citation_category'] }),
+    profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['prompt'], ...brandFilter }),
+    profoundPost('/v1/reports/visibility', { ...base(current), metrics: ['visibility_score'], dimensions: ['prompt', 'topic'] }),
   ])
 
   // --- Brand rankings ---
   const brandRankings = buildBrandRankings(currentBrandsRes.data, priorBrandsRes.data, yourBrand)
-  const brandRankingsByRange: Record<string, BrandRanking[]> = {
-    'YTD':          brandRankings,
-    'Last 30 days': buildBrandRankings(brands30Res.data, [], yourBrand),
-  }
 
   // --- Weekly visibility ---
   const isYou = (asset: string) =>
@@ -465,14 +440,9 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
   }
 
   // --- Domains ---
-  const domainsByRange: Record<string, TopDomain[]> = {
-    'YTD':          buildTopDomains(domainsRes.data, priorDomainsRes.data),
-    'Last 30 days': buildTopDomains(domains30Res.data, []),
-  }
-  const totalCitationsByRange: Record<string, number> = {
-    'YTD':          (domainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0),
-    'Last 30 days': (domains30Res.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0),
-  }
+  // Deltas compare the selected range against the immediately-preceding period.
+  const topDomains = buildTopDomains(domainsRes.data, priorDomainsRes.data)
+  const totalCitations = (domainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0)
 
   // --- Domain types (aggregate Profound categories onto shared type labels) ---
   const totalShare = (domainTypesRes.data ?? []).reduce((s, r) => s + (r.metrics[0] ?? 0), 0) || 1
@@ -518,9 +488,9 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     }))
     .sort((a, b) => b.visibility - a.visibility)
 
-  // --- Period change (last 30 vs prior 30) ---
-  const brands30 = buildBrandRankings(brands30Res.data, [], yourBrand)
-  const brandsPrior30 = buildBrandRankings(brandsPrior30Res.data, [], yourBrand)
+  // --- Period change (selected range vs previous period) ---
+  const brandsCurrent = buildBrandRankings(currentBrandsRes.data, [], yourBrand)
+  const brandsPrior = buildBrandRankings(priorBrandsRes.data, [], yourBrand)
   const domainShare = (rows: ProfoundRow[]) => {
     const m = new Map<string, number>()
     for (const r of rows ?? []) {
@@ -531,10 +501,10 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     return Array.from(m.entries()).map(([domain, share]) => ({ domain, share }))
   }
   const periodChange = buildPeriodChange({
-    brandsCurrent: brands30.map((b) => ({ name: b.name, visibility: b.visibility, isYou: !!b.isYou })),
-    brandsPrior:   brandsPrior30.map((b) => ({ name: b.name, visibility: b.visibility, isYou: !!b.isYou })),
-    domainsCurrent: domainShare(domains30Res.data),
-    domainsPrior:   domainShare(domainsPrior30Res.data),
+    brandsCurrent: brandsCurrent.map((b) => ({ name: b.name, visibility: b.visibility, isYou: !!b.isYou })),
+    brandsPrior:   brandsPrior.map((b) => ({ name: b.name, visibility: b.visibility, isYou: !!b.isYou })),
+    domainsCurrent: domainShare(domainsRes.data),
+    domainsPrior:   domainShare(priorDomainsRes.data),
     prompts: trackedPrompts.map((p) => ({ text: p.text, visibility: p.visibility })),
   })
 
@@ -545,9 +515,8 @@ async function getProfoundOverviewImpl(clientSlug?: string): Promise<ProfoundOve
     competitorDailyVisibility,
     competitorAverages,
     brandRankings,
-    brandRankingsByRange,
-    domainsByRange,
-    totalCitationsByRange,
+    topDomains,
+    totalCitations,
     domainTypes,
     trackedPrompts,
     llmBreakdown,
@@ -563,7 +532,10 @@ export const getProfoundOverview = cached(
     // v2 = post per-client refactor. Old v1 entries were populated with
     // Avenue Z's data regardless of caller; do not drop this without a
     // production cache flush.
-    version: 'v3',
+    // v4 = overview now honors the page date range (dateRange arg); response shape
+    //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
+    //      records) and deltas compare vs the previous period, not prior year.
+    version: 'v4',
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )

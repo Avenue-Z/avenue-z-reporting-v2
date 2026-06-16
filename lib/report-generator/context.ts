@@ -197,14 +197,12 @@ async function fetchPipeline(clientSlug: string): Promise<PipelineSnapshot | und
 
 async function fetchPeec(clientSlug: string): Promise<PeecSnapshot | undefined> {
   try {
-    const data = await getPeecOverview(clientSlug)
+    const data = await getPeecOverview(clientSlug, 'year_to_date')
     const youBrand = data.brandRankings.find((b) => b.isYou)
     const topLLM   = data.llmBreakdown.length > 0
       ? data.llmBreakdown.reduce((a, b) => a.visibility > b.visibility ? a : b).model
       : 'Unknown'
-    const totalCitations = data.totalCitationsByRange?.['YTD']
-      ?? data.totalCitationsByRange?.['Last 30 Days']
-      ?? 0
+    const totalCitations = data.totalCitations ?? 0
 
     return {
       ownVisibility:  youBrand ? youBrand.visibility * 100 : 0,

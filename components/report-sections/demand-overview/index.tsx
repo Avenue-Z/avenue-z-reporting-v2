@@ -107,7 +107,7 @@ export async function DemandOverviewReport({ clientSlug }: DemandOverviewProps) 
       dimensions: ['pagePath', 'sessionSource'],
       limit: 500,
     }),
-    getPeecOverview(clientSlug),
+    getPeecOverview(clientSlug, 'year_to_date'),
   ])
 
   // ── Phase 2: HubSpot — sequential to respect 4 req/s rate limit ──────────
@@ -205,9 +205,9 @@ export async function DemandOverviewReport({ clientSlug }: DemandOverviewProps) 
   const aeoSov = ownBrand?.sov ?? null
 
   // Citation data (YTD range)
-  const totalCitations  = peec?.totalCitationsByRange?.['YTD'] ?? peec?.totalCitationsByRange?.['Last 30 Days'] ?? 0
+  const totalCitations  = peec?.totalCitations ?? 0
   const llmBreakdown    = peec?.llmBreakdown ?? []
-  const topDomains      = peec?.domainsByRange?.['YTD'] ?? peec?.domainsByRange?.['Last 30 Days'] ?? []
+  const topDomains      = peec?.topDomains ?? []
 
   // ── Inbound contacts ─────────────────────────────────────────────────────
   const contacts        = contactRes.status     === 'fulfilled' ? contactRes.value     : null
