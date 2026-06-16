@@ -38,7 +38,7 @@ const SEED: SeedClient[] = [
     sitebulbSheetId: '1cKW5k0aqeWEk3HVakIDpiCrSP_mMf5oxQW7HJOxqsiw',
     peecCustomerProjectId: 'or_043ae735-9397-48cf-a754-6e346a55f394',
     prProofSheetId: '1tcZZ3p0Syy_525xnyW0V8fXnB8No7jBFVoqjIzT1F8M',
-    contentCalendarSheetId: null,
+    contentCalendarSheetId: '1-Ar5vGXLWHnO3qtbymFVsgGD6kpJxCZvGWUSK5NngyQ',
     peecYourBrand: 'Avenue Z',
     prConfig: {
       keywords: ['"Avenue Z"', '"Avenue Z Agency"', '"Avenue Z marketing"', 'avenuez.com'],

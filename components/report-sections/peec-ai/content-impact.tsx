@@ -368,13 +368,13 @@ export async function ContentImpactReport({
           <KpiCard
             label="Planned URLs in Scope"
             hint="Content calendar rows"
-            value={calendarData ? calendarData.plannedCount.toLocaleString() : '--'}
+            value={calendarData ? calendarData.plannedCount.toLocaleString() : 'None'}
             live={!!calendarData && calendarData.plannedCount > 0}
           />
           <KpiCard
             label="Live URLs"
             hint="Matched or discoverable"
-            value={calendarData ? calendarData.liveCount.toLocaleString() : '--'}
+            value={calendarData ? calendarData.liveCount.toLocaleString() : 'None'}
             live={!!calendarData && calendarData.liveCount > 0}
           />
           {/* Total Sessions: GA4 has no model dimension — not filtered.
@@ -386,14 +386,14 @@ export async function ContentImpactReport({
                 ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
                 : 'GA4 page-level required'
             }
-            value={calendarIsDemo ? '9,910' : '--'}
+            value={calendarIsDemo ? '9,910' : 'None'}
             live={calendarIsDemo}
           />
           {/* AI Citations: filtered by selected models via domainCitationsByModel sum */}
           <KpiCard
             label="AI Citations"
             hint={`Peec AI, owned domains YTD${models ? ' · filtered to selected AI models' : ''}`}
-            value={totalCitations > 0 ? totalCitations.toLocaleString() : '--'}
+            value={totalCitations > 0 ? totalCitations.toLocaleString() : 'None'}
             live={totalCitations > 0}
           />
           {/* AI-Referred Sessions: GA4 has no model dimension — not filtered.
@@ -405,7 +405,7 @@ export async function ContentImpactReport({
                 ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
                 : `GA4 AI-source sessions required${models ? ' · across all AI engines' : ''}`
             }
-            value={calendarIsDemo ? '1,243' : '--'}
+            value={calendarIsDemo ? '1,243' : 'None'}
             live={calendarIsDemo}
           />
           {/* Owned URLs with AI Activity: when model filter active, sum uniquePages
@@ -419,20 +419,20 @@ export async function ContentImpactReport({
                   ? filteredBots.reduce((s, b) => s + b.uniquePages, 0)
                   : agentData.uniquePagesVisited
                 } pages`
-              : '--'}
+              : 'None'}
             live={!!agentData && agentData.uniquePagesVisited > 0}
           />
           <KpiCard
             label="% Null / Unmatched"
             hint="Planned content with no data"
-            value={unmatchedPct !== null ? `${unmatchedPct}%` : '--'}
+            value={unmatchedPct !== null ? `${unmatchedPct}%` : 'None'}
             live={unmatchedPct !== null}
           />
           {/* Owned Domains Cited in AI: filtered by selected models via per-model citation data */}
           <KpiCard
             label="Owned Domains Cited in AI"
             hint={`Peec AI brand-owned domains with citations${models ? ' · filtered to selected AI models' : ''}`}
-            value={filteredOwnDomains.length > 0 ? filteredOwnDomains.length.toLocaleString() : '--'}
+            value={filteredOwnDomains.length > 0 ? filteredOwnDomains.length.toLocaleString() : 'None'}
             live={filteredOwnDomains.length > 0}
           />
         </div>
@@ -495,7 +495,7 @@ export async function ContentImpactReport({
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
               <span className={cn('text-lg font-bold', calendarIsDemo ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demo : '--'}
+                {calendarIsDemo ? demo : 'None'}
               </span>
             </div>
           ))}
@@ -542,10 +542,10 @@ export async function ContentImpactReport({
                       value: group.filter(r => (r.aiBotVisits ?? 0) > 0).length.toString(),
                       live: true,
                     },
-                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : '--',  live: calendarIsDemo },
-                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : '--', live: calendarIsDemo },
-                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : '--', live: calendarIsDemo },
-                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : '--',     live: calendarIsDemo },
+                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : 'None',  live: calendarIsDemo },
+                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : 'None', live: calendarIsDemo },
+                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : 'None', live: calendarIsDemo },
+                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : 'None',     live: calendarIsDemo },
                   ].map(({ metric, value, live }) => (
                     <div key={metric} className="flex items-center justify-between text-xs">
                       <span className="text-text-muted">{metric}</span>
@@ -598,7 +598,7 @@ export async function ContentImpactReport({
                 <span className="text-[11px] font-semibold text-white/60">{label}</span>
               </div>
               <span className={cn('text-lg font-bold', calendarIsDemo ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demoCount : '--'}
+                {calendarIsDemo ? demoCount : 'None'}
               </span>
               <span className="text-[10px] text-text-muted">{desc}</span>
             </div>
@@ -704,7 +704,7 @@ export async function ContentImpactReport({
             })
             return {
               urlPath: p.path,
-              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : '--'),
+              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : 'None'),
               aiBotVisits: p.visits,
               aiCitations: calendarIsDemo ? g3DemoCites[idx % 10] : null,
               aiReferredSessions: calendarIsDemo ? g3DemoSessions[idx % 10] : null,
