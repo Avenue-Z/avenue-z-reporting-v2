@@ -710,7 +710,7 @@ export async function ContentImpactReport({
             views: g.views,
             engagementRate: g.engagementRate,
             aiCitations: calendarIsDemo ? sectionBDemoCite[i % 13]
-                                        : (citeByKey.get(urlJoinKey(row.url) ?? '')?.citationCount ?? null),
+                                        : citationsOk ? (citeByKey.get(urlJoinKey(row.url) ?? '')?.citationCount ?? 0) : null,
             aiBotActivity: hasBotVisits ? (row.aiBotVisits ?? null) : (calendarIsDemo ? sectionBDemoBot[i % 13] : 0),
             aiReferredSessions: calendarIsDemo ? sectionBDemoRef[i % 13] : aiReferredForPath(extractPath(row.url)),
             matchStatus: row.matchStatus,
