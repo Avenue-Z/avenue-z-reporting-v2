@@ -9,6 +9,7 @@ import { SAMPLE_GA4_AI_REFERRAL_ROWS, SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS } from
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
+import { postPublishTrend, addDays } from '@/lib/ga4/content-derive'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -286,6 +287,46 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // failed / project unconfigured → keep -- for prompt count.
   const coverageAvailable = Object.keys(coverage.promptIdsByDomain).length > 0
 
+  // ── PR §B · Post-Publish Traffic Trend (GA4-5) ──────────────────────────────
+  // Per placement: signed % change in site-wide AI-referred sessions in the
+  // window after its publish date vs. an equal window before. One GA4 query of
+  // AI-referred sessions by date — from the earliest placement (minus a window)
+  // to today — feeds every row. Site-wide proxy: GA4 has no per-placement
+  // dimension, so this is the lift around publish, not causal attribution.
+  const trendToday = new Date().toISOString().slice(0, 10)
+  const toIsoDate = (s: string | null | undefined): string | null => {
+    if (!s) return null
+    const t = Date.parse(s)
+    return isNaN(t) ? null : new Date(t).toISOString().slice(0, 10)
+  }
+  const aiByDate: Record<string, number> = {}
+  let trendOk = false
+  const earliestPlacement = toIsoDate(prData?.dateRange?.earliest)
+  if (!demoMode && earliestPlacement && (prData?.placements.length ?? 0) > 0) {
+    try {
+      const res = await ga4Query({
+        clientSlug,
+        dateRange: `${addDays(earliestPlacement, -30)},${trendToday}`,
+        metrics: ['sessions'],
+        dimensions: ['date', 'sessionSource'],
+        limit: 100000,
+      })
+      trendOk = true
+      for (const row of res.rows) {
+        if (!isAiSource(row.sessionSource)) continue
+        const ds = String(row.date ?? '')
+        const iso = ds.length === 8 ? `${ds.slice(0, 4)}-${ds.slice(4, 6)}-${ds.slice(6, 8)}` : ds
+        aiByDate[iso] = (aiByDate[iso] ?? 0) + (Number(row.sessions) || 0)
+      }
+    } catch (e) {
+      console.error('[pr-influence] GA4 post-publish trend error:', e)
+    }
+  }
+  const placementTrend = (publicationDate: string): number | null => {
+    const pub = toIsoDate(publicationDate)
+    return trendOk && pub ? postPublishTrend(pub, trendToday, aiByDate) : null
+  }
+
   // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
   // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
@@ -384,7 +425,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length]
       : coverageAvailable ? row.promptCount : null,
     avgCitations: prIsDemo ? 1.4 + (i % 7) * 0.45 : (avgCitByDomain[hostKey(row.domain)] ?? null),
-    postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : null,
+    postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : placementTrend(row.publicationDate),
   }))
 
   // 2. Top Editorial Domains rows — apply model filter via filterDomainRowsByModel.

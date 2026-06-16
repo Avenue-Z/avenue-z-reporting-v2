@@ -1,9 +1,10 @@
 /**
- * Pure derivations for the Content Impact GA4 sections.
+ * Pure derivations for the AEO report GA4 sections (Content Impact + PR
+ * Influence).
  *
- * Kept separate from the RSC so the classification logic (§E decay vs.
- * compounding) is unit-testable without a GA4 round-trip. The component is
- * responsible for normalizing GA4 rows (paths/hosts) and supplying primitives.
+ * Kept separate from the RSCs so the logic (trajectory classification, time-to-
+ * first, post-publish trend) is unit-testable without a GA4 round-trip. The
+ * components normalize GA4 rows (paths/hosts/dates) and supply primitives.
  */
 
 export type Trajectory =
@@ -104,6 +105,11 @@ export function daysBetween(fromISO: string, toISO: string): number {
   return Math.round((to - from) / 86_400_000)
 }
 
+/** Shift an ISO date (YYYY-MM-DD) by n days (n may be negative). */
+export function addDays(iso: string, n: number): string {
+  return new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+}
+
 export interface UrlTimingInput {
   /** Publish date (YYYY-MM-DD). */
   publishDate: string
@@ -135,4 +141,39 @@ export function computeUrlTiming({ publishDate, days }: UrlTimingInput): UrlTimi
     daysToFirstTraffic: firstWith((d) => d.sessions > 0),
     daysToFirstAi: firstWith((d) => d.aiSessions > 0),
   }
+}
+
+// ── PR §B: post-publish AI-referred traffic trend ──────────────────────────────
+
+/**
+ * Signed % change in AI-referred sessions in the window *after* a placement's
+ * publish date vs. an equal-length window *before* it. Windows are clamped to
+ * `windowDays` and to the days actually elapsed since publish, so a recent
+ * placement compares like-for-like. Returns null when not yet measurable
+ * (published today/in future) or when the pre-window baseline is zero.
+ *
+ * Site-wide attribution: GA4 has no per-placement dimension, so this measures
+ * the lift in total AI-referred sessions around the publish date — a proxy, not
+ * causal, and noisy when placements overlap.
+ */
+export function postPublishTrend(
+  publishDate: string,
+  today: string,
+  aiByDate: Record<string, number>,
+  windowDays = 30,
+): number | null {
+  const elapsed = daysBetween(publishDate, today)
+  if (elapsed <= 0) return null
+  const len = Math.min(windowDays, elapsed)
+  const sum = (startISO: string, endExclusiveISO: string): number => {
+    let total = 0
+    for (const [d, v] of Object.entries(aiByDate)) {
+      if (d >= startISO && d < endExclusiveISO) total += v
+    }
+    return total
+  }
+  const post = sum(publishDate, addDays(publishDate, len))
+  const pre = sum(addDays(publishDate, -len), publishDate)
+  if (pre <= 0) return null
+  return Math.round(((post - pre) / pre) * 100)
 }
