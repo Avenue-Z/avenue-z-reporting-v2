@@ -6,7 +6,9 @@ import {
   tallyTrajectories,
   median,
   daysBetween,
+  addDays,
   computeUrlTiming,
+  postPublishTrend,
   type Trajectory,
 } from './content-derive'
 
@@ -93,5 +95,31 @@ const t3 = computeUrlTiming({
 })
 assert.equal(t3.daysToFirstTraffic, 0)
 assert.equal(t3.daysToFirstAi, 0)
+
+// ── addDays ──
+assert.equal(addDays('2026-01-15', 5), '2026-01-20')
+assert.equal(addDays('2026-01-01', -1), '2025-12-31')
+assert.equal(addDays('2026-03-01', -1), '2026-02-28') // 2026 non-leap
+
+// ── postPublishTrend ──
+// publish 2026-02-01, today 2026-02-11 → window = min(30,10) = 10 days.
+// pre window [2026-01-22, 2026-02-01): one day with 10 AI sessions.
+// post window [2026-02-01, 2026-02-11): two days totalling 30 → +200%.
+const ai = {
+  '2026-01-25': 10, // pre
+  '2026-02-02': 20, // post
+  '2026-02-05': 10, // post
+}
+assert.equal(postPublishTrend('2026-02-01', '2026-02-11', ai), 200)
+
+// published today → not measurable
+assert.equal(postPublishTrend('2026-02-11', '2026-02-11', ai), null)
+
+// zero baseline → null (can't compute %)
+assert.equal(postPublishTrend('2026-02-01', '2026-02-11', { '2026-02-03': 5 }), null)
+
+// decline yields a negative %
+const ai2 = { '2026-01-25': 100, '2026-02-03': 40 }
+assert.equal(postPublishTrend('2026-02-01', '2026-02-11', ai2), -60)
 
 console.log('content-derive.test.ts: all assertions passed')

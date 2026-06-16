@@ -250,7 +250,9 @@ export function PRPlacementMatchbackTable({
       accessor: (r) => r.postPublishTrend ?? 0,
       render: (r) =>
         r.postPublishTrend != null ? (
-          <span className="tabular-nums text-[#60FF80]">↑ {r.postPublishTrend}%</span>
+          <span className={cn('tabular-nums', r.postPublishTrend >= 0 ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
+            {r.postPublishTrend >= 0 ? '↑' : '↓'} {Math.abs(r.postPublishTrend)}%
+          </span>
         ) : (
           <span className="text-white/20">--</span>
         ),
