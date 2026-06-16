@@ -8,9 +8,11 @@ import {
   domainPromptIds,
   domainTagIds,
   domainTagNames,
+  urlTagNames,
   avgCitationsByDomain,
   type ApiUrlRow,
 } from './url-citations'
+import { urlJoinKey } from '@/lib/url'
 
 // resolveYourBrandIds: match brand name (case-insensitive) → id(s)
 const brands = [
@@ -104,5 +106,25 @@ const covNamed = aggregateDomainCoverage(
 assert.deepEqual(domainTagNames(covNamed, 'forbes.com').sort(), ['Comparison', 'Discovery'])
 assert.deepEqual(domainTagNames(covNamed, 'www.Forbes.com').sort(), ['Comparison', 'Discovery']) // lookup normalizes
 assert.deepEqual(domainTagNames(covNamed, 'unknown.com'), []) // missing host → []
+
+// aggregateDomainCoverage: per-URL tag ids (tagIdsByUrlKey) + urlTagNames helper.
+// Same URL cited under two themes → both ids collected under that url's join key.
+const covPerUrl = aggregateDomainCoverage(
+  [],
+  [
+    row('https://www.forbes.com/a', { tag: { id: 'tg_1' } }),
+    row('https://www.forbes.com/a', { tag: { id: 'tg_2' } }), // same URL, second theme
+    row('https://forbes.com/b',     { tag: { id: 'tg_1' } }),
+    row('https://forbes.com/c',     { tag: { id: 'tg_x' } }), // no name → dropped
+  ],
+  { tg_1: 'Discovery', tg_2: 'Comparison' },
+)
+const keyA = urlJoinKey('https://www.forbes.com/a')!
+const keyB = urlJoinKey('https://forbes.com/b')!
+const keyC = urlJoinKey('https://forbes.com/c')!
+assert.deepEqual(urlTagNames(covPerUrl, keyA).sort(), ['Comparison', 'Discovery'])
+assert.deepEqual(urlTagNames(covPerUrl, keyB), ['Discovery'])
+assert.deepEqual(urlTagNames(covPerUrl, keyC), []) // tg_x has no display name
+assert.deepEqual(urlTagNames(covPerUrl, 'no/such/key'), []) // unknown url → []
 
 console.log('url-citations.test.ts: all assertions passed')

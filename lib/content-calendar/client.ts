@@ -24,6 +24,7 @@ import type {
   ContentAction,
   MatchStatus,
 } from './types'
+import { parseCalendarDate, parseYearHint } from './date'
 import { cached } from '@/lib/cache'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -105,6 +106,11 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     'date updated', 'updated', 'last refresh', 'refresh', 'optimized date',
     'date optimized',
   ],
+  // Month-context column (e.g. a "Date" column holding "March 2026"). Supplies
+  // the year for bare M/D publish dates that omit it.
+  monthContext: [
+    'date', 'month', 'period', 'content month', 'calendar month',
+  ],
 }
 
 function buildColumnMap(headers: string[]): Map<string, number> {
@@ -177,16 +183,6 @@ function normalizeUrl(raw: string | undefined): string | null {
 }
 
 /**
- * Normalize a date cell value. Returns raw string or null if empty/placeholder.
- */
-function normalizeDate(raw: string | undefined): string | null {
-  if (!raw) return null
-  const s = raw.trim()
-  if (!s || s.toLowerCase() === 'tbd' || s.toLowerCase() === 'pending' || s === '-') return null
-  return s
-}
-
-/**
  * Derive match status from URL presence and status string (PRD FR4).
  */
 function deriveMatchStatus(url: string | null, statusRaw: string): MatchStatus {
@@ -235,6 +231,7 @@ async function getContentCalendarDataImpl(
 
       const url    = normalizeUrl(get('url'))
       const status = get('status')
+      const yearHint = parseYearHint(get('monthContext'))
 
       return {
         topic:         get('topic') || '(untitled)',
@@ -242,8 +239,8 @@ async function getContentCalendarDataImpl(
         contentType:   get('contentType')    || 'Unknown',
         status:        status                || 'Unknown',
         contentAction: parseContentAction(get('contentAction'), get('contentType')),
-        publishDate:   normalizeDate(get('publishDate')),
-        updateDate:    normalizeDate(get('updateDate')),
+        publishDate:   parseCalendarDate(get('publishDate'), { yearHint }),
+        updateDate:    parseCalendarDate(get('updateDate'), { yearHint }),
         matchStatus:   deriveMatchStatus(url, status),
         // Enriched downstream in content-impact.tsx by cross-referencing Peec + Agent Analytics
         aiCitations:   null,
@@ -266,6 +263,7 @@ export const getContentCalendarData = cached(
   'getData',
   getContentCalendarDataImpl,
   {
+    version: 'v2',  // v2: publish/update dates parsed to ISO (M/D + month-context year)
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )

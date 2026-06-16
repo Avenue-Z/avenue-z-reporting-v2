@@ -4,8 +4,8 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
-import { urlJoinKey } from '@/lib/url'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, urlTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
+import { urlJoinKey, labelFromPath } from '@/lib/url'
 import type { AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
@@ -169,7 +169,7 @@ function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
   if (row.matchStatus === 'redirected') return 'Update internal links to final destination'
   if (hasBotVisits && !row.aiCitations) return 'AI bots crawling but not citing -- check content format'
   if (row.aiCitations && row.aiCitations > 0) return 'Cited in AI -- protect and expand coverage'
-  return 'Connect GA4 for full session analysis'
+  return 'No AI citations or crawls yet -- monitor and strengthen on-page signals'
 }
 
 // ─── Main async RSC ──────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ export async function ContentImpactReport({
   const priorRange = deriveCompareRange(effectiveRange, 'previous_period')
   const priorRangeStr = priorRange ? `${priorRange.startDate},${priorRange.endDate}` : effectiveRange
 
-  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4PriorResult] = await Promise.allSettled([
+  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4PriorResult, ga4AiPathResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
@@ -243,6 +243,13 @@ export async function ContentImpactReport({
       dimensions: ['pagePath'],
       limit: 1000,
     }),
+    ga4Query({                          // §B/§G per-path AI-referred sessions (all engines)
+      clientSlug,
+      dateRange: effectiveRange,
+      metrics: ['sessions'],
+      dimensions: ['pagePath', 'sessionSource'],
+      limit: 2000,
+    }),
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -252,12 +259,14 @@ export async function ContentImpactReport({
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }
+  const citationsOk = urlCitationsResult.status === 'fulfilled'
   // GA4 host×source rows (§A totals + §F per-host AI-referred) and prior-period
   // page rows (§E trajectory). null when the query rejected (GA4 unconfigured /
   // property not shared) → callers reserve -- for that case, 0 stays 0.
   const ga4AiHostRows = ga4AiHostResult.status === 'fulfilled' ? ga4AiHostResult.value.rows : null
   const ga4PriorRows  = ga4PriorResult.status  === 'fulfilled' ? ga4PriorResult.value.rows  : null
+  const ga4AiPathRows = ga4AiPathResult.status === 'fulfilled' ? ga4AiPathResult.value.rows : null
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
@@ -270,7 +279,7 @@ export async function ContentImpactReport({
     calendarData = sampleContentCalendarData()
     ga4Rows      = SAMPLE_GA4_CONTENT_IMPACT_ROWS
     urlCitations = []   // demo: §B/§F/§H use their own demo arrays
-    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }  // demo: §H uses demo fallbacks
+    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }  // demo: §H uses demo fallbacks
   }
 
   if (peecResult.status         === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
@@ -279,6 +288,7 @@ export async function ContentImpactReport({
   if (ga4Result.status          === 'rejected') console.error('[content-impact] GA4 error:', ga4Result.reason)
   if (ga4AiHostResult.status    === 'rejected') console.error('[content-impact] GA4 host/source error:', ga4AiHostResult.reason)
   if (ga4PriorResult.status     === 'rejected') console.error('[content-impact] GA4 prior-period error:', ga4PriorResult.reason)
+  if (ga4AiPathResult.status    === 'rejected') console.error('[content-impact] GA4 path/source error:', ga4AiPathResult.reason)
   if (urlCitationsResult.status === 'rejected') console.error('[content-impact] URL citations error:', urlCitationsResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
@@ -413,6 +423,44 @@ export async function ContentImpactReport({
     }
   }
 
+  // §B/§G · AI-referred sessions per page path (all engines). A path GA4 tracks
+  // shows its real count (0 if none); a path GA4 doesn't cover stays -- (null).
+  const aiPathOk = ga4AiPathRows !== null
+  const aiRefByPath = new Map<string, number>()
+  if (aiPathOk) {
+    for (const r of ga4AiPathRows!) {
+      if (!isAiSource(r.sessionSource)) continue
+      const p = normPath(String(r.pagePath ?? ''))
+      aiRefByPath.set(p, (aiRefByPath.get(p) ?? 0) + (Number(r.sessions) || 0))
+    }
+  }
+  const ga4PathSet = new Set((ga4Rows ?? []).map(r => normPath(String(r.pagePath ?? ''))))
+  const aiReferredForPath = (path: string | null): number | null => {
+    if (!aiPathOk || !path) return null
+    const np = normPath(path)
+    if (!ga4PathSet.has(np)) return null
+    return aiRefByPath.get(np) ?? 0
+  }
+
+  // §G content-gap maps — owned pages keyed by normalized path: GA4 sessions,
+  // owned-page citation counts, and calendar topics. "Owned" = a page on an
+  // owned Peec domain or one that mentions the brand.
+  const ownedHostSet = new Set(ownDomains.map(d => hostKey(d.domain)))
+  const sessionsByPath = new Map<string, number>()
+  for (const r of (ga4Rows ?? [])) sessionsByPath.set(normPath(String(r.pagePath ?? '')), Number(r.sessions) || 0)
+  const citedOwnedByPath = new Map<string, number>()
+  for (const c of urlCitations) {
+    if (!(ownedHostSet.has(hostKey(c.domain)) || c.mentionsYourBrand) || c.citationCount <= 0) continue
+    const p = extractPath(c.url); if (!p) continue
+    const np = normPath(p)
+    citedOwnedByPath.set(np, Math.max(citedOwnedByPath.get(np) ?? 0, c.citationCount))
+  }
+  const topicByPath = new Map<string, string>()
+  for (const r of enrichedRows) {
+    const p = extractPath(r.url); if (!p) continue
+    topicByPath.set(normPath(p), r.topic)
+  }
+
   // §E · trajectory buckets — current vs. prior page sessions × AI-citation
   // presence. Needs both GA4 page queries to have resolved.
   const decayOk = !demoMode && ga4Rows !== null && ga4PriorRows !== null
@@ -522,8 +570,10 @@ export async function ContentImpactReport({
     const avgSessions = ga4Rows && sess.length ? Math.round(sess.reduce((a, b) => a + b, 0) / sess.length) : null
     const citedCount = urls.filter(u => (citeByKey.get(urlJoinKey(u) ?? '')?.citationCount ?? 0) > 0).length
     const citationRate = urls.length ? Math.round((citedCount / urls.length) * 100) : null
+    // Empty group → -- (consistent with avgSessions/citationRate above); a real
+    // group with no AI-referred sessions stays 0.
     let aiReferred: number | null = null
-    if (timingOk) {
+    if (timingOk && urls.length > 0) {
       aiReferred = 0
       for (const u of urls) {
         const p = extractPath(u)
@@ -662,9 +712,9 @@ export async function ContentImpactReport({
             views: g.views,
             engagementRate: g.engagementRate,
             aiCitations: calendarIsDemo ? sectionBDemoCite[i % 13]
-                                        : (citeByKey.get(urlJoinKey(row.url) ?? '')?.citationCount ?? null),
+                                        : citationsOk ? (citeByKey.get(urlJoinKey(row.url) ?? '')?.citationCount ?? 0) : null,
             aiBotActivity: hasBotVisits ? (row.aiBotVisits ?? null) : (calendarIsDemo ? sectionBDemoBot[i % 13] : 0),
-            aiReferredSessions: calendarIsDemo ? sectionBDemoRef[i % 13] : null,
+            aiReferredSessions: calendarIsDemo ? sectionBDemoRef[i % 13] : aiReferredForPath(extractPath(row.url)),
             matchStatus: row.matchStatus,
             recommendedAction: deriveAction(row, hasBotVisits),
             _key: `${row.url ?? row.topic}-${i}`,
@@ -885,7 +935,19 @@ export async function ContentImpactReport({
                 { url: '/blog/audit-brand-chatgpt',          topic: 'How to Audit Brand',      sessions: 447,  aiCitations: 0, opportunityNote: 'Already strong page — needs interlinking from AEO pillar to compound citation signal' },
                 { url: '/pricing',                           topic: 'Pricing',                 sessions: 274,  aiCitations: 0, opportunityNote: 'Add ROI calculator + comparison framing for "agency pricing" prompts' },
               ]
-            : []
+            : ga4Rows === null || !citationsOk
+              ? []
+              : [...sessionsByPath.entries()]
+                  .filter(([np, s]) => s > 0 && !citedOwnedByPath.has(np))
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 10)
+                  .map(([np, s]) => ({
+                    url: np,
+                    topic: topicByPath.get(np) ?? labelFromPath(np),
+                    sessions: s,
+                    aiCitations: 0,
+                    opportunityNote: 'Earns human traffic but no AI citations — add direct-answer blocks, FAQ schema, and clear entity definitions to become citable',
+                  }))
           return (
             <TrafficNoCitationsTable
               rows={g1Rows}
@@ -905,7 +967,22 @@ export async function ContentImpactReport({
                 { url: '/case-studies/renaissance-benefits',  topic: 'Renaissance Case Study',  aiCitations: 14, sessions: 392, opportunityNote: 'Industry credibility piece — link from services page to convert authority into demos' },
                 { url: '/resources/geo-glossary',             topic: 'GEO Glossary',            aiCitations: 36, sessions: 983, opportunityNote: 'Strong organic citation — embed in-context CTAs without disrupting reference utility' },
               ]
-            : []
+            : !citationsOk
+              ? []
+              : urlCitations
+                  .filter(c => (ownedHostSet.has(hostKey(c.domain)) || c.mentionsYourBrand) && c.citationCount > 0)
+                  .map(c => {
+                    const np = normPath(extractPath(c.url) ?? '')
+                    return {
+                      url: c.url,
+                      topic: topicByPath.get(np) ?? labelFromPath(c.url),
+                      aiCitations: c.citationCount,
+                      sessions: sessionsByPath.get(np) ?? 0,
+                      opportunityNote: 'Cited by AI but earns little human traffic — add a prominent CTA and internal links to convert citation visibility into visits',
+                    }
+                  })
+                  .sort((a, b) => a.sessions - b.sessions)
+                  .slice(0, 10)
           return (
             <CitationsLittleTrafficTable
               rows={g2Rows}
@@ -933,10 +1010,11 @@ export async function ContentImpactReport({
             })
             return {
               urlPath: p.path,
-              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : 'None'),
+              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : labelFromPath(p.path)),
               aiBotVisits: p.visits,
-              aiCitations: calendarIsDemo ? g3DemoCites[idx % 10] : null,
-              aiReferredSessions: calendarIsDemo ? g3DemoSessions[idx % 10] : null,
+              aiCitations: calendarIsDemo ? g3DemoCites[idx % 10]
+                : citationsOk ? (citedOwnedByPath.get(normPath(p.path)) ?? 0) : null,
+              aiReferredSessions: calendarIsDemo ? g3DemoSessions[idx % 10] : aiReferredForPath(p.path),
               opportunityNote: p.status >= 400 ? 'Error page -- fix or redirect'
                 : p.status >= 300 ? 'Redirect -- verify final destination'
                 : 'Crawled but not cited -- check content format for LLM extraction',
@@ -1095,14 +1173,26 @@ export async function ContentImpactReport({
         {(() => {
           const h3Rows: RepeatedCompetitorPagesRow[] = calendarIsDemo
             ? [
-                { url: 'ogilvy.com/insights/brand-authority-in-llms',     competitor: 'Ogilvy',           clusters: ['Brand authority', 'Reputation / trust', 'Industry expertise'], citations: 24, avgPos: 2.1 },
-                { url: 'edelman.com/research/trust-barometer-2026',       competitor: 'Edelman',          clusters: ['Reputation / trust', 'Buying-stage research'],                 citations: 19, avgPos: 2.4 },
-                { url: 'webershandwick.com/work/ai-pr-case-studies',      competitor: 'Weber Shandwick',  clusters: ['Industry expertise', 'Competitive comparison'],                citations: 17, avgPos: 3.0 },
-                { url: 'bcw-global.com/expertise/aeo-services',           competitor: 'BCW',              clusters: ['Brand authority', 'Buying-stage research'],                    citations: 14, avgPos: 3.3 },
-                { url: 'fleishmanhillard.com/2026/ai-search-report',      competitor: 'FleishmanHillard', clusters: ['Industry expertise', 'Reputation / trust', 'Brand authority'], citations: 13, avgPos: 2.7 },
-                { url: 'mslgroup.com/insights/generative-pr',             competitor: 'MSL',              clusters: ['Industry expertise', 'Competitive comparison'],                citations: 11, avgPos: 3.5 },
+                { url: 'ogilvy.com/insights/brand-authority-in-llms',     competitor: 'Ogilvy',           clusters: ['Brand authority', 'Reputation / trust', 'Industry expertise'], citations: 24 },
+                { url: 'edelman.com/research/trust-barometer-2026',       competitor: 'Edelman',          clusters: ['Reputation / trust', 'Buying-stage research'],                 citations: 19 },
+                { url: 'webershandwick.com/work/ai-pr-case-studies',      competitor: 'Weber Shandwick',  clusters: ['Industry expertise', 'Competitive comparison'],                citations: 17 },
+                { url: 'bcw-global.com/expertise/aeo-services',           competitor: 'BCW',              clusters: ['Brand authority', 'Buying-stage research'],                    citations: 14 },
+                { url: 'fleishmanhillard.com/2026/ai-search-report',      competitor: 'FleishmanHillard', clusters: ['Industry expertise', 'Reputation / trust', 'Brand authority'], citations: 13 },
+                { url: 'mslgroup.com/insights/generative-pr',             competitor: 'MSL',              clusters: ['Industry expertise', 'Competitive comparison'],                citations: 11 },
               ]
-            : []
+            : !coverageAvailable
+              ? []
+              : urlCitations
+                  .filter(c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)
+                  .map(c => ({
+                    url: c.url,
+                    competitor: c.competitorBrandNames.join(', '),
+                    clusters: urlTagNames(coverage, c.urlKey),
+                    citations: c.citationCount,
+                  }))
+                  .filter(r => r.clusters.length >= 2)   // "repeats across themes" = cited under 2+ clusters
+                  .sort((a, b) => b.citations - a.citations)
+                  .slice(0, 10)
           return (
             <RepeatedCompetitorPagesTable
               rows={h3Rows}

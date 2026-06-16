@@ -366,6 +366,10 @@ export interface PageOverlapTableProps {
   sfData: SFData
   clientDomain: string
   urlCitations?: UrlCitation[]
+  // AI-referred human sessions per page (keyed by urlJoinKey). Present = GA4
+  // tracks the path (count, 0 if no AI-referred); absent = GA4 doesn't cover it
+  // → "--". null/undefined when GA4 data is unavailable.
+  aiReferredByPath?: Record<string, number> | null
   demoMode?: boolean
 }
 
@@ -374,7 +378,7 @@ function pageType(path: string): 'Infrastructure' | 'Content' {
   return LOW_VALUE_PATTERNS.some((p) => path.toLowerCase().includes(p)) ? 'Infrastructure' : 'Content'
 }
 
-export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations = [], demoMode = false }: PageOverlapTableProps) {
+export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations = [], aiReferredByPath = null, demoMode = false }: PageOverlapTableProps) {
   const severityRank: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 }
   const issuesByUrl = new Map<string, { count: number; highestSeverity: string }>()
 
@@ -422,7 +426,10 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
       aiTrainingVisits: demoMode ? demoTraining[idx % demoTraining.length]
                                  : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.training ?? null),
       aiAgentVisits:    p.visits,
-      humanFromAI:      demoMode ? demoHumans[idx % demoHumans.length]     : null,
+      // GA4-tracked path → AI-referred session count (0 if none); path GA4
+      // doesn't cover → -- (null). See aiReferredByPath prop.
+      humanFromAI:      demoMode ? demoHumans[idx % demoHumans.length]
+                                 : (aiReferredByPath?.[urlJoinKey(p.path) ?? ''] ?? null),
       technicalIssues:  issueData?.count ?? 0,
       highestSeverity:  issueData?.highestSeverity ?? null,
       changeSinceLastCrawl: demoMode ? demoDeltas[idx % demoDeltas.length] : null,

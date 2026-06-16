@@ -31,3 +31,17 @@ export function urlJoinKey(raw: string | undefined | null): string | null {
   const trimmed = lower.replace(/\/+$/, '')
   return trimmed || null
 }
+
+/**
+ * Human-readable label from a URL or path's last slug segment, for tables where
+ * a calendar topic isn't available (e.g. non-calendar pages in §G). Hyphens and
+ * underscores become spaces and each word is title-cased. Root path → "Home";
+ * empty/invalid input → "".
+ */
+export function labelFromPath(raw: string | undefined | null): string {
+  const key = urlJoinKey(raw)
+  if (!key) return ''
+  const seg = key.split('/').filter(Boolean).pop()
+  if (!seg) return 'Home'
+  return seg.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}

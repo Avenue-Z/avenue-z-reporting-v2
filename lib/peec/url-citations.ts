@@ -207,6 +207,8 @@ export type DomainCoverage = {
   promptIdsByDomain: Record<string, string[]>
   /** host → distinct theme (tag) ids */
   tagIdsByDomain: Record<string, string[]>
+  /** url join key → distinct theme (tag) ids citing that specific URL (Section H.3) */
+  tagIdsByUrlKey: Record<string, string[]>
   /** tag id → display name (from /tags), for resolving themes to Prompt Cluster labels */
   tagNameById: Record<string, string>
 }
@@ -222,21 +224,26 @@ export function aggregateDomainCoverage(
   tagRows: ApiUrlRow[],
   tagNameById: Record<string, string> = {},
 ): DomainCoverage {
-  const collect = (rows: ApiUrlRow[], idOf: (r: ApiUrlRow) => string | undefined) => {
+  const collect = (
+    rows: ApiUrlRow[],
+    idOf: (r: ApiUrlRow) => string | undefined,
+    keyOf: (r: ApiUrlRow) => string | null,
+  ) => {
     const sets = new Map<string, Set<string>>()
     for (const r of rows) {
       const id = idOf(r)
       if (!id) continue
-      const host = hostOf(r.url)
-      if (!host) continue
-      if (!sets.has(host)) sets.set(host, new Set())
-      sets.get(host)!.add(id)
+      const key = keyOf(r)
+      if (!key) continue
+      if (!sets.has(key)) sets.set(key, new Set())
+      sets.get(key)!.add(id)
     }
     return Object.fromEntries([...sets].map(([k, v]) => [k, [...v]]))
   }
   return {
-    promptIdsByDomain: collect(promptRows, (r) => r.prompt?.id),
-    tagIdsByDomain: collect(tagRows, (r) => r.tag?.id),
+    promptIdsByDomain: collect(promptRows, (r) => r.prompt?.id, (r) => hostOf(r.url) || null),
+    tagIdsByDomain: collect(tagRows, (r) => r.tag?.id, (r) => hostOf(r.url) || null),
+    tagIdsByUrlKey: collect(tagRows, (r) => r.tag?.id, (r) => urlJoinKey(r.url)),
     tagNameById,
   }
 }
@@ -258,7 +265,16 @@ export function domainTagNames(cov: DomainCoverage, domain: string): string[] {
     .filter((n): n is string => !!n)
 }
 
-const EMPTY_COVERAGE: DomainCoverage = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
+/** Theme display names for a specific URL (by join key), dropping ids with no name. */
+export function urlTagNames(cov: DomainCoverage, urlKey: string): string[] {
+  return (cov.tagIdsByUrlKey[urlKey] ?? [])
+    .map((id) => cov.tagNameById[id])
+    .filter((n): n is string => !!n)
+}
+
+const EMPTY_COVERAGE: DomainCoverage = {
+  promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {},
+}
 
 async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverage> {
   let pid: string | undefined
@@ -280,6 +296,6 @@ async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverag
 }
 
 export const getDomainCoverage = cached('peec', 'getDomainCoverage', getDomainCoverageImpl, {
-  version: 'v2',  // v2: added tagNameById to DomainCoverage
+  version: 'v3',  // v3: added tagIdsByUrlKey (per-URL themes) to DomainCoverage
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })

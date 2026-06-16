@@ -4,6 +4,9 @@ import { getSFData } from '@/lib/screaming-frog/client'
 import { getSitebulbData, buildAEOChecklist } from '@/lib/sitebulb/client'
 import { getAgentAnalytics, deriveRobotsTxtStatus } from '@/lib/peec/agent-analytics'
 import { getUrlCitations } from '@/lib/peec/url-citations'
+import { ga4Query } from '@/lib/ga4/client'
+import { isAiSource } from '@/lib/constants'
+import { urlJoinKey } from '@/lib/url'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { SFData } from '@/lib/screaming-frog/types'
 import type { AgentBot } from '@/lib/peec/agent-analytics'
@@ -288,7 +291,7 @@ function DataUnavailable({ label }: { label: string }) {
 
 // ── Main RSC ──────────────────────────────────────────────────────────────────
 
-export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
+export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
   // Get client config for domain and other client-specific settings.
   // In demo mode, override with the sample SF fixture's domain so the
   // page-overlap matching and FixList URL stripping behave consistently
@@ -297,17 +300,25 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
   const clientDomain = demoMode ? 'avenuez.com' : (clientConfig?.domain ?? '')
 
   // Fetch all data sources in parallel, with graceful degradation on each
-  const [sfResult, sitebulbResult, agentResult, urlCitationsResult] = await Promise.allSettled([
+  const [sfResult, sitebulbResult, agentResult, urlCitationsResult, ga4AiPathResult] = await Promise.allSettled([
     getSFData(clientSlug),
     getSitebulbData(clientSlug),
     getAgentAnalytics(clientSlug),
     getUrlCitations(clientSlug),
+    ga4Query({                          // per-path AI-referred sessions (Page Overlap · Human Visits from AI)
+      clientSlug,
+      dateRange: dateRange ?? 'last_30_days',
+      metrics: ['sessions'],
+      dimensions: ['pagePath', 'sessionSource'],
+      limit: 2000,
+    }),
   ])
 
   let sfData       = sfResult.status       === 'fulfilled' ? sfResult.value       : null
   let sitebulbData = sitebulbResult.status === 'fulfilled' ? sitebulbResult.value : null
   let agentData    = agentResult.status    === 'fulfilled' ? agentResult.value    : null
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
+  const ga4AiPathRows = ga4AiPathResult.status === 'fulfilled' ? ga4AiPathResult.value.rows : null
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic. Powers Sections A (KPIs), B (delta), C
@@ -325,6 +336,22 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
   if (sitebulbResult.status      === 'rejected') console.error('[technical-audit] Sitebulb error:', sitebulbResult.reason)
   if (agentResult.status         === 'rejected') console.error('[technical-audit] Agent analytics error:', agentResult.reason)
   if (urlCitationsResult.status  === 'rejected') console.error('[technical-audit] URL citations error:', urlCitationsResult.reason)
+  if (ga4AiPathResult.status     === 'rejected') console.error('[technical-audit] GA4 path/source error:', ga4AiPathResult.reason)
+
+  // AI-referred human sessions per page path (all engines), keyed by urlJoinKey to
+  // match PageOverlapTable's join. A GA4-tracked path is present (0 when none were
+  // AI-referred); a path GA4 doesn't cover is absent → the table renders -- (not a
+  // misleading 0). null when the GA4 query rejected (GA4 unconfigured / not shared).
+  let aiReferredByPath: Record<string, number> | null = null
+  if (!demoMode && ga4AiPathRows) {
+    aiReferredByPath = {}
+    for (const r of ga4AiPathRows) {
+      const k = urlJoinKey(String(r.pagePath ?? ''))
+      if (!k) continue
+      if (!(k in aiReferredByPath)) aiReferredByPath[k] = 0
+      if (isAiSource(r.sessionSource)) aiReferredByPath[k] += Number(r.sessions) || 0
+    }
+  }
 
   // Derive AEO checklist
   const robotsTxtStatus = agentData ? deriveRobotsTxtStatus(agentData) : undefined
@@ -446,7 +473,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange: _dateRange, 
 
       {/* ── Section E: Pages with AI + Issues ── */}
       {sfData && agentData ? (
-        <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} urlCitations={urlCitations} demoMode={demoMode} />
+        <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} urlCitations={urlCitations} aiReferredByPath={aiReferredByPath} demoMode={demoMode} />
       ) : (
         <SectionCard
           title="Where do AI activity and technical issues overlap?"
