@@ -187,6 +187,7 @@ async function ga4QueryImpl(params: GA4QueryParams): Promise<GA4ReportResult> {
     dateRanges: [{ startDate, endDate }],
     metrics: params.metrics.map((name) => ({ name })),
     dimensions: (params.dimensions ?? []).map((name) => ({ name })),
+    ...(params.dimensionFilter ? { dimensionFilter: params.dimensionFilter } : {}),
     limit: params.limit ?? 1000,
   })
 
