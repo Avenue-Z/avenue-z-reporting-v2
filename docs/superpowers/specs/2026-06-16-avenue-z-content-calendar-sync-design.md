@@ -87,7 +87,7 @@ Observable columns auto-filled; strategy columns left blank (preserved on re-run
 | A Date | Month-year from publish date, e.g. `June 2026` |
 | B Priority | *(blank)* |
 | C Content Type | `New Blog` → derives Content Action `new` |
-| D Topic | Post title (HTML-decoded; hyperlink to URL optional) |
+| D Topic | Post title (HTML-decoded), **hyperlinked to the post URL** (like Renaissance) |
 | E Status | `Published` |
 | F Publish Date | From `date`, **M/D** to match the master template |
 | G–J, L–Q | *(blank)* — human strategy fields |
@@ -104,6 +104,18 @@ Dedup key = **post URL** (column K).
 3. New URL → append a new row (observable columns filled).
 4. Existing URL → leave the row untouched (never clobber human-filled columns).
 5. Additive only (removed posts are not deleted from the sheet).
+
+## Trigger / consistency
+
+**Scheduled polling via Cloud Scheduler, daily** (decided). The job pulls the full
+post list each run and appends only new URLs (idempotent + self-healing — a skipped
+run auto-catches-up on the next). No WordPress-side changes.
+
+A true event trigger ("fire on publish") was considered but rejected: it requires
+installing/maintaining a webhook plugin on the avenuez.com WordPress site, and even
+third-party "new post" triggers poll under the hood. Daily polling achieves the same
+result (new post appears within a day) with zero WP dependencies. Cadence is a
+one-line change (e.g. every-other-day) if desired.
 
 ## Stack & auth (mirrors `monthly-report-agent`)
 
@@ -153,8 +165,15 @@ Pure functions (`mapping`, `merge`) separated from I/O so logic is tested withou
 - Unit-test `rows_to_append()` (new appended, existing skipped, human edits preserved).
 - `--dry-run` mode logs rows it would append without writing.
 
+## Resolved decisions
+
+1. **Schedule:** Cloud Scheduler, **daily** poll (no WordPress trigger). ✓
+2. **Topic cell:** **hyperlinked** to the post URL. ✓
+3. **Tabs:** single **data tab** (first/leftmost) holding the blog posts — that's
+   all the tracker needs. Backlog/quarter tabs not replicated (can add later for
+   visual fidelity if wanted). ✓
+
 ## Open questions
 
-1. Cloud Scheduler cadence (daily? weekly?).
-2. Replicate the empty Backlog tab for visual fidelity, or single data tab only?
-3. Hyperlink the Topic cell to the URL (Renaissance does), or plain text?
+- Service account: confirm `automation-agent@vertex-api-test-495415` is the one to
+  use (per `monthly-report-agent` AUTH.md) and that its key is available for the new job.
