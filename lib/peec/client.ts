@@ -1,4 +1,5 @@
 import { cached } from '@/lib/cache'
+import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { AEOModel } from './models'
 import type { ByModel } from './by-model'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
@@ -16,18 +17,6 @@ function getKey(): string {
   const key = process.env.PEEC_AI_CUSTOMER_TOKEN
   if (!key) throw new Error('Missing env var: PEEC_AI_CUSTOMER_TOKEN')
   return key
-}
-
-function isoDate(d: Date) {
-  return d.toISOString().split('T')[0]
-}
-
-function periodDates(offsetDays: number, windowDays = 30) {
-  const end = new Date()
-  end.setDate(end.getDate() - offsetDays)
-  const start = new Date(end)
-  start.setDate(start.getDate() - (windowDays - 1))
-  return { start_date: isoDate(start), end_date: isoDate(end) }
 }
 
 // projectId: when provided, overrides PEEC_AI_PROJECT_ID env var (multi-client support)
@@ -186,9 +175,8 @@ export type PeecOverview = {
   competitorDailyVisibility: DailyPoint[]
   competitorAverages: CompetitorAverages
   brandRankings: BrandRanking[]
-  brandRankingsByRange: Record<string, BrandRanking[]>
-  domainsByRange: Record<string, TopDomain[]>
-  totalCitationsByRange: Record<string, number>
+  topDomains: TopDomain[]
+  totalCitations: number
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
@@ -315,9 +303,9 @@ function groupByDay(rows: ApiBrandRow[]): DailyPoint[] {
     .map(([date, { visCount, visTotal }]) => ({ date, visibility: visTotal > 0 ? (visCount / visTotal) * 100 : 0 }))
 }
 
-// --- Paginated fetch for YTD data ---
+// --- Paginated fetch for the selected date range ---
 
-async function fetchAllYtdRows(
+async function fetchAllRows(
   body: Record<string, unknown>,
   projectId?: string
 ): Promise<ApiBrandRow[]> {
@@ -346,12 +334,16 @@ async function fetchAllYtdRows(
  * @param clientSlug  Optional. When provided, resolves the Peec project ID from
  *                    clients.config.ts (peecCustomerProjectId). Falls back to the
  *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
+ * @param dateRange   Optional page date range (e.g. 'last_30_days', 'this_month').
+ *                    All metrics are scoped to this range; deltas compare against
+ *                    the immediately-preceding period of equal length. Defaults to
+ *                    'last_30_days' to match the other AEO pages.
  */
-// Cached per-clientSlug for 1 hour. Cache key derives from the function args
-// (so 'avenue-z' and 'renaissance' each get their own entry). Without this
-// wrapper, all clients shared one cache entry per fetch URL because Next.js
-// fetch caching keys on URL — Peec puts project_id in the body.
-async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
+// Cached per (clientSlug, dateRange) for 1 hour. Cache key derives from the
+// function args (so 'avenue-z' and 'renaissance', and each date range, get their
+// own entry). Without this wrapper, all clients shared one cache entry per fetch
+// URL because Next.js fetch caching keys on URL — Peec puts project_id in the body.
+async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Promise<PeecOverview> {
   // Resolve project ID and "your brand" label per-client; fall back to env vars
   // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
@@ -365,37 +357,32 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   // resolvedProjectId undefined = use env var inside peecPost/peecGet
 
   const yourBrand = resolvedYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
-  const thisYear = new Date().getUTCFullYear()
-  const ytd = { start_date: `${thisYear}-01-01`, end_date: isoDate(new Date()) }
-  const priorYtd = { start_date: `${thisYear - 1}-01-01`, end_date: `${thisYear - 1}-${isoDate(new Date()).slice(5)}` }
-  const current = ytd
-  const prior = priorYtd
-
-  const last30 = periodDates(0, 30)
-  const prior30 = periodDates(30, 30)
+  // Scope every metric to the page date range; compare deltas against the
+  // immediately-preceding period of equal length (matches the other AEO pages).
+  const range = dateRange ?? 'last_30_days'
+  const mainDates = parseDateRange(range)
+  const compareDates = deriveCompareRange(range, 'previous_period') ?? mainDates
+  const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
+  const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, brands30Res, domainsRes, domains30Res, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, brandsPrior30Res, domainsPrior30Res, tagsRes, promptsRes] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...last30 }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...last30 }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }, pid),
     peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior30 }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior30 }, pid),
     // Real prompt taxonomy: tag id→name + each prompt's tags, for grouping by
     // the prompt's primary subject tag instead of keyword inference.
     peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
     peecGet<{ data: { id: string; messages?: { content?: string }[]; tags?: { id: string }[] }[]; totalCount: number }>('/prompts', { limit: '1000' }, pid),
   ])
 
-  const ytdRows = await fetchAllYtdRows({ ...ytd, dimensions: ['date'] }, pid)
+  const trendRows = await fetchAllRows({ ...current, dimensions: ['date'] }, pid)
 
   // --- Brand rankings ---
   const currentAgg = aggregateBrandRows(currentBrandsRes.data ?? [])
@@ -438,16 +425,10 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
         }
       })
   }
-  const domainsByRange: Record<string, TopDomain[]> = {
-    'YTD':          buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? []),
-    // Pass the prior-30-day window (already fetched) so retrievedDelta / Post-Launch
-    // AI Lift can be computed on the default 30-day view, not just YTD.
-    'Last 30 days': buildTopDomains(domains30Res.data ?? [], domainsPrior30Res.data ?? []),
-  }
-  const totalCitationsByRange: Record<string, number> = {
-    'YTD':          (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0),
-    'Last 30 days': (domains30Res.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0),
-  }
+  // Deltas (retrievedDelta / Post-Launch AI Lift) compare the selected range
+  // against the immediately-preceding period of equal length.
+  const topDomains = buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? [])
+  const totalCitations = (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)
 
   // --- Domain type breakdown ---
   const typeMap: Record<string, number> = {}
@@ -459,9 +440,6 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
   const domainTypes: DomainType[] = Object.entries(typeMap)
     .map(([type, count]) => ({ type, percentage: Math.round((count / total) * 100) }))
     .sort((a, b) => b.percentage - a.percentage)
-
-  // --- Total citations ---
-  const totalCitations = (domainsRes.data ?? []).reduce((sum, d) => sum + (d.citation_count ?? 0), 0)
 
   // --- Tracked prompts ---
   function categorizePrompt(text: string): string {
@@ -543,33 +521,17 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     }
   })
 
-  // --- Weekly visibility (YTD) ---
-  const filteredYtdRows = ytdRows.filter((r) =>
+  // --- Visibility trend over the selected range ---
+  const filteredTrendRows = trendRows.filter((r) =>
     yourBrand ? r.brand.name.toLowerCase().includes(yourBrand.toLowerCase()) : true
   )
-  const competitorYtdRows = ytdRows.filter((r) =>
+  const competitorTrendRows = trendRows.filter((r) =>
     yourBrand ? !r.brand.name.toLowerCase().includes(yourBrand.toLowerCase()) : false
   )
-  const weeklyVisibility = groupByWeek(filteredYtdRows)
-  const competitorWeeklyVisibility = groupByWeek(competitorYtdRows)
-  const dailyVisibility = groupByDay(filteredYtdRows)
-  const competitorDailyVisibility = groupByDay(competitorYtdRows)
-
-  // --- Additional date ranges for brand rankings (no deltas) ---
-  function buildRankings(rows: ApiBrandRow[]): BrandRanking[] {
-    const agg = aggregateBrandRows(rows)
-    return Array.from(agg.entries())
-      .map(([, a]) => {
-        const m = aggToMetrics(a)
-        return { name: a.name, visibility: m.visibility, visibilityDelta: 0, sov: m.sov, sovDelta: 0, sentiment: m.sentiment, sentimentDelta: 0, position: m.position, positionDelta: 0, isYou: yourBrand ? a.name.toLowerCase().includes(yourBrand.toLowerCase()) : false }
-      })
-      .sort((a, b) => b.visibility - a.visibility)
-      .map((b, i) => ({ ...b, rank: i + 1 }))
-  }
-  const brandRankingsByRange: Record<string, BrandRanking[]> = {
-    'YTD':          brandRankings,
-    'Last 30 days': buildRankings(brands30Res.data ?? []),
-  }
+  const weeklyVisibility = groupByWeek(filteredTrendRows)
+  const competitorWeeklyVisibility = groupByWeek(competitorTrendRows)
+  const dailyVisibility = groupByDay(filteredTrendRows)
+  const competitorDailyVisibility = groupByDay(competitorTrendRows)
 
   // --- LLM breakdown (your brand + own domains per model_channel) ---
   type LLMAgg = { visCount: number; visTotal: number; sovSum: number; sovRows: number; posSum: number; posCount: number }
@@ -648,20 +610,20 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     brandVisibilityByModel[brandName][modelName as AEOModel] = vis
   }
 
-  // --- Period change (last 30 vs prior 30) ---
-  const brandsCurrentPts = Array.from(aggregateBrandRows(brands30Res.data ?? []).entries()).map(([, a]) => ({
+  // --- Period change (selected range vs previous period) ---
+  const brandsCurrentPts = Array.from(aggregateBrandRows(currentBrandsRes.data ?? []).entries()).map(([, a]) => ({
     name: a.name, visibility: aggToMetrics(a).visibility,
     isYou: yourBrand ? a.name.toLowerCase().includes(yourBrand.toLowerCase()) : false,
   }))
-  const brandsPriorPts = Array.from(aggregateBrandRows(brandsPrior30Res.data ?? []).entries()).map(([, a]) => ({
+  const brandsPriorPts = Array.from(aggregateBrandRows(priorBrandsRes.data ?? []).entries()).map(([, a]) => ({
     name: a.name, visibility: aggToMetrics(a).visibility,
     isYou: yourBrand ? a.name.toLowerCase().includes(yourBrand.toLowerCase()) : false,
   }))
   const periodChange = buildPeriodChange({
     brandsCurrent: brandsCurrentPts,
     brandsPrior: brandsPriorPts,
-    domainsCurrent: (domains30Res.data ?? []).map((d) => ({ domain: d.domain, share: d.retrieved_percentage * 100 })),
-    domainsPrior:   (domainsPrior30Res.data ?? []).map((d) => ({ domain: d.domain, share: d.retrieved_percentage * 100 })),
+    domainsCurrent: (domainsRes.data ?? []).map((d) => ({ domain: d.domain, share: d.retrieved_percentage * 100 })),
+    domainsPrior:   (domainsPriorRes.data ?? []).map((d) => ({ domain: d.domain, share: d.retrieved_percentage * 100 })),
     prompts: trackedPrompts.map((p) => ({ text: p.text, visibility: p.visibility })),
   })
 
@@ -684,9 +646,8 @@ async function getPeecOverviewImpl(clientSlug?: string): Promise<PeecOverview> {
     competitorDailyVisibility,
     competitorAverages,
     brandRankings,
-    brandRankingsByRange,
-    domainsByRange,
-    totalCitationsByRange,
+    topDomains,
+    totalCitations,
     domainTypes,
     trackedPrompts,
     llmBreakdown,
@@ -711,7 +672,10 @@ export const getPeecOverview = cached(
     //      against the skp- token), so they need to be evicted.
     // v6 = "Last 30 days" domains now carry a prior-30d baseline (retrievedDelta /
     //      Post-Launch AI Lift); old v5 entries have retrievedDelta hard-0 for 30d.
-    version: 'v6',
+    // v7 = overview now honors the page date range (dateRange arg); response shape
+    //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
+    //      records) and deltas compare vs the previous period, not prior year.
+    version: 'v7',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

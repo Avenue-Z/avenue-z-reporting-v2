@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { BrandRanking } from '@/lib/peec/client'
 import { SortableTable, type SortableColumn } from './sortable-table'
@@ -20,13 +19,9 @@ function Delta({ value, invert = false }: { value: number; invert?: boolean }) {
   )
 }
 
-const RANGE_KEYS = ['YTD', 'Last 30 days'] as const
-
-export function BrandRankingsTable({ rankingsByRange }: { rankingsByRange: Record<string, BrandRanking[]> }) {
-  const [selectedRange, setSelectedRange] = useState<string>('YTD')
-
-  const brands = rankingsByRange[selectedRange] ?? rankingsByRange['YTD'] ?? []
-  const showDeltas = selectedRange === 'YTD'
+export function BrandRankingsTable({ rankings }: { rankings: BrandRanking[] }) {
+  const brands = rankings
+  const showDeltas = true
 
   const columns: SortableColumn<BrandRanking>[] = [
     {
@@ -91,20 +86,9 @@ export function BrandRankingsTable({ rankingsByRange }: { rankingsByRange: Recor
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which brands appear most often in AI answers?</p>
-          <InfoTooltip text={`Brand visibility across all brands tracked in Peec AI. ${PEEC.visibility.text}`} />
-        </div>
-        <select
-          value={selectedRange}
-          onChange={(e) => setSelectedRange(e.target.value)}
-          className="cursor-pointer rounded-md border border-white/[0.08] bg-bg-surface px-3 py-1.5 text-xs font-semibold text-white focus:outline-none"
-        >
-          {RANGE_KEYS.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+      <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which brands appear most often in AI answers?</p>
+        <InfoTooltip text={`Brand visibility across all brands tracked in Peec AI. ${PEEC.visibility.text}`} />
       </div>
       <SortableTable
         columns={columns}
