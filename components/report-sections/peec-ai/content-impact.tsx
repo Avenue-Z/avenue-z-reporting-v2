@@ -565,13 +565,13 @@ export async function ContentImpactReport({
           <KpiCard
             label="Planned URLs in Scope"
             hint="Content calendar rows"
-            value={calendarData ? calendarData.plannedCount.toLocaleString() : '--'}
+            value={calendarData ? calendarData.plannedCount.toLocaleString() : 'None'}
             live={!!calendarData && calendarData.plannedCount > 0}
           />
           <KpiCard
             label="Live URLs"
             hint="Matched or discoverable"
-            value={calendarData ? calendarData.liveCount.toLocaleString() : '--'}
+            value={calendarData ? calendarData.liveCount.toLocaleString() : 'None'}
             live={!!calendarData && calendarData.liveCount > 0}
           />
           {/* Total Sessions: GA4 has no model dimension — not filtered.
@@ -582,7 +582,7 @@ export async function ContentImpactReport({
             value={
               calendarIsDemo ? '9,910'
                 : ga4TotalSessions !== null ? ga4TotalSessions.toLocaleString()
-                : '--'
+                : 'None'
             }
             live={calendarIsDemo || ga4TotalSessions !== null}
           />
@@ -590,7 +590,7 @@ export async function ContentImpactReport({
           <KpiCard
             label="AI Citations"
             hint={`Peec AI, owned domains YTD${models ? ' · filtered to selected AI models' : ''}`}
-            value={peecData ? totalCitations.toLocaleString() : '--'}
+            value={peecData ? totalCitations.toLocaleString() : 'None'}
             live={totalCitations > 0}
           />
           {/* AI-Referred Sessions: GA4 has no model dimension — not filtered.
@@ -605,7 +605,7 @@ export async function ContentImpactReport({
             value={
               calendarIsDemo ? '1,243'
                 : ga4AiReferredSessions !== null ? ga4AiReferredSessions.toLocaleString()
-                : '--'
+                : 'None'
             }
             live={calendarIsDemo || ga4AiReferredSessions !== null}
           />
@@ -620,20 +620,20 @@ export async function ContentImpactReport({
                   ? filteredBots.reduce((s, b) => s + b.uniquePages, 0)
                   : agentData.uniquePagesVisited
                 } pages`
-              : '--'}
+              : 'None'}
             live={!!agentData && agentData.uniquePagesVisited > 0}
           />
           <KpiCard
             label="% Null / Unmatched"
             hint="Planned content with no data"
-            value={unmatchedPct !== null ? `${unmatchedPct}%` : '--'}
+            value={unmatchedPct !== null ? `${unmatchedPct}%` : 'None'}
             live={unmatchedPct !== null}
           />
           {/* Owned Domains Cited in AI: filtered by selected models via per-model citation data */}
           <KpiCard
             label="Owned Domains Cited in AI"
             hint={`Peec AI brand-owned domains with citations${models ? ' · filtered to selected AI models' : ''}`}
-            value={peecData ? filteredOwnDomains.length.toLocaleString() : '--'}
+            value={peecData ? filteredOwnDomains.length.toLocaleString() : 'None'}
             live={filteredOwnDomains.length > 0}
           />
         </div>
@@ -697,7 +697,7 @@ export async function ContentImpactReport({
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
               <span className={cn('text-lg font-bold', (calendarIsDemo || val !== null) ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demo : val !== null ? `${Math.round(val)} days` : '--'}
+                {calendarIsDemo ? demo : val !== null ? `${Math.round(val)} days` : 'None'}
               </span>
             </div>
           ))}
@@ -747,10 +747,10 @@ export async function ContentImpactReport({
                       value: group.filter(r => (r.aiBotVisits ?? 0) > 0).length.toString(),
                       live: true,
                     },
-                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : g.avgSessions !== null ? g.avgSessions.toLocaleString() : '--',  live: calendarIsDemo || g.avgSessions !== null },
-                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : g.citationRate !== null ? `${g.citationRate}%` : '--', live: calendarIsDemo || g.citationRate !== null },
-                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : g.aiReferred !== null ? g.aiReferred.toLocaleString() : '--', live: calendarIsDemo || g.aiReferred !== null },
-                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : tAi !== null ? `${Math.round(tAi)} days` : '--',     live: calendarIsDemo || tAi !== null },
+                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : g.avgSessions !== null ? g.avgSessions.toLocaleString() : 'None',  live: calendarIsDemo || g.avgSessions !== null },
+                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : g.citationRate !== null ? `${g.citationRate}%` : 'None', live: calendarIsDemo || g.citationRate !== null },
+                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : g.aiReferred !== null ? g.aiReferred.toLocaleString() : 'None', live: calendarIsDemo || g.aiReferred !== null },
+                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : tAi !== null ? `${Math.round(tAi)} days` : 'None',     live: calendarIsDemo || tAi !== null },
                   ].map(({ metric, value, live }) => (
                     <div key={metric} className="flex items-center justify-between text-xs">
                       <span className="text-text-muted">{metric}</span>
@@ -771,7 +771,7 @@ export async function ContentImpactReport({
                   {['Avg Sessions (30d)', 'AI Citation Rate', 'AI-Referred Sessions', 'Time to First AI Activity'].map(m => (
                     <div key={m} className="flex items-center justify-between text-xs">
                       <span className="text-text-muted">{m}</span>
-                      <span className="tabular-nums text-white/20">--</span>
+                      <span className="tabular-nums text-white/20">None</span>
                     </div>
                   ))}
                 </div>
@@ -804,7 +804,7 @@ export async function ContentImpactReport({
                 <span className="text-[11px] font-semibold text-white/60">{label}</span>
               </div>
               <span className={cn('text-lg font-bold', (calendarIsDemo || decayBuckets) ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demoCount : decayBuckets ? decayBuckets[label as Trajectory] : '--'}
+                {calendarIsDemo ? demoCount : decayBuckets ? decayBuckets[label as Trajectory] : 'None'}
               </span>
               <span className="text-[10px] text-text-muted">{desc}</span>
             </div>
@@ -933,7 +933,7 @@ export async function ContentImpactReport({
             })
             return {
               urlPath: p.path,
-              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : '--'),
+              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : 'None'),
               aiBotVisits: p.visits,
               aiCitations: calendarIsDemo ? g3DemoCites[idx % 10] : null,
               aiReferredSessions: calendarIsDemo ? g3DemoSessions[idx % 10] : null,
