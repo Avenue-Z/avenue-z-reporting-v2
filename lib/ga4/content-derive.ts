@@ -86,3 +86,53 @@ export function tallyTrajectories(items: TrajectoryInput[]): Record<Trajectory, 
   for (const item of items) counts[classifyTrajectory(item)]++
   return counts
 }
+
+// ── §C: time-to-first-traffic / first-AI-activity ──────────────────────────────
+
+/** Median of a numeric list, or null when empty. */
+export function median(nums: number[]): number | null {
+  if (nums.length === 0) return null
+  const s = [...nums].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+/** Whole days from `fromISO` to `toISO` (YYYY-MM-DD). Negative if toISO is earlier. */
+export function daysBetween(fromISO: string, toISO: string): number {
+  const from = Date.parse(`${fromISO}T00:00:00Z`)
+  const to = Date.parse(`${toISO}T00:00:00Z`)
+  return Math.round((to - from) / 86_400_000)
+}
+
+export interface UrlTimingInput {
+  /** Publish date (YYYY-MM-DD). */
+  publishDate: string
+  /** Per-day rows for this URL (YYYY-MM-DD). */
+  days: { date: string; sessions: number; aiSessions: number }[]
+}
+
+export interface UrlTiming {
+  /** Days from publish to first day with any session; null if none. */
+  daysToFirstTraffic: number | null
+  /** Days from publish to first day with an AI-referred session; null if none. */
+  daysToFirstAi: number | null
+}
+
+/**
+ * Per-URL days-to-first-traffic and days-to-first-AI-activity. Only days on or
+ * after the publish date count; a first event before publish clamps to 0.
+ * "AI activity" = first AI-referred GA4 session (bot-crawl first-seen is not
+ * exposed by the Peec aggregation, so it is not used here).
+ */
+export function computeUrlTiming({ publishDate, days }: UrlTimingInput): UrlTiming {
+  const onOrAfter = days.filter((d) => d.date >= publishDate)
+  const firstWith = (pred: (d: { sessions: number; aiSessions: number }) => boolean): number | null => {
+    const dates = onOrAfter.filter(pred).map((d) => d.date).sort()
+    if (dates.length === 0) return null
+    return Math.max(0, daysBetween(publishDate, dates[0]))
+  }
+  return {
+    daysToFirstTraffic: firstWith((d) => d.sessions > 0),
+    daysToFirstAi: firstWith((d) => d.aiSessions > 0),
+  }
+}
