@@ -112,6 +112,22 @@ calendar columns (Topic, URL, Type, Status, Publish Date) still populate.
   consistent with Avg Citations (§4).
 - **To populate:** widen the dashboard date range (e.g. last 12 months); the historical traffic exists.
 
+### 7. §D "Which delivers more lift — new content or optimization?" — Optimized column is `--` (no optimized content)
+**Decision: left as-is — correct, not a bug.** avenue-z's content calendar is **100% "New Blog"**, so the
+**Optimized Content** group has **0 URLs**. With nothing to aggregate, **Avg Sessions, AI Citation Rate,
+and Time to First AI Activity** all render `--`:
+
+- These are an **average / rate / first-event** over an empty set — undefined, not `0`. Showing `0` would
+  imply "we measured optimized content and it scored zero," which is false; `--` is the honest value
+  (same reasoning as Avg Citations §4 and the empty-set cases throughout).
+- **Consistency fix applied:** AI-Referred Sessions previously showed `0` for the empty group (it was
+  initialized to `0` before summing over the empty URL list) while its siblings showed `--`. It now also
+  shows `--` for an empty group (`sectionDGroup` gates on `urls.length > 0`); a *non-empty* group with no
+  AI-referred sessions still correctly shows a real `0`.
+- **To make the comparison meaningful:** tag some calendar rows as optimized/refreshed (via Content Type,
+  or add a Content Action column the parser already understands — `new`/`optimized`/`other`). Until the
+  calendar contains optimized pieces, there is nothing to compare net-new against.
+
 ---
 
 ## Reference: file map

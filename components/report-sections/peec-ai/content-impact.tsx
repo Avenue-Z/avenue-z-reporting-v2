@@ -570,8 +570,10 @@ export async function ContentImpactReport({
     const avgSessions = ga4Rows && sess.length ? Math.round(sess.reduce((a, b) => a + b, 0) / sess.length) : null
     const citedCount = urls.filter(u => (citeByKey.get(urlJoinKey(u) ?? '')?.citationCount ?? 0) > 0).length
     const citationRate = urls.length ? Math.round((citedCount / urls.length) * 100) : null
+    // Empty group → -- (consistent with avgSessions/citationRate above); a real
+    // group with no AI-referred sessions stays 0.
     let aiReferred: number | null = null
-    if (timingOk) {
+    if (timingOk && urls.length > 0) {
       aiReferred = 0
       for (const u of urls) {
         const p = extractPath(u)
