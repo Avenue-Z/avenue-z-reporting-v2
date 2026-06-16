@@ -15,9 +15,9 @@ import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query, deriveCompareRange } from '@/lib/ga4/client'
+import { ga4Query, deriveCompareRange, parseDateRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
-import { tallyTrajectories, type Trajectory } from '@/lib/ga4/content-derive'
+import { tallyTrajectories, median, computeUrlTiming, type Trajectory } from '@/lib/ga4/content-derive'
 import {
   PlannedContentPerformanceTable,
   OwnedContentCitedTable,
@@ -442,6 +442,100 @@ export async function ContentImpactReport({
     )
   }
 
+  // ── §C/§D · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────
+  // Both sections key off planned content (URL + publish date + new/optimized).
+  // One date-bucketed GA4 query, restricted to the planned paths over the window
+  // from the earliest publish date to today, feeds both: §C aggregates
+  // days-to-first across URLs; §D reuses it per new/optimized group. Gated on the
+  // content calendar — without publish dates there is no URL spine to measure.
+  const isoDate = (s: string | null): string | null =>
+    s && /^\d{4}-\d{2}-\d{2}/.test(s.trim()) ? s.trim().slice(0, 10) : null
+  const plannedTiming = (calendarData?.rows ?? [])
+    .map(r => ({ path: extractPath(r.url), publishDate: isoDate(r.publishDate), action: r.contentAction }))
+    .filter((r): r is { path: string; publishDate: string; action: ContentCalendarRow['contentAction'] } =>
+      r.path !== null && r.publishDate !== null)
+
+  const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
+  let timingOk = false
+  if (!demoMode && plannedTiming.length > 0) {
+    const today = new Date().toISOString().slice(0, 10)
+    const minPublish = plannedTiming.reduce((m, r) => (r.publishDate < m ? r.publishDate : m), plannedTiming[0].publishDate)
+    // pagePath inListFilter is an exact match, but GA4 may store a path with or
+    // without a trailing slash. Include both variants so neither form is missed;
+    // the client-side join (normPath) collapses them back together.
+    const pathVariants = (p: string) => {
+      const stripped = p.replace(/\/$/, '') || '/'
+      return stripped === '/' ? ['/'] : [stripped, `${stripped}/`]
+    }
+    const filterValues = [...new Set(plannedTiming.flatMap(r => pathVariants(r.path)))]
+    try {
+      const res = await ga4Query({
+        clientSlug,
+        dateRange: `${minPublish},${today}`,
+        metrics: ['sessions'],
+        dimensions: ['pagePath', 'date', 'sessionSource'],
+        dimensionFilter: { filter: { fieldName: 'pagePath', inListFilter: { values: filterValues } } },
+        limit: 100000,
+      })
+      timingOk = true
+      for (const row of res.rows) {
+        const path = normPath(String(row.pagePath ?? ''))
+        const ds = String(row.date ?? '')
+        const iso = ds.length === 8 ? `${ds.slice(0, 4)}-${ds.slice(4, 6)}-${ds.slice(6, 8)}` : ds
+        const sessions = Number(row.sessions) || 0
+        if (!daysByPath.has(path)) daysByPath.set(path, new Map())
+        const byDate = daysByPath.get(path)!
+        const acc = byDate.get(iso) ?? { sessions: 0, aiSessions: 0 }
+        acc.sessions += sessions
+        if (isAiSource(row.sessionSource)) acc.aiSessions += sessions
+        byDate.set(iso, acc)
+      }
+    } catch (e) {
+      console.error('[content-impact] GA4 §C/§D timing error:', e)
+    }
+  }
+
+  const daysFor = (path: string) =>
+    [...(daysByPath.get(normPath(path))?.entries() ?? [])].map(([date, v]) => ({ date, ...v }))
+
+  const urlTimings = plannedTiming.map(r => ({
+    action: r.action,
+    ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
+  }))
+
+  // §C aggregates (median days-to-first; fastest/slowest AI-indexed).
+  const firstTrafficDays = urlTimings.map(t => t.daysToFirstTraffic).filter((n): n is number => n !== null)
+  const firstAiDays = urlTimings.map(t => t.daysToFirstAi).filter((n): n is number => n !== null)
+  const medFirstTraffic = median(firstTrafficDays)
+  const medFirstAi = median(firstAiDays)
+  const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
+  const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
+  const sectionCOk = timingOk
+
+  // §D per-group aggregation. AI-referred is summed within the report window.
+  const { startDate: rStart, endDate: rEnd } = parseDateRange(effectiveRange)
+  const groupMedianFirstAi = (action: ContentCalendarRow['contentAction']) =>
+    median(urlTimings.filter(t => t.action === action).map(t => t.daysToFirstAi).filter((n): n is number => n !== null))
+  function sectionDGroup(group: ContentCalendarRow[]) {
+    const urls = group.map(r => r.url).filter((u): u is string => !!u)
+    const sess = urls.map(u => getGA4Metrics(u, ga4Rows).sessions).filter((n): n is number => n !== null)
+    const avgSessions = ga4Rows && sess.length ? Math.round(sess.reduce((a, b) => a + b, 0) / sess.length) : null
+    const citedCount = urls.filter(u => (citeByKey.get(urlJoinKey(u) ?? '')?.citationCount ?? 0) > 0).length
+    const citationRate = urls.length ? Math.round((citedCount / urls.length) * 100) : null
+    let aiReferred: number | null = null
+    if (timingOk) {
+      aiReferred = 0
+      for (const u of urls) {
+        const p = extractPath(u)
+        if (!p) continue
+        for (const [date, v] of daysByPath.get(normPath(p))?.entries() ?? []) {
+          if (date >= rStart && date <= rEnd) aiReferred += v.aiSessions
+        }
+      }
+    }
+    return { avgSessions, citationRate, aiReferred }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -594,21 +688,21 @@ export async function ContentImpactReport({
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', demo: '14 days' },
-            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', demo: '22 days' },
-            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', demo: '4 days' },
-            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', demo: '47 days' },
-          ].map(({ icon: Icon, label, color, demo }) => (
+            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', demo: '14 days', val: medFirstTraffic },
+            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', demo: '22 days', val: medFirstAi },
+            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', demo: '4 days', val: fastestAi },
+            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', demo: '47 days', val: slowestAi },
+          ].map(({ icon: Icon, label, color, demo, val }) => (
             <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
-              <span className={cn('text-lg font-bold', calendarIsDemo ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demo : '--'}
+              <span className={cn('text-lg font-bold', (calendarIsDemo || val !== null) ? 'text-white' : 'text-white/20')}>
+                {calendarIsDemo ? demo : val !== null ? `${Math.round(val)} days` : '--'}
               </span>
             </div>
           ))}
         </div>
-        {!calendarIsDemo && (
+        {!calendarIsDemo && !sectionCOk && (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
             <p className="text-xs text-text-muted">
               {calendarData
@@ -627,11 +721,14 @@ export async function ContentImpactReport({
         {calendarData && (newRows.length > 0 || optimizedRows.length > 0) ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              { label: 'Net-New Content',   rows: newRows,       color: '#60FF80',
+              { label: 'Net-New Content',   rows: newRows,       action: 'new' as const,       color: '#60FF80',
                 demoAvgSessions: '1,012', demoCitationRate: '26%', demoAiRefSessions: '847', demoTimeToAI: '18 days' },
-              { label: 'Optimized Content', rows: optimizedRows, color: '#39A0FF',
+              { label: 'Optimized Content', rows: optimizedRows, action: 'optimized' as const, color: '#39A0FF',
                 demoAvgSessions: '715',   demoCitationRate: '18%', demoAiRefSessions: '315', demoTimeToAI: '9 days' },
-            ].map(({ label, rows: group, color, demoAvgSessions, demoCitationRate, demoAiRefSessions, demoTimeToAI }) => (
+            ].map(({ label, rows: group, action, color, demoAvgSessions, demoCitationRate, demoAiRefSessions, demoTimeToAI }) => {
+              const g = sectionDGroup(group)
+              const tAi = groupMedianFirstAi(action)
+              return (
               <div key={label} className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
@@ -650,10 +747,10 @@ export async function ContentImpactReport({
                       value: group.filter(r => (r.aiBotVisits ?? 0) > 0).length.toString(),
                       live: true,
                     },
-                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : '--',  live: calendarIsDemo },
-                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : '--', live: calendarIsDemo },
-                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : '--', live: calendarIsDemo },
-                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : '--',     live: calendarIsDemo },
+                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : g.avgSessions !== null ? g.avgSessions.toLocaleString() : '--',  live: calendarIsDemo || g.avgSessions !== null },
+                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : g.citationRate !== null ? `${g.citationRate}%` : '--', live: calendarIsDemo || g.citationRate !== null },
+                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : g.aiReferred !== null ? g.aiReferred.toLocaleString() : '--', live: calendarIsDemo || g.aiReferred !== null },
+                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : tAi !== null ? `${Math.round(tAi)} days` : '--',     live: calendarIsDemo || tAi !== null },
                   ].map(({ metric, value, live }) => (
                     <div key={metric} className="flex items-center justify-between text-xs">
                       <span className="text-text-muted">{metric}</span>
@@ -662,7 +759,8 @@ export async function ContentImpactReport({
                   ))}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
