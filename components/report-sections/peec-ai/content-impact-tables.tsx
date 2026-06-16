@@ -792,7 +792,6 @@ export interface RepeatedCompetitorPagesRow {
   competitor: string
   clusters: string[]
   citations: number
-  avgPos: number
 }
 
 export function RepeatedCompetitorPagesTable({
@@ -834,12 +833,6 @@ export function RepeatedCompetitorPagesTable({
       tooltip: TT.aiCitations,
       accessor: (r) => r.citations,
       render: (r) => <span className="tabular-nums text-white">{r.citations}</span>,
-    },
-    {
-      key: 'avgPos', label: 'Avg Position', align: 'right',
-      tooltip: TT.position,
-      accessor: (r) => r.avgPos,
-      render: (r) => <span className="tabular-nums text-white">#{r.avgPos.toFixed(1)}</span>,
     },
   ]
 
