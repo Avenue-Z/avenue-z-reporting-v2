@@ -314,9 +314,13 @@ function CitationDelta({ value }: { value: number }) {
 export function TopEditorialDomainsTable({
   rows,
   isDemo,
+  prDataAvailable,
 }: {
   rows: TopEditorialDomainRow[]
   isDemo: boolean
+  // True when PR Proof placement data loaded (so hasPR=false is a real "No",
+  // not missing data). When false (no sheet / fetch failed), PR stays "--".
+  prDataAvailable: boolean
 }) {
   const maxRetrieved = Math.max(...rows.map((r) => r.citationCount), 1)
 
@@ -390,7 +394,7 @@ export function TopEditorialDomainsTable({
           <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#60FF80]">
             Yes
           </span>
-        ) : isDemo ? (
+        ) : isDemo || prDataAvailable ? (
           <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold text-white/40">No</span>
         ) : (
           <span className="text-white/20">--</span>

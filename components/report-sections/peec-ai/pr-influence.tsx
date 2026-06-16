@@ -630,7 +630,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       />
 
       {/* ── Section C: Top Editorial Domains Cited by AI ── */}
-      <TopEditorialDomainsTable rows={topEditorialRows} isDemo={prIsDemo} />
+      <TopEditorialDomainsTable rows={topEditorialRows} isDemo={prIsDemo} prDataAvailable={prData != null} />
 
       {/* ── Section D: Brand-Absent Editorial Domains ── */}
       <BrandAbsentEditorialDomainsTable
