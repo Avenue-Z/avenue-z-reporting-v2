@@ -15,7 +15,9 @@ import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query } from '@/lib/ga4/client'
+import { ga4Query, deriveCompareRange } from '@/lib/ga4/client'
+import { isAiSource } from '@/lib/constants'
+import { tallyTrajectories, type Trajectory } from '@/lib/ga4/content-derive'
 import {
   PlannedContentPerformanceTable,
   OwnedContentCitedTable,
@@ -208,19 +210,39 @@ export async function ContentImpactReport({
   demoMode?: boolean
   models?: AEOModel[] | null
 }) {
-  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult] = await Promise.allSettled([
+  const effectiveRange = dateRange ?? 'last_30_days'
+  // Prior period for §E trajectory (decay vs. compounding). previous_period
+  // always resolves to a range, so this is non-null; fall back defensively.
+  const priorRange = deriveCompareRange(effectiveRange, 'previous_period')
+  const priorRangeStr = priorRange ? `${priorRange.startDate},${priorRange.endDate}` : effectiveRange
+
+  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4PriorResult] = await Promise.allSettled([
     getPeecOverview(clientSlug),        // multi-client: uses peecCustomerProjectId from config
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
     ga4Query({                          // page-level sessions for Section B -- requires ga4PropertyId
       clientSlug,
-      dateRange: dateRange ?? 'last_30_days',
+      dateRange: effectiveRange,
       metrics: ['sessions', 'activeUsers', 'screenPageViews', 'engagementRate'],
       dimensions: ['pagePath'],
       limit: 1000,
     }),
     getUrlCitations(clientSlug),
     getDomainCoverage(clientSlug),      // per-domain prompt/theme coverage (Section H)
+    ga4Query({                          // §A totals + §F per-host AI-referred sessions
+      clientSlug,
+      dateRange: effectiveRange,
+      metrics: ['sessions'],
+      dimensions: ['hostName', 'sessionSource'],
+      limit: 1000,
+    }),
+    ga4Query({                          // §E prior-period page sessions (trajectory)
+      clientSlug,
+      dateRange: priorRangeStr,
+      metrics: ['sessions'],
+      dimensions: ['pagePath'],
+      limit: 1000,
+    }),
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -231,6 +253,11 @@ export async function ContentImpactReport({
   let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
     : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagNameById: {} }
+  // GA4 host×source rows (§A totals + §F per-host AI-referred) and prior-period
+  // page rows (§E trajectory). null when the query rejected (GA4 unconfigured /
+  // property not shared) → callers reserve -- for that case, 0 stays 0.
+  const ga4AiHostRows = ga4AiHostResult.status === 'fulfilled' ? ga4AiHostResult.value.rows : null
+  const ga4PriorRows  = ga4PriorResult.status  === 'fulfilled' ? ga4PriorResult.value.rows  : null
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
@@ -250,6 +277,8 @@ export async function ContentImpactReport({
   if (agentResult.status        === 'rejected') console.error('[content-impact] Agent analytics error:', agentResult.reason)
   if (calendarResult.status     === 'rejected') console.error('[content-impact] Content calendar error:', calendarResult.reason)
   if (ga4Result.status          === 'rejected') console.error('[content-impact] GA4 error:', ga4Result.reason)
+  if (ga4AiHostResult.status    === 'rejected') console.error('[content-impact] GA4 host/source error:', ga4AiHostResult.reason)
+  if (ga4PriorResult.status     === 'rejected') console.error('[content-impact] GA4 prior-period error:', ga4PriorResult.reason)
   if (urlCitationsResult.status === 'rejected') console.error('[content-impact] URL citations error:', urlCitationsResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
@@ -354,6 +383,65 @@ export async function ContentImpactReport({
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
   const avgCitByDomain = avgCitationsByDomain(urlCitations)
 
+  // ── GA4 derivations (§A glance totals, §F per-host, §E trajectory) ──────────
+  // 0-vs-no-data rule (#35): when the query resolved, a 0 is a real 0; -- is
+  // reserved for a rejected query (handled by the *Ok booleans below).
+  const normPath = (p: string) => p.replace(/\/$/, '') || '/'
+  const aiHostOk = ga4AiHostRows !== null
+
+  // §A · Total Sessions — sum across all host×source rows.
+  const ga4TotalSessions = aiHostOk
+    ? ga4AiHostRows!.reduce((s, r) => s + (Number(r.sessions) || 0), 0)
+    : null
+
+  // §A · AI-Referred Sessions — sum across AI-source rows (all engines).
+  const ga4AiReferredSessions = aiHostOk
+    ? ga4AiHostRows!.filter(r => isAiSource(r.sessionSource)).reduce((s, r) => s + (Number(r.sessions) || 0), 0)
+    : null
+
+  // §F · AI-referred sessions by host + the set of hosts GA4 actually tracks
+  // (so a host with 0 AI sessions shows 0, but a host GA4 doesn't cover stays --).
+  const ga4Hosts = new Set<string>()
+  const aiRefByHost = new Map<string, number>()
+  if (aiHostOk) {
+    for (const r of ga4AiHostRows!) {
+      const h = hostKey(String(r.hostName ?? ''))
+      if (h) ga4Hosts.add(h)
+      if (isAiSource(r.sessionSource) && h) {
+        aiRefByHost.set(h, (aiRefByHost.get(h) ?? 0) + (Number(r.sessions) || 0))
+      }
+    }
+  }
+
+  // §E · trajectory buckets — current vs. prior page sessions × AI-citation
+  // presence. Needs both GA4 page queries to have resolved.
+  const decayOk = !demoMode && ga4Rows !== null && ga4PriorRows !== null
+  let decayBuckets: Record<Trajectory, number> | null = null
+  if (decayOk) {
+    const curByPath = new Map<string, number>()
+    for (const r of ga4Rows!) curByPath.set(normPath(String(r.pagePath ?? '')), Number(r.sessions) || 0)
+    const priorByPath = new Map<string, number>()
+    for (const r of ga4PriorRows!) priorByPath.set(normPath(String(r.pagePath ?? '')), Number(r.sessions) || 0)
+    // "Cited" = an owned-domain page earns an AI citation. Scope to owned hosts
+    // so a competitor citation sharing a path (e.g. /blog/x) can't false-match
+    // an owned GA4 page. Match by path within that owned-host set.
+    const ownedHostSet = new Set(ownDomains.map(d => hostKey(d.domain)))
+    const citedPaths = new Set<string>()
+    for (const c of urlCitations) {
+      if (!ownedHostSet.has(hostKey(c.domain))) continue
+      const p = extractPath(c.url)
+      if (p) citedPaths.add(normPath(p))
+    }
+    const allPaths = new Set([...curByPath.keys(), ...priorByPath.keys()])
+    decayBuckets = tallyTrajectories(
+      [...allPaths].map(path => ({
+        cur: curByPath.get(path) ?? 0,
+        prior: priorByPath.get(path) ?? 0,
+        cited: citedPaths.has(path),
+      })),
+    )
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -396,13 +484,13 @@ export async function ContentImpactReport({
               When a model filter is active, append a disclaimer to the hint. */}
           <KpiCard
             label="Total Sessions"
-            hint={
-              calendarIsDemo
-                ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
-                : 'GA4 page-level required'
+            hint={calendarIsDemo ? 'Sample · last 30d' : 'GA4 sessions, all sources'}
+            value={
+              calendarIsDemo ? '9,910'
+                : ga4TotalSessions !== null ? ga4TotalSessions.toLocaleString()
+                : '--'
             }
-            value={calendarIsDemo ? '9,910' : '--'}
-            live={calendarIsDemo}
+            live={calendarIsDemo || ga4TotalSessions !== null}
           />
           {/* AI Citations: filtered by selected models via domainCitationsByModel sum */}
           <KpiCard
@@ -418,10 +506,14 @@ export async function ContentImpactReport({
             hint={
               calendarIsDemo
                 ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
-                : `GA4 AI-source sessions required${models ? ' · across all AI engines' : ''}`
+                : `GA4 AI-source sessions${models ? ' · across all AI engines' : ''}`
             }
-            value={calendarIsDemo ? '1,243' : '--'}
-            live={calendarIsDemo}
+            value={
+              calendarIsDemo ? '1,243'
+                : ga4AiReferredSessions !== null ? ga4AiReferredSessions.toLocaleString()
+                : '--'
+            }
+            live={calendarIsDemo || ga4AiReferredSessions !== null}
           />
           {/* Owned URLs with AI Activity: when model filter active, sum uniquePages
               across filteredBots. When no filter, fall back to the pre-aggregated
@@ -613,14 +705,14 @@ export async function ContentImpactReport({
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
                 <span className="text-[11px] font-semibold text-white/60">{label}</span>
               </div>
-              <span className={cn('text-lg font-bold', calendarIsDemo ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demoCount : '--'}
+              <span className={cn('text-lg font-bold', (calendarIsDemo || decayBuckets) ? 'text-white' : 'text-white/20')}>
+                {calendarIsDemo ? demoCount : decayBuckets ? decayBuckets[label as Trajectory] : '--'}
               </span>
               <span className="text-[10px] text-text-muted">{desc}</span>
             </div>
           ))}
         </div>
-        {!calendarIsDemo && (
+        {!calendarIsDemo && !decayBuckets && (
           <p className="text-[10px] text-text-muted">Requires GA4 page-level session trends (MoM) + Peec AI citation data to classify content trajectory.</p>
         )}
       </SectionCard>
@@ -660,7 +752,12 @@ export async function ContentImpactReport({
           aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length]
             : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).join(', ') : null),
           avgCitations: calendarIsDemo ? demoPositions[i % demoPositions.length] : (avgCitByDomain[hostKey(d.domain)] ?? null),
-          aiReferredSessions: calendarIsDemo ? demoAiSessions[i % demoAiSessions.length] : null,
+          // AI-referred sessions for this owned domain, joined by host. A host
+          // GA4 tracks shows its real count (0 if none); a host GA4 doesn't
+          // cover stays -- (null) rather than a misleading 0.
+          aiReferredSessions: calendarIsDemo
+            ? demoAiSessions[i % demoAiSessions.length]
+            : ga4Hosts.has(hostKey(d.domain)) ? (aiRefByHost.get(hostKey(d.domain)) ?? 0) : null,
           postLaunchAILift: d.retrievedDelta,
           recommendedAction: 'Monitor and protect citation position',
         }))
