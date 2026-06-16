@@ -5,7 +5,7 @@ import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, urlTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
-import { urlJoinKey } from '@/lib/url'
+import { urlJoinKey, labelFromPath } from '@/lib/url'
 import type { AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
@@ -941,7 +941,7 @@ export async function ContentImpactReport({
                   .slice(0, 10)
                   .map(([np, s]) => ({
                     url: np,
-                    topic: topicByPath.get(np) ?? '—',
+                    topic: topicByPath.get(np) ?? labelFromPath(np),
                     sessions: s,
                     aiCitations: 0,
                     opportunityNote: 'Earns human traffic but no AI citations — add direct-answer blocks, FAQ schema, and clear entity definitions to become citable',
@@ -973,7 +973,7 @@ export async function ContentImpactReport({
                     const np = normPath(extractPath(c.url) ?? '')
                     return {
                       url: c.url,
-                      topic: topicByPath.get(np) ?? '—',
+                      topic: topicByPath.get(np) ?? labelFromPath(c.url),
                       aiCitations: c.citationCount,
                       sessions: sessionsByPath.get(np) ?? 0,
                       opportunityNote: 'Cited by AI but earns little human traffic — add a prominent CTA and internal links to convert citation visibility into visits',
@@ -1008,7 +1008,7 @@ export async function ContentImpactReport({
             })
             return {
               urlPath: p.path,
-              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : '--'),
+              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : labelFromPath(p.path)),
               aiBotVisits: p.visits,
               aiCitations: calendarIsDemo ? g3DemoCites[idx % 10]
                 : citationsOk ? (citedOwnedByPath.get(normPath(p.path)) ?? 0) : null,

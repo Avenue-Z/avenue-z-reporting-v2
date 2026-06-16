@@ -263,6 +263,7 @@ export const getContentCalendarData = cached(
   'getData',
   getContentCalendarDataImpl,
   {
+    version: 'v2',  // v2: publish/update dates parsed to ISO (M/D + month-context year)
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )
