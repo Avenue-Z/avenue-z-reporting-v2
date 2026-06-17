@@ -41,6 +41,15 @@ export interface PRConfig {
   lookbackDays?: number
 }
 
+export type LeadCategory = 'employer' | 'broker' | 'contact'
+
+export interface PaidSearchConfig {
+  /** Google Ads account id, digits only, e.g. '4136001852'. */
+  googleAdsAccountId: string
+  /** Canonical conversion actions. Category is NOT name-derivable, so it is explicit. */
+  leadActions: Array<{ name: string; category: LeadCategory }>
+}
+
 /**
  * Per-client column layout for the PR Proof Library Google Sheet.
  *
@@ -96,6 +105,8 @@ export const clients = pgTable('clients', {
   peecYourBrand: text('peec_your_brand'),
   profoundCategoryId: text('profound_category_id'),
   prConfig: jsonb('pr_config').$type<PRConfig>(),
+  smApiKeyEnvVar: text('sm_api_key_env_var'),
+  paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
