@@ -1,15 +1,15 @@
 'use client'
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
-interface ComboChartProps {
-  data: Array<Record<string, number | string>>
-  xKey: string
-  bar: { key: string; color: string; label: string }
-  line: { key: string; color: string; label: string }
+interface ComboChartProps<T extends object> {
+  data: T[]
+  xKey: keyof T & string
+  bar: { key: keyof T & string; color: string; label: string }
+  line: { key: keyof T & string; color: string; label: string }
   valueFormatter?: (n: number) => string
 }
 
-export function ComboChart({ data, xKey, bar, line, valueFormatter }: ComboChartProps) {
+export function ComboChart<T extends object>({ data, xKey, bar, line, valueFormatter }: ComboChartProps<T>) {
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
