@@ -11,7 +11,8 @@ import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { postPublishTrend, addDays } from '@/lib/ga4/content-derive'
 import { KpiCard } from '@/components/charts/kpi-card'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Megaphone } from 'lucide-react'
+import { SectionHeader } from './section-header'
 import { cn } from '@/lib/utils'
 import { PEEC, GA4 } from '@/lib/peec/metric-definitions'
 import type { AEOModel } from '@/lib/peec/models'
@@ -559,6 +560,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   return (
     <div className="space-y-8">
+
+      <SectionHeader
+        icon={Megaphone}
+        title="How is AI-driven PR coverage performing?"
+        subtitle="Where earned media earns LLM citations, which publications carry the most AI authority, and the opportunities to grow share of voice."
+      />
 
       {prIsDemo && (
         <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>

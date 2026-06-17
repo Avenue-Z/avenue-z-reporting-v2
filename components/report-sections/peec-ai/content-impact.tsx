@@ -1,4 +1,5 @@
 import { FileText, Clock, TrendingUp, TrendingDown } from 'lucide-react'
+import { SectionHeader } from './section-header'
 import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
@@ -582,18 +583,11 @@ export async function ContentImpactReport({
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#60FF80]/10">
-          <FileText className="h-5 w-5 text-[#60FF80]" />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-white">How is content performing across AI and human channels?</h2>
-          <p className="mt-0.5 text-sm text-text-muted">
-            Which content assets earn LLM citations, where content investments translate into AI visibility, and what the content team should build next.
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        icon={FileText}
+        title="How is content performing across AI and human channels?"
+        subtitle="Which content assets earn LLM citations, where content investments translate into AI visibility, and what the content team should build next."
+      />
 
       {calendarIsDemo && (
         <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>

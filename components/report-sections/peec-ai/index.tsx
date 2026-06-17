@@ -22,6 +22,8 @@ import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { Sparkles } from 'lucide-react'
+import { SectionHeader } from './section-header'
 
 // --- Helpers ---
 
@@ -226,13 +228,12 @@ function ProviderSection({
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-sm font-bold uppercase tracking-widest text-text-muted">Answer Engine Optimization</p>
-        <div className="flex items-center gap-2">
-          <h2 className="text-3xl font-extrabold uppercase text-white">Overview</h2>
-          {isDemo && <SampleDataBadge />}
-        </div>
-      </div>
+      <SectionHeader
+        icon={Sparkles}
+        title="How visible is the brand across AI answer engines?"
+        subtitle="Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors."
+        badge={isDemo ? <SampleDataBadge /> : undefined}
+      />
 
       <PeriodRibbon change={data.periodChange} />
 
