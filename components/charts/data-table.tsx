@@ -35,6 +35,7 @@ export function DataTable({ columns, rows, defaultSort, totalsRow }: DataTablePr
   const [sort, setSort] = useState(defaultSort ?? null)
   const col = sort ? columns.find((c) => c.key === sort.key) : undefined
   const display = sort && col?.sortValue ? sortRows(rows, sort.key, sort.dir, col.sortValue) : rows
+  const canSort = (c: Column) => Boolean(c.sortable && c.sortValue)
 
   return (
     <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface">
@@ -44,10 +45,10 @@ export function DataTable({ columns, rows, defaultSort, totalsRow }: DataTablePr
             {columns.map((c) => (
               <th
                 key={c.key}
-                onClick={c.sortable ? () => setSort((s) => ({ key: c.key, dir: s?.key === c.key && s.dir === 'desc' ? 'asc' : 'desc' })) : undefined}
-                className={`px-5 py-3 text-[11px] font-extrabold uppercase tracking-widest text-text-muted ${c.align === 'right' ? 'text-right' : 'text-left'} ${c.sortable ? 'cursor-pointer select-none hover:text-white' : ''}`}
+                onClick={canSort(c) ? () => setSort((s) => ({ key: c.key, dir: s?.key === c.key && s.dir === 'desc' ? 'asc' : 'desc' })) : undefined}
+                className={`px-5 py-3 text-[11px] font-extrabold uppercase tracking-widest text-text-muted ${c.align === 'right' ? 'text-right' : 'text-left'} ${canSort(c) ? 'cursor-pointer select-none hover:text-white' : ''}`}
               >
-                {c.label}{sort?.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                {c.label}{canSort(c) && sort?.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
               </th>
             ))}
           </tr>

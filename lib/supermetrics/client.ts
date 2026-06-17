@@ -11,12 +11,15 @@ export * from './types'
 
 const BASE = 'https://api.supermetrics.com/enterprise/v2'
 
-async function call(url: string, init: RequestInit, fetchImpl: typeof fetch): Promise<unknown> {
+async function call(url: string, init: RequestInit, fetchImpl: typeof fetch, attempt = 0): Promise<unknown> {
   const res = await fetchImpl(url, init)
   if (res.status === 429) {
+    if (attempt >= 3) {
+      throw new SmQueryError('Supermetrics rate limit: retries exhausted', 429)
+    }
     const retry = Number(res.headers.get('Retry-After') ?? '2')
     await new Promise((r) => setTimeout(r, Math.min(retry, 10) * 1000))
-    return call(url, init, fetchImpl)
+    return call(url, init, fetchImpl, attempt + 1)
   }
   if (!res.ok) throw new SmQueryError(`Supermetrics ${res.status}`, res.status)
   return res.json()
