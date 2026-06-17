@@ -2,6 +2,7 @@ import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
 import { buildPeriodChange } from '@/lib/aeo/period-change'
+import { urlJoinKey } from '@/lib/url'
 
 const BASE_URL = 'https://api.tryprofound.com'
 
@@ -124,6 +125,11 @@ export type ProfoundOverview = {
   brandRankings: BrandRanking[]
   topDomains: TopDomain[]
   totalCitations: number
+  // Citations attributed to the client's own domain (normalized host match
+  // against clients.domain). Used to compute Citation Share % on the Overview.
+  yourBrandCitations: number
+  yourBrandCitationsPrior: number
+  totalCitationsPrior: number
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
@@ -350,6 +356,9 @@ function emptyOverview(): ProfoundOverview {
     brandRankings:              [],
     topDomains:                 [],
     totalCitations:             0,
+    yourBrandCitations:         0,
+    yourBrandCitationsPrior:    0,
+    totalCitationsPrior:        0,
     domainTypes:                [],
     trackedPrompts:             [],
     llmBreakdown:               [],
@@ -360,6 +369,7 @@ function emptyOverview(): ProfoundOverview {
 async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string): Promise<ProfoundOverview> {
   let yourBrand: string
   let categoryId: string
+  let yourDomain: string | null = null
 
   if (clientSlug) {
     // Per-client mode: look up brand and category from DB. Do NOT fall back
@@ -370,6 +380,7 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     if (!config?.profoundCategoryId) return emptyOverview()
     categoryId = config.profoundCategoryId
     yourBrand  = config.peecYourBrand ?? ''
+    yourDomain = config.domain ?? null
   } else {
     // Legacy no-arg path. Kept for safety; all in-tree callers now pass a slug.
     yourBrand  = process.env.PROFOUND_AI_YOUR_BRAND ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
@@ -442,7 +453,22 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   // --- Domains ---
   // Deltas compare the selected range against the immediately-preceding period.
   const topDomains = buildTopDomains(domainsRes.data, priorDomainsRes.data)
-  const totalCitations = (domainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0)
+  const totalCitations      = (domainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0)
+  const totalCitationsPrior = (priorDomainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0)
+
+  // Citation Share KPI: sum citations attributed to the client's own domain
+  // (normalized host match) for both the current and prior period. Same math
+  // as Peec — share of total tracked-domain citations belonging to the client.
+  const yourDomainKey = urlJoinKey(yourDomain)
+  const sumOwnCitations = (rows: ProfoundRow[]) => {
+    if (!yourDomainKey) return 0
+    return (rows ?? []).reduce((sum, r) => {
+      const { hostname } = splitHostnameCategory(r.dimensions)
+      return urlJoinKey(hostname) === yourDomainKey ? sum + (r.metrics[1] ?? 0) : sum
+    }, 0)
+  }
+  const yourBrandCitations      = sumOwnCitations(domainsRes.data ?? [])
+  const yourBrandCitationsPrior = sumOwnCitations(priorDomainsRes.data ?? [])
 
   // --- Domain types (aggregate Profound categories onto shared type labels) ---
   const totalShare = (domainTypesRes.data ?? []).reduce((s, r) => s + (r.metrics[0] ?? 0), 0) || 1
@@ -517,6 +543,9 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     brandRankings,
     topDomains,
     totalCitations,
+    yourBrandCitations,
+    yourBrandCitationsPrior,
+    totalCitationsPrior,
     domainTypes,
     trackedPrompts,
     llmBreakdown,

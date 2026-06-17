@@ -8,8 +8,11 @@ import { TopDomainsTable } from './top-domains-table'
 import { VisibilityChart } from './visibility-chart'
 import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
-import { PeriodRibbon } from './period-ribbon'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
+import { OverviewSynopsis } from './overview-synopsis'
+import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import type { GA4Row } from '@/lib/ga4/types'
+import { isAiSource } from '@/lib/constants'
 import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
@@ -197,11 +200,17 @@ function ProviderSection({
   provider,
   isDemo,
   models = null,
+  aiTraffic,
+  clientSlug,
+  dateRange,
 }: {
   data: Overview
   provider: AeoProvider
   isDemo: boolean
   models?: AEOModel[] | null
+  aiTraffic: AIReferralKPI
+  clientSlug?: string
+  dateRange?: string
 }) {
   const isPeec = provider === 'peec'
   const you = data.brandRankings.find((b) => b.isYou)
@@ -217,14 +226,28 @@ function ProviderSection({
   const avgFiltered = (sel: (r: (typeof llmFiltered)[number]) => number): number | null =>
     llmFiltered.length > 0 ? llmFiltered.reduce((s, r) => s + sel(r), 0) / llmFiltered.length : null
   const visFiltered = avgFiltered((r) => r.visibility)
-  const sovFiltered = avgFiltered((r) => r.sov)
-  const posFiltered = avgFiltered((r) => r.position)
   const brandName = you?.name ?? (isPeec ? process.env.PEEC_AI_YOUR_BRAND : process.env.PROFOUND_AI_YOUR_BRAND)
   const Rankings = isPeec ? BrandRankingsTable : ProfoundBrandRankingsTable
   const Domains  = isPeec ? TopDomainsTable : ProfoundTopDomainsTable
   const LLM      = isPeec ? LLMBreakdownTable : ProfoundLLMBreakdownTable
   const DEF      = isPeec ? PEEC : PROFOUND
   const label    = isPeec ? 'Peec AI' : 'Profound'
+
+  // Citation Share %: share of total tracked-domain citations attributed to
+  // the client's own domain. Truth-grounded across both providers — for Peec,
+  // sum of citation_count where domain matches client.domain; for Profound,
+  // same math against Profound's per-hostname rows. See lib/peec/client.ts
+  // and lib/profound/client.ts.
+  const citationShareNow   = data.totalCitations      > 0 ? (data.yourBrandCitations      / data.totalCitations)      * 100 : null
+  const citationSharePrior = data.totalCitationsPrior > 0 ? (data.yourBrandCitationsPrior / data.totalCitationsPrior) * 100 : null
+  const citationShareDelta = citationShareNow != null && citationSharePrior != null ? citationShareNow - citationSharePrior : undefined
+
+  // AI Referral Traffic % delta: undefined when the prior period had zero
+  // sessions (no meaningful baseline). Value shown as raw session count.
+  const aiTrafficDelta =
+    aiTraffic.available && aiTraffic.sessionsPrior != null && aiTraffic.sessionsPrior > 0
+      ? ((aiTraffic.sessions - aiTraffic.sessionsPrior) / aiTraffic.sessionsPrior) * 100
+      : undefined
 
   return (
     <div className="space-y-8">
@@ -235,7 +258,46 @@ function ProviderSection({
         badge={isDemo ? <SampleDataBadge /> : undefined}
       />
 
-      <PeriodRibbon change={data.periodChange} />
+      <OverviewSynopsis
+        clientSlug={clientSlug}
+        dateRange={dateRange}
+        provider={provider}
+        data={data}
+        aiSessions={aiTraffic.available ? aiTraffic.sessions : null}
+      />
+
+      {you && (
+        <div>
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Snapshot KPIs</h3>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            {[
+              {
+                title: 'Visibility',
+                value: modelActive ? (visFiltered != null ? `${visFiltered.toFixed(1)}%` : '--') : `${you.visibility.toFixed(1)}%`,
+                delta: modelActive ? undefined : you.visibilityDelta,
+                subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
+                tooltip: `${DEF.visibility.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
+              },
+              {
+                title: 'Citation Share',
+                value: citationShareNow != null ? `${citationShareNow.toFixed(1)}%` : '--',
+                delta: citationShareDelta,
+                subtitle: `${data.yourBrandCitations.toLocaleString()} of ${data.totalCitations.toLocaleString()} citations`,
+                tooltip: `Share of total tracked-domain citations attributed to your brand's own domain in the selected date range vs. the previous period. Sourced from ${label}.`,
+              },
+              {
+                title: 'AI Referral Traffic',
+                value: aiTraffic.available ? aiTraffic.sessions.toLocaleString() : '--',
+                delta: aiTrafficDelta,
+                subtitle: aiTraffic.available ? 'GA4 sessions from AI sources' : 'GA4 not configured',
+                tooltip: 'Sessions from AI referrers (ChatGPT, Perplexity, Gemini, etc.) tracked in GA4. Selected date range vs. the previous period.',
+              },
+            ].map(({ title, value, delta, tooltip, subtitle }) => (
+              <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {data.dailyVisibility.length > 0 && (
         <VisibilityChart
@@ -243,37 +305,6 @@ function ProviderSection({
           competitorData={data.competitorDailyVisibility}
           brandName={brandName}
         />
-      )}
-
-      {you && (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-          {[
-            {
-              title: 'Visibility',
-              value: modelActive ? (visFiltered != null ? `${visFiltered.toFixed(1)}%` : '--') : `${you.visibility.toFixed(1)}%`,
-              delta: modelActive ? undefined : you.visibilityDelta,
-              subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
-              tooltip: `${DEF.visibility.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
-            },
-            {
-              title: 'Share of Voice',
-              value: modelActive ? (sovFiltered != null ? `${sovFiltered.toFixed(1)}%` : '--') : `${you.sov.toFixed(1)}%`,
-              delta: modelActive ? undefined : you.sovDelta,
-              subtitle: `Competitor avg · ${data.competitorAverages.sov.toFixed(1)}%`,
-              tooltip: `${DEF.sov.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
-            },
-            {
-              title: 'Position',
-              value: modelActive ? (posFiltered != null ? `#${posFiltered.toFixed(1)}` : '--') : `#${you.position.toFixed(1)}`,
-              delta: modelActive ? undefined : you.positionDelta,
-              subtitle: `Competitor avg · #${data.competitorAverages.position.toFixed(1)}`,
-              tooltip: `${DEF.position.text} (${label}.) Shown for the selected date range vs. the previous period.`,
-              invertDelta: true,
-            },
-          ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
-            <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} invertDelta={invertDelta} />
-          ))}
-        </div>
       )}
 
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
@@ -317,9 +348,26 @@ export async function PeecAIReport({
   const peecConfigured = demoMode || !!config?.peecCustomerProjectId
   const profoundConfigured = demoMode || !!config?.profoundCategoryId
 
-  const [peecRes, profoundRes] = await Promise.allSettled([
+  // GA4 AI Referral Traffic for the Overview KPI strip. Same pattern as
+  // PR Influence: fetch sessions by sessionSource for the current and prior
+  // period, then sum the AI-sourced rows via isAiSource(). Skipped entirely
+  // when GA4 is not configured for the client.
+  const ga4Configured = demoMode || !!config?.ga4PropertyId
+  const mainRange = dateRange ?? 'last_30_days'
+  const mainDates = parseDateRange(mainRange)
+  const compareDates = deriveCompareRange(mainRange, 'previous_period')
+  const mainIso = `${mainDates.startDate},${mainDates.endDate}`
+  const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
+
+  const [peecRes, profoundRes, aiNowRes, aiPriorRes] = await Promise.allSettled([
     peecConfigured ? getPeecOverview(clientSlug, dateRange) : Promise.resolve(null),
     profoundConfigured ? getProfoundOverview(clientSlug, dateRange) : Promise.resolve(null),
+    ga4Configured && clientSlug
+      ? ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionSource'], limit: 150 })
+      : Promise.resolve(null),
+    ga4Configured && clientSlug && compareIso
+      ? ga4Query({ clientSlug, dateRange: compareIso, metrics: ['sessions'], dimensions: ['sessionSource'], limit: 150 })
+      : Promise.resolve(null),
   ])
 
   let peecData     = peecRes.status     === 'fulfilled' ? peecRes.value     : null
@@ -332,6 +380,21 @@ export async function PeecAIReport({
     profoundData = sampleProfoundOverview()
   }
 
+  const sumAiSessions = (rows: GA4Row[] | undefined | null) =>
+    (rows ?? [])
+      .filter((r) => isAiSource(r.sessionSource))
+      .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
+
+  const aiNowOk    = demoMode || aiNowRes.status === 'fulfilled'
+  const aiPriorOk  = demoMode || aiPriorRes.status === 'fulfilled'
+  const aiNowRows  = aiNowRes.status   === 'fulfilled' ? (aiNowRes.value?.rows   ?? []) : []
+  const aiPriorRows = aiPriorRes.status === 'fulfilled' ? (aiPriorRes.value?.rows ?? []) : []
+  const aiTraffic: AIReferralKPI = {
+    available: aiNowOk,
+    sessions:        sumAiSessions(aiNowRows),
+    sessionsPrior:   aiPriorOk ? sumAiSessions(aiPriorRows) : null,
+  }
+
   const availableProviders: AeoProvider[] = []
   if (peecData)     availableProviders.push('peec')
   if (profoundData) availableProviders.push('profound')
@@ -341,10 +404,16 @@ export async function PeecAIReport({
   }
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData} provider="peec" isDemo={demoMode} models={models} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
 
   return (
     <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
   )
+}
+
+export type AIReferralKPI = {
+  available: boolean
+  sessions: number
+  sessionsPrior: number | null
 }

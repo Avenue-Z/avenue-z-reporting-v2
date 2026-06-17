@@ -4,6 +4,7 @@ import type { AEOModel } from './models'
 import type { ByModel } from './by-model'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
 import { buildPeriodChange } from '@/lib/aeo/period-change'
+import { urlJoinKey } from '@/lib/url'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
@@ -177,6 +178,11 @@ export type PeecOverview = {
   brandRankings: BrandRanking[]
   topDomains: TopDomain[]
   totalCitations: number
+  // Citations attributed to the client's own domain (normalized host match
+  // against clients.domain). Used to compute Citation Share % on the Overview.
+  yourBrandCitations: number
+  yourBrandCitationsPrior: number
+  totalCitationsPrior: number
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
@@ -348,11 +354,13 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
   let resolvedYourBrand: string | undefined
+  let resolvedYourDomain: string | null | undefined
   if (clientSlug) {
     const { getClientBySlug } = await import('@/lib/db/queries')
     const config = await getClientBySlug(clientSlug)
     resolvedProjectId = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
     resolvedYourBrand = config?.peecYourBrand ?? undefined
+    resolvedYourDomain = config?.domain
   }
   // resolvedProjectId undefined = use env var inside peecPost/peecGet
 
@@ -429,6 +437,20 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   // against the immediately-preceding period of equal length.
   const topDomains = buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? [])
   const totalCitations = (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)
+  const totalCitationsPrior = (domainsPriorRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)
+
+  // Citation Share KPI: sum citations attributed to the client's own domain
+  // (normalized host match) for both the current and prior period.
+  const yourDomainKey = urlJoinKey(resolvedYourDomain ?? null)
+  const sumOwnCitations = (rows: ApiDomainRow[]) => {
+    if (!yourDomainKey) return 0
+    return (rows ?? []).reduce((sum, d) => {
+      const k = urlJoinKey(d.domain)
+      return k === yourDomainKey ? sum + (d.citation_count ?? 0) : sum
+    }, 0)
+  }
+  const yourBrandCitations      = sumOwnCitations(domainsRes.data ?? [])
+  const yourBrandCitationsPrior = sumOwnCitations(domainsPriorRes.data ?? [])
 
   // --- Domain type breakdown ---
   const typeMap: Record<string, number> = {}
@@ -648,6 +670,9 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     brandRankings,
     topDomains,
     totalCitations,
+    yourBrandCitations,
+    yourBrandCitationsPrior,
+    totalCitationsPrior,
     domainTypes,
     trackedPrompts,
     llmBreakdown,
