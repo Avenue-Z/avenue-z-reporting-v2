@@ -8,4 +8,4 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 
 ---
 
-_(empty — entries appended as items close)_
+FB-001 | 2026-06-17 | 7097a19 | a | Unified AEO section header across all 4 tabs via shared SectionHeader component (Overview + PR Influence get the treatment, Content Impact unchanged, Technical Performance shifted yellow to green).
