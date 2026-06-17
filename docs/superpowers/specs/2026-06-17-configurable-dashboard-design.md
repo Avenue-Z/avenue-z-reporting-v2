@@ -40,11 +40,13 @@ AUTHORING (once, human-confirmed)          RUNTIME (twice daily, deterministic)
 NL prompt ──▶ Glean (Supermetrics MCP      stored structured config
              field/account discovery)              │
                     │                              ▼
-             proposed structured config    ┌─ SourceAdapter (interface) ─┐
-                    │                       │  • supermetrics → awQuery   │ (real)
-             preview card / confirm         │  • triplewhale  → REST      │ (stub)
-                    │                       │  • aggregate    → formula   │
-             store structured config ──────▶└─────────────────────────────┘
+             proposed structured config    ┌─ resolveBlock ──────────────────┐
+                    │                       │  leaf registry (LeafAdapter):    │
+             preview card / confirm         │   • supermetrics → awQuery (real)│
+                    │                       │   • triplewhale  → REST  (stub)  │
+             store structured config ──────▶│  aggregate orchestrator:         │
+                                            │   • left/right via leaves+formula│
+                                            └──────────────────────────────────┘
                                                    │
                                             value + comparison + format ──▶ Metric Block UI
 ```
@@ -81,7 +83,14 @@ comparison, deterministically. No Glean, no NL, no UI, no persistence wiring.
 ```ts
 type MetricFormat = 'currency' | 'percent' | 'count' | 'number'
 
-interface SupermetricsBinding { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: string }
+interface SupermetricsBinding {
+  source: 'supermetrics'
+  dsId: string
+  metricField: string
+  account: string
+  expectedAccounts?: string[]   // drift guard: runtime asserts returned accounts ⊆ this set → invalid-metric on drift (see §5)
+  filters?: string              // opaque passthrough to awQuery — NOT validated or diffable in v1
+}
 interface TripleWhaleBinding  { source: 'triplewhale';  metric: string; account?: string }
 type LeafBinding = SupermetricsBinding | TripleWhaleBinding
 
@@ -103,10 +112,15 @@ interface BlockConfig {
 `parseDateRange` / `deriveCompareRange` (preset keys, `custom:...`, and
 `previous_period` / `previous_year` / `null`).
 
-### 4.2 Source-adapter interface
+### 4.2 Resolution contract (two levels — leaves vs. orchestrator)
+
+Leaf sources and aggregates are **not peers**. Leaf sources implement
+`LeafAdapter` and are registered in a map keyed by `source`. Aggregate is an
+**orchestrator** that delegates to leaf adapters — it does *not* implement
+`LeafAdapter`.
 
 ```ts
-interface SourceAdapter {
+interface LeafAdapter {
   resolveLeaf(
     b: LeafBinding,
     ctx: { slug: string },
@@ -114,18 +128,42 @@ interface SourceAdapter {
     compareRange: string | null,
   ): Promise<{ value: number; prevValue?: number }>
 }
+
+// registry, keyed by LeafBinding['source']
+const leafAdapters: Record<'supermetrics' | 'triplewhale', LeafAdapter>
 ```
+
+**Leaf adapters:**
 
 - **supermetrics** — wraps `awQuery(slug, [metricField], dateRange)` and sums the
   field across rows via a pure, unit-tested `sumMetric(rows, field)`. Comparison
-  uses the existing `resolveCompareIso(dateRange, compareRange)`.
+  uses the existing `resolveCompareIso(dateRange, compareRange)`. **Drift guard:**
+  when `expectedAccounts` is present, asserts the returned account set ⊆
+  `expectedAccounts`; on mismatch throws → mapped to `invalid-metric` (see §5).
 - **triplewhale** — typed **stub**: deterministic fake values keyed off the
   metric id (marked `// TODO: real TW API`). Returns `prevValue` only when a
   compare range is active.
-- **aggregate** — resolves `left` and `right` through their leaf adapters at the
-  *same* active range, then applies `op` (PRD §4: recompute operands, re-apply
-  formula). The aggregate's `prevValue` is the formula applied to the operands'
-  `prevValue`s. Divide-by-zero (and missing operand) → `no-data`, never a crash.
+
+**Aggregate orchestrator** (separate function, not a `LeafAdapter`):
+
+```ts
+resolveAggregate(b: AggregateBinding, ctx, dateRange, compareRange):
+  Promise<{ value: number; prevValue?: number }>
+```
+
+Resolves `left` and `right` through the leaf registry at the **same** active
+range, then applies `op` (PRD §4: recompute operands, re-apply formula).
+
+- **`prevValue` invariant:** both operands resolve at the *same* range, so each
+  operand's `prevValue` is present iff a comparison is active. The aggregate's
+  `prevValue` is therefore the formula applied to both operands' `prevValue`s,
+  present iff comparison is active — never a mix of present/absent.
+- **Divide-by-zero** (and missing operand) → surfaced as `no-data`, never a crash.
+- **Operand error precedence:** when a leaf operand fails, the aggregate adopts
+  that error. When *both* fail, precedence is, highest-wins:
+  `disconnected` > `invalid-metric` > `rate-limited` > `no-data` > `error`.
+  This precedence is explicit and tested so the result is deterministic
+  regardless of which promise settles first.
 
 ### 4.3 Resolver output (discriminated — drives UI states)
 
@@ -146,8 +184,13 @@ resolveBlock(
 ```
 
 - **Range selection:** `config.range ?? global` (per-block override vs. inherit).
-- **Delta:** `((cur - prev) / prev) * 100`; `undefined` when `prev` is null/0
-  (reuses the existing `delta()` rule from `lib/paid-search/kpis.ts`).
+- **Delta:** `((cur - prev) / prev) * 100`; `undefined` when `prev` is null/0.
+  The `delta()` rule currently lives as a *private* local in
+  `lib/paid-search/kpis.ts` (not exported). To avoid both a bad
+  `dashboard → paid-search` dependency and a duplicated source of truth, the rule
+  is extracted to a neutral shared module `lib/metrics.ts` (`computeDelta`);
+  dashboard imports it. Migrating `paid-search` to the shared util is tracked as a
+  follow-up (not done in #1, to keep the change surgical).
 - **No comparison:** when the active `compareRange` is null, `prevValue` and
   `delta` are both absent (PRD §4: hide the delta, do not show zero).
 - **Error mapping** (covers the four PRD §7 states):
@@ -159,32 +202,48 @@ resolveBlock(
 - **Formatting:** `formatMetric(value, format)` in `lib/dashboard/format.ts`
   (USD via integer `$` formatting, `%` to one decimal, count/number with
   thousands separators), consistent with `lib/paid-search/base.ts` helpers.
+- **Formatting ownership:** the resolver is the single owner of presentation —
+  it emits `formatted` (and `delta`). The Metric Block UI (#3) is a **dumb
+  renderer**: it displays `formatted` and uses the sign of `delta` for
+  direction/color, and re-derives nothing. No formatting logic is split across
+  layers.
+- **format vs. binding:** the contract permits nonsensical pairings (e.g. a
+  `/` ratio like ROAS tagged `currency` → "$2" for 2.0x). Format validity
+  against the binding is enforced at **authoring time** (#4, the preview card);
+  the runtime resolver **trusts** the stored `format` and adds no guard (YAGNI
+  for #1).
 
 ### 4.4 Files
 
 ```
-lib/dashboard/
-  types.ts                  # BlockConfig, bindings, MetricFormat, ResolveResult
-  format.ts                 # formatMetric()
-  delta.ts                  # computeDelta()
-  adapters/
-    supermetrics.ts         # sumMetric() + supermetrics adapter (wraps awQuery)
-    triplewhale.ts          # deterministic stub adapter
-  aggregate.ts              # binary-op resolution over two leaf operands
-  resolve.ts                # resolveBlock() — range selection, error mapping, formatting
-  *.test.ts                 # colocated tests (tsx style, no API calls)
+lib/
+  metrics.ts                # computeDelta() — neutral shared util (canonical source of the rule)
+  dashboard/
+    types.ts                # BlockConfig, bindings, MetricFormat, LeafAdapter, ResolveResult
+    format.ts               # formatMetric()
+    adapters/
+      supermetrics.ts       # sumMetric() + supermetrics LeafAdapter (wraps awQuery, drift guard)
+      triplewhale.ts        # deterministic stub LeafAdapter
+    aggregate.ts            # resolveAggregate() — orchestrator over two leaf operands + error precedence
+    resolve.ts              # resolveBlock() — range selection, leaf registry, error mapping, formatting
+    *.test.ts               # colocated tests (tsx style, no API calls)
 ```
 
 ### 4.5 Testing
 
-Follow the existing `tsx` test convention
-(`npx tsx --env-file=.env.local lib/dashboard/<file>.test.ts`), pure functions
-only — no live API calls in tests:
+Follow the existing `tsx` test convention, pure functions only — **no live API
+calls and no `.env` loading** (run `npx tsx lib/dashboard/<file>.test.ts`; the
+absence of `--env-file` is deliberate — these tests must not depend on creds, so
+a test that quietly hits the network can't pass locally):
 
-- `sumMetric` — sums a metric field across mocked rows; ignores blanks.
+- `sumMetric` — sums a metric field across mocked rows; ignores blanks; drift
+  guard rejects an account outside `expectedAccounts`.
 - `computeDelta` — positive, negative, zero-prev (→ undefined), undefined-prev.
 - `formatMetric` — currency / percent / count / number.
 - `aggregate` — ratio, sum, and divide-by-zero → `no-data`.
+- `aggregate` **error precedence** — when both operands fail, the higher-priority
+  error wins (`disconnected` > `invalid-metric` > `rate-limited` > `no-data` >
+  `error`), asserted independent of settle order.
 - `triplewhale` stub — deterministic output for a given metric id.
 - `resolveBlock` — inherit-vs-override range selection; no-comparison hides
   delta; error mapping for each error class.
@@ -208,7 +267,21 @@ takes a `BlockConfig` object; *where that object is stored* is sub-project #2.
   incompatible units). #1 handles divide-by-zero → `no-data`; richer surfacing
   in #5.
 - **TripleWhale** real API: auth, metric catalog, rate limits. When TW creds
-  land, the stub adapter is replaced behind the same `SourceAdapter` contract.
+  land, the stub adapter is replaced behind the same `LeafAdapter` contract.
+- **Runtime drift detection (raised in review, flagged loud):** the stored
+  binding must hold enough to detect that a runtime fetch no longer matches what
+  the authoring-time preview confirmed. #1 adds `expectedAccounts` as the first
+  guard (returned accounts ⊆ confirmed set → `invalid-metric` on drift). Still
+  open for #2/persistence: detecting upstream field renames/splits and currency
+  denomination changes, so a query that *silently succeeds on the wrong rows*
+  is caught rather than summed. Widening the contract is cheap now and expensive
+  once configs are stored in the wild — decide the full set of stored guards
+  before #2 persists any config.
+- **Shared `computeDelta` migration:** `paid-search` still has its private
+  `delta()` after #1; migrating it to `lib/metrics.ts` is a tracked follow-up to
+  remove the duplicate rule.
+- **format-vs-binding validation** lives at authoring (#4); confirm the preview
+  card rejects nonsensical pairings (e.g. ratio tagged `currency`).
 
 ---
 
