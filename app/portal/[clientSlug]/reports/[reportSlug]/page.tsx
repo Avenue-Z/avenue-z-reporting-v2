@@ -9,7 +9,7 @@ import { ReportErrorBoundary } from '@/components/report-sections/error-boundary
 import { ExecSummary } from '@/components/report-sections/exec-summary'
 import { GA4Report } from '@/components/report-sections/ga4'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
-import { GoogleAdsReport } from '@/components/report-sections/google-ads'
+import { PaidSearchReport } from '@/components/report-sections/paid-search'
 import { EmailMarketingReport } from '@/components/report-sections/email-marketing'
 import { BlendedPerformanceReport } from '@/components/report-sections/blended-performance'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
@@ -57,7 +57,7 @@ function getReportSection(
     case 'meta-ads':
       return <MetaAdsReport clientSlug={clientSlug} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} />
+      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'email-marketing':
       return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':

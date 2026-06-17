@@ -53,7 +53,7 @@ export const REPORT_NAMES: Record<string, string> = {
   'exec-summary': 'Executive Summary',
   ga4: 'Web Analytics',
   'meta-ads': 'Meta Ads',
-  'google-ads': 'Google Ads',
+  'google-ads': 'Paid Search',
   'email-marketing': 'Email Marketing',
   'blended-performance': 'Blended Performance',
   'linkedin-ads': 'LinkedIn Ads',
