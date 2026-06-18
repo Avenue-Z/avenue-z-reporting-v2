@@ -1,4 +1,5 @@
 import { SmQueryError, SmTimeoutError } from '@/lib/supermetrics/types'
+import { TwQueryError, TwRateLimitError } from '@/lib/triplewhale/client'
 import type { BlockError } from './types'
 
 /** Missing/invalid credentials or client config for the source. */
@@ -23,6 +24,8 @@ export function mapError(e: unknown): BlockError {
   if (e instanceof NoDataError) return 'no-data'
   if (e instanceof SmTimeoutError) return 'rate-limited'
   if (e instanceof SmQueryError) return 'invalid-metric'
+  if (e instanceof TwRateLimitError) return 'rate-limited'
+  if (e instanceof TwQueryError) return 'invalid-metric'
   return 'error'
 }
 

@@ -2,6 +2,7 @@
 // Run: npx tsx lib/dashboard/errors.test.ts
 import { strict as assert } from 'node:assert'
 import { SmQueryError, SmTimeoutError } from '@/lib/supermetrics/types'
+import { TwQueryError, TwRateLimitError } from '@/lib/triplewhale/client'
 import { mapError, worseError, DisconnectedError, NoDataError, DriftError } from './errors'
 
 // mapError: each known cause → its BlockError
@@ -19,4 +20,9 @@ assert.equal(worseError('rate-limited', 'invalid-metric'), 'invalid-metric')
 assert.equal(worseError('disconnected', 'disconnected'), 'disconnected')
 // order-independent
 assert.equal(worseError('invalid-metric', 'rate-limited'), worseError('rate-limited', 'invalid-metric'))
+
+// TripleWhale error mapping
+assert.equal(mapError(new TwRateLimitError(5)), 'rate-limited')
+assert.equal(mapError(new TwQueryError('bad')), 'invalid-metric')
+
 console.log('ok')
