@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "triplewhale_shop_id" text;

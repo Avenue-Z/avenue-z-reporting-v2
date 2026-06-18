@@ -64,6 +64,13 @@
       "when": 1781792660215,
       "tag": "0008_talented_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781812032919,
+      "tag": "0009_light_the_renegades",
+      "breakpoints": true
     }
   ]
 }

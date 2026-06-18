@@ -109,6 +109,7 @@ export const clients = pgTable('clients', {
   smApiKeyEnvVar: text('sm_api_key_env_var'),
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
   dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
+  triplewhaleShopId: text('triplewhale_shop_id'),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
