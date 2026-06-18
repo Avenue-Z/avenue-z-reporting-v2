@@ -16,6 +16,68 @@ _(none)_
 
 ## Closed
 
+### FB-007 — Remove Brand Categories chart + definitions; stretch Leaderboard to full width
+
+- **Status:** done
+- **Source:** Tina via Thomas — annotated screenshot of the two sidebar cards
+- **Author:** Tina
+- **Type:** removal + layout change
+- **Scope:** `components/report-sections/peec-ai/index.tsx` only. Universal across every current and future AEO client by virtue of living in the shared Overview render path.
+
+#### Verbatim ask
+
+> REMOVE: "Which categories of brands earn AI share of voice?" and "What do these brand categories mean?"
+>
+> this means the leaderboard: Which brands appear most often in AI answers? will need to be stretched out to fill in the gaps from those two sections going away and being removed.
+
+#### What was unambiguous
+
+1. Delete the BrandSOVChart card titled "Which categories of brands earn AI share of voice?"
+2. Delete the BrandDefinitions card titled "What do these brand categories mean?"
+3. The Leaderboard ("Which brands appear most often in AI answers?") must stretch to fill the now-empty right column.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Drop the 2-column grid wrapper entirely** | Replaced `<div className="grid lg:grid-cols-[1fr_280px] items-stretch">{Rankings, [SOV, Definitions]}</div>` with just `<Rankings rankings={data.brandRankings} />`. | With the right column gone, the `1fr_280px` grid serves no purpose. Rankings now stretches to 100% width of its parent flex column naturally. Cleaner than keeping an empty grid. |
+| **Delete the `BrandSOVChart` and `BrandDefinitions` function definitions** | Removed both functions (originally ~60 lines combined). | Tina explicitly asked to remove the sections. The helper functions are local to this file and were only referenced by the now-removed JSX. Leaving dead code would clutter the file and rot. |
+| **Drop the `BRAND_TYPE_MAP / BRAND_TYPE_COLORS / BRAND_TYPE_DEFINITIONS` import** | Removed the entire import line. | All three exports were only referenced inside the two deleted functions. Audit grep confirmed zero remaining references in this file. The exports themselves still live at `lib/peec/brand-types.ts` for any future consumer; not deleted. |
+| **Keep `AVENUE_Z` import** | The two removed blocks used `AVENUE_Z.brandTypes.text`, but `AVENUE_Z.domainTypes.text` is still referenced by the Domain Types section directly below (which Tina did NOT ask to remove). | Import line stays intact for the other named imports (`PEEC`, `AVENUE_Z`, `PROFOUND`). |
+| **Did NOT touch the Domain Types section** | The block at the original `index.tsx:323-329` ("Which categories of domains earn AI share of voice?" + "What do these domain categories mean?") looks visually similar but is a different section about DOMAIN categories, not BRAND categories. Tina's ask was specifically about brand categories. | Strict literal read of Tina's screenshot. Domain-category section was not annotated as REMOVE. |
+| **Did NOT touch `components/report-sections/profound-ai/index.tsx`** | That file has its own duplicate `BrandSOVChart` and `BrandDefinitions` definitions, but the file itself is dead code: no `import` of `profound-ai/index.tsx` anywhere in the codebase. The active Overview render path is the shared `peec-ai/index.tsx` for both providers. | Out of scope (dead code). Touching it risks breaking unexpected callers if any exist. |
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/index.tsx` | Removed the `BRAND_TYPE_MAP, BRAND_TYPE_COLORS, BRAND_TYPE_DEFINITIONS` import. Deleted the `BrandSOVChart` and `BrandDefinitions` function definitions. Collapsed the Leaderboard grid wrapper down to a single `<Rankings rankings={data.brandRankings} />` so the table stretches to full width. |
+
+#### Files NOT touched
+
+- `components/report-sections/profound-ai/index.tsx` — dead code, never imported.
+- `lib/peec/brand-types.ts` — kept as-is for any future consumer.
+- Domain Types section below the Leaderboard — different section, not in Tina's ask.
+
+#### Scope of impact
+
+- Every Peec client on the AEO Overview tab sees the change automatically. No DB change, no per-client config, no backfill.
+- Every Profound client on the AEO Overview tab also sees the change automatically — they share the same render path.
+- Renders in both the internal dashboard and the client portal.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- Audit grep: zero remaining references to `BrandSOVChart`, `BrandDefinitions`, `BRAND_TYPE_MAP`, `BRAND_TYPE_COLORS`, or `BRAND_TYPE_DEFINITIONS` in `peec-ai/index.tsx`.
+- The Domain Types section directly below the Leaderboard is unchanged and still renders.
+
+#### Open risks
+
+1. **The Rankings table's column widths may render differently now that it has more horizontal space.** It uses a sortable table internal layout that responds to its container width. If columns look loose or oddly spaced, that's a table internal styling tweak, not a removal-related regression.
+2. **Profound's dead-code Overview file (`profound-ai/index.tsx`) still has the removed cards.** If anyone ever wires that file in as a route again, those cards will reappear. Not a current concern.
+
+---
+
 ### FB-006 — Biggest Winners / Biggest Losers cards on the AEO Overview tab (static)
 
 - **Status:** done
