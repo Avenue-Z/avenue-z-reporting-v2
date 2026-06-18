@@ -296,7 +296,7 @@ export function DateRangePicker({
               ))}
             </div>
 
-            {onCompareChange && (
+            {(onCompareChange || onApply) && (
               <div className="mt-2 border-t border-white/[0.06] pt-3">
                 <div className="mb-2 flex items-center justify-between px-3">
                   <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">
