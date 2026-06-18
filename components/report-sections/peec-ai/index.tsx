@@ -310,7 +310,7 @@ function ProviderSection({
 
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
 
-      <WinnersLosersCards winners={data.biggestWinners} losers={data.biggestLosers} />
+      <WinnersLosersCards />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
         <Rankings rankings={data.brandRankings} />
