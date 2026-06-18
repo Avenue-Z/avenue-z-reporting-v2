@@ -521,7 +521,9 @@ import { strict as assert } from 'node:assert'
 import { sumMetric, accountDrift } from './supermetrics'
 
 // sumMetric: sums a field across rows, treating blanks/missing as 0.
-const rows = [{ Cost: '8824.99' }, { Cost: '3283.43' }, { Cost: '' }, {}]
+// Annotate the array type — an untyped literal with `{}` infers `{ Cost?: undefined }`
+// which tsc rejects against Record<string,string>[] (tsx strips types and would miss this).
+const rows: Record<string, string>[] = [{ Cost: '8824.99' }, { Cost: '3283.43' }, { Cost: '' }, {}]
 assert.equal(Math.round(sumMetric(rows, 'Cost')), 12108)
 assert.equal(sumMetric([], 'Cost'), 0)
 
