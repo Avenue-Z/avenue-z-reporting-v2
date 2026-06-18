@@ -6,7 +6,13 @@ interface Column {
   label: string
   align?: 'left' | 'right'
   sortable?: boolean
-  sortValue?: (row: Record<string, React.ReactNode>) => number | string
+  /**
+   * Row property to sort this column by (defaults to `key`). Use this to point
+   * a formatted column at a raw numeric "shadow" field. Must be a plain string
+   * — NOT a function — so columns stay serializable across the RSC→Client
+   * boundary (a server component can render <DataTable/> directly).
+   */
+  sortKey?: string
 }
 
 interface DataTableProps {
@@ -20,10 +26,11 @@ export function sortRows(
   rows: Record<string, React.ReactNode>[],
   key: string,
   dir: 'asc' | 'desc',
-  sortValue: (row: Record<string, React.ReactNode>) => number | string,
+  sortKey?: string,
 ) {
+  const field = sortKey ?? key
   const sorted = [...rows].sort((a, b) => {
-    const av = sortValue(a), bv = sortValue(b)
+    const av = a[field] as number | string, bv = b[field] as number | string
     if (av < bv) return -1
     if (av > bv) return 1
     return 0
@@ -34,8 +41,8 @@ export function sortRows(
 export function DataTable({ columns, rows, defaultSort, totalsRow }: DataTableProps) {
   const [sort, setSort] = useState(defaultSort ?? null)
   const col = sort ? columns.find((c) => c.key === sort.key) : undefined
-  const display = sort && col?.sortValue ? sortRows(rows, sort.key, sort.dir, col.sortValue) : rows
-  const canSort = (c: Column) => Boolean(c.sortable && c.sortValue)
+  const display = sort && col?.sortable ? sortRows(rows, sort.key, sort.dir, col.sortKey) : rows
+  const canSort = (c: Column) => Boolean(c.sortable)
 
   return (
     <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface">

@@ -3,53 +3,13 @@ import { usd, pct, num } from '@/lib/paid-search/base'
 import type { SearchTermRow } from '@/lib/paid-search/types'
 
 const COLUMNS = [
-  {
-    key: 'term',
-    label: 'Search Term',
-    align: 'left' as const,
-  },
-  {
-    key: 'clicks',
-    label: 'Clicks',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row._clicks as number,
-  },
-  {
-    key: 'impressions',
-    label: 'Impressions',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row._impressions as number,
-  },
-  {
-    key: 'ctr',
-    label: 'CTR',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row._ctr as number,
-  },
-  {
-    key: 'cost',
-    label: 'Cost',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row._cost as number,
-  },
-  {
-    key: 'leads',
-    label: 'Leads',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row._leads as number,
-  },
-  {
-    key: 'cpl',
-    label: 'CPL',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row._cpl as number,
-  },
+  { key: 'term', label: 'Search Term', align: 'left' as const },
+  { key: 'clicks', label: 'Clicks', align: 'right' as const, sortable: true, sortKey: '_clicks' },
+  { key: 'impressions', label: 'Impressions', align: 'right' as const, sortable: true, sortKey: '_impressions' },
+  { key: 'ctr', label: 'CTR', align: 'right' as const, sortable: true, sortKey: '_ctr' },
+  { key: 'cost', label: 'Cost', align: 'right' as const, sortable: true, sortKey: '_cost' },
+  { key: 'leads', label: 'Leads', align: 'right' as const, sortable: true, sortKey: '_leads' },
+  { key: 'cpl', label: 'CPL', align: 'right' as const, sortable: true, sortKey: '_cpl' },
 ]
 
 export function SearchTermsTable({ rows }: { rows: SearchTermRow[] }) {

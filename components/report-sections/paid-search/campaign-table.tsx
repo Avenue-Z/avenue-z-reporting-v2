@@ -4,69 +4,15 @@ import { usd, num, pct } from '@/lib/paid-search/base'
 import type { CampaignRow } from '@/lib/paid-search/types'
 
 const columns = [
-  {
-    key: 'campaign',
-    label: 'Campaign',
-    align: 'left' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => String(row.campaign ?? ''),
-  },
-  {
-    key: 'cost',
-    label: 'Cost',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._cost ?? 0),
-  },
-  {
-    key: 'clicks',
-    label: 'Clicks',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._clicks ?? 0),
-  },
-  {
-    key: 'impressions',
-    label: 'Impressions',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._impressions ?? 0),
-  },
-  {
-    key: 'ctr',
-    label: 'CTR',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._ctr ?? 0),
-  },
-  {
-    key: 'cpc',
-    label: 'Avg. CPC',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._cpc ?? 0),
-  },
-  {
-    key: 'leads',
-    label: 'Leads',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._leads ?? 0),
-  },
-  {
-    key: 'cpl',
-    label: 'CPL',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._cpl ?? 0),
-  },
-  {
-    key: 'convRate',
-    label: 'Conv Rate',
-    align: 'right' as const,
-    sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => Number(row._convRate ?? 0),
-  },
+  { key: 'campaign', label: 'Campaign', align: 'left' as const, sortable: true },
+  { key: 'cost', label: 'Cost', align: 'right' as const, sortable: true, sortKey: '_cost' },
+  { key: 'clicks', label: 'Clicks', align: 'right' as const, sortable: true, sortKey: '_clicks' },
+  { key: 'impressions', label: 'Impressions', align: 'right' as const, sortable: true, sortKey: '_impressions' },
+  { key: 'ctr', label: 'CTR', align: 'right' as const, sortable: true, sortKey: '_ctr' },
+  { key: 'cpc', label: 'Avg. CPC', align: 'right' as const, sortable: true, sortKey: '_cpc' },
+  { key: 'leads', label: 'Leads', align: 'right' as const, sortable: true, sortKey: '_leads' },
+  { key: 'cpl', label: 'CPL', align: 'right' as const, sortable: true, sortKey: '_cpl' },
+  { key: 'convRate', label: 'Conv Rate', align: 'right' as const, sortable: true, sortKey: '_convRate' },
 ]
 
 function toTableRow(r: CampaignRow): Record<string, React.ReactNode> {
