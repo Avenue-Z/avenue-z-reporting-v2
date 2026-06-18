@@ -1,4 +1,5 @@
 import { FileText, Clock, TrendingUp, TrendingDown } from 'lucide-react'
+import { SectionHeader } from './section-header'
 import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
@@ -6,7 +7,7 @@ import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, urlTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
 import { urlJoinKey, labelFromPath } from '@/lib/url'
-import type { AEOModel } from '@/lib/peec/models'
+import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarData, ContentCalendarRow } from '@/lib/content-calendar/types'
@@ -582,18 +583,11 @@ export async function ContentImpactReport({
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#60FF80]/10">
-          <FileText className="h-5 w-5 text-[#60FF80]" />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-white">How is content performing across AI and human channels?</h2>
-          <p className="mt-0.5 text-sm text-text-muted">
-            Which content assets earn LLM citations, where content investments translate into AI visibility, and what the content team should build next.
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        icon={FileText}
+        title="How is content performing across AI and human channels?"
+        subtitle="Which content assets earn LLM citations, where content investments translate into AI visibility, and what the content team should build next."
+      />
 
       {calendarIsDemo && (
         <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
@@ -889,7 +883,7 @@ export async function ContentImpactReport({
             : coverageAvailable ? (domainTagNames(coverage, d.domain).join(', ') || 'None') : null,
           aiCitationCount: d.citationRate,
           aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length]
-            : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).join(', ') : null),
+            : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).map((e) => MODEL_DISPLAY_LABELS[e as AEOModel] ?? e).join(', ') : null),
           avgCitations: calendarIsDemo ? demoPositions[i % demoPositions.length] : (avgCitByDomain[hostKey(d.domain)] ?? null),
           // AI-referred sessions for this owned domain, joined by host. A host
           // GA4 tracks shows its real count (0 if none); a host GA4 doesn't

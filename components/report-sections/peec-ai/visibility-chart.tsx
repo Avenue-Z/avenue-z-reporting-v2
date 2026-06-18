@@ -86,6 +86,11 @@ export function VisibilityChart({
       </div>
 
       <div className="flex gap-2">
+        <div className="flex h-40 w-9 shrink-0 flex-col justify-between text-right">
+          {[CHART_MAX, CHART_MAX * 0.75, CHART_MAX * 0.5, CHART_MAX * 0.25, 0].map((v, i) => (
+            <span key={i} className="text-[10px] leading-none tabular-nums text-text-muted">{Math.round(v)}%</span>
+          ))}
+        </div>
         <div className="relative h-40 flex-1">
           <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -133,12 +138,15 @@ export function VisibilityChart({
         </div>
       </div>
 
-      <div className="mt-2 flex gap-1">
-        {buckets.map((b, i) => (
-          <div key={b.key} className="flex-1 overflow-hidden text-center">
-            {i % labelEvery === 0 && <span className="text-[9px] tabular-nums text-text-muted">{b.label}</span>}
-          </div>
-        ))}
+      <div className="mt-2 flex gap-2">
+        <div className="w-9 shrink-0" />
+        <div className="flex flex-1 gap-1">
+          {buckets.map((b, i) => (
+            <div key={b.key} className="flex-1 overflow-hidden text-center">
+              {i % labelEvery === 0 && <span className="text-[9px] tabular-nums text-text-muted">{b.label}</span>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

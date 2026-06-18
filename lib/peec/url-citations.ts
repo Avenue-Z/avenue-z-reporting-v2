@@ -4,7 +4,10 @@ import { urlJoinKey } from '@/lib/url'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
-/** Map a Peec model_channel id (e.g. "openai-0") to a friendly engine label. */
+/** Map a Peec model.id (e.g. "gemini-scraper") to a friendly engine label.
+ *  FB-005: callers should pass `model.id` not `model_channel.id`. The channel id
+ *  like "google-2" is the Gemini channel and would otherwise silently fall into
+ *  the Google bucket via the "google" substring check. */
 function normalizeEngine(id: string): string | null {
   const s = id.toLowerCase()
   if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
@@ -22,6 +25,7 @@ export type ApiUrlRow = {
   title: string | null
   channel_title: string | null
   model_channel?: { id: string }
+  model?: { id: string }
   prompt?: { id: string }
   tag?: { id: string }
   usage_count: number
@@ -72,8 +76,11 @@ export function mergeUrlCitations(
   const enginesByKey = new Map<string, Set<string>>()
   for (const r of perEngine) {
     const key = urlJoinKey(r.url)
-    if (!key || !r.model_channel?.id) continue
-    const engine = normalizeEngine(r.model_channel.id)
+    // FB-005: prefer the friendly scraper id (model.id) over the channel id so
+    // gemini-scraper rows aren't silently merged into the Google bucket.
+    const rawModelId = r.model?.id ?? r.model_channel?.id
+    if (!key || !rawModelId) continue
+    const engine = normalizeEngine(rawModelId)
     if (!engine) continue
     if (!enginesByKey.has(key)) enginesByKey.set(key, new Set())
     enginesByKey.get(key)!.add(engine)
@@ -181,7 +188,7 @@ async function getUrlCitationsImpl(
 
   const [baseRes, engineRes, brandsRes] = await Promise.all([
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit: 1000 }, pid),
-    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['model_channel_id'], limit: 2000 }, pid),
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
   ])
   const brandRows = brandsRes.data ?? []

@@ -15,6 +15,7 @@ import { sampleSFData } from '@/lib/demo-data/screaming-frog'
 import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { sampleSitebulbData } from '@/lib/demo-data/sitebulb'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
+import { SectionHeader } from './section-header'
 import {
   WhatChangedTable,
   BotActivityTable,
@@ -381,21 +382,12 @@ export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = f
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFFC60]/10">
-          <Settings className="h-5 w-5 text-[#FFFC60]" />
-        </span>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-white">What&apos;s the technical state of the site for AI crawlers?</h2>
-            {demoMode && <SampleDataBadge />}
-          </div>
-          <p className="mt-0.5 text-sm text-text-muted">
-            AEO technical health — structured data, crawlability, AI bot behavior, and the issue delta between crawl snapshots.
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        icon={Settings}
+        title="What's the technical state of the site for AI crawlers?"
+        subtitle="AEO technical health. Structured data, crawlability, AI bot behavior, and the issue delta between crawl snapshots."
+        badge={demoMode ? <SampleDataBadge /> : undefined}
+      />
 
       {/* ── Section A: Snapshot KPIs ── */}
       <div>

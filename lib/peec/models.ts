@@ -13,6 +13,19 @@ export const MODEL_COLORS: Record<AEOModel, string> = {
   Google:     '#34A853',
 }
 
+/** User-facing display labels. Canonical ids stay in `AEO_MODELS` (used for URL
+ *  params, color keys, filter logic) but rendered labels go through this map so
+ *  ambiguous names can be disambiguated without ripple effects elsewhere.
+ *  FB-005: `Google` bucket contains Peec's `google-ai-overview-scraper` rows. */
+export const MODEL_DISPLAY_LABELS: Record<AEOModel, string> = {
+  ChatGPT:    'ChatGPT',
+  Perplexity: 'Perplexity',
+  Gemini:     'Gemini',
+  Claude:     'Claude',
+  Copilot:    'Copilot',
+  Google:     'Google AI Overview',
+}
+
 /** Parse `?models=ChatGPT,Gemini` → canonical subset. Returns null when no filter is active
  *  (param missing, empty, all-invalid, or contains all 6 — all treated as "no filter").
  *  Case-sensitive: assumes the param is always written by `serializeModelsParam`, so casing

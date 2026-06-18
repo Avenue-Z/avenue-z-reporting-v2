@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { ChevronDown, Check } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
-import { AEO_MODELS, MODEL_COLORS, serializeModelsParam, type AEOModel } from '@/lib/peec/models'
+import { AEO_MODELS, MODEL_COLORS, MODEL_DISPLAY_LABELS, serializeModelsParam, type AEOModel } from '@/lib/peec/models'
 import { cn } from '@/lib/utils'
 
 export function ModelFilter({ selected }: { selected: AEOModel[] | null }) {
@@ -88,7 +88,7 @@ export function ModelFilter({ selected }: { selected: AEOModel[] | null }) {
                     className="h-2 w-2 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: MODEL_COLORS[m] }}
                   />
-                  <span className="flex-1">{m}</span>
+                  <span className="flex-1">{MODEL_DISPLAY_LABELS[m]}</span>
                 </button>
               </li>
             )

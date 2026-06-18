@@ -2,14 +2,17 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { PeecOverview } from '@/lib/peec/client'
 import { getProfoundOverview } from '@/lib/profound/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
-import { BRAND_TYPE_MAP, BRAND_TYPE_COLORS, BRAND_TYPE_DEFINITIONS } from '@/lib/peec/brand-types'
 import { BrandRankingsTable } from './brand-rankings-table'
 import { TopDomainsTable } from './top-domains-table'
 import { VisibilityChart } from './visibility-chart'
 import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
-import { PeriodRibbon } from './period-ribbon'
+import { WinnersLosersCards } from './winners-losers-cards'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
+import { OverviewSynopsis } from './overview-synopsis'
+import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import type { GA4Row } from '@/lib/ga4/types'
+import { isAiSource } from '@/lib/constants'
 import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
@@ -22,6 +25,8 @@ import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { Sparkles } from 'lucide-react'
+import { SectionHeader } from './section-header'
 
 // --- Helpers ---
 
@@ -59,80 +64,26 @@ function KpiCard({
 
 // --- Shared sub-components (work for both Peec and Profound brand/domain data) ---
 
-function BrandSOVChart({ brands }: { brands: { name: string; sov: number }[] }) {
-  const typeMap = new Map<string, { sovSum: number; count: number; names: string[] }>()
-  for (const b of brands) {
-    const type = BRAND_TYPE_MAP[b.name] ?? 'Other'
-    const existing = typeMap.get(type)
-    if (existing) {
-      existing.sovSum += b.sov
-      existing.count += 1
-      existing.names.push(b.name)
-    } else {
-      typeMap.set(type, { sovSum: b.sov, count: 1, names: [b.name] })
-    }
-  }
-  const rows = Array.from(typeMap.entries())
-    .map(([type, { sovSum, count, names }]) => ({ type, avgSov: sovSum / count, names }))
-    .sort((a, b) => b.avgSov - a.avgSov)
-  const maxSov = Math.max(...rows.map((r) => r.avgSov), 1)
-
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
-      <div className="flex items-center gap-1.5 mb-1">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which categories of brands earn AI share of voice?</p>
-        <InfoTooltip text={AVENUE_Z.brandTypes.text} />
-      </div>
-      <p className="text-xs text-text-muted mb-4">Avg share of voice by category</p>
-      <div className="space-y-2.5">
-        {rows.map(({ type, avgSov }) => (
-          <div key={type} className="flex items-center gap-3">
-            <div className="w-24 shrink-0 text-right text-xs text-text-muted">{type}</div>
-            <div className="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]">
-              <div
-                className="h-full rounded-sm"
-                style={{ width: `${(avgSov / maxSov) * 100}%`, backgroundColor: BRAND_TYPE_COLORS[type] ?? '#8A8A8A' }}
-              />
-            </div>
-            <div className="w-10 shrink-0 text-right text-xs tabular-nums text-white">{avgSov.toFixed(1)}%</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function BrandDefinitions() {
-  return (
-    <div className="flex-1 rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5">
-      <div className="flex items-center gap-1.5 mb-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What do these brand categories mean?</p>
-        <InfoTooltip text={AVENUE_Z.brandTypes.text} />
-      </div>
-      {BRAND_TYPE_DEFINITIONS.map(({ type, desc }) => (
-        <div key={type} className="flex gap-2">
-          <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: BRAND_TYPE_COLORS[type] ?? '#8A8A8A' }} />
-          <p className="text-[11px] leading-snug">
-            <span className="font-semibold text-white">{type} </span>
-            <span className="text-text-muted">{desc}</span>
-          </p>
-        </div>
-      ))}
-    </div>
-  )
+// FB-008: domain-type color mapping. Uses the five Avenue Z brand accents at
+// full saturation for the primary categories. Reference and Institutional reuse
+// their semantic parent (Editorial → blue, Competitor → purple) at 60% opacity
+// to signal "secondary version of this kind of source." Other uses 20% white
+// (subtle neutral, not brand-gray) to avoid the all-gray look Tina flagged.
+// Brand doc reference: BRANDOFFICIAL.md (yellow / green / cyan / blue / purple).
+// Single source of truth — referenced by both DomainTypesChart and
+// DomainTypeDefinitions so the chart bar and the legend dot always match.
+const DOMAIN_TYPE_COLORS: Record<string, string> = {
+  Own:           '#60FDFF',    // brand cyan
+  Corporate:     '#FFFC60',    // brand yellow
+  Competitor:    '#6034FF',    // brand purple
+  UGC:           '#60FF80',    // brand green
+  Editorial:     '#39A0FF',    // brand blue
+  Reference:     '#39A0FF99',  // brand blue at 60% (kin of Editorial)
+  Institutional: '#6034FF99',  // brand purple at 60% (kin of Competitor)
+  Other:         '#FFFFFF33',  // white at 20% (subtle neutral)
 }
 
 function DomainTypesChart({ types, source }: { types: { type: string; percentage: number }[]; source: 'peec' | 'profound' }) {
-  const TYPE_COLORS: Record<string, string> = {
-    Own:           '#60FDFF',
-    Corporate:     '#8A8A8A',
-    Competitor:    '#8A8A8A',
-    UGC:           '#60FF80',
-    Editorial:     '#39A0FF',
-    Reference:     '#8A8A8A',
-    Institutional: '#8A8A8A',
-    Other:         '#8A8A8A',
-  }
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
       <div className="flex items-center gap-1.5 mb-4">
@@ -146,7 +97,7 @@ function DomainTypesChart({ types, source }: { types: { type: string; percentage
             <div className="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]">
               <div
                 className="h-full rounded-sm"
-                style={{ width: `${t.percentage}%`, backgroundColor: TYPE_COLORS[t.type] ?? '#8A8A8A' }}
+                style={{ width: `${t.percentage}%`, backgroundColor: DOMAIN_TYPE_COLORS[t.type] ?? '#FFFFFF33' }}
               />
             </div>
             <div className="w-8 shrink-0 text-right text-xs tabular-nums text-white">{t.percentage}%</div>
@@ -165,17 +116,17 @@ function DomainTypeDefinitions({ source }: { source: 'peec' | 'profound' }) {
         <InfoTooltip text={`Domain types are classified by ${source === 'profound' ? 'Profound' : 'Peec AI'} based on each domain's content and category.`} />
       </div>
       {[
-        { type: 'Own',           color: '#60FDFF', desc: 'Your own owned domains.' },
-        { type: 'Corporate',     color: '#8A8A8A', desc: 'Brand and company websites.' },
-        { type: 'Competitor',    color: '#8A8A8A', desc: 'Competing brand domains.' },
-        { type: 'UGC',           color: '#60FF80', desc: 'User-generated content — Reddit, Quora, forums, etc.' },
-        { type: 'Editorial',     color: '#39A0FF', desc: 'News outlets and editorial publications.' },
-        { type: 'Reference',     color: '#8A8A8A', desc: 'Wikipedia, databases, and directories.' },
-        { type: 'Institutional', color: '#8A8A8A', desc: 'Academic, government, and non-profit sources.' },
-        { type: 'Other',         color: '#8A8A8A', desc: 'Unclassified or miscellaneous domains.' },
-      ].map(({ type, color, desc }) => (
+        { type: 'Own',           desc: 'Your own owned domains.' },
+        { type: 'Corporate',     desc: 'Brand and company websites.' },
+        { type: 'Competitor',    desc: 'Competing brand domains.' },
+        { type: 'UGC',           desc: 'User-generated content. Reddit, Quora, forums, etc.' },
+        { type: 'Editorial',     desc: 'News outlets and editorial publications.' },
+        { type: 'Reference',     desc: 'Wikipedia, databases, and directories.' },
+        { type: 'Institutional', desc: 'Academic, government, and non-profit sources.' },
+        { type: 'Other',         desc: 'Unclassified or miscellaneous domains.' },
+      ].map(({ type, desc }) => (
         <div key={type} className="flex gap-2">
-          <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+          <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: DOMAIN_TYPE_COLORS[type] ?? '#FFFFFF33' }} />
           <p className="text-[11px] leading-snug">
             <span className="font-semibold text-white">{type} </span>
             <span className="text-text-muted">{desc}</span>
@@ -195,11 +146,17 @@ function ProviderSection({
   provider,
   isDemo,
   models = null,
+  aiTraffic,
+  clientSlug,
+  dateRange,
 }: {
   data: Overview
   provider: AeoProvider
   isDemo: boolean
   models?: AEOModel[] | null
+  aiTraffic: AIReferralKPI
+  clientSlug?: string
+  dateRange?: string
 }) {
   const isPeec = provider === 'peec'
   const you = data.brandRankings.find((b) => b.isYou)
@@ -215,8 +172,6 @@ function ProviderSection({
   const avgFiltered = (sel: (r: (typeof llmFiltered)[number]) => number): number | null =>
     llmFiltered.length > 0 ? llmFiltered.reduce((s, r) => s + sel(r), 0) / llmFiltered.length : null
   const visFiltered = avgFiltered((r) => r.visibility)
-  const sovFiltered = avgFiltered((r) => r.sov)
-  const posFiltered = avgFiltered((r) => r.position)
   const brandName = you?.name ?? (isPeec ? process.env.PEEC_AI_YOUR_BRAND : process.env.PROFOUND_AI_YOUR_BRAND)
   const Rankings = isPeec ? BrandRankingsTable : ProfoundBrandRankingsTable
   const Domains  = isPeec ? TopDomainsTable : ProfoundTopDomainsTable
@@ -224,17 +179,71 @@ function ProviderSection({
   const DEF      = isPeec ? PEEC : PROFOUND
   const label    = isPeec ? 'Peec AI' : 'Profound'
 
+  // Citation Share %: share of total tracked-domain citations attributed to
+  // the client's own domain. Truth-grounded across both providers — for Peec,
+  // sum of citation_count where domain matches client.domain; for Profound,
+  // same math against Profound's per-hostname rows. See lib/peec/client.ts
+  // and lib/profound/client.ts.
+  const citationShareNow   = data.totalCitations      > 0 ? (data.yourBrandCitations      / data.totalCitations)      * 100 : null
+  const citationSharePrior = data.totalCitationsPrior > 0 ? (data.yourBrandCitationsPrior / data.totalCitationsPrior) * 100 : null
+  const citationShareDelta = citationShareNow != null && citationSharePrior != null ? citationShareNow - citationSharePrior : undefined
+
+  // AI Referral Traffic % delta: undefined when the prior period had zero
+  // sessions (no meaningful baseline). Value shown as raw session count.
+  const aiTrafficDelta =
+    aiTraffic.available && aiTraffic.sessionsPrior != null && aiTraffic.sessionsPrior > 0
+      ? ((aiTraffic.sessions - aiTraffic.sessionsPrior) / aiTraffic.sessionsPrior) * 100
+      : undefined
+
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-sm font-bold uppercase tracking-widest text-text-muted">Answer Engine Optimization</p>
-        <div className="flex items-center gap-2">
-          <h2 className="text-3xl font-extrabold uppercase text-white">Overview</h2>
-          {isDemo && <SampleDataBadge />}
-        </div>
-      </div>
+      <SectionHeader
+        icon={Sparkles}
+        title="How visible is the brand across AI answer engines?"
+        subtitle="Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors."
+        badge={isDemo ? <SampleDataBadge /> : undefined}
+      />
 
-      <PeriodRibbon change={data.periodChange} />
+      <OverviewSynopsis
+        clientSlug={clientSlug}
+        dateRange={dateRange}
+        provider={provider}
+        data={data}
+        aiSessions={aiTraffic.available ? aiTraffic.sessions : null}
+      />
+
+      {you && (
+        <div>
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Snapshot KPIs</h3>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            {[
+              {
+                title: 'Visibility',
+                value: modelActive ? (visFiltered != null ? `${visFiltered.toFixed(1)}%` : '--') : `${you.visibility.toFixed(1)}%`,
+                delta: modelActive ? undefined : you.visibilityDelta,
+                subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
+                tooltip: `${DEF.visibility.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
+              },
+              {
+                title: 'Citation Share',
+                value: citationShareNow != null ? `${citationShareNow.toFixed(1)}%` : '--',
+                delta: citationShareDelta,
+                subtitle: `${data.yourBrandCitations.toLocaleString()} of ${data.totalCitations.toLocaleString()} citations`,
+                tooltip: `Share of total tracked-domain citations attributed to your brand's own domain in the selected date range vs. the previous period. Sourced from ${label}.`,
+              },
+              {
+                title: 'AI Referral Traffic',
+                value: aiTraffic.available ? aiTraffic.sessions.toLocaleString() : '--',
+                delta: aiTrafficDelta,
+                subtitle: aiTraffic.available ? 'GA4 sessions from AI sources' : 'GA4 not configured',
+                tooltip: 'Sessions from AI referrers (ChatGPT, Perplexity, Gemini, etc.) tracked in GA4. Selected date range vs. the previous period.',
+              },
+            ].map(({ title, value, delta, tooltip, subtitle }) => (
+              <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {data.dailyVisibility.length > 0 && (
         <VisibilityChart
@@ -244,46 +253,11 @@ function ProviderSection({
         />
       )}
 
-      {you && (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-          {[
-            {
-              title: 'Visibility',
-              value: modelActive ? (visFiltered != null ? `${visFiltered.toFixed(1)}%` : '--') : `${you.visibility.toFixed(1)}%`,
-              delta: modelActive ? undefined : you.visibilityDelta,
-              subtitle: `Competitor avg · ${data.competitorAverages.visibility.toFixed(1)}%`,
-              tooltip: `${DEF.visibility.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
-            },
-            {
-              title: 'Share of Voice',
-              value: modelActive ? (sovFiltered != null ? `${sovFiltered.toFixed(1)}%` : '--') : `${you.sov.toFixed(1)}%`,
-              delta: modelActive ? undefined : you.sovDelta,
-              subtitle: `Competitor avg · ${data.competitorAverages.sov.toFixed(1)}%`,
-              tooltip: `${DEF.sov.text} (${label}.) Shown for the selected date range vs. the previous period. Competitor avg is the mean across all tracked brands for that range.`,
-            },
-            {
-              title: 'Position',
-              value: modelActive ? (posFiltered != null ? `#${posFiltered.toFixed(1)}` : '--') : `#${you.position.toFixed(1)}`,
-              delta: modelActive ? undefined : you.positionDelta,
-              subtitle: `Competitor avg · #${data.competitorAverages.position.toFixed(1)}`,
-              tooltip: `${DEF.position.text} (${label}.) Shown for the selected date range vs. the previous period.`,
-              invertDelta: true,
-            },
-          ].map(({ title, value, delta, tooltip, subtitle, invertDelta }) => (
-            <KpiCard key={title} title={title} value={value} delta={delta} tooltip={tooltip} subtitle={subtitle} invertDelta={invertDelta} />
-          ))}
-        </div>
-      )}
-
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
-        <Rankings rankings={data.brandRankings} />
-        <div className="flex flex-col gap-5 h-full">
-          <BrandSOVChart brands={data.brandRankings} />
-          <BrandDefinitions />
-        </div>
-      </div>
+      <WinnersLosersCards />
+
+      <Rankings rankings={data.brandRankings} />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
         <Domains domains={data.topDomains} totalCitations={data.totalCitations} />
@@ -316,9 +290,26 @@ export async function PeecAIReport({
   const peecConfigured = demoMode || !!config?.peecCustomerProjectId
   const profoundConfigured = demoMode || !!config?.profoundCategoryId
 
-  const [peecRes, profoundRes] = await Promise.allSettled([
+  // GA4 AI Referral Traffic for the Overview KPI strip. Same pattern as
+  // PR Influence: fetch sessions by sessionSource for the current and prior
+  // period, then sum the AI-sourced rows via isAiSource(). Skipped entirely
+  // when GA4 is not configured for the client.
+  const ga4Configured = demoMode || !!config?.ga4PropertyId
+  const mainRange = dateRange ?? 'last_30_days'
+  const mainDates = parseDateRange(mainRange)
+  const compareDates = deriveCompareRange(mainRange, 'previous_period')
+  const mainIso = `${mainDates.startDate},${mainDates.endDate}`
+  const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
+
+  const [peecRes, profoundRes, aiNowRes, aiPriorRes] = await Promise.allSettled([
     peecConfigured ? getPeecOverview(clientSlug, dateRange) : Promise.resolve(null),
     profoundConfigured ? getProfoundOverview(clientSlug, dateRange) : Promise.resolve(null),
+    ga4Configured && clientSlug
+      ? ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionSource'], limit: 150 })
+      : Promise.resolve(null),
+    ga4Configured && clientSlug && compareIso
+      ? ga4Query({ clientSlug, dateRange: compareIso, metrics: ['sessions'], dimensions: ['sessionSource'], limit: 150 })
+      : Promise.resolve(null),
   ])
 
   let peecData     = peecRes.status     === 'fulfilled' ? peecRes.value     : null
@@ -331,6 +322,21 @@ export async function PeecAIReport({
     profoundData = sampleProfoundOverview()
   }
 
+  const sumAiSessions = (rows: GA4Row[] | undefined | null) =>
+    (rows ?? [])
+      .filter((r) => isAiSource(r.sessionSource))
+      .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
+
+  const aiNowOk    = demoMode || aiNowRes.status === 'fulfilled'
+  const aiPriorOk  = demoMode || aiPriorRes.status === 'fulfilled'
+  const aiNowRows  = aiNowRes.status   === 'fulfilled' ? (aiNowRes.value?.rows   ?? []) : []
+  const aiPriorRows = aiPriorRes.status === 'fulfilled' ? (aiPriorRes.value?.rows ?? []) : []
+  const aiTraffic: AIReferralKPI = {
+    available: aiNowOk,
+    sessions:        sumAiSessions(aiNowRows),
+    sessionsPrior:   aiPriorOk ? sumAiSessions(aiPriorRows) : null,
+  }
+
   const availableProviders: AeoProvider[] = []
   if (peecData)     availableProviders.push('peec')
   if (profoundData) availableProviders.push('profound')
@@ -340,10 +346,16 @@ export async function PeecAIReport({
   }
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData} provider="peec" isDemo={demoMode} models={models} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
 
   return (
     <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
   )
+}
+
+export type AIReferralKPI = {
+  available: boolean
+  sessions: number
+  sessionsPrior: number | null
 }
