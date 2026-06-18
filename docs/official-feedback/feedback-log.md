@@ -16,6 +16,91 @@ _(none)_
 
 ## Closed
 
+### FB-009 — AEO PR Influence tab: add Executive Synopsis, remove the top KPI strip
+
+- **Status:** done
+- **Source:** Tina via Thomas — annotated mockup of the PR Influence tab "Recommended layout" (the ADD/REMOVE block) plus the live page screenshot showing the duplicate "How is AI-driven PR coverage performing?" heading + 6-up KPI grid below it.
+- **Author:** Tina
+- **Type:** new UI (synopsis) + removal (KPI strip)
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`, new `pr-influence-synopsis.tsx` and `lib/peec/pr-influence-synopsis.ts`. Universal across every current and future AEO client by virtue of living in the shared PR Influence render path. First batch on the `official-feedback-pr-influence-tab` branch.
+
+#### Verbatim ask
+
+> **ADD:** AI-generated synopsis of overall PR influence on AEO & recommended actions during the period, executive overview style.
+>
+> **REMOVE:** The pills for "How is AI-driven PR coverage performing?"
+
+Group mapping:
+
+| Tina element | Sub-item | Change |
+|---|---|---|
+| ADD: synopsis | FB-009-a | New `<PRInfluenceSynopsis>` RSC card at the top of the tab, Glean-backed, PR-Influence-specific data inputs, executive prose + 2-4 recommended actions |
+| REMOVE: pills | FB-009-b | Deleted the entire Section A KPI Strip block (`<h3>` eyebrow + 6 `<KpiCard>` instances) plus the now-dead intermediate display variables that fed only those cards |
+
+#### What was unambiguous
+
+1. Add an executive-style AI synopsis card to the PR Influence tab, matching the FB-002c/FB-003 Overview synopsis pattern.
+2. Remove "the pills" beneath the "How is AI-driven PR coverage performing?" heading.
+3. Synopsis content should cover the period's PR-influence story and include recommended actions.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **What "the pills" means on this tab** | The entire Section A KPI Strip — the `<h3>` eyebrow + all 6 `<KpiCard>` instances directly below the FB-001 SectionHeader. | (1) The page already has the SectionHeader at the top with the title "How is AI-driven PR coverage performing?" (added in FB-001). The Section A h3 repeated that exact question. Tina was visually staring at a duplicate question + a strip of card containers below it. (2) "The pills" is plural — the h3 alone is singular; the 6 cards are plural. Her word fits the cards. (3) Her red REMOVE annotation in the mockup brackets the heading + cards as one unit. (4) Replacing a metrics strip with a narrative executive synopsis is consistent with what "executive overview style" implies — the same data, retold as prose with recommendations. |
+| **Mirror the FB-002c/FB-003 Overview synopsis shell exactly** | Same card layout, Sparkles icon, "EXECUTIVE SYNOPSIS" eyebrow, prose paragraphs, "Recommended actions" list with brand-green `›` markers, graceful try/catch with the same "Synopsis is temporarily unavailable" fallback copy. | Single canonical pattern across the AEO report. The two synopsis cards (Overview + PR Influence) read as the same component, reinforcing the visual rhythm of the section. |
+| **Sparkles icon, not Megaphone** | Kept Sparkles (the same one Overview's synopsis uses). | Sparkles is the universal "AI-generated" semantic. Megaphone is for the PR Influence section header (FB-001) — that already lives at the top of the page. The synopsis is AI-generated, so it should read as an AI artifact, not a PR artifact. |
+| **PR-Influence-specific synopsis inputs** | The synopsis context (`PRInfluenceSynopsisContext`) carries: AI Visibility % + delta, Avg AI Position + delta, total AI Citations, total PR placements + AI-cited placement count, AI Referral Sessions + delta, total editorial domains + brand-absent count, top 5 brand-absent editorial domains (with citation counts), top 3 opportunity clusters (with scores). All sourced from the data the page already fetches. | These are the metrics the deleted KPI strip surfaced PLUS the per-section signal (brand-absent domains, opportunity clusters) that gives the synopsis enough to recommend specific moves. No new fetches. No proxies. Same numbers the lower-page tables already show. |
+| **Synopsis is model-filter-agnostic** | The synopsis context uses unfiltered all-model data even when a model filter is active. Same behavior as the Overview synopsis. | The synopsis is an executive readout at the top of the page; it summarizes the whole period, not the filter state. The per-section tables below already respond to the filter and surface the model-specific detail. Model-filter-responsive synopses would also defeat the 1h cache by adding `models` to the cache key. |
+| **Synopsis is provider-agnostic in this tab** | The cache key is `(clientSlug, dateRange)`, not `(clientSlug, dateRange, provider)`. The PR Influence tab is Peec-only (the file uses `getPeecOverview` directly), so provider is implicit. | Simpler key. If a future Profound PR Influence render path is added, swap to `(clientSlug, dateRange, provider)` like Overview does. Low-cost change. |
+| **Glean prompt** | Same shell as the Overview synopsis: executive tone, plain English, no fabrication, no em-dashes, strict JSON output (`{synopsis, actions}`). Body specialized to focus on: placement-to-AI-citation conversion, brand-absent editorial domains, and content / pitching moves to close gaps. | Tina said "executive overview style." Same rails that worked for the Overview synopsis. The PR-Influence-specific focus areas come from her own ADD wording ("PR influence on AEO & recommended actions"). |
+| **Glean call shape** | `gleanChat(prompt, { saveChat: false })`. No tools, no search. Single-shot inference over the inline-provided numbers. | Same anti-hallucination guarantee as Overview: Glean has no path to invent numbers because it has no search, and the only numbers it sees are the ones we pass in. |
+| **JSON extractor: three-tier (direct, fence-strip, widest-span)** | Identical pattern to Overview synopsis. Throws on shape mismatch so the RSC falls back gracefully. | Proven pattern. Glean usually obeys "no markdown fences" but occasionally wraps; the extractor handles all observed shapes without a re-prompt. |
+| **Cache version `v1-glean-pri`** | Distinct from Overview's `v2-glean` so cache buckets don't collide and a future migration to a global token / different impersonation model can bump independently. | Tagging discipline. |
+| **Dead variable pruning** | Removed `llmFiltered`, `filteredAiVisibilityPct`, `filteredAvgPosition`, `displayAiVisibility`, `displayAiVisibilityDelta`, `displayAvgPosition`, `displayAvgPositionDelta`, and the model-filtered `totalCitations` block — every one of these fed ONLY the KPI cards. Confirmed via grep that no other render site or computation references them. | Strict-mode TS would otherwise flag them as dead, and leaving dead code is the kind of thing that rots and confuses the next reader. Pruned what was provably unused only. |
+| **Kept all data the lower-page tables still need** | `youMetrics`, `editorialDomains`, `placementsCitedByAI`, `filteredMatchbackRows`, `aiSessions`, `aiSessionsDelta`, `matchbackTableRows`, `topEditorialRows`, `brandAbsentTableRows`, `opportunityRows`, `nextPitchRows`, `nextPitchEmptyKind` — all of these are still computed and still flow into Sections B through F. | Strict literal scope: this FB removed Section A only. Sections B-F render identically to before. |
+| **No em-dashes in any copy** | The PR Influence synopsis subtitle, the fallback message, the prompt, and the FB-009 commit message all use periods or commas only. | Project house rule. |
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `lib/peec/pr-influence-synopsis.ts` | **New.** `getPRInfluenceSynopsis()` cached helper. `buildContext()` formats the numeric snapshot. `extractJsonObject()` is the same three-tier extractor as Overview. Calls `gleanChat(prompt, { saveChat: false })`. 1h TTL, version `v1-glean-pri`. |
+| `components/report-sections/peec-ai/pr-influence-synopsis.tsx` | **New.** RSC card mirroring `overview-synopsis.tsx`. Sparkles icon, prose paragraphs, "Recommended actions" list, graceful fallback. |
+| `components/report-sections/peec-ai/pr-influence.tsx` | Added imports for `PRInfluenceSynopsis` and `PRInfluenceSynopsisContext`. Removed imports for `KpiCard`, `PEEC`, `GA4`, `sumByModel`. Deleted the dead `llmFiltered`/`filtered*`/`display*`/model-filtered `totalCitations` block (39 lines). Built the synopsis context as the last derivation before the `return`. In the JSX, replaced the entire Section A KPI Strip with a single `<PRInfluenceSynopsis>` render. |
+
+#### What did NOT change
+
+- Sections B (Matchback), C (Top Editorial Domains), D (Brand-Absent Editorial Domains), E (Prompt Cluster Opportunity Matrix), F (Next Pitch Opportunities), and the scoring methodology block — all untouched. Same rows, same filter behavior, same demo-mode behavior.
+- The FB-001 `<SectionHeader>` at the top of the page — unchanged.
+- The model filter mechanics for the lower-page tables — unchanged.
+- The Glean infrastructure (`gleanChat()` in `lib/glean.ts`, the ActAs opt-in fix from `f6b0534`) — inherited from `main` via the rebase, unchanged.
+- The `period-ribbon.tsx` component file — never rendered on PR Influence in the first place (only on Overview, where it was removed in FB-002a).
+
+#### Scope of impact
+
+- Every Peec client on the PR Influence tab gets the new top card automatically. No DB change, no per-client config, no backfill.
+- Synopsis content varies per client and per period (the prompt sees real client-specific numbers). Two clients viewing the same date range will get two different synopses, both grounded in their own data.
+- Renders in both the internal dashboard and the client portal.
+- Operationally requires the Glean env vars already configured for FB-002c / FB-003 (`GLEAN_INSTANCE`, `GLEAN_API_TOKEN`). No new env vars.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- Audit grep: zero remaining `KpiCard`, `displayAiVisibility`, `displayAvgPosition`, `llmFiltered`, `filteredAiVisibilityPct`, `filteredAvgPosition`, or `Section A: KPI Strip` references in `pr-influence.tsx`.
+- File line count: 635 (down from 691 pre-change, net -56 after accounting for the added synopsis context block).
+- The Glean call path is the same one already proven live on the Overview synopsis after the `f6b0534` ActAs fix — no separate Glean integration risk.
+
+#### Open risks (in order of likelihood)
+
+1. **Synopsis tone / specificity.** Most likely place Tina pushes back. Fix is a single-file prompt edit in `lib/peec/pr-influence-synopsis.ts`, no component changes.
+2. **Lost at-a-glance scannability of the 6 KPIs.** The synopsis narrates them, but a reader who wants to eyeball "what was AI Visibility %" has to read prose, not a card. If Tina later wants any of those KPIs back, easy add: re-render them under the synopsis with a "Snapshot KPIs" eyebrow (same pattern as Overview FB-002d).
+3. **Synopsis quality in demo mode.** Demo mode substitutes synthetic data and the synopsis runs against it, producing a synthetic-flavored narrative. The "Demo mode" badge above the card already signals that. Same risk as Overview demo mode, same mitigation.
+4. **Synopsis fallback when Glean errors.** Same graceful "Synopsis is temporarily unavailable. Other metrics on this page are unaffected." copy as Overview. Rest of the page renders unaffected.
+5. **Cache version `v1-glean-pri`.** First request after deploy is a guaranteed miss against Glean. If Glean is rate-limited or down at that exact moment for that exact (client, range) the fallback fires; cache then memoizes the fallback for 1h. Acceptable for an executive readout that the page can survive without.
+
+---
+
 ### FB-008 — Recolor the Domain Types chart + legend with the Avenue Z brand palette
 
 - **Status:** done

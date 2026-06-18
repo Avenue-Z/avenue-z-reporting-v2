@@ -10,13 +10,13 @@ import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { postPublishTrend, addDays } from '@/lib/ga4/content-derive'
-import { KpiCard } from '@/components/charts/kpi-card'
 import { Sparkles, Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
+import { PRInfluenceSynopsis } from './pr-influence-synopsis'
+import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
 import { cn } from '@/lib/utils'
-import { PEEC, GA4 } from '@/lib/peec/metric-definitions'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
-import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
+import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
   PRPlacementMatchbackTable,
   TopEditorialDomainsTable,
@@ -247,46 +247,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // Derive metrics
   const youMetrics = data?.brandRankings.find(b => b.isYou) ?? null
   const editorialDomains = (data?.topDomains ?? []).filter(d => d.type === 'Editorial')
-
-  // ── KPI: AI Visibility % + Avg AI Position (model-filtered) ─────────────────
-  // When a model filter is active, recompute from llmBreakdown filtered to
-  // selected models. When no filter is active, fall back to the youMetrics
-  // brand ranking (which aggregates across all models).
-  const llmFiltered = models
-    ? (data?.llmBreakdown ?? []).filter((row) => models.includes(row.model as AEOModel))
-    : (data?.llmBreakdown ?? [])
-
-  const filteredAiVisibilityPct = llmFiltered.length > 0
-    ? llmFiltered.reduce((s, r) => s + r.visibility, 0) / llmFiltered.length
-    : null
-
-  const filteredAvgPosition = llmFiltered.length > 0
-    ? llmFiltered.reduce((s, r) => s + r.position, 0) / llmFiltered.length
-    : null
-
-  // When a model filter is active, use the filtered llmBreakdown aggregates.
-  // When no filter, use youMetrics (brand-level YTD aggregate) for display,
-  // which includes delta. We only show the derived filtered values when models
-  // is non-null so the delta is not misleadingly stale.
-  const displayAiVisibility = models !== null
-    ? (filteredAiVisibilityPct !== null ? fmt(filteredAiVisibilityPct) : '--')
-    : (youMetrics ? fmt(youMetrics.visibility) : '--')
-  const displayAiVisibilityDelta = models !== null ? undefined : youMetrics?.visibilityDelta
-
-  const displayAvgPosition = models !== null
-    ? (filteredAvgPosition !== null ? filteredAvgPosition.toFixed(1) : '--')
-    : (youMetrics ? youMetrics.position.toFixed(1) : '--')
-  const displayAvgPositionDelta = models !== null ? undefined : (youMetrics ? -youMetrics.positionDelta : undefined)
-
-  // ── KPI: # AI Citations (model-filtered) ────────────────────────────────────
-  // When a model filter is active, sum domainCitationsByModel across selected
-  // models for all domains. When no filter, use the pre-aggregated totalCitations.
-  const totalCitations = models !== null && data?.domainCitationsByModel
-    ? Object.keys(data.domainCitationsByModel).reduce(
-        (acc, domain) => acc + sumByModel(data!.domainCitationsByModel, domain, models),
-        0,
-      )
-    : (data?.totalCitations ?? 0)
 
   // Build matchback: PR placements x Peec editorial domains
   const matchbackRows = prData && data
@@ -558,6 +518,34 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         ? 'no-prompts'
         : 'no-gaps'
 
+  // ── FB-009-a · Executive Synopsis context ─────────────────────────────────
+  // Inputs for the AI-generated executive synopsis card at the top of the
+  // page. Truth-grounded: every value here comes from the same data the rest
+  // of the page already renders. Synopsis is model-filter-agnostic by
+  // design (matches the Overview synopsis behavior); the model filter
+  // affects per-section tables, not the executive readout at the top.
+  const synopsisContext: PRInfluenceSynopsisContext = {
+    aiVisibility:           youMetrics ? youMetrics.visibility : null,
+    aiVisibilityDelta:      youMetrics ? youMetrics.visibilityDelta : null,
+    avgAiPosition:          youMetrics ? youMetrics.position : null,
+    avgAiPositionDelta:     youMetrics ? youMetrics.positionDelta : null,
+    totalAiCitations:       data?.totalCitations ?? 0,
+    totalPlacements:        prData?.totalPlacements ?? 0,
+    placementsCitedByAI,
+    aiReferralSessions:     aiReferralOk ? aiSessions : null,
+    aiReferralSessionsDelta: aiSessionsDelta ?? null,
+    totalEditorialDomains:  editorialDomains.length,
+    brandAbsentCount:       brandAbsentDomains.length,
+    topBrandAbsentDomains:  brandAbsentDomains.slice(0, 5).map(d => ({
+      domain: d.domain,
+      citationCount: d.retrieved,
+    })),
+    topOpportunityClusters: opportunityRows.slice(0, 3).map(o => ({
+      cluster: o.cluster,
+      score: o.opportunityScore,
+    })),
+  }
+
   return (
     <div className="space-y-8">
 
@@ -571,62 +559,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
       )}
 
-      {/* ── Section A: KPI Strip ── */}
-      <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">How is AI-driven PR coverage performing?</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-          {/* AI Visibility %: filtered by selected models via llmBreakdown average */}
-          <KpiCard
-            title="AI Visibility %"
-            value={displayAiVisibility}
-            delta={displayAiVisibilityDelta}
-            tooltip={`${PEEC.visibility.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
-          />
-          {/* Avg AI Position: filtered by selected models via llmBreakdown average */}
-          <KpiCard
-            title="Avg AI Position"
-            value={displayAvgPosition}
-            delta={displayAvgPositionDelta}
-            invertDelta
-            tooltip={`${PEEC.position.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
-          />
-          {/* # AI Citations: filtered via domainCitationsByModel sum when models active */}
-          <KpiCard
-            title="# AI Citations"
-            value={data ? totalCitations.toLocaleString() : '--'}
-            tooltip={`${PEEC.citations.text} (Peec AI.) Shown YTD.${models ? ' Filtered to selected AI models.' : ''}`}
-          />
-          {/* PR Placements Cited by AI: denominator reflects total filtered placements */}
-          <KpiCard
-            title="PR Placements Cited by AI"
-            value={prData ? `${placementsCitedByAI} / ${models ? filteredMatchbackRows.length : prData.totalPlacements}` : '--'}
-            tooltip={`PR Proof Library x Peec${models ? '. Filtered to selected AI models.' : ''}`}
-          />
-          {/* AI Referral Sessions: GA4 has no model dimension — not filtered.
-              When a model filter is active, append a subtitle to make this clear. */}
-          <KpiCard
-            title="AI Referral Sessions"
-            value={aiReferralOk ? aiSessions.toLocaleString() : '--'}
-            delta={aiSessionsDelta}
-            tooltip={aiReferralOk ? `${GA4.session.text} (GA4.) Shown for the selected date range.` : 'Requires GA4 AI referral data'}
-            subValue={
-              !aiReferralOk
-                ? 'Requires GA4 AI referral data'
-                : models
-                  ? 'across all AI engines'
-                  : undefined
-            }
-          />
-          {/* Editorial Share, Brand Absent: reflects filtered brand-absent rows */}
-          <KpiCard
-            title="Editorial Share, Brand Absent"
-            value={editorialDomains.length > 0
-              ? `${brandAbsentTableRows.length} / ${models ? topEditorialRows.length + brandAbsentTableRows.length : editorialDomains.length}`
-              : '--'}
-            tooltip={`Editorial domains citing AI but missing brand${models ? '. Filtered to selected AI models.' : ''}`}
-          />
-        </div>
-      </div>
+      {/* ── FB-009-a · Executive Synopsis (replaces the prior Section A KPI Strip per Tina's FB-009-b ask) ── */}
+      <PRInfluenceSynopsis
+        clientSlug={clientSlug}
+        dateRange={dateRange}
+        context={synopsisContext}
+      />
 
       {/* ── Section B: PR Placement Matchback ── */}
       {/* totalPlacements reflects filtered set when a model filter is active */}
