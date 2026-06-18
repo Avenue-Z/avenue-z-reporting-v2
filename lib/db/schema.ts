@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+import type { DashboardConfig } from '@/lib/dashboard/types'
 
 // --- Domain types preserved from the deleted clients.config.ts ---
 
@@ -107,6 +108,7 @@ export const clients = pgTable('clients', {
   prConfig: jsonb('pr_config').$type<PRConfig>(),
   smApiKeyEnvVar: text('sm_api_key_env_var'),
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
+  dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
