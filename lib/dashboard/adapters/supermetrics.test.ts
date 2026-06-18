@@ -12,4 +12,17 @@ assert.equal(sumMetric([], 'Cost'), 0)
 assert.deepEqual(accountDrift(['123', '999'], ['123']), ['999'])
 assert.deepEqual(accountDrift(['123'], ['123', '456']), []) // subset → no drift
 assert.deepEqual(accountDrift(['123'], undefined), [])       // no expectation → never drift
+
+// resolveSmApiKey: per-client var wins; otherwise global SUPERMETRICS_API_KEY
+import { resolveSmApiKey } from './supermetrics'
+
+// per-client var present → use it
+assert.equal(resolveSmApiKey('SM_X', { SM_X: 'perclient', SUPERMETRICS_API_KEY: 'global' } as unknown as NodeJS.ProcessEnv), 'perclient')
+// per-client var name set but value missing → fall back to global
+assert.equal(resolveSmApiKey('SM_X', { SUPERMETRICS_API_KEY: 'global' } as unknown as NodeJS.ProcessEnv), 'global')
+// no per-client var name → global
+assert.equal(resolveSmApiKey(null, { SUPERMETRICS_API_KEY: 'global' } as unknown as NodeJS.ProcessEnv), 'global')
+// neither → undefined
+assert.equal(resolveSmApiKey(null, {} as unknown as NodeJS.ProcessEnv), undefined)
+
 console.log('ok')

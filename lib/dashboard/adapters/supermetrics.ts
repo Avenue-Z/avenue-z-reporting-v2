@@ -15,6 +15,15 @@ export function accountDrift(returned: string[], expected?: string[]): string[] 
   return returned.filter((a) => !allowed.has(a))
 }
 
+/** Per-client key var wins; otherwise fall back to the global SUPERMETRICS_API_KEY. */
+export function resolveSmApiKey(
+  smApiKeyEnvVar: string | null | undefined,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  const perClient = smApiKeyEnvVar ? env[smApiKeyEnvVar] : undefined
+  return perClient ?? env.SUPERMETRICS_API_KEY
+}
+
 async function sumForRange(
   apiKey: string,
   b: SupermetricsBinding,
@@ -47,8 +56,7 @@ export async function resolveSupermetricsLeaf(
   const { resolveCompareIso } = await import('@/lib/paid-search/base')
 
   const client = await getClientBySlug(ctx.slug)
-  const envVar = client?.smApiKeyEnvVar
-  const apiKey = envVar ? process.env[envVar] : undefined
+  const apiKey = resolveSmApiKey(client?.smApiKeyEnvVar, process.env)
   if (!apiKey) throw new DisconnectedError(`Supermetrics not connected for ${ctx.slug}`)
 
   const { startDate, endDate } = parseDateRange(dateRange)
