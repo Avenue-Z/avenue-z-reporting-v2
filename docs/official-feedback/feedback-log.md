@@ -16,6 +16,69 @@ _(none)_
 
 ## Closed
 
+### FB-004 — Add a vertical axis to the AEO Overview visibility trend chart
+
+- **Status:** done
+- **Source:** Google doc — Tina's annotated screenshot of the "How has AI visibility grown this year?" chart on the AEO Overview tab
+- **Author:** Tina
+- **Type:** design (visual)
+- **Scope:** `components/report-sections/peec-ai/visibility-chart.tsx`. One file. Universal across every current and future AEO client.
+
+#### Verbatim ask
+
+> This chart needs a vertical axis
+
+#### What was unambiguous
+
+1. The chart in the screenshot is the visibility trend chart on the AEO Overview tab (title verbatim matches `VisibilityChart`).
+2. It has no Y-axis today. Five horizontal gridlines exist but have no numeric labels.
+3. A vertical axis with numeric scale labels needs to be added.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Number of ticks** | 5 ticks, top to bottom: `CHART_MAX`, `0.75 × CHART_MAX`, `0.5 × CHART_MAX`, `0.25 × CHART_MAX`, `0` | The chart already has 5 evenly spaced horizontal gridlines. 5 ticks aligned to those lines is the natural pairing. Less = under-labeled; more = crowded. |
+| **Scale source** | Reused the existing `CHART_MAX` constant. Kept it dynamic (data-driven), not rounded to a "nice" number like the next multiple of 10. | The bar heights are computed against `CHART_MAX`. If the axis is rounded but the bars are not, the bars no longer touch the top tick label and the chart silently misrepresents itself. Truth-grounded: the axis shows the exact scale the bars use. |
+| **Number format** | Integer with `%` suffix (e.g. `26%`, `20%`, `13%`, `7%`, `0%`) via `Math.round()` | Convention for chart axes is rounded values. Decimal precision is still available via the hover tooltip (already shows `.toFixed(1)` per bar). One-character change to `.toFixed(1)` if Tina prefers decimals. |
+| **Vertical alignment** | Mirrored the gridline pattern exactly: `flex h-40 flex-col justify-between` for the label column, same container height as the gridline column. Both use `justify-between`, so the top label sits at the top edge and the bottom label at the bottom edge, with even spacing between. | Same flex pattern keeps top + bottom labels aligned to the top + bottom gridlines without absolute positioning gymnastics. Slight visual offset between mid-line label centers and mid-gridline positions is on the order of 4-5px; reads naturally as "label sits next to line." |
+| **Layout slot** | Added the axis column as the first child of the existing `<div className="flex gap-2">` wrapper. Width: `w-9` (36px), right-aligned text. | That wrapper already had `gap-2` and a `flex-1` chart pane next to it. Layout slot was effectively pre-reserved. No structural rework needed. |
+| **X-axis label alignment** | Wrapped the existing date-label row in a matching `flex gap-2` with a `w-9 shrink-0` spacer on the left, so the date labels stay aligned with the bars after the Y-axis pushed the chart column to the right. | Otherwise the date labels would visually drift left of their bars. Spacer width must match the Y-axis column width exactly. |
+| **Text styling** | `text-[10px] leading-none tabular-nums text-text-muted` | Matches the existing X-axis label aesthetic (`text-[9px] tabular-nums text-text-muted`) with one-step-larger size for legibility against the gridlines. `tabular-nums` so percent values column-align cleanly. `leading-none` so the labels sit tightly at their flex positions. |
+
+#### What was explicitly out of scope
+
+- No change to `CHART_MAX` computation, bar colors, granularity toggle, hover tooltip, gridlines, competitor polyline, X-axis date labels, or any data layer.
+- No "nice rounding" of axis maxima (e.g. snap CHART_MAX to next multiple of 5/10). Would desync axis from actual bar tops. Truth over polish.
+- No axis title (no "Visibility %" label). Tina did not ask for one and the chart's eyebrow already says "How has AI visibility grown this year?" The `%` suffix on each tick makes the unit obvious.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/visibility-chart.tsx` | Added a `w-9` Y-axis label column as the first child of the chart's flex wrapper. 5 tick labels computed from `CHART_MAX`, integer-rounded with `%` suffix. Wrapped the X-axis date label row in a matching flex layout with a `w-9` spacer so date labels stay aligned to the bars. |
+
+#### Scope of impact
+
+- Every current AEO client (Peec or Profound) sees the new axis automatically. `VisibilityChart` has exactly one render site at `components/report-sections/peec-ai/index.tsx:303`; both providers go through that block.
+- Every future AEO client gets it for free. No DB change, no per-client config, no backfill.
+- Renders in both the internal dashboard and the client portal — both routes go through the same `PeecAIReport` component.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- Math: 5 ticks compute `Math.round(CHART_MAX × {1, 0.75, 0.5, 0.25, 0})`. When `CHART_MAX = 26.1` (matches Tina's KPI screenshot), ticks render as `26%`, `20%`, `13%`, `7%`, `0%`.
+- Layout: Y-axis column and date-label spacer are both `w-9 shrink-0` — bars stay aligned to their date labels. Existing gridlines and competitor polyline live inside the same `flex-1` chart column, so they re-flow to the right by the same `w-9 + gap-2` and remain consistent with each other.
+- Demo mode: unaffected. Demo fixtures already drive `CHART_MAX` through the same code path.
+
+#### Open risks (in order of likelihood)
+
+1. **Tick rounding rounds to 0% when CHART_MAX is very small.** If a client's all-time max visibility is < 1%, the second-to-bottom tick (`0.25 × 0.5 = 0.125`) rounds to `0%` and you'd see `1%, 1%, 1%, 0%, 0%` or similar. Edge case. If it happens we switch to `.toFixed(1)`.
+2. **Slight vertical offset between mid-label centers and mid-gridline positions** (~4-5px). Caused by `flex justify-between` mechanics with non-zero-height label spans. Looks natural in practice. If Tina says "labels should center on the lines," switch to absolute-positioned labels with `top: X%` and `translate-y(-50%)`.
+3. **Y-axis column width.** `w-9` (36px) fits values up to 4 chars (`100%`, `75%`, etc.). If a client somehow reports >999% visibility the column would clip — not a real scenario.
+
+---
+
 ### FB-003 — Migrate AEO Overview synopsis from Vertex Gemini to Glean Chat API
 
 - **Status:** done

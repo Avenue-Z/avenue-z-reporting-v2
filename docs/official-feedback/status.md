@@ -36,6 +36,7 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 | ↳ 002d | Added `Snapshot KPIs` eyebrow heading above the KPI grid | | ✅ |
 | ↳ 002e | Moved `<VisibilityChart>` to render after the KPI grid (matches Tina's mockup vertical order) | | ✅ |
 | **FB-003** | Thomas — Glean-only LLM rule. Migrated FB-002c synopsis from Vertex Gemini to Glean Chat API. Added reusable `gleanChat()` helper to `lib/glean.ts`. Cache version bumped `v1` → `v2-glean`. | `e33ed66` | ✅ done |
+| **FB-004** | Tina — added vertical axis to the AEO Overview visibility trend chart. 5 percent-tick labels computed from existing `CHART_MAX`, aligned to the 5 existing gridlines. X-axis row gets a matching spacer so bars stay aligned to date labels. | `PENDING` | ✅ done |
 
 Full per-item decision logs (verbatim ask, what was unambiguous, every inferred decision, what was out of scope, files touched, risks) live in [feedback-log.md](feedback-log.md).
 
