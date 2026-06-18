@@ -49,3 +49,12 @@ export type LeafAttempt = ({ ok: true } & LeafValue) | { ok: false; error: Block
 export type ResolveResult =
   | { ok: true; value: number; prevValue?: number; delta?: number; format: MetricFormat; formatted: string }
   | { ok: false; error: BlockError }
+
+/** A persisted block = a resolvable BlockConfig plus optional grid layout (widened by #3). */
+export type PersistedBlock = BlockConfig & { layout?: { w?: number; h?: number } }
+
+/** One per-client configurable dashboard. `blocks` array order is display order. */
+export interface DashboardConfig {
+  defaultRange: { dateRange: string; compareRange: string | null }
+  blocks: PersistedBlock[]
+}
