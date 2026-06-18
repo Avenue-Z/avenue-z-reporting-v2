@@ -255,7 +255,7 @@ function ProviderSection({
 
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
 
-      <WinnersLosersCards />
+      <WinnersLosersCards clientSlug={clientSlug} />
 
       <Rankings rankings={data.brandRankings} />
 
