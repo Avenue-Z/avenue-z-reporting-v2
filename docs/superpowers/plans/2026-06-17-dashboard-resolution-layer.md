@@ -23,36 +23,37 @@
 ## Inter-Component Dependency Map (read before parallelizing)
 
 ```
-            ┌──────────────┐         ┌──────────────────┐
-            │ lib/metrics  │         │ lib/dashboard/   │
-            │  (Task 2)    │         │   types (Task 1) │  ← foundation: every dashboard file imports types
-            │  INDEPENDENT │         └───────┬──────────┘
-            └──────┬───────┘                 │
-                   │            ┌─────────────┼───────────────┬───────────────┐
-                   │            ▼             ▼               ▼               ▼
-                   │     format (T3)    errors (T4)   triplewhale (T5)  supermetrics (T6)
-                   │            │             │               │               │
-                   │            │             ▼               └──────┬────────┘
-                   │            │      aggregate (T7)                 ▼
-                   │            │             │                 registry (T8)
-                   │            │             │                       │
-                   └────────────┴─────────────┴───────────┬───────────┘
-                                                           ▼
-                                                     resolve (T9)  ← integration; imports everything
+   lib/metrics (T2)        lib/dashboard/types (T1)  ← foundation: every dashboard file imports types
+   INDEPENDENT                     │
+        │              ┌───────────┼───────────────┐
+        │              ▼           ▼               ▼
+        │        format (T3)  errors (T4)   triplewhale (T5)
+        │              │           │               │
+        │              │     ┌─────┴─────┐         │
+        │              │     ▼           ▼         │
+        │              │  supermetrics  aggregate  │
+        │              │    (T6)         (T7)       │
+        │              │     │                      │
+        │              │     └────────┬─────────────┘
+        │              │              ▼
+        │              │         registry (T8)   ← imports T5 + T6
+        │              │              │
+        └──────────────┴──────────────┴────▶ resolve (T9)  ← integration; imports T1,T2,T3,T4,T7,T8
 ```
 
-**Edges = "imports / consumes".** A task may start as soon as every task it points *from* is merged.
+**Edges = "imports / consumes".** A task may start as soon as every task it points *from* is committed. Note `supermetrics` (T6) and `aggregate` (T7) both import from `errors` (T4) — so they cannot share a wave with T4.
 
 ### Parallelization waves
 
 | Wave | Tasks (parallel within a wave) | Unblocked by |
 |---|---|---|
 | 0 | **T1 types**, **T2 metrics** | nothing (T2 is fully independent of types) |
-| 1 | **T3 format**, **T4 errors**, **T5 triplewhale**, **T6 supermetrics** | T1 |
-| 2 | **T7 aggregate**, **T8 registry** | T7←T4; T8←T5,T6 |
-| 3 | **T9 resolve** | T1,T2,T3,T4,T7,T8 |
+| 1 | **T3 format**, **T4 errors**, **T5 triplewhale** | T1 |
+| 2 | **T6 supermetrics**, **T7 aggregate** | T1 + T4 |
+| 3 | **T8 registry** | T5 + T6 |
+| 4 | **T9 resolve** | T1,T2,T3,T4,T7,T8 |
 
-Waves 1 and 2 are the parallelism payoff: four independent files in wave 1, two in wave 2. Each is a standalone file + colocated test with no shared mutable state, so they can be dispatched to separate workers/subagents simultaneously. T9 is the single integration point and must be last.
+Waves 0–2 are the parallelism payoff (2 + 3 + 2 concurrent files). Each task is a standalone file + colocated test with no cross-imports *within its wave* and no shared mutable state, so a wave's tasks dispatch to separate workers simultaneously. T8 and T9 are single-task waves (T8 needs T6; T9 is the integration point and must be last).
 
 ---
 
@@ -506,7 +507,7 @@ git commit -m "feat(dashboard): triplewhale stub adapter"
 - Test: `lib/dashboard/adapters/supermetrics.test.ts`
 
 **Interfaces:**
-- Consumes: `SupermetricsBinding`, `LeafValue` (Task 1); `DisconnectedError`, `NoDataError`, `DriftError` (Task 4); `smQuery`, `parseSmRows` (`@/lib/supermetrics/client`); `parseDateRange` (`@/lib/ga4/client`); `resolveCompareIso` (`@/lib/paid-search/base`); `getClientBySlug` (`@/lib/db/queries`).
+- Consumes: `SupermetricsBinding`, `LeafValue` (Task 1); `DisconnectedError`, `NoDataError` (Task 4); `smQuery`, `parseSmRows` (`@/lib/supermetrics/client`); `parseDateRange` (`@/lib/ga4/client`); `resolveCompareIso` (`@/lib/paid-search/base`); `getClientBySlug` (`@/lib/db/queries`).
 - Produces: `sumMetric(rows: Record<string, string>[], field: string): number`; `accountDrift(returned: string[], expected?: string[]): string[]`; `resolveSupermetricsLeaf(b, ctx, dateRange, compareRange): Promise<LeafValue>`.
 
 **Note:** Only the pure helpers `sumMetric` and `accountDrift` are unit-tested (matching the repo convention of testing transforms, not network wrappers). `resolveSupermetricsLeaf` is a thin I/O wrapper exercised later via `resolveBlock` with an injected fake resolver (Task 9). It wraps `smQuery` (generic), **not** `awQuery` (Google-Ads-specific). Live multi-account drift enforcement needs an account-dimension field supplied at authoring (#4); for #1 the binding's `account` is passed as `ds_accounts` so the query is scoped by construction, and `accountDrift` is the tested guard for when an account column is available.
@@ -547,7 +548,7 @@ import { parseDateRange } from '@/lib/ga4/client'
 import { resolveCompareIso } from '@/lib/paid-search/base'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { LeafValue, SupermetricsBinding } from '../types'
-import { DisconnectedError, NoDataError, DriftError } from '../errors'
+import { DisconnectedError, NoDataError } from '../errors'
 
 /** Sum a numeric metric field across rows; blank/missing cells count as 0. */
 export function sumMetric(rows: Record<string, string>[], field: string): number {
@@ -600,7 +601,7 @@ export async function resolveSupermetricsLeaf(
 }
 ```
 
-Note on `DriftError`: imported and available for the authoring-supplied account-dimension path (#4). #1 scopes by `ds_accounts`; `accountDrift` is the unit-tested guard ready for that wiring. (Keep the import; it documents the intended use. If strict-unused-import lint fails the build, narrow to a type-only side-comment — but Next.js TS config does not error on unused imports by default.)
+Note on the drift guard: `accountDrift` is implemented and unit-tested here but **not yet wired into the live resolver** — #1 scopes the query by `ds_accounts`, so single-account drift is impossible by construction. Live multi-account enforcement needs an account-dimension field supplied at authoring (#4); `DriftError` is therefore introduced in Task 4 but not imported here until that wiring lands. This staged helper is spec-mandated (design §4.2 / §5).
 
 - [ ] **Step 4: Run test to verify it passes**
 
