@@ -4,7 +4,7 @@ import type { LLMBreakdown } from '@/lib/peec/client'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
-import { MODEL_COLORS } from '@/lib/peec/models'
+import { MODEL_COLORS, MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 
 function VisibilityBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0
@@ -35,7 +35,7 @@ export function LLMBreakdownTable({ breakdown }: { breakdown: LLMBreakdown[] }) 
         return (
           <span className="flex items-center gap-2">
             <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
-            <span className="text-sm font-semibold text-white">{b.model}</span>
+            <span className="text-sm font-semibold text-white">{MODEL_DISPLAY_LABELS[b.model as AEOModel] ?? b.model}</span>
           </span>
         )
       },

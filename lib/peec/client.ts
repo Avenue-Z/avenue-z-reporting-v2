@@ -91,6 +91,7 @@ type ApiDomainRow = {
   domain: string
   classification: string
   model_channel?: { id: string }
+  model?: { id: string }
   retrieved_percentage: number
   citation_rate: number
   retrieval_count: number
@@ -382,8 +383,11 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }, pid),
     peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }, pid),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id'], limit: 2000 }, pid),
+    // FB-005: include both model_channel_id and model_id so we can bucket by
+    // the friendly scraper id (e.g. "gemini-scraper") instead of the channel id
+    // (e.g. "google-2" which contains "google" and would otherwise be misbucketed).
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
     // Real prompt taxonomy: tag id→name + each prompt's tags, for grouping by
     // the prompt's primary subject tag instead of keyword inference.
     peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
@@ -512,7 +516,9 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   for (const q of queriesRes.data ?? []) {
     const uuid = q.prompt?.id ? String(q.prompt.id) : null
     if (!uuid) continue
-    const source = normalizeSource(q.model_channel?.id ?? q.model?.id ?? '')
+    // Prefer the friendly scraper id (e.g. "gemini-scraper") over the channel id
+    // (e.g. "google-2") so Gemini is not silently misbucketed into Google. FB-005.
+    const source = normalizeSource(q.model?.id ?? q.model_channel?.id ?? '')
     if (!sourcesByUuid.has(uuid)) sourcesByUuid.set(uuid, new Set())
     if (source) sourcesByUuid.get(uuid)!.add(source)
   }
@@ -560,7 +566,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   const llmAggMap = new Map<string, LLMAgg>()
   for (const row of llmBrandsRes.data ?? []) {
     if (yourBrand && !row.brand.name.toLowerCase().includes(yourBrand.toLowerCase())) continue
-    const rawId = row.model_channel?.id ?? row.model?.id ?? ''
+    const rawId = row.model?.id ?? row.model_channel?.id ?? ''
     const model = normalizeSource(rawId)
     if (!model) continue
     const e = llmAggMap.get(model)
@@ -580,7 +586,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   const llmOwnDomainMap = new Map<string, { retrievedSum: number; rows: number }>()
   for (const row of llmDomainsRes.data ?? []) {
     if (normalizeClassification(row.classification) !== 'Own') continue
-    const rawId = row.model_channel?.id ?? ''
+    const rawId = row.model?.id ?? row.model_channel?.id ?? ''
     const model = normalizeSource(rawId)
     if (!model) continue
     const e = llmOwnDomainMap.get(model)
@@ -605,7 +611,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   // Uses the llmDomainsRes already fetched above (dimensions: ['model_channel_id']).
   const domainCitationsByModel: ByModel<string, number> = {}
   for (const row of llmDomainsRes.data ?? []) {
-    const rawId = row.model_channel?.id ?? ''
+    const rawId = row.model?.id ?? row.model_channel?.id ?? ''
     const modelName = normalizeSource(rawId)
     if (!modelName) continue
     const domain = row.domain
@@ -622,7 +628,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   // (brand, model) rather than summing, since percentages must not be summed across rows.
   const brandVisibilityByModel: ByModel<string, number> = {}
   for (const row of llmBrandsRes.data ?? []) {
-    const rawId = row.model_channel?.id ?? row.model?.id ?? ''
+    const rawId = row.model?.id ?? row.model_channel?.id ?? ''
     const modelName = normalizeSource(rawId)
     if (!modelName) continue
     const brandName = row.brand.name

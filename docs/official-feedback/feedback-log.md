@@ -16,6 +16,97 @@ _(none)_
 
 ## Closed
 
+### FB-005 — Disambiguate "Google" in the AEO Model Breakdown (and fix the underlying bucketing bug)
+
+- **Status:** done
+- **Source:** Google doc — Tina's annotated screenshot of the AEO Overview Model Breakdown table
+- **Author:** Tina
+- **Type:** data correctness + label clarity
+- **Scope:** `lib/peec/client.ts`, `lib/peec/models.ts`, `components/report-sections/peec-ai/llm-breakdown-table.tsx`, `components/report-sections/profound-ai/llm-breakdown-table.tsx`, `components/report-sections/peec-ai/model-filter.tsx`. Universal across every current and future AEO client.
+
+#### Verbatim ask
+
+> "Google" is not a model, so we need some clarification on whether this is Google AI Overviews, Gemini, etc.
+
+#### What was unambiguous
+
+1. The "Google" row in the Overview Model Breakdown table is ambiguous and needs to be replaced with a specific label.
+2. Tina is asking us to disambiguate between Google AI Overviews and Gemini (and other possible Google products).
+
+#### What I discovered by querying Peec directly
+
+Confirmed against the live Peec API (`/reports/brands` with `dimensions: ['model_channel_id', 'model_id']` and `/models`):
+
+| `model_channel.id` returned in brands report | `model.id` (friendly scraper id) | Peec's friendly name |
+|---|---|---|
+| `openai-0` | `chatgpt-scraper` | ChatGPT |
+| `perplexity-0` | `perplexity-scraper` | Perplexity |
+| `google-0` | `google-ai-overview-scraper` | AI Overview |
+| **`google-2`** | **`gemini-scraper`** | **Gemini** ← critical |
+
+The existing `normalizeSource()` in `lib/peec/client.ts` was reading `model_channel.id` first and only falling back to `model.id` if missing. For the Gemini row, `model_channel.id = 'google-2'` does NOT contain "gemini" but DOES contain "google", so the substring check incorrectly bucketed it into `Google`. **Gemini's data has been silently merged into the `Google` row for as long as both have been active on a project.**
+
+End-to-end verification against the iPullRank project (last 30 days):
+- BEFORE fix: ChatGPT (33), `Google` (66 — actually 33 AI Overview + 33 Gemini mixed), Perplexity (33)
+- AFTER fix: ChatGPT (33), Gemini (33), `Google AI Overview` (33), Perplexity (33)
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Treat this as a bucketing bug, not a label rename** | Fixed both: read `model.id` first AND rename the display label. | A label change alone would have made the bug worse: it would have labeled mixed AI Overview + Gemini data as "Google AI Overview", which is more wrong than "Google". Truth before polish. |
+| **Add `model_id` to the dimensions** of `/reports/brands` and `/reports/domains` (lines 385-386 of client.ts) | Peec returns `model.id` (e.g. `gemini-scraper`) when `model_id` is in dimensions. Adding it alongside `model_channel_id` keeps both fields available with no loss of information. | Single-line dimension change. Cheapest possible path to truth-grounded bucketing. |
+| **Invert read priority everywhere** | `row.model?.id ?? row.model_channel?.id` instead of the reverse, at all five call sites (`client.ts` lines 515, 563, 583, 608, 625). | `model.id` is the friendly scraper identifier (gemini-scraper, google-ai-overview-scraper) and routes correctly through the existing `normalizeSource` substring checks. Falling back to `model_channel.id` preserves resilience if Peec ever stops returning `model_id`. |
+| **Keep `AEO_MODELS` canonical ids unchanged** | The canonical `'Google'` id stays. Display label only changes via new `MODEL_DISPLAY_LABELS` map. | Renaming the canonical id would force URL param changes (`?models=Google` → `?models=GoogleAIOverview`), color map key changes, filter logic changes, and DB migration of any `peecYourBrand`-style configs that reference it. Display-layer indirection is the surgical fix. |
+| **Display label: `Google AI Overview`** | Matches Peec's own friendly name from their `/models` endpoint (`google-ai-overview-scraper` → "AI Overview"). | Sourced directly from Peec's API, not invented. Truth-grounded. |
+| **Wire the display label through all visible model-name render sites** in the AEO section | Peec breakdown table + Profound breakdown table + shared Model Filter dropdown. | Tina's feedback is on the Overview tab, but the Model Filter is shared across all 4 AEO tabs. Inconsistency between filter and table would be the next thing she flags. One map, three call sites, full consistency. |
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `lib/peec/client.ts` | Added `model?: { id: string }` to `ApiDomainRow`. Added `model_id` to dimensions on the two model-grouped brand/domain queries. Inverted read priority at all five `normalizeSource` call sites to prefer `model.id` over `model_channel.id`. |
+| `lib/peec/models.ts` | Added `MODEL_DISPLAY_LABELS: Record<AEOModel, string>` map. Identity strings for ChatGPT/Perplexity/Gemini/Claude/Copilot. `Google: 'Google AI Overview'`. |
+| `components/report-sections/peec-ai/llm-breakdown-table.tsx` | Imported the display map; renders `MODEL_DISPLAY_LABELS[b.model] ?? b.model`. |
+| `components/report-sections/profound-ai/llm-breakdown-table.tsx` | Same one-line swap. Profound's model labels go through the same map for consistency. |
+| `components/report-sections/peec-ai/model-filter.tsx` | Imported the display map; renders `MODEL_DISPLAY_LABELS[m]` in the dropdown. Filter is shared across all 4 AEO tabs. |
+
+#### What did NOT change
+
+- `AEO_MODELS` array — canonical ids untouched (`'Google'` stays as the internal id)
+- `MODEL_COLORS` map — color still bound to canonical id
+- URL params — `?models=Google` still works
+- `normalizeSource()` substring-check logic — unchanged; we just feed it better input
+- Type signatures — `AEOModel` union unchanged
+- Filter state behavior — checkbox toggles still track canonical id
+- `lib/profound/client.ts` data layer — Profound is a separate API with its own normalization
+- All other AEO report sections (PR Influence per-tab tables, Content Impact) — their per-row labels render via different paths; the shared Model Filter covers them by side effect
+
+#### Scope of impact
+
+- Every current AEO client on Peec sees correct, disambiguated buckets automatically. No DB change, no per-client config, no backfill.
+- Every future AEO client gets it for free.
+- The fix is at the data layer, so it propagates to:
+  - LLM Breakdown table (visible)
+  - Model Filter dropdown labels (visible across all 4 AEO tabs)
+  - Per-model citation counts on PR Influence (downstream of the same bucketing logic)
+  - Domain breakdown by model
+- Renders in both the internal dashboard and the client portal.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- End-to-end against live Peec API for the iPullRank project (last 30 days): old buckets → 3 rows with merged Google; new buckets → 4 rows with separate `Google AI Overview` and `Gemini`. Row counts and the model_channel → model id mapping captured in this log above.
+- Peec's `/models` endpoint independently confirms the friendly names used in the display map: `chatgpt-scraper → ChatGPT`, `perplexity-scraper → Perplexity`, `gemini-scraper → Gemini`, `google-ai-overview-scraper → AI Overview`, `google-ai-mode-scraper → AI Mode`.
+
+#### Open risks (in order of likelihood)
+
+1. **Google AI Mode is not yet handled.** Peec also offers `google-ai-mode-scraper`. If a client enables it, those rows contain "google" (no "gemini") and would currently fall into the `Google` bucket alongside AI Overview. Label `Google AI Overview` would then be inaccurate for that client. Fix when needed is a one-line addition to `normalizeSource`: `if (s.includes('ai-mode')) return 'GoogleAIMode'` before the `google` catch-all, plus a new `AEOModel` entry. Out of scope for FB-005, flagged as future work. No current client has AI Mode enabled.
+2. **Peec changes their `model.id` naming convention.** Today: `<vendor>-scraper`. If Peec renames (e.g. drops the `-scraper` suffix), the substring matches still hold because `normalizeSource` checks for vendor substrings (`gemini`, `google`, etc.). Low risk.
+3. **Surprise from suddenly seeing Gemini appear.** Internal users may be confused that "Gemini" appears as a new row after this ships. That is the correct behavior; Gemini was always there, just mislabeled. Worth a heads-up note in the deploy commit / PR description.
+
+---
+
 ### FB-004 — Add a vertical axis to the AEO Overview visibility trend chart
 
 - **Status:** done
