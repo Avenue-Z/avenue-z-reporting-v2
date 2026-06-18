@@ -42,14 +42,15 @@ export interface MetricBlockProps {
   canEdit: boolean
   slug: string
   config: DashboardConfig
+  activeDefault: { dateRange: string; compareRange: string | null }
 }
 
-export function MetricBlock({ block, result, canEdit, slug, config }: MetricBlockProps) {
+export function MetricBlock({ block, result, canEdit, slug, config, activeDefault }: MetricBlockProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'range' | 'confirm-delete' | 'confirm-reset'>('menu')
-  const [draftDate, setDraftDate] = useState<string>(block.range?.dateRange ?? 'last_30_days')
+  const [draftDate, setDraftDate] = useState<string>(block.range?.dateRange ?? activeDefault.dateRange)
   const [draftCompare, setDraftCompare] = useState<string | null>(
-    block.range?.compareRange ?? null,
+    block.range?.compareRange ?? activeDefault.compareRange,
   )
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -85,19 +86,31 @@ export function MetricBlock({ block, result, canEdit, slug, config }: MetricBloc
     runSave(removeBlock(config, block.id))
   }
 
+  const overrideLabel = isOverridden ? presetLabel(block.range!.dateRange) : null
+
+  const badge = isOverridden ? (
+    <DetachBadge
+      label={overrideLabel!}
+      canEdit={canEdit}
+      onReset={() => {
+        setView('confirm-reset')
+        setMenuOpen(true)
+      }}
+    />
+  ) : null
+
   if (!result.ok) {
     return (
       <BlockShell
         name={block.name}
         canEdit={canEdit}
-        isOverridden={isOverridden}
-        overrideLabel={isOverridden ? presetLabel(block.range!.dateRange) : null}
         menuOpen={menuOpen}
         setMenuOpen={setMenuOpen}
         view={view}
         setView={setView}
         pending={pending}
         errorMsg={errorMsg}
+        isOverridden={isOverridden}
         draftDate={draftDate}
         setDraftDate={setDraftDate}
         draftCompare={draftCompare}
@@ -106,7 +119,10 @@ export function MetricBlock({ block, result, canEdit, slug, config }: MetricBloc
         confirmDelete={confirmDelete}
         confirmReset={confirmReset}
       >
-        <MetricBlockErrorState name={block.name} error={result.error} />
+        <div className="flex flex-col gap-2">
+          {badge}
+          <MetricBlockErrorState name={block.name} error={result.error} />
+        </div>
       </BlockShell>
     )
   }
@@ -115,14 +131,13 @@ export function MetricBlock({ block, result, canEdit, slug, config }: MetricBloc
     <BlockShell
       name={block.name}
       canEdit={canEdit}
-      isOverridden={isOverridden}
-      overrideLabel={isOverridden ? presetLabel(block.range!.dateRange) : null}
       menuOpen={menuOpen}
       setMenuOpen={setMenuOpen}
       view={view}
       setView={setView}
       pending={pending}
       errorMsg={errorMsg}
+      isOverridden={isOverridden}
       draftDate={draftDate}
       setDraftDate={setDraftDate}
       draftCompare={draftCompare}
@@ -132,11 +147,10 @@ export function MetricBlock({ block, result, canEdit, slug, config }: MetricBloc
       confirmReset={confirmReset}
     >
       <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px]">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">
-            {block.name}
-          </p>
-        </div>
+        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">
+          {block.name}
+        </p>
+        {badge && <div className="mt-2">{badge}</div>}
         <p className="mt-2 text-3xl font-extrabold text-white">{result.formatted}</p>
         {result.delta !== undefined && (
           <p
@@ -158,12 +172,32 @@ export function MetricBlock({ block, result, canEdit, slug, config }: MetricBloc
   )
 }
 
-// Shared chrome (detach badge + kebab + popover) wrapped around the value/error card.
+function DetachBadge({
+  label,
+  canEdit,
+  onReset,
+}: {
+  label: string
+  canEdit: boolean
+  onReset: () => void
+}) {
+  const cls =
+    'inline-flex w-fit rounded-full border border-brand-cyan/40 bg-brand-cyan/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brand-cyan'
+  if (canEdit) {
+    return (
+      <button onClick={onReset} className={`${cls} hover:bg-brand-cyan/20`}>
+        Detached · {label}
+      </button>
+    )
+  }
+  return <span className={cls}>Detached · {label}</span>
+}
+
+// Shared chrome (kebab + popover) wrapped around the value/error card.
 function BlockShell({
   name,
   canEdit,
   isOverridden,
-  overrideLabel,
   menuOpen,
   setMenuOpen,
   view,
@@ -182,7 +216,6 @@ function BlockShell({
   name: string
   canEdit: boolean
   isOverridden: boolean
-  overrideLabel: string | null
   menuOpen: boolean
   setMenuOpen: (v: boolean) => void
   view: 'menu' | 'range' | 'confirm-delete' | 'confirm-reset'
@@ -201,27 +234,6 @@ function BlockShell({
   return (
     <div className="relative">
       {children}
-
-      {/* detach badge — visible to viewers too, but only interactive for editors */}
-      {isOverridden && (
-        <div className="absolute left-6 top-12">
-          {canEdit ? (
-            <button
-              onClick={() => {
-                setView('confirm-reset')
-                setMenuOpen(true)
-              }}
-              className="rounded-full border border-brand-cyan/40 bg-brand-cyan/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brand-cyan hover:bg-brand-cyan/20"
-            >
-              Detached · {overrideLabel}
-            </button>
-          ) : (
-            <span className="rounded-full border border-brand-cyan/40 bg-brand-cyan/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brand-cyan">
-              Detached · {overrideLabel}
-            </span>
-          )}
-        </div>
-      )}
 
       {/* kebab + popover — editors only */}
       {canEdit && (
@@ -245,7 +257,7 @@ function BlockShell({
                   className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
                   onClick={() => setView('range')}
                 >
-                  Override range…
+                  Set range…
                 </button>
                 {isOverridden && (
                   <button

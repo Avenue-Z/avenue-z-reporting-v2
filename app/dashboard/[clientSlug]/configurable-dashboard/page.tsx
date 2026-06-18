@@ -101,5 +101,14 @@ async function ResolvedBlockIsland({
   config: DashboardConfig
 }) {
   const result = await resolveBlock(block, activeDefault, { slug })
-  return <MetricBlock block={block} result={result} canEdit={canEdit} slug={slug} config={config} />
+  return (
+    <MetricBlock
+      block={block}
+      result={result}
+      canEdit={canEdit}
+      slug={slug}
+      config={config}
+      activeDefault={activeDefault}
+    />
+  )
 }
