@@ -18,9 +18,24 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Branch
 
-- Branch: `official-feedback`
+- Branch: `official-feedback-overview-tab` (renamed from `official-feedback` on 2026-06-18 to make room for per-tab PRs going forward)
 - Base: `main`
 - Origin: `https://github.com/Avenue-Z/avenue-z-reporting-v2`
+- PR: [#50 — AEO Overview tab: official feedback (FB-001 to FB-008)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50)
+- Prior PR [#48](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/48) was closed automatically when the branch was renamed; superseded by #50
+
+## Per-tab workflow going forward
+
+One branch + one PR per AEO sub-tab. Future branches:
+
+| Tab | Branch | PR |
+|---|---|---|
+| Overview | `official-feedback-overview-tab` | [#50](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50) |
+| PR Influence | `official-feedback-pr-influence-tab` | (next batch) |
+| Content Impact | `official-feedback-content-impact-tab` | (later batch) |
+| Technical Performance | `official-feedback-technical-performance-tab` | (later batch) |
+
+Each new branch cuts from `main` (after the previous tab merges in) and only contains changes to that one tab's render path. FB IDs continue sequentially across all branches (next item is FB-009).
 
 ---
 
