@@ -1,0 +1,68 @@
+// components/dashboard/config-mutations.test.ts
+// Run: npx tsx components/dashboard/config-mutations.test.ts
+import { strict as assert } from 'node:assert'
+import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+import {
+  reorderBlocks,
+  removeBlock,
+  setBlockRange,
+  resetBlockRange,
+} from './config-mutations'
+
+const block = (id: string, range: PersistedBlock['range'] = null): PersistedBlock => ({
+  id,
+  name: `Block ${id}`,
+  format: 'number',
+  binding: { source: 'triplewhale', metric: 'fake' },
+  range,
+})
+
+const base: DashboardConfig = {
+  defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
+  blocks: [block('a'), block('b'), block('c')],
+}
+
+// reorderBlocks: move 'a' (index 0) to index 2 → [b, c, a]
+{
+  const next = reorderBlocks(base, 0, 2)
+  assert.deepEqual(next.blocks.map((b) => b.id), ['b', 'c', 'a'])
+  assert.notEqual(next, base, 'must return a new object (immutable)')
+  assert.notEqual(next.blocks, base.blocks, 'must return a new blocks array')
+  assert.deepEqual(base.blocks.map((b) => b.id), ['a', 'b', 'c'], 'input must be unchanged')
+}
+
+// reorderBlocks: same index is a no-op identity-shape (still a new array, same order)
+{
+  const next = reorderBlocks(base, 1, 1)
+  assert.deepEqual(next.blocks.map((b) => b.id), ['a', 'b', 'c'])
+}
+
+// removeBlock: drops the matching id, leaves others in order
+{
+  const next = removeBlock(base, 'b')
+  assert.deepEqual(next.blocks.map((b) => b.id), ['a', 'c'])
+  assert.deepEqual(base.blocks.map((b) => b.id), ['a', 'b', 'c'], 'input must be unchanged')
+}
+
+// removeBlock: unknown id is a no-op (returns identical-shape config)
+{
+  const next = removeBlock(base, 'zzz')
+  assert.deepEqual(next.blocks.map((b) => b.id), ['a', 'b', 'c'])
+}
+
+// setBlockRange: writes the range on the matching block, leaves others alone
+{
+  const next = setBlockRange(base, 'b', { dateRange: 'last_7_days', compareRange: 'previous_year' })
+  assert.equal(next.blocks[0].range, null)
+  assert.deepEqual(next.blocks[1].range, { dateRange: 'last_7_days', compareRange: 'previous_year' })
+  assert.equal(next.blocks[2].range, null)
+}
+
+// resetBlockRange: sets the matching block back to null
+{
+  const overridden = setBlockRange(base, 'a', { dateRange: 'last_7_days', compareRange: null })
+  const next = resetBlockRange(overridden, 'a')
+  assert.equal(next.blocks[0].range, null)
+}
+
+console.log('ok')
