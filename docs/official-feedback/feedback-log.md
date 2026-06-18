@@ -16,6 +16,65 @@ _(none)_
 
 ## Closed
 
+### FB-010 — AEO PR Influence tab: add Sentiment Insights section (Avenue Z sandbox)
+
+- **Status:** done
+- **Source:** Tina via Thomas — annotated mockup of PR Influence "Recommended layout" with `ADD: Sentiment Insights` immediately above `Top Editorial Domains`. Plus a detailed static example.
+- **Author:** Tina
+- **Type:** new UI (static, Avenue Z sandbox)
+- **Scope:** new `components/report-sections/peec-ai/sentiment-insights.tsx`, modified `components/report-sections/peec-ai/pr-influence.tsx`. Sandbox-gated to Avenue Z only.
+
+#### Verbatim ask (condensed)
+
+`ADD: Sentiment Insights`. Headline: `Positive 89.4%`. Two weaknesses (titled, each with an explanation paragraph). Eight positive themes ("Sources of Positive Claims") mapping each theme to its citing URLs. Design: sentiment as KPI pill, Positive Themes + Weaknesses side-by-side, click-to-expand accordion. Placement: below Synopsis, above Top Editorial Domains.
+
+#### Key decisions
+
+| Decision | Why |
+|---|---|
+| Static, hardcoded Avenue Z content (no Glean, no fetch) | Thomas: "avenue z is the guinea pig... let's just make it static for avenue z first and then cross the bridge on the others." Same pattern as FB-006. |
+| Sandbox gate: `clientSlug === 'avenue-z'` only | Thomas: "sandbox all this feedback to avenue z... don't want data leaking into other clients." Hardcoded Avenue Z URLs must not render on iPullRank, Shopify, etc. Other clients see nothing in the slot. |
+| Placement: between Matchback (Section B) and Top Editorial Domains (Section C) | Thomas: "look at screenshot for placement." Literal read of Tina's screenshot puts the ADD label directly above Top Editorial Domains. |
+| Client component (`'use client'`) | Accordion needs `useState`. Two `Set<number>` states (positive + weaknesses) so multiple themes can be open at once. |
+| Sentiment as a rounded-full pill with brand-green accent | Tina: "sentiment as a KPI pill." Brand green is the existing positive-signal color. |
+| `ChevronRight` rotating to 90deg on expand | Standard accordion affordance. |
+| URLs render as `hostname.com · /path`, new tab, brand-green `›` marker | Readable + reuses the synopsis "Recommended actions" visual rhythm. |
+| Em-dashes replaced with periods in the weakness explanations Tina provided | Project house rule, same intent. |
+| Two columns symmetrical heights, `max-h-[400px] overflow-y-auto` per side | Same containment as FB-006 Winners/Losers; page footprint stays bounded. |
+
+#### Files touched
+
+- `components/report-sections/peec-ai/sentiment-insights.tsx` — **New.** ~210 lines. Two `const` arrays (`POSITIVE_THEMES` × 8, `WEAKNESSES` × 2) carry Tina's verbatim data. `SANDBOX_CLIENT_SLUG = 'avenue-z'` gate at the top.
+- `components/report-sections/peec-ai/pr-influence.tsx` — Added import; rendered `<SentimentInsights clientSlug={clientSlug} />` between Section B and Section C.
+
+#### What did NOT change
+
+- Synopsis (FB-009-a), Section B, Section C and below — all untouched.
+- No data layer additions, no fetches, no env vars.
+- FB-006 sandbox fix lives on its own branch (PR #54), not this one.
+
+#### Scope of impact
+
+- Avenue Z: section renders with Tina's static content.
+- Every other client: renders nothing in the slot (page flows directly from Matchback into Top Editorial Domains).
+- Both internal dashboard and Avenue Z client portal render paths.
+
+#### Verification
+
+- TypeScript clean (`npx tsc --noEmit`).
+- 1:1 verbatim check between Tina's pasted "Sources of Positive Claims" and the inline `POSITIVE_THEMES` array — 8 themes, exact titles, exact URLs in the same order.
+- Sandbox slug lives in one constant per component, so flipping to live later is a one-line change.
+
+#### Open risks
+
+1. Sentiment value (89.4%) is frozen — will drift from reality as the underlying citation mix changes. Intentional, flagged for live-derivation follow-up.
+2. Only Avenue Z renders this; other clients see nothing here until they're either onboarded as additional sandbox clients or we ship live derivation.
+3. Static URLs may rot over time. No mitigation in the static version.
+4. Default-collapsed accordion hides content at first paint. Matches Tina's brief; trivial to default the first theme open if she requests it.
+5. Empty slot on non-Avenue-Z clients may confuse future devs. The `SANDBOX_CLIENT_SLUG` const + comment explain the rationale at the call site.
+
+---
+
 ### FB-009 — AEO PR Influence tab: add Executive Synopsis, remove the top KPI strip
 
 - **Status:** done

@@ -14,6 +14,7 @@ import { Sparkles, Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
+import { SentimentInsights } from './sentiment-insights'
 import { cn } from '@/lib/utils'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -575,6 +576,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         prDataAvailable={!!prData}
         isDemo={prIsDemo}
       />
+
+      {/* ── FB-010 · Sentiment Insights (Avenue Z sandbox; renders nothing for other clients) ── */}
+      <SentimentInsights clientSlug={clientSlug} />
 
       {/* ── Section C: Top Editorial Domains Cited by AI ── */}
       <TopEditorialDomainsTable rows={topEditorialRows} isDemo={prIsDemo} prDataAvailable={prData != null} />
