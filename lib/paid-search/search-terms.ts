@@ -24,5 +24,7 @@ export async function getSearchTermRows(slug: string, dateRange: string): Promis
     awQuery(slug, ['Searchterm', 'Clicks', 'Impressions', 'Cost'], dateRange),
     awQuery(slug, ['Searchterm', 'ConversionTypeName', 'Conversions'], dateRange),
   ])
-  return transformSearchTerms(m, l, cfg)
+  // PRD §6.6: surface the TOP search terms (sorted leads→cost desc), not the
+  // full long tail — accounts routinely return thousands of unique terms.
+  return transformSearchTerms(m, l, cfg).slice(0, 50)
 }

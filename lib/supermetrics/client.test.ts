@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert'
 import { smQuery, parseSmRows } from './client'
 import { SmTimeoutError } from './types'
 
-// A fake fetch that returns a schedule id, then "completed" with rows.
+// A fake fetch returning queued responses (matches the real { meta, data } shape).
 function fakeFetch(seq: Array<{ status: number; body: unknown }>): typeof fetch {
   let i = 0
   return (async () => {
@@ -18,26 +18,41 @@ function fakeFetch(seq: Array<{ status: number; body: unknown }>): typeof fetch 
 }
 
 async function main() {
-  // Happy path: submit returns schedule_id, poll returns completed.
+  // Happy path: synchronous response. The data[0] header uses DISPLAY names, but
+  // meta.query.fields gives canonical field_ids — rows must be keyed by field_id.
   const fetchImpl = fakeFetch([
-    { status: 200, body: { data: { schedule_id: 'abc' } } },
-    { status: 200, body: { data: { status: 'completed', data: [['Date', 'Cost'], ['2026-01-01', '10']] } } },
+    {
+      status: 200,
+      body: {
+        meta: {
+          status_code: 'SUCCESS',
+          query: { fields: [{ field_id: 'Campaignname', data_column: 0 }, { field_id: 'Cost', data_column: 1 }] },
+        },
+        data: [['Campaign name', 'Cost'], ['REN | Brand', '10']],
+      },
+    },
   ])
   const res = await smQuery(
-    { apiKey: 'k', dsId: 'AW', dsAccounts: '4136001852', fields: ['Date', 'Cost'], dateRange: '2026-01-01,2026-01-31' },
+    { apiKey: 'k', dsId: 'AW', dsAccounts: '4136001852', fields: ['Campaignname', 'Cost'], dateRange: '2026-01-01,2026-01-31' },
     { pollMs: 1, maxPolls: 3, fetchImpl },
   )
-  assert.deepEqual(res.header, ['Date', 'Cost'])
-  assert.deepEqual(parseSmRows(res), [{ Date: '2026-01-01', Cost: '10' }])
+  assert.deepEqual(res.header, ['Campaignname', 'Cost']) // field_ids, NOT display names
+  assert.deepEqual(parseSmRows(res), [{ Campaignname: 'REN | Brand', Cost: '10' }])
 
-  // Timeout: never completes within maxPolls.
+  // Async fallback that never returns data within maxPolls → SmTimeoutError.
   const slow = fakeFetch([
-    { status: 200, body: { data: { schedule_id: 'abc' } } },
-    { status: 200, body: { data: { status: 'pending' } } },
+    { status: 200, body: { meta: { schedule_id: 'abc' } } }, // submit: schedule_id, no data
+    { status: 200, body: { meta: { schedule_id: 'abc' } } }, // polls: still no data
   ])
   await assert.rejects(
     smQuery({ apiKey: 'k', dsId: 'AW', dsAccounts: '1', fields: ['Date'], dateRange: 'x' }, { pollMs: 1, maxPolls: 2, fetchImpl: slow }),
     (e: unknown) => e instanceof SmTimeoutError,
+  )
+
+  // Non-success status_code surfaces as SmQueryError.
+  const failed = fakeFetch([{ status: 200, body: { meta: { status_code: 'FAILURE' } } }])
+  await assert.rejects(
+    smQuery({ apiKey: 'k', dsId: 'AW', dsAccounts: '1', fields: ['Date'], dateRange: 'x' }, { pollMs: 1, maxPolls: 2, fetchImpl: failed }),
   )
   console.log('ok')
 }
