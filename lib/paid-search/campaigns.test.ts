@@ -1,6 +1,7 @@
 // Run: npx tsx --env-file=.env.local lib/paid-search/campaigns.test.ts
 import { strict as assert } from 'node:assert'
 import { transformCampaigns, campaignTotals } from './campaigns'
+import { isLeadAction } from './base'
 
 const cfg = {
   googleAdsAccountId: '4136001852',
@@ -35,4 +36,10 @@ assert.equal(brand.leads, 10)
 assert.equal(rows[0].campaign.includes('Brokers'), true)
 // Totals reconcile: sum of scoped leads = 15.
 assert.equal(campaignTotals(rows).leads, 15)
+// §10 acceptance: the KPI scoped-leads total (computed the account-level way —
+// filter the same lead rows by isLeadAction) must equal the campaign-totals leads.
+const kpiScopedLeads = leadRows
+  .filter((r) => isLeadAction(r.ConversionTypeName, cfg))
+  .reduce((s, r) => s + Number(r.Conversions), 0)
+assert.equal(kpiScopedLeads, campaignTotals(rows).leads)
 console.log('ok')

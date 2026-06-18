@@ -13,42 +13,42 @@ const COLUMNS = [
     label: 'Clicks',
     align: 'right' as const,
     sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row.__clicks as number,
+    sortValue: (row: Record<string, React.ReactNode>) => row._clicks as number,
   },
   {
     key: 'impressions',
     label: 'Impressions',
     align: 'right' as const,
     sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row.__impressions as number,
+    sortValue: (row: Record<string, React.ReactNode>) => row._impressions as number,
   },
   {
     key: 'ctr',
     label: 'CTR',
     align: 'right' as const,
     sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row.__ctr as number,
+    sortValue: (row: Record<string, React.ReactNode>) => row._ctr as number,
   },
   {
     key: 'cost',
     label: 'Cost',
     align: 'right' as const,
     sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row.__cost as number,
+    sortValue: (row: Record<string, React.ReactNode>) => row._cost as number,
   },
   {
     key: 'leads',
     label: 'Leads',
     align: 'right' as const,
     sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row.__leads as number,
+    sortValue: (row: Record<string, React.ReactNode>) => row._leads as number,
   },
   {
     key: 'cpl',
     label: 'CPL',
     align: 'right' as const,
     sortable: true,
-    sortValue: (row: Record<string, React.ReactNode>) => row.__cpl as number,
+    sortValue: (row: Record<string, React.ReactNode>) => row._cpl as number,
   },
 ]
 
@@ -61,13 +61,13 @@ export function SearchTermsTable({ rows }: { rows: SearchTermRow[] }) {
     cost: usd(r.cost),
     leads: num(r.leads),
     cpl: usd(r.cpl),
-    // raw numeric values for sort — prefixed with __ to avoid column key collision
-    __clicks: r.clicks,
-    __impressions: r.impressions,
-    __ctr: r.ctr,
-    __cost: r.cost,
-    __leads: r.leads,
-    __cpl: r.cpl,
+    // raw numeric values for sort — prefixed with _ to avoid column key collision
+    _clicks: r.clicks,
+    _impressions: r.impressions,
+    _ctr: r.ctr,
+    _cost: r.cost,
+    _leads: r.leads,
+    _cpl: r.cpl,
   }))
 
   return (

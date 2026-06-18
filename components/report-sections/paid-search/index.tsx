@@ -39,9 +39,13 @@ export async function PaidSearchReport({
   dateRange?: string
   compareRange?: string | null
 }) {
+  // PRD: automatic prior-period comparison — default to previous_period when
+  // the URL doesn't specify a compare mode (an explicit value still wins).
+  const effectiveCompare = compareRange ?? 'previous_period'
   const [kpis, hero, campaigns, leads, geo, terms] = await Promise.all([
-    safe(getPaidSearchKpis(clientSlug, dateRange, compareRange)),
-    safe(getHeroSeries(clientSlug, dateRange)),
+    safe(getPaidSearchKpis(clientSlug, dateRange, effectiveCompare)),
+    // Spec §6.1: hero is always weekly year-to-date, independent of the page range.
+    safe(getHeroSeries(clientSlug, 'year_to_date')),
     safe(getCampaignRows(clientSlug, dateRange)),
     safe(getLeadBreakdown(clientSlug, dateRange)),
     safe(getGeoRows(clientSlug, dateRange)),
