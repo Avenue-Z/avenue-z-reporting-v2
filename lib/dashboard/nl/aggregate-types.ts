@@ -1,7 +1,7 @@
 import type { BlockConfig } from '@/lib/dashboard/types'
 import type { Candidate } from './types'
 
-type OperandAlternatives = { metric?: Candidate[]; account?: Candidate[] }
+export type OperandAlternatives = { metric?: Candidate[]; account?: Candidate[] }
 
 export interface AggregateProposal {
   config: BlockConfig // binding is an AggregateBinding; validated; id '__pending__'

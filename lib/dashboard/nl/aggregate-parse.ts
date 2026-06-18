@@ -1,11 +1,7 @@
 import { parseBlockConfig } from '@/lib/dashboard/persistence'
 import { MIN_CONFIDENCE, type Candidate } from './types'
-import { isObj, parseCandidates } from './parse'
-import type { AggregateProposal, AggregateResolutionResult } from './aggregate-types'
-
-const PROPOSAL_PLACEHOLDER_ID = '__pending__'
-
-type OperandAlternatives = { metric?: Candidate[]; account?: Candidate[] }
+import { isObj, parseCandidates, PROPOSAL_PLACEHOLDER_ID } from './parse'
+import type { AggregateProposal, AggregateResolutionResult, OperandAlternatives } from './aggregate-types'
 
 function parseOperandAlternatives(v: unknown): OperandAlternatives | undefined {
   if (!isObj(v)) return undefined

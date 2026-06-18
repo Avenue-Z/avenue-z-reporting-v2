@@ -1,7 +1,7 @@
 import { parseBlockConfig } from '@/lib/dashboard/persistence'
 import { MIN_CONFIDENCE, type Candidate, type ResolutionResult } from './types'
 
-const PROPOSAL_PLACEHOLDER_ID = '__pending__'
+export const PROPOSAL_PLACEHOLDER_ID = '__pending__'
 
 export function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
