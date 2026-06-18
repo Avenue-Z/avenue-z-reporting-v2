@@ -4,7 +4,7 @@ import { strict as assert } from 'node:assert'
 import { sumMetric, accountDrift } from './supermetrics'
 
 // sumMetric: sums a field across rows, treating blanks/missing as 0.
-const rows = [{ Cost: '8824.99' }, { Cost: '3283.43' }, { Cost: '' }, {}]
+const rows: Record<string, string>[] = [{ Cost: '8824.99' }, { Cost: '3283.43' }, { Cost: '' }, {}]
 assert.equal(Math.round(sumMetric(rows, 'Cost')), 12108)
 assert.equal(sumMetric([], 'Cost'), 0)
 
