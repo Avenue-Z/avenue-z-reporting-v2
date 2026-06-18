@@ -16,6 +16,74 @@ _(none)_
 
 ## Closed
 
+### FB-008 — Recolor the Domain Types chart + legend with the Avenue Z brand palette
+
+- **Status:** done
+- **Source:** Tina via Thomas — screenshot of the two right-side boxes ("What kinds of sources do AI models cite?" + "What do these domain types mean?")
+- **Author:** Tina
+- **Type:** brand / visual
+- **Scope:** `components/report-sections/peec-ai/index.tsx` only. Universal across every current and future AEO client.
+
+#### Verbatim ask
+
+> Revise color-coding of the two right-side boxes. They're all gray right now, and I think it would be better to use some of the Ave Z color palette.
+
+Plus the attached brand reference: `Brand Code Guide/BRANDOFFICIAL copy 7.md` (yellow `#FFFC60`, green `#60FF80`, cyan `#60FDFF`, blue `#39A0FF`, purple `#6034FF`, text-muted `#8A8A8A`).
+
+#### What was unambiguous
+
+1. Recolor both right-side boxes on the AEO Overview Domain section: the bar chart ("What kinds of sources do AI models cite?") AND the matching legend ("What do these domain types mean?").
+2. Use Avenue Z brand palette colors instead of the gray defaults that dominate the current view.
+3. The chart bar and the legend dot for the same category MUST match (one source of truth).
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Extract a single shared color map** | New `DOMAIN_TYPE_COLORS` const at the top of the file. Both `DomainTypesChart` and `DomainTypeDefinitions` read from it. | Two render sites for the same data — keeping one map prevents the chart and legend from drifting if anyone tweaks a color later. |
+| **Zero `#8A8A8A` grays in the result** | Initial proposal had 3 categories staying gray; Thomas pushed back that 3 grays was still too many. Revised so every category gets a brand color. | Tina's literal complaint was "they're all gray right now" — leaving 3 grays would only partially solve that. |
+| **Five primary brand accents for the five highest-signal categories** | `Own` cyan, `UGC` green, `Editorial` blue, `Corporate` yellow, `Competitor` purple. All at 100% opacity. | One unique accent per primary category. Cyan stays on `Own` (was already brand cyan). Green stays on `UGC`. Blue stays on `Editorial`. Yellow is NEW for Corporate (loud, commercial). Purple is NEW for Competitor (attention, rival). |
+| **Reference and Institutional use parent accents at 60% opacity** | `Reference: #39A0FF99` (Editorial-blue family). `Institutional: #6034FF99` (Competitor-purple family). | These two categories are semantic "secondary versions" of Editorial (news / info source) and Competitor (authority / influence). Brand-accent at lower opacity is a standard design technique to telegraph "kin but quieter" without introducing new colors that aren't in the brand doc. |
+| **Brand-compliance check for opacity** | The Avenue Z brand doc itself uses opacity on accent colors (focus state `rgba(96,253,255,0.15)`, card borders `rgba(255,255,255,0.06)`). | Lowering accent opacity is consistent with how the brand doc uses these colors. Not off-brand. |
+| **Other uses 20% white, not gray** | `#FFFFFF33`. | "Other" means "unclassified / miscellaneous." It needs to read as neutral but distinct from the brand-accent categories. White-at-20% is a soft neutral that doesn't look like the missing-color gray Tina flagged. |
+| **Corporate = yellow, Competitor = purple** | Yellow for Corporate (commercial, attention-grabbing — fits the dominant category visually). Purple for Competitor (rivals — distinct from your-brand cyan). | Subjective brand-color assignment. Could swap if Tina prefers. Flagged in open risks. |
+| **Removed the per-row `color` field from the legend's data array** | Legend rows used to carry their own hardcoded color. After extracting the shared map, the legend just reads `DOMAIN_TYPE_COLORS[type]` directly. | Removes duplication — one map governs both renders. Less drift risk. |
+| **Replaced an em-dash in the UGC legend copy** | "User-generated content — Reddit, Quora, forums, etc." → "User-generated content. Reddit, Quora, forums, etc." | Lines I was editing for this item happened to contain an em-dash. House rule: no em-dashes in copy. Scrubbed only on the lines I was already touching, no codebase-wide cleanup. |
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/index.tsx` | Added `DOMAIN_TYPE_COLORS` const map at the top of the file. Updated `DomainTypesChart` to reference it. Updated `DomainTypeDefinitions` to remove the per-row `color` field and reference the shared map instead. Scrubbed one em-dash in the UGC legend copy. |
+
+#### Files NOT touched
+
+- `lib/peec/brand-types.ts` — separate brand-category (not domain-type) data. Out of scope for this item.
+- Dead `components/report-sections/profound-ai/index.tsx` — has its own duplicate definitions but is not imported / not routed.
+- Tailwind config — color values are inline in this component, no global theme changes needed.
+- Any other AEO section — strictly scoped to the Domain Types pair.
+
+#### Scope of impact
+
+- Every Peec client sees the new brand-accent colors automatically.
+- Every Profound client sees them automatically (shared render path).
+- No DB change, no per-client config, no backfill.
+- Renders in both the internal dashboard and the client portal.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- Audit grep: zero remaining references to the old `TYPE_COLORS` map name, zero remaining `'#8A8A8A'` gray literals in this file. Both renders now read from the same `DOMAIN_TYPE_COLORS` const.
+- The chart bar and the legend dot for any given category are guaranteed to match (same source const).
+
+#### Open risks
+
+1. **Corporate-yellow vs Competitor-purple assignment.** Subjective. If Tina prefers the inverse (Corporate purple = serious enterprise, Competitor yellow = "watch this"), it's a two-line swap in the shared const.
+2. **60% opacity on Reference / Institutional.** If they read as too muted in the actual rendered chart against the dark surface, easy to bump to 75% or 80%. Hex change only.
+3. **Other at 20% white** may appear slightly different from a typical "neutral" expectation. If it reads as too faint, can be raised to 30-40% or swapped to a brand-neutral solution. Hex change only.
+
+---
+
 ### FB-007 — Remove Brand Categories chart + definitions; stretch Leaderboard to full width
 
 - **Status:** done
