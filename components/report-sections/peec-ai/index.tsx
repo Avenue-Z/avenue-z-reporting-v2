@@ -8,6 +8,7 @@ import { TopDomainsTable } from './top-domains-table'
 import { VisibilityChart } from './visibility-chart'
 import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
+import { WinnersLosersCards } from './winners-losers-cards'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { OverviewSynopsis } from './overview-synopsis'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
@@ -308,6 +309,8 @@ function ProviderSection({
       )}
 
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
+
+      <WinnersLosersCards winners={data.biggestWinners} losers={data.biggestLosers} />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] items-stretch">
         <Rankings rankings={data.brandRankings} />

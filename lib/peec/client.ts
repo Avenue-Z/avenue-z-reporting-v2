@@ -153,6 +153,16 @@ export type LLMBreakdown = {
   ownDomainRetrieved: number
 }
 
+/** One row in the Biggest Winners / Biggest Losers cards. `rank` is the current
+ *  period's average rank position rounded to an integer. `delta` is the
+ *  signed integer change vs. the previous period of equal length: positive
+ *  means rank improved, negative means rank dropped. FB-006. */
+export type PromptDelta = {
+  text: string
+  rank: number
+  delta: number
+}
+
 export type TrackedPrompt = {
   text: string
   sources: string[]
@@ -186,6 +196,10 @@ export type PeecOverview = {
   totalCitationsPrior: number
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
+  /** Prompts where the brand's average rank improved most vs. the prior period. FB-006. */
+  biggestWinners: PromptDelta[]
+  /** Prompts where the brand's average rank dropped most vs. the prior period. FB-006. */
+  biggestLosers: PromptDelta[]
   llmBreakdown: LLMBreakdown[]
   /** Per-domain citation counts broken out by AI model. Built from the per-model
    *  domain fetch already done for llmBreakdown. */
@@ -376,12 +390,15 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, priorPromptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }, pid),
+    // FB-006: prior period prompt-level brand metrics for Biggest Winners /
+    // Biggest Losers. Pair with promptBrandsRes by prompt.id to compute rank delta.
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior, dimensions: ['prompt_id'], limit: 2000 }, pid),
     peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }, pid),
     // FB-005: include both model_channel_id and model_id so we can bucket by
     // the friendly scraper id (e.g. "gemini-scraper") instead of the channel id
@@ -511,6 +528,19 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     promptMetricsById.set(uuid, metric)
   }
 
+  // FB-006: same shape for the prior period so we can compute per-prompt rank delta.
+  const priorPromptMetricsById = new Map<string, PromptMetric>()
+  for (const row of priorPromptBrandsRes.data ?? []) {
+    if (yourBrand && !row.brand.name.toLowerCase().includes(yourBrand.toLowerCase())) continue
+    const uuid = row.prompt?.id != null ? String(row.prompt.id) : null
+    if (!uuid) continue
+    priorPromptMetricsById.set(uuid, {
+      visibility: row.visibility_total > 0 ? (row.visibility_count / row.visibility_total) * 100 : 0,
+      sov: row.share_of_voice * 100,
+      position: row.position_count > 0 ? row.position_sum / row.position_count : 0,
+    })
+  }
+
   // Sources cited per prompt UUID (which AI models surfaced each prompt).
   const sourcesByUuid = new Map<string, Set<string>>()
   for (const q of queriesRes.data ?? []) {
@@ -548,6 +578,33 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
       topicSource: subjectTag ? 'provider' : 'inferred',
     }
   })
+
+  // FB-006: Biggest Winners / Biggest Losers — per-prompt rank movement vs.
+  // the prior period. A prompt qualifies only when your brand had a recorded
+  // position in BOTH periods (position > 0 in raw Peec data). Rank is rounded
+  // to integers (matches Tina's spec format) and delta is the signed integer
+  // movement: positive means rank improved (you climbed), negative means
+  // rank dropped. Sorted by delta magnitude.
+  const biggestWinners: PromptDelta[] = []
+  const biggestLosers:  PromptDelta[] = []
+  for (const p of promptsRes.data ?? []) {
+    const uuid = p.id
+    const curr  = promptMetricsById.get(uuid)
+    const prior = priorPromptMetricsById.get(uuid)
+    if (!curr || !prior) continue
+    if (curr.position <= 0 || prior.position <= 0) continue
+    const currentRank = Math.round(curr.position)
+    const priorRank   = Math.round(prior.position)
+    const delta = priorRank - currentRank
+    if (delta === 0) continue
+    const text = (p.messages ?? []).map((m) => m.content).filter(Boolean).join(' ').trim()
+    if (!text) continue
+    const entry: PromptDelta = { text, rank: currentRank, delta }
+    if (delta > 0) biggestWinners.push(entry)
+    else biggestLosers.push(entry)
+  }
+  biggestWinners.sort((a, b) => b.delta - a.delta)
+  biggestLosers.sort((a, b)  => a.delta - b.delta)
 
   // --- Visibility trend over the selected range ---
   const filteredTrendRows = trendRows.filter((r) =>
@@ -681,6 +738,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     totalCitationsPrior,
     domainTypes,
     trackedPrompts,
+    biggestWinners,
+    biggestLosers,
     llmBreakdown,
     domainCitationsByModel,
     brandVisibilityByModel,

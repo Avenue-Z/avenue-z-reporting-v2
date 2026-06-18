@@ -16,6 +16,98 @@ _(none)_
 
 ## Closed
 
+### FB-006 — Biggest Winners / Biggest Losers cards on the AEO Overview tab
+
+- **Status:** done
+- **Source:** Google doc — Tina's annotated screenshot and pasted copy/data spec
+- **Author:** Tina
+- **Type:** new feature (data + UI)
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, `components/report-sections/peec-ai/winners-losers-cards.tsx` (new), `components/report-sections/peec-ai/index.tsx`, `lib/demo-data/peec.ts`, `lib/demo-data/profound.ts`. Universal across every current and future AEO client.
+
+#### Verbatim ask
+
+Tina annotated the Overview Model Breakdown screenshot with **two side-by-side ADD blocks**:
+> ADD: Winning Prompts
+> ADD: Losing Prompts
+
+And provided the spec / sample data showing:
+
+> **The Biggest Winners**
+> Prompts where we **gained** rank to our competitors
+> Columns: Prompt | Rank | Delta
+> [17 sample rows, deltas integer positive]
+
+> **The Biggest Losers**
+> Prompts where we **lost** rank to our competitors
+> Columns: Prompt | Rank | Delta
+> [20 sample rows, deltas integer negative]
+
+#### What was unambiguous
+
+1. Two new cards, side by side, on the AEO Overview tab.
+2. Placement is below the Model Breakdown table and above the Leaderboard (per the annotated screenshot).
+3. Titles and subtitle copy are exactly as Tina wrote them, with the words `gained` and `lost` bolded inline.
+4. Three columns per card: `Prompt`, `Rank`, `Delta`.
+5. Rank is rendered with the `#` prefix (e.g. `#20`).
+6. Delta is an integer with a sign; positive deltas are green and negative deltas are red.
+7. Winners are sorted descending by delta; losers ascending (most negative first).
+8. The sample data Tina provided matches her screenshot 1:1 (verbatim 1:1 verification done at request time before any code).
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Source of the data** | Computed from real Peec data, not hardcoded. Each prompt's current-period average rank position vs the prior period of equal length. | Truth-grounded rule. Tina's sample rows are a style guide, not literal content. Hardcoding her examples would ship wrong data for every client. |
+| **`delta` formula** | `delta = Math.round(priorPosition) - Math.round(currentPosition)`. Positive = rank improved (you climbed). | Matches the screenshot semantics: row 1 of her winners ("Which agencies specialize in AI-powered SEO?" rank `#20` delta `37`) implies prior rank `#57` → current `#20`. Lower position = better rank in Peec's data model. |
+| **Rounding to integers** | Both rank and delta are rendered as integers. Internal calculation rounds the position from each period independently THEN subtracts — not subtracting raw averages and rounding the result — so the displayed delta always equals exactly `priorRank - currentRank` from the user's perspective. | Tina's screenshot shows integer ranks and integer deltas only. No decimals. |
+| **Eligibility filter** | A prompt qualifies only when (a) your brand had a recorded position in BOTH periods (`position_count > 0` on both Peec rows, i.e. raw `position > 0`) AND (b) the integer delta is non-zero. | If your brand didn't appear at all in one period, there's no rank to compare. If delta is zero, the prompt didn't move and doesn't belong in either list. |
+| **Sort order** | Winners desc by delta, losers asc by delta. No secondary sort (Peec returns prompts in a stable order). | Matches Tina's screenshots: biggest jumps and biggest drops at the top of their respective cards. |
+| **Row cap** | No artificial cap. Cards scroll vertically. | Tina's screenshots show ~17-20 rows each; she didn't specify a cap. Real clients may have more or fewer. Scroll handles variable lengths without imposing a magic number. |
+| **Symmetry + scroll** | `grid lg:grid-cols-2 gap-5 items-stretch`, each card capped at `max-h-[400px]` on the inner scrollable list. | User's literal ask. The `items-stretch` forces equal height regardless of row count; the inner `max-h` keeps the page footprint bounded; the outer grid equals their widths. |
+| **Card shell + header styling** | `rounded-lg border border-white/[0.06] bg-bg-surface p-5` — identical to the LLMBreakdownTable directly above. Title is `text-lg font-bold text-white`; subtitle is `text-sm text-text-muted` with the emphasized word inline-bolded white. | Page-wide visual consistency. No italics on the subtitle even though Tina's mockup has them — italics are not used anywhere on the current dark-themed AEO page, so introducing them here would read as foreign. The bolded inline word delivers the emphasis Tina intended. |
+| **Column header treatment** | Small uppercase `text-text-muted` headers separated from rows by a thin divider, with an `InfoTooltip` on the `Delta` column. | Matches the existing Model Breakdown table column treatment so the two stack visually. |
+| **Tooltip copy on Delta header** | "Change in your brand's average rank position for each prompt over the selected date range vs. the previous period of equal length. Positive means you moved up." | Disambiguates direction (positive = good) so a viewer doesn't have to infer it from color. Truth-grounded against the actual computation. No em-dashes. |
+| **Color palette** | Positive delta `#60FF80` (the page-wide brand green already used in `SectionHeader`). Negative delta `#FF6B6B` (close to Tina's red, harmonizes with the dark surface). | Reuse the existing brand green so winners feel like "on-brand good." Red is matched to Tina's mockup tone without being so saturated it screams against the dark UI. |
+| **Hide when empty** | When BOTH winners and losers arrays are empty, the entire two-card grid renders nothing. | Avoids two empty cards eating page real estate for clients without a comparable prior period (brand-new Peec projects; every Profound client today). Matches the existing pattern at `index.tsx:310` for the LLM table. |
+| **Empty state per card** | If only one side has rows (e.g. only winners, no losers), the other card still renders with `Not enough data for this period yet.` and stays symmetrical with the populated card. | Honest, non-misleading, preserves layout symmetry. |
+| **Profound: no per-prompt rank delta today** | Both `biggestWinners` and `biggestLosers` are empty arrays on Profound. The cards just don't render for the two Profound clients. | Profound's API surface doesn't expose per-prompt rank with a prior-period equivalent the way Peec does. Adding it for Profound would be a separate investigation. Type contract is identical so a future enabling change is a data-layer-only edit. |
+| **Refresh icon in Tina's mockup** | Skipped. | Tina's Winners screenshot shows a circular refresh icon top-right of the card; the Losers screenshot doesn't. Looks like an Apple Numbers / Google Sheets refresh artifact rather than a UX directive. The page already revalidates server-side via the `cached()` wrapper. A non-functional client-side icon would mislead. Trivial add later if she actually wants it wired. |
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `lib/peec/client.ts` | Added `PromptDelta` type. Added `biggestWinners` and `biggestLosers` to `PeecOverview`. Added a parallel `/reports/brands?dimensions=['prompt_id']` fetch for the prior period to the existing Promise.all. Built `priorPromptMetricsById` map. Added a single loop iterating `promptsRes.data` that joins current + prior per-prompt position, filters, computes delta, and sorts into winners/losers. |
+| `lib/profound/client.ts` | Added matching `biggestWinners` / `biggestLosers` fields to `ProfoundOverview`. Returns empty arrays from both `emptyOverview()` and `getProfoundOverviewImpl`. Documented as a known no-op for Profound until their API exposes equivalent data. |
+| `components/report-sections/peec-ai/winners-losers-cards.tsx` | **New.** `WinnersLosersCards` renders two `PromptDeltaCard` instances inside a `grid lg:grid-cols-2 gap-5 items-stretch` wrapper. Each card has a sticky-ish header with the title + subtitle + column row, then a `max-h-[400px] overflow-y-auto` body. Returns `null` when both arrays are empty. |
+| `components/report-sections/peec-ai/index.tsx` | Imported `WinnersLosersCards`. Rendered it between the existing `<LLM>` table render and the existing Leaderboard grid. |
+| `lib/demo-data/peec.ts` | Added the verbatim 17 winners and 20 losers from Tina's spec so demo mode shows what she designed for. |
+| `lib/demo-data/profound.ts` | Added empty arrays (consistent with the live API behavior on Profound). |
+
+#### Scope of impact
+
+- Every current Peec client with at least one prompt that has rank in both periods sees these two cards on the Overview tab. No DB change, no per-client config, no backfill.
+- Every future Peec client gets it for free.
+- Cards never render on Profound (yet), so the two Profound clients see no visual change.
+- Cards never render on a brand-new Peec project with no prior baseline.
+- Renders in both the internal dashboard and the client portal — both paths use the same `PeecAIReport`.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- 1:1 verbatim check between Tina's screenshot images and her pasted copy text: titles, subtitles, columns, all 17 winners and all 20 losers including rank/delta values. Match confirmed before any code.
+- Demo data carries Tina's exact 37 sample rows so a screenshot of demo mode mirrors her spec pixel-for-pixel.
+- Layout: outer `lg:grid-cols-2 gap-5 items-stretch` enforces equal widths and equal heights on desktop; inner `max-h-[400px] overflow-y-auto` enforces bounded page footprint regardless of list length.
+
+#### Open risks (in order of likelihood)
+
+1. **A client with very few prompts may show only one of the two cards populated.** The empty-state copy ("Not enough data for this period yet.") handles this honestly and the cards still render symmetrically. Not a bug, but worth flagging if Tina sees an asymmetric mockup early on.
+2. **Profound clients show nothing here.** Two clients only. If Tina expects parity, the fix is a Profound data-layer addition; surface contract is already in place.
+3. **A truly brand-new Peec project (no prior period overlapping the date range) shows nothing.** Correct behavior, but could read as "broken" to an unfamiliar viewer. The hide-when-empty branch is deliberate per Tina's broader "don't fake data" stance.
+4. **Tina's italic subtitle in the mockup** was deliberately not reproduced (no italics elsewhere on the page). If she pushes back, one-class change (`italic`) on the subtitle `<p>`.
+
+---
+
 ### FB-005 — Disambiguate "Google" in the AEO Model Breakdown (and fix the underlying bucketing bug)
 
 - **Status:** done

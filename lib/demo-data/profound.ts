@@ -119,6 +119,8 @@ export function sampleProfoundOverview(): ProfoundOverview {
     totalCitationsPrior:    1492,
     domainTypes:   DOMAIN_TYPES,
     trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
+    biggestWinners: [],
+    biggestLosers:  [],
     llmBreakdown:  LLM_BREAKDOWN,
   }
 }

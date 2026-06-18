@@ -132,6 +132,13 @@ export type ProfoundOverview = {
   totalCitationsPrior: number
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
+  /** Prompts where the brand's average rank improved most vs. the prior period.
+   *  Empty on Profound today; Profound's API does not currently expose per-prompt
+   *  rank with prior-period comparison the way Peec does. FB-006. */
+  biggestWinners: { text: string; rank: number; delta: number }[]
+  /** Prompts where the brand's average rank dropped most vs. the prior period.
+   *  Empty on Profound today. FB-006. */
+  biggestLosers: { text: string; rank: number; delta: number }[]
   llmBreakdown: LLMBreakdown[]
   periodChange: PeriodChange
 }
@@ -361,6 +368,8 @@ function emptyOverview(): ProfoundOverview {
     totalCitationsPrior:        0,
     domainTypes:                [],
     trackedPrompts:             [],
+    biggestWinners:             [],
+    biggestLosers:              [],
     llmBreakdown:               [],
     periodChange:               { visibilityMover: null, domainMover: null, competitorShift: null, promptOpportunity: null },
   }
@@ -548,6 +557,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     totalCitationsPrior,
     domainTypes,
     trackedPrompts,
+    biggestWinners: [],
+    biggestLosers:  [],
     llmBreakdown,
     periodChange,
   }
