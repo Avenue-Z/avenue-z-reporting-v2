@@ -3,11 +3,11 @@ import { MIN_CONFIDENCE, type Candidate, type ResolutionResult } from './types'
 
 const PROPOSAL_PLACEHOLDER_ID = '__pending__'
 
-function isObj(v: unknown): v is Record<string, unknown> {
+export function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
-function parseCandidates(v: unknown): Candidate[] | undefined {
+export function parseCandidates(v: unknown): Candidate[] | undefined {
   if (!Array.isArray(v)) return undefined
   const out: Candidate[] = []
   for (const c of v) {
