@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm'
 import { db } from './client'
 import { clients, users, type Client, type User, type ClientRole } from './schema'
 import { timed } from '@/lib/perf'
+import type { DashboardConfig } from '@/lib/dashboard/types'
+import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 
 /**
  * Find one client by slug, including its users.
@@ -52,3 +54,22 @@ const getAllClientsImpl = cache(async (): Promise<(Client & { users: User[] })[]
 })
 
 export const getAllClients = timed('db', 'getAllClients', getAllClientsImpl)
+
+/**
+ * Read + validate a client's configurable dashboard. Returns null when the
+ * column is empty OR fails validation (a corrupt/legacy row degrades to
+ * "no dashboard" rather than crashing the page).
+ */
+const getDashboardConfigImpl = cache(async (slug: string): Promise<DashboardConfig | null> => {
+  const client = await getClientBySlug(slug)
+  if (!client?.dashboardConfig) return null
+  const parsed = parseDashboardConfig(client.dashboardConfig)
+  return parsed.ok ? parsed.config : null
+})
+
+export const getDashboardConfig = timed(
+  'db',
+  'getDashboardConfig',
+  getDashboardConfigImpl,
+  ([slug]) => ({ client: slug }),
+)
