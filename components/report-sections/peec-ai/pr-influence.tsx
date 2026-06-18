@@ -15,7 +15,7 @@ import { Sparkles, Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
 import { cn } from '@/lib/utils'
 import { PEEC, GA4 } from '@/lib/peec/metric-definitions'
-import type { AEOModel } from '@/lib/peec/models'
+import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
   PRPlacementMatchbackTable,
@@ -432,7 +432,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     aiEnginesCiting: prIsDemo
       ? DEMO_AI_ENGINES[i % DEMO_AI_ENGINES.length]
       : row.aiEnginesCiting.length > 0
-        ? row.aiEnginesCiting.join(', ')
+        ? row.aiEnginesCiting.map((e) => MODEL_DISPLAY_LABELS[e as AEOModel] ?? e).join(', ')
         : row.citedByAI ? 'AI Engines' : 'Not cited',
     // Known 0 (no tracked prompt cites this domain) shows 0, not -- which reads
     // as missing data. -- only when coverage is unavailable.
