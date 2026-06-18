@@ -1,0 +1,51 @@
+export type MetricFormat = 'currency' | 'percent' | 'count' | 'number'
+
+export interface SupermetricsBinding {
+  source: 'supermetrics'
+  dsId: string
+  metricField: string
+  account: string
+  expectedAccounts?: string[] // drift guard: returned accounts must be ⊆ this set
+  filters?: string            // opaque passthrough to smQuery — NOT validated in v1
+}
+
+export interface TripleWhaleBinding {
+  source: 'triplewhale'
+  metric: string
+  account?: string
+}
+
+export type LeafBinding = SupermetricsBinding | TripleWhaleBinding
+
+export interface AggregateBinding {
+  source: 'aggregate'
+  left: LeafBinding
+  op: '+' | '-' | '*' | '/'
+  right: LeafBinding
+}
+
+export type Binding = LeafBinding | AggregateBinding
+
+export interface BlockConfig {
+  id: string
+  name: string
+  binding: Binding
+  format: MetricFormat
+  range: { dateRange: string; compareRange: string | null } | null // null = inherit global
+}
+
+export type BlockError = 'disconnected' | 'invalid-metric' | 'no-data' | 'rate-limited' | 'error'
+
+/** Raw output of a single leaf resolution. prevValue present iff a comparison is active. */
+export interface LeafValue {
+  value: number
+  prevValue?: number
+}
+
+/** Internal: outcome of attempting one leaf (success carries LeafValue, failure carries a BlockError). */
+export type LeafAttempt = ({ ok: true } & LeafValue) | { ok: false; error: BlockError }
+
+/** Public resolver output — drives the Metric Block UI states. */
+export type ResolveResult =
+  | { ok: true; value: number; prevValue?: number; delta?: number; format: MetricFormat; formatted: string }
+  | { ok: false; error: BlockError }
