@@ -44,7 +44,12 @@ export async function gleanChat(
     throw new Error('Glean is not configured. Set GLEAN_API_TOKEN and GLEAN_INSTANCE in the environment.')
   }
 
-  const actAs = options.actAs ?? process.env.GLEAN_ACT_AS ?? 'thomas.chang@avenuez.com'
+  // X-Scio-Actas is only accepted by Glean GLOBAL tokens. User tokens (the
+  // common case) reject it with HTTP 400. Make impersonation explicit: callers
+  // that have a global token + need to act-as a specific user pass actAs in
+  // options. Default callers skip the header and the call runs as the token
+  // owner — which is what we want for our internal reporting synopses.
+  const actAs = options.actAs
 
   const res = await fetch(`${GLEAN_BASE_URL}/chat`, {
     method: 'POST',
