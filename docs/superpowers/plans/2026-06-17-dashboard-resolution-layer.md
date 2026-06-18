@@ -541,12 +541,11 @@ Expected: FAIL with `Cannot find module './supermetrics'`
 
 `smQuery` params (from `lib/supermetrics/client.ts`): `{ apiKey, dsId, dsAccounts, fields, dateRange, filters?, settings?, maxRows? }`, returning an `SmResult` for `parseSmRows`.
 
+**Import-time DB constraint (must follow):** `@/lib/db/queries`, `@/lib/ga4/client`, and `@/lib/paid-search/base` all transitively load `lib/db/client.ts`, which **throws at import time when `DATABASE_URL` is unset**. To keep this file importable without env (so the pure-helper test stays env-free) these three are loaded with **dynamic `await import(...)` inside `resolveSupermetricsLeaf`**, mirroring the existing pattern in `lib/paid-search/kpis.ts`. Only `@/lib/supermetrics/client` (env-free) and the local `types`/`errors` modules are static imports.
+
 ```ts
 // lib/dashboard/adapters/supermetrics.ts
 import { smQuery, parseSmRows } from '@/lib/supermetrics/client'
-import { parseDateRange } from '@/lib/ga4/client'
-import { resolveCompareIso } from '@/lib/paid-search/base'
-import { getClientBySlug } from '@/lib/db/queries'
 import type { LeafValue, SupermetricsBinding } from '../types'
 import { DisconnectedError, NoDataError } from '../errors'
 
@@ -586,6 +585,13 @@ export async function resolveSupermetricsLeaf(
   dateRange: string,
   compareRange: string | null,
 ): Promise<LeafValue> {
+  // Lazy imports — these transitively load lib/db/client (throws at import without
+  // DATABASE_URL). Dynamic-importing here keeps the module env-free to import,
+  // mirroring lib/paid-search/kpis.ts.
+  const { getClientBySlug } = await import('@/lib/db/queries')
+  const { parseDateRange } = await import('@/lib/ga4/client')
+  const { resolveCompareIso } = await import('@/lib/paid-search/base')
+
   const client = await getClientBySlug(ctx.slug)
   const envVar = client?.smApiKeyEnvVar
   const apiKey = envVar ? process.env[envVar] : undefined
