@@ -13,6 +13,9 @@
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@google-analytics/data": "^5.0.0",
     "@google-cloud/bigquery": "^8.1.1",
     "@google-cloud/vertexai": "^1.10.0",
