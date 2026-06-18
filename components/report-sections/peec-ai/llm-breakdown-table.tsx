@@ -21,7 +21,11 @@ function VisibilityBar({ value, max, color }: { value: number; max: number; colo
 export function LLMBreakdownTable({ breakdown }: { breakdown: LLMBreakdown[] }) {
   if (breakdown.length === 0) return null
 
-  const maxVisibility = Math.max(...breakdown.map((b) => b.visibility), 1)
+  // Bar width is the visibility percentage on a 0-100 scale, NOT relative to
+  // the max row. Relative scaling makes a 47.9% row look "full", which reads
+  // as 100% at a glance even though the label says 47.9%. Absolute keeps the
+  // bar visually honest with the number next to it.
+  const maxVisibility = 100
   const hasOwnDomain = breakdown.some((b) => b.ownDomainRetrieved > 0)
 
   const columns: SortableColumn<LLMBreakdown>[] = [
