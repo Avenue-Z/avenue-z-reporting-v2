@@ -19,27 +19,20 @@ export function GlobalTimeControl({ activeDefault }: GlobalTimeControlProps) {
     ? searchParams.get('compareRange')
     : activeDefault.compareRange
 
-  const push = (next: URLSearchParams) => router.push(`${pathname}?${next.toString()}`)
-
-  const handleDateChange = (next: string) => {
+  // Batched apply: write BOTH params in one push so range + comparison update
+  // atomically. (Two separate pushes race — the second clobbers the first.)
+  const handleApply = (nextDate: string, nextCompare: string | null) => {
     const params = new URLSearchParams(searchParams.toString())
-    params.set('dateRange', next)
-    push(params)
-  }
-
-  const handleCompareChange = (next: string | null) => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (next) params.set('compareRange', next)
-    else params.set('compareRange', '') // explicit empty = "no comparison"
-    push(params)
+    params.set('dateRange', nextDate)
+    params.set('compareRange', nextCompare ?? '') // explicit empty = "no comparison"
+    router.push(`${pathname}?${params.toString()}`)
   }
 
   return (
     <DateRangePicker
       value={dateRange}
-      onChange={handleDateChange}
       compareValue={compareRange}
-      onCompareChange={handleCompareChange}
+      onApply={handleApply}
     />
   )
 }

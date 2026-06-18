@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
+import { getMainLabel } from '@/components/layout/date-range-picker'
 import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
 import { MetricBlockErrorState } from './metric-block-states'
 import type {
@@ -32,10 +33,6 @@ const COMPARES = [
   { value: 'previous_year', label: 'Previous Year' },
 ] as const
 
-function presetLabel(value: string): string {
-  return PRESETS.find((p) => p.value === value)?.label ?? value
-}
-
 export interface MetricBlockProps {
   block: PersistedBlock
   result: ResolveResult
@@ -56,6 +53,13 @@ export function MetricBlock({ block, result, canEdit, slug, config, activeDefaul
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const isOverridden = block.range !== null
+  const activeCompare = block.range ? block.range.compareRange : activeDefault.compareRange
+  const deltaSuffix =
+    activeCompare === 'previous_year'
+      ? 'vs prior year'
+      : activeCompare && activeCompare.startsWith('custom:')
+        ? 'vs comparison'
+        : 'vs prior period'
 
   function closeMenu() {
     setMenuOpen(false)
@@ -86,7 +90,7 @@ export function MetricBlock({ block, result, canEdit, slug, config, activeDefaul
     runSave(removeBlock(config, block.id))
   }
 
-  const overrideLabel = isOverridden ? presetLabel(block.range!.dateRange) : null
+  const overrideLabel = isOverridden ? getMainLabel(block.range!.dateRange) : null
 
   const badge = isOverridden ? (
     <DetachBadge
@@ -121,7 +125,7 @@ export function MetricBlock({ block, result, canEdit, slug, config, activeDefaul
       >
         <div className="flex flex-col gap-2">
           {badge}
-          <MetricBlockErrorState name={block.name} error={result.error} />
+          <MetricBlockErrorState name={block.name} error={result.error} slug={slug} />
         </div>
       </BlockShell>
     )
@@ -164,7 +168,7 @@ export function MetricBlock({ block, result, canEdit, slug, config, activeDefaul
             )}
           >
             {result.delta > 0 ? '↑' : result.delta < 0 ? '↓' : '—'}{' '}
-            {Math.abs(result.delta).toFixed(1)}% vs prior period
+            {Math.abs(result.delta).toFixed(1)}% {deltaSuffix}
           </p>
         )}
       </div>

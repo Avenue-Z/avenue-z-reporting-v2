@@ -18,52 +18,53 @@ export function MetricBlockSkeleton({ name }: { name?: string }) {
   )
 }
 
-const ERROR_COPY: Record<BlockError, { title: string; body: React.ReactNode }> = {
-  disconnected: {
-    title: 'Not connected',
-    body: (
-      <>
-        Connect this data source on the{' '}
-        <Link href="/dashboard/connections" className="underline hover:text-white">
-          connections
-        </Link>{' '}
-        page.
-      </>
-    ),
-  },
-  'invalid-metric': {
-    title: 'Metric configuration invalid',
-    body: 'Re-author this block to pick a valid metric.',
-  },
-  'no-data': {
-    title: 'No data for this range',
-    body: 'Try a wider range or a different comparison.',
-  },
-  'rate-limited': {
-    title: 'Temporarily unavailable',
-    body: 'Data source is rate-limited. It should recover shortly.',
-  },
-  error: {
-    title: 'Something went wrong',
-    body: 'Refresh to try again.',
-  },
+const ERROR_TITLE: Record<BlockError, string> = {
+  disconnected: 'Not connected',
+  'invalid-metric': 'Metric configuration invalid',
+  'no-data': 'No data for this range',
+  'rate-limited': 'Temporarily unavailable',
+  error: 'Something went wrong',
+}
+
+function errorBody(error: BlockError, slug: string): React.ReactNode {
+  switch (error) {
+    case 'disconnected':
+      return (
+        <>
+          Connect this data source on the{' '}
+          <Link href={`/dashboard/${slug}/auth`} className="underline hover:text-white">
+            connections
+          </Link>{' '}
+          page.
+        </>
+      )
+    case 'invalid-metric':
+      return 'Re-author this block to pick a valid metric.'
+    case 'no-data':
+      return 'Try a wider range or a different comparison.'
+    case 'rate-limited':
+      return 'Data source is rate-limited. It should recover shortly.'
+    case 'error':
+      return 'Refresh to try again.'
+  }
 }
 
 export function MetricBlockErrorState({
   name,
   error,
+  slug,
 }: {
   name: string
   error: BlockError
+  slug: string
 }) {
-  const copy = ERROR_COPY[error]
   return (
     <div className={CARD} role="status">
       <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">
         {name}
       </p>
-      <p className="mt-2 text-base font-bold text-white">{copy.title}</p>
-      <p className="mt-1 text-xs text-text-muted">{copy.body}</p>
+      <p className="mt-2 text-base font-bold text-white">{ERROR_TITLE[error]}</p>
+      <p className="mt-1 text-xs text-text-muted">{errorBody(error, slug)}</p>
     </div>
   )
 }
