@@ -105,7 +105,14 @@ function PromptDeltaCard({
   )
 }
 
-export function WinnersLosersCards() {
+// Sandbox: render ONLY for Avenue Z while the content is static / hardcoded.
+// Other clients see nothing in this slot. This prevents Avenue Z's prompts
+// from leaking onto every other client's portal view. When this component is
+// later wired to live per-client data, drop the gate.
+const SANDBOX_CLIENT_SLUG = 'avenue-z'
+
+export function WinnersLosersCards({ clientSlug }: { clientSlug?: string }) {
+  if (clientSlug !== SANDBOX_CLIENT_SLUG) return null
   return (
     <div className="grid gap-5 lg:grid-cols-2 items-stretch">
       <PromptDeltaCard
