@@ -1,0 +1,626 @@
+# Configurable Dashboard — Sub-project #2: Persistence — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Persist one per-client configurable dashboard — a nullable `dashboard_config` JSONB column on `clients`, a hand-rolled validator, a read helper, and a role-gated save server action.
+
+**Architecture:** The stored shape (`DashboardConfig` = a default range + an ordered array of `PersistedBlock`, where `PersistedBlock` = #1's `BlockConfig` + optional `layout`) lives in `lib/dashboard/types.ts`. A pure validator (`parseDashboardConfig`) guards the untyped JSONB on both read and write. `getDashboardConfig` reads + validates (corrupt → null, never crashes); `saveDashboardConfig` checks permission, validates, then updates the row.
+
+**Tech Stack:** TypeScript (strict), Drizzle ORM + Neon Postgres, Next.js server action + `auth()`, `tsx` test scripts with `node:assert`.
+
+## Global Constraints
+
+- TypeScript strict mode; **no `any`** in any new file.
+- Tests are **pure** — no live API/DB, no `.env` loading. Run as `npx tsx <file>.test.ts`. Test files use `import { strict as assert } from 'node:assert'`, top-level assertions (or an `async function run(){…}; run().catch(e=>{console.error(e);process.exit(1)})` wrapper if top-level await is needed — repo convention), final `console.log('ok')`.
+- Reuse the existing JSONB-config pattern (`paidSearchConfig` etc.), `getClientBySlug`, the `timed(...)` query wrapper, `auth()` from `@/auth`, and `revalidatePath('/', 'layout')` (as in `app/actions/demo-mode.ts`).
+- `session.user.role` is typed **`string`** and `session.user.clientSlug` is **`string | null`** (`types/next-auth.d.ts`) — code against those types; do not assume the enum type.
+- Edit permission: `role === 'INTERNAL_ADMIN'` (any client) **or** (`role === 'CLIENT_ADMIN'` **and** `clientSlug === targetSlug`). Everyone else: denied.
+- **Do NOT run `npm run db:migrate`** (it mutates the shared Neon DB). `npm run db:generate` (offline) is required in Task 3; commit the generated SQL + meta.
+- Commit after each task with the message shown. Stage only the files the task names — never the unrelated uncommitted paid-search edits in the working tree.
+
+---
+
+## Inter-Component Dependency Map (read before parallelizing)
+
+```
+                    types.ts +DashboardConfig/PersistedBlock (T1)  ← foundation; also unblocks the #3 teammate
+                                   │
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                    ▼
+       persistence (T2)     schema+migration (T3)   permissions (T4)
+        parse* validator     dashboard_config col    canEditDashboard
+              │                    │                  (pure; needs only
+              │                    │                   existing ClientRole)
+              └─────────┬──────────┘                       │
+                        ▼                                   │
+                getDashboardConfig (T5)                     │
+                 (needs T1+T2+T3)                           │
+                        ┌───────────────────────────────────┘
+                        ▼
+                saveDashboardConfig action (T6)  ← needs T1+T2+T3+T4
+```
+
+**Edges = "imports / consumes".** A task may start as soon as every task it points *from* is committed.
+
+### Parallelization waves (agent fleet)
+
+| Wave | Tasks (parallel within a wave) | Unblocked by |
+|---|---|---|
+| 0 | **T1 types** | nothing — **land first** (also frees the #3 teammate) |
+| 1 | **T2 persistence**, **T3 schema+migration**, **T4 permissions** | T1 (T4 also only needs the pre-existing `ClientRole`) |
+| 2 | **T5 getDashboardConfig**, **T6 saveDashboardConfig** | T5←T1,T2,T3 · T6←T1,T2,T3,T4 |
+
+Wave 1 fans out to 3 concurrent agents (a pure validator, a schema/migration change, a pure permission function — fully disjoint files, no cross-imports within the wave). Wave 2 fans out to 2 (different files: `lib/db/queries.ts` vs `app/actions/dashboard.ts`). Same execution model as #1: parallel implementers in no-git mode, controller commits sequentially per task and reviews each.
+
+---
+
+## File Structure
+
+```
+lib/dashboard/
+  types.ts                # MODIFY: + DashboardConfig, PersistedBlock
+  types.test.ts           # MODIFY: + a DashboardConfig literal (tsc gate)
+  persistence.ts          # NEW: parseDashboardConfig, parseBlockConfig (+ private helpers)
+  persistence.test.ts     # NEW
+  permissions.ts          # NEW: canEditDashboard (pure)
+  permissions.test.ts     # NEW
+lib/db/
+  schema.ts               # MODIFY: + dashboardConfig column; import DashboardConfig type
+  queries.ts              # MODIFY: + getDashboardConfig
+app/actions/
+  dashboard.ts            # NEW: saveDashboardConfig server action
+drizzle/
+  00NN_*.sql + meta       # generated by db:generate (committed, NOT applied)
+```
+
+---
+
+## Task 1: Persistence types (`lib/dashboard/types.ts`)
+
+**Files:**
+- Modify: `lib/dashboard/types.ts` (append)
+- Test: `lib/dashboard/types.test.ts` (append)
+
+**Interfaces:**
+- Consumes: `BlockConfig` (already in this file).
+- Produces: `DashboardConfig`, `PersistedBlock`.
+
+- [ ] **Step 1: Append the types to `lib/dashboard/types.ts`**
+
+```ts
+/** A persisted block = a resolvable BlockConfig plus optional grid layout (widened by #3). */
+export type PersistedBlock = BlockConfig & { layout?: { w?: number; h?: number } }
+
+/** One per-client configurable dashboard. `blocks` array order is display order. */
+export interface DashboardConfig {
+  defaultRange: { dateRange: string; compareRange: string | null }
+  blocks: PersistedBlock[]
+}
+```
+
+- [ ] **Step 2: Append a construct-and-assert case to `lib/dashboard/types.test.ts`**
+
+Add before the final `console.log('ok')`:
+
+```ts
+import type { DashboardConfig as _DashboardConfig } from './types'
+const dash: _DashboardConfig = {
+  defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
+  blocks: [
+    { id: 'b1', name: 'Cost', format: 'currency', range: null,
+      binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' },
+      layout: { w: 2 } },
+  ],
+}
+assert.equal(dash.blocks.length, 1)
+assert.equal(dash.blocks[0].layout?.w, 2)
+```
+
+(If `import type` mid-file is awkward, hoist it next to the existing imports at the top — the assertion lines stay where shown.)
+
+- [ ] **Step 3: Type-check gate**
+
+Run: `npx tsc --noEmit 2>&1 | grep "lib/dashboard/types" || echo "types ok"`
+Expected: `types ok`
+
+- [ ] **Step 4: Run the test**
+
+Run: `npx tsx lib/dashboard/types.test.ts`
+Expected: `ok`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/dashboard/types.ts lib/dashboard/types.test.ts
+git commit -m "feat(dashboard): DashboardConfig + PersistedBlock persistence types"
+```
+
+---
+
+## Task 2: Validator (`lib/dashboard/persistence.ts`)
+
+**Files:**
+- Create: `lib/dashboard/persistence.ts`
+- Test: `lib/dashboard/persistence.test.ts`
+
+**Interfaces:**
+- Consumes: `AggregateBinding`, `Binding`, `BlockConfig`, `DashboardConfig`, `LeafBinding`, `MetricFormat`, `PersistedBlock`, `SupermetricsBinding`, `TripleWhaleBinding` (from `./types`).
+- Produces:
+  - `parseBlockConfig(v: unknown, path?: string): { ok: true; block: PersistedBlock } | { ok: false; error: string }`
+  - `parseDashboardConfig(v: unknown): { ok: true; config: DashboardConfig } | { ok: false; error: string }`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// lib/dashboard/persistence.test.ts
+// Run: npx tsx lib/dashboard/persistence.test.ts
+import { strict as assert } from 'node:assert'
+import { parseBlockConfig, parseDashboardConfig } from './persistence'
+
+const sm = { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }
+const tw = { source: 'triplewhale', metric: 'revenue' }
+const agg = { source: 'aggregate', op: '/', left: tw, right: sm }
+const block = (binding: unknown) => ({ id: 'b1', name: 'Cost', format: 'currency', range: null, binding })
+
+// valid full config with all three binding kinds
+const full = {
+  defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
+  blocks: [block(sm), block(tw), { ...block(agg), format: 'number' }],
+}
+{
+  const r = parseDashboardConfig(full)
+  assert.equal(r.ok, true)
+  if (r.ok) { assert.equal(r.config.blocks.length, 3); assert.equal(r.config.blocks[2].binding.source, 'aggregate') }
+}
+
+// empty blocks is valid
+assert.equal(parseDashboardConfig({ defaultRange: { dateRange: 'last_7_days', compareRange: null }, blocks: [] }).ok, true)
+
+// missing/invalid defaultRange
+assert.equal(parseDashboardConfig({ blocks: [] }).ok, false)
+assert.equal(parseDashboardConfig({ defaultRange: { dateRange: '', compareRange: null }, blocks: [] }).ok, false)
+
+// blocks must be an array
+assert.equal(parseDashboardConfig({ defaultRange: { dateRange: 'last_7_days', compareRange: null }, blocks: {} }).ok, false)
+
+// bad format
+assert.equal(parseBlockConfig({ ...block(sm), format: 'dollars' }).ok, false)
+
+// supermetrics missing metricField; triplewhale missing metric
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', account: '1' })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'triplewhale' })).ok, false)
+
+// aggregate: bad op, and nested-aggregate operand rejected (operands must be leaves)
+assert.equal(parseBlockConfig(block({ source: 'aggregate', op: '%', left: tw, right: sm })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'aggregate', op: '/', left: agg, right: sm })).ok, false)
+
+// range may be null (inherit) or an object; a malformed object is rejected
+assert.equal(parseBlockConfig({ ...block(sm), range: { dateRange: 'last_7_days', compareRange: null } }).ok, true)
+assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).ok, false)
+
+// error string names the path
+{
+  const r = parseDashboardConfig({ defaultRange: { dateRange: 'x', compareRange: null }, blocks: [block({ source: 'supermetrics', dsId: 'AW', account: '1' })] })
+  assert.equal(r.ok, false)
+  if (!r.ok) assert.equal(r.error.includes('blocks[0]'), true)
+}
+console.log('ok')
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx tsx lib/dashboard/persistence.test.ts`
+Expected: FAIL with `Cannot find module './persistence'`
+
+- [ ] **Step 3: Write the implementation**
+
+```ts
+// lib/dashboard/persistence.ts
+import type {
+  AggregateBinding, Binding, DashboardConfig, LeafBinding,
+  MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
+} from './types'
+
+type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
+type Fail = { ok: false; error: string }
+
+const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
+const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+const isStr = (v: unknown): v is string => typeof v === 'string'
+const isNonEmptyStr = (v: unknown): v is string => isStr(v) && v.length > 0
+
+function parseRange(v: unknown, path: string): Parsed<{ dateRange: string; compareRange: string | null }> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (!isNonEmptyStr(v.dateRange)) return { ok: false, error: `${path}.dateRange: expected non-empty string` }
+  if (!(v.compareRange === null || isStr(v.compareRange))) return { ok: false, error: `${path}.compareRange: expected string or null` }
+  return { ok: true, value: { dateRange: v.dateRange, compareRange: v.compareRange } }
+}
+
+function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (v.source === 'supermetrics') {
+    if (!isNonEmptyStr(v.dsId)) return { ok: false, error: `${path}.dsId: expected non-empty string` }
+    if (!isNonEmptyStr(v.metricField)) return { ok: false, error: `${path}.metricField: expected non-empty string` }
+    if (!isNonEmptyStr(v.account)) return { ok: false, error: `${path}.account: expected non-empty string` }
+    if (v.expectedAccounts !== undefined && !(Array.isArray(v.expectedAccounts) && v.expectedAccounts.every(isStr)))
+      return { ok: false, error: `${path}.expectedAccounts: expected string[]` }
+    if (v.filters !== undefined && !isStr(v.filters)) return { ok: false, error: `${path}.filters: expected string` }
+    const b: SupermetricsBinding = { source: 'supermetrics', dsId: v.dsId, metricField: v.metricField, account: v.account }
+    if (v.expectedAccounts !== undefined) b.expectedAccounts = v.expectedAccounts as string[]
+    if (v.filters !== undefined) b.filters = v.filters
+    return { ok: true, value: b }
+  }
+  if (v.source === 'triplewhale') {
+    if (!isNonEmptyStr(v.metric)) return { ok: false, error: `${path}.metric: expected non-empty string` }
+    if (v.account !== undefined && !isStr(v.account)) return { ok: false, error: `${path}.account: expected string` }
+    const b: TripleWhaleBinding = { source: 'triplewhale', metric: v.metric }
+    if (v.account !== undefined) b.account = v.account
+    return { ok: true, value: b }
+  }
+  return { ok: false, error: `${path}.source: expected 'supermetrics' or 'triplewhale'` }
+}
+
+function parseBinding(v: unknown, path: string): Parsed<Binding> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (v.source === 'aggregate') {
+    if (!OPS.includes(v.op as AggregateBinding['op'])) return { ok: false, error: `${path}.op: expected one of ${OPS.join(',')}` }
+    const left = parseLeaf(v.left, `${path}.left`)
+    if (!left.ok) return left
+    const right = parseLeaf(v.right, `${path}.right`)
+    if (!right.ok) return right
+    const b: AggregateBinding = { source: 'aggregate', op: v.op as AggregateBinding['op'], left: left.value, right: right.value }
+    return { ok: true, value: b }
+  }
+  return parseLeaf(v, path)
+}
+
+export function parseBlockConfig(
+  v: unknown,
+  path = 'block',
+): { ok: true; block: PersistedBlock } | { ok: false; error: string } {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (!isNonEmptyStr(v.id)) return { ok: false, error: `${path}.id: expected non-empty string` }
+  if (!isNonEmptyStr(v.name)) return { ok: false, error: `${path}.name: expected non-empty string` }
+  if (!FORMATS.includes(v.format as MetricFormat)) return { ok: false, error: `${path}.format: expected one of ${FORMATS.join(',')}` }
+
+  let range: PersistedBlock['range'] = null
+  if (v.range !== null) {
+    const r = parseRange(v.range, `${path}.range`)
+    if (!r.ok) return r
+    range = r.value
+  }
+
+  let layout: PersistedBlock['layout']
+  if (v.layout !== undefined) {
+    if (!isObj(v.layout)) return { ok: false, error: `${path}.layout: expected object` }
+    const w = v.layout.w, h = v.layout.h
+    if (w !== undefined && typeof w !== 'number') return { ok: false, error: `${path}.layout.w: expected number` }
+    if (h !== undefined && typeof h !== 'number') return { ok: false, error: `${path}.layout.h: expected number` }
+    layout = {}
+    if (w !== undefined) layout.w = w
+    if (h !== undefined) layout.h = h
+  }
+
+  const binding = parseBinding(v.binding, `${path}.binding`)
+  if (!binding.ok) return binding
+
+  const block: PersistedBlock = { id: v.id, name: v.name, format: v.format as MetricFormat, binding: binding.value, range }
+  if (layout !== undefined) block.layout = layout
+  return { ok: true, block }
+}
+
+export function parseDashboardConfig(
+  v: unknown,
+): { ok: true; config: DashboardConfig } | { ok: false; error: string } {
+  if (!isObj(v)) return { ok: false, error: 'config: expected object' }
+  const dr = parseRange(v.defaultRange, 'config.defaultRange')
+  if (!dr.ok) return dr
+  if (!Array.isArray(v.blocks)) return { ok: false, error: 'config.blocks: expected array' }
+  const blocks: PersistedBlock[] = []
+  for (let i = 0; i < v.blocks.length; i++) {
+    const pb = parseBlockConfig(v.blocks[i], `config.blocks[${i}]`)
+    if (!pb.ok) return pb
+    blocks.push(pb.block)
+  }
+  return { ok: true, config: { defaultRange: dr.value, blocks } }
+}
+```
+
+(Note: `Fail` is exported-internal only as a readability alias; if unused after writing, omit it — do not leave an unused type.)
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx tsx lib/dashboard/persistence.test.ts`
+Expected: `ok`
+
+- [ ] **Step 5: Type-check gate**
+
+Run: `npx tsc --noEmit 2>&1 | grep "lib/dashboard/persistence" || echo "persistence ok"`
+Expected: `persistence ok`
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/dashboard/persistence.ts lib/dashboard/persistence.test.ts
+git commit -m "feat(dashboard): parseDashboardConfig/parseBlockConfig validator"
+```
+
+---
+
+## Task 3: Schema column + migration (`lib/db/schema.ts`)
+
+**Files:**
+- Modify: `lib/db/schema.ts`
+- Create (generated): `drizzle/00NN_*.sql` + `drizzle/meta/*` updates
+
+**Interfaces:**
+- Consumes: `DashboardConfig` (from `@/lib/dashboard/types`).
+- Produces: the `clients.dashboardConfig` column (typed `DashboardConfig | null`) — consumed by Tasks 5 and 6.
+
+- [ ] **Step 1: Add the type import at the top of `lib/db/schema.ts`**
+
+After the existing `import { relations } from 'drizzle-orm'` line:
+
+```ts
+import type { DashboardConfig } from '@/lib/dashboard/types'
+```
+
+- [ ] **Step 2: Add the column to the `clients` table**
+
+In `export const clients = pgTable('clients', { ... })`, immediately after the `paidSearchConfig` line, add:
+
+```ts
+  dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
+```
+
+- [ ] **Step 3: Generate the migration (offline)**
+
+Run: `npm run db:generate`
+Expected: prints a new migration filename; creates `drizzle/00NN_*.sql` containing `ALTER TABLE "clients" ADD COLUMN "dashboard_config" jsonb;` and updates `drizzle/meta`.
+
+- [ ] **Step 4: Verify the migration + types**
+
+Run:
+```bash
+grep -r "dashboard_config" drizzle/*.sql && echo "migration present"
+npx tsc --noEmit 2>&1 | grep "lib/db/schema" || echo "schema ok"
+```
+Expected: the `ADD COLUMN "dashboard_config" jsonb` line, `migration present`, and `schema ok`.
+
+**Do NOT run `npm run db:migrate`.** Applying to Neon is a manual step the human runs after review.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/db/schema.ts drizzle/
+git commit -m "feat(db): add nullable dashboard_config jsonb column to clients"
+```
+
+---
+
+## Task 4: Permission helper (`lib/dashboard/permissions.ts`)
+
+**Files:**
+- Create: `lib/dashboard/permissions.ts`
+- Test: `lib/dashboard/permissions.test.ts`
+
+**Interfaces:**
+- Consumes: nothing (operates on plain `string` / `string | null`, matching the session types).
+- Produces: `canEditDashboard(role: string, clientSlug: string | null, targetSlug: string): boolean`.
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// lib/dashboard/permissions.test.ts
+// Run: npx tsx lib/dashboard/permissions.test.ts
+import { strict as assert } from 'node:assert'
+import { canEditDashboard } from './permissions'
+
+// INTERNAL_ADMIN edits any client
+assert.equal(canEditDashboard('INTERNAL_ADMIN', null, 'renaissance'), true)
+assert.equal(canEditDashboard('INTERNAL_ADMIN', 'other', 'renaissance'), true)
+// CLIENT_ADMIN edits only its own client
+assert.equal(canEditDashboard('CLIENT_ADMIN', 'renaissance', 'renaissance'), true)
+assert.equal(canEditDashboard('CLIENT_ADMIN', 'other', 'renaissance'), false)
+assert.equal(canEditDashboard('CLIENT_ADMIN', null, 'renaissance'), false)
+// read-only / viewer roles never edit
+assert.equal(canEditDashboard('INTERNAL_ANALYST', null, 'renaissance'), false)
+assert.equal(canEditDashboard('CLIENT_VIEWER', 'renaissance', 'renaissance'), false)
+// unknown role denied
+assert.equal(canEditDashboard('SOMETHING', 'renaissance', 'renaissance'), false)
+console.log('ok')
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx tsx lib/dashboard/permissions.test.ts`
+Expected: FAIL with `Cannot find module './permissions'`
+
+- [ ] **Step 3: Write the implementation**
+
+```ts
+// lib/dashboard/permissions.ts
+
+/**
+ * Who may save a client's configurable dashboard.
+ * INTERNAL_ADMIN: any client. CLIENT_ADMIN: only its own client. Everyone else: no.
+ * `role`/`clientSlug` come straight off session.user (typed string / string|null).
+ */
+export function canEditDashboard(role: string, clientSlug: string | null, targetSlug: string): boolean {
+  if (role === 'INTERNAL_ADMIN') return true
+  if (role === 'CLIENT_ADMIN') return clientSlug === targetSlug
+  return false
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx tsx lib/dashboard/permissions.test.ts`
+Expected: `ok`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/dashboard/permissions.ts lib/dashboard/permissions.test.ts
+git commit -m "feat(dashboard): canEditDashboard permission helper"
+```
+
+---
+
+## Task 5: Read helper (`lib/db/queries.ts`)
+
+**Files:**
+- Modify: `lib/db/queries.ts` (append a new helper)
+
+**Interfaces:**
+- Consumes: `getClientBySlug` (same file), `parseDashboardConfig` (Task 2), `DashboardConfig` (Task 1), the `dashboardConfig` column (Task 3), `timed` (`@/lib/perf`, already imported), `cache` (already imported).
+- Produces: `getDashboardConfig(slug: string): Promise<DashboardConfig | null>`.
+
+**Note:** thin I/O wrapper — `queries.ts` imports the DB client (throws at import without `DATABASE_URL`), so it is not unit-tested; its only logic (parsing) is already covered by Task 2. Verified by the tsc gate.
+
+- [ ] **Step 1: Add imports at the top of `lib/db/queries.ts`**
+
+```ts
+import type { DashboardConfig } from '@/lib/dashboard/types'
+import { parseDashboardConfig } from '@/lib/dashboard/persistence'
+```
+
+- [ ] **Step 2: Append the helper at the end of `lib/db/queries.ts`**
+
+```ts
+/**
+ * Read + validate a client's configurable dashboard. Returns null when the
+ * column is empty OR fails validation (a corrupt/legacy row degrades to
+ * "no dashboard" rather than crashing the page).
+ */
+const getDashboardConfigImpl = cache(async (slug: string): Promise<DashboardConfig | null> => {
+  const client = await getClientBySlug(slug)
+  if (!client?.dashboardConfig) return null
+  const parsed = parseDashboardConfig(client.dashboardConfig)
+  return parsed.ok ? parsed.config : null
+})
+
+export const getDashboardConfig = timed(
+  'db',
+  'getDashboardConfig',
+  getDashboardConfigImpl,
+  ([slug]) => ({ client: slug }),
+)
+```
+
+- [ ] **Step 3: Type-check gate**
+
+Run: `npx tsc --noEmit 2>&1 | grep "lib/db/queries" || echo "queries ok"`
+Expected: `queries ok`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add lib/db/queries.ts
+git commit -m "feat(db): getDashboardConfig read+validate helper"
+```
+
+---
+
+## Task 6: Save server action (`app/actions/dashboard.ts`)
+
+**Files:**
+- Create: `app/actions/dashboard.ts`
+
+**Interfaces:**
+- Consumes: `auth` (`@/auth`), `db` (`@/lib/db/client`), `clients` (`@/lib/db/schema`), `parseDashboardConfig` (Task 2), `canEditDashboard` (Task 4), `DashboardConfig` (Task 1), `revalidatePath` (`next/cache`), `eq` (`drizzle-orm`).
+- Produces: `saveDashboardConfig(slug: string, config: DashboardConfig): Promise<{ ok: true } | { ok: false; error: string }>`.
+
+**Note:** server action that imports `auth`/`db` — not unit-tested in isolation (runs in the Next runtime with env); its only branching logic (`canEditDashboard`) is covered by Task 4. Verified by the tsc gate.
+
+- [ ] **Step 1: Write the implementation**
+
+```ts
+// app/actions/dashboard.ts
+'use server'
+
+import { eq } from 'drizzle-orm'
+import { revalidatePath } from 'next/cache'
+import { auth } from '@/auth'
+import { db } from '@/lib/db/client'
+import { clients } from '@/lib/db/schema'
+import { parseDashboardConfig } from '@/lib/dashboard/persistence'
+import { canEditDashboard } from '@/lib/dashboard/permissions'
+import type { DashboardConfig } from '@/lib/dashboard/types'
+
+/**
+ * Save a client's configurable dashboard. Internal admins may edit any client;
+ * client admins only their own. Validates the config before writing.
+ */
+export async function saveDashboardConfig(
+  slug: string,
+  config: DashboardConfig,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) {
+    return { ok: false, error: 'forbidden' }
+  }
+  const parsed = parseDashboardConfig(config)
+  if (!parsed.ok) return { ok: false, error: parsed.error }
+
+  await db
+    .update(clients)
+    .set({ dashboardConfig: parsed.config, updatedAt: new Date() })
+    .where(eq(clients.slug, slug))
+
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+```
+
+- [ ] **Step 2: Type-check gate**
+
+Run: `npx tsc --noEmit 2>&1 | grep "app/actions/dashboard" || echo "action ok"`
+Expected: `action ok`
+
+- [ ] **Step 3: Full layer type-check + run the whole #2 suite**
+
+Run:
+```bash
+npx tsc --noEmit 2>&1 | grep "lib/dashboard\|lib/db\|app/actions/dashboard" || echo "no new type errors"
+for f in lib/dashboard/types.test.ts lib/dashboard/persistence.test.ts lib/dashboard/permissions.test.ts; do echo "== $f"; npx tsx "$f"; done
+```
+Expected: `no new type errors`, and each test prints `ok`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/actions/dashboard.ts
+git commit -m "feat(dashboard): saveDashboardConfig server action (role-gated, validated)"
+```
+
+---
+
+## Post-implementation (human step, not a task)
+
+After review, apply the migration to Neon: `npm run db:migrate`. It adds a nullable column (backward-compatible). Until then, `getDashboardConfig` simply returns `null` for every client (column absent → `client.dashboardConfig` undefined).
+
+---
+
+## Self-Review
+
+**Spec coverage** (against `2026-06-18-dashboard-persistence-design.md`):
+- §3 storage shape + types (`DashboardConfig`, `PersistedBlock`, column) → T1, T3. ✅
+- §4 validator (`parseDashboardConfig`/`parseBlockConfig`, all rules incl. empty-blocks-valid, leaf-only aggregate operands, precise error path) → T2 + tests. ✅
+- §5 read path (`getDashboardConfig`, corrupt → null) → T5. ✅
+- §5 write path (`saveDashboardConfig`, auth → permission → validate → update → revalidate) → T6. ✅
+- §5 permission rule (INTERNAL_ADMIN any / CLIENT_ADMIN own) → T4 `canEditDashboard` + tests, wired in T6. ✅
+- §6 migration generated + committed, not applied → T3 + Post-implementation note. ✅
+- §7 testing (pure validator + permissions tested; thin I/O wrappers tsc-gated) → T2, T4 tests; T5/T6 notes. ✅
+- §8 out-of-scope (UI/NL/rendering) → none included. ✅
+
+**Placeholder scan:** none. (`00NN_*.sql` is the generated migration filename, not a placeholder; the `Fail` alias note tells the implementer to drop it if unused.) ✅
+
+**Type consistency:** `DashboardConfig`/`PersistedBlock` defined in T1 used identically in T2/T3/T5/T6; `parseDashboardConfig` return shape (`{ok,config}`) consumed correctly in T5/T6; `canEditDashboard(role, clientSlug, targetSlug)` signature defined in T4 matches the call in T6; `session.user.role: string` / `clientSlug: string | null` match `canEditDashboard`'s params. ✅
+
+**Out-of-band:** do not stage the unrelated uncommitted paid-search edits in any task.
