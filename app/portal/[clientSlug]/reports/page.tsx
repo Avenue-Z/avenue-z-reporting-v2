@@ -138,8 +138,8 @@ export default async function PortalReportPage({
       ? GA4_SUBSECTION_NAMES[subsection]
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
-    : (activeSection === 'paid-media' && subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection])
-      ? PAID_MEDIA_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'paid-media')
+      ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (

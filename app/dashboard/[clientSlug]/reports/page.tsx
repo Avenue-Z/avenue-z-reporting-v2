@@ -159,8 +159,8 @@ export default async function ReportPage({
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
     : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
       ? AEO_SUBSECTION_NAMES[subsection]
-    : (activeSection === 'paid-media' && subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection])
-      ? PAID_MEDIA_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'paid-media')
+      ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
