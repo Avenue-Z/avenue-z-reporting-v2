@@ -53,7 +53,7 @@ export const REPORT_NAMES: Record<string, string> = {
   'exec-summary': 'Executive Summary',
   ga4: 'Web Analytics',
   'meta-ads': 'Meta Ads',
-  'google-ads': 'Paid Search',
+  'google-ads': 'Google Ads',
   'email-marketing': 'Email Marketing',
   'blended-performance': 'Blended Performance',
   'linkedin-ads': 'LinkedIn Ads',
@@ -88,7 +88,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
     label: 'Reports',
     // peec-ai renders as the "Answer Engine Optimization" expandable group;
     // profound-ai and google-search-console are handled as Soon sub-items inside their parents.
-    slugs: ['peec-ai', 'ga4', 'google-ads', 'inbound-funnel', 'hubspot-performance'],
+    slugs: ['peec-ai', 'ga4', 'inbound-funnel', 'hubspot-performance'],
   },
   {
     label: 'Tools',
