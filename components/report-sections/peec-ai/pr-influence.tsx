@@ -15,7 +15,6 @@ import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
 import { SentimentInsights } from './sentiment-insights'
-import { cn } from '@/lib/utils'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
@@ -574,7 +573,20 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           Sandboxed to Avenue Z; renders nothing for other clients. */}
       <SentimentInsights clientSlug={clientSlug} />
 
-      {/* ── Section B: PR Placement Matchback ── */}
+      {/* ── FB-012 · Top Editorial Domains + Prompt Cluster Opportunity, side-by-side ──
+          Tina's recommended layout: Synopsis -> Sentiment -> Top Editorial -> Prompt Clusters,
+          both reduced and placed next to each other. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Top Editorial Domains Cited by AI */}
+        <TopEditorialDomainsTable rows={topEditorialRows} />
+        {/* Prompt Cluster Opportunity (simple bar chart per FB-012) */}
+        {/* v1 limitation: editorialCitationDensity is computed from aggregated Peec
+            data and is NOT re-computed per selected AI model. The chart reflects
+            all-model data regardless of the active model filter. */}
+        <PromptClusterOpportunityMatrix rows={opportunityTableRows} />
+      </div>
+
+      {/* ── PR Placement Matchback ── */}
       {/* totalPlacements reflects filtered set when a model filter is active */}
       <PRPlacementMatchbackTable
         rows={matchbackTableRows}
@@ -584,53 +596,19 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         isDemo={prIsDemo}
       />
 
-      {/* ── Section C: Top Editorial Domains Cited by AI ── */}
-      <TopEditorialDomainsTable rows={topEditorialRows} isDemo={prIsDemo} prDataAvailable={prData != null} />
-
-      {/* ── Section D: Brand-Absent Editorial Domains ── */}
+      {/* ── Brand-Absent Editorial Domains ── */}
       <BrandAbsentEditorialDomainsTable
         rows={brandAbsentTableRows}
         hasEditorialDomains={editorialDomains.length > 0}
         isDemo={prIsDemo}
       />
 
-      {/* ── Section E: Prompt Cluster Opportunity Matrix ── */}
-      {/* v1 limitation: opportunity scores (editorialCitationDensity, brandCitationRate,
-          competitorPresence, opportunityScore) are computed from aggregated Peec data
-          and are NOT re-computed per selected AI model. The matrix reflects all-model
-          data regardless of the active model filter. Recomputing would require
-          fetching per-model prompt cluster aggregates which is a Phase 6+ concern. */}
-      <PromptClusterOpportunityMatrix rows={opportunityTableRows} />
-
-      {/* ── Section F: Next Pitch Opportunities ── */}
+      {/* ── Next Pitch Opportunities ── */}
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-[#60FDFF]" />
         <span className="sr-only">Next Pitch Opportunities</span>
       </div>
       <NextPitchOpportunitiesTable rows={nextPitchRows} emptyKind={nextPitchEmptyKind} />
-
-      {/* Scoring methodology */}
-      <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">How is the opportunity score calculated?</h3>
-        <p className="text-sm leading-relaxed text-white/60">
-          Each prompt cluster is scored to identify where a single PR placement can have the greatest impact
-          on brand visibility in AI-generated responses.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: 'Editorial Citation Density', weight: '35%', color: 'bg-[#39A0FF]' },
-            { label: 'Brand Absence',              weight: '30%', color: 'bg-[#FF4444]' },
-            { label: 'Competitor Presence',         weight: '20%', color: 'bg-[#FFFC60]' },
-            { label: 'Publication Tier Weight',     weight: '15%', color: 'bg-[#60FF80]' },
-          ].map(({ label, weight, color }) => (
-            <div key={label} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-              <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', color)} />
-              <span className="text-xs font-semibold text-white/60">{label}</span>
-              <span className="ml-auto text-xs font-bold text-white/30">{weight}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <p className="text-xs text-text-muted">
         PR Influence on AI Visibility

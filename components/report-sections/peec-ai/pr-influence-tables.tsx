@@ -1,5 +1,14 @@
 'use client'
 
+import {
+  ResponsiveContainer,
+  BarChart as RechartsBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Cell,
+} from 'recharts'
 import { cn } from '@/lib/utils'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, GA4, PR_PROOF } from '@/lib/peec/metric-definitions'
@@ -313,14 +322,8 @@ function CitationDelta({ value }: { value: number }) {
 
 export function TopEditorialDomainsTable({
   rows,
-  isDemo,
-  prDataAvailable,
 }: {
   rows: TopEditorialDomainRow[]
-  isDemo: boolean
-  // True when PR Proof placement data loaded (so hasPR=false is a real "No",
-  // not missing data). When false (no sheet / fetch failed), PR stays "--".
-  prDataAvailable: boolean
 }) {
   const maxRetrieved = Math.max(...rows.map((r) => r.citationCount), 1)
 
@@ -331,14 +334,14 @@ export function TopEditorialDomainsTable({
       align: 'left',
       accessor: (r) => r.domain,
       render: (r) => (
-        <span className={cn('font-medium', r.hasPR ? 'text-[#60FF80]' : 'text-white/80')} title={r.domain}>
+        <span className="font-medium text-white/80" title={r.domain}>
           {r.domain}
         </span>
       ),
     },
     {
       key: 'citationCount',
-      label: 'Citation Count',
+      label: 'Citation Share',
       align: 'left',
       tooltip: PEEC.citations.text,
       accessor: (r) => r.citationCount,
@@ -348,7 +351,7 @@ export function TopEditorialDomainsTable({
           <div className="flex items-center gap-2">
             <div className="h-4 w-24 overflow-hidden rounded bg-white/[0.04]">
               <div
-                className={cn('h-full rounded', r.hasPR ? 'bg-[#60FF80]/60' : 'bg-[#39A0FF]/60')}
+                className="h-full rounded bg-[#39A0FF]/60"
                 style={{ width: `${barWidth}%` }}
               />
             </div>
@@ -370,36 +373,6 @@ export function TopEditorialDomainsTable({
         </span>
       ),
     },
-    {
-      key: 'avgCitations',
-      label: 'Avg. Citations',
-      align: 'left',
-      tooltip:
-        "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
-      accessor: (r) => r.avgCitations ?? 0,
-      render: (r) => (
-        <span className="tabular-nums text-white/30">
-          {r.avgCitations != null ? r.avgCitations.toFixed(1) : '--'}
-        </span>
-      ),
-    },
-    {
-      key: 'hasPR',
-      label: 'PR',
-      align: 'left',
-      tooltip: PR_PROOF.placement.text,
-      accessor: (r) => (r.hasPR ? 1 : 0),
-      render: (r) =>
-        r.hasPR ? (
-          <span className="rounded-full bg-[#60FF80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#60FF80]">
-            Yes
-          </span>
-        ) : isDemo || prDataAvailable ? (
-          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold text-white/40">No</span>
-        ) : (
-          <span className="text-white/20">--</span>
-        ),
-    },
   ]
 
   return (
@@ -407,28 +380,16 @@ export function TopEditorialDomainsTable({
       <SectionHeading
         title="Which editorial domains do AI engines cite most for our prompts?"
         tooltip={PEEC.sourceMetrics.text}
-        subtitle="Editorial domains most frequently retrieved in AI responses. These outlets carry LLM citation weight; securing coverage here has direct AEO impact."
+        subtitle="These domains are the most likely to surface as cited sources in AI-generated results, so they should be prioritized on the media target list."
       />
       {rows.length > 0 ? (
-        <>
-          <SortableTable
-            columns={columns}
-            rows={rows}
-            rowKey={(r) => r.domain}
-            initialPageSize={15}
-            emptyMessage="No editorial domains found in current Peec AI project"
-          />
-          <div className="mt-4 flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-[#39A0FF]/60" />
-              <span className="text-[10px] text-text-muted">Editorial domain</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-[#60FF80]/60" />
-              <span className="text-[10px] text-text-muted">Has PR placement</span>
-            </div>
-          </div>
-        </>
+        <SortableTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.domain}
+          initialPageSize={15}
+          emptyMessage="No editorial domains found in current Peec AI project"
+        />
       ) : (
         <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">No editorial domains found in current Peec AI project</p>
@@ -611,126 +572,69 @@ export function PromptClusterOpportunityMatrix({
 }: {
   rows: PromptClusterOpportunityRow[]
 }) {
-  const columns: SortableColumn<PromptClusterOpportunityRow>[] = [
-    {
-      key: 'cluster',
-      label: 'Prompt Cluster',
-      align: 'left',
-      accessor: (r) => r.cluster,
-      render: (r) => <span className="font-semibold text-white/80">{r.cluster}</span>,
-    },
-    {
-      key: 'count',
-      label: 'Prompts',
-      align: 'right',
-      tooltip: 'Number of tracked prompts in this cluster. (Peec AI source data.)',
-      accessor: (r) => r.count,
-      render: (r) => <span className="tabular-nums text-white">{r.count}</span>,
-    },
-    {
-      key: 'editorialCitationDensity',
-      label: 'Editorial Citation Density',
-      align: 'left',
-      tooltip: PEEC.citations.text,
-      accessor: (r) => r.editorialCitationDensity,
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-12 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className="h-full rounded-full bg-[#39A0FF]"
-              style={{ width: `${Math.min(r.editorialCitationDensity, 100)}%` }}
-            />
-          </div>
-          <span className="tabular-nums text-white/60">{fmtPct(r.editorialCitationDensity)}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'brandCitationRate',
-      label: 'Brand Citation Rate',
-      align: 'left',
-      tooltip: PEEC.citationRate.text,
-      accessor: (r) => r.brandCitationRate,
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-12 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className="h-full rounded-full bg-[#60FF80]"
-              style={{ width: `${Math.min(r.brandCitationRate, 100)}%` }}
-            />
-          </div>
-          <span className="tabular-nums text-white/60">{fmtPct(r.brandCitationRate)}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'brandMentionRate',
-      label: 'Brand Mention Rate',
-      align: 'right',
-      tooltip: PEEC.brandVisibility.text,
-      accessor: (r) => r.brandMentionRate,
-      render: (r) => <span className="tabular-nums text-white/60">{fmtPct(r.brandMentionRate)}</span>,
-    },
-    {
-      key: 'competitorPresence',
-      label: 'Competitor Presence',
-      align: 'left',
-      tooltip: PEEC.sov.text,
-      accessor: (r) => r.competitorPresence,
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-12 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className="h-full rounded-full bg-[#FFFC60]"
-              style={{ width: `${Math.min(r.competitorPresence, 100)}%` }}
-            />
-          </div>
-          <span className="tabular-nums text-white/60">{fmtPct(r.competitorPresence)}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'opportunityScore',
-      label: 'Opportunity Score',
-      align: 'right',
-      tooltip: PR_PROOF.opportunityScore.text,
-      accessor: (r) => r.opportunityScore,
-      render: (r) => {
-        const oppColor =
-          r.opportunityScore > 40 ? '#60FF80' : r.opportunityScore > 20 ? '#FFFC60' : '#FF4444'
-        return (
-          <span className="text-sm font-bold tabular-nums" style={{ color: oppColor }}>
-            {r.opportunityScore.toFixed(0)}
-          </span>
-        )
-      },
-    },
-  ]
+  // FB-012 — simple horizontal bar chart: Topic × % citation share from editorial sources.
+  // Sorted descending so the top opportunity is at the top.
+  const chartData = [...rows]
+    .sort((a, b) => b.editorialCitationDensity - a.editorialCitationDensity)
+    .map((r) => ({
+      topic: r.cluster,
+      value: Number(r.editorialCitationDensity.toFixed(1)),
+    }))
+  const chartHeight = Math.max(220, chartData.length * 34 + 40)
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
       <SectionHeading
         title="Which prompt clusters offer the biggest PR opportunity?"
-        tooltip={PR_PROOF.opportunityScore.text}
-        subtitle="Clusters scored by opportunity: editorial citation density, brand absence, competitor presence, and publication tier. Highest opportunity clusters are where one strong PR placement can shift the AI conversation."
+        tooltip={PEEC.citations.text}
+        subtitle="Topics ranked by share of citations earned from editorial sources. Higher share means a stronger candidate for the next PR pitch."
       />
-      {rows.length > 0 ? (
-        <>
-          <SortableTable
-            columns={columns}
-            rows={rows}
-            rowKey={(r) => r.cluster}
-            emptyMessage="No prompt clusters available."
-          />
-          <p className="mt-4 text-[10px] text-text-muted">
-            Opportunity Score = 35% editorial citation density + 30% brand absence + 20% competitor presence + 15%
-            publication tier weight. Sorted by highest opportunity.
-          </p>
-        </>
+      {chartData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <RechartsBarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 4, right: 24, bottom: 4, left: 8 }}
+            barCategoryGap={8}
+          >
+            <XAxis
+              type="number"
+              domain={[0, 100]}
+              tick={{ fill: '#8A8A8A', fontSize: 11 }}
+              axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+              tickLine={false}
+              tickFormatter={(v: number) => `${v}%`}
+            />
+            <YAxis
+              type="category"
+              dataKey="topic"
+              width={120}
+              tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <RechartsTooltip
+              cursor={{ fill: 'rgba(57,160,255,0.06)' }}
+              contentStyle={{
+                background: '#272727',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '12px',
+              }}
+              formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)}%`, 'Citation Share']}
+            />
+            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+              {chartData.map((d) => (
+                <Cell key={d.topic} fill="#39A0FF" />
+              ))}
+            </Bar>
+          </RechartsBarChart>
+        </ResponsiveContainer>
       ) : (
         <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">
-            No tracked prompts yet. Add prompts in Peec AI to populate the opportunity matrix.
+            No tracked prompts yet. Add prompts in Peec AI to populate the chart.
           </p>
         </div>
       )}

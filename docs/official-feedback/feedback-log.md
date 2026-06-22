@@ -16,6 +16,98 @@ _(none)_
 
 ## Closed
 
+### FB-012 — Reduce Top Editorial Domains, turn Prompt Cluster Opportunity into a simple bar chart, place them side-by-side
+
+- **Status:** done
+- **Source:** Tina (Google doc, 8:42 AM / 8:54 AM / 9:10 AM / 9:12 AM Jun 17). Whitney Hart endorsement "Agreed with reccos here" (11:57 AM Jun 18). Thomas confirmed layout order in chat: "synopsis, sentiment, top editorial domains, and then which prompt clusters."
+- **Author:** Tina (+ Whitney endorsement)
+- **Type:** reduce + redesign + reorder
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` (two components) + `components/report-sections/peec-ai/pr-influence.tsx` (layout). Universal design changes — apply to every client. No data sandbox needed.
+
+#### Verbatim ask (Tina)
+
+**On Top Editorial Domains:**
+> - Citation Count -> Citation Share
+> - Remove Column: Avg Citation
+> - Remove Column: PR
+> - Remove legend on bottom left corner
+>
+> Rephrase subtitle
+>
+> Old: Each secured PR placement matched against Peec AI citation data. Shows which earned media is being retrieved by AI engines and whether your brand is mentioned.
+>
+> New: These domains are the most likely to surface as cited sources in AI-generated results, so they should be prioritized on the media target list.
+
+**On "Which prompt clusters offer the biggest PR opportunity?":**
+> Chart Revision: Turn this into a simple bar chart with the dimension being "Topic" and the metric being % citation share from editorial sources.
+
+**On layout (both):**
+> Maybe this one can go side-by-side with the next/previous chart since we are reducing both of them?
+
+#### What was unambiguous
+
+1. Top Editorial Domains: rename `Citation Count` → `Citation Share`, drop `Avg. Citations` column, drop `PR` column, drop the bottom-left blue/green legend.
+2. Top Editorial Domains: replace the subtitle with Tina's "New" text.
+3. Prompt Cluster Opportunity: replace the 7-column sortable table with a simple bar chart. Dimension = topic (cluster). Metric = % citation share from editorial sources.
+4. Both reduced charts go side-by-side now that they are smaller.
+5. Page order per Thomas's confirmed read of Tina's "Recommended layout" screenshot: Synopsis → Sentiment Insights → Top Editorial Domains → Prompt Clusters. Matchback was not on Tina's recommended layout, so it moves below the side-by-side row.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Subtitle "Old:" text Tina pasted does not match the current Top Editorial Domains subtitle in code** | Treated as a copy-paste error in Tina's note. Replaced the current Top Editorial Domains subtitle with her "New" text. Matchback subtitle untouched. | Tina's "Old" text actually matches the `PRPlacementMatchbackTable` subtitle at [pr-influence-tables.tsx:273](../../components/report-sections/peec-ai/pr-influence-tables.tsx). But her "New" text describes editorial-domain pitch targeting, which fits Top Editorial Domains and does not fit Matchback at all. Thomas's broader feedback "reduce, side-by-side, this card" makes Top Editorial Domains the unambiguous target. Reconciled by intent, not by the mismatched quote. |
+| **Green-on-PR styling on Domain text + bar fill** | Removed. Domain always white. Bar always editorial blue `#39A0FF`. | Tina removed the bottom legend that explained the green-vs-blue signal. With the legend gone, an unexplained color signal would confuse the reader. The PR column is also removed, so the green Yes/No signal is being de-emphasized across this card. Removing the inline color cue is the consistent reduction. |
+| **`hasPR` field on `TopEditorialDomainRow`** | Kept on the type (still computed by the parent for back-compat with the BrandAbsent table's `hasPR` logic) but no longer rendered. | Easier than rippling type changes through a sibling component. No on-screen impact. |
+| **`isDemo` and `prDataAvailable` props on `TopEditorialDomainsTable`** | Removed from the component signature and the call site. | Both props existed only to drive the PR column's "Yes / No / --" tri-state. Column gone, props unused. |
+| **Bar chart orientation** | Horizontal bars (label-left, bar-right), sorted descending. | Cluster names can be long ("AI & Automation", "TikTok Shop") and the chart now lives in half-width (side-by-side layout). Horizontal bars read cleanly when narrow; vertical labels would have to angle or truncate. |
+| **Bar chart X-axis** | Fixed `0–100%` domain, gridlines off, axis line muted. | Absolute scale across all clients; bar lengths are comparable across page loads and clients. Same principle as the FB-053 visibility-bar fix. |
+| **Bar chart color** | Single `#39A0FF` (editorial blue) across all bars. | One metric, one color. The old table used 4 colors because there were 4 different metric bars per row. Now there is one metric — one bar color is correct. |
+| **Bar chart subtitle** | "Topics ranked by share of citations earned from editorial sources. Higher share means a stronger candidate for the next PR pitch." | Old subtitle ("Clusters scored by opportunity: editorial citation density, brand absence, competitor presence, and publication tier...") is no longer accurate. The new chart shows ONLY editorial citation share. Drafted to match Tina's voice and stay short. |
+| **Page order (Matchback moves below the side-by-side row)** | New order: Synopsis → Sentiment Insights → [Top Editorial + Prompt Clusters side-by-side] → Matchback → Brand-Absent → Next Pitch. | Tina's "Recommended layout" screenshot puts Synopsis, Sentiment, Top Editorial, and Prompt Clusters in that order. Matchback is not on the screenshot, so it sinks below. Thomas explicitly confirmed this read. FB-011's open risk #1 anticipated this exact reorder. |
+| **"How is the opportunity score calculated?" 4-weight methodology block** | Removed entirely from the page. | It explained the old `opportunityScore` column (35% editorial + 30% brand absence + 20% competitor + 15% tier). That column is gone from the new bar chart. The score is still *computed* server-side because the Next Pitch table uses it to assign priority badges, but the user no longer sees the number itself. A methodology block explaining an invisible calculation is noise. |
+| **Methodology footer line under the chart** (old: "Opportunity Score = 35% ...") | Removed. | Same reason as the block above. |
+| **Wrapper grid class** | `grid gap-6 lg:grid-cols-2`. Below `lg` (1024px) the cards stack one above the other, matching every other section's responsive behavior. | Standard Tailwind responsive grid. Matches the side-by-side patterns elsewhere in the codebase. |
+
+#### What was explicitly out of scope
+
+- Matchback table itself (columns, copy, layout): untouched. Only its vertical position changed.
+- Brand-Absent Editorial Domains and Next Pitch Opportunities tables: untouched.
+- The `opportunityScore` computation in `pr-influence.tsx:computeOpportunityRows` and the `NextPitchOpportunitiesTable` priority logic: untouched. The score is still calculated to drive Next Pitch priority badges.
+- Per-model filter behavior on the new bar chart: it reflects all-model aggregated data (same caveat as before — `editorialCitationDensity` is aggregated, not per-model). Carrying the v1 limitation comment forward.
+- No data layer changes. The fields needed for the new chart (`editorialCitationDensity`) and the reduced table (`citationCount`, `promptCoverage`) already exist on the row types.
+- Em-dash scrub across the rest of the file: only edited lines were scrubbed (none had em-dashes).
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | Added Recharts imports. `TopEditorialDomainsTable`: dropped `isDemo`/`prDataAvailable` props, renamed `Citation Count` → `Citation Share`, removed `avgCitations` and `hasPR` columns, removed bottom legend, swapped subtitle, removed green-on-PR styling from Domain text and bar fill. `PromptClusterOpportunityMatrix`: entire `SortableTable` replaced with a Recharts horizontal `BarChart` over `editorialCitationDensity`. New subtitle. Old methodology footer line removed. |
+| `components/report-sections/peec-ai/pr-influence.tsx` | Reorganized the JSX flow: Top Editorial + Prompt Clusters now sit in a `grid gap-6 lg:grid-cols-2` wrapper directly under SentimentInsights. Matchback moves below. Removed the "How is the opportunity score calculated?" block at the bottom. Updated the `<TopEditorialDomainsTable>` call site to match the new prop signature (rows only). Removed now-unused `cn` import. |
+
+#### Scope of impact
+
+- Every current and future AEO client with the PR Influence tab enabled sees the reduced layout and the bar chart automatically. No DB change, no per-client config, no backfill.
+- No data sandbox needed — these are universal design / layout / UX changes (per the workstream rule "design = universal, hardcoded data = Avenue Z gate"). Nothing in this change introduces hardcoded Avenue Z content.
+- Renders identically in the internal dashboard and the client portal.
+- The bar chart uses Recharts (already in the codebase). No new dependencies.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` returned zero output).
+- Diff stats: -208 / +90 lines net (-118), reflecting the reduction.
+- Sandbox gate sanity-check: untouched. The two pre-existing Avenue Z sandbox gates (FB-006 `winners-losers-cards.tsx`, FB-010 `sentiment-insights.tsx`) are unaffected.
+
+#### Open risks (in order of likelihood)
+
+1. **Bar chart subtitle copy is my draft, not Tina's words.** Easy single-line edit if she pushes back.
+2. **Bar chart visual density on narrow widths.** Currently uses `chartHeight = Math.max(220, rows.length * 34 + 40)`. With ~11 clusters, height ~414px — still reasonable in half-width. If Tina wants a tighter chart, single tweak to the formula.
+3. **Matchback moving below the side-by-side row.** FB-011's open risk #1 predicted this; Tina's recommended-layout screenshot supports it; Thomas confirmed. If Tina actually wants Matchback to stay above, single JSX move.
+4. **Methodology block removal.** Tina did not explicitly ask for this. The block only explained the old `opportunityScore` column which is now gone, so it explained nothing the user could see. If Tina wants context restored, paste a short note under the bar chart.
+5. **The `Avg. Citations` column was the only place the `citation_avg` metric surfaced to the user.** If anyone was using it operationally, they will need a different surface now. Likely no one was — it had a `text-white/30` muted styling in the prior table.
+
+---
+
 ### FB-011 — Sentiment Insights placement correction (iteration on FB-010)
 
 - **Status:** done
