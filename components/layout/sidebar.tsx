@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { DemoModeToggle } from './demo-mode-toggle'
-import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, TEAMS } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
@@ -535,6 +535,58 @@ function ClientSidebar({
                                       : activeSubsection === sub.id
                                     return (
                                       <li key={sub.id ?? 'peec'}>
+                                        <Link
+                                          href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
+                                          className={cn(
+                                            'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                            subIsActive
+                                              ? 'bg-white/[0.08] text-white'
+                                              : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                                          )}
+                                        >
+                                          {sub.label}
+                                        </Link>
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                              )}
+                            </li>
+                          )
+                        }
+
+                        // Paid Media — expandable sub-menu
+                        if (slug === 'paid-media') {
+                          const pmBaseParams = new URLSearchParams()
+                          pmBaseParams.set('section', 'paid-media')
+                          if (dateRange) pmBaseParams.set('dateRange', dateRange)
+                          if (compareRange) pmBaseParams.set('compareRange', compareRange)
+                          return (
+                            <li key={slug}>
+                              <Link
+                                href={`/dashboard/${clientSlug}/reports?${pmBaseParams.toString()}`}
+                                className={cn(
+                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  isActive
+                                    ? 'text-white'
+                                    : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                                )}
+                              >
+                                {REPORT_NAMES[slug] ?? slug}
+                              </Link>
+                              {isActive && (
+                                <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                                  {PAID_MEDIA_SUBSECTIONS.map((sub) => {
+                                    const subParams = new URLSearchParams()
+                                    subParams.set('section', 'paid-media')
+                                    if (sub.id) subParams.set('subsection', sub.id)
+                                    if (dateRange) subParams.set('dateRange', dateRange)
+                                    if (compareRange) subParams.set('compareRange', compareRange)
+                                    const subIsActive = sub.id === null
+                                      ? !activeSubsection
+                                      : activeSubsection === sub.id
+                                    return (
+                                      <li key={sub.id ?? 'overview'}>
                                         <Link
                                           href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
                                           className={cn(
