@@ -567,6 +567,13 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         context={synopsisContext}
       />
 
+      {/* ── FB-010 + FB-011 · Sentiment Insights ── */}
+      {/* Placement per FB-011: directly below the Executive Synopsis. Tina's
+          mockup flow is Synopsis -> Sentiment Insights -> Top Editorial
+          Domains; Matchback wasn't on her layout so it lives below.
+          Sandboxed to Avenue Z; renders nothing for other clients. */}
+      <SentimentInsights clientSlug={clientSlug} />
+
       {/* ── Section B: PR Placement Matchback ── */}
       {/* totalPlacements reflects filtered set when a model filter is active */}
       <PRPlacementMatchbackTable
@@ -576,9 +583,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         prDataAvailable={!!prData}
         isDemo={prIsDemo}
       />
-
-      {/* ── FB-010 · Sentiment Insights (Avenue Z sandbox; renders nothing for other clients) ── */}
-      <SentimentInsights clientSlug={clientSlug} />
 
       {/* ── Section C: Top Editorial Domains Cited by AI ── */}
       <TopEditorialDomainsTable rows={topEditorialRows} isDemo={prIsDemo} prDataAvailable={prData != null} />

@@ -16,6 +16,49 @@ _(none)_
 
 ## Closed
 
+### FB-011 — Sentiment Insights placement correction (iteration on FB-010)
+
+- **Status:** done
+- **Source:** Thomas, after eyeballing the FB-010 ship on the Vercel preview. Re-reading Tina's mockup more strictly.
+- **Author:** Thomas (interpreting Tina's mockup)
+- **Type:** placement correction
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx` only. One JSX move. Lineage: iteration on [[fb-010]].
+
+#### Verbatim ask
+
+> "Based on this screenshot, it should go... the synopsis, then sentiment insights, and then editorial domains next. Because right now, the order is not that. Right now, it goes synopsis, then the... which PR placements are being cited by AI section, then the sentiment insights. But sentiment insights are supposed to go above."
+
+#### What changed
+
+Moved `<SentimentInsights>` from between Section B (PR Placement Matchback) and Section C (Top Editorial Domains) to between the Executive Synopsis and Section B. New page order:
+
+```
+SectionHeader -> Executive Synopsis -> Sentiment Insights -> Matchback -> Top Editorial -> Brand-Absent -> Opportunity Matrix -> Next Pitch -> Methodology
+```
+
+#### Why FB-011, not a fix-up of FB-010
+
+Per the project's audit-trail rule (`docs/official-feedback/handoff.md`): iterations on prior FB items get a new ID so the timeline reads linearly. FB-010 shipped with one placement; FB-011 corrects it. Both stay closed in this log.
+
+#### Why FB-010 picked the other placement
+
+FB-010's decision log notes: "Tina's screenshot lists `ADD: Sentiment Insights` immediately above `Top Editorial Domains`. Thomas's instruction was 'look at screenshot for placement' — strict literal read of the screenshot puts Sentiment Insights directly above Top Editorial Domains." That read satisfied the literal "above Top Editorial Domains" but missed Tina's intended overall flow (Synopsis -> Sentiment Insights -> Top Editorial Domains, with Matchback unmentioned because it wasn't on her sketch).
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence.tsx` — single JSX block moved. Updated the inline comment above the `<SentimentInsights>` render to document the FB-011 placement decision.
+
+#### Verification
+
+- TypeScript compilation: clean.
+- The component itself is unchanged — same `clientSlug` prop, same Avenue Z sandbox gate. Only its position in the JSX flow changed.
+
+#### Open risks
+
+1. If Tina wanted Matchback BELOW Top Editorial Domains (per her omission of it from the mockup), this PR Influence reorder doesn't address that. Out of scope for FB-011; flag as future FB-NN if Tina ever raises it.
+
+---
+
 ### FB-010 — AEO PR Influence tab: add Sentiment Insights section (Avenue Z sandbox)
 
 - **Status:** done
