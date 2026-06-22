@@ -16,6 +16,104 @@ _(none)_
 
 ## Closed
 
+### FB-013 — Fix per-cluster `editorialCitationDensity` (was a single global value; every bar rendered at 100%)
+
+- **Status:** done
+- **Source:** Thomas spotted "i feel like the prompt clusters one is off" after the FB-012 deploy on Avenue Z. Inspection confirmed every bar at 100% — pre-existing data-layer bug surfaced by FB-012's bar chart.
+- **Author:** Thomas (flagged) / Claude (rooted + fixed)
+- **Type:** data-layer bug fix
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx` `computeOpportunityRows()` only. Lineage: iteration on [[fb-012]]; predates FB-012 but only became visible when the cluster bar chart replaced the old 7-column table.
+
+#### Verbatim flag (Thomas)
+
+> "is this what it is supposed to look like? i feel like the: Which prompt clusters offer the biggest PR opportunity? is off"
+
+#### Root cause
+
+`computeOpportunityRows()` computed `editorialCitationDensity` once GLOBALLY, then assigned it to every cluster row identically:
+
+```ts
+const totalEditorialCitations = editorialDomains.reduce((s, d) => s + d.citationRate, 0)
+const avgEditorialCitation = totalEditorialCitations / editorialDomains.length
+// ...inside per-cluster .map():
+const editorialCitationDensity = Math.min(avgEditorialCitation / 100, 1)  // <- identical across clusters
+```
+
+For Avenue Z, `citationRate` values on editorial domains average above 100 (since each is `citation_rate * 100` and several editorial domains have near-saturated coverage on their tag), so `Math.min(.../ 100, 1) = 1` → `* 100 = 100%` for every cluster.
+
+The pre-FB-012 SortableTable masked this because it rendered six other columns (`brandCitationRate`, `competitorPresence`, `opportunityScore`, etc.) that varied per cluster. Tina's screenshot in FB-012 also shows `Editorial Citation Density` at 100.0% for every row — she didn't notice because the Opportunity Score column (72, 70, 69...) provided the visible ranking.
+
+FB-012 removed all six masking columns and left this one as the only metric. The bug went from invisible to dominant: 11 identical 100% bars and no ranking.
+
+#### Fix
+
+Compute `editorialCitationDensity` PER CLUSTER using data already fetched:
+
+- `coverage.tagNameById`: tag id → display name (cluster names)
+- `coverage.tagIdsByDomain`: host → tag ids that domain is cited under
+- `data.topDomains`: all cited domains with `type` (`Editorial` subset isolatable)
+- `topDomain.retrieved`: per-domain citation share %
+
+Per cluster:
+
+```ts
+editorialShare(clusterName) =
+  sum(retrieved across editorial-typed domains tagged with clusterName)
+  / sum(retrieved across ALL domains tagged with clusterName)
+  * 100
+```
+
+Semantics: "of all citations on prompts in this cluster, what share came from editorial-typed domains?" Real per-cluster value, varies, ranks. Fits Tina's literal ask ("Topic × % citation share from editorial sources") and gives the chart a meaningful sort order.
+
+`computeOpportunityRows()` now takes `topDomains` and `coverage` as additional parameters. Call site updated to pass `data.topDomains ?? []` and `coverage`.
+
+#### What was unambiguous
+
+1. Bars were all 100%. The chart was not ranking anything. That's wrong.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Semantic of "% citation share from editorial sources" (Tina's words)** | Per-cluster: editorial-typed domains' citation sum / all domains' citation sum on that cluster, expressed as %. | The most defensible read of "% citation share from editorial sources" with the data we actually have. Uses fields already computed and rendered elsewhere on this same page. |
+| **Cluster name to tag id resolution** | Reverse the `coverage.tagNameById` map (`tagNameById[id] === name`) to get `tagId(name)`. | `coverage` is the only place we have a tag-id ↔ tag-name (== cluster name) bridge. `trackedPrompts[].group` is the cluster name; `topDomains` are tagged by id. |
+| **Unknown cluster fallback** | `editorialShare = 0` if no tag id found by name. | Avoids a NaN propagating into the chart. Defensible default; a cluster with no tag-side match has no citation data to attribute. |
+| **`opportunityScore` formula** | Still uses the per-cluster `editorialCitationDensity` (now real) for the 35% weight. Other weights unchanged. | The fix flows through automatically. Score values will shift, but the score is no longer rendered to users anyway (FB-012 removed the column + methodology block); it only feeds Next Pitch priority badges. The bug was contained to this calc; the formula itself was fine. |
+| **No new fetch** | Reused existing `coverage` (already fetched on the page) and `data.topDomains` (already in scope). | Zero new network calls. Same caching, same demo-mode fallback. |
+
+#### What was explicitly out of scope
+
+- No change to render code, chart, table, or layout. Same FB-012 chart, real numbers now.
+- No change to FB-012's removed columns, removed legend, or removed methodology block. FB-012 stands.
+- Per-model filter still does not affect this metric (carries the v1 limitation forward). Recomputing per-model would require fetching per-model tag aggregates; not in scope.
+- No update to `OpportunityRow` type — the fields are the same shape, just with non-degenerate values.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence.tsx` | `computeOpportunityRows()` now takes `(trackedPrompts, editorialDomains, topDomains, coverage)`. Adds `tagIdByName` reverse map + `editorialHosts` set + `clusterEditorialShare()` helper. Per-cluster `editorialCitationDensityPct` replaces the global `avgEditorialCitation` calc. Score formula unchanged. Call site at line 362 updated. |
+
+#### Scope of impact
+
+- Every AEO client with the PR Influence tab enabled gets real per-cluster numbers on the FB-012 bar chart.
+- `opportunityScore` values will shift downstream — affects only the High/Medium/Low priority badge in `NextPitchOpportunitiesTable`. Tina's seeing real values now; nothing visible breaks.
+- No DB change, no env change, no new API call.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero output).
+- Hand-traced the new calc against Avenue Z's data shape: `tagNameById` + `tagIdsByDomain` are both populated for Avenue Z (Peec coverage fetch returns data), so `clusterEditorialShare()` returns real values. For clusters with no tag-side match (rare), returns 0 — visible as a missing bar, honest signal.
+- Demo mode: `coverage` is reset to the empty object literal in demo mode (`pr-influence.tsx:224`). Demo runs through `clusterEditorialShare()` → `tagIdByName.get(name)` returns undefined → 0 for every cluster. Demo bar chart will be empty/0. Acceptable because demo prompts are synthetic anyway; the demo-mode story is the rest of the page, not this calc. If demo bars need real values, swap the demo `coverage` literal for one with sample `tagNameById` + `tagIdsByDomain` content (out of scope here).
+
+#### Open risks (in order of likelihood)
+
+1. **Cluster name strings may not perfectly match tag display names** in some clients' Peec configs. If so, `tagIdByName.get(clusterName)` returns undefined and that cluster's bar shows 0. Fix: case-insensitive match or fuzzy match; or surface the mismatch in a debug log. Punt until we see it.
+2. **A cluster with non-zero prompts but zero domains tagged with that cluster's tag** will compute `totalCit = 0` → returns 0. Same defensible default.
+3. **Demo mode bars all at 0** until we extend the demo `coverage` fixture (see Verification note above). Acceptable; demo only renders Avenue Z anyway.
+
+---
+
 ### FB-012 — Reduce Top Editorial Domains, turn Prompt Cluster Opportunity into a simple bar chart, place them side-by-side
 
 - **Status:** done

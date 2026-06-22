@@ -38,7 +38,7 @@ One branch + one PR per AEO sub-tab.
 | Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-013.**
+FB IDs continue sequentially across all branches. **Next ID is FB-014.**
 
 ---
 
@@ -60,6 +60,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-013.**
 | **FB-010** | PR Influence | this branch (PR #52) | `bf13917` | ADD: Sentiment Insights section with Tina's static Avenue Z content (89.4% positive, 8 themes, 2 weaknesses). Click-to-expand accordions, KPI pill. **Sandbox-gated to Avenue Z.** |
 | **FB-011** | PR Influence | this branch (PR #52) | `b4906a2` | Iteration on FB-010. Moved Sentiment Insights from between Matchback and Top Editorial Domains to directly under the Executive Synopsis. |
 | **FB-012** | PR Influence | this branch (PR #52) | `f1d5c5a` | Reduce Top Editorial Domains (Citation Count → Citation Share, drop Avg Citations + PR cols + legend, new subtitle, drop green-on-PR styling). Replace Prompt Cluster Opportunity 7-col table with simple horizontal bar chart (Topic × % editorial citation share). Side-by-side `lg:grid-cols-2` layout for the two reduced cards directly under Sentiment Insights. PR Placement Matchback drops below the side-by-side row (matches Tina's recommended layout). Removed the 4-weight "How is the opportunity score calculated?" methodology block (explains a number that no longer renders). |
+| **FB-013** | PR Influence | this branch (PR #52) | `(pending)` | Fix pre-existing data bug surfaced by FB-012 bar chart: editorialCitationDensity was computed ONCE globally and assigned identically to every cluster, so every bar rendered at 100%. Now computed PER CLUSTER via coverage.tagNameById + tagIdsByDomain + topDomain.retrieved: `sum(retrieved across editorial-typed domains tagged with cluster) / sum(retrieved across all domains tagged with cluster) * 100`. Real ranking emerges. No render changes; same FB-012 chart, real numbers now. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 

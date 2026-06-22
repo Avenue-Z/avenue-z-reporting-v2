@@ -122,6 +122,8 @@ type OpportunityRow = {
 function computeOpportunityRows(
   trackedPrompts: TrackedPrompt[],
   editorialDomains: TopDomain[],
+  topDomains: TopDomain[],
+  coverage: DomainCoverage,
 ): OpportunityRow[] {
   // Group prompts by cluster
   const clusterMap = new Map<string, TrackedPrompt[]>()
@@ -130,9 +132,37 @@ function computeOpportunityRows(
     clusterMap.get(p.group)!.push(p)
   }
 
-  // Calculate total editorial citation density
-  const totalEditorialCitations = editorialDomains.reduce((s, d) => s + d.citationRate, 0)
-  const avgEditorialCitation = editorialDomains.length > 0 ? totalEditorialCitations / editorialDomains.length : 0
+  // FB-013 — per-cluster editorial citation share.
+  //
+  // Pre-FB-013 this was a single global value (totalEditorialCitations / N) assigned
+  // identically to every cluster, so every bar in the FB-012 chart rendered at 100%.
+  // Now we compute it per cluster from the data we already fetch:
+  //   - clusterName -> tagId via coverage.tagNameById (reversed)
+  //   - per-domain tag membership via coverage.tagIdsByDomain
+  //   - per-domain citation share via topDomain.retrieved
+  // editorialShare = sum(retrieved across editorial-typed domains tagged with this cluster)
+  //                  divided by
+  //                  sum(retrieved across ALL domains tagged with this cluster).
+  const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
+  const tagIdByName = new Map<string, string>()
+  for (const [tagId, name] of Object.entries(coverage.tagNameById)) {
+    tagIdByName.set(name, tagId)
+  }
+  const editorialHosts = new Set(editorialDomains.map((d) => hostKey(d.domain)))
+
+  function clusterEditorialShare(clusterName: string): number {
+    const tagId = tagIdByName.get(clusterName)
+    if (!tagId) return 0  // unknown tag (e.g. cluster name without a tag-side match) -> 0
+    let totalCit = 0
+    let editorialCit = 0
+    for (const d of topDomains) {
+      const ids = coverage.tagIdsByDomain[hostKey(d.domain)] ?? []
+      if (!ids.includes(tagId)) continue
+      totalCit += d.retrieved
+      if (editorialHosts.has(hostKey(d.domain))) editorialCit += d.retrieved
+    }
+    return totalCit > 0 ? (editorialCit / totalCit) * 100 : 0
+  }
 
   return Array.from(clusterMap.entries())
     .map(([cluster, prompts]) => {
@@ -140,14 +170,15 @@ function computeOpportunityRows(
       const avgVisibility = prompts.reduce((s, p) => s + p.visibility, 0) / prompts.length
       const avgSov = prompts.reduce((s, p) => s + p.sov, 0) / prompts.length
 
-      // PRD formula components (normalized to 0-1 scale)
-      const editorialCitationDensity = Math.min(avgEditorialCitation / 100, 1)
-      const brandAbsence = Math.max(0, (100 - avgVisibility) / 100)
+      // Per-cluster editorial citation density (0-100). See FB-013 comment above.
+      const editorialCitationDensityPct = clusterEditorialShare(cluster)
+      const editorialCitationDensity01  = Math.min(editorialCitationDensityPct / 100, 1)
+      const brandAbsence       = Math.max(0, (100 - avgVisibility) / 100)
       const competitorPresence = Math.min(avgSov / 100, 1) // Higher competitor SOV = more competitive
-      const publicationTier = editorialDomains.length > 0 ? 0.5 : 0 // Placeholder; requires domain authority data
+      const publicationTier    = editorialDomains.length > 0 ? 0.5 : 0 // Placeholder; requires domain authority data
 
       // 35% editorial + 30% brand absence + 20% competitor + 15% tier
-      const score = (0.35 * editorialCitationDensity + 0.30 * brandAbsence + 0.20 * competitorPresence + 0.15 * publicationTier) * 100
+      const score = (0.35 * editorialCitationDensity01 + 0.30 * brandAbsence + 0.20 * competitorPresence + 0.15 * publicationTier) * 100
 
       return {
         cluster,
@@ -156,7 +187,7 @@ function computeOpportunityRows(
         avgSov,
         avgPosition: posPrompts.length > 0 ? posPrompts.reduce((s, p) => s + p.position, 0) / posPrompts.length : 0,
         activeLLMs: new Set(prompts.flatMap(p => p.sources)).size,
-        editorialCitationDensity: editorialCitationDensity * 100,
+        editorialCitationDensity: editorialCitationDensityPct,
         brandCitationRate: avgVisibility,
         competitorPresence: competitorPresence * 100,
         opportunityScore: score,
@@ -328,7 +359,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // Build opportunity rows (Section E)
   const opportunityRows = data
-    ? computeOpportunityRows(data.trackedPrompts, editorialDomains)
+    ? computeOpportunityRows(data.trackedPrompts, editorialDomains, data.topDomains ?? [], coverage)
     : []
 
   // Brand-absent editorial domains (Section D)
