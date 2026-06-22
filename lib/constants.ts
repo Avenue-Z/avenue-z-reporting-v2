@@ -57,6 +57,7 @@ export const REPORT_NAMES: Record<string, string> = {
   'email-marketing': 'Email Marketing',
   'blended-performance': 'Blended Performance',
   'linkedin-ads': 'LinkedIn Advertising',
+  'paid-media': 'Paid Media',
   'snapchat-ads': 'Snapchat Ads',
   'tiktok-ads': 'TikTok Ads',
   'shopify-performance': 'Shopify Performance',
@@ -88,7 +89,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
     label: 'Reports',
     // peec-ai renders as the "Answer Engine Optimization" expandable group;
     // profound-ai and google-search-console are handled as Soon sub-items inside their parents.
-    slugs: ['peec-ai', 'ga4', 'meta-ads', 'google-ads', 'inbound-funnel', 'hubspot-performance'],
+    slugs: ['peec-ai', 'ga4', 'paid-media', 'inbound-funnel', 'hubspot-performance'],
   },
   {
     label: 'Tools',
@@ -111,6 +112,13 @@ export const GA4_SUBSECTIONS: { id: string | null; label: string; comingSoon?: b
   { id: 'search-console',     label: 'Search Console' },
 ]
 
+/** Sub-items shown under the Paid Media parent nav item */
+export const PAID_MEDIA_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
+  { id: null,       label: 'Paid Search'          },
+  { id: 'meta',     label: 'Meta Advertising'     },
+  { id: 'linkedin', label: 'LinkedIn Advertising' },
+]
+
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */
 export const SOON_REPORT_SLUGS = new Set<string>([])
 
@@ -119,6 +127,7 @@ export const ALL_REPORT_SLUGS: string[] = [
   'demand-overview',
   'peec-ai',
   'ga4',
+  'paid-media',
   'inbound-funnel',
   'hubspot-performance',
   'request-a-report',

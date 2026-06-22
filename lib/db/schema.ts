@@ -11,6 +11,7 @@ export type ReportSlug =
   | 'email-marketing'
   | 'blended-performance'
   | 'linkedin-ads'
+  | 'paid-media'
   | 'snapchat-ads'
   | 'tiktok-ads'
   | 'shopify-performance'
