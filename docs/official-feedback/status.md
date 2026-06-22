@@ -19,11 +19,13 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** `official-feedback-pr-influence-tab`
-- **HEAD:** `30465fd`
-- **PR:** [#52 — AEO PR Influence tab: official feedback (FB-009+)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — OPEN + DRAFT
-- **Base:** `main` (currently `8aa61a8`)
-- **Status:** mid-batch on PR Influence. FB-009 (synopsis + KPI strip removal), FB-010 (Sentiment Insights), FB-011 (Sentiment placement correction), FB-012 (reduce Top Editorial + Prompt Cluster bar chart + side-by-side + Matchback drops below + methodology block removed), FB-013 (per-cluster editorialCitationDensity fix), FB-014 (Top Editorial Opportunities retitle + redesign, Next Pitch deleted), FB-015 (Matchback removed for structural 1:1 with Tina's 5-section mockup) all shipped to this branch. Awaiting Tina's next ask or her sign-off. Next FB ID is **FB-016**.
+- **Branch:** `official-feedback-pr-influence-tab` (kept alive for any quick PR Influence iteration; main PR Influence batch is shipped and merged)
+- **HEAD:** `a59eef9` (+2 commits beyond the last main-merge: the two scorecard doc commits e2b56f5 + a59eef9, sitting on the branch ready for an optional docs PR)
+- **PRs merged from this branch:**
+  - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22 (merge commit `cc4ed7d`)
+  - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22 (merge commit `94ebf5c`)
+- **Base:** `main` (currently `7919044` — includes Paul's PR #57 Renaissance dashboard)
+- **Status:** PR Influence batch FULLY SHIPPED to prod. Tina is now actively QA-ing both Overview + PR Influence and sending iterative feedback. New feedback as of 2026-06-22: **Tina flagged that "Which prompts are AI engines answering with our brand?" chart at the bottom of the Overview tab needs to be removed.** She clarified the governing principle: *"if it's not in the recommended layout, then it's gone."* See **Working rule #11** below. Next FB ID is **FB-020**.
 
 ## Per-tab workflow going forward
 
@@ -34,7 +36,9 @@ One branch + one PR per AEO sub-tab.
 | Overview | `official-feedback-overview-tab` | [#50](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50) | MERGED |
 | Vis-bar fix (Overview hotfix) | `fix/llm-visibility-bar-scale` | [#53](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/53) | MERGED |
 | FB-006 sandbox (Overview hotfix) | `fix/sandbox-avenue-z-static-content` | [#54](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/54) | MERGED |
-| **PR Influence** | **`official-feedback-pr-influence-tab`** | **[#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52)** | **OPEN + DRAFT** |
+| PR Influence (initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
+| PR Influence (FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
+| **Overview iteration (incoming, Tina active)** | `iter/overview-recommended-layout` (to cut from main) | (future) | **PENDING — Tina actively sending** |
 | Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
@@ -66,7 +70,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-020.**
 | **FB-016** | PR Influence | this branch (PR #52) | `4215718` | Visual fix: tooltip on Prompt Clusters bar chart showed "Citation Share : X.X%" in unreadable near-black. Recharts <Tooltip> has separate `labelStyle` + `itemStyle` props beyond `contentStyle`; default itemStyle was rgb(51,51,51). Added explicit white labelStyle + itemStyle. |
 | **FB-017** | PR Influence | this branch (PR #52) | `75db637` | Sentiment Insights right column relabeled from "Weaknesses" to "Negative Themes" to match Tina's literal layout spec ("Positive Themes & Negative Themes side-by-side"). FB-010 had used "Weaknesses" because the underlying content was framed that way. One-line label + copy fix; data/state/behavior unchanged. |
 | **FB-018** | PR Influence | this branch (PR #52) | `30465fd` | Copy correction: Sentiment Insights column intros said "Tap a theme..." but Tina's literal spec said "click on a theme." One-word fix, both columns. |
-| **FB-019** | PR Influence | this branch (follow-up PR needed) | `ff14652` | Post-merge layout polish. Tightened Prompt Clusters chart height + thickened bars so the side-by-side cards end flush with no dead space, and bars look less anemic. Two-line tweak inside `PromptClusterOpportunityMatrix`. |
+| **FB-019** | PR Influence | merged via [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | `ff14652` | Post-merge layout polish. Tightened Prompt Clusters chart height + thickened bars so the side-by-side cards end flush with no dead space, and bars look less anemic. Two-line tweak inside `PromptClusterOpportunityMatrix`. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
@@ -84,6 +88,7 @@ Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA 
 8. **Glean Chat API only** for any LLM inference. See `lib/glean.ts` `gleanChat()` for the canonical pattern.
 9. **Universal across clients for design / layout / UX.** Per-client conditionals ONLY for the Avenue Z sandbox gate on static content.
 10. **Sandbox to Avenue Z** when content is hardcoded Avenue Z data. `const SANDBOX_CLIENT_SLUG = 'avenue-z'` + `if (clientSlug !== SANDBOX_CLIENT_SLUG) return null` at the top of the component. Pass `clientSlug` down from the parent.
+11. **Recommended layout = full spec.** *(Added 2026-06-22, confirmed by Tina.)* When Tina sends a "Recommended layout" mockup for a tab, treat it as the COMPLETE spec, not as a list of edits. Anything currently rendering on the tab that is NOT in her recommended layout gets removed by default. This applies retroactively too: when iterating on a tab, audit any section still rendering against her latest layout sketch and remove what is not there. Confirmed by Tina when she flagged "Which prompts are AI engines answering with our brand?" on the Overview tab — she said: "It seems like the guiding principle for this exercise is if it's not in the recommended layout, then it's gone." We applied this on PR Influence (FB-015 removed Matchback for exactly this reason). We did NOT apply it retroactively to Overview, hence the tracked-prompts chart still being there.
 
 ---
 
