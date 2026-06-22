@@ -38,7 +38,7 @@ One branch + one PR per AEO sub-tab.
 | Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-017.**
+FB IDs continue sequentially across all branches. **Next ID is FB-018.**
 
 ---
 
@@ -64,6 +64,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-017.**
 | **FB-014** | PR Influence | this branch (PR #52) | `293599c` | Brand-Absent table retitled "Top Editorial Opportunities" with Tina's new title + subtitle. 5-column shape: Publication, Article (combined title + URL hyperlink), Competitors Mentioned, Citation Share, Delta of Citation Share. Filter: brand-not-mentioned (or no data) AND positive citation-share delta. Removed: 3 columns (Brand Mentioned, Opportunity Priority, Suggested PR Angle), footnote, isDemo prop. Deleted entire NextPitchOpportunitiesTable component + Sparkles wrapper + nextPitchRows compute (Tina REMOVE "Where should we pitch next..."). Methodology block REMOVE already shipped in FB-012. Matchback kept in place (Tina did not list it as a removal). Universal change. |
 | **FB-015** | PR Influence | this branch (PR #52) | `81b2277` | Close FB-014 open risk #1. Removed PR Placement Matchback render + component to match Tina's 5-section recommended layout (consistently omitted across FB-011, FB-012, FB-014). Final tab order: Synopsis → Sentiment → [Top Editorial + Prompt Clusters side-by-side] → Top Editorial Opportunities. buildMatchback / placementsCitedByAI compute kept for synopsis context. |
 | **FB-016** | PR Influence | this branch (PR #52) | `4215718` | Visual fix: tooltip on Prompt Clusters bar chart showed "Citation Share : X.X%" in unreadable near-black. Recharts <Tooltip> has separate `labelStyle` + `itemStyle` props beyond `contentStyle`; default itemStyle was rgb(51,51,51). Added explicit white labelStyle + itemStyle. |
+| **FB-017** | PR Influence | this branch (PR #52) | `(pending)` | Sentiment Insights right column relabeled from "Weaknesses" to "Negative Themes" to match Tina's literal layout spec ("Positive Themes & Negative Themes side-by-side"). FB-010 had used "Weaknesses" because the underlying content was framed that way. One-line label + copy fix; data/state/behavior unchanged. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 

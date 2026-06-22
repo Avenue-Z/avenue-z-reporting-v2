@@ -16,6 +16,43 @@ _(none)_
 
 ## Closed
 
+### FB-017 — Rename Sentiment Insights "Weaknesses" → "Negative Themes"
+
+- **Status:** done
+- **Source:** Thomas final audit. Tina's literal spec ("Positive Themes & Negative Themes side-by-side") was flagged by me in the post-FB-015 honest-review note as the one label discrepancy. Thomas confirmed the audit needed to be exact.
+- **Author:** Tina (literal text) / Claude (label correction)
+- **Type:** label correction
+- **Scope:** `components/report-sections/peec-ai/sentiment-insights.tsx`. Lineage: correction to FB-010 label.
+
+#### Why this wasn't done in FB-010
+
+FB-010 used "Weaknesses" because Tina's underlying CONTENT for the right column was framed that way (Unclear Answer Engine Methodology, Unproven Answer Engine Impact — gaps, not negatives per se). Her LAYOUT spec however said "Negative Themes." FB-010 chose the data-side label; this corrects to the layout-side label per Tina's literal text.
+
+#### What changed
+
+- `<h4>Weaknesses</h4>` → `<h4>Negative Themes</h4>`
+- "Tap a weakness to see the explanation." → "Tap a theme to see the explanation."
+- Comment "// Side-by-side: Positive Themes (left), Weaknesses (right)" → "Negative Themes (right)"
+
+The underlying data array (`WEAKNESSES` const), state (`openWeak`, `toggleWeak`), and behavior are untouched. Only user-visible copy changed.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/sentiment-insights.tsx` | h4 label + intro paragraph copy + top-of-file comment. No logic / state / data changes. |
+
+#### Verification
+
+- TypeScript compilation: clean.
+- Avenue Z sandbox gate unchanged: still `clientSlug !== 'avenue-z' → return null`.
+
+#### Open risks
+
+- None.
+
+---
+
 ### FB-016 — Fix unreadable tooltip text on the Prompt Clusters bar chart
 
 - **Status:** done
