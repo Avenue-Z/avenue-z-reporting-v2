@@ -67,6 +67,10 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
       return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'paid-media':
+      if (subsection === 'meta')     return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'linkedin') return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'snapchat-ads':
       return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
@@ -101,6 +105,11 @@ const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
   'pacing': 'Pacing',
 }
 
+const PAID_MEDIA_SUBSECTION_NAMES: Record<string, string> = {
+  'meta':     'Meta Advertising',
+  'linkedin': 'LinkedIn Advertising',
+}
+
 export default async function PortalReportPage({
   params,
   searchParams,
@@ -129,12 +138,19 @@ export default async function PortalReportPage({
       ? GA4_SUBSECTION_NAMES[subsection]
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'paid-media' && subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection])
+      ? PAID_MEDIA_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
     <>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
         {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
+        {activeSection === 'paid-media' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
