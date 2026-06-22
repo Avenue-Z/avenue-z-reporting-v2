@@ -26,6 +26,7 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
   - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22 (merge commit `94ebf5c`)
 - **Base:** `main` (currently `7919044` — includes Paul's PR #57 Renaissance dashboard)
 - **Status:** PR Influence batch FULLY SHIPPED to prod. Tina is now actively QA-ing both Overview + PR Influence and sending iterative feedback. New feedback as of 2026-06-22: **Tina flagged that "Which prompts are AI engines answering with our brand?" chart at the bottom of the Overview tab needs to be removed.** She clarified the governing principle: *"if it's not in the recommended layout, then it's gone."* See **Working rule #11** below. Next FB ID is **FB-020**.
+- **Overview tab CSV received 2026-06-22.** Full surgical sweep done, read-only. Plan saved in [plan-fb-020-overview-iteration.md](plan-fb-020-overview-iteration.md). Four asks: FB-020-a (drop subtitle), FB-020-b (truly YTD chart + drop "Tracking began"), FB-020-c (remove tracked-prompts chart), FB-021 (Winners/Losers live data — separate PR). **Holding implementation** until Tina sends Content Impact + Technical Performance feedback so we sequence all tabs at once.
 
 ## Per-tab workflow going forward
 
