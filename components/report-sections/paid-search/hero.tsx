@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { ComboChart } from '@/components/charts/combo-chart'
 import { CHART_COLORS } from '@/lib/constants'
+import { usd, num } from '@/lib/supermetrics/format'
 import type { HeroPoint } from '@/lib/paid-search/types'
 
 const METRICS = [
@@ -33,6 +34,8 @@ export function Hero({ points }: { points: HeroPoint[] }) {
       <ComboChart
         data={points}
         xKey="week"
+        xFormatter={(w) => `Wk ${Number(w)}`}
+        valueFormatter={metric === 'cost' ? usd : num}
         bar={{
           key: metric,
           color: CHART_COLORS.googleAds,

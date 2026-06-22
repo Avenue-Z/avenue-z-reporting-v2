@@ -35,7 +35,8 @@ export function transformMetaKpis(
       value: n(totals, 'inline_link_clicks'),
       delta: d('inline_link_clicks'),
     },
-    { key: 'ctr', label: 'CTR', value: +n(totals, 'CTR').toFixed(1), suffix: '%', delta: d('CTR') },
+    // Meta returns CTR as a 0-1 fraction — scale to percent.
+    { key: 'ctr', label: 'CTR', value: +(n(totals, 'CTR') * 100).toFixed(1), suffix: '%', delta: d('CTR') },
     { key: 'cpm', label: 'CPM', value: +n(totals, 'CPM').toFixed(2), prefix: '$', delta: d('CPM') },
     { key: 'cpc', label: 'CPC', value: +n(totals, 'CPC').toFixed(2), prefix: '$', delta: d('CPC') },
     {

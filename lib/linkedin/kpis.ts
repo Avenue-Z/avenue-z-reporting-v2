@@ -27,7 +27,8 @@ export function transformLinkedInKpis(
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
     { key: 'reach', label: 'Reach', value: n(totals, 'approximateUniqueImpressions'), delta: d('approximateUniqueImpressions') },
     { key: 'clicks', label: 'Clicks', value: n(totals, 'clicks'), delta: d('clicks') },
-    { key: 'ctr', label: 'CTR', value: +n(totals, 'ctr').toFixed(2), suffix: '%', delta: d('ctr') },
+    // LinkedIn returns ctr / leadFormCompletionRate as 0-1 fractions — scale to percent.
+    { key: 'ctr', label: 'CTR', value: +(n(totals, 'ctr') * 100).toFixed(2), suffix: '%', delta: d('ctr') },
     { key: 'cpm', label: 'CPM', value: +n(totals, 'cpm').toFixed(2), prefix: '$', delta: d('cpm') },
     { key: 'cpc', label: 'CPC', value: +n(totals, 'cpc').toFixed(2), prefix: '$', delta: d('cpc') },
     {
@@ -48,7 +49,7 @@ export function transformLinkedInKpis(
     { key: 'leads', label: 'Leads', value: n(totals, 'oneClickLeads'), delta: d('oneClickLeads') },
     { key: 'costPerLead', label: 'Cost / Lead', value: +n(totals, 'oneClickLeadsCost').toFixed(2), prefix: '$', delta: d('oneClickLeadsCost') },
     { key: 'leadFormOpens', label: 'Lead Form Opens', value: n(totals, 'oneClickLeadFormOpens'), delta: d('oneClickLeadFormOpens') },
-    { key: 'leadFormCompletionRate', label: 'Lead Form Completion Rate', value: +n(totals, 'leadFormCompletionRate').toFixed(1), suffix: '%', delta: d('leadFormCompletionRate') },
+    { key: 'leadFormCompletionRate', label: 'Lead Form Completion Rate', value: +(n(totals, 'leadFormCompletionRate') * 100).toFixed(1), suffix: '%', delta: d('leadFormCompletionRate') },
   ]
 }
 

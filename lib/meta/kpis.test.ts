@@ -7,7 +7,7 @@ const totals = {
   reach: '120000',
   Frequency: '1.67',
   inline_link_clicks: '3400',
-  CTR: '1.7',
+  CTR: '0.017',
   CPM: '25',
   CPC: '1.47',
   landing_page_views: '2600',
@@ -21,4 +21,6 @@ assert.equal(k.find((c) => c.key === 'spend')!.value, 5000)
 assert.equal(k.find((c) => c.key === 'reach')!.value, 120000)
 // Engagement Rate derived = 8000 / 200000 * 100 = 4.0
 assert.equal(k.find((c) => c.key === 'engRate')!.value, 4)
+// CTR comes as a 0-1 fraction (0.017) and must render as percent (1.7)
+assert.equal(k.find((c) => c.key === 'ctr')!.value, 1.7)
 console.log('ok')
