@@ -266,7 +266,11 @@ export function PromptClusterOpportunityMatrix({
       topic: r.cluster,
       value: Number(r.editorialCitationDensity.toFixed(1)),
     }))
-  const chartHeight = Math.max(220, chartData.length * 34 + 40)
+  // FB-019: tighter per-row spacing (24 vs 34) so this card matches the height
+  // of the Top Editorial Domains card in the side-by-side wrapper, and an
+  // explicit barSize so individual bars stay visually prominent even at the
+  // tighter spacing (Tina/Thomas: "less anemic").
+  const chartHeight = Math.max(200, chartData.length * 24 + 36)
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
@@ -281,7 +285,7 @@ export function PromptClusterOpportunityMatrix({
             data={chartData}
             layout="vertical"
             margin={{ top: 4, right: 24, bottom: 4, left: 8 }}
-            barCategoryGap={8}
+            barCategoryGap={4}
           >
             <XAxis
               type="number"
@@ -311,7 +315,7 @@ export function PromptClusterOpportunityMatrix({
               itemStyle={{ color: '#FFFFFF' }}
               formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)}%`, 'Citation Share']}
             />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+            <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]}>
               {chartData.map((d) => (
                 <Cell key={d.topic} fill="#39A0FF" />
               ))}
