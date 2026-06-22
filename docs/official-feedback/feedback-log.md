@@ -16,6 +16,62 @@ _(none)_
 
 ## Closed
 
+### FB-019 — Match Prompt Clusters chart height to Top Editorial Domains card (fix dead space + thin bars)
+
+- **Status:** done
+- **Source:** Thomas after the merge: "can we match these perfectly so theres no dead space between them and also make the which prompt clusters table look less anemic? ... we shrink the which prompt clusters one to match the which editorial domains table and itll make it look less anemic too."
+- **Author:** Thomas (flagged) / Claude (visual polish)
+- **Type:** layout polish
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` `PromptClusterOpportunityMatrix` only. Lineage: builds on FB-012 (chart creation) + FB-015 (side-by-side layout).
+
+#### Root cause
+
+The side-by-side wrapper at `pr-influence.tsx:525` is `grid lg:grid-cols-2` which defaults to `align-items: stretch` — both cards equalize to the taller card's height. The Prompt Clusters chart was the taller card because its `chartHeight` formula was `Math.max(220, length * 34 + 40)` → for 11 clusters = 414px chart → ~570px card. The Top Editorial Domains card with 5 rows naturally renders ~470px, so it had to stretch ~100px, producing the visible dead space below the table.
+
+Separately, the auto-sized bars at ~38px-per-row category bands looked thin and "anemic" against the wide chart.
+
+#### Fix
+
+Two changes to `PromptClusterOpportunityMatrix`:
+
+1. **Tighten per-row spacing** in `chartHeight`: `Math.max(220, length * 34 + 40)` → `Math.max(200, length * 24 + 36)`. For 11 clusters, chart drops from 414px to 300px (~25% reduction). Card total now lands ~470px — matches the editorial-domains card's natural height, so the grid stretch no longer leaves dead space on either side.
+2. **Explicit bar thickness**: added `barSize={14}` to the `<Bar>` element. Previously the bar thickness was auto-derived from band width; with the tighter spacing, auto-bars would have gotten even thinner. The explicit `14px` keeps bars visually prominent regardless of how many clusters there are.
+3. **Tighter `barCategoryGap`**: `8` → `4` so the explicit barSize doesn't fight gap whitespace.
+
+#### What was unambiguous
+
+- Cards in `lg:grid-cols-2` stretch to equal height; the taller card sets the floor.
+- Shrinking the chart shrinks the right card; the left card collapses to its natural content height.
+- `barSize` on `<Bar>` overrides auto-sizing and is the canonical Recharts knob for bar thickness in vertical (= horizontal) layouts.
+
+#### What was inferred
+
+- The exact `chartHeight` formula: I picked `length * 24 + 36` (vs other plausible values) by estimating the Top Editorial Domains card height from screenshot proportions (~470px). If the editorial card is in fact taller or shorter on a given client (different row counts), heights will drift by a few px but the cards still end up close. This is a layout heuristic, not a load-bearing calculation.
+- Bar size 14 px: chosen as visually substantial without being chunky. Editorial card bars are 16px tall (`h-4 w-24` div) — keeping the cluster bars in the same visual register.
+
+#### What was explicitly out of scope
+
+- The horizontal scrollbar at the bottom of the Top Editorial Domains card (SortableTable's internal `overflow-x`). Cosmetic, separate concern. Flagged but not fixed here.
+- The actual data values driving bar lengths (FB-013's per-cluster calc). The percentages are real; the cosmetic fix doesn't change the math.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | `PromptClusterOpportunityMatrix`: `chartHeight` formula tightened, `barCategoryGap` reduced to 4, `<Bar>` got explicit `barSize={14}`. |
+
+#### Verification
+
+- TypeScript clean.
+- Math: 11 clusters × 24 + 36 = 300 px chart; card chrome ~170 px; total ~470 px. Matches editorial card's natural height.
+
+#### Open risks
+
+1. **Clients with very different cluster counts** will shift heights proportionally. With 6 clusters, chart = 180 px floor (still matches the floor). With 20 clusters, chart = 516 px and the editorial card has to stretch instead — but at that point the editorial card likely has more rows too, so heights co-scale.
+2. **The Top Editorial Domains card's horizontal scrollbar** still shows when content overflows the half-width card. Untouched here.
+
+---
+
 ### FB-018 — "Tap a theme" → "Click a theme" (Tina's literal verb)
 
 - **Status:** done
