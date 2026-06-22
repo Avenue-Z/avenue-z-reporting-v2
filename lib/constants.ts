@@ -56,7 +56,7 @@ export const REPORT_NAMES: Record<string, string> = {
   'google-ads': 'Paid Search',
   'email-marketing': 'Email Marketing',
   'blended-performance': 'Blended Performance',
-  'linkedin-ads': 'LinkedIn Ads',
+  'linkedin-ads': 'LinkedIn Advertising',
   'snapchat-ads': 'Snapchat Ads',
   'tiktok-ads': 'TikTok Ads',
   'shopify-performance': 'Shopify Performance',
