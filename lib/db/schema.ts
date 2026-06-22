@@ -55,6 +55,11 @@ export interface MetaConfig {
   metaAdAccountId: string
 }
 
+export interface LinkedInConfig {
+  /** LinkedIn ad account id, digits only, e.g. '503368877'. */
+  linkedinAdAccountId: string
+}
+
 /**
  * Per-client column layout for the PR Proof Library Google Sheet.
  *
@@ -113,6 +118,7 @@ export const clients = pgTable('clients', {
   smApiKeyEnvVar: text('sm_api_key_env_var'),
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
   metaConfig: jsonb('meta_config').$type<MetaConfig>(),
+  linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
