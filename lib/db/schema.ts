@@ -50,6 +50,11 @@ export interface PaidSearchConfig {
   leadActions: Array<{ name: string; category: LeadCategory }>
 }
 
+export interface MetaConfig {
+  /** Meta ad account id incl. the act_ prefix, e.g. 'act_1480350426850960'. */
+  metaAdAccountId: string
+}
+
 /**
  * Per-client column layout for the PR Proof Library Google Sheet.
  *
@@ -107,6 +112,7 @@ export const clients = pgTable('clients', {
   prConfig: jsonb('pr_config').$type<PRConfig>(),
   smApiKeyEnvVar: text('sm_api_key_env_var'),
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
+  metaConfig: jsonb('meta_config').$type<MetaConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
