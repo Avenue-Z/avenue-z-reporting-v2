@@ -2,6 +2,7 @@ import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { CHART_COLORS } from '@/lib/constants'
 import type { MetaGeoRow } from '@/lib/meta/types'
+import { usd } from '@/lib/supermetrics/format'
 
 export function MetaGeoSection({ rows }: { rows: MetaGeoRow[] }) {
   const top10 = rows.slice(0, 10)
@@ -27,7 +28,7 @@ export function MetaGeoSection({ rows }: { rows: MetaGeoRow[] }) {
         />
         <KpiCard
           title="Spend (Top Region)"
-          value={topRegion ? `$${topRegion.spend.toLocaleString()}` : '—'}
+          value={topRegion ? usd(topRegion.spend) : '—'}
         />
         <KpiCard
           title="Total Regions"
