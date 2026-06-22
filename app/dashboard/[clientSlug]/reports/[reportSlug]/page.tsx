@@ -51,7 +51,7 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
     case 'blended-performance':
       return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} />
+      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'snapchat-ads':
       return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
