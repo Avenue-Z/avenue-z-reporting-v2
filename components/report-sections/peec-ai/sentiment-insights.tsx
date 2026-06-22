@@ -195,7 +195,7 @@ export function SentimentInsights({ clientSlug }: { clientSlug?: string }) {
         <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
           <h4 className="mb-1 text-base font-bold text-white">Positive Themes</h4>
           <p className="mb-3 text-xs text-text-muted">
-            What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand. Tap a theme to see the citing sources.
+            What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand. Click a theme to see the citing sources.
           </p>
           <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
             {POSITIVE_THEMES.map((theme, i) => (
@@ -232,7 +232,7 @@ export function SentimentInsights({ clientSlug }: { clientSlug?: string }) {
         <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
           <h4 className="mb-1 text-base font-bold text-white">Negative Themes</h4>
           <p className="mb-3 text-xs text-text-muted">
-            What AI-cited sources flag as <span className="font-bold text-white">gaps</span>. Tap a theme to see the explanation.
+            What AI-cited sources flag as <span className="font-bold text-white">gaps</span>. Click a theme to see the explanation.
           </p>
           <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
             {WEAKNESSES.map((w, i) => (

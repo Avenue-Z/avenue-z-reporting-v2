@@ -16,6 +16,25 @@ _(none)_
 
 ## Closed
 
+### FB-018 — "Tap a theme" → "Click a theme" (Tina's literal verb)
+
+- **Status:** done
+- **Source:** Thomas final-audit insistence on 1:1. Tina's spec: "When you **click** on a theme, it opens an accordion." Code said "Tap a theme."
+- **Author:** Tina (literal text) / Claude (verb correction)
+- **Type:** copy correction (one word)
+- **Scope:** `components/report-sections/peec-ai/sentiment-insights.tsx`. Two instances (Positive Themes intro + Negative Themes intro). Lineage: correction to FB-010 copy.
+
+#### What changed
+
+`Tap a theme` → `Click a theme` (replace_all, both column-intro paragraphs).
+
+#### Verification
+
+- TypeScript clean.
+- Avenue Z sandbox gate unchanged.
+
+---
+
 ### FB-017 — Rename Sentiment Insights "Weaknesses" → "Negative Themes"
 
 - **Status:** done
