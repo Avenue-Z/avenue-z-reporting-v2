@@ -19,7 +19,7 @@ built.
 |---|---|---|---|
 | 1 | **Paid Search Advertising** | ✅ Built, reviewed, live-validated | Google Ads `AW` · acct `4136001852` |
 | 2 | **Meta Advertising** | ✅ Built, reviewed | Facebook Ads `FA` · acct `act_1480350426850960` |
-| 3 | **LinkedIn Advertising** | 🟡 Spec'd (below), not built | LinkedIn Ads `LIA` · acct `503368877` |
+| 3 | **LinkedIn Advertising** | ✅ Built (PR #57) | LinkedIn Ads `LIA` · acct `503368877` |
 | 4 | **Organic Social + Influencer** | 🟡 Spec'd (below), not built | **Dash Social (net-new connector)** |
 
 All ad-platform connectors are authenticated under the Avenue Z Supermetrics
@@ -101,7 +101,9 @@ account; all three ad accounts are confirmed connected. The shared enterprise ke
 - **Config:** `meta_config { metaAdAccountId }`; migration `0008`.
 - **Acceptance:** 3 sections; 12 KPIs w/ deltas; creative sortable w/ Share of Spend + Status; state geo; date-driven; config-driven.
 
-## 3 — LinkedIn Advertising 🟡 spec'd, not built
+## 3 — LinkedIn Advertising ✅ built
+
+**Spec:** `docs/superpowers/specs/2026-06-22-renaissance-linkedin-ads-design.md` · **Plan:** `…/plans/2026-06-22-renaissance-linkedin-ads.md` · **Built on `feat/renaissance-dashboard` (PR #57).** Mirrors Meta: KPI Scorecards (14, incl. derived Frequency & Cost/Visit) · Creative Performance (Ad/Audience=`campaignName`/Campaign=`campaignGroupName` + Share of Spend + totals row) · Geographic (`memberRegion`). **Report-type note corrected:** `LIA` is `has_report_type_selection:false` (like AW/FA) — report type `1` covers every field, so each section is a single query (no join needed).
 
 - **Purpose:** B2B channel — audience targeting, website traffic, lead gen (broker/HR/broad B2B), higher-intent engagement.
 - **Data source (validated):** Supermetrics LinkedIn Ads `LIA`, Renaissance account **`503368877`** ("Renaissance Life and Health Ads Account"), shared key. **Note:** LinkedIn fields use report types (`ad_analytics`, `ad_form`, `ad_statistics`, …); lead-form metrics live in report types `0,1,5` — the data layer must select the right report type (unlike AW/FA which had `has_report_type_selection:false`). Pin this during the plan.
