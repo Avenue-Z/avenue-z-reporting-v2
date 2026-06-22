@@ -104,6 +104,7 @@ These are the rules Thomas confirmed across this workstream. Do not deviate.
 
 ## What's known pending from Tina
 
+- **Overview tab CSV received 2026-06-22.** Full surgical sweep complete, no code touched. **Read [plan-fb-020-overview-iteration.md](plan-fb-020-overview-iteration.md) before starting any work** — it has exact file:line targets, risk levels, and two open decisions for Thomas. Items planned: FB-020-a (drop subtitle), FB-020-b (truly YTD chart + drop "Tracking began"), FB-020-c (remove tracked-prompts chart), FB-021 (Winners/Losers live data — separate PR). **Holding implementation** until Tina sends Content Impact + Technical Performance feedback so we sequence all tabs at once.
 - **Overview tab iteration** (Tina actively sending). First known ask:
   - REMOVE "Which prompts are AI engines answering with our brand?" chart at the bottom of Overview.
   - **Apply Rule #11 retroactively** when she finishes sending — audit every section currently rendering on the Overview tab against her latest recommended layout (from the FB-002 doc + any new layout she sends) and propose removals for anything not in it. Sections currently on Overview that may or may not be in her recommended layout:
