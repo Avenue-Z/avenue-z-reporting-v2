@@ -16,6 +16,100 @@ _(none)_
 
 ## Closed
 
+### FB-014 — Top Editorial Opportunities (retitled + redesigned Brand-Absent table) + remove Next Pitch Opportunities section
+
+- **Status:** done
+- **Source:** Tina (Google doc, Jun 17 batch: 8:42 / 8:59 / 9:04 / 9:12 AM). Thomas confirmed final tab order in chat: "synopsis to sentiment insights to top editorial domains to which prompt clusters offer the biggest PR opportunity to top editorial opportunities."
+- **Author:** Tina
+- **Type:** redesign + delete
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` + `components/report-sections/peec-ai/pr-influence.tsx`. Universal change (no Avenue Z sandbox gate needed).
+
+#### Verbatim ask (Tina)
+
+> Columns Revision:
+> - Publication
+> - Article (combine article title and hyperlink it with the URL)
+> - Competitors Mentioned
+> - Citation Share
+> - Delta of Citation Share
+
+> Chart Revision:
+> - Only show articles where the brand is not mentioned (or if it has no data so we can check manually)
+> - Only show articles with a positive delta on citation share
+> - Remove the footnote at the bottom of the chart.
+
+> Title Revision
+> Old: Which editorial domains cite our competitors but not us?
+> New: What are the top pitch opportunities for getting our brand mentioned in AI?
+
+> Subtitle Revision
+> Old: High-authority editorial domains that AI tools cite for your tracked prompts, but where your brand has no PR placement. These are the highest-priority pitch targets.
+> New: Prompt-level citations on the rise where your brand is not mentioned, revealing outreach opportunities that may require different strategies depending on the type of article being cited.
+
+> REMOVE: Where should we pitch next to close AI visibility gaps?
+> REMOVE: How is the opportunity score calculated?
+
+#### What was unambiguous
+
+1. The `BrandAbsentEditorialDomainsTable` ([pr-influence-tables.tsx:402+](../../components/report-sections/peec-ai/pr-influence-tables.tsx)) is the target of the Columns / Chart / Title / Subtitle revisions. Tina's old title text matches that table verbatim.
+2. Final column set (in order): Publication, Article (combined title + URL hyperlink), Competitors Mentioned, Citation Share, Delta of Citation Share. Remove: Brand Mentioned, Opportunity Priority, Suggested PR Angle.
+3. New title + new subtitle text.
+4. Filter row set to (brand-not-mentioned OR no-data) AND positive citation-share delta.
+5. Remove the bottom footnote.
+6. The "Where should we pitch next to close AI visibility gaps?" REMOVE targets the `NextPitchOpportunitiesTable` section (Section F). That section is deleted entirely from the page.
+7. The "How is the opportunity score calculated?" REMOVE was already shipped in FB-012; no further action needed.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **"Combine article title and hyperlink it with the URL"** | Single "Article" cell: render the title as a clickable link to the URL. If only one of (title, URL) exists, render that as text or link. If both are missing, render `--`. Cell is `block max-w-[240px] truncate` to keep long titles in the table width. | Most natural read of "combine" — the article title becomes the link text. Title is the readable surface; URL is the action target. Matches standard UX for article-link cells across the codebase (and across the web). |
+| **"brand not mentioned (or if it has no data so we can check manually)"** | Existing `topBrandAbsentUrlByHost` logic at [pr-influence.tsx:339-345](../../components/report-sections/peec-ai/pr-influence.tsx) already filters URLs to `mentionsYourBrand === false`. Rows where no such URL exists keep `articleTitle = null` and `articleUrl = null` so the row renders with `--` in the Article column — visible signal that manual check is needed. No change to that logic. | Already correct. Article fields render gracefully as `--` when topUrl is null. |
+| **"Only show articles with a positive delta on citation share"** | Filter applied at the table-row build step: `brandAbsentRowsFiltered = brandAbsentDomains.filter(d => d.retrievedDelta > 0)`. The unfiltered `brandAbsentDomains` is preserved for the synopsis context (`brandAbsentCount`, `topBrandAbsentDomains`). | Tina's filter is for the visible chart, not the executive synopsis. Synopsis stays globally accurate; table shows only rising opportunities. |
+| **Source field for "Delta of Citation Share"** | `d.retrievedDelta` (already on the `TopDomain` type, populated from Peec API response). Same field FB-012 renders as the up/down arrow next to Citation Share on the Top Editorial Domains table. | Consistent semantics across the tab — one canonical delta source. Reused `<CitationDelta>` component to match visual treatment exactly. |
+| **Existing `Sortable Table` + `SortableColumn` infra** | Reused. Tina did not say "convert to a different visualization"; the word "table" is implicit in "Columns Revision" + "Chart Revision" (she uses "Chart" loosely to mean "this card"). | Lowest-risk read. Matches the visual treatment of the rest of the PR Influence tab. |
+| **Where the `NextPitchOpportunitiesTable` component lives** | Deleted entirely from `pr-influence-tables.tsx` (component + `NextPitchOpportunityRow` type). The `nextPitchRows` + `nextPitchEmptyKind` computation in `pr-influence.tsx` deleted too. | Tina removed the section; no other consumer imports these. Per CLAUDE.md "If you are certain that something is unused, you can delete it completely." Cleaner than leaving dead exports. |
+| **Removed `isDemo` prop on `BrandAbsentEditorialDomainsTable`** | Dropped from the component signature and the call site. | Used only by the deleted footnote. No other use. |
+| **Kept the `PRPlacementMatchbackTable` render** | Stays where it is (between the side-by-side row and Top Editorial Opportunities). | Tina's REMOVE list did NOT include Matchback. Thomas's stated tab order ("synopsis → sentiment → top editorial → prompt clusters → top editorial opportunities") describes the asked-for sections; Matchback isn't named because Tina didn't touch it this batch. Defaulting to keep: do not remove without explicit ask. If Tina or Thomas later say "remove Matchback," it's a single JSX delete. Carried as an open risk below. |
+| **Demo-mode rows** | `brandAbsentRowsFiltered` runs the same `retrievedDelta > 0` filter against the demo `samplePeecOverview()` editorial domains. Demo may render fewer rows than before — acceptable per the FB-013 same-pattern decision. | Filter is universal. Don't bypass for demo. If demo rows look thin, extend the demo fixture (out of scope here). |
+
+#### What was explicitly out of scope
+
+- `PRPlacementMatchbackTable` columns / subtitle / order: untouched.
+- `TopEditorialDomainsTable`: untouched (FB-012 is the source of truth for that card).
+- `PromptClusterOpportunityMatrix`: untouched (FB-012 + FB-013 stand).
+- `<PRInfluenceSynopsis>`: untouched. Synopsis context still uses the unfiltered `brandAbsentDomains` count + top 5 domains so executive prose stays globally accurate.
+- Per-model filter logic: `filterDomainRowsByModel` still applies to `rawBrandAbsentTableRows` (the model filter overlays cleanly on the new shape since the generic only requires `{ domain, citationCount }`). Behavior unchanged.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | `BrandAbsentEditorialDomainRow`: removed `brandMentioned`, `opportunityPriority`, `suggestedAngle`; added `citationCountDelta`. `BrandAbsentEditorialDomainsTable`: new title + subtitle, 5-column set (Publication, Article-combined, Competitors Mentioned, Citation Share, Delta of Citation Share), removed footnote, dropped `isDemo` prop. Deleted: `NextPitchOpportunitiesTable` component + `NextPitchOpportunityRow` interface + `NEXT_PITCH_TOOLTIP` const. |
+| `components/report-sections/peec-ai/pr-influence.tsx` | `rawBrandAbsentTableRows` builder updated: new shape, added `citationCountDelta`, dropped removed fields, filtered to `retrievedDelta > 0` at the build step. Deleted: `nextPitchRows` + `nextPitchEmptyKind` computation block. Deleted: `<NextPitchOpportunitiesTable>` + `<Sparkles>` JSX. Imports cleaned: `Sparkles`, `NextPitchOpportunitiesTable`, `NextPitchOpportunityRow` removed. `<BrandAbsentEditorialDomainsTable>` call site dropped `isDemo` prop. |
+
+#### Scope of impact
+
+- Every AEO client with the PR Influence tab enabled sees: (a) the retitled "Top Editorial Opportunities" card with the new 5-column shape, (b) the rising-delta filter, (c) no Next Pitch section.
+- Synopsis context unaffected.
+- No data fetch changes, no env changes.
+- Diff: -254 / +53 lines net (-201).
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero output).
+- Final tab order: `SectionHeader → PRInfluenceSynopsis → SentimentInsights → [TopEditorialDomainsTable + PromptClusterOpportunityMatrix side-by-side] → PRPlacementMatchbackTable → BrandAbsentEditorialDomainsTable (now "Top Editorial Opportunities") → footer attribution`.
+- Sandbox gates unchanged: still 2 (FB-006 winners-losers + FB-010 sentiment-insights).
+
+#### Open risks (in order of likelihood)
+
+1. **Matchback placement.** Thomas's stated tab order names 5 sections (synopsis → sentiment → top editorial → prompt clusters → top editorial opportunities). Matchback is currently the 4.5th — between the side-by-side and Top Editorial Opportunities. If Tina meant for Matchback to also be removed (her layout sketches have consistently omitted it across FB-011, FB-012, and FB-014), this is a single JSX delete. Carrying as the highest-likelihood next-feedback item.
+2. **"Article" cell width.** `max-w-[240px] truncate` may clip long titles on narrow viewports. Easy single-class tweak if Tina complains.
+3. **Demo rows may render thin.** The new `retrievedDelta > 0` filter applies in demo mode too. If the demo `samplePeecOverview()` fixture has most editorial domains with non-positive deltas, the demo table will look empty. Out of scope to extend the demo fixture here.
+4. **Delta-of-citation-share tooltip copy** is my draft ("Period-over-period change in this domain's citation share. (Peec AI source data.)"). Single-line edit if Tina has preferred copy.
+
+---
+
 ### FB-013 — Fix per-cluster `editorialCitationDensity` (was a single global value; every bar rendered at 100%)
 
 - **Status:** done

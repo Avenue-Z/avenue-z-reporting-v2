@@ -399,77 +399,57 @@ export function TopEditorialDomainsTable({
   )
 }
 
-// ─── 3. Brand-Absent Editorial Domains ───────────────────────────────────────
+// ─── 3. Top Editorial Opportunities (FB-014, retitled from Brand-Absent) ─────
 
 export interface BrandAbsentEditorialDomainRow {
   domain: string
   articleTitle: string | null
   articleUrl: string | null
   citationCount: number
+  citationCountDelta: number
   competitorsMentioned: string | null
-  brandMentioned: boolean // always false in this table by definition
-  opportunityPriority: 'High' | 'Medium' | 'Low'
-  suggestedAngle: string
 }
 
 export function BrandAbsentEditorialDomainsTable({
   rows,
   hasEditorialDomains,
-  isDemo,
 }: {
   rows: BrandAbsentEditorialDomainRow[]
   hasEditorialDomains: boolean
-  isDemo: boolean
 }) {
-  const priorityRank = (p: 'High' | 'Medium' | 'Low') => (p === 'High' ? 3 : p === 'Medium' ? 2 : 1)
-
   const columns: SortableColumn<BrandAbsentEditorialDomainRow>[] = [
     {
       key: 'domain',
-      label: 'Domain',
+      label: 'Publication',
       align: 'left',
       accessor: (r) => r.domain,
       render: (r) => <span className="font-medium text-white">{r.domain}</span>,
     },
     {
       key: 'articleTitle',
-      label: 'Article Title',
+      label: 'Article',
       align: 'left',
       accessor: (r) => r.articleTitle ?? '',
-      render: (r) =>
-        r.articleTitle ? (
-          <span className="text-white/80">{r.articleTitle}</span>
-        ) : (
-          <span className="text-white/20">--</span>
-        ),
-    },
-    {
-      key: 'articleUrl',
-      label: 'URL',
-      align: 'left',
-      accessor: (r) => r.articleUrl ?? '',
-      render: (r) =>
-        r.articleUrl ? (
-          <a
-            href={r.articleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block max-w-[160px] truncate font-mono text-[10px] text-white/40 hover:text-[#39A0FF]"
-            title={r.articleUrl}
-          >
-            {r.articleUrl.replace(/^https?:\/\//, '')}
-          </a>
-        ) : (
-          <span className="text-white/20">--</span>
-        ),
-    },
-    {
-      key: 'citationCount',
-      label: 'Citation Count',
-      align: 'right',
-      tooltip: PEEC.citations.text,
-      accessor: (r) => r.citationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.citationCount.toFixed(1)}%</span>,
+      render: (r) => {
+        if (!r.articleTitle && !r.articleUrl) {
+          return <span className="text-white/20">--</span>
+        }
+        const text = r.articleTitle ?? r.articleUrl!.replace(/^https?:\/\//, '')
+        if (r.articleUrl) {
+          return (
+            <a
+              href={r.articleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block max-w-[240px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
+              title={r.articleTitle ?? r.articleUrl}
+            >
+              {text}
+            </a>
+          )
+        }
+        return <span className="block max-w-[240px] truncate text-white/80" title={text}>{text}</span>
+      },
     },
     {
       key: 'competitorsMentioned',
@@ -486,57 +466,33 @@ export function BrandAbsentEditorialDomainsTable({
         ),
     },
     {
-      key: 'brandMentioned',
-      label: 'Brand Mentioned',
-      align: 'left',
-      tooltip: PEEC.brandVisibility.text,
-      sortable: false,
-      filterable: false,
-      accessor: () => 0,
-      render: () => (
-        <span className="rounded-full bg-[#FF4444]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FF4444]">No</span>
-      ),
+      key: 'citationCount',
+      label: 'Citation Share',
+      align: 'right',
+      tooltip: PEEC.citations.text,
+      accessor: (r) => r.citationCount,
+      render: (r) => <span className="tabular-nums text-white">{r.citationCount.toFixed(1)}%</span>,
     },
     {
-      key: 'opportunityPriority',
-      label: 'Opportunity Priority',
-      align: 'left',
-      tooltip: PR_PROOF.opportunityScore.text,
-      accessor: (r) => priorityRank(r.opportunityPriority),
-      render: (r) => {
-        const color =
-          r.opportunityPriority === 'High'
-            ? 'bg-[#FF4444]/10 text-[#FF4444]'
-            : r.opportunityPriority === 'Medium'
-              ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
-              : 'bg-white/[0.06] text-white/40'
-        return (
-          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', color)}>
-            {r.opportunityPriority}
-          </span>
-        )
-      },
-    },
-    {
-      key: 'suggestedAngle',
-      label: 'Suggested PR Angle',
-      align: 'left',
-      tooltip: 'Suggested narrative for an Avenue Z pitch to this outlet. (Avenue Z internal.)',
-      accessor: (r) => r.suggestedAngle,
-      render: (r) => <span className="text-[11px] text-white/40">{r.suggestedAngle}</span>,
+      key: 'citationCountDelta',
+      label: 'Delta of Citation Share',
+      align: 'right',
+      tooltip: 'Period-over-period change in this domain\'s citation share. (Peec AI source data.)',
+      accessor: (r) => r.citationCountDelta,
+      render: (r) => <CitationDelta value={r.citationCountDelta} />,
     },
   ]
 
   const emptyMessage = !hasEditorialDomains
     ? 'No editorial domain data available from Peec AI'
-    : 'All editorial domains have PR placements. Great coverage!'
+    : 'No brand-absent editorial domains with a positive citation share delta in this period.'
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
       <SectionHeading
-        title="Which editorial domains cite our competitors but not us?"
+        title="What are the top pitch opportunities for getting our brand mentioned in AI?"
         tooltip={PEEC.sourceMetrics.text}
-        subtitle="High-authority editorial domains that AI tools cite for your tracked prompts, but where your brand has no PR placement. These are the highest-priority pitch targets."
+        subtitle="Prompt-level citations on the rise where your brand is not mentioned, revealing outreach opportunities that may require different strategies depending on the type of article being cited."
       />
       <SortableTable
         columns={columns}
@@ -545,12 +501,6 @@ export function BrandAbsentEditorialDomainsTable({
         initialPageSize={20}
         emptyMessage={emptyMessage}
       />
-      {!isDemo && rows.length > 0 && (
-        <p className="mt-4 text-[10px] text-text-muted">
-          Article Title, URL, and Competitors Mentioned show the top brand-absent URL cited on each domain (Peec AI,
-          per-URL). Citation Count shown as retrieved frequency %.
-        </p>
-      )}
     </div>
   )
 }
@@ -642,118 +592,3 @@ export function PromptClusterOpportunityMatrix({
   )
 }
 
-// ─── 5. Next Pitch Opportunities ─────────────────────────────────────────────
-
-export interface NextPitchOpportunityRow {
-  cluster: string
-  missingDomain: string
-  whyItMatters: string
-  competitorPresence: number
-  suggestedOutlet: string
-  suggestedAngle: string
-  priority: 'High' | 'Medium' | 'Low'
-}
-
-const NEXT_PITCH_TOOLTIP =
-  'PR pitch suggestions ranked by opportunity score, generated from Peec AI citation data + PR Proof gaps + competitor presence. (Avenue Z internal.)'
-
-export function NextPitchOpportunitiesTable({
-  rows,
-  emptyKind,
-}: {
-  rows: NextPitchOpportunityRow[]
-  emptyKind: 'no-prompts' | 'no-gaps' | 'has-rows'
-}) {
-  const priorityRank = (p: 'High' | 'Medium' | 'Low') => (p === 'High' ? 3 : p === 'Medium' ? 2 : 1)
-
-  const columns: SortableColumn<NextPitchOpportunityRow>[] = [
-    {
-      key: 'cluster',
-      label: 'Prompt Cluster',
-      align: 'left',
-      accessor: (r) => r.cluster,
-      render: (r) => <span className="font-semibold text-white/80">{r.cluster}</span>,
-    },
-    {
-      key: 'missingDomain',
-      label: 'Missing Domain / Outlet',
-      align: 'left',
-      tooltip:
-        'Editorial domain that cites competitors in our tracked prompts but where we have no PR placement. (Avenue Z internal — Peec AI + PR Proof.)',
-      accessor: (r) => r.missingDomain,
-      render: (r) => <span className="font-mono text-[10px] text-white/60">{r.missingDomain}</span>,
-    },
-    {
-      key: 'whyItMatters',
-      label: 'Why It Matters',
-      align: 'left',
-      tooltip: 'Why this pitch opportunity moves brand visibility in AI answers. (Avenue Z internal.)',
-      accessor: (r) => r.whyItMatters,
-      render: (r) => <span className="text-[11px] text-white/50">{r.whyItMatters}</span>,
-    },
-    {
-      key: 'competitorPresence',
-      label: 'Competitor Presence',
-      align: 'right',
-      tooltip: PEEC.sov.text,
-      accessor: (r) => r.competitorPresence,
-      render: (r) => <span className="tabular-nums text-white/60">{fmtPct(r.competitorPresence)}</span>,
-    },
-    {
-      key: 'suggestedOutlet',
-      label: 'Suggested Outlet',
-      align: 'left',
-      tooltip: 'Recommended outlet to target. (Avenue Z internal.)',
-      accessor: (r) => r.suggestedOutlet,
-      render: (r) => <span className="text-white/60">{r.suggestedOutlet}</span>,
-    },
-    {
-      key: 'suggestedAngle',
-      label: 'Suggested Angle',
-      align: 'left',
-      tooltip: 'Suggested pitch angle for the outlet. (Avenue Z internal.)',
-      accessor: (r) => r.suggestedAngle,
-      render: (r) => <span className="text-[11px] text-white/50">{r.suggestedAngle}</span>,
-    },
-    {
-      key: 'priority',
-      label: 'Priority',
-      align: 'left',
-      tooltip: PR_PROOF.opportunityScore.text,
-      accessor: (r) => priorityRank(r.priority),
-      render: (r) => {
-        const color =
-          r.priority === 'High'
-            ? 'bg-[#FF4444]/10 text-[#FF4444]'
-            : r.priority === 'Medium'
-              ? 'bg-[#FFFC60]/10 text-[#FFFC60]'
-              : 'bg-white/[0.06] text-white/40'
-        return (
-          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', color)}>{r.priority}</span>
-        )
-      },
-    },
-  ]
-
-  const emptyMessage =
-    emptyKind === 'no-prompts'
-      ? 'Add tracked prompts in Peec AI to generate pitch opportunities'
-      : 'All editorial domains have PR coverage. Excellent position.'
-
-  return (
-    <div className="rounded-xl border border-[#60FDFF]/20 bg-[#60FDFF]/[0.03] p-6">
-      <SectionHeading
-        title="Where should we pitch next to close AI visibility gaps?"
-        tooltip={NEXT_PITCH_TOOLTIP}
-        subtitle="Pitch targets derived from prompt clusters with lowest brand visibility and highest editorial citation density."
-      />
-      <SortableTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r, i) => `${r.cluster}-${i}`}
-        initialPageSize={8}
-        emptyMessage={emptyMessage}
-      />
-    </div>
-  )
-}

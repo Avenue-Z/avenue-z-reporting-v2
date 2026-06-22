@@ -23,7 +23,7 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 - **HEAD:** `41d2091`
 - **PR:** [#52 — AEO PR Influence tab: official feedback (FB-009+)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — OPEN + DRAFT
 - **Base:** `main` (currently `8aa61a8`)
-- **Status:** mid-batch on PR Influence. FB-009 (synopsis + KPI strip removal), FB-010 (Sentiment Insights), FB-011 (Sentiment placement correction), FB-012 (reduce Top Editorial + Prompt Cluster bar chart + side-by-side + Matchback drops below + methodology block removed) all shipped to this branch. Awaiting Tina's next ask or her sign-off. Next FB ID is **FB-013**.
+- **Status:** mid-batch on PR Influence. FB-009 (synopsis + KPI strip removal), FB-010 (Sentiment Insights), FB-011 (Sentiment placement correction), FB-012 (reduce Top Editorial + Prompt Cluster bar chart + side-by-side + Matchback drops below + methodology block removed), FB-013 (per-cluster editorialCitationDensity fix), FB-014 (Top Editorial Opportunities retitle + redesign, Next Pitch deleted) all shipped to this branch. Awaiting Tina's next ask or her sign-off. Next FB ID is **FB-015**.
 
 ## Per-tab workflow going forward
 
@@ -38,7 +38,7 @@ One branch + one PR per AEO sub-tab.
 | Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-014.**
+FB IDs continue sequentially across all branches. **Next ID is FB-015.**
 
 ---
 
@@ -61,6 +61,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-014.**
 | **FB-011** | PR Influence | this branch (PR #52) | `b4906a2` | Iteration on FB-010. Moved Sentiment Insights from between Matchback and Top Editorial Domains to directly under the Executive Synopsis. |
 | **FB-012** | PR Influence | this branch (PR #52) | `f1d5c5a` | Reduce Top Editorial Domains (Citation Count → Citation Share, drop Avg Citations + PR cols + legend, new subtitle, drop green-on-PR styling). Replace Prompt Cluster Opportunity 7-col table with simple horizontal bar chart (Topic × % editorial citation share). Side-by-side `lg:grid-cols-2` layout for the two reduced cards directly under Sentiment Insights. PR Placement Matchback drops below the side-by-side row (matches Tina's recommended layout). Removed the 4-weight "How is the opportunity score calculated?" methodology block (explains a number that no longer renders). |
 | **FB-013** | PR Influence | this branch (PR #52) | `41d2091` | Fix pre-existing data bug surfaced by FB-012 bar chart: editorialCitationDensity was computed ONCE globally and assigned identically to every cluster, so every bar rendered at 100%. Now computed PER CLUSTER via coverage.tagNameById + tagIdsByDomain + topDomain.retrieved: `sum(retrieved across editorial-typed domains tagged with cluster) / sum(retrieved across all domains tagged with cluster) * 100`. Real ranking emerges. No render changes; same FB-012 chart, real numbers now. |
+| **FB-014** | PR Influence | this branch (PR #52) | `(pending)` | Brand-Absent table retitled "Top Editorial Opportunities" with Tina's new title + subtitle. 5-column shape: Publication, Article (combined title + URL hyperlink), Competitors Mentioned, Citation Share, Delta of Citation Share. Filter: brand-not-mentioned (or no data) AND positive citation-share delta. Removed: 3 columns (Brand Mentioned, Opportunity Priority, Suggested PR Angle), footnote, isDemo prop. Deleted entire NextPitchOpportunitiesTable component + Sparkles wrapper + nextPitchRows compute (Tina REMOVE "Where should we pitch next..."). Methodology block REMOVE already shipped in FB-012. Matchback kept in place (Tina did not list it as a removal). Universal change. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 

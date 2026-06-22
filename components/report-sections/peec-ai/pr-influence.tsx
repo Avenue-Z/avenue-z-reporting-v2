@@ -10,7 +10,7 @@ import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { postPublishTrend, addDays } from '@/lib/ga4/content-derive'
-import { Sparkles, Megaphone } from 'lucide-react'
+import { Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
@@ -22,12 +22,10 @@ import {
   TopEditorialDomainsTable,
   BrandAbsentEditorialDomainsTable,
   PromptClusterOpportunityMatrix,
-  NextPitchOpportunitiesTable,
   type PRPlacementMatchbackRow,
   type TopEditorialDomainRow,
   type BrandAbsentEditorialDomainRow,
   type PromptClusterOpportunityRow,
-  type NextPitchOpportunityRow,
 } from './pr-influence-tables'
 
 // ---------------------------------------------------------------------------
@@ -481,12 +479,17 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ['BCW', 'Weber Shandwick'],
     ['FleishmanHillard'],
   ]
-  // Build brand-absent rows using unfiltered citationCount first (needed for
-  // priority bucketing), then apply the model filter. Priority is derived from
-  // the base d.retrieved value so it reflects the real editorial weight of the
-  // domain, not just the per-model slice.
-  const rawBrandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentDomains.slice(0, 20).map((d, i) => {
-    const priority: 'High' | 'Medium' | 'Low' = d.retrieved > 15 ? 'High' : d.retrieved > 5 ? 'Medium' : 'Low'
+  // FB-014 — Top Editorial Opportunities. Tina:
+  // "Only show articles where the brand is not mentioned (or if it has no data
+  //  so we can check manually)" — topBrandAbsentUrlByHost already filters URLs
+  //  to mentionsYourBrand === false; rows where topUrl is null pass through
+  //  with article fields = null so they can be checked manually.
+  // "Only show articles with a positive delta on citation share" — applied as
+  //  `d.retrievedDelta > 0` at the row-build step. brandAbsentDomains itself
+  //  stays unfiltered so the synopsis context still reflects the full brand-absent
+  //  count for executive accuracy.
+  const brandAbsentRowsFiltered = brandAbsentDomains.filter((d) => d.retrievedDelta > 0)
+  const rawBrandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentRowsFiltered.slice(0, 20).map((d, i) => {
     const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
     // Representative brand-absent URL cited on this editorial domain (top by citations).
     const topUrl = topBrandAbsentUrlByHost.get(hostKey(d.domain))
@@ -495,14 +498,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : (topUrl?.title ?? null),
       articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : (topUrl?.url ?? null),
       citationCount: d.retrieved,
+      citationCountDelta: d.retrievedDelta,
       // "None" when we found the article but it named no competitors; -- only
       // when there's no representative article for the domain at all.
       competitorsMentioned: prIsDemo
         ? DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', ')
         : (topUrl ? (topUrl.competitorBrandNames.length > 0 ? topUrl.competitorBrandNames.join(', ') : 'None') : null),
-      brandMentioned: false,
-      opportunityPriority: priority,
-      suggestedAngle: 'Secure coverage or citation on this domain',
     }
   })
   const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = data?.domainCitationsByModel
@@ -519,35 +520,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     competitorPresence: row.competitorPresence,
     opportunityScore: row.opportunityScore,
   }))
-
-  // 5. Next Pitch Opportunities rows
-  const nextPitchRows: NextPitchOpportunityRow[] =
-    opportunityRows.length > 0 && brandAbsentDomains.length > 0
-      ? opportunityRows.slice(0, 8).map((row, i) => {
-          const targetDomain = brandAbsentDomains[i % brandAbsentDomains.length]
-          const priority: 'High' | 'Medium' | 'Low' =
-            row.opportunityScore > 40 ? 'High' : row.opportunityScore > 20 ? 'Medium' : 'Low'
-          return {
-            cluster: row.cluster,
-            missingDomain: targetDomain?.domain ?? '--',
-            whyItMatters:
-              row.avgVisibility < 20
-                ? 'Brand absent from AI responses in this cluster'
-                : 'Low brand visibility vs competitor presence',
-            competitorPresence: row.competitorPresence,
-            suggestedOutlet: targetDomain?.domain ?? 'TBD',
-            suggestedAngle: `Secure expert quote or byline on ${row.cluster.toLowerCase()} topics`,
-            priority,
-          }
-        })
-      : []
-
-  const nextPitchEmptyKind: 'no-prompts' | 'no-gaps' | 'has-rows' =
-    nextPitchRows.length > 0
-      ? 'has-rows'
-      : opportunityRows.length === 0
-        ? 'no-prompts'
-        : 'no-gaps'
 
   // ── FB-009-a · Executive Synopsis context ─────────────────────────────────
   // Inputs for the AI-generated executive synopsis card at the top of the
@@ -627,19 +599,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         isDemo={prIsDemo}
       />
 
-      {/* ── Brand-Absent Editorial Domains ── */}
+      {/* ── FB-014 · Top Editorial Opportunities (retitled from Brand-Absent Editorial Domains) ── */}
       <BrandAbsentEditorialDomainsTable
         rows={brandAbsentTableRows}
         hasEditorialDomains={editorialDomains.length > 0}
-        isDemo={prIsDemo}
       />
-
-      {/* ── Next Pitch Opportunities ── */}
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-[#60FDFF]" />
-        <span className="sr-only">Next Pitch Opportunities</span>
-      </div>
-      <NextPitchOpportunitiesTable rows={nextPitchRows} emptyKind={nextPitchEmptyKind} />
 
       <p className="text-xs text-text-muted">
         PR Influence on AI Visibility
