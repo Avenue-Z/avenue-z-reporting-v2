@@ -16,6 +16,642 @@ _(none)_
 
 ## Closed
 
+### FB-018 — "Tap a theme" → "Click a theme" (Tina's literal verb)
+
+- **Status:** done
+- **Source:** Thomas final-audit insistence on 1:1. Tina's spec: "When you **click** on a theme, it opens an accordion." Code said "Tap a theme."
+- **Author:** Tina (literal text) / Claude (verb correction)
+- **Type:** copy correction (one word)
+- **Scope:** `components/report-sections/peec-ai/sentiment-insights.tsx`. Two instances (Positive Themes intro + Negative Themes intro). Lineage: correction to FB-010 copy.
+
+#### What changed
+
+`Tap a theme` → `Click a theme` (replace_all, both column-intro paragraphs).
+
+#### Verification
+
+- TypeScript clean.
+- Avenue Z sandbox gate unchanged.
+
+---
+
+### FB-017 — Rename Sentiment Insights "Weaknesses" → "Negative Themes"
+
+- **Status:** done
+- **Source:** Thomas final audit. Tina's literal spec ("Positive Themes & Negative Themes side-by-side") was flagged by me in the post-FB-015 honest-review note as the one label discrepancy. Thomas confirmed the audit needed to be exact.
+- **Author:** Tina (literal text) / Claude (label correction)
+- **Type:** label correction
+- **Scope:** `components/report-sections/peec-ai/sentiment-insights.tsx`. Lineage: correction to FB-010 label.
+
+#### Why this wasn't done in FB-010
+
+FB-010 used "Weaknesses" because Tina's underlying CONTENT for the right column was framed that way (Unclear Answer Engine Methodology, Unproven Answer Engine Impact — gaps, not negatives per se). Her LAYOUT spec however said "Negative Themes." FB-010 chose the data-side label; this corrects to the layout-side label per Tina's literal text.
+
+#### What changed
+
+- `<h4>Weaknesses</h4>` → `<h4>Negative Themes</h4>`
+- "Tap a weakness to see the explanation." → "Tap a theme to see the explanation."
+- Comment "// Side-by-side: Positive Themes (left), Weaknesses (right)" → "Negative Themes (right)"
+
+The underlying data array (`WEAKNESSES` const), state (`openWeak`, `toggleWeak`), and behavior are untouched. Only user-visible copy changed.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/sentiment-insights.tsx` | h4 label + intro paragraph copy + top-of-file comment. No logic / state / data changes. |
+
+#### Verification
+
+- TypeScript compilation: clean.
+- Avenue Z sandbox gate unchanged: still `clientSlug !== 'avenue-z' → return null`.
+
+#### Open risks
+
+- None.
+
+---
+
+### FB-016 — Fix unreadable tooltip text on the Prompt Clusters bar chart
+
+- **Status:** done
+- **Source:** Thomas screenshot of the Vercel preview after FB-015 deployed: "the percentage is, like, in black, and you can't see it. So we're gonna have to change the color of that."
+- **Author:** Thomas (flagged) / Claude (one-line fix)
+- **Type:** visual bug fix
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` — `<RechartsTooltip>` config on the `PromptClusterOpportunityMatrix` bar chart. Lineage: bug surfaced after FB-012 (chart creation).
+
+#### Root cause
+
+Recharts `<Tooltip>` has THREE separate style props: `contentStyle` (the container), `labelStyle` (the row label, e.g. cluster name), and `itemStyle` (each data row, e.g. "Citation Share : 1.6%"). I had set `color: '#FFFFFF'` on `contentStyle` only. That covers the container's default color but Recharts' `<DefaultTooltipContent>` applies its own internal defaults for the label and item rows, and the item row falls back to a near-black `color: rgb(51, 51, 51)` (Recharts source). On the dark `#272727` tooltip background, that is invisible.
+
+#### Fix
+
+Added `labelStyle={{ color: '#FFFFFF', fontWeight: 600 }}` and `itemStyle={{ color: '#FFFFFF' }}` to the `<RechartsTooltip>` config. Removed the redundant `color: '#FFFFFF'` from `contentStyle` (it was a no-op once Recharts' internal defaults took over). The tooltip now renders cluster name in bold white + metric line in white, against the dark `#272727` background.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | `<RechartsTooltip>` config in `PromptClusterOpportunityMatrix`: added `labelStyle` + `itemStyle`, removed redundant `contentStyle.color`. |
+
+#### Verification
+
+- TypeScript compilation: clean.
+- Hovering any bar in the new render shows: cluster name in bold white, "Citation Share : X.X%" in white, against dark tooltip background.
+
+#### Open risks
+
+- None. Single-prop style fix, no behavior change.
+
+---
+
+### FB-015 — Remove PR Placement Matchback to match Tina's 5-section layout
+
+- **Status:** done
+- **Source:** Thomas re-validation pass: "structurally please confirm 1:1 with Tina." Tina's recommended-layout mockup has consistently omitted Matchback across FB-011, FB-012, and FB-014 (three separate feedback rounds). Pattern is unambiguous: Matchback is not in her vision for the tab.
+- **Author:** Thomas (validation) / Claude (final structural reconciliation)
+- **Type:** delete
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx` + `components/report-sections/peec-ai/pr-influence-tables.tsx`. Universal change. Lineage: closes FB-014 open risk #1 ("Matchback placement").
+
+#### Pattern that drove this
+
+| Feedback round | Tina's mockup of the tab | Matchback present? |
+|---|---|---|
+| FB-011 | Synopsis → Sentiment → Top Editorial → … | No |
+| FB-012 | Synopsis → Sentiment → Top Editorial → Prompt Clusters | No |
+| FB-014 | Synopsis → Sentiment → Top Editorial → Prompt Clusters → Top Editorial Opportunities | No |
+
+Three rounds of "didn't mention" is the signal. Combined with Thomas's stated layout order (also 5 sections, no Matchback), the conservative call to keep Matchback in FB-014 was the wrong reading.
+
+#### What changed
+
+- Deleted the `<PRPlacementMatchbackTable>` JSX render in `pr-influence.tsx`.
+- Deleted the `matchbackTableRows` builder block + the 4 demo arrays that fed it (`DEMO_PROMPT_CLUSTERS`, `DEMO_AI_ENGINES`, `DEMO_PROMPT_COUNT`, `DEMO_POST_PUBLISH_TREND`).
+- Deleted the entire `PRPlacementMatchbackTable` component + `PRPlacementMatchbackRow` interface + `AI_ENGINES_TOOLTIP` + `POST_PUBLISH_TOOLTIP` consts from `pr-influence-tables.tsx`.
+- Cleaned imports: `PRPlacementMatchbackTable`, `PRPlacementMatchbackRow`.
+- Kept the `buildMatchback()` helper, `matchbackRows`, `filteredMatchbackRows`, and `placementsCitedByAI` computation in `pr-influence.tsx`. Reason: the executive synopsis context still uses `placementsCitedByAI` (X of Y placements cited by AI) and the synopsis is model-filter-agnostic by design.
+
+#### What was unambiguous
+
+1. Tina's recommended-layout screenshots across three feedback rounds consistently show 5 sections under the SectionHeader: Synopsis → Sentiment Insights → Top Editorial Domains → Prompt Clusters → Top Editorial Opportunities.
+2. Thomas's stated layout order (chat: "synopsis to sentiment insights to top editorial domains to which prompt clusters offer the biggest PR opportunity to top editorial opportunities") names exactly those 5 sections.
+3. Post-FB-014, the code rendered 6 sections (the extra was Matchback between Prompt Clusters and Top Editorial Opportunities).
+4. To be structurally 1:1 with Tina's mockup, Matchback must be removed.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence.tsx` | Removed `<PRPlacementMatchbackTable>` JSX, `matchbackTableRows` builder, 4 demo arrays, and `PRPlacementMatchbackTable` + `PRPlacementMatchbackRow` imports. Kept `buildMatchback`, `matchbackRows`, `filteredMatchbackRows`, `placementsCitedByAI` (still feed synopsis context). |
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | Deleted the entire Matchback section: `PRPlacementMatchbackRow` interface, `AI_ENGINES_TOOLTIP` const, `POST_PUBLISH_TOOLTIP` const, `PRPlacementMatchbackTable` component (lines 38–300 in the pre-FB-015 file). |
+
+#### Final state — JSX render order under the SectionHeader
+
+```
+1. PRInfluenceSynopsis
+2. SentimentInsights
+3. <div grid lg:grid-cols-2>
+     TopEditorialDomainsTable
+     PromptClusterOpportunityMatrix
+   </div>
+4. BrandAbsentEditorialDomainsTable  (= "Top Editorial Opportunities")
+```
+
+That is 4 JSX blocks (the side-by-side counts as one block in the layout, but visually presents 2 cards). Total visible sections on the page: 5, matching Tina's mockup.
+
+#### Scope of impact
+
+- Every AEO client with the PR Influence tab enabled no longer sees the Matchback table.
+- Synopsis context numbers (placementsCitedByAI etc.) unaffected — same compute, just not rendered as a table on this tab.
+- Per-model filter no longer affects any visible table on the tab in a way that depends on Matchback (Matchback's per-row model engines computation was internal-only post-removal). The synopsis remains model-filter-agnostic by design.
+- No DB change, no env change, no API change.
+- Diff is the removal of a large dead-render block.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero output).
+- JSX render order grep produces exactly the 5-section sequence above.
+- No dangling references (`PRPlacementMatchback`, `matchbackTableRows`, `NextPitch`, `Sparkles` all return empty from grep across the two files).
+- Sandbox gates unchanged: still 2 (FB-006 winners-losers + FB-010 sentiment-insights).
+
+#### Open risks
+
+1. **If Tina actually wanted Matchback kept** (despite three omissions), this is one JSX restore. Component file is now deleted, so restoration is a copy-back from git history. Documented for future restore if needed.
+2. **The `buildMatchback` helper still runs on every render** even though nothing visible consumes its full output anymore — only `placementsCitedByAI` (a single number) is used downstream. Could be simplified to a smaller compute. Out of scope here; the function is correct, just over-computes by one ~30-line `.map()`. Future cleanup.
+
+---
+
+### FB-014 — Top Editorial Opportunities (retitled + redesigned Brand-Absent table) + remove Next Pitch Opportunities section
+
+- **Status:** done
+- **Source:** Tina (Google doc, Jun 17 batch: 8:42 / 8:59 / 9:04 / 9:12 AM). Thomas confirmed final tab order in chat: "synopsis to sentiment insights to top editorial domains to which prompt clusters offer the biggest PR opportunity to top editorial opportunities."
+- **Author:** Tina
+- **Type:** redesign + delete
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` + `components/report-sections/peec-ai/pr-influence.tsx`. Universal change (no Avenue Z sandbox gate needed).
+
+#### Verbatim ask (Tina)
+
+> Columns Revision:
+> - Publication
+> - Article (combine article title and hyperlink it with the URL)
+> - Competitors Mentioned
+> - Citation Share
+> - Delta of Citation Share
+
+> Chart Revision:
+> - Only show articles where the brand is not mentioned (or if it has no data so we can check manually)
+> - Only show articles with a positive delta on citation share
+> - Remove the footnote at the bottom of the chart.
+
+> Title Revision
+> Old: Which editorial domains cite our competitors but not us?
+> New: What are the top pitch opportunities for getting our brand mentioned in AI?
+
+> Subtitle Revision
+> Old: High-authority editorial domains that AI tools cite for your tracked prompts, but where your brand has no PR placement. These are the highest-priority pitch targets.
+> New: Prompt-level citations on the rise where your brand is not mentioned, revealing outreach opportunities that may require different strategies depending on the type of article being cited.
+
+> REMOVE: Where should we pitch next to close AI visibility gaps?
+> REMOVE: How is the opportunity score calculated?
+
+#### What was unambiguous
+
+1. The `BrandAbsentEditorialDomainsTable` ([pr-influence-tables.tsx:402+](../../components/report-sections/peec-ai/pr-influence-tables.tsx)) is the target of the Columns / Chart / Title / Subtitle revisions. Tina's old title text matches that table verbatim.
+2. Final column set (in order): Publication, Article (combined title + URL hyperlink), Competitors Mentioned, Citation Share, Delta of Citation Share. Remove: Brand Mentioned, Opportunity Priority, Suggested PR Angle.
+3. New title + new subtitle text.
+4. Filter row set to (brand-not-mentioned OR no-data) AND positive citation-share delta.
+5. Remove the bottom footnote.
+6. The "Where should we pitch next to close AI visibility gaps?" REMOVE targets the `NextPitchOpportunitiesTable` section (Section F). That section is deleted entirely from the page.
+7. The "How is the opportunity score calculated?" REMOVE was already shipped in FB-012; no further action needed.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **"Combine article title and hyperlink it with the URL"** | Single "Article" cell: render the title as a clickable link to the URL. If only one of (title, URL) exists, render that as text or link. If both are missing, render `--`. Cell is `block max-w-[240px] truncate` to keep long titles in the table width. | Most natural read of "combine" — the article title becomes the link text. Title is the readable surface; URL is the action target. Matches standard UX for article-link cells across the codebase (and across the web). |
+| **"brand not mentioned (or if it has no data so we can check manually)"** | Existing `topBrandAbsentUrlByHost` logic at [pr-influence.tsx:339-345](../../components/report-sections/peec-ai/pr-influence.tsx) already filters URLs to `mentionsYourBrand === false`. Rows where no such URL exists keep `articleTitle = null` and `articleUrl = null` so the row renders with `--` in the Article column — visible signal that manual check is needed. No change to that logic. | Already correct. Article fields render gracefully as `--` when topUrl is null. |
+| **"Only show articles with a positive delta on citation share"** | Filter applied at the table-row build step: `brandAbsentRowsFiltered = brandAbsentDomains.filter(d => d.retrievedDelta > 0)`. The unfiltered `brandAbsentDomains` is preserved for the synopsis context (`brandAbsentCount`, `topBrandAbsentDomains`). | Tina's filter is for the visible chart, not the executive synopsis. Synopsis stays globally accurate; table shows only rising opportunities. |
+| **Source field for "Delta of Citation Share"** | `d.retrievedDelta` (already on the `TopDomain` type, populated from Peec API response). Same field FB-012 renders as the up/down arrow next to Citation Share on the Top Editorial Domains table. | Consistent semantics across the tab — one canonical delta source. Reused `<CitationDelta>` component to match visual treatment exactly. |
+| **Existing `Sortable Table` + `SortableColumn` infra** | Reused. Tina did not say "convert to a different visualization"; the word "table" is implicit in "Columns Revision" + "Chart Revision" (she uses "Chart" loosely to mean "this card"). | Lowest-risk read. Matches the visual treatment of the rest of the PR Influence tab. |
+| **Where the `NextPitchOpportunitiesTable` component lives** | Deleted entirely from `pr-influence-tables.tsx` (component + `NextPitchOpportunityRow` type). The `nextPitchRows` + `nextPitchEmptyKind` computation in `pr-influence.tsx` deleted too. | Tina removed the section; no other consumer imports these. Per CLAUDE.md "If you are certain that something is unused, you can delete it completely." Cleaner than leaving dead exports. |
+| **Removed `isDemo` prop on `BrandAbsentEditorialDomainsTable`** | Dropped from the component signature and the call site. | Used only by the deleted footnote. No other use. |
+| **Kept the `PRPlacementMatchbackTable` render** | Stays where it is (between the side-by-side row and Top Editorial Opportunities). | Tina's REMOVE list did NOT include Matchback. Thomas's stated tab order ("synopsis → sentiment → top editorial → prompt clusters → top editorial opportunities") describes the asked-for sections; Matchback isn't named because Tina didn't touch it this batch. Defaulting to keep: do not remove without explicit ask. If Tina or Thomas later say "remove Matchback," it's a single JSX delete. Carried as an open risk below. |
+| **Demo-mode rows** | `brandAbsentRowsFiltered` runs the same `retrievedDelta > 0` filter against the demo `samplePeecOverview()` editorial domains. Demo may render fewer rows than before — acceptable per the FB-013 same-pattern decision. | Filter is universal. Don't bypass for demo. If demo rows look thin, extend the demo fixture (out of scope here). |
+
+#### What was explicitly out of scope
+
+- `PRPlacementMatchbackTable` columns / subtitle / order: untouched.
+- `TopEditorialDomainsTable`: untouched (FB-012 is the source of truth for that card).
+- `PromptClusterOpportunityMatrix`: untouched (FB-012 + FB-013 stand).
+- `<PRInfluenceSynopsis>`: untouched. Synopsis context still uses the unfiltered `brandAbsentDomains` count + top 5 domains so executive prose stays globally accurate.
+- Per-model filter logic: `filterDomainRowsByModel` still applies to `rawBrandAbsentTableRows` (the model filter overlays cleanly on the new shape since the generic only requires `{ domain, citationCount }`). Behavior unchanged.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | `BrandAbsentEditorialDomainRow`: removed `brandMentioned`, `opportunityPriority`, `suggestedAngle`; added `citationCountDelta`. `BrandAbsentEditorialDomainsTable`: new title + subtitle, 5-column set (Publication, Article-combined, Competitors Mentioned, Citation Share, Delta of Citation Share), removed footnote, dropped `isDemo` prop. Deleted: `NextPitchOpportunitiesTable` component + `NextPitchOpportunityRow` interface + `NEXT_PITCH_TOOLTIP` const. |
+| `components/report-sections/peec-ai/pr-influence.tsx` | `rawBrandAbsentTableRows` builder updated: new shape, added `citationCountDelta`, dropped removed fields, filtered to `retrievedDelta > 0` at the build step. Deleted: `nextPitchRows` + `nextPitchEmptyKind` computation block. Deleted: `<NextPitchOpportunitiesTable>` + `<Sparkles>` JSX. Imports cleaned: `Sparkles`, `NextPitchOpportunitiesTable`, `NextPitchOpportunityRow` removed. `<BrandAbsentEditorialDomainsTable>` call site dropped `isDemo` prop. |
+
+#### Scope of impact
+
+- Every AEO client with the PR Influence tab enabled sees: (a) the retitled "Top Editorial Opportunities" card with the new 5-column shape, (b) the rising-delta filter, (c) no Next Pitch section.
+- Synopsis context unaffected.
+- No data fetch changes, no env changes.
+- Diff: -254 / +53 lines net (-201).
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero output).
+- Final tab order: `SectionHeader → PRInfluenceSynopsis → SentimentInsights → [TopEditorialDomainsTable + PromptClusterOpportunityMatrix side-by-side] → PRPlacementMatchbackTable → BrandAbsentEditorialDomainsTable (now "Top Editorial Opportunities") → footer attribution`.
+- Sandbox gates unchanged: still 2 (FB-006 winners-losers + FB-010 sentiment-insights).
+
+#### Open risks (in order of likelihood)
+
+1. **Matchback placement.** Thomas's stated tab order names 5 sections (synopsis → sentiment → top editorial → prompt clusters → top editorial opportunities). Matchback is currently the 4.5th — between the side-by-side and Top Editorial Opportunities. If Tina meant for Matchback to also be removed (her layout sketches have consistently omitted it across FB-011, FB-012, and FB-014), this is a single JSX delete. Carrying as the highest-likelihood next-feedback item.
+2. **"Article" cell width.** `max-w-[240px] truncate` may clip long titles on narrow viewports. Easy single-class tweak if Tina complains.
+3. **Demo rows may render thin.** The new `retrievedDelta > 0` filter applies in demo mode too. If the demo `samplePeecOverview()` fixture has most editorial domains with non-positive deltas, the demo table will look empty. Out of scope to extend the demo fixture here.
+4. **Delta-of-citation-share tooltip copy** is my draft ("Period-over-period change in this domain's citation share. (Peec AI source data.)"). Single-line edit if Tina has preferred copy.
+
+---
+
+### FB-013 — Fix per-cluster `editorialCitationDensity` (was a single global value; every bar rendered at 100%)
+
+- **Status:** done
+- **Source:** Thomas spotted "i feel like the prompt clusters one is off" after the FB-012 deploy on Avenue Z. Inspection confirmed every bar at 100% — pre-existing data-layer bug surfaced by FB-012's bar chart.
+- **Author:** Thomas (flagged) / Claude (rooted + fixed)
+- **Type:** data-layer bug fix
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx` `computeOpportunityRows()` only. Lineage: iteration on [[fb-012]]; predates FB-012 but only became visible when the cluster bar chart replaced the old 7-column table.
+
+#### Verbatim flag (Thomas)
+
+> "is this what it is supposed to look like? i feel like the: Which prompt clusters offer the biggest PR opportunity? is off"
+
+#### Root cause
+
+`computeOpportunityRows()` computed `editorialCitationDensity` once GLOBALLY, then assigned it to every cluster row identically:
+
+```ts
+const totalEditorialCitations = editorialDomains.reduce((s, d) => s + d.citationRate, 0)
+const avgEditorialCitation = totalEditorialCitations / editorialDomains.length
+// ...inside per-cluster .map():
+const editorialCitationDensity = Math.min(avgEditorialCitation / 100, 1)  // <- identical across clusters
+```
+
+For Avenue Z, `citationRate` values on editorial domains average above 100 (since each is `citation_rate * 100` and several editorial domains have near-saturated coverage on their tag), so `Math.min(.../ 100, 1) = 1` → `* 100 = 100%` for every cluster.
+
+The pre-FB-012 SortableTable masked this because it rendered six other columns (`brandCitationRate`, `competitorPresence`, `opportunityScore`, etc.) that varied per cluster. Tina's screenshot in FB-012 also shows `Editorial Citation Density` at 100.0% for every row — she didn't notice because the Opportunity Score column (72, 70, 69...) provided the visible ranking.
+
+FB-012 removed all six masking columns and left this one as the only metric. The bug went from invisible to dominant: 11 identical 100% bars and no ranking.
+
+#### Fix
+
+Compute `editorialCitationDensity` PER CLUSTER using data already fetched:
+
+- `coverage.tagNameById`: tag id → display name (cluster names)
+- `coverage.tagIdsByDomain`: host → tag ids that domain is cited under
+- `data.topDomains`: all cited domains with `type` (`Editorial` subset isolatable)
+- `topDomain.retrieved`: per-domain citation share %
+
+Per cluster:
+
+```ts
+editorialShare(clusterName) =
+  sum(retrieved across editorial-typed domains tagged with clusterName)
+  / sum(retrieved across ALL domains tagged with clusterName)
+  * 100
+```
+
+Semantics: "of all citations on prompts in this cluster, what share came from editorial-typed domains?" Real per-cluster value, varies, ranks. Fits Tina's literal ask ("Topic × % citation share from editorial sources") and gives the chart a meaningful sort order.
+
+`computeOpportunityRows()` now takes `topDomains` and `coverage` as additional parameters. Call site updated to pass `data.topDomains ?? []` and `coverage`.
+
+#### What was unambiguous
+
+1. Bars were all 100%. The chart was not ranking anything. That's wrong.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Semantic of "% citation share from editorial sources" (Tina's words)** | Per-cluster: editorial-typed domains' citation sum / all domains' citation sum on that cluster, expressed as %. | The most defensible read of "% citation share from editorial sources" with the data we actually have. Uses fields already computed and rendered elsewhere on this same page. |
+| **Cluster name to tag id resolution** | Reverse the `coverage.tagNameById` map (`tagNameById[id] === name`) to get `tagId(name)`. | `coverage` is the only place we have a tag-id ↔ tag-name (== cluster name) bridge. `trackedPrompts[].group` is the cluster name; `topDomains` are tagged by id. |
+| **Unknown cluster fallback** | `editorialShare = 0` if no tag id found by name. | Avoids a NaN propagating into the chart. Defensible default; a cluster with no tag-side match has no citation data to attribute. |
+| **`opportunityScore` formula** | Still uses the per-cluster `editorialCitationDensity` (now real) for the 35% weight. Other weights unchanged. | The fix flows through automatically. Score values will shift, but the score is no longer rendered to users anyway (FB-012 removed the column + methodology block); it only feeds Next Pitch priority badges. The bug was contained to this calc; the formula itself was fine. |
+| **No new fetch** | Reused existing `coverage` (already fetched on the page) and `data.topDomains` (already in scope). | Zero new network calls. Same caching, same demo-mode fallback. |
+
+#### What was explicitly out of scope
+
+- No change to render code, chart, table, or layout. Same FB-012 chart, real numbers now.
+- No change to FB-012's removed columns, removed legend, or removed methodology block. FB-012 stands.
+- Per-model filter still does not affect this metric (carries the v1 limitation forward). Recomputing per-model would require fetching per-model tag aggregates; not in scope.
+- No update to `OpportunityRow` type — the fields are the same shape, just with non-degenerate values.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence.tsx` | `computeOpportunityRows()` now takes `(trackedPrompts, editorialDomains, topDomains, coverage)`. Adds `tagIdByName` reverse map + `editorialHosts` set + `clusterEditorialShare()` helper. Per-cluster `editorialCitationDensityPct` replaces the global `avgEditorialCitation` calc. Score formula unchanged. Call site at line 362 updated. |
+
+#### Scope of impact
+
+- Every AEO client with the PR Influence tab enabled gets real per-cluster numbers on the FB-012 bar chart.
+- `opportunityScore` values will shift downstream — affects only the High/Medium/Low priority badge in `NextPitchOpportunitiesTable`. Tina's seeing real values now; nothing visible breaks.
+- No DB change, no env change, no new API call.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero output).
+- Hand-traced the new calc against Avenue Z's data shape: `tagNameById` + `tagIdsByDomain` are both populated for Avenue Z (Peec coverage fetch returns data), so `clusterEditorialShare()` returns real values. For clusters with no tag-side match (rare), returns 0 — visible as a missing bar, honest signal.
+- Demo mode: `coverage` is reset to the empty object literal in demo mode (`pr-influence.tsx:224`). Demo runs through `clusterEditorialShare()` → `tagIdByName.get(name)` returns undefined → 0 for every cluster. Demo bar chart will be empty/0. Acceptable because demo prompts are synthetic anyway; the demo-mode story is the rest of the page, not this calc. If demo bars need real values, swap the demo `coverage` literal for one with sample `tagNameById` + `tagIdsByDomain` content (out of scope here).
+
+#### Open risks (in order of likelihood)
+
+1. **Cluster name strings may not perfectly match tag display names** in some clients' Peec configs. If so, `tagIdByName.get(clusterName)` returns undefined and that cluster's bar shows 0. Fix: case-insensitive match or fuzzy match; or surface the mismatch in a debug log. Punt until we see it.
+2. **A cluster with non-zero prompts but zero domains tagged with that cluster's tag** will compute `totalCit = 0` → returns 0. Same defensible default.
+3. **Demo mode bars all at 0** until we extend the demo `coverage` fixture (see Verification note above). Acceptable; demo only renders Avenue Z anyway.
+
+---
+
+### FB-012 — Reduce Top Editorial Domains, turn Prompt Cluster Opportunity into a simple bar chart, place them side-by-side
+
+- **Status:** done
+- **Source:** Tina (Google doc, 8:42 AM / 8:54 AM / 9:10 AM / 9:12 AM Jun 17). Whitney Hart endorsement "Agreed with reccos here" (11:57 AM Jun 18). Thomas confirmed layout order in chat: "synopsis, sentiment, top editorial domains, and then which prompt clusters."
+- **Author:** Tina (+ Whitney endorsement)
+- **Type:** reduce + redesign + reorder
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` (two components) + `components/report-sections/peec-ai/pr-influence.tsx` (layout). Universal design changes — apply to every client. No data sandbox needed.
+
+#### Verbatim ask (Tina)
+
+**On Top Editorial Domains:**
+> - Citation Count -> Citation Share
+> - Remove Column: Avg Citation
+> - Remove Column: PR
+> - Remove legend on bottom left corner
+>
+> Rephrase subtitle
+>
+> Old: Each secured PR placement matched against Peec AI citation data. Shows which earned media is being retrieved by AI engines and whether your brand is mentioned.
+>
+> New: These domains are the most likely to surface as cited sources in AI-generated results, so they should be prioritized on the media target list.
+
+**On "Which prompt clusters offer the biggest PR opportunity?":**
+> Chart Revision: Turn this into a simple bar chart with the dimension being "Topic" and the metric being % citation share from editorial sources.
+
+**On layout (both):**
+> Maybe this one can go side-by-side with the next/previous chart since we are reducing both of them?
+
+#### What was unambiguous
+
+1. Top Editorial Domains: rename `Citation Count` → `Citation Share`, drop `Avg. Citations` column, drop `PR` column, drop the bottom-left blue/green legend.
+2. Top Editorial Domains: replace the subtitle with Tina's "New" text.
+3. Prompt Cluster Opportunity: replace the 7-column sortable table with a simple bar chart. Dimension = topic (cluster). Metric = % citation share from editorial sources.
+4. Both reduced charts go side-by-side now that they are smaller.
+5. Page order per Thomas's confirmed read of Tina's "Recommended layout" screenshot: Synopsis → Sentiment Insights → Top Editorial Domains → Prompt Clusters. Matchback was not on Tina's recommended layout, so it moves below the side-by-side row.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **Subtitle "Old:" text Tina pasted does not match the current Top Editorial Domains subtitle in code** | Treated as a copy-paste error in Tina's note. Replaced the current Top Editorial Domains subtitle with her "New" text. Matchback subtitle untouched. | Tina's "Old" text actually matches the `PRPlacementMatchbackTable` subtitle at [pr-influence-tables.tsx:273](../../components/report-sections/peec-ai/pr-influence-tables.tsx). But her "New" text describes editorial-domain pitch targeting, which fits Top Editorial Domains and does not fit Matchback at all. Thomas's broader feedback "reduce, side-by-side, this card" makes Top Editorial Domains the unambiguous target. Reconciled by intent, not by the mismatched quote. |
+| **Green-on-PR styling on Domain text + bar fill** | Removed. Domain always white. Bar always editorial blue `#39A0FF`. | Tina removed the bottom legend that explained the green-vs-blue signal. With the legend gone, an unexplained color signal would confuse the reader. The PR column is also removed, so the green Yes/No signal is being de-emphasized across this card. Removing the inline color cue is the consistent reduction. |
+| **`hasPR` field on `TopEditorialDomainRow`** | Kept on the type (still computed by the parent for back-compat with the BrandAbsent table's `hasPR` logic) but no longer rendered. | Easier than rippling type changes through a sibling component. No on-screen impact. |
+| **`isDemo` and `prDataAvailable` props on `TopEditorialDomainsTable`** | Removed from the component signature and the call site. | Both props existed only to drive the PR column's "Yes / No / --" tri-state. Column gone, props unused. |
+| **Bar chart orientation** | Horizontal bars (label-left, bar-right), sorted descending. | Cluster names can be long ("AI & Automation", "TikTok Shop") and the chart now lives in half-width (side-by-side layout). Horizontal bars read cleanly when narrow; vertical labels would have to angle or truncate. |
+| **Bar chart X-axis** | Fixed `0–100%` domain, gridlines off, axis line muted. | Absolute scale across all clients; bar lengths are comparable across page loads and clients. Same principle as the FB-053 visibility-bar fix. |
+| **Bar chart color** | Single `#39A0FF` (editorial blue) across all bars. | One metric, one color. The old table used 4 colors because there were 4 different metric bars per row. Now there is one metric — one bar color is correct. |
+| **Bar chart subtitle** | "Topics ranked by share of citations earned from editorial sources. Higher share means a stronger candidate for the next PR pitch." | Old subtitle ("Clusters scored by opportunity: editorial citation density, brand absence, competitor presence, and publication tier...") is no longer accurate. The new chart shows ONLY editorial citation share. Drafted to match Tina's voice and stay short. |
+| **Page order (Matchback moves below the side-by-side row)** | New order: Synopsis → Sentiment Insights → [Top Editorial + Prompt Clusters side-by-side] → Matchback → Brand-Absent → Next Pitch. | Tina's "Recommended layout" screenshot puts Synopsis, Sentiment, Top Editorial, and Prompt Clusters in that order. Matchback is not on the screenshot, so it sinks below. Thomas explicitly confirmed this read. FB-011's open risk #1 anticipated this exact reorder. |
+| **"How is the opportunity score calculated?" 4-weight methodology block** | Removed entirely from the page. | It explained the old `opportunityScore` column (35% editorial + 30% brand absence + 20% competitor + 15% tier). That column is gone from the new bar chart. The score is still *computed* server-side because the Next Pitch table uses it to assign priority badges, but the user no longer sees the number itself. A methodology block explaining an invisible calculation is noise. |
+| **Methodology footer line under the chart** (old: "Opportunity Score = 35% ...") | Removed. | Same reason as the block above. |
+| **Wrapper grid class** | `grid gap-6 lg:grid-cols-2`. Below `lg` (1024px) the cards stack one above the other, matching every other section's responsive behavior. | Standard Tailwind responsive grid. Matches the side-by-side patterns elsewhere in the codebase. |
+
+#### What was explicitly out of scope
+
+- Matchback table itself (columns, copy, layout): untouched. Only its vertical position changed.
+- Brand-Absent Editorial Domains and Next Pitch Opportunities tables: untouched.
+- The `opportunityScore` computation in `pr-influence.tsx:computeOpportunityRows` and the `NextPitchOpportunitiesTable` priority logic: untouched. The score is still calculated to drive Next Pitch priority badges.
+- Per-model filter behavior on the new bar chart: it reflects all-model aggregated data (same caveat as before — `editorialCitationDensity` is aggregated, not per-model). Carrying the v1 limitation comment forward.
+- No data layer changes. The fields needed for the new chart (`editorialCitationDensity`) and the reduced table (`citationCount`, `promptCoverage`) already exist on the row types.
+- Em-dash scrub across the rest of the file: only edited lines were scrubbed (none had em-dashes).
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | Added Recharts imports. `TopEditorialDomainsTable`: dropped `isDemo`/`prDataAvailable` props, renamed `Citation Count` → `Citation Share`, removed `avgCitations` and `hasPR` columns, removed bottom legend, swapped subtitle, removed green-on-PR styling from Domain text and bar fill. `PromptClusterOpportunityMatrix`: entire `SortableTable` replaced with a Recharts horizontal `BarChart` over `editorialCitationDensity`. New subtitle. Old methodology footer line removed. |
+| `components/report-sections/peec-ai/pr-influence.tsx` | Reorganized the JSX flow: Top Editorial + Prompt Clusters now sit in a `grid gap-6 lg:grid-cols-2` wrapper directly under SentimentInsights. Matchback moves below. Removed the "How is the opportunity score calculated?" block at the bottom. Updated the `<TopEditorialDomainsTable>` call site to match the new prop signature (rows only). Removed now-unused `cn` import. |
+
+#### Scope of impact
+
+- Every current and future AEO client with the PR Influence tab enabled sees the reduced layout and the bar chart automatically. No DB change, no per-client config, no backfill.
+- No data sandbox needed — these are universal design / layout / UX changes (per the workstream rule "design = universal, hardcoded data = Avenue Z gate"). Nothing in this change introduces hardcoded Avenue Z content.
+- Renders identically in the internal dashboard and the client portal.
+- The bar chart uses Recharts (already in the codebase). No new dependencies.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` returned zero output).
+- Diff stats: -208 / +90 lines net (-118), reflecting the reduction.
+- Sandbox gate sanity-check: untouched. The two pre-existing Avenue Z sandbox gates (FB-006 `winners-losers-cards.tsx`, FB-010 `sentiment-insights.tsx`) are unaffected.
+
+#### Open risks (in order of likelihood)
+
+1. **Bar chart subtitle copy is my draft, not Tina's words.** Easy single-line edit if she pushes back.
+2. **Bar chart visual density on narrow widths.** Currently uses `chartHeight = Math.max(220, rows.length * 34 + 40)`. With ~11 clusters, height ~414px — still reasonable in half-width. If Tina wants a tighter chart, single tweak to the formula.
+3. **Matchback moving below the side-by-side row.** FB-011's open risk #1 predicted this; Tina's recommended-layout screenshot supports it; Thomas confirmed. If Tina actually wants Matchback to stay above, single JSX move.
+4. **Methodology block removal.** Tina did not explicitly ask for this. The block only explained the old `opportunityScore` column which is now gone, so it explained nothing the user could see. If Tina wants context restored, paste a short note under the bar chart.
+5. **The `Avg. Citations` column was the only place the `citation_avg` metric surfaced to the user.** If anyone was using it operationally, they will need a different surface now. Likely no one was — it had a `text-white/30` muted styling in the prior table.
+
+---
+
+### FB-011 — Sentiment Insights placement correction (iteration on FB-010)
+
+- **Status:** done
+- **Source:** Thomas, after eyeballing the FB-010 ship on the Vercel preview. Re-reading Tina's mockup more strictly.
+- **Author:** Thomas (interpreting Tina's mockup)
+- **Type:** placement correction
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx` only. One JSX move. Lineage: iteration on [[fb-010]].
+
+#### Verbatim ask
+
+> "Based on this screenshot, it should go... the synopsis, then sentiment insights, and then editorial domains next. Because right now, the order is not that. Right now, it goes synopsis, then the... which PR placements are being cited by AI section, then the sentiment insights. But sentiment insights are supposed to go above."
+
+#### What changed
+
+Moved `<SentimentInsights>` from between Section B (PR Placement Matchback) and Section C (Top Editorial Domains) to between the Executive Synopsis and Section B. New page order:
+
+```
+SectionHeader -> Executive Synopsis -> Sentiment Insights -> Matchback -> Top Editorial -> Brand-Absent -> Opportunity Matrix -> Next Pitch -> Methodology
+```
+
+#### Why FB-011, not a fix-up of FB-010
+
+Per the project's audit-trail rule (`docs/official-feedback/handoff.md`): iterations on prior FB items get a new ID so the timeline reads linearly. FB-010 shipped with one placement; FB-011 corrects it. Both stay closed in this log.
+
+#### Why FB-010 picked the other placement
+
+FB-010's decision log notes: "Tina's screenshot lists `ADD: Sentiment Insights` immediately above `Top Editorial Domains`. Thomas's instruction was 'look at screenshot for placement' — strict literal read of the screenshot puts Sentiment Insights directly above Top Editorial Domains." That read satisfied the literal "above Top Editorial Domains" but missed Tina's intended overall flow (Synopsis -> Sentiment Insights -> Top Editorial Domains, with Matchback unmentioned because it wasn't on her sketch).
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence.tsx` — single JSX block moved. Updated the inline comment above the `<SentimentInsights>` render to document the FB-011 placement decision.
+
+#### Verification
+
+- TypeScript compilation: clean.
+- The component itself is unchanged — same `clientSlug` prop, same Avenue Z sandbox gate. Only its position in the JSX flow changed.
+
+#### Open risks
+
+1. If Tina wanted Matchback BELOW Top Editorial Domains (per her omission of it from the mockup), this PR Influence reorder doesn't address that. Out of scope for FB-011; flag as future FB-NN if Tina ever raises it.
+
+---
+
+### FB-010 — AEO PR Influence tab: add Sentiment Insights section (Avenue Z sandbox)
+
+- **Status:** done
+- **Source:** Tina via Thomas — annotated mockup of PR Influence "Recommended layout" with `ADD: Sentiment Insights` immediately above `Top Editorial Domains`. Plus a detailed static example.
+- **Author:** Tina
+- **Type:** new UI (static, Avenue Z sandbox)
+- **Scope:** new `components/report-sections/peec-ai/sentiment-insights.tsx`, modified `components/report-sections/peec-ai/pr-influence.tsx`. Sandbox-gated to Avenue Z only.
+
+#### Verbatim ask (condensed)
+
+`ADD: Sentiment Insights`. Headline: `Positive 89.4%`. Two weaknesses (titled, each with an explanation paragraph). Eight positive themes ("Sources of Positive Claims") mapping each theme to its citing URLs. Design: sentiment as KPI pill, Positive Themes + Weaknesses side-by-side, click-to-expand accordion. Placement: below Synopsis, above Top Editorial Domains.
+
+#### Key decisions
+
+| Decision | Why |
+|---|---|
+| Static, hardcoded Avenue Z content (no Glean, no fetch) | Thomas: "avenue z is the guinea pig... let's just make it static for avenue z first and then cross the bridge on the others." Same pattern as FB-006. |
+| Sandbox gate: `clientSlug === 'avenue-z'` only | Thomas: "sandbox all this feedback to avenue z... don't want data leaking into other clients." Hardcoded Avenue Z URLs must not render on iPullRank, Shopify, etc. Other clients see nothing in the slot. |
+| Placement: between Matchback (Section B) and Top Editorial Domains (Section C) | Thomas: "look at screenshot for placement." Literal read of Tina's screenshot puts the ADD label directly above Top Editorial Domains. |
+| Client component (`'use client'`) | Accordion needs `useState`. Two `Set<number>` states (positive + weaknesses) so multiple themes can be open at once. |
+| Sentiment as a rounded-full pill with brand-green accent | Tina: "sentiment as a KPI pill." Brand green is the existing positive-signal color. |
+| `ChevronRight` rotating to 90deg on expand | Standard accordion affordance. |
+| URLs render as `hostname.com · /path`, new tab, brand-green `›` marker | Readable + reuses the synopsis "Recommended actions" visual rhythm. |
+| Em-dashes replaced with periods in the weakness explanations Tina provided | Project house rule, same intent. |
+| Two columns symmetrical heights, `max-h-[400px] overflow-y-auto` per side | Same containment as FB-006 Winners/Losers; page footprint stays bounded. |
+
+#### Files touched
+
+- `components/report-sections/peec-ai/sentiment-insights.tsx` — **New.** ~210 lines. Two `const` arrays (`POSITIVE_THEMES` × 8, `WEAKNESSES` × 2) carry Tina's verbatim data. `SANDBOX_CLIENT_SLUG = 'avenue-z'` gate at the top.
+- `components/report-sections/peec-ai/pr-influence.tsx` — Added import; rendered `<SentimentInsights clientSlug={clientSlug} />` between Section B and Section C.
+
+#### What did NOT change
+
+- Synopsis (FB-009-a), Section B, Section C and below — all untouched.
+- No data layer additions, no fetches, no env vars.
+- FB-006 sandbox fix lives on its own branch (PR #54), not this one.
+
+#### Scope of impact
+
+- Avenue Z: section renders with Tina's static content.
+- Every other client: renders nothing in the slot (page flows directly from Matchback into Top Editorial Domains).
+- Both internal dashboard and Avenue Z client portal render paths.
+
+#### Verification
+
+- TypeScript clean (`npx tsc --noEmit`).
+- 1:1 verbatim check between Tina's pasted "Sources of Positive Claims" and the inline `POSITIVE_THEMES` array — 8 themes, exact titles, exact URLs in the same order.
+- Sandbox slug lives in one constant per component, so flipping to live later is a one-line change.
+
+#### Open risks
+
+1. Sentiment value (89.4%) is frozen — will drift from reality as the underlying citation mix changes. Intentional, flagged for live-derivation follow-up.
+2. Only Avenue Z renders this; other clients see nothing here until they're either onboarded as additional sandbox clients or we ship live derivation.
+3. Static URLs may rot over time. No mitigation in the static version.
+4. Default-collapsed accordion hides content at first paint. Matches Tina's brief; trivial to default the first theme open if she requests it.
+5. Empty slot on non-Avenue-Z clients may confuse future devs. The `SANDBOX_CLIENT_SLUG` const + comment explain the rationale at the call site.
+
+---
+
+### FB-009 — AEO PR Influence tab: add Executive Synopsis, remove the top KPI strip
+
+- **Status:** done
+- **Source:** Tina via Thomas — annotated mockup of the PR Influence tab "Recommended layout" (the ADD/REMOVE block) plus the live page screenshot showing the duplicate "How is AI-driven PR coverage performing?" heading + 6-up KPI grid below it.
+- **Author:** Tina
+- **Type:** new UI (synopsis) + removal (KPI strip)
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`, new `pr-influence-synopsis.tsx` and `lib/peec/pr-influence-synopsis.ts`. Universal across every current and future AEO client by virtue of living in the shared PR Influence render path. First batch on the `official-feedback-pr-influence-tab` branch.
+
+#### Verbatim ask
+
+> **ADD:** AI-generated synopsis of overall PR influence on AEO & recommended actions during the period, executive overview style.
+>
+> **REMOVE:** The pills for "How is AI-driven PR coverage performing?"
+
+Group mapping:
+
+| Tina element | Sub-item | Change |
+|---|---|---|
+| ADD: synopsis | FB-009-a | New `<PRInfluenceSynopsis>` RSC card at the top of the tab, Glean-backed, PR-Influence-specific data inputs, executive prose + 2-4 recommended actions |
+| REMOVE: pills | FB-009-b | Deleted the entire Section A KPI Strip block (`<h3>` eyebrow + 6 `<KpiCard>` instances) plus the now-dead intermediate display variables that fed only those cards |
+
+#### What was unambiguous
+
+1. Add an executive-style AI synopsis card to the PR Influence tab, matching the FB-002c/FB-003 Overview synopsis pattern.
+2. Remove "the pills" beneath the "How is AI-driven PR coverage performing?" heading.
+3. Synopsis content should cover the period's PR-influence story and include recommended actions.
+
+#### What was inferred (explicit interpretation choices)
+
+| Decision | What I chose | Why |
+|---|---|---|
+| **What "the pills" means on this tab** | The entire Section A KPI Strip — the `<h3>` eyebrow + all 6 `<KpiCard>` instances directly below the FB-001 SectionHeader. | (1) The page already has the SectionHeader at the top with the title "How is AI-driven PR coverage performing?" (added in FB-001). The Section A h3 repeated that exact question. Tina was visually staring at a duplicate question + a strip of card containers below it. (2) "The pills" is plural — the h3 alone is singular; the 6 cards are plural. Her word fits the cards. (3) Her red REMOVE annotation in the mockup brackets the heading + cards as one unit. (4) Replacing a metrics strip with a narrative executive synopsis is consistent with what "executive overview style" implies — the same data, retold as prose with recommendations. |
+| **Mirror the FB-002c/FB-003 Overview synopsis shell exactly** | Same card layout, Sparkles icon, "EXECUTIVE SYNOPSIS" eyebrow, prose paragraphs, "Recommended actions" list with brand-green `›` markers, graceful try/catch with the same "Synopsis is temporarily unavailable" fallback copy. | Single canonical pattern across the AEO report. The two synopsis cards (Overview + PR Influence) read as the same component, reinforcing the visual rhythm of the section. |
+| **Sparkles icon, not Megaphone** | Kept Sparkles (the same one Overview's synopsis uses). | Sparkles is the universal "AI-generated" semantic. Megaphone is for the PR Influence section header (FB-001) — that already lives at the top of the page. The synopsis is AI-generated, so it should read as an AI artifact, not a PR artifact. |
+| **PR-Influence-specific synopsis inputs** | The synopsis context (`PRInfluenceSynopsisContext`) carries: AI Visibility % + delta, Avg AI Position + delta, total AI Citations, total PR placements + AI-cited placement count, AI Referral Sessions + delta, total editorial domains + brand-absent count, top 5 brand-absent editorial domains (with citation counts), top 3 opportunity clusters (with scores). All sourced from the data the page already fetches. | These are the metrics the deleted KPI strip surfaced PLUS the per-section signal (brand-absent domains, opportunity clusters) that gives the synopsis enough to recommend specific moves. No new fetches. No proxies. Same numbers the lower-page tables already show. |
+| **Synopsis is model-filter-agnostic** | The synopsis context uses unfiltered all-model data even when a model filter is active. Same behavior as the Overview synopsis. | The synopsis is an executive readout at the top of the page; it summarizes the whole period, not the filter state. The per-section tables below already respond to the filter and surface the model-specific detail. Model-filter-responsive synopses would also defeat the 1h cache by adding `models` to the cache key. |
+| **Synopsis is provider-agnostic in this tab** | The cache key is `(clientSlug, dateRange)`, not `(clientSlug, dateRange, provider)`. The PR Influence tab is Peec-only (the file uses `getPeecOverview` directly), so provider is implicit. | Simpler key. If a future Profound PR Influence render path is added, swap to `(clientSlug, dateRange, provider)` like Overview does. Low-cost change. |
+| **Glean prompt** | Same shell as the Overview synopsis: executive tone, plain English, no fabrication, no em-dashes, strict JSON output (`{synopsis, actions}`). Body specialized to focus on: placement-to-AI-citation conversion, brand-absent editorial domains, and content / pitching moves to close gaps. | Tina said "executive overview style." Same rails that worked for the Overview synopsis. The PR-Influence-specific focus areas come from her own ADD wording ("PR influence on AEO & recommended actions"). |
+| **Glean call shape** | `gleanChat(prompt, { saveChat: false })`. No tools, no search. Single-shot inference over the inline-provided numbers. | Same anti-hallucination guarantee as Overview: Glean has no path to invent numbers because it has no search, and the only numbers it sees are the ones we pass in. |
+| **JSON extractor: three-tier (direct, fence-strip, widest-span)** | Identical pattern to Overview synopsis. Throws on shape mismatch so the RSC falls back gracefully. | Proven pattern. Glean usually obeys "no markdown fences" but occasionally wraps; the extractor handles all observed shapes without a re-prompt. |
+| **Cache version `v1-glean-pri`** | Distinct from Overview's `v2-glean` so cache buckets don't collide and a future migration to a global token / different impersonation model can bump independently. | Tagging discipline. |
+| **Dead variable pruning** | Removed `llmFiltered`, `filteredAiVisibilityPct`, `filteredAvgPosition`, `displayAiVisibility`, `displayAiVisibilityDelta`, `displayAvgPosition`, `displayAvgPositionDelta`, and the model-filtered `totalCitations` block — every one of these fed ONLY the KPI cards. Confirmed via grep that no other render site or computation references them. | Strict-mode TS would otherwise flag them as dead, and leaving dead code is the kind of thing that rots and confuses the next reader. Pruned what was provably unused only. |
+| **Kept all data the lower-page tables still need** | `youMetrics`, `editorialDomains`, `placementsCitedByAI`, `filteredMatchbackRows`, `aiSessions`, `aiSessionsDelta`, `matchbackTableRows`, `topEditorialRows`, `brandAbsentTableRows`, `opportunityRows`, `nextPitchRows`, `nextPitchEmptyKind` — all of these are still computed and still flow into Sections B through F. | Strict literal scope: this FB removed Section A only. Sections B-F render identically to before. |
+| **No em-dashes in any copy** | The PR Influence synopsis subtitle, the fallback message, the prompt, and the FB-009 commit message all use periods or commas only. | Project house rule. |
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `lib/peec/pr-influence-synopsis.ts` | **New.** `getPRInfluenceSynopsis()` cached helper. `buildContext()` formats the numeric snapshot. `extractJsonObject()` is the same three-tier extractor as Overview. Calls `gleanChat(prompt, { saveChat: false })`. 1h TTL, version `v1-glean-pri`. |
+| `components/report-sections/peec-ai/pr-influence-synopsis.tsx` | **New.** RSC card mirroring `overview-synopsis.tsx`. Sparkles icon, prose paragraphs, "Recommended actions" list, graceful fallback. |
+| `components/report-sections/peec-ai/pr-influence.tsx` | Added imports for `PRInfluenceSynopsis` and `PRInfluenceSynopsisContext`. Removed imports for `KpiCard`, `PEEC`, `GA4`, `sumByModel`. Deleted the dead `llmFiltered`/`filtered*`/`display*`/model-filtered `totalCitations` block (39 lines). Built the synopsis context as the last derivation before the `return`. In the JSX, replaced the entire Section A KPI Strip with a single `<PRInfluenceSynopsis>` render. |
+
+#### What did NOT change
+
+- Sections B (Matchback), C (Top Editorial Domains), D (Brand-Absent Editorial Domains), E (Prompt Cluster Opportunity Matrix), F (Next Pitch Opportunities), and the scoring methodology block — all untouched. Same rows, same filter behavior, same demo-mode behavior.
+- The FB-001 `<SectionHeader>` at the top of the page — unchanged.
+- The model filter mechanics for the lower-page tables — unchanged.
+- The Glean infrastructure (`gleanChat()` in `lib/glean.ts`, the ActAs opt-in fix from `f6b0534`) — inherited from `main` via the rebase, unchanged.
+- The `period-ribbon.tsx` component file — never rendered on PR Influence in the first place (only on Overview, where it was removed in FB-002a).
+
+#### Scope of impact
+
+- Every Peec client on the PR Influence tab gets the new top card automatically. No DB change, no per-client config, no backfill.
+- Synopsis content varies per client and per period (the prompt sees real client-specific numbers). Two clients viewing the same date range will get two different synopses, both grounded in their own data.
+- Renders in both the internal dashboard and the client portal.
+- Operationally requires the Glean env vars already configured for FB-002c / FB-003 (`GLEAN_INSTANCE`, `GLEAN_API_TOKEN`). No new env vars.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero errors).
+- Audit grep: zero remaining `KpiCard`, `displayAiVisibility`, `displayAvgPosition`, `llmFiltered`, `filteredAiVisibilityPct`, `filteredAvgPosition`, or `Section A: KPI Strip` references in `pr-influence.tsx`.
+- File line count: 635 (down from 691 pre-change, net -56 after accounting for the added synopsis context block).
+- The Glean call path is the same one already proven live on the Overview synopsis after the `f6b0534` ActAs fix — no separate Glean integration risk.
+
+#### Open risks (in order of likelihood)
+
+1. **Synopsis tone / specificity.** Most likely place Tina pushes back. Fix is a single-file prompt edit in `lib/peec/pr-influence-synopsis.ts`, no component changes.
+2. **Lost at-a-glance scannability of the 6 KPIs.** The synopsis narrates them, but a reader who wants to eyeball "what was AI Visibility %" has to read prose, not a card. If Tina later wants any of those KPIs back, easy add: re-render them under the synopsis with a "Snapshot KPIs" eyebrow (same pattern as Overview FB-002d).
+3. **Synopsis quality in demo mode.** Demo mode substitutes synthetic data and the synopsis runs against it, producing a synthetic-flavored narrative. The "Demo mode" badge above the card already signals that. Same risk as Overview demo mode, same mitigation.
+4. **Synopsis fallback when Glean errors.** Same graceful "Synopsis is temporarily unavailable. Other metrics on this page are unaffected." copy as Overview. Rest of the page renders unaffected.
+5. **Cache version `v1-glean-pri`.** First request after deploy is a guaranteed miss against Glean. If Glean is rate-limited or down at that exact moment for that exact (client, range) the fallback fires; cache then memoizes the fallback for 1h. Acceptable for an executive readout that the page can survive without.
+
+---
+
 ### FB-008 — Recolor the Domain Types chart + legend with the Avenue Z brand palette
 
 - **Status:** done
