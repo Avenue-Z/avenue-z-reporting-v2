@@ -8,7 +8,7 @@ import { ExecSummary } from '@/components/report-sections/exec-summary'
 import { GA4Report } from '@/components/report-sections/ga4'
 import { ConversionJourneyReport } from '@/components/report-sections/ga4/conversion-journey'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
-import { GoogleAdsReport } from '@/components/report-sections/google-ads'
+import { PaidSearchReport } from '@/components/report-sections/paid-search'
 import { EmailMarketingReport } from '@/components/report-sections/email-marketing'
 import { BlendedPerformanceReport } from '@/components/report-sections/blended-performance'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
@@ -58,15 +58,19 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} />
+      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} />
+      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'email-marketing':
       return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':
       return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} />
+      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'paid-media':
+      if (subsection === 'meta')     return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'linkedin') return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'snapchat-ads':
       return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
@@ -101,6 +105,11 @@ const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
   'pacing': 'Pacing',
 }
 
+const PAID_MEDIA_SUBSECTION_NAMES: Record<string, string> = {
+  'meta':     'Meta Advertising',
+  'linkedin': 'LinkedIn Advertising',
+}
+
 export default async function PortalReportPage({
   params,
   searchParams,
@@ -129,12 +138,19 @@ export default async function PortalReportPage({
       ? GA4_SUBSECTION_NAMES[subsection]
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'paid-media' && subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection])
+      ? PAID_MEDIA_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
     <>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
         {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
+        {activeSection === 'paid-media' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>

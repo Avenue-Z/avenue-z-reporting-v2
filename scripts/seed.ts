@@ -1,5 +1,5 @@
 import { db } from '../lib/db/client'
-import { clients, users, type PRConfig, type ReportSlug } from '../lib/db/schema'
+import { clients, users, type PRConfig, type PaidSearchConfig, type MetaConfig, type ReportSlug } from '../lib/db/schema'
 
 type SeedClient = {
   slug: string
@@ -17,6 +17,9 @@ type SeedClient = {
   contentCalendarSheetId: string | null
   peecYourBrand: string | null
   prConfig: PRConfig | null
+  smApiKeyEnvVar: string | null
+  paidSearchConfig: PaidSearchConfig | null
+  metaConfig: MetaConfig | null
   enabledReports: ReportSlug[]
   hiddenReports: ReportSlug[]
   users: { email: string; role: 'INTERNAL_ADMIN' | 'INTERNAL_ANALYST' | 'CLIENT_ADMIN' | 'CLIENT_VIEWER' }[]
@@ -48,6 +51,9 @@ const SEED: SeedClient[] = [
       dataTypes: ['news', 'pr', 'blog'],
       lookbackDays: 31,
     },
+    smApiKeyEnvVar: null,
+    paidSearchConfig: null,
+    metaConfig: null,
     enabledReports: [
       'demand-overview',
       'ga4',
@@ -78,7 +84,24 @@ const SEED: SeedClient[] = [
     contentCalendarSheetId: '1IkMw_7WUX5KBDVnHjPCLfTGRTqJBhVckvupVBIE240o',
     peecYourBrand: 'Renaissance',
     prConfig: null,
+    smApiKeyEnvVar: 'SUPERMETRICS_API_KEY_RENAISSANCE',
+    paidSearchConfig: {
+      googleAdsAccountId: '4136001852',
+      leadActions: [
+        { name: 'employer_dental_lead', category: 'employer' },
+        { name: 'employer_accident_lead', category: 'employer' },
+        { name: 'employer_vision_lead', category: 'employer' },
+        { name: 'broker_group_lead', category: 'broker' },
+        { name: 'contact_broker_lead', category: 'broker' },
+        { name: 'contact_individual_lead', category: 'contact' },
+        { name: 'contact_employee_lead', category: 'contact' },
+        { name: 'contact_provider_lead', category: 'contact' },
+      ],
+    },
+    metaConfig: { metaAdAccountId: 'act_1480350426850960' },
     enabledReports: [
+      'google-ads',
+      'meta-ads',
       'peec-ai',
       'request-a-report',
     ],
@@ -108,6 +131,9 @@ async function main() {
       contentCalendarSheetId: c.contentCalendarSheetId,
       peecYourBrand: c.peecYourBrand,
       prConfig: c.prConfig,
+      smApiKeyEnvVar: c.smApiKeyEnvVar,
+      paidSearchConfig: c.paidSearchConfig,
+      metaConfig: c.metaConfig,
       enabledReports: c.enabledReports,
       hiddenReports: c.hiddenReports,
       updatedAt: new Date(),

@@ -7,7 +7,7 @@ import { ReportErrorBoundary } from '@/components/report-sections/error-boundary
 import { ExecSummary } from '@/components/report-sections/exec-summary'
 import { GA4Report } from '@/components/report-sections/ga4'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
-import { GoogleAdsReport } from '@/components/report-sections/google-ads'
+import { PaidSearchReport } from '@/components/report-sections/paid-search'
 import { EmailMarketingReport } from '@/components/report-sections/email-marketing'
 import { BlendedPerformanceReport } from '@/components/report-sections/blended-performance'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
@@ -43,15 +43,15 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
     case 'ga4':
       return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} />
+      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} />
+      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'email-marketing':
       return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':
       return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} />
+      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'snapchat-ads':
       return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':

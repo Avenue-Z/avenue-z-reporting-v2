@@ -1,6 +1,8 @@
-/**
- * @deprecated Supermetrics has been removed.
- * Platform constants are now in lib/platforms/constants.ts.
- * This file can be deleted once the lib/supermetrics/ directory is cleaned up.
- */
-export {}
+/** Supermetrics data-source ids. Verified live: AW, FA, LIA. */
+export const DS_IDS = {
+  GA4: 'GAWA',
+  GOOGLE_ADS: 'AW',
+  META: 'FA',
+  LINKEDIN: 'LIA',
+} as const
+export type DsId = (typeof DS_IDS)[keyof typeof DS_IDS]

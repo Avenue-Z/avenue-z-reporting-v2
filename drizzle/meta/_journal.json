@@ -50,6 +50,27 @@
       "when": 1780426451792,
       "tag": "0006_old_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781715761238,
+      "tag": "0007_sudden_marauders",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782136630407,
+      "tag": "0008_moaning_quasar",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782147978740,
+      "tag": "0009_shiny_ser_duncan",
+      "breakpoints": true
     }
   ]
 }

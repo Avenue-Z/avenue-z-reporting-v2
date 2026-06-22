@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { demoLogout } from '@/app/actions/demo-auth'
-import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS } from '@/lib/constants'
+import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import { LogOut, Lock } from 'lucide-react'
 
@@ -192,6 +192,54 @@ export function PortalSidebar({ clients }: PortalSidebarProps) {
                         const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
                         return (
                           <li key={sub.id ?? 'peec'}>
+                            <Link
+                              href={`/portal/${clientSlug}/reports?${subParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                subIsActive
+                                  ? 'bg-white/[0.08] text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                              )}
+                            >
+                              {sub.label}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </li>
+              )
+            }
+
+            // Paid Media — expandable sub-menu
+            if (slug === 'paid-media') {
+              const pmBaseParams = new URLSearchParams()
+              pmBaseParams.set('section', 'paid-media')
+              if (dateRange) pmBaseParams.set('dateRange', dateRange)
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/portal/${clientSlug}/reports?${pmBaseParams.toString()}`}
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )}
+                  >
+                    {REPORT_NAMES[slug] ?? slug}
+                  </Link>
+                  {isActive && (
+                    <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                      {PAID_MEDIA_SUBSECTIONS.map((sub) => {
+                        const subParams = new URLSearchParams()
+                        subParams.set('section', 'paid-media')
+                        if (sub.id) subParams.set('subsection', sub.id)
+                        if (dateRange) subParams.set('dateRange', dateRange)
+                        const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
+                        return (
+                          <li key={sub.id ?? 'overview'}>
                             <Link
                               href={`/portal/${clientSlug}/reports?${subParams.toString()}`}
                               className={cn(

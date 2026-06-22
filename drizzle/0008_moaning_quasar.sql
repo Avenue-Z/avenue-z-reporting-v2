@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "meta_config" jsonb;

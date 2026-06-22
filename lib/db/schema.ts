@@ -11,6 +11,7 @@ export type ReportSlug =
   | 'email-marketing'
   | 'blended-performance'
   | 'linkedin-ads'
+  | 'paid-media'
   | 'snapchat-ads'
   | 'tiktok-ads'
   | 'shopify-performance'
@@ -39,6 +40,25 @@ export interface PRConfig {
   language?: string
   dataTypes?: ('news' | 'pr' | 'blog')[]
   lookbackDays?: number
+}
+
+export type LeadCategory = 'employer' | 'broker' | 'contact'
+
+export interface PaidSearchConfig {
+  /** Google Ads account id, digits only, e.g. '4136001852'. */
+  googleAdsAccountId: string
+  /** Canonical conversion actions. Category is NOT name-derivable, so it is explicit. */
+  leadActions: Array<{ name: string; category: LeadCategory }>
+}
+
+export interface MetaConfig {
+  /** Meta ad account id incl. the act_ prefix, e.g. 'act_1480350426850960'. */
+  metaAdAccountId: string
+}
+
+export interface LinkedInConfig {
+  /** LinkedIn ad account id, digits only, e.g. '503368877'. */
+  linkedinAdAccountId: string
 }
 
 /**
@@ -96,6 +116,10 @@ export const clients = pgTable('clients', {
   peecYourBrand: text('peec_your_brand'),
   profoundCategoryId: text('profound_category_id'),
   prConfig: jsonb('pr_config').$type<PRConfig>(),
+  smApiKeyEnvVar: text('sm_api_key_env_var'),
+  paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
+  metaConfig: jsonb('meta_config').$type<MetaConfig>(),
+  linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
