@@ -20,7 +20,7 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 ## Active branch
 
 - **Branch:** `official-feedback-pr-influence-tab`
-- **HEAD:** `(FB-012 commit pending push)`
+- **HEAD:** `f1d5c5a`
 - **PR:** [#52 — AEO PR Influence tab: official feedback (FB-009+)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — OPEN + DRAFT
 - **Base:** `main` (currently `8aa61a8`)
 - **Status:** mid-batch on PR Influence. FB-009 (synopsis + KPI strip removal), FB-010 (Sentiment Insights), FB-011 (Sentiment placement correction), FB-012 (reduce Top Editorial + Prompt Cluster bar chart + side-by-side + Matchback drops below + methodology block removed) all shipped to this branch. Awaiting Tina's next ask or her sign-off. Next FB ID is **FB-013**.
@@ -59,7 +59,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-013.**
 | **FB-009** | PR Influence | this branch (PR #52) | `9edb823` | ADD: Executive Synopsis on PR Influence (Glean, mirrors Overview synopsis pattern). REMOVE: duplicate `<h3>` + 6-card KPI strip beneath the section header. |
 | **FB-010** | PR Influence | this branch (PR #52) | `bf13917` | ADD: Sentiment Insights section with Tina's static Avenue Z content (89.4% positive, 8 themes, 2 weaknesses). Click-to-expand accordions, KPI pill. **Sandbox-gated to Avenue Z.** |
 | **FB-011** | PR Influence | this branch (PR #52) | `b4906a2` | Iteration on FB-010. Moved Sentiment Insights from between Matchback and Top Editorial Domains to directly under the Executive Synopsis. |
-| **FB-012** | PR Influence | this branch (PR #52) | `(pending)` | Reduce Top Editorial Domains (Citation Count → Citation Share, drop Avg Citations + PR cols + legend, new subtitle, drop green-on-PR styling). Replace Prompt Cluster Opportunity 7-col table with simple horizontal bar chart (Topic × % editorial citation share). Side-by-side `lg:grid-cols-2` layout for the two reduced cards directly under Sentiment Insights. PR Placement Matchback drops below the side-by-side row (matches Tina's recommended layout). Removed the 4-weight "How is the opportunity score calculated?" methodology block (explains a number that no longer renders). |
+| **FB-012** | PR Influence | this branch (PR #52) | `f1d5c5a` | Reduce Top Editorial Domains (Citation Count → Citation Share, drop Avg Citations + PR cols + legend, new subtitle, drop green-on-PR styling). Replace Prompt Cluster Opportunity 7-col table with simple horizontal bar chart (Topic × % editorial citation share). Side-by-side `lg:grid-cols-2` layout for the two reduced cards directly under Sentiment Insights. PR Placement Matchback drops below the side-by-side row (matches Tina's recommended layout). Removed the 4-weight "How is the opportunity score calculated?" methodology block (explains a number that no longer renders). |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
