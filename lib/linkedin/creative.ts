@@ -38,12 +38,12 @@ export function transformCreative(rows: Record<string, string>[]): LinkedInCreat
         spend,
         impressions: num(r, 'impressions'),
         clicks: num(r, 'clicks'),
-        ctr: +num(r, 'ctr').toFixed(2),
+        ctr: +(num(r, 'ctr') * 100).toFixed(2), // LinkedIn ctr is a 0-1 fraction
         cpc: +num(r, 'cpc').toFixed(2),
         leads: num(r, 'oneClickLeads'),
         costPerLead: +num(r, 'oneClickLeadsCost').toFixed(2),
         leadFormOpens: num(r, 'oneClickLeadFormOpens'),
-        leadFormCompletionRate: +num(r, 'leadFormCompletionRate').toFixed(1),
+        leadFormCompletionRate: +(num(r, 'leadFormCompletionRate') * 100).toFixed(1), // 0-1 fraction
         landingPageClicks: num(r, 'landingPageClicks'),
         shareOfSpend: total ? +((spend / total) * 100).toFixed(1) : 0,
       }

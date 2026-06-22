@@ -39,7 +39,7 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
         reach: num(r, 'reach'),
         frequency: +num(r, 'Frequency').toFixed(1),
         linkClicks: num(r, 'inline_link_clicks'),
-        ctr: +num(r, 'CTR').toFixed(1),
+        ctr: +(num(r, 'CTR') * 100).toFixed(1), // Meta CTR is a 0-1 fraction
         cpc: +num(r, 'CPC').toFixed(2),
         lpv: num(r, 'landing_page_views'),
         costPerLpv: Math.round(num(r, 'cost_per_landing_page_view')),
