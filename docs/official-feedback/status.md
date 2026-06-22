@@ -20,7 +20,7 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 ## Active branch
 
 - **Branch:** `official-feedback-pr-influence-tab`
-- **HEAD:** `75db637`
+- **HEAD:** `30465fd`
 - **PR:** [#52 — AEO PR Influence tab: official feedback (FB-009+)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — OPEN + DRAFT
 - **Base:** `main` (currently `8aa61a8`)
 - **Status:** mid-batch on PR Influence. FB-009 (synopsis + KPI strip removal), FB-010 (Sentiment Insights), FB-011 (Sentiment placement correction), FB-012 (reduce Top Editorial + Prompt Cluster bar chart + side-by-side + Matchback drops below + methodology block removed), FB-013 (per-cluster editorialCitationDensity fix), FB-014 (Top Editorial Opportunities retitle + redesign, Next Pitch deleted), FB-015 (Matchback removed for structural 1:1 with Tina's 5-section mockup) all shipped to this branch. Awaiting Tina's next ask or her sign-off. Next FB ID is **FB-016**.
@@ -65,7 +65,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-019.**
 | **FB-015** | PR Influence | this branch (PR #52) | `81b2277` | Close FB-014 open risk #1. Removed PR Placement Matchback render + component to match Tina's 5-section recommended layout (consistently omitted across FB-011, FB-012, FB-014). Final tab order: Synopsis → Sentiment → [Top Editorial + Prompt Clusters side-by-side] → Top Editorial Opportunities. buildMatchback / placementsCitedByAI compute kept for synopsis context. |
 | **FB-016** | PR Influence | this branch (PR #52) | `4215718` | Visual fix: tooltip on Prompt Clusters bar chart showed "Citation Share : X.X%" in unreadable near-black. Recharts <Tooltip> has separate `labelStyle` + `itemStyle` props beyond `contentStyle`; default itemStyle was rgb(51,51,51). Added explicit white labelStyle + itemStyle. |
 | **FB-017** | PR Influence | this branch (PR #52) | `75db637` | Sentiment Insights right column relabeled from "Weaknesses" to "Negative Themes" to match Tina's literal layout spec ("Positive Themes & Negative Themes side-by-side"). FB-010 had used "Weaknesses" because the underlying content was framed that way. One-line label + copy fix; data/state/behavior unchanged. |
-| **FB-018** | PR Influence | this branch (PR #52) | `(pending)` | Copy correction: Sentiment Insights column intros said "Tap a theme..." but Tina's literal spec said "click on a theme." One-word fix, both columns. |
+| **FB-018** | PR Influence | this branch (PR #52) | `30465fd` | Copy correction: Sentiment Insights column intros said "Tap a theme..." but Tina's literal spec said "click on a theme." One-word fix, both columns. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
