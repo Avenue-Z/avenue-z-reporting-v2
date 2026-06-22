@@ -1,5 +1,5 @@
 import { db } from '../lib/db/client'
-import { clients, users, type PRConfig, type PaidSearchConfig, type ReportSlug } from '../lib/db/schema'
+import { clients, users, type PRConfig, type PaidSearchConfig, type MetaConfig, type ReportSlug } from '../lib/db/schema'
 
 type SeedClient = {
   slug: string
@@ -19,6 +19,7 @@ type SeedClient = {
   prConfig: PRConfig | null
   smApiKeyEnvVar: string | null
   paidSearchConfig: PaidSearchConfig | null
+  metaConfig: MetaConfig | null
   enabledReports: ReportSlug[]
   hiddenReports: ReportSlug[]
   users: { email: string; role: 'INTERNAL_ADMIN' | 'INTERNAL_ANALYST' | 'CLIENT_ADMIN' | 'CLIENT_VIEWER' }[]
@@ -52,6 +53,7 @@ const SEED: SeedClient[] = [
     },
     smApiKeyEnvVar: null,
     paidSearchConfig: null,
+    metaConfig: null,
     enabledReports: [
       'demand-overview',
       'ga4',
@@ -96,8 +98,10 @@ const SEED: SeedClient[] = [
         { name: 'contact_provider_lead', category: 'contact' },
       ],
     },
+    metaConfig: { metaAdAccountId: 'act_1480350426850960' },
     enabledReports: [
       'google-ads',
+      'meta-ads',
       'peec-ai',
       'request-a-report',
     ],
@@ -129,6 +133,7 @@ async function main() {
       prConfig: c.prConfig,
       smApiKeyEnvVar: c.smApiKeyEnvVar,
       paidSearchConfig: c.paidSearchConfig,
+      metaConfig: c.metaConfig,
       enabledReports: c.enabledReports,
       hiddenReports: c.hiddenReports,
       updatedAt: new Date(),
