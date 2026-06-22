@@ -16,6 +16,82 @@ _(none)_
 
 ## Closed
 
+### FB-015 — Remove PR Placement Matchback to match Tina's 5-section layout
+
+- **Status:** done
+- **Source:** Thomas re-validation pass: "structurally please confirm 1:1 with Tina." Tina's recommended-layout mockup has consistently omitted Matchback across FB-011, FB-012, and FB-014 (three separate feedback rounds). Pattern is unambiguous: Matchback is not in her vision for the tab.
+- **Author:** Thomas (validation) / Claude (final structural reconciliation)
+- **Type:** delete
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx` + `components/report-sections/peec-ai/pr-influence-tables.tsx`. Universal change. Lineage: closes FB-014 open risk #1 ("Matchback placement").
+
+#### Pattern that drove this
+
+| Feedback round | Tina's mockup of the tab | Matchback present? |
+|---|---|---|
+| FB-011 | Synopsis → Sentiment → Top Editorial → … | No |
+| FB-012 | Synopsis → Sentiment → Top Editorial → Prompt Clusters | No |
+| FB-014 | Synopsis → Sentiment → Top Editorial → Prompt Clusters → Top Editorial Opportunities | No |
+
+Three rounds of "didn't mention" is the signal. Combined with Thomas's stated layout order (also 5 sections, no Matchback), the conservative call to keep Matchback in FB-014 was the wrong reading.
+
+#### What changed
+
+- Deleted the `<PRPlacementMatchbackTable>` JSX render in `pr-influence.tsx`.
+- Deleted the `matchbackTableRows` builder block + the 4 demo arrays that fed it (`DEMO_PROMPT_CLUSTERS`, `DEMO_AI_ENGINES`, `DEMO_PROMPT_COUNT`, `DEMO_POST_PUBLISH_TREND`).
+- Deleted the entire `PRPlacementMatchbackTable` component + `PRPlacementMatchbackRow` interface + `AI_ENGINES_TOOLTIP` + `POST_PUBLISH_TOOLTIP` consts from `pr-influence-tables.tsx`.
+- Cleaned imports: `PRPlacementMatchbackTable`, `PRPlacementMatchbackRow`.
+- Kept the `buildMatchback()` helper, `matchbackRows`, `filteredMatchbackRows`, and `placementsCitedByAI` computation in `pr-influence.tsx`. Reason: the executive synopsis context still uses `placementsCitedByAI` (X of Y placements cited by AI) and the synopsis is model-filter-agnostic by design.
+
+#### What was unambiguous
+
+1. Tina's recommended-layout screenshots across three feedback rounds consistently show 5 sections under the SectionHeader: Synopsis → Sentiment Insights → Top Editorial Domains → Prompt Clusters → Top Editorial Opportunities.
+2. Thomas's stated layout order (chat: "synopsis to sentiment insights to top editorial domains to which prompt clusters offer the biggest PR opportunity to top editorial opportunities") names exactly those 5 sections.
+3. Post-FB-014, the code rendered 6 sections (the extra was Matchback between Prompt Clusters and Top Editorial Opportunities).
+4. To be structurally 1:1 with Tina's mockup, Matchback must be removed.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence.tsx` | Removed `<PRPlacementMatchbackTable>` JSX, `matchbackTableRows` builder, 4 demo arrays, and `PRPlacementMatchbackTable` + `PRPlacementMatchbackRow` imports. Kept `buildMatchback`, `matchbackRows`, `filteredMatchbackRows`, `placementsCitedByAI` (still feed synopsis context). |
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | Deleted the entire Matchback section: `PRPlacementMatchbackRow` interface, `AI_ENGINES_TOOLTIP` const, `POST_PUBLISH_TOOLTIP` const, `PRPlacementMatchbackTable` component (lines 38–300 in the pre-FB-015 file). |
+
+#### Final state — JSX render order under the SectionHeader
+
+```
+1. PRInfluenceSynopsis
+2. SentimentInsights
+3. <div grid lg:grid-cols-2>
+     TopEditorialDomainsTable
+     PromptClusterOpportunityMatrix
+   </div>
+4. BrandAbsentEditorialDomainsTable  (= "Top Editorial Opportunities")
+```
+
+That is 4 JSX blocks (the side-by-side counts as one block in the layout, but visually presents 2 cards). Total visible sections on the page: 5, matching Tina's mockup.
+
+#### Scope of impact
+
+- Every AEO client with the PR Influence tab enabled no longer sees the Matchback table.
+- Synopsis context numbers (placementsCitedByAI etc.) unaffected — same compute, just not rendered as a table on this tab.
+- Per-model filter no longer affects any visible table on the tab in a way that depends on Matchback (Matchback's per-row model engines computation was internal-only post-removal). The synopsis remains model-filter-agnostic by design.
+- No DB change, no env change, no API change.
+- Diff is the removal of a large dead-render block.
+
+#### Verification
+
+- TypeScript compilation: clean (`npx tsc --noEmit` zero output).
+- JSX render order grep produces exactly the 5-section sequence above.
+- No dangling references (`PRPlacementMatchback`, `matchbackTableRows`, `NextPitch`, `Sparkles` all return empty from grep across the two files).
+- Sandbox gates unchanged: still 2 (FB-006 winners-losers + FB-010 sentiment-insights).
+
+#### Open risks
+
+1. **If Tina actually wanted Matchback kept** (despite three omissions), this is one JSX restore. Component file is now deleted, so restoration is a copy-back from git history. Documented for future restore if needed.
+2. **The `buildMatchback` helper still runs on every render** even though nothing visible consumes its full output anymore — only `placementsCitedByAI` (a single number) is used downstream. Could be simplified to a smaller compute. Out of scope here; the function is correct, just over-computes by one ~30-line `.map()`. Future cleanup.
+
+---
+
 ### FB-014 — Top Editorial Opportunities (retitled + redesigned Brand-Absent table) + remove Next Pitch Opportunities section
 
 - **Status:** done

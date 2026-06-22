@@ -18,11 +18,9 @@ import { SentimentInsights } from './sentiment-insights'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
-  PRPlacementMatchbackTable,
   TopEditorialDomainsTable,
   BrandAbsentEditorialDomainsTable,
   PromptClusterOpportunityMatrix,
-  type PRPlacementMatchbackRow,
   type TopEditorialDomainRow,
   type BrandAbsentEditorialDomainRow,
   type PromptClusterOpportunityRow,
@@ -377,62 +375,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // ── Serialize data for client components ───────────────────────────────────
 
-  // Demo-mode look-up tables (kept here so the new client tables receive plain
-  // serializable strings, not function references).
-  const DEMO_PROMPT_CLUSTERS = ['Discovery', 'Comparison', 'How-to', 'Research']
-  const DEMO_AI_ENGINES = [
-    'ChatGPT, Claude',
-    'Perplexity',
-    'ChatGPT, Gemini',
-    'Claude, Perplexity, Copilot',
-    'ChatGPT',
-    'Gemini, Perplexity',
-    'ChatGPT, Claude, Gemini',
-    'Perplexity, Copilot',
-    'ChatGPT, Perplexity',
-    'Claude',
-    'ChatGPT, Gemini, Copilot',
-    'Perplexity, Claude',
-  ]
-  const DEMO_PROMPT_COUNT = [14, 9, 22, 6, 31, 11, 18, 4, 27, 13, 8, 16]
-  const DEMO_POST_PUBLISH_TREND = [18, 24, 12, 31, 9, 17, 28, 14, 22, 11, 26, 19]
-
-  // 1. PR Placement Matchback rows — use filteredMatchbackRows (filtered by
-  // selected AI models above) so the table and summary counts reflect the filter.
-  const matchbackTableRows: PRPlacementMatchbackRow[] = filteredMatchbackRows.map((row, i) => ({
-    outlet: row.outlet,
-    domain: row.domain,
-    headline: row.headline,
-    link: row.link,
-    publicationDate: row.publicationDate,
-    // Prompt Cluster = themes (tags) this domain is cited under, joined.
-    // "None" when coverage loaded but the domain has no theme; -- only when
-    // coverage is unavailable (fetch failed / unconfigured).
-    promptCluster: prIsDemo
-      ? DEMO_PROMPT_CLUSTERS[i % DEMO_PROMPT_CLUSTERS.length]
-      : coverageAvailable ? (domainTagNames(coverage, row.domain).join(', ') || 'None') : null,
-    brandMentioned: row.brandMentioned,
-    // Pending-data placeholder (--): the PR Proof sheet has no linked-mention /
-    // backlink column. Whether a placement hyperlinks to the client lives in the
-    // article HTML, not the sheet. To enable: add a "Linked Mention" Yes/No column
-    // + wire it in lib/pr-proof/client.ts. See docs/aeo-empty-fields-diagnosis.md §5.
-    linkedMention: prIsDemo ? i % 3 !== 0 : null,
-    citedByAI: row.citedByAI,
-    aiEnginesCiting: prIsDemo
-      ? DEMO_AI_ENGINES[i % DEMO_AI_ENGINES.length]
-      : row.aiEnginesCiting.length > 0
-        ? row.aiEnginesCiting.map((e) => MODEL_DISPLAY_LABELS[e as AEOModel] ?? e).join(', ')
-        : row.citedByAI ? 'AI Engines' : 'Not cited',
-    // Known 0 (no tracked prompt cites this domain) shows 0, not -- which reads
-    // as missing data. -- only when coverage is unavailable.
-    promptCount: prIsDemo
-      ? DEMO_PROMPT_COUNT[i % DEMO_PROMPT_COUNT.length]
-      : coverageAvailable ? row.promptCount : null,
-    avgCitations: prIsDemo ? 1.4 + (i % 7) * 0.45 : (avgCitByDomain[hostKey(row.domain)] ?? null),
-    postPublishTrend: prIsDemo ? DEMO_POST_PUBLISH_TREND[i % DEMO_POST_PUBLISH_TREND.length] : placementTrend(row.publicationDate),
-  }))
-
-  // 2. Top Editorial Domains rows — apply model filter via filterDomainRowsByModel.
+  // 1. Top Editorial Domains rows — apply model filter via filterDomainRowsByModel.
   // First build the full list up to 15, then pass through the filter helper which
   // recomputes citationCount from per-model data and drops zero-count rows.
   // Note: citationCountDelta is intentionally left stale (v1 limitation — see helper).
@@ -588,16 +531,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
             all-model data regardless of the active model filter. */}
         <PromptClusterOpportunityMatrix rows={opportunityTableRows} />
       </div>
-
-      {/* ── PR Placement Matchback ── */}
-      {/* totalPlacements reflects filtered set when a model filter is active */}
-      <PRPlacementMatchbackTable
-        rows={matchbackTableRows}
-        totalPlacements={models ? filteredMatchbackRows.length : (prData?.totalPlacements ?? 0)}
-        placementsCitedByAI={placementsCitedByAI}
-        prDataAvailable={!!prData}
-        isDemo={prIsDemo}
-      />
 
       {/* ── FB-014 · Top Editorial Opportunities (retitled from Brand-Absent Editorial Domains) ── */}
       <BrandAbsentEditorialDomainsTable
