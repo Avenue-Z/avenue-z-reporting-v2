@@ -58,7 +58,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} />
+      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'google-ads':
       return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'email-marketing':

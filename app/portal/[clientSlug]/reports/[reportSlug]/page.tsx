@@ -55,7 +55,7 @@ function getReportSection(
     case 'ga4':
       return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} />
+      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'google-ads':
       return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'email-marketing':
