@@ -87,13 +87,23 @@ const SEED: SeedClient[] = [
     smApiKeyEnvVar: 'SUPERMETRICS_API_KEY_RENAISSANCE',
     paidSearchConfig: {
       googleAdsAccountId: '4136001852',
+      // 14 form-fill lead actions per the Renaissance PRD. Names verified
+      // lowercase against account 4136001852 (the 8 that have fired YTD);
+      // the 6 zero-conversion actions use the account's lowercase convention
+      // (confirm casing in Google Ads when they start firing).
       leadActions: [
         { name: 'employer_dental_lead', category: 'employer' },
-        { name: 'employer_accident_lead', category: 'employer' },
         { name: 'employer_vision_lead', category: 'employer' },
+        { name: 'employer_accident_lead', category: 'employer' },
+        { name: 'employer_life_lead', category: 'employer' },
+        { name: 'employer_supplemental_lead', category: 'employer' },
+        { name: 'employer_pfml_lead', category: 'employer' },
+        { name: 'employer_disability_lead', category: 'employer' },
+        { name: 'broker_individual_lead', category: 'broker' },
         { name: 'broker_group_lead', category: 'broker' },
-        { name: 'contact_broker_lead', category: 'broker' },
         { name: 'contact_individual_lead', category: 'contact' },
+        { name: 'contact_employer_lead', category: 'contact' },
+        { name: 'contact_broker_lead', category: 'contact' },
         { name: 'contact_employee_lead', category: 'contact' },
         { name: 'contact_provider_lead', category: 'contact' },
       ],
