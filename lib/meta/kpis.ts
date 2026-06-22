@@ -35,9 +35,9 @@ export function transformMetaKpis(
       value: n(totals, 'inline_link_clicks'),
       delta: d('inline_link_clicks'),
     },
-    { key: 'ctr', label: 'CTR', value: +n(totals, 'CTR').toFixed(1), suffix: '%' },
-    { key: 'cpm', label: 'CPM', value: +n(totals, 'CPM').toFixed(2), prefix: '$' },
-    { key: 'cpc', label: 'CPC', value: +n(totals, 'CPC').toFixed(2), prefix: '$' },
+    { key: 'ctr', label: 'CTR', value: +n(totals, 'CTR').toFixed(1), suffix: '%', delta: d('CTR') },
+    { key: 'cpm', label: 'CPM', value: +n(totals, 'CPM').toFixed(2), prefix: '$', delta: d('CPM') },
+    { key: 'cpc', label: 'CPC', value: +n(totals, 'CPC').toFixed(2), prefix: '$', delta: d('CPC') },
     {
       key: 'lpv',
       label: 'Landing Page Views',

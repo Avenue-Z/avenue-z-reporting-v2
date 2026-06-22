@@ -1,6 +1,7 @@
 import { DataTable } from '@/components/charts/data-table'
 import { usd, num, pct } from '@/lib/supermetrics/format'
 import type { CreativeRow } from '@/lib/meta/types'
+import { creativeTotals } from '@/lib/meta/creative'
 
 const columns = [
   { key: 'ad', label: 'Ad Name', align: 'left' as const, sortable: true },
@@ -30,5 +31,22 @@ export function CreativeTable({ rows }: { rows: CreativeRow[] }) {
     _linkClicks: r.linkClicks, _ctr: r.ctr, _cpc: r.cpc, _lpv: r.lpv, _costPerLpv: r.costPerLpv,
     _engagements: r.engagements, _shareOfSpend: r.shareOfSpend,
   }))
-  return <DataTable columns={columns} rows={tableRows} defaultSort={{ key: 'spend', dir: 'desc' }} />
+  const t = creativeTotals(rows)
+  const totalsRow: Record<string, React.ReactNode> = {
+    ad: 'Total',
+    campaign: '',
+    status: '',
+    spend: usd(t.cost),
+    impressions: num(t.impressions),
+    reach: num(t.reach),
+    frequency: (t.reach ? t.impressions / t.reach : 0).toFixed(1) + 'x',
+    linkClicks: num(t.linkClicks),
+    ctr: '—',
+    cpc: '—',
+    lpv: num(t.lpv),
+    costPerLpv: usd(t.lpv ? Math.round(t.cost / t.lpv) : 0),
+    engagements: num(t.engagements),
+    shareOfSpend: pct(100),
+  }
+  return <DataTable columns={columns} rows={tableRows} defaultSort={{ key: 'spend', dir: 'desc' }} totalsRow={totalsRow} />
 }

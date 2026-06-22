@@ -1,6 +1,7 @@
 import { DataTable } from '@/components/charts/data-table'
 import { usd, num, pct } from '@/lib/supermetrics/format'
 import type { LinkedInCreativeRow } from '@/lib/linkedin/types'
+import { creativeTotals } from '@/lib/linkedin/creative'
 
 const columns = [
   { key: 'ad', label: 'Ad Name', align: 'left' as const, sortable: true },
@@ -33,5 +34,23 @@ export function LinkedInCreativeTable({ rows }: { rows: LinkedInCreativeRow[] })
     _leadFormCompletionRate: r.leadFormCompletionRate, _landingPageClicks: r.landingPageClicks,
     _shareOfSpend: r.shareOfSpend,
   }))
-  return <DataTable columns={columns} rows={tableRows} defaultSort={{ key: 'spend', dir: 'desc' }} />
+  const t = creativeTotals(rows)
+  const totalsRow: Record<string, React.ReactNode> = {
+    ad: 'Total',
+    audience: '',
+    campaign: '',
+    status: '',
+    spend: usd(t.spend),
+    impressions: num(t.impressions),
+    clicks: num(t.clicks),
+    ctr: pct(t.impressions ? +((t.clicks / t.impressions) * 100).toFixed(2) : 0),
+    cpc: '$' + (t.clicks ? t.spend / t.clicks : 0).toFixed(2),
+    leads: num(t.leads),
+    costPerLead: '$' + (t.leads ? t.spend / t.leads : 0).toFixed(2),
+    leadFormOpens: num(t.leadFormOpens),
+    leadFormCompletionRate: pct(t.leadFormOpens ? +((t.leads / t.leadFormOpens) * 100).toFixed(1) : 0),
+    landingPageClicks: num(t.landingPageClicks),
+    shareOfSpend: pct(100),
+  }
+  return <DataTable columns={columns} rows={tableRows} defaultSort={{ key: 'spend', dir: 'desc' }} totalsRow={totalsRow} />
 }

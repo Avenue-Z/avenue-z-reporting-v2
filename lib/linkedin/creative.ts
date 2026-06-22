@@ -1,6 +1,29 @@
 import { linkedinQuery } from './base'
 import type { LinkedInCreativeRow } from './types'
 
+export interface LinkedInCreativeTotals {
+  spend: number
+  impressions: number
+  clicks: number
+  leads: number
+  leadFormOpens: number
+  landingPageClicks: number
+}
+
+export function creativeTotals(rows: LinkedInCreativeRow[]): LinkedInCreativeTotals {
+  return rows.reduce(
+    (t, r) => ({
+      spend: t.spend + r.spend,
+      impressions: t.impressions + r.impressions,
+      clicks: t.clicks + r.clicks,
+      leads: t.leads + r.leads,
+      leadFormOpens: t.leadFormOpens + r.leadFormOpens,
+      landingPageClicks: t.landingPageClicks + r.landingPageClicks,
+    }),
+    { spend: 0, impressions: 0, clicks: 0, leads: 0, leadFormOpens: 0, landingPageClicks: 0 },
+  )
+}
+
 export function transformCreative(rows: Record<string, string>[]): LinkedInCreativeRow[] {
   const num = (r: Record<string, string>, id: string) => Number(r[id] || 0)
   const total = rows.reduce((s, r) => s + num(r, 'spend'), 0)

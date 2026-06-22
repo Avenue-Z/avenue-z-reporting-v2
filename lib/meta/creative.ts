@@ -1,6 +1,29 @@
 import { metaQuery } from './base'
 import type { CreativeRow } from './types'
 
+export interface MetaCreativeTotals {
+  cost: number
+  impressions: number
+  reach: number
+  linkClicks: number
+  lpv: number
+  engagements: number
+}
+
+export function creativeTotals(rows: CreativeRow[]): MetaCreativeTotals {
+  return rows.reduce(
+    (t, r) => ({
+      cost: t.cost + r.spend,
+      impressions: t.impressions + r.impressions,
+      reach: t.reach + r.reach,
+      linkClicks: t.linkClicks + r.linkClicks,
+      lpv: t.lpv + r.lpv,
+      engagements: t.engagements + r.engagements,
+    }),
+    { cost: 0, impressions: 0, reach: 0, linkClicks: 0, lpv: 0, engagements: 0 },
+  )
+}
+
 export function transformCreative(rows: Record<string, string>[]): CreativeRow[] {
   const num = (r: Record<string, string>, id: string) => Number(r[id] || 0)
   const total = rows.reduce((s, r) => s + num(r, 'cost'), 0)
