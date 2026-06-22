@@ -10,6 +10,9 @@ import { ReportErrorBoundary } from '@/components/report-sections/error-boundary
 import { GA4Report } from '@/components/report-sections/ga4'
 import { ConversionJourneyReport } from '@/components/report-sections/ga4/conversion-journey'
 import { GoogleSearchConsoleReport } from '@/components/report-sections/google-search-console'
+import { MetaAdsReport } from '@/components/report-sections/meta-ads'
+import { PaidSearchReport } from '@/components/report-sections/paid-search'
+import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
@@ -82,6 +85,10 @@ function getReportComponent(
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
       return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} models={models} />
+    case 'paid-media':
+      if (subsection === 'meta')     return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'linkedin') return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     default:
       return null
   }
@@ -101,6 +108,11 @@ const AEO_SUBSECTION_NAMES: Record<string, string> = {
   'pr-influence':    'PR Influence',
   'content-impact':  'Content Impact',
   'technical-audit': 'Technical Performance',
+}
+
+const PAID_MEDIA_SUBSECTION_NAMES: Record<string, string> = {
+  'meta':     'Meta Advertising',
+  'linkedin': 'LinkedIn Advertising',
 }
 
 export default async function ReportPage({
@@ -147,6 +159,8 @@ export default async function ReportPage({
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
     : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
       ? AEO_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'paid-media' && subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection])
+      ? PAID_MEDIA_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
@@ -161,6 +175,11 @@ export default async function ReportPage({
             Audit) honor the page date range, comparing against the previous
             period of equal length. */}
         {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
+        {activeSection === 'paid-media' && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
