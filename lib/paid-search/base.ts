@@ -34,12 +34,5 @@ export function isLeadAction(name: string, cfg: PaidSearchConfig): boolean {
 export function categoryOf(name: string, cfg: PaidSearchConfig): LeadCategory | null {
   return cfg.leadActions.find((a) => a.name === name)?.category ?? null
 }
-export function usd(n: number): string {
-  return '$' + Math.round(n).toLocaleString('en-US')
-}
-export function pct(n: number): string {
-  return n.toFixed(1) + '%'
-}
-export function num(n: number): string {
-  return Math.round(n).toLocaleString('en-US')
-}
+
+export { usd, num, pct } from '@/lib/supermetrics/format'
