@@ -305,9 +305,10 @@ export function PromptClusterOpportunityMatrix({
                 background: '#272727',
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: '8px',
-                color: '#FFFFFF',
                 fontSize: '12px',
               }}
+              labelStyle={{ color: '#FFFFFF', fontWeight: 600 }}
+              itemStyle={{ color: '#FFFFFF' }}
               formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)}%`, 'Citation Share']}
             />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>

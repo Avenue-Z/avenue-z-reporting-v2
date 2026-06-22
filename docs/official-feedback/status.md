@@ -38,7 +38,7 @@ One branch + one PR per AEO sub-tab.
 | Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-016.**
+FB IDs continue sequentially across all branches. **Next ID is FB-017.**
 
 ---
 
@@ -63,6 +63,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-016.**
 | **FB-013** | PR Influence | this branch (PR #52) | `41d2091` | Fix pre-existing data bug surfaced by FB-012 bar chart: editorialCitationDensity was computed ONCE globally and assigned identically to every cluster, so every bar rendered at 100%. Now computed PER CLUSTER via coverage.tagNameById + tagIdsByDomain + topDomain.retrieved: `sum(retrieved across editorial-typed domains tagged with cluster) / sum(retrieved across all domains tagged with cluster) * 100`. Real ranking emerges. No render changes; same FB-012 chart, real numbers now. |
 | **FB-014** | PR Influence | this branch (PR #52) | `293599c` | Brand-Absent table retitled "Top Editorial Opportunities" with Tina's new title + subtitle. 5-column shape: Publication, Article (combined title + URL hyperlink), Competitors Mentioned, Citation Share, Delta of Citation Share. Filter: brand-not-mentioned (or no data) AND positive citation-share delta. Removed: 3 columns (Brand Mentioned, Opportunity Priority, Suggested PR Angle), footnote, isDemo prop. Deleted entire NextPitchOpportunitiesTable component + Sparkles wrapper + nextPitchRows compute (Tina REMOVE "Where should we pitch next..."). Methodology block REMOVE already shipped in FB-012. Matchback kept in place (Tina did not list it as a removal). Universal change. |
 | **FB-015** | PR Influence | this branch (PR #52) | `81b2277` | Close FB-014 open risk #1. Removed PR Placement Matchback render + component to match Tina's 5-section recommended layout (consistently omitted across FB-011, FB-012, FB-014). Final tab order: Synopsis → Sentiment → [Top Editorial + Prompt Clusters side-by-side] → Top Editorial Opportunities. buildMatchback / placementsCitedByAI compute kept for synopsis context. |
+| **FB-016** | PR Influence | this branch (PR #52) | `(pending)` | Visual fix: tooltip on Prompt Clusters bar chart showed "Citation Share : X.X%" in unreadable near-black. Recharts <Tooltip> has separate `labelStyle` + `itemStyle` props beyond `contentStyle`; default itemStyle was rgb(51,51,51). Added explicit white labelStyle + itemStyle. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 

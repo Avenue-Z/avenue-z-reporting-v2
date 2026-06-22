@@ -16,6 +16,39 @@ _(none)_
 
 ## Closed
 
+### FB-016 — Fix unreadable tooltip text on the Prompt Clusters bar chart
+
+- **Status:** done
+- **Source:** Thomas screenshot of the Vercel preview after FB-015 deployed: "the percentage is, like, in black, and you can't see it. So we're gonna have to change the color of that."
+- **Author:** Thomas (flagged) / Claude (one-line fix)
+- **Type:** visual bug fix
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` — `<RechartsTooltip>` config on the `PromptClusterOpportunityMatrix` bar chart. Lineage: bug surfaced after FB-012 (chart creation).
+
+#### Root cause
+
+Recharts `<Tooltip>` has THREE separate style props: `contentStyle` (the container), `labelStyle` (the row label, e.g. cluster name), and `itemStyle` (each data row, e.g. "Citation Share : 1.6%"). I had set `color: '#FFFFFF'` on `contentStyle` only. That covers the container's default color but Recharts' `<DefaultTooltipContent>` applies its own internal defaults for the label and item rows, and the item row falls back to a near-black `color: rgb(51, 51, 51)` (Recharts source). On the dark `#272727` tooltip background, that is invisible.
+
+#### Fix
+
+Added `labelStyle={{ color: '#FFFFFF', fontWeight: 600 }}` and `itemStyle={{ color: '#FFFFFF' }}` to the `<RechartsTooltip>` config. Removed the redundant `color: '#FFFFFF'` from `contentStyle` (it was a no-op once Recharts' internal defaults took over). The tooltip now renders cluster name in bold white + metric line in white, against the dark `#272727` background.
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `components/report-sections/peec-ai/pr-influence-tables.tsx` | `<RechartsTooltip>` config in `PromptClusterOpportunityMatrix`: added `labelStyle` + `itemStyle`, removed redundant `contentStyle.color`. |
+
+#### Verification
+
+- TypeScript compilation: clean.
+- Hovering any bar in the new render shows: cluster name in bold white, "Citation Share : X.X%" in white, against dark tooltip background.
+
+#### Open risks
+
+- None. Single-prop style fix, no behavior change.
+
+---
+
 ### FB-015 — Remove PR Placement Matchback to match Tina's 5-section layout
 
 - **Status:** done
