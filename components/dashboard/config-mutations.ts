@@ -34,3 +34,7 @@ export function resetBlockRange(config: DashboardConfig, blockId: string): Dashb
     blocks: config.blocks.map((b) => (b.id === blockId ? { ...b, range: null } : b)),
   }
 }
+
+export function addBlock(config: DashboardConfig, block: PersistedBlock): DashboardConfig {
+  return { ...config, blocks: [...config.blocks, block] }
+}

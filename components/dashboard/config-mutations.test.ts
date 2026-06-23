@@ -65,4 +65,16 @@ const base: DashboardConfig = {
   assert.equal(next.blocks[0].range, null)
 }
 
+// addBlock: appends a new block to the end of the blocks array
+import { addBlock } from './config-mutations'
+{
+  const base = { defaultRange: { dateRange: 'last_30_days', compareRange: null }, blocks: [] as PersistedBlock[] }
+  const block = { id: 'n1', name: 'New', format: 'number' as const, range: null, binding: { source: 'triplewhale' as const, metric: 'sessions' } }
+  const next = addBlock(base, block)
+  assert.equal(next.blocks.length, 1)
+  assert.equal(next.blocks[0].id, 'n1')
+  assert.notEqual(next.blocks, base.blocks, 'new array')
+  assert.equal(base.blocks.length, 0, 'input unchanged')
+}
+
 console.log('ok')
