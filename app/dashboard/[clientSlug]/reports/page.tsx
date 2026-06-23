@@ -29,22 +29,7 @@ import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import type { ReportSlug } from '@/lib/db/schema'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam } from '@/lib/peec/models'
-
-function SectionSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-28 animate-pulse rounded-lg border border-white/[0.06] bg-bg-surface"
-          />
-        ))}
-      </div>
-      <div className="h-80 animate-pulse rounded-lg border border-white/[0.06] bg-bg-surface" />
-    </div>
-  )
-}
+import { SectionSkeleton } from './section-skeleton'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -194,7 +179,11 @@ export default async function ReportPage({
       <div className="h-8" />
 
       <ReportErrorBoundary sectionName={pageTitle}>
-        <Suspense fallback={<SectionSkeleton />}>
+        {/* Key on section+subsection so switching reports in the sidebar (a
+            same-route ?section= change) remounts this boundary and shows the
+            skeleton immediately, instead of holding the old section on screen
+            for the duration of the new section's server-side data fetch. */}
+        <Suspense key={`${activeSection}:${subsection ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode, models)}
         </Suspense>
       </ReportErrorBoundary>
