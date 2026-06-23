@@ -35,8 +35,12 @@ export function transformTopContent(res: MediaV2Response, limit?: number): TopCo
 
 const PLATFORM_ORDER = CHANNELS.map((c) => CHANNEL_LABEL[c])
 
-/** Group globally-sorted rows into per-platform sections (top `perPlatform` each), in canonical order. */
-export function groupByPlatform(rows: TopContentRow[], perPlatform = 10): PlatformTopContent[] {
+/**
+ * Group rows into per-platform sections, in canonical order. Keeps all of a
+ * platform's rows (optionally capped) so the UI can rank by either engagement
+ * or views without losing a top performer in the other metric.
+ */
+export function groupByPlatform(rows: TopContentRow[], perPlatform?: number): PlatformTopContent[] {
   const byPlatform = new Map<string, TopContentRow[]>()
   for (const r of rows) {
     // Only the report's known platforms — skips unmapped sources like UPLOAD.
@@ -51,12 +55,13 @@ export function groupByPlatform(rows: TopContentRow[], perPlatform = 10): Platfo
   }
   return [...byPlatform.entries()]
     .sort((a, b) => rank(a[0]) - rank(b[0]))
-    .map(([platform, rs]) => ({ platform, rows: rs.slice(0, perPlatform) }))
+    .map(([platform, rs]) => ({ platform, rows: perPlatform != null ? rs.slice(0, perPlatform) : rs }))
 }
 
 export async function getTopContent(slug: string, dateRange: string): Promise<PlatformTopContent[]> {
   const { client, brandId } = await dashClientFor(slug)
   const { start, end } = isoRange(dateRange)
   const res = await client.getMedia({ brandId, startDate: start, endDate: end, limit: 100 })
-  return groupByPlatform(transformTopContent(res), 10)
+  // Cap at 25/platform to bound payload; the UI slices to top 5 by the active metric.
+  return groupByPlatform(transformTopContent(res), 25)
 }
