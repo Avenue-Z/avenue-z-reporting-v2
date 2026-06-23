@@ -16,6 +16,36 @@ _(none)_
 
 ## Closed
 
+### FB-030 — Remove bottom footnote on PR Influence
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 24 (unmarked REMOVE ask). Verbatim: *"REMOVE: This footnote at the very bottom of report. 'PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . 3 PR placements (2025-06-06 to 2026-01-27)'"*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI removal
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`
+
+#### Problem
+
+A trailing `<p className="text-xs text-text-muted">` block at the bottom of the PR Influence RSC concatenated tab title, data-source disclosure, and PR placement count + date range into a small-print footnote. Tina explicitly asked it gone.
+
+#### Solution
+
+Deleted the `<p>` block entirely. No replacement. The file's top-of-file `// PR Influence on AI Visibility` code comment header is preserved because it is not user-visible.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence.tsx` — one `<p>` block deleted.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Grep confirms the only remaining occurrence of the string "PR Influence on AI Visibility" is in the top-of-file code comment, not in JSX.
+- Existing tests still pass.
+
+#### Open risks
+
+None. Pure deletion, no behavior change beyond removing the footnote.
+
 ### FB-029 — PR Placement Matchback restored under Exec Summary
 
 - **Status:** done
