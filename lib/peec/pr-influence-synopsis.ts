@@ -50,14 +50,18 @@ function buildContext(args: { context: PRInfluenceSynopsisContext; dateRange: st
     ? `${((c.placementsCitedByAI / c.totalPlacements) * 100).toFixed(1)}%`
     : 'n/a'
 
+  // FB-025: round per-domain citation counts to 1 decimal before interpolation.
+  // The Peec `retrieved` field is a float percentage; Glean echoed raw floats
+  // like "2.6297537434931484 AI citations" into the prose verbatim.
   const brandAbsentBlock = c.topBrandAbsentDomains.length > 0
     ? `Top editorial domains citing AI but missing your brand (highest AI citation count):
-${c.topBrandAbsentDomains.map((d, i) => `${i + 1}. ${d.domain} - ${d.citationCount} AI citations`).join('\n')}`
+${c.topBrandAbsentDomains.map((d, i) => `${i + 1}. ${d.domain} - ${d.citationCount.toFixed(1)} AI citations`).join('\n')}`
     : 'Top editorial domains where brand is absent: none reported in period.'
 
+  // FB-025: opportunity score is a derived 0-100 number; round to integer.
   const opportunityBlock = c.topOpportunityClusters.length > 0
     ? `Top prompt-cluster opportunities (highest opportunity score):
-${c.topOpportunityClusters.map((o, i) => `${i + 1}. ${o.cluster} - score ${o.score.toFixed(0)}`).join('\n')}`
+${c.topOpportunityClusters.map((o, i) => `${i + 1}. ${o.cluster} - score ${Math.round(o.score)}`).join('\n')}`
     : 'Top prompt-cluster opportunities: none reported in period.'
 
   return `
@@ -131,6 +135,8 @@ async function getPRInfluenceSynopsisImpl(
 
 Tone: executive, plain English, no jargon, no hype. Reference real numbers from the data. Do not fabricate metrics. If a metric is "n/a" or "not configured", do not invent a value. Do not use em-dashes; use periods and commas.
 
+Number formatting (strict): Every number you output in prose must have at most 1 decimal place. Never echo raw floats with more than 1 decimal. Integers like placement counts stay as integers. Percentages render like "28.3%". Counts like "1,407" use thousands separators.
+
 Output strictly valid JSON in this shape, with no markdown fences and no commentary before or after:
 {
   "synopsis": "Two to three short paragraphs separated by \\n\\n. No bullets. No headings.",
@@ -153,7 +159,7 @@ export const getPRInfluenceSynopsis = cached(
   'getPRInfluenceSynopsis',
   getPRInfluenceSynopsisImpl,
   {
-    version: 'v1-glean-pri',
+    version: 'v2-glean-pri',  // FB-025: rounded numerics in buildContext + stricter prompt format rule
     ttlSeconds: 3600,
     extractTags: ([clientSlug, dateRange]) => ({
       client: clientSlug,
