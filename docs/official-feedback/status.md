@@ -19,13 +19,21 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** `official-feedback-pr-influence-v2` (cut from `main` at `91a1971`)
-- **PR:** to be opened in this task; URL recorded in changelog post-merge.
-- **Round:** PR Influence v2 — closes every ⚠️ row in Tina's PR Influence v1 CSV (R2, R4, R5, R14, R16, R17, R23) + the R24 REMOVE ask.
-- **Next FB ID:** **FB-031**.
+- **Branch:** none currently active. On `main` at `f6fd533` (PR Influence v2 batch just merged via PR #64).
+- **Next round:** Content Impact (v1) — branch `official-feedback-content-impact-tab` is parked as docs-only; resume when Tina sends Content Impact feedback. **Pre-empt:** apply the FB-031 footnote-removal pattern proactively at [content-impact.tsx:1279-1285](../../components/report-sections/peec-ai/content-impact.tsx:1279) (saved to memory as `project_content_impact_preempt.md`) BEFORE Tina sees Content Impact for v1 review.
+- **Suggested next branch:** `official-feedback-content-impact-tab` (cut a fresh one from `f6fd533` when work begins).
+- **Next FB ID:** **FB-032**.
 
 ## Recently merged
 
+- **PR Influence v2** — [#64 — PR Influence v2: Tina CSV feedback (FB-025 through FB-030)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) — **MERGED 2026-06-23** at merge commit `f6fd533`. Closed every ⚠️ row in Tina's PR Influence v1 scorecard CSV (R2, R4, R5, R14, R16, R17, R23) + R24 REMOVE ask. **+ FB-031 hardening** shipped on the same branch in response to a synopsis-vs-table contradiction caught on the Vercel preview. Items shipped in this batch:
+  - **FB-025** (CSV R2) — Synopsis decimals fix: `.toFixed(1)` + `Math.round(o.score)` in `buildContext()`, strict 'Number formatting' prompt rule, cache version `v1-glean-pri` → `v2-glean-pri`. Commit `d20b321`.
+  - **FB-026** (CSV R4 + R5) — Sentiment Insights wired to live Glean-backed classification over `UrlCitation[]`; sandbox gate LIFTED (precedent: FB-023); date + model reactive; 11 unit tests. New `lib/peec/sentiment-insights.ts` + `lib/peec/sentiment-insights.test.ts`. Commits `d385c55` + `79ad31c` (follow-up dropped null-title URL hallucination bait + JSDoc fix).
+  - **FB-027** (CSV R14) — Prompt Clusters X-axis dynamic: `upper = next 5 (max ≤ 10) or next 10 (max > 10)`, fallback 5 when empty. One-block edit in `PromptClusterOpportunityMatrix`. Commit `e9fbe2c`.
+  - **FB-028** (CSV R15 ✅ + R16 + R17) — Top Editorial Opportunities rewritten: Tina's R15 ✅ 5-column shape preserved verbatim; row source flipped from `data.topDomains` (domain-rows) to `urlCitations` (URL-rows); brand-absent at URL level via `mentionsYourBrand=false`; editorial filter via `classification === 'editorial'` with host cross-ref fallback; honest URL-level Citation Share + Delta of Citation Share (new prior-period URL fetch); dropped `!prDomains.has` + `retrievedDelta > 0`; cap raised 20→50. Commits `6cb2e25` + `9eaa991` (follow-up fixed stale empty-state copy + restored model-filter passthrough via `isModelMatch`).
+  - **FB-029** (CSV R23 REVISION) — PR Placement Matchback restored under Exec Summary with Tina's literal title + subtitle. New focused 5-col `PRPlacementMatchbackTable` (Publication / Article / Publish Date / Cited by AI? / AI Engines). Reuses still-live `filteredMatchbackRows`. Commit `6d37b5a`.
+  - **FB-030** (CSV R24) — Bottom footnote deleted. Top-of-file code comment preserved. Commit `364ee5c`.
+  - **FB-031** — 4-layer hardening of the PR Influence synopsis after a Vercel-preview bug where the prose said "0 editorial domains where brand absent" while the table showed 5. (1) Prompt hardening with `USE THESE EXACT VALUES` labels + `Data integrity (strict)` rule. (2) New exported `validateSynopsisGrounding()` post-Glean validator (3 regex patterns: brand-absent host count, total editorial domains, N-of-M placements). (3) Retry-on-violation loop with stricter prompt; throws on second failure so component renders graceful empty state. (4) Cache version `v2-glean-pri` → `v3-glean-pri-grounded`. 13 unit tests including the production bug as the regression test. Commit `245905b`.
 - **Overview v2** — [#63 — Overview v2: Tina CSV feedback (FB-020 through FB-024)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) — **MERGED 2026-06-23** at merge commit `1d8d9e9`. Closed every ⚠️ row in Tina's Overview-tab v1 scorecard CSV. Items shipped in this batch:
   - **FB-020** (CSV E2) — Drop SectionHeader subtitle on Overview. `subtitle?: string` now optional in shared component; other 3 AEO tabs keep their own. Commit `07f021e`.
   - **FB-021** (CSV E12, Rule #11) — Remove "Which prompts are AI engines answering with our brand?" chart from both Peec + Profound Overview RSCs. Both component files deleted. `data.trackedPrompts` field kept (consumed by 6+ other surfaces). Commit `ffbe3b5`.
@@ -57,11 +65,11 @@ One branch + one PR per round of feedback per AEO sub-tab.
 | PR Influence (v1, initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
 | PR Influence (v1, FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
 | **Overview (v2)** | `official-feedback-overview-v2` | **[#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63)** | **MERGED 2026-06-23** |
-| **PR Influence (v2)** | `official-feedback-pr-influence-v2` | (this PR) | **OPEN — in review** |
-| Content Impact | `official-feedback-content-impact-tab` | (future) | parked — awaiting Tina feedback |
+| **PR Influence (v2)** | `official-feedback-pr-influence-v2` | **[#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64)** | **MERGED 2026-06-23** |
+| **Content Impact (v1)** | `official-feedback-content-impact-tab` (to cut) | (future) | **NEXT — parked, awaiting Tina feedback; FB-031 footnote pre-empt ready to apply** |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-031.**
+FB IDs continue sequentially across all branches. **Next ID is FB-032.**
 
 ---
 
@@ -100,7 +108,8 @@ FB IDs continue sequentially across all branches. **Next ID is FB-031.**
 | **FB-027** | PR Influence (v2) | this branch (PR future) | `e9fbe2c` | Prompt Clusters chart X-axis is now dynamic per Tina v1 CSV R14. domain={[0, upper]} where upper = next 5 (max <= 10) or next 10 (max > 10). Fallback to 5 when empty. One-block edit in PromptClusterOpportunityMatrix. |
 | **FB-028** | PR Influence (v2) | this branch (PR future) | `6cb2e25` + `9eaa991` | Top Editorial Opportunities rewritten per Tina V1 R15 ✅ + R16/R17 ⚠️. R15 ✅ 5-column shape preserved verbatim (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share). Row source flipped from data.topDomains (domain-rows) to urlCitations (URL-rows). Brand-absent now at URL level: mentionsYourBrand=false (R16 literal). Editorial filter: urlCitation.classification === 'editorial' (R16 Peec UI literal) with host cross-ref fallback. Citation Share = URL count / sum-all-period * 100. Delta of Citation Share = currentShare - priorShare from new prior-period URL fetch. Dropped !prDomains.has misdef + retrievedDelta > 0 killer. Cap raised from 20 to 50. URL fetch date-scoped to page range. Follow-up `9eaa991` fixed stale empty-state copy + restored model-filter passthrough via isModelMatch. Synopsis context sources from same URL-level byHost map. |
 | **FB-029** | PR Influence (v2) | this branch (PR future) | `6d37b5a` | PR Placement Matchback restored under Exec Summary per Tina v1 CSV R23 REVISION (was removed in FB-015 #81b2277 per V1 layout; V2 explicitly asks for it back). New focused 5-col PRPlacementMatchbackTable (Publication / Article / Publish Date / Cited by AI? / AI Engines). Tina's literal title + subtitle verbatim. Rendered between <PRInfluenceSynopsis> and <SentimentInsights>. Reuses filteredMatchbackRows (date + model aware). 'N of M placements cited by AI (rate%)' summary above table. |
-| **FB-030** | PR Influence (v2) | this branch (PR future) | `364ee5c` | Removed bottom footnote on PR Influence per Tina v1 CSV R24 ('REMOVE: This footnote at the very bottom of report. PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements ...'). Deleted the trailing <p> block. Top-of-file code comment preserved (not user-visible). |
+| **FB-030** | PR Influence (v2) | merged via [#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) | `364ee5c` | Removed bottom footnote on PR Influence per Tina v1 CSV R24 ('REMOVE: This footnote at the very bottom of report. PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements ...'). Deleted the trailing <p> block. Top-of-file code comment preserved (not user-visible). |
+| **FB-031** | PR Influence (v2) | merged via [#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) | `245905b` | Four-layer hardening of the PR Influence Executive Synopsis after a Vercel-preview bug where Glean produced "0 editorial domains where brand absent" while the Top Editorial Opportunities table on the same page (sourced from the SAME byHost map) showed 5 rows. (1) Prompt hardening: section labels marked `(USE THESE EXACT VALUES)`; new `Data integrity (strict)` rule forbids rounding positive to zero, saying 'no'/'none' for positive counts, stating positive when count is zero. (2) New exported `validateSynopsisGrounding(synopsis, context)` post-Glean validator scanning three numeric-claim regex patterns: brand-absent host count, total editorial domains, N-of-M placements. (3) Retry-on-violation loop (`MAX_GENERATION_ATTEMPTS = 2`); second attempt's prompt enumerates violations from attempt 1; throws on second failure so the component's existing try/catch renders the graceful empty state instead of shipping bad prose. (4) Cache version `v2-glean-pri` → `v3-glean-pri-grounded` defensive flush. 13 unit tests in new `lib/peec/pr-influence-synopsis.test.ts` (node:assert + tsx); the FIRST assertion reproduces the production bug verbatim and asserts validation flags it. Reusable validator pattern; ready to copy to Overview synopsis (`lib/peec/synopsis.ts`) when needed. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
@@ -171,14 +180,10 @@ If any of these are missing the affected card or synopsis falls back gracefully.
 
 ## Next batches
 
-Awaiting Tina's next piece of feedback on PR Influence. When it arrives:
+**Next up:** Content Impact (v1) — awaiting Tina's first round of Content Impact feedback. When it arrives:
 
-- It becomes **FB-012**.
-- If multiple sub-asks: `FB-012-a`, `b`, `c`. One combined commit per group.
-- Update this file + `feedback-log.md` + `changelog.md` on close.
-
-If Tina signs off on PR Influence with no more changes:
-
-- Flip PR #52 ready for review: `gh pr ready 52`
-- Merge to main
-- Move to Content Impact tab: cut `official-feedback-content-impact-tab` from the new main, repeat the per-tab workflow.
+- First FB ID = **FB-032**. Multi-part asks become `FB-032-a/b/c` etc.
+- Cut a fresh `official-feedback-content-impact-tab` from current `main` (`f6fd533`).
+- **PRE-EMPT** (memory: `project_content_impact_preempt.md`): apply the FB-030 footnote-removal pattern proactively to `components/report-sections/peec-ai/content-impact.tsx:1279-1285`. Same concatenated "tab title · data source · counts" pattern Tina just removed on PR Influence; she will almost certainly flag it again on Content Impact v1 if it ships unchanged.
+- Reusable hardening pattern from FB-031: if Content Impact gains a Glean-backed synopsis or any AI-generated prose, lift `validateSynopsisGrounding` style (post-Glean validator + retry-on-violation + cache version) into that surface from day one.
+- Update this file + `feedback-log.md` + `changelog.md` per closed FB. Same per-FB ritual (code commit + decision log commit + SHA backfill commit).
