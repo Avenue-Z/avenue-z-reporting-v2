@@ -18,7 +18,7 @@ export const COMMON_TW_METRICS: { value: string; label: string }[] = [
 
 /** A single leaf's manual selections. */
 export type LeafDraft =
-  | { source: 'supermetrics'; dsId: string; metricField: string; account: string }
+  | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; value: string }[] }
   | { source: 'triplewhale'; metric: string; filters?: { column: string; value: string }[] }
 
 /** The whole manual form's state. */
@@ -28,7 +28,8 @@ export type ManualDraft =
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
   if (d.source === 'supermetrics') {
-    return { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account }
+    const filters = (d.filters ?? []).filter((f) => f.column !== '' && f.value !== '')
+    return { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account, ...(filters.length ? { filters } : {}) }
   }
   const filters = (d.filters ?? []).filter((f) => f.column !== '' && f.value !== '')
   return { source: 'triplewhale', metric: d.metric, ...(filters.length ? { filters } : {}) }

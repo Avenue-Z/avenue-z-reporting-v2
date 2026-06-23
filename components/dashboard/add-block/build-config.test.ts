@@ -78,4 +78,20 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.ok(COMMON_TW_METRICS.some((m) => m.value === 'blended_roas'), 'ROAS present')
 }
 
+// supermetrics carries cleaned filters
+{
+  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'order_shipping_country', value: 'United States' }] })
+  if (b.source === 'supermetrics') assert.deepEqual(b.filters, [{ column: 'order_shipping_country', value: 'United States' }])
+}
+// empty/incomplete SM filter rows dropped (no filters key)
+{
+  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: '', value: '' }, { column: 'order_shipping_country', value: '' }] })
+  if (b.source === 'supermetrics') assert.equal(b.filters, undefined)
+}
+// no SM filters provided -> no filters key
+{
+  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1' })
+  if (b.source === 'supermetrics') assert.equal(b.filters, undefined)
+}
+
 console.log('ok')
