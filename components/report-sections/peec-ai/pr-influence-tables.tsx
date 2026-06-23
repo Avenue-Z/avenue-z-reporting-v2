@@ -141,8 +141,8 @@ export interface BrandAbsentEditorialDomainRow {
   domain: string
   articleTitle: string | null
   articleUrl: string | null
-  citationCount: number
-  citationCountDelta: number
+  citationShare: number       // FB-028: URL's share of total period AI citations, 0-100.
+  citationShareDelta: number  // FB-028: current-period share minus prior-period share (percentage points).
   competitorsMentioned: string | null
 }
 
@@ -192,7 +192,7 @@ export function BrandAbsentEditorialDomainsTable({
       label: 'Competitors Mentioned',
       align: 'left',
       tooltip:
-        'Competing brands mentioned in this article or by this domain in AI responses. (Avenue Z internal.)',
+        'Competing brands mentioned in this article. (Peec AI source data.)',
       accessor: (r) => r.competitorsMentioned ?? '',
       render: (r) =>
         r.competitorsMentioned ? (
@@ -202,20 +202,20 @@ export function BrandAbsentEditorialDomainsTable({
         ),
     },
     {
-      key: 'citationCount',
+      key: 'citationShare',
       label: 'Citation Share',
       align: 'right',
-      tooltip: PEEC.citations.text,
-      accessor: (r) => r.citationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.citationCount.toFixed(1)}%</span>,
+      tooltip: "This URL's share of total tracked-AI citations in the selected period. (URL citation count divided by the sum across all AI-cited URLs in period.)",
+      accessor: (r) => r.citationShare,
+      render: (r) => <span className="tabular-nums text-white">{r.citationShare.toFixed(1)}%</span>,
     },
     {
-      key: 'citationCountDelta',
+      key: 'citationShareDelta',
       label: 'Delta of Citation Share',
       align: 'right',
-      tooltip: 'Period-over-period change in this domain\'s citation share. (Peec AI source data.)',
-      accessor: (r) => r.citationCountDelta,
-      render: (r) => <CitationDelta value={r.citationCountDelta} />,
+      tooltip: "Period-over-period change in this URL's share of AI citations (percentage points).",
+      accessor: (r) => r.citationShareDelta,
+      render: (r) => <CitationDelta value={r.citationShareDelta} />,
     },
   ]
 
