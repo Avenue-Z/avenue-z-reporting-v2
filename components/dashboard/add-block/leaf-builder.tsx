@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useEffect, useState, useTransition } from 'react'
 import { DS_IDS } from '@/lib/supermetrics/constants'
-import { getTwFields, getTwDimensionValues, getMetricOptions, getAccountOptions } from '@/app/actions/dashboard'
+import { getTwFields, getTwDimensionValues, getMetricOptions, getAccountOptions, getSmDimensions, getSmDimensionValues } from '@/app/actions/dashboard'
 import type { TwFields } from '@/lib/triplewhale/discovery'
 import { SearchCombobox, type ComboOption } from './search-combobox'
 import { formatFromDataType, COMMON_TW_METRICS, type LeafDraft } from './build-config'
@@ -37,17 +37,18 @@ export function LeafBuilder({
   const [metricOpts, setMetricOpts] = useState<ComboOption[]>([])
   const [acctOpts, setAcctOpts] = useState<ComboOption[]>([])
   const [dataTypeByMetric, setDataTypeByMetric] = useState<Record<string, string | undefined>>({})
+  const [dimOpts, setDimOpts] = useState<ComboOption[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [loading, startLoad] = useTransition()
 
   useEffect(() => {
     if (source !== 'supermetrics' || dsId === '') {
-      setMetricOpts([]); setAcctOpts([]); setDataTypeByMetric({}); setErr(null)
+      setMetricOpts([]); setAcctOpts([]); setDataTypeByMetric({}); setDimOpts([]); setErr(null)
       return
     }
     setErr(null)
     startLoad(async () => {
-      const [m, a] = await Promise.all([getMetricOptions(slug, dsId), getAccountOptions(slug, dsId)])
+      const [m, a, dm] = await Promise.all([getMetricOptions(slug, dsId), getAccountOptions(slug, dsId), getSmDimensions(slug, dsId)])
       if (m.ok) {
         setMetricOpts(m.options.map((o) => ({ value: o.value, label: o.label, group: o.group })))
         setDataTypeByMetric(Object.fromEntries(m.options.map((o) => [o.value, o.dataType])))
@@ -55,6 +56,7 @@ export function LeafBuilder({
         setErr(m.error); setMetricOpts([]); setDataTypeByMetric({})
       }
       setAcctOpts(a.ok ? a.options.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })) : [])
+      setDimOpts(dm.ok ? dm.options.map((o) => ({ value: o.value, label: o.label, group: o.group })) : [])
     })
   }, [source, dsId, slug])
 
@@ -73,7 +75,7 @@ export function LeafBuilder({
 
   const v = sm ?? { source: 'supermetrics' as const, dsId: '', metricField: '', account: '' }
   const set = (patch: Partial<Extract<LeafDraft, { source: 'supermetrics' }>>) =>
-    onChange({ source: 'supermetrics', dsId: v.dsId, metricField: v.metricField, account: v.account, ...patch })
+    onChange({ source: 'supermetrics', dsId: v.dsId, metricField: v.metricField, account: v.account, ...(v.filters ? { filters: v.filters } : {}), ...patch })
 
   return (
     <div className="flex flex-col gap-3">
@@ -116,6 +118,29 @@ export function LeafBuilder({
               onChange={(account) => set({ account })}
             />
           </Field>
+          {v.dsId !== '' && (
+            <>
+              {(v.filters ?? []).map((f, i) => (
+                <SmFilterRow
+                  key={i}
+                  filter={f}
+                  dimensions={dimOpts}
+                  slug={slug}
+                  dsId={v.dsId}
+                  account={v.account}
+                  onChange={(nf) => set({ filters: (v.filters ?? []).map((x, j) => (j === i ? nf : x)) })}
+                  onRemove={() => set({ filters: (v.filters ?? []).filter((_, j) => j !== i) })}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => set({ filters: [...(v.filters ?? []), { column: '', value: '' }] })}
+                className="self-start rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.06]"
+              >
+                + Add filter
+              </button>
+            </>
+          )}
         </>
       )}
     </div>
@@ -234,6 +259,55 @@ function TwFilterRow({
         value={filter.value}
         options={values}
         disabled={disabled || filter.column === ''}
+        loading={loading}
+        placeholder="Value"
+        onChange={(v) => onChange({ column: filter.column, value: v })}
+      />
+      <button type="button" onClick={onRemove} className="text-text-muted hover:text-white" aria-label="Remove filter">✕</button>
+    </div>
+  )
+}
+
+function SmFilterRow({
+  filter,
+  dimensions,
+  slug,
+  dsId,
+  account,
+  onChange,
+  onRemove,
+}: {
+  filter: { column: string; value: string }
+  dimensions: ComboOption[]
+  slug: string
+  dsId: string
+  account: string
+  onChange: (f: { column: string; value: string }) => void
+  onRemove: () => void
+}) {
+  const [values, setValues] = useState<ComboOption[]>([])
+  const [loading, startLoad] = useTransition()
+
+  useEffect(() => {
+    if (filter.column === '' || account === '') { setValues([]); return }
+    startLoad(async () => {
+      const r = await getSmDimensionValues(slug, dsId, account, filter.column)
+      setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
+    })
+  }, [filter.column, slug, dsId, account])
+
+  return (
+    <div className="flex items-center gap-2">
+      <SearchCombobox
+        value={filter.column}
+        options={dimensions}
+        placeholder="Dimension"
+        onChange={(column) => onChange({ column, value: '' })}
+      />
+      <SearchCombobox
+        value={filter.value}
+        options={values}
+        disabled={filter.column === '' || account === ''}
         loading={loading}
         placeholder="Value"
         onChange={(v) => onChange({ column: filter.column, value: v })}
