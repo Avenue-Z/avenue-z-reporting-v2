@@ -14,6 +14,7 @@ const DS_OPTIONS: { value: string; label: string }[] = [
   { value: DS_IDS.GOOGLE_ADS, label: 'Google Ads' },
   { value: DS_IDS.META, label: 'Meta (Facebook) Ads' },
   { value: DS_IDS.LINKEDIN, label: 'LinkedIn Ads' },
+  { value: DS_IDS.SHOPIFY, label: 'Shopify' },
 ]
 const ctrl = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
 
