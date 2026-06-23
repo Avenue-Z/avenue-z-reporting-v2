@@ -7,6 +7,7 @@ import {
   removeBlock,
   setBlockRange,
   resetBlockRange,
+  addBlock,
 } from './config-mutations'
 
 const block = (id: string, range: PersistedBlock['range'] = null): PersistedBlock => ({
@@ -66,7 +67,6 @@ const base: DashboardConfig = {
 }
 
 // addBlock: appends a new block to the end of the blocks array
-import { addBlock } from './config-mutations'
 {
   const base = { defaultRange: { dateRange: 'last_30_days', compareRange: null }, blocks: [] as PersistedBlock[] }
   const block = { id: 'n1', name: 'New', format: 'number' as const, range: null, binding: { source: 'triplewhale' as const, metric: 'sessions' } }
