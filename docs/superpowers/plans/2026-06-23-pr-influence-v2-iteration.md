@@ -21,7 +21,7 @@ Path on disk: `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thom
 | **FB-025** | E2 | Executive Synopsis returning raw floats (`2.6297537434931484`) | Round numeric interpolations in `buildContext()` + tighten Glean prompt + bump cache version |
 | **FB-026** | E4 + E5 | Sentiment Insights card + pill are static; "exact copy of the example text I provided"; should react to date AND model | New Glean-backed `lib/peec/sentiment-insights.ts`; rewrite component as data-driven; lift Avenue Z sandbox gate; plumb dateRange + models from `pr-influence.tsx` |
 | **FB-027** | E14 | Prompt Clusters bars too small; X-axis shouldn't always go to 100; should fit next "5" or "10" above max | Dynamic X-axis `domain={[0, upper]}` where upper = next 5 (≤10) or next 10 (>10) above max |
-| **FB-028** | E16 + E17 | "There should be more than one pitch opportunity. Peec shows thousands of editorial URLs. Must be something wrong with one of the filters." | Switch from domain-row to URL-row; redefine brand-absent at URL level using `urlCitation.mentionsYourBrand === false`; drop the buggy `!prDomains.has` definition; drop the `retrievedDelta > 0` killer filter; drop "Delta of Citation Share" column |
+| **FB-028** | R15 ✅ + R16 + R17 | Tina's V1 ✅'d 5-column shape (Publication / Article / Competitors Mentioned / **Citation Share** / **Delta of Citation Share**) must be preserved verbatim AND R16/R17 filter bugs fixed. | Switch from domain-row to URL-row; redefine brand-absent at URL level using `urlCitation.mentionsYourBrand === false`; use URL-level editorial filter (`classification === 'editorial'`, matching Tina's literal Peec UI filter) with host cross-ref fallback; drop the buggy `!prDomains.has` misdefinition; drop the `retrievedDelta > 0` killer; **KEEP both "Citation Share" + "Delta of Citation Share" columns** with honest URL-level values (current-period share = `c.citationCount / sumAll * 100`; delta requires a prior-period URL fetch); match page date range for both fetches. |
 | **FB-029** | E23 (REVISION) | Re-add PR Placement Matchback as a CHART right beneath Exec Summary. Literal new title + subtitle (below). | New simplified 5-column `<PRPlacementMatchbackTable>` (Publication / Article / Publish Date / Cited by AI? / AI Engines) reusing the still-live `filteredMatchbackRows`. Placed between `<PRInfluenceSynopsis>` and `<SentimentInsights>`. |
 | **FB-030** | (last row) | Remove the footnote: "PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements (...)" | Delete the trailing `<p className="text-xs text-text-muted">` block |
 
@@ -55,8 +55,8 @@ Literal text from Tina that MUST be used verbatim in code/copy:
 
 - `lib/peec/pr-influence-synopsis.ts` — Round numeric interpolations in `buildContext`. Tighten prompt format rule. Bump `version` from `v1-glean-pri` → `v2-glean-pri`.
 - `components/report-sections/peec-ai/sentiment-insights.tsx` — Replace hardcoded `POSITIVE_THEMES` / `WEAKNESSES` const arrays + `SENTIMENT_PCT` constant + `SANDBOX_CLIENT_SLUG` gate with a props-driven view. Take `data: SentimentInsights | null` prop. Render empty state when null/zero themes.
-- `components/report-sections/peec-ai/pr-influence-tables.tsx` — (1) Add new simplified `PRPlacementMatchbackTable` + `PRPlacementMatchbackRow` for FB-029. (2) FB-027: dynamic X-axis in `PromptClusterOpportunityMatrix`. (3) FB-028: drop `citationCountDelta` field from `BrandAbsentEditorialDomainRow` + drop "Delta of Citation Share" column.
-- `components/report-sections/peec-ai/pr-influence.tsx` — (FB-025 cascade: nothing) (FB-026) fetch `getSentimentInsights` in parallel, pass to `<SentimentInsights data={...} />`. (FB-028) rewrite `brandAbsentTableRows` build from URL-level data. (FB-029) render `<PRPlacementMatchbackTable rows={filteredMatchbackRows} />` between Synopsis and SentimentInsights with Tina's literal title + subtitle. (FB-030) delete the trailing footnote `<p>` block.
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — (1) Add new simplified `PRPlacementMatchbackTable` + `PRPlacementMatchbackRow` for FB-029. (2) FB-027: dynamic X-axis in `PromptClusterOpportunityMatrix`. (3) FB-028: replace domain-level `citationCount` + `citationCountDelta` fields on `BrandAbsentEditorialDomainRow` with URL-level `citationShare` + `citationShareDelta` (same column labels, honest URL-level values).
+- `components/report-sections/peec-ai/pr-influence.tsx` — (FB-025 cascade: nothing) (FB-026) fetch `getSentimentInsights` in parallel, pass to `<SentimentInsights data={...} />`. (FB-028) date-scope the URL fetch to the page range, add a prior-period URL fetch, build URL-level Citation Share + Delta of Citation Share per Tina's R15 ✅ 5-column shape. (FB-029) render `<PRPlacementMatchbackTable rows={filteredMatchbackRows} />` between Synopsis and SentimentInsights with Tina's literal title + subtitle. (FB-030) delete the trailing footnote `<p>` block.
 
 ### Docs (per-FB; touched in every task)
 
@@ -1025,31 +1025,41 @@ Same pattern as Task 1 Step 6.
 
 ---
 
-## Task 4: FB-028 — Top Editorial Opportunities filter fix (URL-level brand-absent)
+## Task 4: FB-028 — Top Editorial Opportunities: URL-level brand-absent + Tina's literal 5-column shape preserved
 
 **Files:**
-- Modify: `components/report-sections/peec-ai/pr-influence.tsx:361-454` (brand-absent compute)
-- Modify: `components/report-sections/peec-ai/pr-influence-tables.tsx:140-242` (BrandAbsentEditorialDomainRow shape + table columns)
+- Modify: `components/report-sections/peec-ai/pr-influence.tsx` (URL fetch dates + prior-period URL fetch + brand-absent compute + synopsis context)
+- Modify: `components/report-sections/peec-ai/pr-influence-tables.tsx:140-242` (`BrandAbsentEditorialDomainRow` shape: replace `citationCount` + `citationCountDelta` fields with `citationShare` + `citationShareDelta`; table columns keep Tina's 5-column shape verbatim)
 
-Tina (CSV E16 + E17):
-> ISSUE: There should be more than one pitch opportunity here. When I look in Peec and look at URLs and filter to editorial, there are thousands of articles.
-> See issue above, there must be something wrong with one of the filters.
+Tina — **two literal asks Tina has put on this table**, both must hold:
 
-Root cause (multiple compounding bugs):
-1. `brandAbsentDomains = editorialDomains.filter(d => !prDomains.has(d.domain.toLowerCase()))` defines "brand absent" as "domain not in our PR placement list." This is the **wrong definition**. A brand may have no PR placement on a domain but the brand may still be mentioned in editorial articles cited there.
-2. `brandAbsentRowsFiltered = brandAbsentDomains.filter((d) => d.retrievedDelta > 0)` further culls everything where Peec did not show a positive period-over-period delta at the domain level.
+> **R15 ✅** "Top Editorial Opportunities: 5 columns (Publication / Article / Competitors Mentioned / **Citation Share** / **Delta of Citation Share**)"
+>
+> **R16 ⚠️** "ISSUE: There should be more than one pitch opportunity here. When I look in Peec and **look at URLs and filter to editorial**, there are thousands of articles."
+>
+> **R17 ⚠️** "See issue above, there must be something wrong with one of the filters."
+
+R15 ✅ is the V1 acceptance Tina gave on the 5-column shape. The column LABELS must be preserved verbatim. The DATA SOURCE flips from domain-rows to URL-rows so the filter bug in R16+R17 is fixed at its root.
+
+Root causes (multiple compounding bugs):
+1. `brandAbsentDomains = editorialDomains.filter(d => !prDomains.has(d.domain.toLowerCase()))` defines "brand absent" as "domain not in our PR placement list." Wrong definition — a brand may have no PR placement on a domain but still be mentioned in articles cited there. R16's literal definition is at the URL level.
+2. `brandAbsentRowsFiltered = brandAbsentDomains.filter((d) => d.retrievedDelta > 0)` requires a positive period-over-period delta at the domain level. R15 ✅'d "Delta of Citation Share" — but as a column to display, not as a filter to gate inclusion. Drop as a filter; keep as a column.
 3. `.slice(0, 20)` caps the already-collapsed list.
 4. Result: the table commonly shows 0-1 rows even when Peec has hundreds of brand-absent editorial URLs.
+5. Tina's literal mental model for "editorial" is the URL-level filter in Peec's UI (`classification === 'editorial'`), not our host cross-reference.
 
-Fix:
-- Switch the row source from `editorialDomains` to `urlCitations` (URL-level).
-- Define brand-absent properly: `urlCitation.mentionsYourBrand === false`.
-- Restrict to editorial hosts using the editorialDomains set we already compute (cross-reference by host).
-- Drop the "not in PR placement list" misdefinition entirely.
-- Drop the `retrievedDelta > 0` filter entirely — URL-level delta is not exposed by Peec, so we can't gate by it honestly.
-- Drop the "Delta of Citation Share" column from the table (no source of truth).
-- Sort by URL citation count desc, slice to 50.
-- Group multiple URLs per host: take the highest-cited brand-absent URL per host (matches the existing `topBrandAbsentUrlByHost` map already computed at lines 335-341 — reuse it).
+Fix — match Tina exactly:
+- **Row source:** `urlCitations` (URL-level), date-scoped to the page date range. The existing call uses `getUrlCitations(clientSlug)` with no opts, which defaults to last-30 — this also resolves an existing date-scope bug as a side effect.
+- **Brand-absent filter:** `urlCitation.mentionsYourBrand === false` (R16 literal).
+- **Editorial filter:** `urlCitation.classification?.toLowerCase() === 'editorial'` (R16's "filter to editorial" Peec UI literal). If zero matches, fall back to host cross-reference against `editorialDomains` host set so the table is never silently empty when Peec uses a different exact string.
+- **Citation Share column (R15 ✅ verbatim label):** honest URL-level value: `(c.citationCount / sumOfAllPeriodCitations) * 100`. Format: `N.N%`.
+- **Delta of Citation Share column (R15 ✅ verbatim label):** add a prior-period URL fetch (`getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })`) to the existing `Promise.allSettled`. Build a `priorShareByUrlKey` map; `delta = currentShare - priorShare`. Reuses the existing `<CitationDelta>` component.
+- **Drop** the `!prDomains.has` misdefinition entirely.
+- **Drop** the `retrievedDelta > 0` filter entirely (R17 — "something wrong with one of the filters").
+- **Keep** all 5 columns verbatim from R15 ✅.
+- **Group:** one row per host (top brand-absent editorial URL on that host) so the table reads cleanly when a single domain has many brand-absent URLs.
+- **Cap:** raise from 20 to 50.
+- **Synopsis context** (`brandAbsentCount` + `topBrandAbsentDomains`) sources from the same URL-level `byHost` map for consistency between the table and the executive prose. Synopsis preserves its `citationCount: number` field (raw counts, not shares) per the existing `PRInfluenceSynopsisContext` type.
 
 ### 4.1 — Update the row type and table columns
 
@@ -1062,12 +1072,13 @@ export interface BrandAbsentEditorialDomainRow {
   domain: string
   articleTitle: string | null
   articleUrl: string | null
-  citationCount: number  // FB-028: URL-level citation count, not domain retrieved %.
+  citationShare: number       // FB-028: URL's share of total period AI citations, 0-100.
+  citationShareDelta: number  // FB-028: current-period share minus prior-period share (percentage points).
   competitorsMentioned: string | null
 }
 ```
 
-(Removed `citationCountDelta: number` field — no URL-level delta in Peec today.)
+(Replaces the prior `citationCount: number` + `citationCountDelta: number` fields with URL-level `citationShare` + `citationShareDelta`. Tina's R15 ✅ column LABELS are preserved verbatim; only the data source flips from domain-level retrieval-% to URL-level share-%.)
 
 - [ ] **Step 2: Edit `BrandAbsentEditorialDomainsTable` columns**
 
@@ -1123,73 +1134,135 @@ In the same file, locate `BrandAbsentEditorialDomainsTable` (around line 149). R
         ),
     },
     {
-      key: 'citationCount',
-      label: 'AI Citations',
+      key: 'citationShare',
+      label: 'Citation Share',
       align: 'right',
-      tooltip: 'Number of times this URL is cited by tracked AI engines in the selected period. (Peec AI source data.)',
-      accessor: (r) => r.citationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.citationCount.toLocaleString()}</span>,
+      tooltip: "This URL's share of total tracked-AI citations in the selected period. (URL citation count divided by the sum across all AI-cited URLs in period.)",
+      accessor: (r) => r.citationShare,
+      render: (r) => <span className="tabular-nums text-white">{r.citationShare.toFixed(1)}%</span>,
+    },
+    {
+      key: 'citationShareDelta',
+      label: 'Delta of Citation Share',
+      align: 'right',
+      tooltip: "Period-over-period change in this URL's share of AI citations (percentage points).",
+      accessor: (r) => r.citationShareDelta,
+      render: (r) => <CitationDelta value={r.citationShareDelta} />,
     },
   ]
 ```
 
-(Removed the `citationCountDelta` column entirely. Removed the `Delta of Citation Share` column entirely. Renamed `Citation Share` → `AI Citations` because the value is now a count, not a percentage.)
+(All 5 columns kept verbatim from R15 ✅. `CitationDelta` is already exported from this file — same colored `↑`/`↓` widget used elsewhere.)
 
 - [ ] **Step 3: Type-check**
 
 Run: `npx tsc --noEmit`
-Expected: zero output. (Errors expected on `pr-influence.tsx` from removed fields — that's the next step.)
+Expected: errors on `pr-influence.tsx` from the renamed fields — that is the next step. Helper file alone should be clean.
 
-### 4.2 — Rewrite the brand-absent compute in pr-influence.tsx
+### 4.2 — Date-scope the URL fetch + add prior-period URL fetch
 
-- [ ] **Step 4: Replace the brand-absent compute block**
+- [ ] **Step 4: Update the URL citations fetch + add the prior-period fetch**
 
-Open `components/report-sections/peec-ai/pr-influence.tsx`. Locate the block starting at `// Brand-absent editorial domains (Section D)` (around line 361) and ending at the close of the `brandAbsentTableRows` assignment (around line 454). Replace the ENTIRE block with:
+Open `components/report-sections/peec-ai/pr-influence.tsx`. Locate the `Promise.allSettled` block (around line 207-230). Replace the two existing `getUrlCitations` / coverage entries plus the unpacking lines with date-scoped versions. Specifically:
+
+(a) **Replace the line `getUrlCitations(clientSlug),`** (around line 230) with:
 
 ```ts
-  // ── FB-028 · Top Editorial Opportunities (URL-level brand-absent) ──────────
-  // Tina v1 CSV E16 + E17: "There should be more than one pitch opportunity
-  // here. When I look in Peec and look at URLs and filter to editorial, there
-  // are thousands of articles." Pre-FB-028 logic defined "brand absent" as
-  // "domain not in our PR placement list" AND further required a positive
-  // period-over-period delta on the domain — both of which collapsed the
-  // table to 0-1 rows. The correct definition is at the URL level:
-  // mentionsYourBrand === false. Editorial type comes from cross-referencing
-  // the host against the editorialDomains set (Peec /reports/domains response
-  // with type='Editorial').
+    getUrlCitations(clientSlug, { startDate: resolvedMain.startDate, endDate: resolvedMain.endDate }),
+    resolvedCompare
+      ? getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })
+      : Promise.resolve([]),
+```
+
+(b) **Update the destructuring** (around line 207). Change `urlCitationsResult` to `urlCitationsResult, urlCitationsPriorResult`:
+
+```ts
+  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult] = await Promise.allSettled([
+```
+
+(c) **Unpack the prior result** (right after the existing `let urlCitations = ...` line, around line 239). Add:
+
+```ts
+  let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
+```
+
+(d) **Demo-mode reset** (around line 251 — the `if (demoMode)` block). Inside the block, after the existing `urlCitations   = []` line, add:
+
+```ts
+    urlCitationsPrior = []  // demo: no prior period
+```
+
+### 4.3 — Rewrite the brand-absent compute in pr-influence.tsx
+
+- [ ] **Step 5: Replace the brand-absent compute block**
+
+In the same file, locate the block starting at `// Brand-absent editorial domains (Section D)` (around line 361) and ending at the close of the `brandAbsentTableRows` assignment (around line 454). Replace the ENTIRE block with:
+
+```ts
+  // ── FB-028 · Top Editorial Opportunities (URL-level brand-absent, Tina R15+R16+R17) ──
+  // Tina V1 R15 ✅: "5 columns (Publication / Article / Competitors Mentioned /
+  // Citation Share / Delta of Citation Share)" — labels preserved verbatim.
+  // Tina V1 R16 ⚠️: "When I look in Peec and look at URLs and filter to editorial,
+  // there are thousands of articles." → URL-level data source + Peec's literal
+  // editorial filter (classification === 'editorial').
+  // Tina V1 R17 ⚠️: "must be something wrong with one of the filters" → drop the
+  // !prDomains.has misdefinition AND drop the retrievedDelta > 0 killer filter.
   //
-  // Per-host: take the highest-cited brand-absent URL (one row per host so
-  // the table reads cleanly even when a single editorial domain has many
-  // brand-absent URLs). topBrandAbsentUrlByHost was already built above for
-  // this exact purpose.
-  //
-  // URL-level delta is not exposed by Peec today, so we drop the "Delta of
-  // Citation Share" column entirely rather than ship a misleading value.
-  // synopsisContext.brandAbsentCount continues to use the host-level count
-  // for executive prose accuracy (separate from this table).
+  // Honest URL-level Citation Share = c.citationCount / sumOfAllPeriodCitations * 100.
+  // Honest URL-level Delta = currentShare - priorShare (priorShare computed from
+  // the new prior-period URL fetch added in Step 4).
+  // One row per host (highest-cited brand-absent editorial URL on that host) so the
+  // table reads cleanly when a single domain has many brand-absent URLs.
+
+  // (a) Editorial check — Tina's literal Peec UI filter, with a host fallback so
+  //     we never go silently empty if Peec exposes a different exact string.
   const editorialHostSet = new Set(editorialDomains.map((d) => hostKey(d.domain)))
+  const isEditorialUrl = (c: typeof urlCitations[number]): boolean => {
+    const cls = (c.classification ?? '').toLowerCase()
+    if (cls === 'editorial') return true
+    return editorialHostSet.has(hostKey(c.domain))
+  }
 
-  const brandAbsentDomains = Array.from(editorialHostSet)  // distinct editorial hosts
-    .filter((h) => topBrandAbsentUrlByHost.has(h))         // host has ≥1 brand-absent URL
-    .map((h) => ({ host: h, topUrl: topBrandAbsentUrlByHost.get(h)! }))
+  // (b) Per-period totals for honest URL-level share %.
+  const totalCurrentCitations = urlCitations.reduce((s, c) => s + c.citationCount, 0)
+  const totalPriorCitations   = urlCitationsPrior.reduce((s, c) => s + c.citationCount, 0)
+  const priorShareByUrlKey    = new Map<string, number>()
+  if (totalPriorCitations > 0) {
+    for (const c of urlCitationsPrior) {
+      priorShareByUrlKey.set(c.urlKey, (c.citationCount / totalPriorCitations) * 100)
+    }
+  }
+  const shareOf = (c: typeof urlCitations[number]): number =>
+    totalCurrentCitations > 0 ? (c.citationCount / totalCurrentCitations) * 100 : 0
+  const deltaOf = (c: typeof urlCitations[number]): number =>
+    shareOf(c) - (priorShareByUrlKey.get(c.urlKey) ?? 0)
 
-  const brandAbsentTableRowsAll: BrandAbsentEditorialDomainRow[] = brandAbsentDomains
-    .sort((a, b) => b.topUrl.citationCount - a.topUrl.citationCount)
+  // (c) Build the row set — URL-level, brand-absent + editorial, one per host.
+  const opportunityUrls = urlCitations.filter((c) => !c.mentionsYourBrand && isEditorialUrl(c))
+  const byHost = new Map<string, typeof urlCitations[number]>()
+  for (const u of opportunityUrls) {
+    const k = hostKey(u.domain)
+    const cur = byHost.get(k)
+    if (!cur || u.citationCount > cur.citationCount) byHost.set(k, u)
+  }
+  const sortedByHost = Array.from(byHost.values()).sort((a, b) => b.citationCount - a.citationCount)
+
+  const brandAbsentTableRowsAll: BrandAbsentEditorialDomainRow[] = sortedByHost
     .slice(0, 50)
-    .map(({ host, topUrl }) => {
-      const competitors = topUrl.competitorBrandNames
+    .map((c) => {
+      const competitors = c.competitorBrandNames
       return {
-        domain: host,
-        articleTitle: topUrl.title ?? null,
-        articleUrl: topUrl.url ?? null,
-        citationCount: topUrl.citationCount,
+        domain: c.domain,
+        articleTitle: c.title ?? null,
+        articleUrl: c.url ?? null,
+        citationShare: shareOf(c),
+        citationShareDelta: deltaOf(c),
         competitorsMentioned: competitors.length > 0 ? competitors.join(', ') : 'None',
       }
     })
 
-  // Demo mode: keep the original demo arrays for the demo path so the demo
-  // tab still renders example rows. Real client view goes through the URL-
-  // level path above.
+  // (d) Demo mode: keep the original demo arrays for the demo path so the demo
+  //     tab still renders example rows. Real client view goes through (c).
   const DEMO_BRAND_ABSENT_TITLES = [
     'How AI is reshaping editorial coverage',
     'Inside the AEO playbook for 2026',
@@ -1218,11 +1291,15 @@ Open `components/report-sections/peec-ai/pr-influence.tsx`. Locate the block sta
   const demoBrandAbsentRows: BrandAbsentEditorialDomainRow[] = prIsDemo
     ? editorialDomains.slice(0, 8).map((d, i) => {
         const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
+        // Demo values: synthetic share % and delta. Real path computes honest values.
+        const demoShare = Number(((d.retrieved ?? 1) * 0.1).toFixed(1))
+        const demoDelta = ((i % 2 === 0 ? 1 : -1) * Number(((i + 1) * 0.3).toFixed(1)))
         return {
           domain: d.domain,
           articleTitle: DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length],
           articleUrl: `https://${d.domain}/${slug}`,
-          citationCount: Math.round((d.retrieved ?? 1) * 10),
+          citationShare: demoShare,
+          citationShareDelta: demoDelta,
           competitorsMentioned: DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', '),
         }
       })
@@ -1233,7 +1310,7 @@ Open `components/report-sections/peec-ai/pr-influence.tsx`. Locate the block sta
     : brandAbsentTableRowsAll
 ```
 
-- [ ] **Step 5: Update synopsis context to use the new compute**
+- [ ] **Step 6: Update synopsis context to use the new compute**
 
 Locate the `synopsisContext` object (around line 473-493). Replace its body with:
 
@@ -1249,10 +1326,14 @@ Locate the `synopsisContext` object (around line 473-493). Replace its body with
     aiReferralSessions:     aiReferralOk ? aiSessions : null,
     aiReferralSessionsDelta: aiSessionsDelta ?? null,
     totalEditorialDomains:  editorialDomains.length,
-    brandAbsentCount:       brandAbsentTableRowsAll.length,
-    topBrandAbsentDomains:  brandAbsentTableRowsAll.slice(0, 5).map((d) => ({
-      domain: d.domain,
-      citationCount: d.citationCount,
+    // FB-028: synopsis count + top list now source from the URL-level byHost map
+    // for consistency with the visible table. Synopsis type uses `citationCount`
+    // (raw integer count) per its existing shape; we pass the URL's raw count
+    // there, not the share %.
+    brandAbsentCount:       byHost.size,
+    topBrandAbsentDomains:  sortedByHost.slice(0, 5).map((c) => ({
+      domain: c.domain,
+      citationCount: c.citationCount,
     })),
     topOpportunityClusters: opportunityRows.slice(0, 3).map(o => ({
       cluster: o.cluster,
@@ -1261,14 +1342,12 @@ Locate the `synopsisContext` object (around line 473-493). Replace its body with
   }
 ```
 
-(Synopsis context now references `brandAbsentTableRowsAll` — the URL-level list — instead of the deleted `brandAbsentDomains` host-list. Counts and top-5 alike.)
-
-- [ ] **Step 6: Type-check**
+- [ ] **Step 7: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: zero output.
 
-- [ ] **Step 7: Re-run tests**
+- [ ] **Step 8: Re-run tests**
 
 ```bash
 npx tsx lib/peec/winners-losers.test.ts
@@ -1276,55 +1355,65 @@ npx tsx lib/peec/sentiment-insights.test.ts
 ```
 Both expected: `all assertions passed`.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add components/report-sections/peec-ai/pr-influence.tsx \
         components/report-sections/peec-ai/pr-influence-tables.tsx
-git commit -m "FB-028: URL-level brand-absent filter, drop misleading delta col (CSV E16 + E17)
+git commit -m "FB-028: URL-level brand-absent, Tina's R15 5-col shape preserved (CSV R15+R16+R17)
 
-Tina v1 CSV E16 + E17: 'There should be more than one pitch
-opportunity here. When I look in Peec and look at URLs and
-filter to editorial, there are thousands of articles. Must be
-something wrong with one of the filters.'
+Tina v1 CSV:
+- R15 ✅: 'Top Editorial Opportunities: 5 columns (Publication /
+  Article / Competitors Mentioned / Citation Share / Delta of
+  Citation Share)' — labels preserved verbatim.
+- R16 ⚠️: 'When I look in Peec and look at URLs and filter to
+  editorial, there are thousands of articles.'
+- R17 ⚠️: 'must be something wrong with one of the filters.'
 
-Root causes (multiple compounding):
-1. brandAbsentDomains used !prDomains.has(d.domain) as the
-   definition of 'brand absent' — that's 'no PR placement on
-   this domain', not 'brand not mentioned in articles cited
-   on this domain'. Wrong definition.
-2. brandAbsentRowsFiltered required d.retrievedDelta > 0
-   (positive period-over-period delta at domain level), which
-   culled almost every remaining row.
+Root causes (compounding):
+1. brandAbsentDomains used !prDomains.has(d.domain) — that's
+   'no PR placement on this domain', not 'brand not mentioned
+   in articles cited there'. Wrong definition.
+2. brandAbsentRowsFiltered required d.retrievedDelta > 0 — a
+   domain-level filter that culled almost every remaining row.
 3. .slice(0, 20) capped the collapsed list.
-4. Net result: 0-1 rows in production even when Peec has
-   hundreds of brand-absent editorial URLs.
+4. Result: 0-1 rows in production even when Peec has hundreds
+   of brand-absent editorial URLs.
 
-Fix:
-- Switched row source from data.topDomains (editorial) to
-  urlCitations (URL-level), filtered to mentionsYourBrand=false.
-- Editorial restriction via cross-ref against editorialDomains
-  host set (existing data.topDomains type='Editorial').
-- One row per host (highest-cited brand-absent URL), via
-  topBrandAbsentUrlByHost already computed above.
-- Dropped the 'not in PR placement list' misdefinition entirely.
-- Dropped the d.retrievedDelta > 0 filter entirely.
-- Dropped 'Delta of Citation Share' column — URL-level delta is
-  not in the Peec response; better to omit than mislead.
-- Renamed 'Citation Share' column to 'AI Citations' (value is
-  now a count, not a percentage).
-- Cap raised from 20 to 50 rows.
+Fix — match Tina exactly:
+- Row source: urlCitations (URL-level), date-scoped to the page
+  date range (existing getUrlCitations call defaulted to last-30
+  internally — fixed as a side benefit).
+- Added prior-period URL fetch to Promise.allSettled for honest
+  URL-level Delta of Citation Share.
+- Brand-absent filter: urlCitation.mentionsYourBrand === false
+  (R16 literal).
+- Editorial filter: urlCitation.classification === 'editorial'
+  (R16's 'filter to editorial' Peec UI literal), with host
+  cross-ref fallback to editorialDomains set so we never go
+  silently empty if Peec uses a different exact string.
+- Citation Share column (R15 ✅ verbatim label): URL-level share
+  = c.citationCount / sumOfAllPeriodCitations * 100. Format N.N%.
+- Delta of Citation Share column (R15 ✅ verbatim label): URL-
+  level delta = currentShare - priorShare from priorShareByUrlKey
+  map. Reuses existing <CitationDelta> ↑/↓ widget.
+- Dropped !prDomains.has misdefinition entirely.
+- Dropped retrievedDelta > 0 killer filter entirely.
+- Kept all 5 columns from R15 ✅ verbatim.
+- One row per host (highest-cited brand-absent editorial URL).
+- Cap raised from 20 to 50.
 
-Synopsis context (brandAbsentCount + topBrandAbsentDomains) now
-references the URL-level list too, for consistency between the
-table and the executive prose.
+Synopsis context: brandAbsentCount + topBrandAbsentDomains now
+source from the URL-level byHost map for consistency. Synopsis
+type's citationCount field (raw count) preserved.
 
-Demo mode preserved with its own demo arrays.
+Demo mode preserved with synthetic Share/Delta values that match
+the new row shape.
 
 Universal across clients."
 ```
 
-- [ ] **Step 9: Decision log + changelog + SHA backfill commit**
+- [ ] **Step 10: Decision log + changelog + SHA backfill commit**
 
 Same pattern as Task 1 Step 6.
 
@@ -1692,6 +1781,8 @@ echo "FB-027 anchor (hard 0-100 X-axis) — expect zero matches:"
 grep -n 'domain={\\[0, 100\\]}' components/report-sections/peec-ai/pr-influence-tables.tsx || echo "  (clean)"
 echo "FB-028 anchor (PR-list brand-absent misdefinition + delta killer) — expect zero matches:"
 grep -nE '!prDomains\\.has|retrievedDelta > 0' components/report-sections/peec-ai/pr-influence.tsx || echo "  (clean)"
+echo "FB-028 R15 ✅ 5-column shape preserved — expect both labels present in pr-influence-tables.tsx:"
+grep -nE "label: 'Citation Share'|label: 'Delta of Citation Share'" components/report-sections/peec-ai/pr-influence-tables.tsx
 echo "FB-029 anchor (PRPlacementMatchbackTable) — expect ≥2 matches (export + import + render):"
 grep -nE 'PRPlacementMatchbackTable' components/report-sections/peec-ai/pr-influence.tsx components/report-sections/peec-ai/pr-influence-tables.tsx
 echo "FB-030 anchor (footnote string in JSX) — expect ONE match only (the comment header on line 30):"
@@ -1719,7 +1810,7 @@ Open `docs/official-feedback/status.md`. Update:
 | **FB-025** | PR Influence (v2) | this branch (PR future) | `<FB025_SHA>` | Synopsis decimals fix per Tina v1 CSV E2. buildContext in lib/peec/pr-influence-synopsis.ts now interpolates d.citationCount.toFixed(1) + Math.round(o.score). Prompt strengthened with explicit 'Number formatting (strict)' rule. Cache version v1-glean-pri -> v2-glean-pri. |
 | **FB-026** | PR Influence (v2) | this branch (PR future) | `<FB026_SHA>` | Sentiment Insights wired to live Glean-backed classification per Tina v1 CSV E4 + E5. New lib/peec/sentiment-insights.ts (Glean-backed, cached per dateRange + modelKey). sentiment-insights.tsx rewritten props-driven; sandbox gate LIFTED (precedent: FB-023). 10 unit tests (node:assert + tsx). Date + model reactive. |
 | **FB-027** | PR Influence (v2) | this branch (PR future) | `<FB027_SHA>` | Prompt Clusters chart X-axis is now dynamic per Tina v1 CSV E14. domain={[0, upper]} where upper = next 5 (max ≤ 10) or next 10 (max > 10). Fallback to 5 when empty. One-block edit in PromptClusterOpportunityMatrix. |
-| **FB-028** | PR Influence (v2) | this branch (PR future) | `<FB028_SHA>` | Top Editorial Opportunities filter rewritten per Tina v1 CSV E16 + E17. Switched row source from data.topDomains (editorial, domain-rows) to urlCitations (URL-rows). Brand-absent now defined at URL level via mentionsYourBrand=false (was 'not in PR placement list' — wrong def). Editorial restriction via cross-ref against editorialDomains host set. Dropped d.retrievedDelta > 0 filter entirely. Dropped 'Delta of Citation Share' column entirely (no URL-level delta in Peec). Renamed 'Citation Share' -> 'AI Citations'. Cap raised to 50. Synopsis context updated to match. |
+| **FB-028** | PR Influence (v2) | this branch (PR future) | `<FB028_SHA>` | Top Editorial Opportunities rewritten per Tina V1 R15 ✅ + R16/R17 ⚠️. R15 ✅ 5-column shape preserved verbatim (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share). Row source flipped from data.topDomains (domain-rows) to urlCitations (URL-rows). Brand-absent now at URL level: mentionsYourBrand=false (R16 literal). Editorial filter: urlCitation.classification === 'editorial' (R16's Peec UI filter literal) with host cross-ref fallback. Citation Share = URL count / sum-all-period * 100. Delta of Citation Share = currentShare - priorShare from new prior-period URL fetch. Dropped !prDomains.has misdef. Dropped retrievedDelta > 0 killer. Cap raised to 50. URL fetch date-scoped to page range (resolves existing last-30 default bug). Synopsis context sources from same URL-level byHost map. |
 | **FB-029** | PR Influence (v2) | this branch (PR future) | `<FB029_SHA>` | PR Placement Matchback restored under Exec Summary per Tina v1 CSV E23 REVISION. New focused 5-col PRPlacementMatchbackTable (Publication / Article / Publish Date / Cited by AI? / AI Engines). Tina's literal title + subtitle. Rendered between <PRInfluenceSynopsis> and <SentimentInsights>. Reuses filteredMatchbackRows (date + model aware). 'N of M placements cited by AI (rate%)' summary above the table. |
 | **FB-030** | PR Influence (v2) | this branch (PR future) | `<FB030_SHA>` | Removed bottom footnote per Tina v1 CSV last row ('PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements ...'). One-block deletion. |
 ```
@@ -1758,7 +1849,7 @@ Closes every ⚠️ row in Tina's PR Influence v1 scorecard CSV. Six surgical fi
 | FB-025 | E2 | Synopsis: round numerics in `buildContext`; strict format rule in prompt; cache bump v1 → v2-glean-pri. |
 | FB-026 | E4 + E5 | Sentiment Insights wired to live Glean-backed classification over `UrlCitation[]`; sandbox gate LIFTED; date + model reactive; 10 unit tests. |
 | FB-027 | E14 | Prompt Clusters X-axis dynamic: `upper = next 5 (≤10) or next 10 (>10)` above max. |
-| FB-028 | E16 + E17 | Top Editorial Opportunities filter rewritten: URL-level brand-absent (`mentionsYourBrand=false`); dropped buggy `!prDomains.has` def + dropped `retrievedDelta > 0` killer filter + dropped "Delta of Citation Share" column. |
+| FB-028 | R15 ✅ + R16 + R17 ⚠️ | Top Editorial Opportunities: Tina's R15 ✅ 5-column shape preserved verbatim (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share); URL-level row source; brand-absent = `mentionsYourBrand=false`; editorial = `classification==='editorial'`; honest URL-level Share + Delta (prior-period URL fetch added); dropped both buggy filters. |
 | FB-029 | E23 | PR Placement Matchback restored under Exec Summary as focused 5-col card with Tina's literal title + subtitle. |
 | FB-030 | last row | Bottom footnote removed entirely. |
 
@@ -1829,7 +1920,7 @@ Coverage 8/8. No gaps.
 ### 3. Type consistency
 
 - `SentimentInsights` type defined in Task 2.1 → consumed in Task 2.3 (component prop) + Task 2.4 (sentiment data variable). Names match.
-- `BrandAbsentEditorialDomainRow` shape changed in Task 4.1 → Task 4.2 produces rows in the new shape. Field names match (`domain`, `articleTitle`, `articleUrl`, `citationCount`, `competitorsMentioned`). `citationCountDelta` removed in both places.
+- `BrandAbsentEditorialDomainRow` shape changed in Task 4.1 → Task 4.3 produces rows in the new shape. Field names match: `domain`, `articleTitle`, `articleUrl`, `citationShare` (replaces prior `citationCount`), `citationShareDelta` (replaces prior `citationCountDelta`), `competitorsMentioned`. Both Tina R15 ✅ column labels ("Citation Share" + "Delta of Citation Share") preserved verbatim.
 - `PRPlacementMatchbackRow` defined in Task 5.1 → built + rendered in Task 5.2. Field names match.
 - `applyEnginesFilter` defined in Task 2.1 → consumed in Task 2.4 (pr-influence.tsx). Same signature.
 - `modelKeyOf` defined in Task 2.1 → consumed in Task 2.4. Same signature.
@@ -1837,7 +1928,7 @@ Coverage 8/8. No gaps.
 
 ### 4. Risks I'm flagging now
 
-- **FB-028 editorial pool size:** the URL-level filter cross-references the host set derived from `data.topDomains.filter(d=>d.type==='Editorial')`. If Peec's `/reports/domains` response is itself capped small (e.g. top 50), the URL-level expansion will still be bounded by that host set. If Tina's "thousands of articles" assertion implies a much wider universe than what `data.topDomains` returns, the subagent can additionally cross-reference `urlCitation.classification === 'editorial'` (string value verified during execution by inspecting one row in a real run). Documented here so the subagent does NOT silently hit the cap.
+- **FB-028 editorial filter source-of-truth:** the primary editorial check uses `urlCitation.classification?.toLowerCase() === 'editorial'` (Tina's literal Peec UI filter). Host cross-reference against `editorialDomains` is the fallback when classification doesn't match — guarantees the table is never silently empty. Subagent should log how many URLs each branch contributes during the first real run and surface that in the QA sweep.
 - **FB-026 prompt quality:** the helper caps the prompt at top-60 URLs by `citationCount` desc. If a client has fewer than ~10 cited URLs in the period, the empty-state path will be common. That is the honest behavior (we won't fabricate themes from thin air); document it in the component empty-state copy (already done).
 - **FB-029 outlet/headline/link/publicationDate fields:** these come from `PRPlacement` (the `@/lib/pr-proof/types` shape). The pre-FB-015 component referenced exactly these field names from the same `MatchbackRow` type, so the field-access lines in Task 5 Step 4 are name-compatible with what `buildMatchback()` produces. No new fields invented.
 - **FB-026 cache key collision:** if `models=[ChatGPT, Perplexity]` and `models=[Perplexity, ChatGPT]` ever both land, `modelKeyOf` sorts them so they produce the same cache key. Verified in the test (Task 2.2 Step 3).
