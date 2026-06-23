@@ -40,6 +40,17 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
     if (v.account !== undefined && !isStr(v.account)) return { ok: false, error: `${path}.account: expected string` }
     const b: TripleWhaleBinding = { source: 'triplewhale', metric: v.metric }
     if (v.account !== undefined) b.account = v.account
+    if (v.filters !== undefined) {
+      if (!Array.isArray(v.filters)) return { ok: false, error: `${path}.filters: expected array` }
+      const filters: { column: string; value: string }[] = []
+      for (const f of v.filters) {
+        if (!isObj(f) || !isNonEmptyStr(f.column) || !isStr(f.value)) {
+          return { ok: false, error: `${path}.filters: expected {column,value}[]` }
+        }
+        filters.push({ column: f.column, value: f.value })
+      }
+      b.filters = filters
+    }
     return { ok: true, value: b }
   }
   return { ok: false, error: `${path}.source: expected 'supermetrics' or 'triplewhale'` }

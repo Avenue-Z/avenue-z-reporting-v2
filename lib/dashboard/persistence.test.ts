@@ -50,4 +50,25 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   assert.equal(r.ok, false)
   if (!r.ok) assert.equal(r.error.includes('blocks[0]'), true)
 }
+
+// triplewhale binding round-trips optional filters
+{
+  const r = parseBlockConfig({
+    id: 'b1', name: 'X', format: 'number', range: null,
+    binding: { source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', value: 'facebook-ads' }] },
+  })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'triplewhale') {
+    assert.deepEqual(r.block.binding.filters, [{ column: 'channel', value: 'facebook-ads' }])
+  }
+}
+// malformed filter entry is rejected
+{
+  const r = parseBlockConfig({
+    id: 'b1', name: 'X', format: 'number', range: null,
+    binding: { source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel' }] },
+  })
+  assert.equal(r.ok, false)
+}
+
 console.log('ok')

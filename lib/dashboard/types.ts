@@ -13,6 +13,7 @@ export interface TripleWhaleBinding {
   source: 'triplewhale'
   metric: string
   account?: string
+  filters?: { column: string; value: string }[]
 }
 
 export type LeafBinding = SupermetricsBinding | TripleWhaleBinding
