@@ -32,7 +32,7 @@ export async function OrganicSocialReport({
     <div className="space-y-8">
       {headlines.data ? <PlatformHeadlines headlines={headlines.data} /> : <Fallback kind={headlines.error!} />}
       {trend.data ? <EngagementTrend series={trend.data} /> : <Fallback kind={trend.error!} />}
-      {top.data ? <TopContent rows={top.data} /> : <Fallback kind={top.error!} />}
+      {top.data ? <TopContent groups={top.data} /> : <Fallback kind={top.error!} />}
     </div>
   )
 }

@@ -36,3 +36,9 @@ export interface TopContentRow {
   views: number              // views/impressions
   engagements: number
 }
+
+/** Top content for one platform — rendered as its own section. */
+export interface PlatformTopContent {
+  platform: string           // display: 'Instagram'
+  rows: TopContentRow[]
+}
