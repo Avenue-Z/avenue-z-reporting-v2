@@ -19,14 +19,14 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** `official-feedback-pr-influence-tab` (kept alive for any quick PR Influence iteration; main PR Influence batch is shipped and merged)
-- **HEAD:** `a59eef9` (+2 commits beyond the last main-merge: the two scorecard doc commits e2b56f5 + a59eef9, sitting on the branch ready for an optional docs PR)
-- **PRs merged from this branch:**
-  - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22 (merge commit `cc4ed7d`)
-  - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22 (merge commit `94ebf5c`)
-- **Base:** `main` (currently `7919044` — includes Paul's PR #57 Renaissance dashboard)
-- **Status:** PR Influence batch FULLY SHIPPED to prod. Tina is now actively QA-ing both Overview + PR Influence and sending iterative feedback. New feedback as of 2026-06-22: **Tina flagged that "Which prompts are AI engines answering with our brand?" chart at the bottom of the Overview tab needs to be removed.** She clarified the governing principle: *"if it's not in the recommended layout, then it's gone."* See **Working rule #11** below. Next FB ID is **FB-020**.
-- **Overview tab CSV received 2026-06-22.** Full surgical sweep done, read-only. Plan saved in [plan-fb-020-overview-iteration.md](plan-fb-020-overview-iteration.md). Four asks: FB-020-a (drop subtitle), FB-020-b (truly YTD chart + drop "Tracking began"), FB-020-c (remove tracked-prompts chart), FB-021 (Winners/Losers live data — separate PR). **Holding implementation** until Tina sends Content Impact + Technical Performance feedback so we sequence all tabs at once.
+- **Branch:** `official-feedback-content-impact-tab` (cut from `origin/main` 2026-06-23; PR Influence shipped + merged, Overview iteration parked)
+- **HEAD:** TBD (in flight)
+- **Base:** `main` (currently `a2d39b3`)
+- **Status:** Content Impact run starting. Awaiting Tina's Google Doc feedback paste. Next FB ID is **FB-020**. Tracking doc: [content-impact-tracking.md](content-impact-tracking.md).
+- **Overview iteration: PARKED.** Surgical sweep complete, plan in [plan-overview-iteration.md](plan-overview-iteration.md). Per Thomas (2026-06-23) the originally-reserved FB-020-a/b/c + FB-021 IDs were reclaimed for Content Impact for sequential order. Overview plan items now use handles `item-a/b/c/d` until we resume work and assign fresh FB IDs.
+- **PRs merged historically from earlier branches:**
+  - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22
+  - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22
 
 ## Per-tab workflow going forward
 
@@ -39,11 +39,11 @@ One branch + one PR per AEO sub-tab.
 | FB-006 sandbox (Overview hotfix) | `fix/sandbox-avenue-z-static-content` | [#54](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/54) | MERGED |
 | PR Influence (initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
 | PR Influence (FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
-| **Overview iteration (incoming, Tina active)** | `iter/overview-recommended-layout` (to cut from main) | (future) | **PENDING — Tina actively sending** |
-| Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
+| **Content Impact** | **`official-feedback-content-impact-tab`** | (future) | **ACTIVE — Tina's Google Doc incoming** |
+| Overview iteration (parked) | TBD (cut from main when resumed) | (future) | PARKED — plan complete, see [plan-overview-iteration.md](plan-overview-iteration.md) |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-020.**
+FB IDs continue sequentially across all branches. **Next ID is FB-020** (reclaimed from the parked Overview plan).
 
 ---
 

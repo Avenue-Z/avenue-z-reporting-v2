@@ -1,23 +1,25 @@
-# FB-020 / FB-021 — Overview iteration plan
+# Overview iteration plan (TBD IDs)
 
-Surgical sweep done 2026-06-22 from Tina's Overview-tab scorecard CSV. **No code touched yet.** Holding implementation until Tina sends Content Impact + Technical Performance feedback so we can sequence the whole iteration in one pass.
+Surgical sweep done 2026-06-22 from Tina's Overview-tab scorecard CSV. **No code touched yet.** Holding implementation until Content Impact closes — Thomas's call (2026-06-23) to finish Tina's feedback on Content Impact (and Technical Performance) before circling back here.
+
+**ID note:** This plan originally reserved FB-020-a/b/c and FB-021. Per Thomas (2026-06-23) we reclaimed those IDs for Content Impact for sequential ordering. Specific FB IDs for the items below get assigned at implementation time after Content Impact's FB run closes. Inside this doc I keep the original a/b/c/d labels as item handles — they're not the final FB IDs.
 
 **Source feedback:** `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Overview Tab.csv`
 
 Four asks with content in column E:
 
-| CSV cell | Ask | FB ID |
+| CSV cell | Item handle | Ask |
 |---|---|---|
-| **E2** | REMOVE Overview SectionHeader subtitle | FB-020-a |
-| **E7** | Visibility chart must be truly YTD + "Tracking began May 18" string is wrong | FB-020-b |
-| **E12** | REMOVE "Which prompts are AI engines answering with our brand?" chart (applies Rule #11) | FB-020-c |
-| **E11** | Biggest Winners / Biggest Losers cards must be live data, react to date range + model filter | **FB-021** (separate PR) |
+| **E2** | item-a | REMOVE Overview SectionHeader subtitle |
+| **E7** | item-b | Visibility chart must be truly YTD + "Tracking began May 18" string is wrong |
+| **E12** | item-c | REMOVE "Which prompts are AI engines answering with our brand?" chart (applies Rule #11) |
+| **E11** | item-d | Biggest Winners / Biggest Losers cards must be live data, react to date range + model filter (separate PR) |
 
-Split rationale: a/b/c are surgical, low-risk, fast (~1 hour). E11 is real data-layer work (~half-day, needs prior-period prompt-level fetch + model-aware dimensions). Keep them in separate commits / PRs for reviewability.
+Split rationale: a/b/c are surgical, low-risk, fast (~1 hour). item-d is real data-layer work (~half-day, needs prior-period prompt-level fetch + model-aware dimensions). Keep them in separate commits / PRs for reviewability.
 
 ---
 
-## FB-020-a — Remove Overview subtitle (E2)
+## Item-a — Remove Overview subtitle (E2)
 
 **Tina's literal ask:** *"REMOVE: Subtitle 'Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors.'"*
 
@@ -34,7 +36,7 @@ Split rationale: a/b/c are surgical, low-risk, fast (~1 hour). E11 is real data-
 
 ---
 
-## FB-020-b — Visibility chart truly YTD + drop "Tracking began" (E7)
+## Item-b — Visibility chart truly YTD + drop "Tracking began" (E7)
 
 **Tina's literal ask:** *"'Tracking began May 18' – this is incorrect, this workspace has been tracking data since March 28, 2025. I think that this YTD chart is changing based on the date range selector. Please make static to always show YTD."*
 
@@ -74,7 +76,7 @@ Split rationale: a/b/c are surgical, low-risk, fast (~1 hour). E11 is real data-
 
 ---
 
-## FB-020-c — Remove tracked-prompts chart (E12, applies Rule #11)
+## Item-c — Remove tracked-prompts chart (E12, applies Rule #11)
 
 **Tina's literal ask:** *"REMOVE Chart: 'Which prompts are AI engines answering with our brand?' at the very bottom. This wasn't explicitly stated to remove in the initial doc, but it was not included in the recommended layout."*
 
@@ -106,7 +108,7 @@ Pruning the data layer would break 5+ surfaces. **Render-only removal.**
 
 ---
 
-## FB-021 — Winners/Losers live data (E11, separate branch/PR)
+## Item-d — Winners/Losers live data (E11, separate branch/PR)
 
 **Tina's literal ask:** *"This seems like static copy and should be pulling actual data. It doesn't change when a new date range or model is selected and is an exact copy of the example text I provided."*
 
@@ -166,7 +168,7 @@ Apply model filter BEFORE the compute by filtering `data.trackedPrompts` to only
 ### Open decisions (Thomas to confirm before implementation)
 
 1. **Sandbox gate:** lift it (recommendation — all clients see real winners/losers, universal-by-default per Rule #9 + Rule #11) OR keep Avenue-Z-only while validating?
-2. **Profound parity:** mirror on Profound now (FB-021-b) OR defer to FB-022? (Recommendation: defer. Tina's screenshot was Profound data but the cards she's looking at are the Peec sandbox cards populated with her Profound numbers. Migrating Peec to live data covers the immediate ask.)
+2. **Profound parity:** mirror on Profound now (item-d-2) OR defer to a follow-up FB? (Recommendation: defer. Tina's screenshot was Profound data but the cards she's looking at are the Peec sandbox cards populated with her Profound numbers. Migrating Peec to live data covers the immediate ask.)
 
 **Risk:** high. Real data-layer change. Verify:
 - `limit: 2000` holds with extra dimensions.
@@ -181,8 +183,8 @@ Apply model filter BEFORE the compute by filtering `data.trackedPrompts` to only
 
 1. **Wait** for Tina's Content Impact + Technical Performance feedback. Thomas wants to collect ALL feedback first before fixing anything.
 2. When ready: cut new branch from `main` (suggested name: `iter/overview-recommended-layout` or `official-feedback-overview-iteration`).
-3. **Commit 1 — FB-020 batch:** items a + b + c together (one commit). Surgical, ~1 hour.
-4. **Commit 2 — FB-021:** Winners/Losers live data. Half-day. Resolve the two open decisions first.
+3. **Commit 1:** items a + b + c together (one commit). Surgical, ~1 hour. Assigns sequential FB IDs at implementation time.
+4. **Commit 2:** item-d Winners/Losers live data. Half-day. Resolve the two open decisions first. Separate FB ID.
 5. **Other tabs' feedback iteration:** apply Rule #11 retroactively to PR Influence and the not-yet-started tabs as their feedback arrives.
 
 ## State at planning time
@@ -199,10 +201,10 @@ Apply model filter BEFORE the compute by filtering `data.trackedPrompts` to only
 
 ## CSV row → action mapping (quick lookup)
 
-| CSV cell | Status in spec | FB ID |
+| CSV cell | Status in spec | Item |
 |---|---|---|
-| D2 ⚠️ + E2 | Plan complete | FB-020-a |
-| D7 ⚠️ + E7 | Plan complete (1 open decision) | FB-020-b |
-| D11 ⚠️ + E11 | Plan complete (2 open decisions) | FB-021 |
-| E12 (free-standing add) | Plan complete | FB-020-c |
+| D2 ⚠️ + E2 | Plan complete | item-a (FB ID TBD) |
+| D7 ⚠️ + E7 | Plan complete (1 open decision) | item-b (FB ID TBD) |
+| D11 ⚠️ + E11 | Plan complete (2 open decisions) | item-d (FB ID TBD) |
+| E12 (free-standing add) | Plan complete | item-c (FB ID TBD) |
 | All rows with D=✅ (3,4,5,6,8,9,10) | No action — Tina accepted as shipped | n/a |
