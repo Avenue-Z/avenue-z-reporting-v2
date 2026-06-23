@@ -10,7 +10,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { resolveSmApiKey } from '@/lib/dashboard/adapters/supermetrics'
-import { smFields, smAccounts, type MetricOption, type AccountOption } from '@/lib/supermetrics/discovery'
+import { smFields, smAccounts, smDimensions, smDimensionValues, type MetricOption, type AccountOption } from '@/lib/supermetrics/discovery'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import { resolveBlockNL } from '@/lib/dashboard/nl/resolve'
 import { resolveAggregateNL } from '@/lib/dashboard/nl/aggregate-resolve'
@@ -159,6 +159,53 @@ export async function getTwDimensionValues(
     const values = await unstable_cache(
       () => twDistinctValues(apiKey, shopId, column, { startDate, endDate }),
       ['tw-dim', shopId, column, keyHash(apiKey)],
+      { revalidate: 3600 },
+    )()
+    return { ok: true, values }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'discovery failed' }
+  }
+}
+
+/** Live Supermetrics dimension options for a data source. Same edit gate as save; cached per (dsId, key). */
+export async function getSmDimensions(
+  slug: string,
+  dsId: string,
+): Promise<{ ok: true; options: MetricOption[] } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
+  const apiKey = await resolveKeyForSlug(slug)
+  if (!apiKey) return { ok: false, error: 'disconnected' }
+  try {
+    const options = await unstable_cache(
+      () => smDimensions(apiKey, dsId),
+      ['sm-dimensions', dsId, keyHash(apiKey)],
+      { revalidate: 3600 },
+    )()
+    return { ok: true, options }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'discovery failed' }
+  }
+}
+
+/** Live distinct values for a Supermetrics dimension (per data source + account). */
+export async function getSmDimensionValues(
+  slug: string,
+  dsId: string,
+  account: string,
+  column: string,
+): Promise<{ ok: true; values: string[] } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
+  const apiKey = await resolveKeyForSlug(slug)
+  if (!apiKey) return { ok: false, error: 'disconnected' }
+  const { startDate, endDate } = parseDateRange('last_30_days')
+  try {
+    const values = await unstable_cache(
+      () => smDimensionValues(apiKey, dsId, account, column, { startDate, endDate }),
+      ['sm-dim-values', dsId, account, column, keyHash(apiKey)],
       { revalidate: 3600 },
     )()
     return { ok: true, values }
