@@ -3,8 +3,8 @@
 import type React from 'react'
 import { useEffect, useState, useTransition } from 'react'
 import { DS_IDS } from '@/lib/supermetrics/constants'
-import { TW_METRIC_SQL } from '@/lib/triplewhale/queries'
-import { getMetricOptions, getAccountOptions } from '@/app/actions/dashboard'
+import { getTwFields, getTwDimensionValues, getMetricOptions, getAccountOptions } from '@/app/actions/dashboard'
+import type { TwFields } from '@/lib/triplewhale/discovery'
 import { SearchCombobox, type ComboOption } from './search-combobox'
 import { formatFromDataType, type LeafDraft } from './build-config'
 import type { MetricFormat } from '@/lib/dashboard/types'
@@ -15,12 +15,6 @@ const DS_OPTIONS: { value: string; label: string }[] = [
   { value: DS_IDS.META, label: 'Meta (Facebook) Ads' },
   { value: DS_IDS.LINKEDIN, label: 'LinkedIn Ads' },
 ]
-const TW_OPTIONS: ComboOption[] = Object.keys(TW_METRIC_SQL).map((m) => ({ value: m, label: humanize(m) }))
-
-function humanize(s: string): string {
-  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 const ctrl = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
 
 export function LeafBuilder({
@@ -64,16 +58,15 @@ export function LeafBuilder({
   }, [source, dsId, slug])
 
   if (source === 'triplewhale') {
-    const metric = value.source === 'triplewhale' ? value.metric : ''
+    const tw = value.source === 'triplewhale' ? value : { source: 'triplewhale' as const, metric: '' }
+    const filters = tw.filters ?? []
     return (
-      <Field label="Metric">
-        <SearchCombobox
-          value={metric}
-          options={TW_OPTIONS}
-          placeholder="Select metric"
-          onChange={(m) => onChange({ source: 'triplewhale', metric: m })}
-        />
-      </Field>
+      <TwLeafFields
+        metric={tw.metric}
+        filters={filters}
+        slug={slug}
+        onChange={(next) => onChange({ source: 'triplewhale', metric: next.metric, ...(next.filters.length ? { filters: next.filters } : {}) })}
+      />
     )
   }
 
@@ -134,5 +127,117 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">{label}</span>
       {children}
     </label>
+  )
+}
+
+function TwLeafFields({
+  metric,
+  filters,
+  slug,
+  onChange,
+}: {
+  metric: string
+  filters: { column: string; value: string }[]
+  slug: string
+  onChange: (next: { metric: string; filters: { column: string; value: string }[] }) => void
+}) {
+  const [fields, setFields] = useState<TwFields>({ metrics: [], dimensions: [] })
+  const [err, setErr] = useState<string | null>(null)
+  const [loading, startLoad] = useTransition()
+
+  useEffect(() => {
+    setErr(null)
+    startLoad(async () => {
+      const r = await getTwFields(slug)
+      if (r.ok) setFields(r.fields)
+      else { setErr(r.error); setFields({ metrics: [], dimensions: [] }) }
+    })
+  }, [slug])
+
+  const setMetric = (m: string) => onChange({ metric: m, filters })
+  const setFilter = (i: number, f: { column: string; value: string }) =>
+    onChange({ metric, filters: filters.map((x, j) => (j === i ? f : x)) })
+  const addFilter = () => onChange({ metric, filters: [...filters, { column: '', value: '' }] })
+  const removeFilter = (i: number) => onChange({ metric, filters: filters.filter((_, j) => j !== i) })
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Field label="Metric">
+        {err ? (
+          <input className={ctrl} value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="column id (e.g. spend)" />
+        ) : (
+          <SearchCombobox value={metric} options={fields.metrics} loading={loading} placeholder="Select metric" onChange={setMetric} />
+        )}
+      </Field>
+      {err && <p className="text-xs text-[#FF6666]">Discovery unavailable ({err}). Enter column ids manually.</p>}
+
+      {filters.map((f, i) => (
+        <TwFilterRow
+          key={i}
+          filter={f}
+          dimensions={fields.dimensions}
+          slug={slug}
+          disabled={err !== null}
+          onChange={(nf) => setFilter(i, nf)}
+          onRemove={() => removeFilter(i)}
+        />
+      ))}
+
+      <button
+        type="button"
+        onClick={addFilter}
+        className="self-start rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.06]"
+      >
+        + Add filter
+      </button>
+    </div>
+  )
+}
+
+function TwFilterRow({
+  filter,
+  dimensions,
+  slug,
+  disabled,
+  onChange,
+  onRemove,
+}: {
+  filter: { column: string; value: string }
+  dimensions: ComboOption[]
+  slug: string
+  disabled: boolean
+  onChange: (f: { column: string; value: string }) => void
+  onRemove: () => void
+}) {
+  const [values, setValues] = useState<ComboOption[]>([])
+  const [loading, startLoad] = useTransition()
+
+  useEffect(() => {
+    if (filter.column === '') { setValues([]); return }
+    startLoad(async () => {
+      const r = await getTwDimensionValues(slug, filter.column)
+      setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
+    })
+  }, [filter.column, slug])
+
+  return (
+    <div className="flex items-center gap-2">
+      <SearchCombobox
+        value={filter.column}
+        options={dimensions}
+        disabled={disabled}
+        placeholder="Dimension"
+        onChange={(column) => onChange({ column, value: '' })}
+      />
+      <SearchCombobox
+        value={filter.value}
+        options={values}
+        disabled={disabled || filter.column === ''}
+        loading={loading}
+        placeholder="Value"
+        onChange={(v) => onChange({ column: filter.column, value: v })}
+      />
+      <button type="button" onClick={onRemove} className="text-text-muted hover:text-white" aria-label="Remove filter">✕</button>
+    </div>
   )
 }
