@@ -77,19 +77,17 @@ async function OverviewView({
   const main    = parseDateRange(dateRange)
   const compare = deriveCompareRange(dateRange, compareRange)
 
-  // Sequential — HubSpot search API is rate-limited to 4 req/s
-  const rangeStats   = await getContactStatsForRange(clientSlug, main.startDate, main.endDate)
-  const compareStats = compare
-    ? await getContactStatsForRange(clientSlug, compare.startDate, compare.endDate)
-    : null
-
-  const mainTrend    = await getDailyContactTrend(clientSlug, main.startDate, main.endDate)
-  const compareTrend = compare
-    ? await getDailyContactTrend(clientSlug, compare.startDate, compare.endDate)
-    : null
-
-  const lifecycle  = await getLifecycleStageCounts(clientSlug, main.startDate, main.endDate)
-  const breakdown  = await getContactBreakdown(clientSlug)
+  // Fetch concurrently. On a warm render these are all cache hits (no API
+  // calls); on a cold render the underlying HubSpot search calls are throttled
+  // to 4 req/s by the client's rate limiter, so fanning out here is safe.
+  const [rangeStats, compareStats, mainTrend, compareTrend, lifecycle, breakdown] = await Promise.all([
+    getContactStatsForRange(clientSlug, main.startDate, main.endDate),
+    compare ? getContactStatsForRange(clientSlug, compare.startDate, compare.endDate) : Promise.resolve(null),
+    getDailyContactTrend(clientSlug, main.startDate, main.endDate),
+    compare ? getDailyContactTrend(clientSlug, compare.startDate, compare.endDate) : Promise.resolve(null),
+    getLifecycleStageCounts(clientSlug, main.startDate, main.endDate),
+    getContactBreakdown(clientSlug),
+  ])
 
   // Zip main + compare daily series into TrendRow[]
   const chartData = mainTrend.map((row, i) => {
@@ -302,11 +300,14 @@ async function FormsView({
 // ── Pacing ────────────────────────────────────────────────────────────────────
 
 async function PacingView({ clientSlug }: { clientSlug: string }) {
-  // Sequential — HubSpot rate limits
-  const weekly    = await getWeeklyContactStats(clientSlug)
-  const monthly   = await getMonthlyContactBreakdown(clientSlug)
-  const quarterly = await getQuarterlyContactStats(clientSlug)
-  const yearly    = await getYearlyContactStats(clientSlug)
+  // Concurrent — warm renders hit the cache; cold renders are throttled to
+  // 4 req/s by the HubSpot client's search-API rate limiter.
+  const [weekly, monthly, quarterly, yearly] = await Promise.all([
+    getWeeklyContactStats(clientSlug),
+    getMonthlyContactBreakdown(clientSlug),
+    getQuarterlyContactStats(clientSlug),
+    getYearlyContactStats(clientSlug),
+  ])
 
   return (
     <div className="space-y-8">
