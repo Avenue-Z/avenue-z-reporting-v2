@@ -77,28 +77,25 @@ WAVE 4
 **Interfaces:**
 - Consumes: `DASH_API_TOKEN` (from `dash-social-connection/.env`), Renaissance `brand_id`.
 - Produces:
-  - `lib/organic-social/metrics.ts` exporting:
+  - `lib/organic-social/metrics.ts` (CONFIRMED 2026-06-23 — blended-safe set only):
     ```ts
-    export const CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'TWITTER'] as const // LinkedIn excluded from reports/data
+    export const CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'TWITTER'] as const
     export type DashChannel = (typeof CHANNELS)[number]
-    // Confirmed UPPER_SNAKE metric ids valid on reports/data for the channels above.
+    // Only metrics valid on ALL of IG/FB/X — a multi-channel request 400s if any
+    // metric is invalid for any channel. Per-channel-only metrics (PROFILE_VIEWS,
+    // SHARES, SAVES, LIKES, REACTIONS, EFFECTIVENESS) are deferred (not blendable).
     export const METRICS = {
       totalFollowers: 'TOTAL_FOLLOWERS',
       netNewFollowers: 'NET_NEW_FOLLOWERS',
       impressions: 'IMPRESSIONS',
       engagements: 'TOTAL_ENGAGEMENTS',
-      profileViews: 'PROFILE_VIEWS',
-      comments: '<CONFIRM>',   // pin in spike
-      shares: '<CONFIRM>',     // pin in spike
-      saves: '<CONFIRM>',      // pin in spike
-      likes: '<CONFIRM>',      // pin in spike
     } as const
-    /** Denominator for engagement rate, per spike. */
-    export const ENGAGEMENT_RATE_BASIS: 'impressions' | 'reach' = 'impressions'
-    /** True if reports/data exposes an aggregate effectiveness; else average from media/v2. */
+    export const ENGAGEMENT_RATE_BASIS = 'impressions' as const
     export const HAS_AGGREGATE_EFFECTIVENESS = false
     ```
   - Three fixture JSON files = verbatim API responses used by Tasks 11–14 tests.
+
+  **STATUS: Task 1 is COMPLETE (controller-run).** `metrics.ts` + the three fixtures are committed; `scripts/dash-social-probe.ts` exists. Skip re-running; implementers of T11–T14 consume the committed `metrics.ts` and fixtures.
 
 - [ ] **Step 1: Write the probe script**
 
@@ -176,13 +173,13 @@ git commit -m "chore(organic-social): Dash Social spike — confirmed metrics + 
 - Consumes: nothing (pure HTTP client; token + brandId are call args).
 - Produces:
   - Errors: `DashApiError`, `DashAuthError`, `DashRateLimitError`, `DashTimeoutError`.
-  - `class DashSocialClient { constructor(opts: { token: string; fetchImpl?: typeof fetch; maxRetries?: number }); getReportsData(p: ReportsDataParams): Promise<ReportsDataResponse>; getMedia(p: { brandId: number; startDate: string; endDate: string; limit?: number }): Promise<MediaV2Response> }`
-  - Types `ReportsDataParams`, `ReportsDataResponse`, `MediaV2Response`, `MediaV2Post` in `types.ts`.
+  - `class DashSocialClient { constructor(opts: { token: string; fetchImpl?: typeof fetch; maxRetries?: number }); getReportsData<M = unknown>(p: ReportsDataParams): Promise<ReportsDataResponse<M>>; getMedia(p: { brandId: number; startDate: string; endDate: string; limit?: number }): Promise<MediaV2Response> }`
+  - Types `ReportsDataParams`, `ReportsDataResponse<M>`, `ReportsChannelEntry<M>`, `TotalMetric`, `GraphMetric`, `MediaV2Response`, `MediaV2Post` in `types.ts`.
 
 - [ ] **Step 1: Write `lib/dash-social/types.ts`**
 
 ```ts
-// Shapes per dash-social-connection/docs/dash-api-map.md (live-probed).
+// Shapes CONFIRMED against Task 1 fixtures (Renaissance brand 26952, 2026-06-23).
 export interface ReportsDataParams {
   brandId: number
   channels: string[]          // e.g. ['INSTAGRAM','FACEBOOK','TWITTER']
@@ -194,27 +191,38 @@ export interface ReportsDataParams {
   contextStartDate?: string   // TOTAL_METRIC delta window
   contextEndDate?: string
 }
-// reports/data returns a per-channel, per-metric structure. Keep it permissive
-// but typed: a record of channel -> metric -> value|series. Refine against the
-// reports-*.json fixtures from Task 1.
-export interface ReportsDataResponse {
-  data: Record<string, Record<string, ReportsMetricValue>>
+
+// /reports/data is keyed by channel name AND a brand-id entry (data_type:'BRAND')
+// that callers MUST skip. Each channel entry carries a `metrics` object whose
+// value shape depends on report_type — hence the generic M.
+export interface ReportsChannelEntry<M> {
+  data_type: string           // 'CHANNEL' | 'BRAND'
+  name?: string               // display, e.g. 'Instagram'
+  metrics?: Record<string, M>
 }
-export type ReportsMetricValue =
-  | { value: number; context_value?: number }                 // TOTAL_METRIC
-  | { series: Array<{ date: string; value: number }> }        // GRAPH
+export interface ReportsDataResponse<M = unknown> {
+  data: Record<string, ReportsChannelEntry<M>>
+}
+// TOTAL_METRIC: metrics[METRIC] = { value, context, context_change }.
+// context_change is the prior-period delta as a FRACTION (e.g. -0.36 = -36%).
+export interface TotalMetric { value: number | null; context: number | null; context_change: number | null }
+// GRAPH: metrics[METRIC] = { [channelKey]: { [date]: value|null } } — doubly nested,
+// inner key repeats the channel (e.g. metrics.TOTAL_FOLLOWERS.INSTAGRAM['2026-05-24']).
+export type GraphMetric = Record<string, Record<string, number | null>>
+
+// media/v2: { data: [...posts], paging }. Only the active per-platform sub-object
+// is populated; stories/empties may have none.
 export interface MediaV2Post {
   id: number
-  source: string              // 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN' | 'TWITTER' | ...
+  source: string              // 'INSTAGRAM' | 'INSTAGRAM_STORY' | 'FACEBOOK' | 'LINKEDIN' | 'TWITTER' | ...
   type: string                // 'IMAGE' | 'VIDEO' | 'CAROUSEL' | ...
   source_created_at: string
-  // per-platform sub-objects; only the active one is populated.
-  instagram?: Record<string, number | string | null>
-  facebook?: Record<string, number | string | null>
-  linkedin?: Record<string, number | string | null>
-  twitter?: Record<string, number | string | null>
+  instagram?: Record<string, number | string | null> | null
+  facebook?: Record<string, number | string | null> | null
+  linkedin?: Record<string, number | string | null> | null
+  twitter?: Record<string, number | string | null> | null
 }
-export interface MediaV2Response { data: MediaV2Post[] }
+export interface MediaV2Response { data: MediaV2Post[]; paging?: { count: number; next: string | null; previous: string | null } }
 ```
 
 - [ ] **Step 2: Write the failing test**
@@ -321,7 +329,7 @@ export class DashSocialClient {
     }
   }
 
-  getReportsData(p: ReportsDataParams): Promise<ReportsDataResponse> {
+  getReportsData<M = unknown>(p: ReportsDataParams): Promise<ReportsDataResponse<M>> {
     const q = new URLSearchParams({
       brand_ids: String(p.brandId),
       channels: p.channels.join(','),
@@ -333,7 +341,7 @@ export class DashSocialClient {
     if (p.timeScale) q.set('time_scale', p.timeScale)
     if (p.contextStartDate) q.set('context_start_date', p.contextStartDate)
     if (p.contextEndDate) q.set('context_end_date', p.contextEndDate)
-    return this.request<ReportsDataResponse>('GET', `${DASHBOARD}/reports/data?${q}`)
+    return this.request<ReportsDataResponse<M>>('GET', `${DASHBOARD}/reports/data?${q}`)
   }
 
   getMedia(p: { brandId: number; startDate: string; endDate: string; limit?: number }): Promise<MediaV2Response> {
@@ -522,7 +530,9 @@ git commit -m "feat(charts): multi-series LineChart"
 - Produces:
   - `dashClientFor(slug: string): Promise<{ client: DashSocialClient; brandId: number; channels: string[] }>` — resolves config + token.
   - `resolveCompareIso(dateRange, compareRange): { start: string; end: string } | null`
-  - `CHANNEL_DISPLAY: Record<string,string>` (Dash enum → display), `displayChannel(source)`, `dashChannelsFor(allowlist?)`.
+  - `isoRange(dateRange): { start: string; end: string }`
+  - `channelMetricEntries<M>(res: ReportsDataResponse<M>): Array<[string, Record<string, M>]>` — `[channelKey, metrics]` for CHANNEL entries only (skips the `data_type:'BRAND'` entry and any without `metrics`).
+  - `CHANNEL_DISPLAY: Record<string,string>` (Dash enum → display, incl. `INSTAGRAM_STORY`→`Instagram`), `displayChannel(source)`, `dashChannelsFor(allowlist?)`.
   - re-export `num`, `pct` from `lib/supermetrics/format`.
 
 - [ ] **Step 1: Write the file**
@@ -530,19 +540,27 @@ git commit -m "feat(charts): multi-series LineChart"
 ```ts
 // lib/organic-social/base.ts
 import { DashSocialClient } from '@/lib/dash-social/client'
+import type { ReportsDataResponse } from '@/lib/dash-social/types'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { CHANNELS } from './metrics'
 
 export { num, pct } from '@/lib/supermetrics/format'
 
-/** Dash source/channel enum -> display label. */
+/** Dash source/channel enum -> display label. Story/variant sources fold to their base channel. */
 export const CHANNEL_DISPLAY: Record<string, string> = {
-  INSTAGRAM: 'Instagram', FACEBOOK: 'Facebook', TWITTER: 'X', LINKEDIN: 'LinkedIn',
-  TIKTOK: 'TikTok', YOUTUBE: 'YouTube', PINTEREST: 'Pinterest',
+  INSTAGRAM: 'Instagram', INSTAGRAM_STORY: 'Instagram', FACEBOOK: 'Facebook',
+  TWITTER: 'X', LINKEDIN: 'LinkedIn', TIKTOK: 'TikTok', YOUTUBE: 'YouTube', PINTEREST: 'Pinterest',
 }
 export function displayChannel(source: string): string {
   return CHANNEL_DISPLAY[source] ?? source
+}
+
+/** Yield [channelKey, metrics] for CHANNEL entries only — skips the data_type:'BRAND' entry. */
+export function channelMetricEntries<M>(res: ReportsDataResponse<M>): Array<[string, Record<string, M>]> {
+  return Object.entries(res.data ?? {})
+    .filter(([, e]) => e.data_type === 'CHANNEL' && e.metrics)
+    .map(([ch, e]) => [ch, e.metrics as Record<string, M>])
 }
 
 /** Resolve the reportable Dash channels, honoring an optional lowercase allowlist. */
@@ -772,8 +790,10 @@ git commit -m "feat(organic-social): top content table"
 - Test: `lib/organic-social/kpis.test.ts`
 
 **Interfaces:**
-- Consumes: `dashClientFor`/`isoRange`/`resolveCompareIso` (T6), `METRICS`/`CHANNELS` (T1), `ReportsDataResponse` (T2), `OrganicKpi` (T4). Test fixture: `__fixtures__/reports-total.json`.
-- Produces: `transformKpis(total: ReportsDataResponse, basis): OrganicKpi[]` (pure) and `getOrganicKpis(slug, dateRange, compareRange): Promise<OrganicKpi[]>`.
+- Consumes: `dashClientFor`/`isoRange`/`resolveCompareIso` (T6), `METRICS` (T1), `ReportsDataResponse`/`TotalMetric` (T2), `OrganicKpi` (T4). Test fixture: `__fixtures__/reports-total.json`.
+- Produces: `transformKpis(total: ReportsDataResponse<TotalMetric>): OrganicKpi[]` (pure) and `getOrganicKpis(slug, dateRange, compareRange): Promise<OrganicKpi[]>`.
+
+KPI cards (5): Total Followers · Net New Followers · Views / Impressions · Total Engagements · Engagement Rate (derived = engagements ÷ impressions × 100). Deltas come from each metric's `context` (current vs context value). Profile Views/Comments/Shares/Saves/Likes are NOT in v1 (not blendable — see metrics.ts).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -783,18 +803,20 @@ git commit -m "feat(organic-social): top content table"
 import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
 import { transformKpis } from './kpis'
-import type { ReportsDataResponse } from '@/lib/dash-social/types'
+import type { ReportsDataResponse, TotalMetric } from '@/lib/dash-social/types'
 
-const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/reports-total.json', import.meta.url), 'utf8')) as ReportsDataResponse
-const kpis = transformKpis(fixture, 'impressions')
+const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/reports-total.json', import.meta.url), 'utf8')) as ReportsDataResponse<TotalMetric>
+const kpis = transformKpis(fixture)
 
-// Total Followers KPI exists and sums across channels.
+// Total Followers sums across the three CHANNEL entries (skipping the BRAND entry).
 const followers = kpis.find((k) => k.key === 'totalFollowers')
 assert.ok(followers, 'totalFollowers KPI present')
-assert.equal(typeof followers!.value, 'number')
-// Engagement Rate is a percent (0..100-ish), derived not raw.
-const er = kpis.find((k) => k.key === 'engagementRate')
-assert.ok(er && er.suffix === '%', 'engagementRate is a percent KPI')
+// fixture: IG 29 + FB 4993 + X (see fixture) — must exceed the largest single channel.
+assert.ok(followers!.value >= 4993, 'followers summed across channels, BRAND entry skipped')
+// Five cards, in order; engagement rate is a derived percent.
+assert.deepEqual(kpis.map((k) => k.key), ['totalFollowers', 'netNewFollowers', 'impressions', 'engagements', 'engagementRate'])
+const er = kpis.find((k) => k.key === 'engagementRate')!
+assert.equal(er.suffix, '%', 'engagementRate is a percent KPI')
 console.log('organic kpis: all assertions passed')
 ```
 
@@ -806,46 +828,37 @@ Expected: FAIL — `Cannot find module './kpis'`.
 - [ ] **Step 3: Write `lib/organic-social/kpis.ts`**
 
 ```ts
-import { dashClientFor, isoRange, resolveCompareIso } from './base'
-import { METRICS, ENGAGEMENT_RATE_BASIS } from './metrics'
-import type { ReportsDataResponse, ReportsMetricValue } from '@/lib/dash-social/types'
+import { dashClientFor, isoRange, resolveCompareIso, channelMetricEntries } from './base'
+import { METRICS } from './metrics'
+import type { ReportsDataResponse, TotalMetric } from '@/lib/dash-social/types'
 import type { OrganicKpi } from './types'
 
-function isTotal(v: ReportsMetricValue | undefined): v is { value: number; context_value?: number } {
-  return !!v && 'value' in v
-}
-/** Sum a metric across all channels; returns [current, previousContext]. */
-function sumMetric(res: ReportsDataResponse, metric: string): [number, number | undefined] {
-  let cur = 0, prev = 0, hasPrev = false
-  for (const channel of Object.values(res.data ?? {})) {
-    const v = channel[metric]
-    if (isTotal(v)) {
-      cur += v.value ?? 0
-      if (v.context_value != null) { prev += v.context_value; hasPrev = true }
-    }
+/** Sum a metric's value + context across CHANNEL entries (BRAND entry skipped by channelMetricEntries). */
+function sumMetric(res: ReportsDataResponse<TotalMetric>, metric: string): { value: number; context: number } {
+  let value = 0, context = 0
+  for (const [, metrics] of channelMetricEntries(res)) {
+    const v = metrics[metric]
+    if (v) { value += v.value ?? 0; context += v.context ?? 0 }
   }
-  return [cur, hasPrev ? prev : undefined]
+  return { value, context }
 }
-function delta(cur: number, prev: number | undefined): number | undefined {
-  if (prev == null || prev === 0) return undefined
+function delta(cur: number, prev: number): number | undefined {
+  if (!prev) return undefined
   return ((cur - prev) / prev) * 100
 }
 
-export function transformKpis(res: ReportsDataResponse, basis: 'impressions' | 'reach'): OrganicKpi[] {
-  const [followers, pf] = sumMetric(res, METRICS.totalFollowers)
-  const [netNew, pn] = sumMetric(res, METRICS.netNewFollowers)
-  const [impressions] = sumMetric(res, METRICS.impressions)
-  const [engagements, pe] = sumMetric(res, METRICS.engagements)
-  const [profileViews] = sumMetric(res, METRICS.profileViews)
-  const denom = impressions // basis === 'impressions'; reach handled when METRICS adds it
-  const engRate = denom ? +((engagements / denom) * 100).toFixed(1) : 0
+export function transformKpis(res: ReportsDataResponse<TotalMetric>): OrganicKpi[] {
+  const followers = sumMetric(res, METRICS.totalFollowers)
+  const netNew = sumMetric(res, METRICS.netNewFollowers)
+  const impressions = sumMetric(res, METRICS.impressions)
+  const engagements = sumMetric(res, METRICS.engagements)
+  const engRate = impressions.value ? +((engagements.value / impressions.value) * 100).toFixed(1) : 0
   return [
-    { key: 'totalFollowers', label: 'Total Followers', value: followers, delta: delta(followers, pf) },
-    { key: 'netNewFollowers', label: 'Net New Followers', value: netNew, delta: delta(netNew, pn) },
-    { key: 'impressions', label: 'Views / Impressions', value: impressions },
-    { key: 'engagements', label: 'Total Engagements', value: engagements, delta: delta(engagements, pe) },
-    { key: 'engagementRate', label: 'Engagement Rate', value: engRate, suffix: '%', tooltip: `Engagements ÷ ${basis}` },
-    { key: 'profileViews', label: 'Profile Views', value: profileViews },
+    { key: 'totalFollowers', label: 'Total Followers', value: followers.value, delta: delta(followers.value, followers.context) },
+    { key: 'netNewFollowers', label: 'Net New Followers', value: netNew.value, delta: delta(netNew.value, netNew.context) },
+    { key: 'impressions', label: 'Views / Impressions', value: impressions.value },
+    { key: 'engagements', label: 'Total Engagements', value: engagements.value, delta: delta(engagements.value, engagements.context) },
+    { key: 'engagementRate', label: 'Engagement Rate', value: engRate, suffix: '%', tooltip: 'Engagements ÷ impressions' },
   ]
 }
 
@@ -853,17 +866,17 @@ export async function getOrganicKpis(slug: string, dateRange: string, compareRan
   const { client, brandId, channels } = await dashClientFor(slug)
   const { start, end } = isoRange(dateRange)
   const ctx = resolveCompareIso(dateRange, compareRange)
-  const res = await client.getReportsData({
+  const res = await client.getReportsData<TotalMetric>({
     brandId, channels, reportType: 'TOTAL_METRIC',
-    metrics: [METRICS.totalFollowers, METRICS.netNewFollowers, METRICS.impressions, METRICS.engagements, METRICS.profileViews],
+    metrics: [METRICS.totalFollowers, METRICS.netNewFollowers, METRICS.impressions, METRICS.engagements],
     startDate: start, endDate: end,
     contextStartDate: ctx?.start, contextEndDate: ctx?.end,
   })
-  return transformKpis(res, ENGAGEMENT_RATE_BASIS)
+  return transformKpis(res)
 }
 ```
 
-> Note: if the spike found Comments/Shares/Saves/Likes/Effectiveness on `/reports/data`, add them to the metric list + output here using their `METRICS.*` ids. If not, they are surfaced from `/media/v2` aggregation (see Task 14) — keep this fetcher to the confirmed `/reports/data` set.
+> `channelMetricEntries` (added to base in T6) yields `[channelKey, metrics]` for CHANNEL entries only, skipping the `data_type:'BRAND'` entry. Deltas use the API's `context` (prior-period value); we compute the percent ourselves.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -886,8 +899,8 @@ git commit -m "feat(organic-social): KPI scorecards fetcher + transform"
 - Test: `lib/organic-social/channels.test.ts`
 
 **Interfaces:**
-- Consumes: `dashClientFor`/`isoRange`/`displayChannel` (T6), `METRICS` (T1), `ReportsDataResponse` (T2), `ChannelRow` (T4). Fixture: `reports-total.json`.
-- Produces: `transformChannels(res: ReportsDataResponse): ChannelRow[]` (pure), `getChannelRows(slug, dateRange): Promise<ChannelRow[]>`.
+- Consumes: `dashClientFor`/`isoRange`/`displayChannel`/`channelMetricEntries` (T6), `METRICS` (T1), `ReportsDataResponse`/`TotalMetric` (T2), `ChannelRow` (T4). Fixture: `reports-total.json`.
+- Produces: `transformChannels(res: ReportsDataResponse<TotalMetric>): ChannelRow[]` (pure), `getChannelRows(slug, dateRange): Promise<ChannelRow[]>`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -897,13 +910,14 @@ git commit -m "feat(organic-social): KPI scorecards fetcher + transform"
 import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
 import { transformChannels } from './channels'
-import type { ReportsDataResponse } from '@/lib/dash-social/types'
+import type { ReportsDataResponse, TotalMetric } from '@/lib/dash-social/types'
 
-const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/reports-total.json', import.meta.url), 'utf8')) as ReportsDataResponse
+const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/reports-total.json', import.meta.url), 'utf8')) as ReportsDataResponse<TotalMetric>
 const rows = transformChannels(fixture)
-assert.ok(rows.length >= 1, 'at least one channel row')
+// 3 CHANNEL entries (IG/FB/X); the BRAND entry must NOT become a row.
+assert.equal(rows.length, 3, 'one row per channel, BRAND entry skipped')
 assert.ok(rows.every((r) => typeof r.followers === 'number'), 'numeric followers')
-assert.ok(rows.every((r) => r.channel && r.channel === r.channel.trim()), 'display channel names')
+assert.ok(rows.some((r) => r.channel === 'Facebook' && r.followers === 4993), 'Facebook row mapped from fixture')
 console.log('organic channels: all assertions passed')
 ```
 
@@ -912,23 +926,20 @@ console.log('organic channels: all assertions passed')
 - [ ] **Step 3: Write `lib/organic-social/channels.ts`**
 
 ```ts
-import { dashClientFor, isoRange, displayChannel } from './base'
+import { dashClientFor, isoRange, displayChannel, channelMetricEntries } from './base'
 import { METRICS } from './metrics'
-import type { ReportsDataResponse, ReportsMetricValue } from '@/lib/dash-social/types'
+import type { ReportsDataResponse, TotalMetric } from '@/lib/dash-social/types'
 import type { ChannelRow } from './types'
 
-function val(v: ReportsMetricValue | undefined): number {
-  return v && 'value' in v ? (v.value ?? 0) : 0
-}
+const val = (v: TotalMetric | undefined): number => v?.value ?? 0
 
-export function transformChannels(res: ReportsDataResponse): ChannelRow[] {
-  return Object.entries(res.data ?? {}).map(([channel, metrics]) => {
-    const followers = val(metrics[METRICS.totalFollowers])
+export function transformChannels(res: ReportsDataResponse<TotalMetric>): ChannelRow[] {
+  return channelMetricEntries(res).map(([channel, metrics]) => {
     const engagements = val(metrics[METRICS.engagements])
     const impressions = val(metrics[METRICS.impressions])
     return {
       channel: displayChannel(channel),
-      followers,
+      followers: val(metrics[METRICS.totalFollowers]),
       netNewFollowers: val(metrics[METRICS.netNewFollowers]),
       engagements,
       engagementRate: impressions ? +((engagements / impressions) * 100).toFixed(1) : 0,
@@ -939,7 +950,7 @@ export function transformChannels(res: ReportsDataResponse): ChannelRow[] {
 export async function getChannelRows(slug: string, dateRange: string): Promise<ChannelRow[]> {
   const { client, brandId, channels } = await dashClientFor(slug)
   const { start, end } = isoRange(dateRange)
-  const res = await client.getReportsData({
+  const res = await client.getReportsData<TotalMetric>({
     brandId, channels, reportType: 'TOTAL_METRIC',
     metrics: [METRICS.totalFollowers, METRICS.netNewFollowers, METRICS.engagements, METRICS.impressions],
     startDate: start, endDate: end,
@@ -966,8 +977,8 @@ git commit -m "feat(organic-social): channel contribution fetcher + transform"
 - Test: `lib/organic-social/trends.test.ts`
 
 **Interfaces:**
-- Consumes: `dashClientFor`/`isoRange`/`displayChannel` (T6), `METRICS` (T1), `ReportsDataResponse` (T2 — GRAPH variant), `TrendSeries` (T4). Fixture: `reports-graph.json`.
-- Produces: `transformTrend(res, metric): TrendSeries` (pure), `getTrends(slug, dateRange): Promise<{ followers: TrendSeries; engagement: TrendSeries }>`.
+- Consumes: `dashClientFor`/`isoRange`/`displayChannel`/`channelMetricEntries` (T6), `METRICS` (T1), `ReportsDataResponse`/`GraphMetric` (T2), `TrendSeries`/`TrendPoint` (T4). Fixture: `reports-graph.json`.
+- Produces: `transformTrend(res: ReportsDataResponse<GraphMetric>, metric): TrendSeries` (pure), `getTrends(slug, dateRange): Promise<{ followers: TrendSeries; engagement: TrendSeries }>`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -978,16 +989,18 @@ import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
 import { transformTrend } from './trends'
 import { METRICS } from './metrics'
-import type { ReportsDataResponse } from '@/lib/dash-social/types'
+import type { ReportsDataResponse, GraphMetric } from '@/lib/dash-social/types'
 
-const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/reports-graph.json', import.meta.url), 'utf8')) as ReportsDataResponse
+const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/reports-graph.json', import.meta.url), 'utf8')) as ReportsDataResponse<GraphMetric>
 const series = transformTrend(fixture, METRICS.totalFollowers)
-assert.ok(series.channels.length >= 1, 'has channels')
-assert.ok(series.points.length >= 1, 'has points')
-// each point has a date plus a numeric value per channel
+assert.ok(series.channels.includes('Instagram'), 'Instagram series present')
+assert.ok(series.points.length >= 28, 'a point per day in the window')
+// each point has a date plus a numeric value per channel (nulls coerced to 0)
 const p = series.points[0]
 assert.ok('date' in p, 'point has date')
 assert.ok(series.channels.every((c) => typeof p[c] === 'number'), 'point has numeric per-channel values')
+// points are date-sorted ascending
+for (let i = 1; i < series.points.length; i++) assert.ok(String(series.points[i - 1].date) <= String(series.points[i].date), 'sorted by date')
 console.log('organic trends: all assertions passed')
 ```
 
@@ -996,27 +1009,23 @@ console.log('organic trends: all assertions passed')
 - [ ] **Step 3: Write `lib/organic-social/trends.ts`**
 
 ```ts
-import { dashClientFor, isoRange, displayChannel } from './base'
+import { dashClientFor, isoRange, displayChannel, channelMetricEntries } from './base'
 import { METRICS } from './metrics'
-import type { ReportsDataResponse, ReportsMetricValue } from '@/lib/dash-social/types'
+import type { ReportsDataResponse, GraphMetric } from '@/lib/dash-social/types'
 import type { TrendSeries, TrendPoint } from './types'
 
-function series(v: ReportsMetricValue | undefined): Array<{ date: string; value: number }> {
-  return v && 'series' in v ? v.series : []
-}
-
-/** Pivot the per-channel GRAPH response into recharts rows: one row per date, a key per channel. */
-export function transformTrend(res: ReportsDataResponse, metric: string): TrendSeries {
+/** GRAPH shape: data[channelKey].metrics[metric][channelKey] = { [date]: value|null }. */
+export function transformTrend(res: ReportsDataResponse<GraphMetric>, metric: string): TrendSeries {
   const channels: string[] = []
   const byDate = new Map<string, TrendPoint>()
-  for (const [channel, metrics] of Object.entries(res.data ?? {})) {
-    const label = displayChannel(channel)
-    const pts = series(metrics[metric])
-    if (!pts.length) continue
+  for (const [channelKey, metrics] of channelMetricEntries(res)) {
+    const daily = metrics[metric]?.[channelKey]   // inner key repeats the channel
+    if (!daily) continue
+    const label = displayChannel(channelKey)
     channels.push(label)
-    for (const { date, value } of pts) {
+    for (const [date, value] of Object.entries(daily)) {
       const row = byDate.get(date) ?? ({ date } as TrendPoint)
-      row[label] = value
+      row[label] = value ?? 0
       byDate.set(date, row)
     }
   }
@@ -1027,7 +1036,7 @@ export function transformTrend(res: ReportsDataResponse, metric: string): TrendS
 export async function getTrends(slug: string, dateRange: string): Promise<{ followers: TrendSeries; engagement: TrendSeries }> {
   const { client, brandId, channels } = await dashClientFor(slug)
   const { start, end } = isoRange(dateRange)
-  const res = await client.getReportsData({
+  const res = await client.getReportsData<GraphMetric>({
     brandId, channels, reportType: 'GRAPH', timeScale: 'DAILY',
     metrics: [METRICS.totalFollowers, METRICS.engagements],
     startDate: start, endDate: end,
