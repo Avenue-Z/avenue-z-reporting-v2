@@ -29,9 +29,12 @@ export type SentimentInsightsContext = {
 
 /**
  * Filter URL citations to only those cited by at least one of the selected
- * AI engines. With `models=null`, returns the input unchanged. Mirrors the
- * filteredMatchbackRows logic in pr-influence.tsx: URLs with no engines at
- * all are DROPPED when a filter is active (no model-specific signal).
+ * AI engines. With `models=null` OR `models=[]` (empty array), returns the
+ * input unchanged — both signal "no model filter active" and stay in lockstep
+ * with modelKeyOf() which collapses both to the 'all' cache-key fragment.
+ * When a filter IS active, URLs with no engines at all are DROPPED (no
+ * model-specific signal). Mirrors the filteredMatchbackRows logic in
+ * pr-influence.tsx.
  */
 export function applyEnginesFilter(
   citations: UrlCitation[],
@@ -49,14 +52,19 @@ export function applyEnginesFilter(
  */
 function buildContext(args: { citations: UrlCitation[]; dateRange: string }): string {
   const { citations, dateRange } = args
-  const ranked = [...citations].sort((a, b) => b.citationCount - a.citationCount).slice(0, 60)
+  // FB-026 follow-up: drop URLs with no title up-front. Feeding "(no title)" to
+  // the LLM invites it to hallucinate sentiment from the URL string alone.
+  // analyzedUrlCount in the response then reflects only URLs we could
+  // honestly classify.
+  const withTitle = citations.filter((c) => !!c.title && c.title.trim().length > 0)
+  const ranked = [...withTitle].sort((a, b) => b.citationCount - a.citationCount).slice(0, 60)
   const lines = ranked.map((c, i) => {
-    const titleStr = c.title ? c.title.replace(/\s+/g, ' ').trim().slice(0, 200) : '(no title)'
+    const titleStr = c.title!.replace(/\s+/g, ' ').trim().slice(0, 200)
     return `${i + 1}. URL: ${c.url}\n   Title: ${titleStr}\n   Domain: ${c.domain}\n   Mentions your brand: ${c.mentionsYourBrand ? 'yes' : 'no'}\n   Engines citing: ${c.engines.length > 0 ? c.engines.join(', ') : 'unknown'}`
   })
   return `
 Period: ${dateRange}
-Analyzed citations: ${ranked.length} (top by citation count from ${citations.length} total AI-cited URLs)
+Analyzed citations: ${ranked.length} (top by citation count from ${withTitle.length} titled URLs in ${citations.length} total AI-cited URLs)
 
 Citations:
 ${lines.join('\n\n')}
@@ -108,12 +116,19 @@ const EMPTY: SentimentInsights = {
 }
 
 async function getSentimentInsightsImpl(
+  // _clientSlug and _modelKey participate in the cache key (see extractTags
+  // below) but are not read inside the impl. Underscored to mark intent.
   _clientSlug: string | undefined,
   dateRange: string,
   _modelKey: string,
   context: SentimentInsightsContext,
 ): Promise<SentimentInsights> {
   if (context.citations.length === 0) return EMPTY
+  // After FB-026 follow-up: buildContext drops null-title URLs. If every
+  // citation in the period lacks a title, there is nothing to honestly
+  // classify and we return EMPTY rather than sending a degenerate prompt.
+  const titledCount = context.citations.filter((c) => !!c.title && c.title.trim().length > 0).length
+  if (titledCount === 0) return EMPTY
 
   const dataSection = buildContext({ citations: context.citations, dateRange })
 

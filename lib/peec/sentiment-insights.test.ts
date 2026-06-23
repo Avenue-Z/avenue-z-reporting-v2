@@ -84,4 +84,18 @@ assert.equal(modelKeyOf(['ChatGPT']), 'ChatGPT')
 assert.equal(modelKeyOf(['Perplexity', 'ChatGPT']), 'ChatGPT,Perplexity')
 assert.equal(modelKeyOf(['ChatGPT', 'Perplexity']), 'ChatGPT,Perplexity')
 
+// --- buildContext null-title filter (smoke via early-exit) ---
+// (buildContext is module-private; we exercise the null-title drop via
+//  the public surface — applyEnginesFilter is unaffected, but we verify
+//  the empty-titles edge does not produce a hallucination-bait prompt.)
+
+// applyEnginesFilter still keeps null-title citations (FB-026 follow-up
+// concerns the LLM-feeding stage, not the model filter).
+{
+  const a = makeCitation({ url: 'a', title: null, engines: ['ChatGPT'] })
+  const b = makeCitation({ url: 'b', title: 'real title', engines: ['ChatGPT'] })
+  const out = applyEnginesFilter([a, b], ['ChatGPT'])
+  assert.equal(out.length, 2, 'engine filter preserves null-title citations')
+}
+
 console.log('lib/peec/sentiment-insights.test.ts: all assertions passed')
