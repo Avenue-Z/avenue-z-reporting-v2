@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, boolean, unique } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 
@@ -133,6 +133,16 @@ export const users = pgTable('users', {
   clientIdIdx: index('users_client_id_idx').on(table.clientId),
 }))
 
+export const smDimensionValueCache = pgTable('sm_dimension_value_cache', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientSlug: text('client_slug').notNull(),
+  dsId: text('ds_id').notNull(),
+  account: text('account').notNull(),
+  column: text('column').notNull(),
+  values: jsonb('values').$type<string[]>().notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique('sm_dim_cache_key').on(t.clientSlug, t.dsId, t.account, t.column)])
+
 // --- Relations (enables nested queries) ---
 
 export const clientsRelations = relations(clients, ({ many }) => ({
@@ -153,3 +163,4 @@ export type NewClient = typeof clients.$inferInsert
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type ClientRole = (typeof clientRoleEnum.enumValues)[number]
+export type SmDimensionValueCacheRow = typeof smDimensionValueCache.$inferSelect

@@ -71,6 +71,13 @@
       "when": 1781812032919,
       "tag": "0009_light_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782257213728,
+      "tag": "0010_silent_frog_thor",
+      "breakpoints": true
     }
   ]
 }
