@@ -296,17 +296,36 @@ function SmFilterRow({
   onRemove: () => void
 }) {
   const [values, setValues] = useState<ComboOption[]>([])
+  const [cached, setCached] = useState(false)
   const [loading, startLoad] = useTransition()
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    if (filter.column === '' || account === '') { setValues([]); return }
+  const read = () => {
+    if (filter.column === '' || account === '') { setValues([]); setCached(false); return }
     startLoad(async () => {
       try {
         const r = await getSmDimensionValues(slug, dsId, account, filter.column)
-        setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
-      } catch { setValues([]) }
+        if (r.ok && r.cached) { setValues(r.values.map((v) => ({ value: v, label: v }))); setCached(true) }
+        else { setValues([]); setCached(false) }
+      } catch { setValues([]); setCached(false) }
     })
-  }, [filter.column, slug, dsId, account])
+  }
+
+  useEffect(read, [filter.column, slug, dsId, account])
+
+  const loadValues = async () => {
+    if (filter.column === '' || account === '') return
+    setRefreshing(true)
+    try {
+      await fetch('/api/discovery/sm-dimension-values', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, dsId, account, column: filter.column }),
+      })
+    } catch { /* fall through to re-read */ }
+    setRefreshing(false)
+    read()
+  }
 
   return (
     <div className="flex items-center gap-2">
@@ -316,14 +335,33 @@ function SmFilterRow({
         placeholder="Dimension"
         onChange={(column) => onChange({ column, value: '' })}
       />
-      <SearchCombobox
-        value={filter.value}
-        options={values}
-        disabled={filter.column === '' || account === ''}
-        loading={loading}
-        placeholder="Value"
-        onChange={(v) => onChange({ column: filter.column, value: v })}
-      />
+      {cached ? (
+        <SearchCombobox
+          value={filter.value}
+          options={values}
+          disabled={filter.column === '' || account === ''}
+          loading={loading}
+          placeholder="Value"
+          onChange={(v) => onChange({ column: filter.column, value: v })}
+        />
+      ) : (
+        <div className="flex flex-1 items-center gap-2">
+          <input
+            className={ctrl}
+            value={filter.value}
+            onChange={(e) => onChange({ column: filter.column, value: e.target.value })}
+            placeholder="Value (type, or load)"
+          />
+          <button
+            type="button"
+            onClick={loadValues}
+            disabled={refreshing || filter.column === '' || account === ''}
+            className="shrink-0 rounded-md border border-white/10 px-2 py-1.5 text-xs text-white/70 hover:bg-white/[0.06] disabled:opacity-40"
+          >
+            {refreshing ? 'Loading… (~1–2 min)' : 'Load values'}
+          </button>
+        </div>
+      )}
       <button type="button" onClick={onRemove} className="text-text-muted hover:text-white" aria-label="Remove filter">✕</button>
     </div>
   )
