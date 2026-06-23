@@ -630,13 +630,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         rows={brandAbsentTableRows}
         hasEditorialDomains={editorialDomains.length > 0}
       />
-
-      <p className="text-xs text-text-muted">
-        PR Influence on AI Visibility
-        {data && ' . Peec AI (live)'}
-        {aiSessions > 0 && ` . GA4 AI referral sessions (live)`}
-        {prData && prData.totalPlacements > 0 && ` . ${prData.totalPlacements} PR placements (${prData.dateRange?.earliest} to ${prData.dateRange?.latest})`}
-      </p>
     </div>
   )
 }
