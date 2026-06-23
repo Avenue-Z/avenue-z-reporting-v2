@@ -16,6 +16,42 @@ _(none)_
 
 ## Closed
 
+### FB-029 — PR Placement Matchback restored under Exec Summary
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 23 (R23 REVISION). Verbatim: *"REVISION: We would like to add a chart right beneath the exec summary that is showing this information requested from the PRD. I think the PR placement matchback was the answer to this but somehow got left out of the outline or maybe accidentally was deleted."* PRD quote: *"Did placements achieved by the PR team get cited in AI? The dashboard must compare a maintained list of PR-secured placements against the list of editorial URLs cited in tracked AI answers."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** restore + simplify (formerly removed in FB-015 commit `81b2277` per Tina's V1 5-section layout; her V2 REVISION explicitly asks for it back)
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/pr-influence-tables.tsx`
+
+#### Problem
+
+The PR Placement Matchback table answered the PRD question "Did placements achieved by the PR team get cited in AI?". FB-015 removed it because Tina's V1 5-section "Recommended layout" omitted it. Tina V2 R23 REVISION explicitly says it was the answer to the PRD ask and should be restored — right beneath the Executive Synopsis.
+
+#### Solution
+
+- New focused `PRPlacementMatchbackTable` in `pr-influence-tables.tsx` with 5 columns: Publication / Article / Publish Date / Cited by AI? / AI Engines. Simpler than the pre-FB-015 13-column version. Mapped to Tina's literal title ("which placements are showing up in AI citations").
+- Tina's verbatim title and subtitle wired through the existing `<SectionHeading>` component.
+- "N of M placements cited by AI (rate%)" summary line above the table for instant readability.
+- Rendered between `<PRInfluenceSynopsis>` and `<SentimentInsights>` in `pr-influence.tsx` — exactly where Tina asked.
+- Reuses the still-live `filteredMatchbackRows` (date + model aware) and `placementsCitedByAI` — both kept after FB-015 for the synopsis context. No new fetches, no new data layer.
+- Universal across clients. Empty-state copy honest when there are no placements in the selected timeframe.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — new `PRPlacementMatchbackTable` component + `PRPlacementMatchbackRow` type appended.
+- `components/report-sections/peec-ai/pr-influence.tsx` — import + matchback row list + render between Synopsis and Sentiment.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Grep confirms Tina's verbatim title and subtitle strings live in the source.
+- Existing tests still pass.
+
+#### Open risks
+
+None. Data layer was already in place; this is pure restore + simplified render.
+
 ### FB-028 — Top Editorial Opportunities: URL-level brand-absent, Tina R15 5-col shape preserved
 
 - **Status:** done
