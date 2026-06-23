@@ -1,5 +1,5 @@
 Tab,Your ask,What shipped,Accepted?,Your feedback,V2 — What shipped,V2 — Accepted?,V2 — Your feedback
-Overview,Consistent header across all 4 AEO tabs,Green icon + question + subtitle on all 4 tabs,⚠️,"REMOVE: Subtitle “Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors.”","Subtitle removed. SectionHeader now allows optional subtitle; only Overview tab omits it. Other 3 tabs keep their own subtitles.",,
+Overview,Consistent header across all 4 AEO tabs,Green icon + question + subtitle on all 4 tabs,⚠️,"REMOVE: Subtitle “Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors.”",Subtitle removed. SectionHeader now allows optional subtitle; only Overview tab omits it. Other 3 tabs keep their own subtitles.,,
 Overview,Remove the rolling-week pills,Pills removed from top of Overview,✅,,,,
 Overview,Swap KPIs to Visibility / Citation Share / AI Referral Traffic,3 KPI cards swapped with period deltas,✅,,,,
 Overview,Add AI-generated executive synopsis at top,Synopsis card added (Glean-generated prose + recommended actions),✅,,,,
@@ -11,4 +11,4 @@ Overview,Remove brand categories chart + definitions,Removed; Leaderboard now sp
 Overview,Add static Biggest Winners + Biggest Losers cards,Added side-by-side using your AEO Analysis doc data; scoped to Avenue Z only,⚠️,ISSUE: This seems like static copy and should be pulling actual data. It doesn’t change when a new date range or model is selected and is an exact copy of the example text I provided.,,,
 ,,,,"REMOVE Chart: “Which prompts are AI engines answering with our brand?” at the very bottom.
 
-This wasn't explicitly stated to remove in the initial doc, but it was not included in the recommended layout.",,,
+This wasn't explicitly stated to remove in the initial doc, but it was not included in the recommended layout.","Chart removed from Overview tab (both Peec + Profound provider variants). Component files deleted. data.trackedPrompts field kept — still consumed by PR Influence, Content Impact, and 4 other surfaces.",,

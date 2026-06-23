@@ -8,6 +8,7 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 
 ---
 
+FB-021 | 2026-06-23 | <commit-sha-pending> | a | Removed "Which prompts are AI engines answering with our brand?" chart from both Peec + Profound Overview variants per Tina v2 + Rule #11. Deleted peec-ai/tracked-prompts-chart.tsx and profound-ai/tracked-prompts-chart.tsx. data.trackedPrompts field kept (consumed by 6+ other surfaces).
 FB-020 | 2026-06-23 | 07f021e | a | Removed Overview SectionHeader subtitle per Tina v2 ask (CSV row E2). Made subtitle optional in SectionHeader; PR Influence / Content Impact / Technical Performance tabs still pass their own.
 FB-001 | 2026-06-17 | 7097a19 | a | Unified AEO section header across all 4 tabs via shared SectionHeader component (Overview + PR Influence get the treatment, Content Impact unchanged, Technical Performance shifted yellow to green).
 FB-002 | 2026-06-17 | ae8fc06 | a | AEO Overview tab redesign: removed what-changed pills (002a), swapped 3 KPI cards to Visibility / Citation Share / AI Referral Traffic with truth-grounded Citation Share math for both Peec and Profound (002b), added Vertex Gemini exec synopsis at top (002c — superseded by FB-003), added Snapshot KPIs eyebrow (002d), reordered trend chart below KPI grid (002e).

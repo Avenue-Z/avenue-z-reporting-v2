@@ -16,6 +16,41 @@ _(none)_
 
 ## Closed
 
+### FB-021 — Remove "Which prompts are AI engines answering with our brand?" chart (Rule #11, CSV E12)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, row 12 (free-standing column-E entry, no original ask in columns A-D): *"REMOVE Chart: 'Which prompts are AI engines answering with our brand?' at the very bottom. This wasn't explicitly stated to remove in the initial doc, but it was not included in the recommended layout."*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** layout removal
+- **Scope:** `components/report-sections/peec-ai/index.tsx`, `components/report-sections/profound-ai/index.tsx`. Two component files deleted entirely.
+
+#### Decision
+
+Honor Rule #11 ("recommended layout = full spec"): if it's not in Tina's recommended layout, it gets removed. Apply to BOTH the Peec provider variant AND the Profound provider variant of the Overview tab for layout parity. Delete the two component files since no other surface imports them.
+
+#### Implementation
+
+- `peec-ai/index.tsx`: removed the 5-line render block conditional on `data.trackedPrompts.length > 0` (rendered TrackedPromptsChart for Peec, ProfoundTrackedPromptsChart for Profound). Removed both imports.
+- `profound-ai/index.tsx`: removed the Tracked prompts render block + comment. Removed the import.
+- Deleted `components/report-sections/peec-ai/tracked-prompts-chart.tsx` and `components/report-sections/profound-ai/tracked-prompts-chart.tsx`.
+
+#### Scope of impact
+
+- Universal layout removal. Both Peec and Profound clients lose the chart from the Overview tab.
+- `data.trackedPrompts` field on PeecOverview + ProfoundOverview types KEPT — still consumed by PR Influence (synopsis context, opportunity rows), Content Impact (citation density), AI summaries, demand-overview, report-generator, and both synopsis libs.
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output.
+- `grep -rn "TrackedPromptsChart\|ProfoundTrackedPromptsChart"` returns zero hits across components/app/lib.
+- `grep -rn "trackedPrompts"` (excluding the deleted files) still returns >10 hits — field intact for downstream consumers.
+
+#### Open risks
+
+None. Pure render removal; no data layer changes.
+
+---
+
 ### FB-020 — Remove Overview SectionHeader subtitle (CSV E2)
 
 - **Status:** done

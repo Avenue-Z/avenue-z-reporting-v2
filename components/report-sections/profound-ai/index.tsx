@@ -3,7 +3,6 @@ import type { DomainType, BrandRanking } from '@/lib/profound/client'
 import { BRAND_TYPE_MAP, BRAND_TYPE_COLORS, BRAND_TYPE_DEFINITIONS } from '@/lib/peec/brand-types'
 import { BrandRankingsTable } from './brand-rankings-table'
 import { TopDomainsTable } from './top-domains-table'
-import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
 import { cn } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
@@ -244,11 +243,6 @@ export async function ProfoundAIReport({ clientSlug, dateRange }: { clientSlug?:
           </div>
         </div>
       </div>
-
-      {/* Tracked prompts */}
-      {data.trackedPrompts.length > 0 && (
-        <TrackedPromptsChart prompts={data.trackedPrompts} />
-      )}
 
       <p className="text-xs text-text-muted">Live data from Profound</p>
     </div>
