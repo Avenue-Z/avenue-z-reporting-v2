@@ -16,6 +16,51 @@ _(none)_
 
 ## Closed
 
+### FB-026 — Live Glean-backed Sentiment Insights, date + model reactive
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV rows R4 + R5 (both same complaint, on the card body and the pill). Verbatim: *"ISSUE: This seems like static copy and should be pulling actual data. It doesn't change when a new date range or model is selected and is an exact copy of the example text I provided."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** new feature (live data + Glean classification) + component rewrite
+- **Scope:** `lib/peec/sentiment-insights.ts` (NEW), `lib/peec/sentiment-insights.test.ts` (NEW), `components/report-sections/peec-ai/sentiment-insights.tsx` (rewrite), `components/report-sections/peec-ai/pr-influence.tsx` (RSC plumbing)
+
+#### Problem
+
+Pre-FB-026 the Sentiment Insights card was 100% hardcoded Avenue Z sandbox content: `POSITIVE_THEMES` array, `WEAKNESSES` array, `SENTIMENT_PCT = 89.4`, and a `SANDBOX_CLIENT_SLUG === 'avenue-z'` gate that hid it on every other client. It did not react to the page date range or the model filter because there was no data flow.
+
+#### Solution
+
+1. New `lib/peec/sentiment-insights.ts` helper that:
+   - Accepts per-URL citation data already filtered to period + model by the caller.
+   - Sends the URLs + titles to Glean Chat with a strict-JSON output schema.
+   - Returns `{ sentimentPct, positiveThemes[], negativeThemes[], analyzedUrlCount }`.
+   - Cached per `(clientSlug, dateRange, modelKey)` for one hour. `modelKey` is a stable sorted-comma-join.
+   - Mirrors the canonical `lib/peec/synopsis.ts` pattern (three-tier JSON extractor, gleanChat with saveChat:false, no actAs).
+2. New `lib/peec/sentiment-insights.test.ts` with 10 assertions covering `applyEnginesFilter` and `modelKeyOf`.
+3. `sentiment-insights.tsx` rewritten as a props-driven `'use client'` component that accepts `data: SentimentInsights | null` and renders accordions over the live themes. The pill tint + label derive from the live `sentimentPct`. Empty state copy is honest when zero AI-cited URLs are available.
+4. `pr-influence.tsx` filters URL citations to the active model selection (`applyEnginesFilter`), calls `getSentimentInsights` server-side, and passes the result via props. Wrapped in try/catch so a Glean failure does not crash the page.
+
+The Avenue Z sandbox gate is LIFTED. Every client sees live sentiment.
+
+#### Files touched
+
+- `lib/peec/sentiment-insights.ts` (NEW)
+- `lib/peec/sentiment-insights.test.ts` (NEW)
+- `components/report-sections/peec-ai/sentiment-insights.tsx` (full rewrite)
+- `components/report-sections/peec-ai/pr-influence.tsx` (imports + RSC plumbing + JSX)
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- `npx tsx lib/peec/sentiment-insights.test.ts` all 10 assertions pass.
+- `npx tsx lib/peec/winners-losers.test.ts` still passes.
+- Glean call uses `gleanChat()` with `saveChat: false` and no `actAs` (USER token).
+
+#### Open risks
+
+- Quality of themes depends on Glean's classification accuracy over URL titles. If a period has too few cited URLs (or titles are missing), the empty state path is the honest outcome.
+- Cache key is keyed on `modelKey` plus `dateRange` plus `clientSlug`. Different model orderings collapse to the same key via `modelKeyOf` (sorted-join).
+
 ### FB-025 — Round synopsis numerics + strict format rule
 
 - **Status:** done
