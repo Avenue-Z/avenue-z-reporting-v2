@@ -1,186 +1,104 @@
-# Handoff Prompt — Post-Compaction Resume (Overview iteration incoming)
+# Handoff Prompt — Post-Compaction Resume (Overview v2 ready to execute)
 
 Copy everything below the `---` line into the new Claude Code session. It is self-contained and gives the new session everything it needs to continue exactly where this one left off.
 
 ---
 
-You are picking up an in-flight session on the `avenue-z-reporting-v2` repo. Working directory: `/Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback`. The prior chat was compacted right after the PR Influence tab batch shipped and merged to prod, and Tina just started sending iterative feedback on the Overview tab.
+You are picking up an in-flight session on the `avenue-z-reporting-v2` repo. Working directory: `/Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback`.
 
-## Where things stand
+## State at handoff (2026-06-23)
 
-- **PR Influence tab:** Fully shipped + merged to `main` and deployed to prod. FB-009 through FB-019 closed. See [docs/official-feedback/changelog.md](docs/official-feedback/changelog.md) for one-line SHA lookups.
-- **Overview tab:** Initial batch (FB-001 through FB-008 + sandbox / vis-bar / Glean hotfixes) shipped + merged a few days ago. Tina is now QA-ing live and sending iteration feedback.
-- **First Overview iteration ask received** (2026-06-22):
-  > "REMOVE Chart: 'Which prompts are AI engines answering with our brand?' at the very bottom. This wasn't explicitly stated to remove in the initial doc, but it was not included in the recommended layout."
-- **NEW GOVERNING PRINCIPLE confirmed by Tina** (2026-06-22):
-  > "It seems like the guiding principle for this exercise is if it's not in the recommended layout, then it's gone."
+- **Branch:** `official-feedback-overview-v2` (cut from `origin/main`).
+- **HEAD:** `6884eb3` (local = remote, working tree clean, ZERO code touched yet).
+- **Base:** `origin/main` at `a2d39b3`.
+- **Plan is fully written, committed, pushed, and locked.** Path: `docs/superpowers/plans/2026-06-23-overview-v2-iteration.md`. Every step has complete code blocks + exact file:line targets + exact shell commands + expected outputs. The plan was authored under the `superpowers:writing-plans` skill.
+- **Thomas is anxious and needs perfection.** He explicitly said: *"there should be absolutely NO open ended questions. what's on the feedback is what is needed to be done."* and *"I'll get fired if anything is wrong."* The plan is locked to LITERAL interpretation of Tina's CSV — no Plan A/B, no "future enhancements", no deferred sub-asks. Do not deviate.
 
-The principle is now Working Rule #11 (see below). It's the lens for every future feedback batch.
+## The four Tina asks (source of truth — verbatim from `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Overview Tab.csv`)
 
-## CRITICAL — Avenue Z sandbox rule (still in force)
+| CSV cell | Tina's verbatim feedback | FB ID | Literal action |
+|---|---|---|---|
+| **E2** ⚠️ | *"REMOVE: Subtitle 'Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors.'"* | **FB-020** | Delete the `subtitle="..."` prop on `<SectionHeader>` at `components/report-sections/peec-ai/index.tsx:203`. Make `subtitle` optional in `section-header.tsx`. |
+| **E7** ⚠️ | *"'Tracking began May 18' is incorrect, this workspace has been tracking data since March 28, 2025. ... Please make static to always show YTD."* | **FB-022** | (1) Visibility chart truly YTD: separate YTD trend fetch in both `lib/peec/client.ts` + `lib/profound/client.ts`; route `dailyVisibility` to it. (2) Show correct date: add `clients.firstTrackedAt` DB column + Drizzle migration; backfill Avenue Z to `2025-03-28`; thread through to `<VisibilityChart>` which formats + displays from DB. |
+| **E11** ⚠️ | *"This seems like static copy and should be pulling actual data. It doesn't change when a new date range or model is selected..."* | **FB-023** | Live Winners/Losers reacting to BOTH date range AND model filter. Model-dimension the prompt fetches (current + prior) with limit 5000. New `lib/peec/winners-losers.ts` with `applyModelFilter(prompts, models)` + `computeWinnersLosers(flat)`. RSC chains them with active `models` prop. Sandbox gate LIFTED (every client sees live data). Empty state for thin history. |
+| **E12** (free-standing) | *"REMOVE Chart: 'Which prompts are AI engines answering with our brand?' at the very bottom. ... not included in the recommended layout."* | **FB-021** | Delete chart render from both Peec + Profound Overview RSCs. Delete both component files. KEEP `data.trackedPrompts` field (consumed by 6+ other surfaces — PR Influence, Content Impact, AI summaries, etc.). |
 
-**Universal design / layout / UX changes are fine to apply to all clients.** That's already shipped to main and Renaissance / iPullRank / Shopify / etc. see the new AEO design with their own per-client data.
+## CRITICAL — what NOT to do
 
-**Hardcoded Avenue Z content MUST be sandbox-gated to Avenue Z only.** Other clients see nothing in those slots.
+- ❌ Do NOT drop the "Tracking began" line entirely. Tina gave us the correct date — show it.
+- ❌ Do NOT defer model-filter reactivity. She named both date AND model — ship both.
+- ❌ Do NOT keep the Winners/Losers sandbox gate. Lifting it is required for "actual data" per other clients.
+- ❌ Do NOT touch any other tab (PR Influence is shipped; Content Impact + Technical Performance are out of scope this round).
+- ❌ Do NOT invent new asks or "improve" beyond literal CSV text.
+- ❌ Do NOT skip the firstTrackedAt DB column work — it's the literal fix for E7's date.
+- ❌ Do NOT skip the model-dimensioned prompt fetches — they're the literal fix for E11's "or model".
 
-There are exactly two sandboxed components today:
+## First moves — do these IMMEDIATELY before any code work
 
-- `components/report-sections/peec-ai/winners-losers-cards.tsx` — gate at top with `const SANDBOX_CLIENT_SLUG = 'avenue-z'` and `if (clientSlug !== SANDBOX_CLIENT_SLUG) return null`.
-- `components/report-sections/peec-ai/sentiment-insights.tsx` — same gate pattern.
+1. **Read these files in order:**
+   1. `CLAUDE.md` (project conventions)
+   2. `docs/superpowers/plans/2026-06-23-overview-v2-iteration.md` (the FULL plan — this is the source of truth for execution)
+   3. `docs/official-feedback/status.md` (cross-tab workflow state)
+   4. `docs/official-feedback/changelog.md` (terse SHA lookups for prior FBs)
+   5. `docs/official-feedback/feedback-log.md` (full decision logs for prior FBs)
+   6. `docs/official-feedback/tina-scorecard.csv` (v1 scorecard — Tina has added the v2 columns F/G/H but they're empty until v2 ships)
+   7. `~/.claude/projects/-Users-thomaschangavenuez-Desktop-ave-z-reporting-official-feedback/memory/MEMORY.md` (Glean-only LLM rule, etc.)
 
-If Tina sends another static-content ask, gate it the same way from day 1. Pass `clientSlug` down from the parent.
-
-## Read these files in order before responding to Thomas
-
-1. `CLAUDE.md` — project conventions (Next.js 15 App Router, Drizzle/Neon, NextAuth v5, Glean-only LLM rule, etc.).
-2. `docs/official-feedback/status.md` — branch state, PR mapping, per-tab workflow, current FB log, working rules (including the new Rule #11).
-3. `docs/official-feedback/feedback-log.md` — FB-001 through FB-019 decision logs.
-4. `docs/official-feedback/changelog.md` — terse SHA lookup.
-5. `docs/official-feedback/tina-scorecard.md` + `tina-scorecard.csv` — Tina-facing scorecard. Useful if Tina references "the scorecard" in her replies.
-6. `~/.claude/projects/-Users-thomaschangavenuez-Desktop-ave-z-reporting-official-feedback/memory/MEMORY.md` — persisted rules, especially the Glean-only LLM rule.
-
-## First moves — do these IMMEDIATELY before any other work
-
-1. **Read all 6 files above in order.**
-
-2. **Confirm to Thomas you read them** by quoting one specific decision from each of: FB-005 (the Gemini bug fix), FB-015 (Matchback removal — application of the new Rule #11 before it was articulated), and FB-018 (Tap → Click verb literal-match fix).
-
-3. **Verify lockstep with origin** with this exact command:
+2. **Verify lockstep:**
    ```
    git branch --show-current && \
    git fetch origin && \
    echo "local  $(git rev-parse HEAD)" && \
    echo "remote $(git rev-parse @{u})" && \
-   git status --short && \
-   echo "main HEAD: $(git rev-parse origin/main)"
+   git status --short
    ```
-   Expected: local SHA = remote SHA; working tree clean.
+   Expected:
+   - branch: `official-feedback-overview-v2`
+   - local SHA = remote SHA = `6884eb3` (or later if more docs commits land)
+   - working tree clean
 
-4. **Sanity-check the sandbox gates are intact**:
-   ```
-   grep -nE "SANDBOX_CLIENT_SLUG" components/report-sections/peec-ai/winners-losers-cards.tsx components/report-sections/peec-ai/sentiment-insights.tsx
-   ```
-   Expected: 4 hits (2 in each file).
+3. **Reply to Thomas with this exact greeting:**
+   > Read the plan + state docs. Branch `official-feedback-overview-v2` confirmed, HEAD matches origin, working tree clean. Plan is locked at literal-only interpretation — 4 FBs (FB-020 / FB-021 / FB-022 / FB-023) mapped to the 4 ⚠️ rows in your CSV. **Ready to execute.** Pick execution mode: (1) subagent-driven (one fresh subagent per FB, fastest), or (2) inline sequential with checkpoints. Say `1`, `2`, or `go` (defaults to 1).
 
-5. **Sanity-check the tracked-prompts chart is STILL THERE** (Tina has flagged it for removal but Thomas asked to wait for her full Overview pass):
-   ```
-   grep -nE "Which prompts are AI engines answering with our brand" components/report-sections/peec-ai/tracked-prompts-chart.tsx components/report-sections/profound-ai/tracked-prompts-chart.tsx
-   ```
-   Expected: 2 hits (one per file). Do not remove yet.
+4. **Wait for Thomas's `go` / `1` / `2` before touching any code.**
 
-6. Then say: **"Ready. Paste Tina's next Overview ask, or tell me what to do next."**
+## Execution mode (pick when Thomas says go)
 
-## Working rules — non-negotiable
+- **Subagent-driven (default if `go` or `1`):** Use `superpowers:subagent-driven-development`. One fresh subagent per FB, review between each, fastest iteration. Required sub-skill.
+- **Inline sequential (`2`):** Use `superpowers:executing-plans`. Run FBs sequentially in this session with checkpoint pauses between each. Required sub-skill.
 
-These are the rules Thomas confirmed across this workstream. Do not deviate.
+## Working rules — non-negotiable (from prior sessions)
 
-1. **One user message = one FB group.** Multiple changes in one message become sub-items (`FB-NNN-a`, `b`, `c`). All sub-items in a group ship as ONE combined commit. FB IDs continue sequentially across branches — **next ID is FB-020**.
+1. **One user message = one FB group.** Sub-items become FB-NNN-a/b/c if multiple.
+2. **Next FB ID:** **FB-020.** Next four are FB-020 → FB-023. FB-024 is the next-after-Overview-v2 reservation.
+3. **Avenue Z sandbox rule:** Layout/design/UX changes go universal; hardcoded Avenue Z data gates to `clientSlug === 'avenue-z'`. (FB-023 LIFTS the gate on Winners/Losers because the cards are no longer hardcoded.)
+4. **Truth-grounded data only.** No proxies, no derivations that ship wrong numbers.
+5. **No em-dashes in copy you write.** Periods or commas.
+6. **Glean Chat API for ALL LLM inference.** Helper: `gleanChat()` in `lib/glean.ts`. User-token caveat: don't pass `actAs` unless you have a global token.
+7. **Universal across clients (with sandbox exception only for hardcoded content).**
+8. **Every FB gets a full decision log** in `feedback-log.md` + one-line entry in `changelog.md` + scorecard CSV column F update.
+9. **Show receipts:** file:line refs, commit SHAs, command outputs.
+10. **🔴 Recommended layout = full spec (Rule #11).** Tina's recommended layout is the COMPLETE spec — anything not in it gets removed. Applied to FB-021 (tracked-prompts chart removal).
+11. **Tina is direct. Treat her words as authoritative intent.**
+12. **Literal text over interpretive text (Rule #13).** Use Tina's exact words. (This is what we corrected for FB-022 + FB-023.)
 
-2. **Iterations on prior FB items get a new FB ID** (e.g. FB-011 was a placement correction for FB-010). Never reopen old FB IDs; keep the audit trail linear. Note lineage in the decision log.
+## What's parked (do NOT touch this session)
 
-3. **Avenue Z sandbox rule.** Layout / design / UX changes go to all clients. Hardcoded Avenue Z data must be gated to `clientSlug === 'avenue-z'` with the component returning `null` for any other client.
+- **Content Impact branch:** `official-feedback-content-impact-tab` parked at HEAD `6616a0b`. Docs-only diff (no code). Resume when Tina sends Content Impact feedback.
+- **PR Influence branch:** `official-feedback-pr-influence-tab` parked at HEAD `54eb970`. Fully shipped to main via PRs #52 + #58. Kept alive for any future iteration.
 
-4. **Truth-grounded data only.** No proxies, no derivations that ship wrong numbers. If a metric is not computable, the card shows `--` with an honest tooltip. Never invent a value.
+## When all 4 FBs ship and tests pass
 
-5. **No em-dashes in any copy you write.** Use periods or commas. Hard rule.
+The plan's "Task 5 — Final verification, docs lockstep, push" covers it: update `status.md`, push branch, open PR with the title `Overview v2: Tina CSV feedback (FB-020 through FB-023)`. Body template is in the plan. The CSV scorecard (column F `V2 — What shipped`) will already be filled per the per-FB tracker steps.
 
-6. **Glean Chat API for ALL LLM inference.** No Vertex/Gemini, OpenAI, Anthropic direct. Canonical helper is `gleanChat()` in `lib/glean.ts`. Required env (already set in Vercel): `GLEAN_INSTANCE=avenuez`, `GLEAN_API_TOKEN` (user token — see token-type note below), `GLEAN_ACT_AS` (optional / unused for user tokens).
+## Thomas's last words this session
 
-7. **User-token Glean caveat.** The configured `GLEAN_API_TOKEN` is a Glean USER token, not a GLOBAL token. User tokens REJECT the `X-Scio-Actas` header with HTTP 400. `gleanChat()` was patched in commit `f6b0534` to make ActAs opt-in only; callers that don't pass `options.actAs` skip the header. **If you write a new Glean caller, don't pass `actAs` unless you have a global token.**
+He's anxious. He emphasized:
+- *"this is vital and needs to be done correctly"*
+- *"i cant stress the importance enough"*
+- *"surgical and perfect"*
+- *"i'll get fired if anything is wrong"*
 
-8. **Universal across clients by construction (with the sandbox exception).** Edit shared components / data layers; never per-client conditionals EXCEPT for the Avenue Z sandbox gate.
+Match that energy with calm, surgical execution. No deviation from the plan. No reinterpretation. No questions that the CSV already answers.
 
-9. **Every FB item gets a full decision log** in `feedback-log.md`: verbatim ask, what was unambiguous, what was inferred (with why), what was out of scope, files touched, scope of impact, verification, open risks.
-
-10. **Show receipts.** Every "done" claim has a file:line ref, a commit SHA, or a verification command output.
-
-11. **🔴 Recommended layout = full spec.** *(Added 2026-06-22, confirmed by Tina.)* When Tina sends a "Recommended layout" mockup for a tab, treat it as the COMPLETE spec, not a list of edits. Anything currently rendering on the tab that is NOT in her recommended layout gets removed by default. Applies retroactively when iterating on a tab: audit what's still rendering vs her latest layout sketch and remove what's not there. Confirmed by Tina when she said: *"It seems like the guiding principle for this exercise is if it's not in the recommended layout, then it's gone."*
-
-12. **Tina is direct. Treat her words as authoritative intent, not suggestion.** Do not soften, "improve on," or reinterpret her asks. If you think she's wrong, say so explicitly to Thomas — never override silently.
-
-13. **Literal text over interpretive text.** When Tina writes specific words (column labels, button copy, intro paragraphs), use her literal words even if the data underneath is framed differently. FB-017 ("Negative Themes" not "Weaknesses") and FB-018 ("Click" not "Tap") were preventable literal-match misses on FB-010 that Thomas had to round-trip.
-
-14. **Make decisions, do not pepper Thomas with questions.** When ambiguous, pick the most defensible interpretation, document why in the decision log, and ship. The one exception: when the choice would ship wrong data or genuinely different visual outcomes, present a tight A-or-B and ask.
-
-## What's known pending from Tina
-
-- **Content Impact v1 run STARTING 2026-06-23.** Active branch is `official-feedback-content-impact-tab` (cut from `origin/main` 2026-06-23). Tina's feedback comes from a Google Doc this round — NOT a CSV yet. CSV gets built AFTER we ship v1, from the running tracker doc [content-impact-tracking.md](content-impact-tracking.md). Workflow: Google Doc → ship v1 → I export to scorecard CSV in A-E schema → Tina fills column D (✅/⚠️) + column E (v2 feedback) → we iterate. Next FB ID is **FB-020**.
-- **Overview iteration PARKED (plan complete, IDs reclaimed).** Sweep is done — exact file:line targets in [plan-overview-iteration.md](plan-overview-iteration.md). Items use handles `item-a/b/c/d` (originally FB-020-a/b/c + FB-021; IDs reclaimed for Content Impact per Thomas 2026-06-23). Two open decisions for Thomas in the plan doc. Resume after Content Impact closes; assign fresh sequential FB IDs at that point.
-- **PR Influence tab iteration** — none open right now, but Tina might come back after spot-checking the live deploy.
-- **Technical Performance tab** — not started, no feedback received yet.
-
-## State at handoff (locked-in lockstep)
-
-| Item | Value |
-|---|---|
-| Current branch | `official-feedback-pr-influence-tab` (kept alive; PR Influence batch is shipped) |
-| Local HEAD | `a59eef9` (see remote check above) |
-| Remote HEAD (`origin/official-feedback-pr-influence-tab`) | `a59eef9` |
-| Working tree | clean |
-| TypeScript | clean (`npx tsc --noEmit` zero output) |
-| `origin/main` HEAD | `7919044` (includes Paul's PR #57 Renaissance dashboard) |
-| Branch behind main | 42 commits (none of which affect the PR Influence files — most are the PR #52 / #58 merges that originated from this branch, plus Paul's unrelated Renaissance work) |
-| Branch ahead of main | 2 commits (scorecard docs: `e2b56f5` markdown + `a59eef9` CSV) + this handoff/status update batch |
-
-## When Tina sends new feedback
-
-- **For Overview iteration:** Cut a new branch from current `main`, named something like `iter/overview-recommended-layout` or `official-feedback-overview-iteration`. Do NOT do Overview work on `official-feedback-pr-influence-tab` — different tab scope. Apply Rule #11 retroactively while building.
-- **For Content Impact:** Cut `official-feedback-content-impact-tab` from main. Treat her recommended layout as the full spec from day 1 (Rule #11).
-- **For Technical Performance:** Same pattern.
-- **For more PR Influence iterations:** Either keep using `official-feedback-pr-influence-tab` (still alive) or cut a small `iter/pr-influence-NN` branch — either works.
-
-Each new feedback item becomes the next FB-NN sequentially. Update `feedback-log.md` with the full decision log, `changelog.md` with the one-line summary + SHA, `status.md` with the current state.
-
-## Per-tab branch workflow
-
-| Tab | Branch | PR | State |
-|---|---|---|---|
-| Overview (initial) | `official-feedback-overview-tab` | [#50](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50) | MERGED |
-| Vis-bar fix (Overview hotfix) | `fix/llm-visibility-bar-scale` | [#53](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/53) | MERGED |
-| FB-006 sandbox (Overview hotfix) | `fix/sandbox-avenue-z-static-content` | [#54](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/54) | MERGED |
-| PR Influence (initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
-| PR Influence (FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
-| **Overview iteration (incoming, Tina active)** | `iter/overview-recommended-layout` (TBD, cut when batch is ready) | (future) | **PENDING — wait for Tina's full pass** |
-| Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
-| Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
-
-## Required Vercel env vars (already set, just for reference)
-
-| Var | Value | Used by |
-|---|---|---|
-| `GLEAN_INSTANCE` | `avenuez` | Both synopses |
-| `GLEAN_API_TOKEN` | (user token; rotate before any leak) | Both synopses |
-| `GLEAN_ACT_AS` | (optional, currently unused) | — |
-| `clients.domain` populated in DB | per-client | Citation Share KPI on Overview |
-| `clients.ga4_property_id` populated | per-client | AI Referral Traffic KPI on Overview, AI Referral Sessions on PR Influence |
-
-If any required var is missing, the affected card falls back gracefully and the rest of the page renders unaffected.
-
-## Sandbox gate quick reference
-
-To add a new sandboxed component for Avenue Z static content:
-
-```tsx
-'use client'  // or omit for RSC
-// ... imports
-
-const SANDBOX_CLIENT_SLUG = 'avenue-z'
-
-export function YourComponent({ clientSlug }: { clientSlug?: string }) {
-  if (clientSlug !== SANDBOX_CLIENT_SLUG) return null
-  // ... rest of component
-}
-```
-
-Then in the parent, pass `clientSlug={clientSlug}` — the parent already has `clientSlug` in scope.
-
-## Do not start any code work until Thomas confirms what to do next
-
-After your reading + sync check + greeting, **wait for Thomas's next message**. Possible directions:
-
-- Tina sends more Overview feedback → he batches it and tells you to start the iteration branch
-- Tina signs off on Overview iteration → ship as one combined commit on the new branch, PR, merge
-- Tina starts Content Impact or Technical Performance → cut a new branch from main, follow Rule #11 (her layout = full spec) from the start
-- Thomas asks for status / verification / a scorecard update → use the existing docs (`tina-scorecard.md` / `tina-scorecard.csv`) and don't recreate them from scratch
-
-Do not pre-empt. Wait.
+Standing by — go execute.
