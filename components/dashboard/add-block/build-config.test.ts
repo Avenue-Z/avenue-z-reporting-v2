@@ -51,4 +51,20 @@ import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, t
   assert.equal(isDraftComplete({ kind: 'aggregate', name: 'X', format: 'number', op: '/', left: { source: 'triplewhale', metric: 'revenue' }, right: { source: 'triplewhale', metric: '' } }), false)
 }
 
+// leafToBinding: triplewhale carries non-empty filters
+{
+  const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', value: 'facebook-ads' }] })
+  if (b.source === 'triplewhale') assert.deepEqual(b.filters, [{ column: 'channel', value: 'facebook-ads' }])
+}
+// empty/incomplete filter rows are dropped (no filters key)
+{
+  const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: '', value: '' }, { column: 'channel', value: '' }] })
+  if (b.source === 'triplewhale') assert.equal(b.filters, undefined)
+}
+// no filters provided -> no filters key
+{
+  const b = leafToBinding({ source: 'triplewhale', metric: 'spend' })
+  if (b.source === 'triplewhale') assert.equal(b.filters, undefined)
+}
+
 console.log('ok')

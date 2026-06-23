@@ -3,7 +3,7 @@ import type { BlockConfig, LeafBinding, AggregateBinding, MetricFormat } from '@
 /** A single leaf's manual selections. */
 export type LeafDraft =
   | { source: 'supermetrics'; dsId: string; metricField: string; account: string }
-  | { source: 'triplewhale'; metric: string }
+  | { source: 'triplewhale'; metric: string; filters?: { column: string; value: string }[] }
 
 /** The whole manual form's state. */
 export type ManualDraft =
@@ -11,9 +11,11 @@ export type ManualDraft =
   | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: LeafDraft; right: LeafDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
-  return d.source === 'supermetrics'
-    ? { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account }
-    : { source: 'triplewhale', metric: d.metric }
+  if (d.source === 'supermetrics') {
+    return { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account }
+  }
+  const filters = (d.filters ?? []).filter((f) => f.column !== '' && f.value !== '')
+  return { source: 'triplewhale', metric: d.metric, ...(filters.length ? { filters } : {}) }
 }
 
 /** Assemble the final block config (id is assigned later, at confirm). */
