@@ -16,6 +16,46 @@ _(none)_
 
 ## Closed
 
+### FB-031 — Harden PR Influence synopsis against Glean contradiction
+
+- **Status:** done
+- **Source:** Thomas eyeballed the Vercel preview of PR #64 and caught the Executive Synopsis saying *"AI cited 8 editorial domains, and there were 0 editorial domains where the brand was absent during the period."* while the Top Editorial Opportunities table on the same page showed 5 brand-absent editorial URLs. Two surfaces on the same page contradicted each other.
+- **Author:** Thomas (caught) / Claude (implementation)
+- **Type:** correctness hardening (no UI change)
+- **Scope:** `lib/peec/pr-influence-synopsis.ts`, new `lib/peec/pr-influence-synopsis.test.ts`
+
+#### Problem
+
+The PR Influence Executive Synopsis is a Glean Chat response grounded in `synopsisContext`. In the preview, Glean returned prose that flatly contradicted the table directly beneath it. Code-trace confirmed both surfaces source from the same `byHost` map (`synopsisContext.brandAbsentCount = byHost.size`; table = `sortedByHost.slice(0, 50)`), so they cannot differ at render-time. Root cause was either Glean hallucinating around a numeric count or a stale cached response sneaking past the arg-based cache key. Either way, the previous prompt did not have a rule forbidding the model from rounding a positive count to zero, and there was no post-generation check.
+
+#### Solution — four defensive layers
+
+1. **Prompt hardening.** Section labels in the user message marked `USE THESE EXACT VALUES` so Glean cannot mistake them for prose-adjustable inputs. New explicit `Data integrity (strict)` rule: never round a positive count to zero, never say "no" when a count is positive, never state a positive number when a count is zero.
+2. **Post-Glean validator** (new exported `validateSynopsisGrounding`). Scans the returned prose for three numeric-claim patterns and verifies each one against `synopsisContext`:
+   - brand-absent host count (the exact bug we hit, in both phrasing variants)
+   - total editorial domains cited (`N editorial domains`)
+   - `N of M placements` AI-citation rate
+3. **Retry-on-violation.** If the validator finds a violation, the helper retries once with a stricter prompt that names the specific contradictions. On second failure it throws — the component's existing try/catch (in `pr-influence-synopsis.tsx`) renders the graceful "Synopsis is temporarily unavailable" empty state. We never ship prose that contradicts the page.
+4. **Cache version bump.** `v2-glean-pri` → `v3-glean-pri-grounded` so any older cached responses generated under the weaker integrity rule are evicted on deploy.
+
+#### Files touched
+
+- `lib/peec/pr-influence-synopsis.ts` — prompt hardening, new `validateSynopsisGrounding` export, retry-on-violation loop in `getPRInfluenceSynopsis`, cache version bump.
+- `lib/peec/pr-influence-synopsis.test.ts` — **new file.** 13 unit assertions locking the validator contract. The first assertion reproduces the production bug verbatim and asserts validation flags it.
+
+#### Verification
+
+- `npx tsx lib/peec/pr-influence-synopsis.test.ts` — all 13 assertions pass.
+- `npx tsx lib/peec/sentiment-insights.test.ts` — still green.
+- `npx tsx lib/peec/winners-losers.test.ts` — still green.
+- `npx tsc --noEmit` — zero output.
+- Type signature of `getPRInfluenceSynopsis` unchanged. `pr-influence-synopsis.tsx` requires no edits.
+
+#### Open risks
+
+- The validator regex set is intentionally narrow (three known patterns) to avoid false positives on natural Glean prose. If Glean invents a fourth way to contradict the context, the validator will not catch it. Mitigation: cache bump + stricter prompt should reduce the rate; we extend the regex set if a new pattern surfaces.
+- Overview synopsis (`lib/peec/synopsis.ts`) is **not** hardened in this commit. That is a deliberate scope cut — reserved as a follow-up so this fix can ship clean.
+
 ### FB-030 — Remove bottom footnote on PR Influence
 
 - **Status:** done
