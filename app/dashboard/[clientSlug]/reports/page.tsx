@@ -20,6 +20,7 @@ import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influ
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
 import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { AISummariesReport } from '@/components/report-sections/ai-summaries'
 import { ReportGeneratorReport } from '@/components/report-sections/report-generator'
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
@@ -89,6 +90,8 @@ function getReportComponent(
       if (subsection === 'meta')     return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       if (subsection === 'linkedin') return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'organic-social':
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     default:
       return null
   }
