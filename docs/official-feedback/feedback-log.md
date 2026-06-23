@@ -16,6 +16,51 @@ _(none)_
 
 ## Closed
 
+### FB-028 — Top Editorial Opportunities: URL-level brand-absent, Tina R15 5-col shape preserved
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV. R15 ✅ (the V1-accepted 5-column shape that must stay): *"Top Editorial Opportunities: 5 columns (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share)"*. R16 ⚠️: *"There should be more than one pitch opportunity here. When I look in Peec and look at URLs and filter to editorial, there are thousands of articles."* R17 ⚠️: *"See issue above, there must be something wrong with one of the filters."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** data-layer rewrite + table column shape preserved
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/pr-influence-tables.tsx`
+
+#### Problems
+
+Three compounding bugs collapsed the production table to 0-1 rows even when Peec held hundreds of brand-absent editorial URLs:
+1. `brandAbsentDomains = editorialDomains.filter(d => !prDomains.has(d.domain.toLowerCase()))` defined "brand absent" as "no PR placement on this domain." Wrong definition. A brand can have no PR placement on a domain yet still be mentioned in editorial articles cited there.
+2. `brandAbsentRowsFiltered = brandAbsentDomains.filter((d) => d.retrievedDelta > 0)` required a positive period-over-period delta at the DOMAIN level. R15 ✅'d "Delta of Citation Share" as a COLUMN to DISPLAY, not as a filter to GATE inclusion. Removed.
+3. `.slice(0, 20)` capped the collapsed list.
+
+#### Solution
+
+- **Row source:** `urlCitations` (URL-level), date-scoped to the page date range. The pre-existing `getUrlCitations(clientSlug)` call passed no opts, defaulting to internal `last30()` — also fixed.
+- **Brand-absent filter:** `c.mentionsYourBrand === false` (R16 literal).
+- **Editorial filter:** `c.classification?.toLowerCase() === 'editorial'` (R16's "filter to editorial" Peec UI literal) with a host cross-reference fallback against `editorialDomains` so the table is never silently empty.
+- **Honest Citation Share:** `c.citationCount / sumOfAllPeriodCitations * 100`.
+- **Honest Delta of Citation Share:** added prior-period `getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })` to `Promise.allSettled`. Built `priorShareByUrlKey` map. `delta = currentShare - priorShare`. Reuses the existing `<CitationDelta>` ↑/↓ widget.
+- **R15 ✅ 5 columns preserved verbatim**: Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share.
+- **One row per host:** top brand-absent editorial URL on each host (table reads cleanly when one domain has many brand-absent URLs).
+- **Cap raised from 20 to 50.**
+- **Synopsis context** (`brandAbsentCount` + `topBrandAbsentDomains`) sources from the same URL-level `byHost` map for table-prose consistency.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — `BrandAbsentEditorialDomainRow` shape (replaced `citationCount` + `citationCountDelta` with `citationShare` + `citationShareDelta`), `BrandAbsentEditorialDomainsTable` columns (all 5 columns kept, value formulas updated).
+- `components/report-sections/peec-ai/pr-influence.tsx` — `Promise.allSettled` adds `urlCitationsPriorResult`; URL fetches date-scoped to page range; entire brand-absent compute block rewritten; synopsis context sources from `byHost` map.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- `npx tsx lib/peec/sentiment-insights.test.ts` still passes.
+- `npx tsx lib/peec/winners-losers.test.ts` still passes.
+- Grep confirms the legacy `!prDomains.has` misdefinition and `retrievedDelta > 0` gate no longer appear in `pr-influence.tsx`.
+- Grep confirms both R15 column labels live in `pr-influence-tables.tsx`.
+
+#### Open risks
+
+- The primary editorial filter is `classification === 'editorial'`. If Peec exposes a different exact string (e.g. `'Editorial'` capitalized differently, or `'editorial_news'`), the lowercase check still matches `'editorial'` substring. If it doesn't match at all, the host cross-ref fallback kicks in. Worth verifying on the Vercel preview that the table is populated.
+- URL-level prior-period data depends on Peec returning per-URL rows for the prior date window. If `resolvedCompare` is null (e.g. very long custom range), prior fetch resolves to `[]` and `priorShareByUrlKey` is empty — all deltas equal currentShare in that case. Honest fallback.
+
 ### FB-027 — Dynamic X-axis on Prompt Clusters chart
 
 - **Status:** done
