@@ -19,11 +19,22 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** `official-feedback-content-impact-tab` (cut from `origin/main` 2026-06-23; PR Influence shipped + merged, Overview iteration parked)
-- **HEAD:** TBD (in flight)
+- **Branch:** `official-feedback-overview-v2`
+- **HEAD:** `6debb4b` (FB-023 SHA backfill)
 - **Base:** `main` (currently `a2d39b3`)
-- **Status:** Content Impact run starting. Awaiting Tina's Google Doc feedback paste. Next FB ID is **FB-020**. Tracking doc: [content-impact-tracking.md](content-impact-tracking.md).
-- **Overview iteration: PARKED.** Surgical sweep complete, plan in [plan-overview-iteration.md](plan-overview-iteration.md). Per Thomas (2026-06-23) the originally-reserved FB-020-a/b/c + FB-021 IDs were reclaimed for Content Impact for sequential order. Overview plan items now use handles `item-a/b/c/d` until we resume work and assign fresh FB IDs.
+- **Status:** Overview v2 iteration shipped (FB-020 → FB-023). Closes every ⚠️ row in Tina's Overview-tab v1 scorecard CSV. Awaiting Tina v2 review.
+- **Items shipped this batch:**
+  - **FB-020** (CSV E2) — Drop SectionHeader subtitle on Overview. `subtitle?: string` now optional in shared component; other 3 AEO tabs keep their own.
+  - **FB-021** (CSV E12, Rule #11) — Remove "Which prompts are AI engines answering with our brand?" chart from both Peec + Profound Overview RSCs. Both component files deleted. `data.trackedPrompts` field kept (consumed by 6+ other surfaces).
+  - **FB-022** (CSV E7) — Visibility chart truly YTD on both providers. Separate YTD fetch in `lib/peec/client.ts` + `lib/profound/client.ts`; cache versions bumped (peec v7→v8, profound v4→v5). New `clients.firstTrackedAt` DB column + Drizzle migration `0010_jittery_nextwave.sql`. Migration NOT yet applied; Avenue Z backfill to `2025-03-28` NOT yet run — both deferred to Thomas after PR review.
+  - **FB-023** (CSV E11) — Winners/Losers cards: live per-period compute reactive to BOTH date range AND model filter. Model-dimensioned current + prior prompt fetches in `lib/peec/client.ts` (limit 5000). New `lib/peec/winners-losers.ts` with `applyModelFilter` + `computeWinnersLosers` (16 unit tests via `node:assert`). Sandbox gate lifted; empty-state copy added. Profound type mirrored (empty maps) for parity; Profound provider variant shows empty state until parity FB ships.
+- **Open operational follow-ups (post-merge, not blocking PR review):**
+  - `npx drizzle-kit migrate` to apply FB-022 schema change to Neon.
+  - `UPDATE clients SET first_tracked_at = '2025-03-28T00:00:00Z' WHERE slug = 'avenue-z';` for Avenue Z backfill.
+  - Backfill `firstTrackedAt` for non-Avenue-Z clients when known (currently null → "Tracking began" line gracefully omits).
+  - Profound parity on Winners/Losers (requires Profound API to expose per-prompt-per-model rows — separate FB if needed).
+- **Content Impact branch:** parked at `official-feedback-content-impact-tab` (docs-only diff). Resume when Tina sends Content Impact feedback.
+- **Next FB ID:** **FB-024**.
 - **PRs merged historically from earlier branches:**
   - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22
   - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22
