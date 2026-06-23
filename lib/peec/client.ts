@@ -376,7 +376,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes, trendRows] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
@@ -392,9 +392,11 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     // the prompt's primary subject tag instead of keyword inference.
     peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
     peecGet<{ data: { id: string; messages?: { content?: string }[]; tags?: { id: string }[] }[]; totalCount: number }>('/prompts', { limit: '1000' }, pid),
+    // Daily trend series (paginated). Independent of every call above — it only
+    // needs `current`/`pid` — so fetch it concurrently with the batch instead
+    // of serially afterward.
+    fetchAllRows({ ...current, dimensions: ['date'] }, pid),
   ])
-
-  const trendRows = await fetchAllRows({ ...current, dimensions: ['date'] }, pid)
 
   // --- Brand rankings ---
   const currentAgg = aggregateBrandRows(currentBrandsRes.data ?? [])
