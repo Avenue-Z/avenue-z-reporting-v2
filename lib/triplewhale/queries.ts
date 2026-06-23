@@ -1,3 +1,5 @@
+import { TwQueryError } from './client'
+
 export type TwMetric =
   | 'ad_spend'
   | 'revenue'
@@ -30,14 +32,31 @@ export function isTwMetric(s: string): s is TwMetric {
   return Object.prototype.hasOwnProperty.call(TW_METRIC_SQL, s)
 }
 
+export interface TwFilter { column: string; value: string }
+
+const COLUMN_RE = /^[a-z0-9_]+$/i
+export function isSafeColumn(c: string): boolean {
+  return COLUMN_RE.test(c)
+}
+export function escapeSqlValue(v: string): string {
+  return v.replace(/'/g, "''")
+}
+
 /**
- * Single-row aggregate query (blended across channels) for one metric.
- * `@startDate`/`@endDate` are substituted server-side from `period`.
- * pixel_joined_tvf args + attribution settings are pptx defaults — validate
- * per-shop in TW's SQL Builder if numbers look off.
+ * Single-row aggregate query for one metric, optionally filtered by dimensions.
+ * `metric` is a curated alias (TW_METRIC_SQL) or a raw numeric column -> SUM(column).
+ * `@startDate`/`@endDate` substitute server-side from `period`.
  */
-export function buildMetricSql(metric: TwMetric): string {
-  return `SELECT ${TW_METRIC_SQL[metric]} AS value
+export function buildMetricSql(metric: string, filters: TwFilter[] = []): string {
+  const expr = TW_METRIC_SQL[metric as TwMetric] ?? (isSafeColumn(metric) ? `SUM(${metric})` : null)
+  if (expr === null) throw new TwQueryError(`unsafe TripleWhale metric: ${metric}`)
+  const filterSql = filters
+    .map((f) => {
+      if (!isSafeColumn(f.column)) throw new TwQueryError(`unsafe TripleWhale filter column: ${f.column}`)
+      return `\n  AND ${f.column} = '${escapeSqlValue(f.value)}'`
+    })
+    .join('')
+  return `SELECT ${expr} AS value
 FROM pixel_joined_tvf(
   subscription_filter      = NULL,
   include_custom_ad_spend  = true,
@@ -46,5 +65,5 @@ FROM pixel_joined_tvf(
 )
 WHERE event_date BETWEEN @startDate AND @endDate
   AND attribution_window = '7_days'
-  AND model = 'Triple Attribution'`
+  AND model = 'Triple Attribution'${filterSql}`
 }
