@@ -29,10 +29,19 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
     if (!isNonEmptyStr(v.account)) return { ok: false, error: `${path}.account: expected non-empty string` }
     if (v.expectedAccounts !== undefined && !(Array.isArray(v.expectedAccounts) && v.expectedAccounts.every(isStr)))
       return { ok: false, error: `${path}.expectedAccounts: expected string[]` }
-    if (v.filters !== undefined && !isStr(v.filters)) return { ok: false, error: `${path}.filters: expected string` }
     const b: SupermetricsBinding = { source: 'supermetrics', dsId: v.dsId, metricField: v.metricField, account: v.account }
     if (v.expectedAccounts !== undefined) b.expectedAccounts = v.expectedAccounts as string[]
-    if (v.filters !== undefined) b.filters = v.filters
+    if (v.filters !== undefined) {
+      if (!Array.isArray(v.filters)) return { ok: false, error: `${path}.filters: expected array` }
+      const filters: { column: string; value: string }[] = []
+      for (const f of v.filters) {
+        if (!isObj(f) || !isNonEmptyStr(f.column) || !isStr(f.value)) {
+          return { ok: false, error: `${path}.filters: expected {column,value}[]` }
+        }
+        filters.push({ column: f.column, value: f.value })
+      }
+      b.filters = filters
+    }
     return { ok: true, value: b }
   }
   if (v.source === 'triplewhale') {

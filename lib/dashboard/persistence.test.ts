@@ -71,4 +71,20 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   assert.equal(r.ok, false)
 }
 
+// supermetrics binding round-trips structured filters
+{
+  const r = parseBlockConfig({ id: 'b1', name: 'X', format: 'currency', range: null,
+    binding: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'order_shipping_country', value: 'United States' }] } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') {
+    assert.deepEqual(r.block.binding.filters, [{ column: 'order_shipping_country', value: 'United States' }])
+  }
+}
+// malformed SM filter rejected
+{
+  const r = parseBlockConfig({ id: 'b1', name: 'X', format: 'currency', range: null,
+    binding: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'x' }] } })
+  assert.equal(r.ok, false)
+}
+
 console.log('ok')

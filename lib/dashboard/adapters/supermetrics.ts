@@ -3,6 +3,19 @@ import { smQuery, parseSmRows } from '@/lib/supermetrics/client'
 import type { LeafValue, SupermetricsBinding } from '../types'
 import { DisconnectedError, NoDataError } from '../errors'
 
+const SM_COLUMN_RE = /^[A-Za-z0-9_]+$/
+
+/** Build the Supermetrics `filter` string from structured filters: `col == value`
+ *  joined by ` AND ` (values unquoted, per the confirmed grammar). Rows with an
+ *  unsafe column or empty value are dropped. Returns undefined when nothing remains. */
+export function buildSmFilter(filters?: { column: string; value: string }[]): string | undefined {
+  if (!filters || filters.length === 0) return undefined
+  const parts = filters
+    .filter((f) => SM_COLUMN_RE.test(f.column) && f.value !== '')
+    .map((f) => `${f.column} == ${f.value}`)
+  return parts.length ? parts.join(' AND ') : undefined
+}
+
 /** Sum a numeric metric field across rows; blank/missing cells count as 0. */
 export function sumMetric(rows: Record<string, string>[], field: string): number {
   return rows.reduce((s, r) => s + Number(r[field] || 0), 0)
@@ -35,11 +48,14 @@ async function sumForRange(
     dsAccounts: b.account, // scope the query to the bound account(s)
     fields: [b.metricField],
     dateRange: isoRange,
-    filters: b.filters,
+    filters: buildSmFilter(b.filters),
   })
   const rows = parseSmRows(result)
   if (rows.length === 0) throw new NoDataError(`no rows for ${b.metricField} in ${isoRange}`)
-  return sumMetric(rows, b.metricField)
+  // Supermetrics returns the field's display NAME as the column header (e.g.
+  // "Social spend"), not its field id ("SocialSpend"). The leaf query requests a
+  // single field, so sum that one returned column.
+  return sumMetric(rows, result.header[0] ?? b.metricField)
 }
 
 export async function resolveSupermetricsLeaf(

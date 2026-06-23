@@ -6,7 +6,7 @@ export interface SupermetricsBinding {
   metricField: string
   account: string
   expectedAccounts?: string[] // drift guard: returned accounts must be ⊆ this set
-  filters?: string            // opaque passthrough to smQuery — NOT validated in v1
+  filters?: { column: string; value: string }[] // dimension equality filters (col == value, AND-combined)
 }
 
 export interface TripleWhaleBinding {
