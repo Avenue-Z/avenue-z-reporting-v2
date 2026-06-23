@@ -221,7 +221,7 @@ export function BrandAbsentEditorialDomainsTable({
 
   const emptyMessage = !hasEditorialDomains
     ? 'No editorial domain data available from Peec AI'
-    : 'No brand-absent editorial domains with a positive citation share delta in this period.'
+    : 'No brand-absent editorial URLs cited by AI in this period or model selection.'
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">

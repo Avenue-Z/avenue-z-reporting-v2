@@ -444,7 +444,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     shareOf(c) - (priorShareByUrlKey.get(c.urlKey) ?? 0)
 
   // (c) Build the row set — URL-level, brand-absent + editorial, one per host.
-  const opportunityUrls = urlCitations.filter((c) => !c.mentionsYourBrand && isEditorialUrl(c))
+  // FB-028 follow-up: also apply the active model filter via c.engines so this
+  // table reacts to model selection (same rule as filteredMatchbackRows above
+  // and applyEnginesFilter in lib/peec/sentiment-insights.ts).
+  const isModelMatch = (c: typeof urlCitations[number]): boolean => {
+    if (!models || models.length === 0) return true
+    if (c.engines.length === 0) return false  // no model-specific signal — drop
+    return c.engines.some((e) => (models as string[]).includes(e))
+  }
+  const opportunityUrls = urlCitations.filter((c) => !c.mentionsYourBrand && isEditorialUrl(c) && isModelMatch(c))
   const byHost = new Map<string, typeof urlCitations[number]>()
   for (const u of opportunityUrls) {
     const k = hostKey(u.domain)
