@@ -20,7 +20,7 @@ export function transformLeads(
   const weekMap = new Map<string, number>()
   for (const r of weeklyRows) {
     if (!isLeadAction(r.ConversionTypeName, cfg)) continue
-    weekMap.set(r.Weekiso, (weekMap.get(r.Weekiso) ?? 0) + Number(r.Conversions || 0))
+    weekMap.set(r.Yearweekiso, (weekMap.get(r.Yearweekiso) ?? 0) + Number(r.Conversions || 0))
   }
   const weekly = [...weekMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([week, leads]) => ({ week, leads }))
 
@@ -32,7 +32,7 @@ export async function getLeadBreakdown(slug: string, dateRange: string): Promise
   const cfg = (await getClientBySlug(slug))!.paidSearchConfig!
   const [actionRows, weeklyRows] = await Promise.all([
     awQuery(slug, ['ConversionTypeName', 'Conversions'], dateRange),
-    awQuery(slug, ['Weekiso', 'ConversionTypeName', 'Conversions'], dateRange),
+    awQuery(slug, ['Yearweekiso', 'ConversionTypeName', 'Conversions'], dateRange),
   ])
   return transformLeads(actionRows, weeklyRows, cfg)
 }

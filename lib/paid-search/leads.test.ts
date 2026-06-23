@@ -18,8 +18,8 @@ const actionRows = [
   { ConversionTypeName: 'Calls from ads', Conversions: '13' }, // excluded
 ]
 const weeklyRows = [
-  { Weekiso: '2026-W01', ConversionTypeName: 'contact_individual_lead', Conversions: '2' },
-  { Weekiso: '2026-W01', ConversionTypeName: 'Calls from ads', Conversions: '5' }, // excluded
+  { Yearweekiso: '2026|01', ConversionTypeName: 'contact_individual_lead', Conversions: '2' },
+  { Yearweekiso: '2026|01', ConversionTypeName: 'Calls from ads', Conversions: '5' }, // excluded
 ]
 const b = transformLeads(actionRows, weeklyRows, cfg)
 assert.equal(b.totalLeads, 20)                 // 14+3+3, calls excluded
