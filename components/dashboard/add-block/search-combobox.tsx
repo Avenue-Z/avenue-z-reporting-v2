@@ -64,10 +64,11 @@ export function SearchCombobox({
             <button
               key={o.value}
               type="button"
+              disabled={o.disabled}
               onClick={() => { onChange(o.value); setOpen(false); setQ('') }}
               className={cn(
                 'flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-white/[0.06]',
-                o.value === value ? 'text-brand-cyan' : o.disabled ? 'text-text-muted' : 'text-white/90',
+                o.value === value ? 'text-brand-cyan' : o.disabled ? 'cursor-not-allowed text-text-muted hover:bg-transparent' : 'text-white/90',
               )}
             >
               <span>{o.label}</span>
