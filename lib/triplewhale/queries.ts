@@ -12,8 +12,12 @@ export type TwMetric =
 /** SELECT expression (aliased AS value) for each metric, over pixel_joined_tvf columns. */
 export const TW_METRIC_SQL: Record<TwMetric, string> = {
   ad_spend: 'SUM(spend)',
-  revenue: 'SUM(order_revenue)',
-  blended_roas: 'SUM(order_revenue) / NULLIF(SUM(spend), 0)',
+  // Platform-reported conversion value. The pixel/Shopify revenue columns
+  // (order_revenue, gross_sales, click/view_revenue) are not populated for some
+  // shops in pixel_joined_tvf; channel_reported_conversion_value is the reliable
+  // revenue source. Revisit if pixel revenue becomes available per-shop.
+  revenue: 'SUM(channel_reported_conversion_value)',
+  blended_roas: 'SUM(channel_reported_conversion_value) / NULLIF(SUM(spend), 0)',
   purchases: 'SUM(orders_quantity)',
   cpa: 'SUM(spend) / NULLIF(SUM(orders_quantity), 0)',
   conv_rate: 'SUM(orders_quantity) / NULLIF(SUM(sessions), 0) * 100',
