@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
 import { clients } from '@/lib/db/schema'
-import { getClientBySlug } from '@/lib/db/queries'
+import { getClientBySlug, getCachedSmDimensionValues } from '@/lib/db/queries'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { resolveSmApiKey } from '@/lib/dashboard/adapters/supermetrics'
@@ -189,27 +189,22 @@ export async function getSmDimensions(
   }
 }
 
-/** Live distinct values for a Supermetrics dimension (per data source + account). */
+/** Cached SM dimension values (DB read, instant). Population happens out-of-band
+ *  via /api/discovery/sm-dimension-values. `cached:false` means not yet populated. */
 export async function getSmDimensionValues(
   slug: string,
   dsId: string,
   account: string,
   column: string,
-): Promise<{ ok: true; values: string[] } | { ok: false; error: string }> {
+): Promise<{ ok: true; values: string[]; fetchedAt: string | null; cached: boolean } | { ok: false; error: string }> {
   const session = await auth()
   if (!session?.user) return { ok: false, error: 'unauthenticated' }
   if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
-  const apiKey = await resolveKeyForSlug(slug)
-  if (!apiKey) return { ok: false, error: 'disconnected' }
-  const { startDate, endDate } = parseDateRange('last_30_days')
   try {
-    const values = await unstable_cache(
-      () => smDimensionValues(apiKey, dsId, account, column, { startDate, endDate }),
-      ['sm-dim-values', dsId, account, column, keyHash(apiKey)],
-      { revalidate: 3600 },
-    )()
-    return { ok: true, values }
+    const row = await getCachedSmDimensionValues(slug, dsId, account, column)
+    if (!row) return { ok: true, values: [], fetchedAt: null, cached: false }
+    return { ok: true, values: row.values, fetchedAt: row.fetchedAt.toISOString(), cached: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'discovery failed' }
+    return { ok: false, error: e instanceof Error ? e.message : 'cache read failed' }
   }
 }
