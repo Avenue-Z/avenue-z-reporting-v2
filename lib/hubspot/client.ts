@@ -4,8 +4,24 @@ import { FilterOperatorEnum as DealFilterOp } from '@hubspot/api-client/lib/code
 import { getClientBySlug } from '@/lib/db/queries'
 import { cached } from '@/lib/cache'
 import { byClient } from '@/lib/perf'
+import { createRateLimiter } from './rate-limit'
 
 const _clients = new Map<string, Client>()
+
+// HubSpot's SEARCH API is quota-limited to ~4 requests/second (other endpoints
+// have far higher limits). Every contacts/deals search below funnels through
+// this single limiter, so call sites can fan out with Promise.all without
+// exceeding quota on a cold (cache-miss) render. Non-search calls (owners,
+// forms, form-integrations fetch) are intentionally left unthrottled.
+const hsRate = createRateLimiter(4)
+
+type ContactSearchReq = Parameters<Client['crm']['contacts']['searchApi']['doSearch']>[0]
+type DealSearchReq = Parameters<Client['crm']['deals']['searchApi']['doSearch']>[0]
+
+const searchContacts = (client: Client, req: ContactSearchReq) =>
+  hsRate(() => client.crm.contacts.searchApi.doSearch(req))
+const searchDeals = (client: Client, req: DealSearchReq) =>
+  hsRate(() => client.crm.deals.searchApi.doSearch(req))
 
 async function getHubSpotClientImpl(clientSlug: string): Promise<Client> {
   if (_clients.has(clientSlug)) return _clients.get(clientSlug)!
@@ -45,7 +61,7 @@ async function getPipelineDealsImpl(clientSlug: string): Promise<HubSpotDeal[]> 
   let after: string | undefined
 
   do {
-    const res = await hs.crm.deals.searchApi.doSearch({
+    const res = await searchDeals(hs, {
       filterGroups: [{
         filters: [{
           propertyName: 'pipeline',
@@ -130,7 +146,7 @@ const load2025InboundContacts = cache(async (clientSlug: string): Promise<Inboun
 
   let after: string | undefined
   do {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{
         filters: [
           { propertyName: 'createdate',          operator: 'GTE', value: yrStart },
@@ -202,7 +218,7 @@ const load2026InboundContacts = cache(async (clientSlug: string): Promise<Inboun
 
   let after: string | undefined
   do {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{
         filters: [
           { propertyName: 'createdate',          operator: 'GTE', value: yr2026Start },
@@ -282,7 +298,7 @@ async function getContactStatsImpl(clientSlug: string) {
   // Offline is excluded from the inbound cache — one dedicated count query
   let offline: number | null = null
   try {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{ filters: [
         { propertyName: 'createdate',          operator: 'GTE', value: yr2026Start },
         { propertyName: 'createdate',          operator: 'LT',  value: yr2026End   },
@@ -332,7 +348,7 @@ async function getContactStatsYoYImpl(clientSlug: string): Promise<{
 
   let offline: number | null = null
   try {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{ filters: [
         { propertyName: 'createdate',          operator: 'GTE', value: String(splyStart.getTime()) },
         { propertyName: 'createdate',          operator: 'LT',  value: String(splyEnd.getTime())   },
@@ -438,7 +454,7 @@ async function getWeeklyContactStatsImpl(clientSlug: string): Promise<WeeklyCont
   const prevYearNextMon   = new Date(prevYearMonday); prevYearNextMon.setUTCDate(prevYearMonday.getUTCDate() + 7)
   let prevYearWeekTotal = 0
   try {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{ filters: [
         { propertyName: 'createdate',          operator: 'GTE', value: String(prevYearMonday.getTime()) },
         { propertyName: 'createdate',          operator: 'LT',  value: String(prevYearNextMon.getTime()) },
@@ -613,7 +629,7 @@ async function getMonthlyContactBreakdownImpl(clientSlug: string): Promise<Month
   const pyEnd   = new Date(Date.UTC(yr - 1, mo + 1, 1))
   let prevYearMonthTotal = 0
   try {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{ filters: [
         { propertyName: 'createdate',          operator: 'GTE', value: String(pyStart.getTime()) },
         { propertyName: 'createdate',          operator: 'LT',  value: String(pyEnd.getTime())   },
@@ -775,7 +791,7 @@ async function getYearlyContactStatsImpl(clientSlug: string): Promise<YearlyCont
 
   const countContacts = async (start: Date, end: Date): Promise<number> => {
     try {
-      const res = await hs.crm.contacts.searchApi.doSearch({
+      const res = await searchContacts(hs, {
         filterGroups: [{ filters: [
           { propertyName: 'createdate',          operator: 'GTE', value: String(start.getTime()) },
           { propertyName: 'createdate',          operator: 'LT',  value: String(end.getTime())   },
@@ -895,7 +911,7 @@ async function getContactStatsForRangeImpl(
   const hs = await getHubSpotClient(clientSlug)
   let offline: number | null = null
   try {
-    const res = await hs.crm.contacts.searchApi.doSearch({
+    const res = await searchContacts(hs, {
       filterGroups: [{ filters: [
         { propertyName: 'createdate',          operator: 'GTE', value: String(start.getTime())   },
         { propertyName: 'createdate',          operator: 'LT',  value: String(endExcl.getTime()) },
@@ -914,9 +930,9 @@ async function getHubSpotSummaryImpl(clientSlug: string) {
   const hs = await getHubSpotClient(clientSlug)
 
   const [contactsRes, dealsRes, closedDealsRes] = await Promise.all([
-    hs.crm.contacts.searchApi.doSearch({ filterGroups: [], properties: [], limit: 1, after: '0', sorts: [] }),
-    hs.crm.deals.searchApi.doSearch({ filterGroups: [], properties: [], limit: 1, after: '0', sorts: [] }),
-    hs.crm.deals.searchApi.doSearch({
+    searchContacts(hs, { filterGroups: [], properties: [], limit: 1, after: '0', sorts: [] }),
+    searchDeals(hs, { filterGroups: [], properties: [], limit: 1, after: '0', sorts: [] }),
+    searchDeals(hs, {
       filterGroups: [{ filters: [{ propertyName: 'dealstage', operator: DealFilterOp.Eq, value: 'closedwon' }] }],
       properties: ['dealname', 'amount', 'closedate', 'dealstage'],
       limit: 10,
@@ -1087,23 +1103,25 @@ async function getLifecycleStageCountsImpl(
   const endIncl = new Date(`${endDate}T00:00:00Z`)
   endIncl.setUTCDate(endIncl.getUTCDate() + 1)
 
-  const results: LifecycleStageCount[] = []
-  for (const { stage, label } of LIFECYCLE_STAGES) {
-    let total = 0
-    try {
-      const res = await hs.crm.contacts.searchApi.doSearch({
-        filterGroups: [{ filters: [
-          { propertyName: 'createdate',     operator: 'GTE', value: String(start.getTime())   },
-          { propertyName: 'createdate',     operator: 'LT',  value: String(endIncl.getTime()) },
-          { propertyName: 'lifecyclestage', operator: 'EQ',  value: stage                     },
-        ] as any }],
-        properties: [], limit: 1, after: '0', sorts: [],
-      })
-      total = res.total ?? 0
-    } catch { /* non-fatal */ }
-    results.push({ stage, label, total })
-  }
-  return results
+  // One count query per stage, fired concurrently — the search-API limiter
+  // (hsRate) spaces them under the 4 req/s quota. Promise.all preserves order.
+  return Promise.all(
+    LIFECYCLE_STAGES.map(async ({ stage, label }): Promise<LifecycleStageCount> => {
+      let total = 0
+      try {
+        const res = await searchContacts(hs, {
+          filterGroups: [{ filters: [
+            { propertyName: 'createdate',     operator: 'GTE', value: String(start.getTime())   },
+            { propertyName: 'createdate',     operator: 'LT',  value: String(endIncl.getTime()) },
+            { propertyName: 'lifecyclestage', operator: 'EQ',  value: stage                     },
+          ] as any }],
+          properties: [], limit: 1, after: '0', sorts: [],
+        })
+        total = res.total ?? 0
+      } catch { /* non-fatal */ }
+      return { stage, label, total }
+    }),
+  )
 }
 
 // ── Form metadata (requires `forms` scope) ─────────────────────────────────
@@ -1222,7 +1240,7 @@ const getFormSubmissionCountsImpl = async (
     let afterCust = '0'
     let custPage  = 0
     do {
-      const res = await hsCust.crm.contacts.searchApi.doSearch({
+      const res = await searchContacts(hsCust, {
         filterGroups: [{
           filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'customer' } as any],
         }],
@@ -1260,7 +1278,7 @@ const getFormSubmissionCountsImpl = async (
     for (let i = 0; i < allEmails.length; i += 100) {
       const chunk = allEmails.slice(i, i + 100)
       try {
-        const res = await hs.crm.contacts.searchApi.doSearch({
+        const res = await searchContacts(hs, {
           filterGroups: [{
             filters: [{
               propertyName: 'email',
