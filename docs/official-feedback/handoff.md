@@ -104,17 +104,10 @@ These are the rules Thomas confirmed across this workstream. Do not deviate.
 
 ## What's known pending from Tina
 
-- **Overview tab CSV received 2026-06-22.** Full surgical sweep complete, no code touched. **Read [plan-fb-020-overview-iteration.md](plan-fb-020-overview-iteration.md) before starting any work** — it has exact file:line targets, risk levels, and two open decisions for Thomas. Items planned: FB-020-a (drop subtitle), FB-020-b (truly YTD chart + drop "Tracking began"), FB-020-c (remove tracked-prompts chart), FB-021 (Winners/Losers live data — separate PR). **Holding implementation** until Tina sends Content Impact + Technical Performance feedback so we sequence all tabs at once.
-- **Overview tab iteration** (Tina actively sending). First known ask:
-  - REMOVE "Which prompts are AI engines answering with our brand?" chart at the bottom of Overview.
-  - **Apply Rule #11 retroactively** when she finishes sending — audit every section currently rendering on the Overview tab against her latest recommended layout (from the FB-002 doc + any new layout she sends) and propose removals for anything not in it. Sections currently on Overview that may or may not be in her recommended layout:
-    - Model Breakdown ("How does each AI engine rank our brand?")
-    - Top Domains list
-    - Domain Types chart + definitions (we recolored it in FB-008 but didn't audit whether it should stay)
-    - Tracked Prompts chart (the one she just flagged)
-  - **Do NOT start the Overview iteration work yet.** Thomas wants to wait for her full Overview feedback batch so we can ship one combined commit rather than nibble at it.
+- **Content Impact v1 run STARTING 2026-06-23.** Active branch is `official-feedback-content-impact-tab` (cut from `origin/main` 2026-06-23). Tina's feedback comes from a Google Doc this round — NOT a CSV yet. CSV gets built AFTER we ship v1, from the running tracker doc [content-impact-tracking.md](content-impact-tracking.md). Workflow: Google Doc → ship v1 → I export to scorecard CSV in A-E schema → Tina fills column D (✅/⚠️) + column E (v2 feedback) → we iterate. Next FB ID is **FB-020**.
+- **Overview iteration PARKED (plan complete, IDs reclaimed).** Sweep is done — exact file:line targets in [plan-overview-iteration.md](plan-overview-iteration.md). Items use handles `item-a/b/c/d` (originally FB-020-a/b/c + FB-021; IDs reclaimed for Content Impact per Thomas 2026-06-23). Two open decisions for Thomas in the plan doc. Resume after Content Impact closes; assign fresh sequential FB IDs at that point.
 - **PR Influence tab iteration** — none open right now, but Tina might come back after spot-checking the live deploy.
-- **Content Impact tab** and **Technical Performance tab** — not started, no feedback received yet.
+- **Technical Performance tab** — not started, no feedback received yet.
 
 ## State at handoff (locked-in lockstep)
 
