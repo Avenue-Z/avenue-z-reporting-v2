@@ -18,12 +18,10 @@ export function VisibilityChart({
   data,
   competitorData,
   brandName,
-  firstTrackedAt,
 }: {
   data: DailyPoint[]
   competitorData: DailyPoint[]
   brandName?: string
-  firstTrackedAt?: Date | null
 }) {
   const [hovered, setHovered] = useState<number | null>(null)
   const [granularity, setGranularity] = useState<BucketGranularity>('weekly')
@@ -36,12 +34,6 @@ export function VisibilityChart({
   const CHART_MAX = Math.max(...buckets.map((d) => d.visibility), ...compBuckets.map((d) => d.visibility), 1)
   const n = buckets.length
   const compMap = new Map(compBuckets.map((d) => [d.key, d.visibility]))
-  // FB-022: Tracking-start date sourced from clients.firstTrackedAt (DB column),
-  // not derived from the chart's data buffer (which was a misleading artifact of
-  // the picker-bound fetch — see FB-022 decision log).
-  const trackingStart = firstTrackedAt
-    ? firstTrackedAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
-    : undefined
 
   const competitorPoints = buckets
     .map((b, i) => ({ x: (i + 0.5) / n, vis: compMap.get(b.key) ?? null }))
@@ -62,7 +54,6 @@ export function VisibilityChart({
             <InfoTooltip text="Percentage of AI responses where your brand appears. Year-to-date — this chart shows the full year regardless of the page date picker." />
           </div>
           {brandName && <p className="mt-0.5 text-xs text-text-muted">{brandName} · {granularity}</p>}
-          {trackingStart && <p className="mt-0.5 text-[11px] text-text-muted">Tracking began {trackingStart}</p>}
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">

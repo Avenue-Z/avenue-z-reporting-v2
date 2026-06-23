@@ -384,12 +384,14 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
-  // FB-022: visibility trend chart is always YTD regardless of the page date range.
-  // We fetch a separate trend dataset bounded to Jan 1 of the current year through
-  // mainDates.endDate, and route ONLY dailyVisibility/competitorDailyVisibility to
-  // use it. Everything else (rankings, domains, KPIs) stays on the picker range.
-  const ytdYearStart = `${new Date(mainDates.endDate).getUTCFullYear()}-01-01`
-  const ytd = { start_date: ytdYearStart, end_date: mainDates.endDate }
+  // FB-022 + FB-024: visibility trend chart is always YTD, pinned to TODAY
+  // (Jan 1 of the current year through today's date), independent of the page
+  // date picker. Earlier FB-022 used mainDates.endDate which still reacted to
+  // custom historical ranges (Tina's literal ask was "make static to always
+  // show YTD"). Routes ONLY dailyVisibility/competitorDailyVisibility to this
+  // window. Everything else (rankings, domains, KPIs) stays on the picker range.
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const ytd = { start_date: `${todayISO.slice(0, 4)}-01-01`, end_date: todayISO }
 
   const pid = resolvedProjectId // shorthand
 

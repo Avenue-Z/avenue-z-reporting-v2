@@ -403,9 +403,12 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
-  // FB-022: visibility trend chart is always YTD regardless of the page date range.
-  const ytdYearStart = `${new Date(mainDates.endDate).getUTCFullYear()}-01-01`
-  const ytd = { start_date: ytdYearStart, end_date: mainDates.endDate }
+  // FB-022 + FB-024: visibility trend chart is always YTD, pinned to TODAY
+  // (Jan 1 of the current year through today's date), independent of the page
+  // date picker. Earlier FB-022 used mainDates.endDate which still reacted to
+  // custom historical ranges. Tina's literal ask: "make static to always show YTD."
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const ytd = { start_date: `${todayISO.slice(0, 4)}-01-01`, end_date: todayISO }
 
   const base = (dates: { start_date: string; end_date: string }) => ({
     category_id: categoryId,

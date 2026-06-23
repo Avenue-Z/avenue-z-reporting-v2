@@ -103,7 +103,6 @@ export const clients = pgTable('clients', {
   name: text('name').notNull(),
   logoUrl: text('logo_url'),
   domain: text('domain'),
-  firstTrackedAt: timestamp('first_tracked_at', { mode: 'date' }),
   ga4PropertyId: text('ga4_property_id'),
   gscSiteUrl: text('gsc_site_url'),
   hubspotTokenEnvVar: text('hubspot_token_env_var'),

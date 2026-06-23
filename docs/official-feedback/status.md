@@ -26,15 +26,12 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 - **Items shipped this batch:**
   - **FB-020** (CSV E2) — Drop SectionHeader subtitle on Overview. `subtitle?: string` now optional in shared component; other 3 AEO tabs keep their own.
   - **FB-021** (CSV E12, Rule #11) — Remove "Which prompts are AI engines answering with our brand?" chart from both Peec + Profound Overview RSCs. Both component files deleted. `data.trackedPrompts` field kept (consumed by 6+ other surfaces).
-  - **FB-022** (CSV E7) — Visibility chart truly YTD on both providers. Separate YTD fetch in `lib/peec/client.ts` + `lib/profound/client.ts`; cache versions bumped (peec v7→v8, profound v4→v5). New `clients.firstTrackedAt` DB column + Drizzle migration `0010_jittery_nextwave.sql`. Migration NOT yet applied; Avenue Z backfill to `2025-03-28` NOT yet run — both deferred to Thomas after PR review.
+  - **FB-022 + FB-024** (CSV E7) — Visibility chart truly YTD on both providers, pinned to today (Jan 1 of current year through today's date), completely independent of the page date picker. Separate YTD fetch in `lib/peec/client.ts` + `lib/profound/client.ts`; cache versions bumped (peec v7→v8, profound v4→v5). FB-024 reverted the FB-022 Neon column path (Paul declined the DB change) and dropped the misleading "Tracking began" line entirely. Tooltip retained. Chart refreshes daily via 1h `cached()` TTL + nightly Peec ingest.
   - **FB-023** (CSV E11) — Winners/Losers cards: live per-period compute reactive to BOTH date range AND model filter. Model-dimensioned current + prior prompt fetches in `lib/peec/client.ts` (limit 5000). New `lib/peec/winners-losers.ts` with `applyModelFilter` + `computeWinnersLosers` (16 unit tests via `node:assert`). Sandbox gate lifted; empty-state copy added. Profound type mirrored (empty maps) for parity; Profound provider variant shows empty state until parity FB ships.
 - **Open operational follow-ups (post-merge, not blocking PR review):**
-  - `npx drizzle-kit migrate` to apply FB-022 schema change to Neon.
-  - `UPDATE clients SET first_tracked_at = '2025-03-28T00:00:00Z' WHERE slug = 'avenue-z';` for Avenue Z backfill.
-  - Backfill `firstTrackedAt` for non-Avenue-Z clients when known (currently null → "Tracking began" line gracefully omits).
   - Profound parity on Winners/Losers (requires Profound API to expose per-prompt-per-model rows — separate FB if needed).
 - **Content Impact branch:** parked at `official-feedback-content-impact-tab` (docs-only diff). Resume when Tina sends Content Impact feedback.
-- **Next FB ID:** **FB-024**.
+- **Next FB ID:** **FB-025**.
 - **PRs merged historically from earlier branches:**
   - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22
   - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22

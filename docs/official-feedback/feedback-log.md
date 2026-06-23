@@ -16,6 +16,55 @@ _(none)_
 
 ## Closed
 
+### FB-024 — YTD chart pinned to today + drop misleading "Tracking began" line + revert Neon column
+
+- **Status:** done
+- **Source:** Thomas after Paul declined the FB-022 Neon migration. Re-read of Tina's literal CSV E7: *"this YTD chart is changing based on the date range selector. Please make static to always show YTD."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** data layer fix + cleanup
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, `components/report-sections/peec-ai/visibility-chart.tsx`, `components/report-sections/peec-ai/index.tsx`, `lib/db/schema.ts`, deleted `drizzle/0010_jittery_nextwave.sql` + `drizzle/meta/0010_snapshot.json` + journal entry.
+
+#### Problems FB-022 left open
+
+1. **YTD window still partially reacted to the picker.** FB-022 computed `ytd = { start: Jan 1 of year(mainDates.endDate), end: mainDates.endDate }`. For relative ranges the picker uses today as endDate, so the chart looked static. But for custom historical ranges (e.g. user picks "Jan 1 to Mar 15"), the chart truncated to that end date. Not literally what Tina asked for.
+2. **"Tracking began" line was unsourceable** without the Neon column Paul declined. FB-022 wired it through a new `clients.firstTrackedAt` DB column + Drizzle migration; without the migration the SELECT would fail at runtime.
+
+#### Solution
+
+1. **Pin YTD window to today.** Both clients now compute `ytd = { start: Jan 1 of current year, end: today }`, completely independent of `mainDates.endDate`. Chart is truly static. The picker has zero effect on it.
+2. **Drop the "Tracking began" display entirely.** Tina called the displayed value incorrect. With no source of truth (Neon column reverted), the honest answer is to remove the misleading line. The chart's H1 ("How has AI visibility grown this year?") + the page-level YTD selector already communicate the time window.
+3. **Revert the Neon work.** Removed `firstTrackedAt` from `lib/db/schema.ts`. Deleted the Drizzle migration SQL + snapshot JSON. Reverted the journal entry. Dropped the `firstTrackedAt` prop from `ProviderSection` + `<VisibilityChart>`.
+
+#### Freshness
+
+Chart refreshes daily without any new wiring. Page load triggers the YTD fetch (subject to the existing 1h `cached()` TTL). Peec's nightly ingest lands new bars by morning; once the cache TTL expires, the fresh data appears.
+
+#### Files touched
+
+- `lib/peec/client.ts` — YTD `end_date` now pinned to today (was `mainDates.endDate`).
+- `lib/profound/client.ts` — YTD `end_date` now pinned to today.
+- `components/report-sections/peec-ai/visibility-chart.tsx` — dropped `firstTrackedAt?: Date | null` prop, dropped `trackingStart` declaration, dropped the `<p>Tracking began ...</p>` display line. Tooltip retained (it's accurate).
+- `components/report-sections/peec-ai/index.tsx` — dropped `firstTrackedAt` from `ProviderSection` prop type + destructure + both invocations.
+- `lib/db/schema.ts` — reverted the `firstTrackedAt: timestamp('first_tracked_at', { mode: 'date' })` column add.
+- DELETED `drizzle/0010_jittery_nextwave.sql`, DELETED `drizzle/meta/0010_snapshot.json`, reverted `drizzle/meta/_journal.json` entry idx 10.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- `npx tsx lib/peec/winners-losers.test.ts` all 16 assertions pass.
+- `grep firstTrackedAt|first_tracked_at` across lib/components/app/drizzle returns zero hits.
+- `grep trackingStart|Tracking began` returns zero hits.
+
+#### Open risks
+
+None. Code-only change. No DB touch.
+
+#### Lineage
+
+Supersedes the DB-column portion of FB-022. Keeps FB-022's YTD-fetch and tooltip improvements.
+
+---
+
 ### FB-023 — Winners/Losers cards: live, date AND model reactive (CSV E11)
 
 - **Status:** done
