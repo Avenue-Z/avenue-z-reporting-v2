@@ -48,15 +48,19 @@ export function LeafBuilder({
     }
     setErr(null)
     startLoad(async () => {
-      const [m, a, dm] = await Promise.all([getMetricOptions(slug, dsId), getAccountOptions(slug, dsId), getSmDimensions(slug, dsId)])
-      if (m.ok) {
-        setMetricOpts(m.options.map((o) => ({ value: o.value, label: o.label, group: o.group })))
-        setDataTypeByMetric(Object.fromEntries(m.options.map((o) => [o.value, o.dataType])))
-      } else {
-        setErr(m.error); setMetricOpts([]); setDataTypeByMetric({})
+      try {
+        const [m, a, dm] = await Promise.all([getMetricOptions(slug, dsId), getAccountOptions(slug, dsId), getSmDimensions(slug, dsId)])
+        if (m.ok) {
+          setMetricOpts(m.options.map((o) => ({ value: o.value, label: o.label, group: o.group })))
+          setDataTypeByMetric(Object.fromEntries(m.options.map((o) => [o.value, o.dataType])))
+        } else {
+          setErr(m.error); setMetricOpts([]); setDataTypeByMetric({})
+        }
+        setAcctOpts(a.ok ? a.options.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })) : [])
+        setDimOpts(dm.ok ? dm.options.map((o) => ({ value: o.value, label: o.label, group: o.group })) : [])
+      } catch {
+        setErr('discovery unavailable'); setMetricOpts([]); setDataTypeByMetric({}); setAcctOpts([]); setDimOpts([])
       }
-      setAcctOpts(a.ok ? a.options.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })) : [])
-      setDimOpts(dm.ok ? dm.options.map((o) => ({ value: o.value, label: o.label, group: o.group })) : [])
     })
   }, [source, dsId, slug])
 
@@ -174,9 +178,13 @@ function TwLeafFields({
   useEffect(() => {
     setErr(null)
     startLoad(async () => {
-      const r = await getTwFields(slug)
-      if (r.ok) setFields(r.fields)
-      else { setErr(r.error); setFields({ metrics: [], dimensions: [] }) }
+      try {
+        const r = await getTwFields(slug)
+        if (r.ok) setFields(r.fields)
+        else { setErr(r.error); setFields({ metrics: [], dimensions: [] }) }
+      } catch {
+        setErr('discovery unavailable'); setFields({ metrics: [], dimensions: [] })
+      }
     })
   }, [slug])
 
@@ -241,8 +249,10 @@ function TwFilterRow({
   useEffect(() => {
     if (filter.column === '') { setValues([]); return }
     startLoad(async () => {
-      const r = await getTwDimensionValues(slug, filter.column)
-      setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
+      try {
+        const r = await getTwDimensionValues(slug, filter.column)
+        setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
+      } catch { setValues([]) }
     })
   }, [filter.column, slug])
 
@@ -291,8 +301,10 @@ function SmFilterRow({
   useEffect(() => {
     if (filter.column === '' || account === '') { setValues([]); return }
     startLoad(async () => {
-      const r = await getSmDimensionValues(slug, dsId, account, filter.column)
-      setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
+      try {
+        const r = await getSmDimensionValues(slug, dsId, account, filter.column)
+        setValues(r.ok ? r.values.map((v) => ({ value: v, label: v })) : [])
+      } catch { setValues([]) }
     })
   }, [filter.column, slug, dsId, account])
 
