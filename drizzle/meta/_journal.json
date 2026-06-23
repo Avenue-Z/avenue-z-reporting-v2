@@ -71,6 +71,13 @@
       "when": 1782147978740,
       "tag": "0009_shiny_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782234019985,
+      "tag": "0010_smart_piledriver",
+      "breakpoints": true
     }
   ]
 }

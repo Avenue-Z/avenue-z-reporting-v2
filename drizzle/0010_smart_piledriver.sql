@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "dash_social_config" jsonb;
