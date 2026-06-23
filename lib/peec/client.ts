@@ -374,6 +374,13 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
+  // FB-022: visibility trend chart is always YTD regardless of the page date range.
+  // We fetch a separate trend dataset bounded to Jan 1 of the current year through
+  // mainDates.endDate, and route ONLY dailyVisibility/competitorDailyVisibility to
+  // use it. Everything else (rankings, domains, KPIs) stays on the picker range.
+  const ytdYearStart = `${new Date(mainDates.endDate).getUTCFullYear()}-01-01`
+  const ytd = { start_date: ytdYearStart, end_date: mainDates.endDate }
+
   const pid = resolvedProjectId // shorthand
 
   const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes] = await Promise.all([
@@ -394,7 +401,12 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     peecGet<{ data: { id: string; messages?: { content?: string }[]; tags?: { id: string }[] }[]; totalCount: number }>('/prompts', { limit: '1000' }, pid),
   ])
 
-  const trendRows = await fetchAllRows({ ...current, dimensions: ['date'] }, pid)
+  // FB-022: keep picker-bound trendRows for weeklyVisibility consumers (the
+  // demand-overview page reads weeklyVisibility); add a YTD variant for the chart.
+  const [trendRows, trendRowsYTD] = await Promise.all([
+    fetchAllRows({ ...current, dimensions: ['date'] }, pid),
+    fetchAllRows({ ...ytd,     dimensions: ['date'] }, pid),
+  ])
 
   // --- Brand rankings ---
   const currentAgg = aggregateBrandRows(currentBrandsRes.data ?? [])
@@ -549,17 +561,19 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     }
   })
 
-  // --- Visibility trend over the selected range ---
-  const filteredTrendRows = trendRows.filter((r) =>
+  // --- Visibility trend ---
+  // weeklyVisibility/competitorWeeklyVisibility: picker-range bound (demand-overview reads these).
+  // dailyVisibility/competitorDailyVisibility: ALWAYS YTD per Tina v2 (FB-022).
+  const filterYou  = (rows: ApiBrandRow[]) => rows.filter((r) =>
     yourBrand ? r.brand.name.toLowerCase().includes(yourBrand.toLowerCase()) : true
   )
-  const competitorTrendRows = trendRows.filter((r) =>
+  const filterComp = (rows: ApiBrandRow[]) => rows.filter((r) =>
     yourBrand ? !r.brand.name.toLowerCase().includes(yourBrand.toLowerCase()) : false
   )
-  const weeklyVisibility = groupByWeek(filteredTrendRows)
-  const competitorWeeklyVisibility = groupByWeek(competitorTrendRows)
-  const dailyVisibility = groupByDay(filteredTrendRows)
-  const competitorDailyVisibility = groupByDay(competitorTrendRows)
+  const weeklyVisibility           = groupByWeek(filterYou(trendRows))
+  const competitorWeeklyVisibility = groupByWeek(filterComp(trendRows))
+  const dailyVisibility            = groupByDay(filterYou(trendRowsYTD))
+  const competitorDailyVisibility  = groupByDay(filterComp(trendRowsYTD))
 
   // --- LLM breakdown (your brand + own domains per model_channel) ---
   type LLMAgg = { visCount: number; visTotal: number; sovSum: number; sovRows: number; posSum: number; posCount: number }
@@ -706,7 +720,10 @@ export const getPeecOverview = cached(
     // v7 = overview now honors the page date range (dateRange arg); response shape
     //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
     //      records) and deltas compare vs the previous period, not prior year.
-    version: 'v7',
+    // v8 = FB-022: visibility trend chart now uses a separate YTD fetch
+    //      (dailyVisibility/competitorDailyVisibility), while weeklyVisibility
+    //      stays picker-range bound for the demand-overview consumer.
+    version: 'v8',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

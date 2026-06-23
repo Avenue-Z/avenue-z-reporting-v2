@@ -395,6 +395,10 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
+  // FB-022: visibility trend chart is always YTD regardless of the page date range.
+  const ytdYearStart = `${new Date(mainDates.endDate).getUTCFullYear()}-01-01`
+  const ytd = { start_date: ytdYearStart, end_date: mainDates.endDate }
+
   const base = (dates: { start_date: string; end_date: string }) => ({
     category_id: categoryId,
     ...dates,
@@ -417,6 +421,7 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     domainTypesRes,
     promptsRes,
     promptTopicsRes,
+    weeklyYTDRes,
   ] = await Promise.all([
     profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
     profoundPost('/v1/reports/visibility', { ...base(prior), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
@@ -427,6 +432,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     profoundPost('/v1/reports/citations', { ...base(current), metrics: ['citation_share'], dimensions: ['citation_category'] }),
     profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['prompt'], ...brandFilter }),
     profoundPost('/v1/reports/visibility', { ...base(current), metrics: ['visibility_score'], dimensions: ['prompt', 'topic'] }),
+    // FB-022: YTD trend for the visibility chart.
+    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: ['visibility_score'], dimensions: ['date', 'asset_name'], date_interval: 'day' }),
   ])
 
   // --- Brand rankings ---
@@ -435,10 +442,12 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   // --- Weekly visibility ---
   const isYou = (asset: string) =>
     yourBrand ? asset.toLowerCase().includes(yourBrand.toLowerCase()) : false
-  const weeklyVisibility = groupByWeekFromRows(weeklyRes.data, isYou)
-  const competitorWeeklyVisibility = groupByWeekFromRows(weeklyRes.data, (a) => !isYou(a))
-  const dailyVisibility = groupByDayFromRows(weeklyRes.data, isYou)
-  const competitorDailyVisibility = groupByDayFromRows(weeklyRes.data, (a) => !isYou(a))
+  // FB-022: weeklyVisibility stays picker-range bound (demand-overview consumer).
+  // dailyVisibility/competitorDailyVisibility are ALWAYS YTD for the trend chart.
+  const weeklyVisibility           = groupByWeekFromRows(weeklyRes.data,    isYou)
+  const competitorWeeklyVisibility = groupByWeekFromRows(weeklyRes.data,    (a) => !isYou(a))
+  const dailyVisibility            = groupByDayFromRows(weeklyYTDRes.data,  isYou)
+  const competitorDailyVisibility  = groupByDayFromRows(weeklyYTDRes.data,  (a) => !isYou(a))
 
   // --- Competitor averages ---
   const competitors = brandRankings.filter((b) => !b.isYou)
@@ -564,7 +573,10 @@ export const getProfoundOverview = cached(
     // v4 = overview now honors the page date range (dateRange arg); response shape
     //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
     //      records) and deltas compare vs the previous period, not prior year.
-    version: 'v4',
+    // v5 = FB-022: visibility trend chart now uses a separate YTD fetch
+    //      (dailyVisibility/competitorDailyVisibility), while weeklyVisibility
+    //      stays picker-range bound for the demand-overview consumer.
+    version: 'v5',
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )

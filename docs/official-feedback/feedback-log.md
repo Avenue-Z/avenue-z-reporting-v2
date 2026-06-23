@@ -16,6 +16,57 @@ _(none)_
 
 ## Closed
 
+### FB-022 — Visibility chart truly YTD + show correct "Tracking began" date (CSV E7)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, cell E7: *"ISSUE: 'Tracking began May 18' – this is incorrect, this workspace has been tracking data since March 28, 2025. I think that this YTD chart is changing based on the date range selector. Please make static to always show YTD."*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** data layer + display
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, `lib/db/schema.ts`, `drizzle/0010_jittery_nextwave.sql` (new migration), `components/report-sections/peec-ai/index.tsx`, `components/report-sections/peec-ai/visibility-chart.tsx`.
+
+#### Two-part issue
+
+1. **Data-layer bug:** `dailyVisibility` was fetched with the date-range-bound `current` body in both clients. The chart's tooltip claimed YTD but the data tracked the picker. Tina caught it.
+2. **Display bug:** "Tracking began May 18" was rendered from `bucketDaily(data, 'weekly')[0]?.label`, i.e., the first weekly bucket of whatever data was passed in. When the picker was "Last 30 days" and today was a Tuesday, the first weekly bucket fell on a recent Monday. It was a misleading artifact of the picker-bound fetch, not a workspace inception date.
+
+#### Decision (literal CSV fix)
+
+Tina gave us the correct date (March 28, 2025) and said the displayed date is incorrect. Honored literally by sourcing the date from a new `clients.firstTrackedAt` column populated per-client. The leftmost X-axis bucket label of the now-truly-YTD chart won't reflect Avenue Z's actual inception when it predates the current year. Only the DB-sourced label can.
+
+#### Implementation
+
+- `lib/db/schema.ts`: added `firstTrackedAt: timestamp('first_tracked_at', { mode: 'date' })` to clients table.
+- `drizzle/0010_jittery_nextwave.sql`: additive nullable ALTER TABLE migration (auto-generated via drizzle-kit generate).
+- `lib/peec/client.ts`: added YTD window compute; parallel `trendRowsYTD` fetch; routed `dailyVisibility`/`competitorDailyVisibility` to YTD; bumped cache version v7 to v8.
+- `lib/profound/client.ts`: added YTD window compute; added `weeklyYTDRes` fetch in the Promise.all; routed `dailyVisibility`/`competitorDailyVisibility` to YTD; bumped cache version v4 to v5.
+- `components/report-sections/peec-ai/index.tsx`: threaded `firstTrackedAt` from `getClientBySlug` through `ProviderSection` to `<VisibilityChart>`.
+- `components/report-sections/peec-ai/visibility-chart.tsx`: replaced `trackingStart` calc with `firstTrackedAt: Date | null` prop. Formats + displays as "Tracking began {full date}" when provided; omits the line when null. Updated header tooltip from "fixed to year-to-date" to "Year-to-date, this chart shows the full year regardless of the page date picker."
+
+#### Scope of impact
+
+Overview tab visibility chart on both Peec + Profound provider variants. `weeklyVisibility` (consumed by `components/report-sections/demand-overview/index.tsx`) is intentionally LEFT as picker-range bound. Different feature, different consumer.
+
+#### Performance note
+
+Two additional API calls per Overview page load (one to Peec, one to Profound for clients with both). YTD ranges are wider than picker ranges, so payload is larger. The `cached()` wrapper caches per `(clientSlug, dateRange)` for 1 hour.
+
+#### Verification
+
+- `npx tsc --noEmit`: zero output.
+- `grep trackingStart` shows the new firstTrackedAt-sourced declaration only in visibility-chart.tsx.
+
+#### Open follow-ups (post-commit operational)
+
+- Apply the migration: `npx drizzle-kit migrate` (Thomas to run after review).
+- Populate Avenue Z: `UPDATE clients SET first_tracked_at = '2025-03-28T00:00:00Z' WHERE slug = 'avenue-z';` (Thomas to run after migration).
+- Non-Avenue-Z clients are left NULL until backfilled. Their chart silently omits the "Tracking began" line. Acceptable for the v2 review (Tina is reviewing Avenue Z).
+
+#### Open risks
+
+None code-side. Operational risks above.
+
+---
+
 ### FB-021 — Remove "Which prompts are AI engines answering with our brand?" chart (Rule #11, CSV E12)
 
 - **Status:** done

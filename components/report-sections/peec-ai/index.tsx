@@ -147,6 +147,7 @@ function ProviderSection({
   aiTraffic,
   clientSlug,
   dateRange,
+  firstTrackedAt,
 }: {
   data: Overview
   provider: AeoProvider
@@ -155,6 +156,7 @@ function ProviderSection({
   aiTraffic: AIReferralKPI
   clientSlug?: string
   dateRange?: string
+  firstTrackedAt: Date | null
 }) {
   const isPeec = provider === 'peec'
   const you = data.brandRankings.find((b) => b.isYou)
@@ -247,6 +249,7 @@ function ProviderSection({
           data={data.dailyVisibility}
           competitorData={data.competitorDailyVisibility}
           brandName={brandName}
+          firstTrackedAt={firstTrackedAt}
         />
       )}
 
@@ -337,8 +340,9 @@ export async function PeecAIReport({
   }
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
+  const firstTrackedAt = config?.firstTrackedAt ?? null
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} firstTrackedAt={firstTrackedAt} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} firstTrackedAt={firstTrackedAt} />
 
   return (
     <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
