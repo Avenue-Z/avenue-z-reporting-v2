@@ -40,7 +40,7 @@ export default async function ConfigurableDashboardPage({
       <>
         <Header title="Dashboard" subtitle={client.name} />
         <div className="divider-full mb-8" />
-        <EmptyDashboardState canEdit={canEdit} />
+        <EmptyDashboardState canEdit={canEdit} slug={clientSlug} />
       </>
     )
   }

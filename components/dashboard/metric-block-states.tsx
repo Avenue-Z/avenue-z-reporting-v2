@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { BlockError } from '@/lib/dashboard/types'
+import { AddBlockButton } from './add-block/add-block-button'
 
 const CARD =
   'rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px] flex flex-col justify-between'
@@ -69,15 +70,14 @@ export function MetricBlockErrorState({
   )
 }
 
-export function EmptyDashboardState({ canEdit }: { canEdit: boolean }) {
+export function EmptyDashboardState({ canEdit, slug }: { canEdit: boolean; slug: string }) {
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-lg border border-dashed border-white/[0.08] bg-bg-surface/40 p-12 text-center">
       <p className="text-lg font-bold text-white">No blocks yet</p>
       <p className="mt-2 max-w-md text-sm text-text-muted">
-        {canEdit
-          ? 'Add a metric block to start building this dashboard.'
-          : 'This dashboard has not been configured yet.'}
+        {canEdit ? 'Add a metric block to start building this dashboard.' : 'This dashboard has not been configured yet.'}
       </p>
+      {canEdit && <div className="mt-5"><AddBlockButton slug={slug} config={null} /></div>}
     </div>
   )
 }
