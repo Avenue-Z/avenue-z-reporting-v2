@@ -16,6 +16,41 @@ _(none)_
 
 ## Closed
 
+### FB-027 — Dynamic X-axis on Prompt Clusters chart
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 14 (R14). Verbatim: *"ISSUE: The bars are appearing very small, can we have this chart dynamically adjust to better show the relativity of rows? For example, if the highest value of one of the rows is only 3.1%, the X-axis doesn't need to go all the way up to 100%. Maybe it could be adjusted to the next highest '5' or '10'."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** chart axis fix
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` — `PromptClusterOpportunityMatrix` only.
+
+#### Problem
+
+`<XAxis domain={[0, 100]}>` was hard-pinned. When a client's top editorial-citation-share value is small (Tina's example: 3.1%), every bar renders as an anemic sliver against the 100% scale.
+
+#### Solution
+
+Compute `maxValue = Math.max(...chartData.map(d => d.value))`. Round it up:
+- `maxValue === 0` → fallback to `upper = 5` (axis still renders gridlines).
+- `maxValue <= 10` → `upper = Math.ceil(maxValue / 5) * 5` (next multiple of 5).
+- `maxValue > 10` → `upper = Math.ceil(maxValue / 10) * 10` (next multiple of 10).
+
+Pass `domain={[0, upper]}` to the X-axis. Everything else unchanged — same chart, same colors, same tooltip, same heights.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — `PromptClusterOpportunityMatrix` function body.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Grep confirms `domain={[0, 100]}` is gone and `domain={[0, upper]}` is present.
+- Existing tests (lib/peec/sentiment-insights.test.ts + lib/peec/winners-losers.test.ts) still pass.
+
+#### Open risks
+
+None. Single-block change, pure presentation, no data layer impact.
+
 ### FB-026 — Live Glean-backed Sentiment Insights, date + model reactive
 
 - **Status:** done
