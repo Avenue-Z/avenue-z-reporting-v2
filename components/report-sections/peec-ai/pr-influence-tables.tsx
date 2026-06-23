@@ -266,11 +266,22 @@ export function PromptClusterOpportunityMatrix({
       topic: r.cluster,
       value: Number(r.editorialCitationDensity.toFixed(1)),
     }))
-  // FB-019: tighter per-row spacing (24 vs 34) so this card matches the height
-  // of the Top Editorial Domains card in the side-by-side wrapper, and an
-  // explicit barSize so individual bars stay visually prominent even at the
-  // tighter spacing (Tina/Thomas: "less anemic").
+  // FB-019: tighter per-row spacing + explicit barSize so bars stay visually
+  // prominent at the side-by-side height.
   const chartHeight = Math.max(200, chartData.length * 24 + 36)
+
+  // FB-027 — dynamic X-axis upper bound. Tina v1 CSV R14: a 3.1% top value
+  // against a 0-100 axis renders as anemic slivers. Round the max value up
+  // to the next 5 (when max ≤ 10) or the next 10 (when max > 10). Falls back
+  // to 5 when chartData is empty or max is exactly 0 so the axis still
+  // renders gridlines.
+  const maxValue = chartData.length > 0 ? Math.max(...chartData.map((d) => d.value)) : 0
+  const upper =
+    maxValue === 0
+      ? 5
+      : maxValue <= 10
+        ? Math.ceil(maxValue / 5) * 5
+        : Math.ceil(maxValue / 10) * 10
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
@@ -289,7 +300,7 @@ export function PromptClusterOpportunityMatrix({
           >
             <XAxis
               type="number"
-              domain={[0, 100]}
+              domain={[0, upper]}
               tick={{ fill: '#8A8A8A', fontSize: 11 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
               tickLine={false}
