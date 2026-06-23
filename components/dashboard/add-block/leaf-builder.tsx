@@ -6,7 +6,7 @@ import { DS_IDS } from '@/lib/supermetrics/constants'
 import { getTwFields, getTwDimensionValues, getMetricOptions, getAccountOptions } from '@/app/actions/dashboard'
 import type { TwFields } from '@/lib/triplewhale/discovery'
 import { SearchCombobox, type ComboOption } from './search-combobox'
-import { formatFromDataType, type LeafDraft } from './build-config'
+import { formatFromDataType, COMMON_TW_METRICS, type LeafDraft } from './build-config'
 import type { MetricFormat } from '@/lib/dashboard/types'
 
 const DS_OPTIONS: { value: string; label: string }[] = [
@@ -166,7 +166,7 @@ function TwLeafFields({
         {err ? (
           <input className={ctrl} value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="column id (e.g. spend)" />
         ) : (
-          <SearchCombobox value={metric} options={fields.metrics} loading={loading} placeholder="Select metric" onChange={setMetric} />
+          <SearchCombobox value={metric} options={[...COMMON_TW_METRICS, ...fields.metrics]} loading={loading} placeholder="Select metric" onChange={setMetric} />
         )}
       </Field>
       {err && <p className="text-xs text-[#FF6666]">Discovery unavailable ({err}). Enter column ids manually.</p>}

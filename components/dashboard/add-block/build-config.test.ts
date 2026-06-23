@@ -1,6 +1,7 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, type ManualDraft } from './build-config'
+import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
 {
@@ -65,6 +66,16 @@ import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, t
 {
   const b = leafToBinding({ source: 'triplewhale', metric: 'spend' })
   if (b.source === 'triplewhale') assert.equal(b.filters, undefined)
+}
+
+// COMMON_TW_METRICS values must all be curated TripleWhale metric keys (guards drift)
+{
+  assert.ok(COMMON_TW_METRICS.length > 0, 'common list non-empty')
+  for (const m of COMMON_TW_METRICS) {
+    assert.equal(isTwMetric(m.value), true, `${m.value} must be a curated TW metric`)
+    assert.ok(m.label.length > 0, `${m.value} needs a label`)
+  }
+  assert.ok(COMMON_TW_METRICS.some((m) => m.value === 'blended_roas'), 'ROAS present')
 }
 
 console.log('ok')

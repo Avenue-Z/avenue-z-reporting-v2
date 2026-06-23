@@ -1,5 +1,21 @@
 import type { BlockConfig, LeafBinding, AggregateBinding, MetricFormat } from '@/lib/dashboard/types'
 
+/**
+ * Common TripleWhale metrics surfaced at the top of the builder's metric picker,
+ * above the discovered raw columns. Each `value` must be a curated key in
+ * `lib/triplewhale/queries.ts`'s `TW_METRIC_SQL` (the adapter resolves it to the
+ * proper formula — incl. ratios like ROAS/CPA that can't be a single SUM'd column).
+ * Drift from TW_METRIC_SQL is guarded by build-config.test.ts.
+ */
+export const COMMON_TW_METRICS: { value: string; label: string }[] = [
+  { value: 'revenue', label: 'Revenue' },
+  { value: 'ad_spend', label: 'Ad spend' },
+  { value: 'blended_roas', label: 'Blended ROAS' },
+  { value: 'cpa', label: 'CPA' },
+  { value: 'conv_rate', label: 'Conversion rate' },
+  { value: 'purchases', label: 'Purchases' },
+]
+
 /** A single leaf's manual selections. */
 export type LeafDraft =
   | { source: 'supermetrics'; dsId: string; metricField: string; account: string }
