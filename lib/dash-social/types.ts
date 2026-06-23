@@ -3,12 +3,14 @@ export interface ReportsDataParams {
   brandId: number
   channels: string[]          // e.g. ['INSTAGRAM','FACEBOOK','TWITTER']
   metrics: string[]           // UPPER_SNAKE ids from lib/organic-social/metrics.ts
-  startDate: string           // ISO yyyy-mm-dd
+  startDate: string           // ISO yyyy-mm-dd or TZ-aware (formatted by caller)
   endDate: string
-  reportType?: 'GRAPH' | 'TOTAL_METRIC'
+  reportType?: 'GRAPH' | 'TOTAL_METRIC' | 'TOTAL_GROUPED_METRIC'
   timeScale?: 'DAILY' | 'MONTHLY'
   contextStartDate?: string   // TOTAL_METRIC delta window
   contextEndDate?: string
+  aggregateBy?: string        // e.g. 'BRAND' for TOTAL_GROUPED_METRIC headlines
+  requirePosts?: boolean      // append require_posts=true when set
 }
 
 // /reports/data is keyed by channel name AND a brand-id entry (data_type:'BRAND')

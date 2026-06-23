@@ -1,29 +1,76 @@
-// Confirmed against Renaissance (Dash brand 26952) via scripts/dash-social-probe.ts on 2026-06-23.
+// Dash Social metric map — validated against Renaissance (brand 26952) on
+// 2026-06-23 by replicating the Dash dashboard's own /reports/data requests.
 //
-// Validity matrix (TOTAL_METRIC on /reports/data):
-//   IG/FB/X : TOTAL_FOLLOWERS, NET_NEW_FOLLOWERS, IMPRESSIONS, TOTAL_ENGAGEMENTS  ← blended-safe
-//   IG only : PROFILE_VIEWS, SAVES, VIEWS
-//   IG + FB : SHARES
-//   X only  : LIKES        FB only: REACTIONS
-//   invalid : COMMENTS, EFFECTIVENESS (not valid metric names on these channels)
+// KEY LEARNINGS (why this looks the way it does):
+//  - Dash's overview uses report_type=TOTAL_GROUPED_METRIC + aggregate_by=BRAND
+//    with timezone-aware dates (midnight Eastern, e.g. 2026-06-16T04:00:00Z) and
+//    require_posts=true. Plain TOTAL_METRIC returns different / wrong values.
+//  - Metric NAMES differ per channel (Facebook uses *_V2 / *_POSTS_V2 variants).
+//  - A multi-channel request mis-aggregates Facebook, so each channel is queried
+//    SEPARATELY (one request per channel) and the brand entry carries the values.
+//  - Engagement rate is taken DIRECTLY from Dash (AVG_ENGAGEMENT_RATE, or
+//    AVG_ENGAGEMENT_RATE_V2 for FB), a 0..1 fraction — this matches the Dash UI
+//    exactly and avoids the deprecated-impressions problem (organic IG/FB
+//    IMPRESSIONS return 0/null; the real exposure metric is VIEWS).
 //
-// A multi-channel request 400s if ANY metric is invalid for ANY channel, so
-// blended sections use only the four common metrics below. Per-channel-only
-// metrics (Profile Views, Saves, Likes, Reactions, Avg. Effectiveness) are
-// deferred — they cannot be blended uniformly and aren't in v1.
+// RESPONSE SHAPES:
+//  - Headline (TOTAL_GROUPED_METRIC, aggregate_by=BRAND, single channel):
+//      data["<brandId>"].metrics[METRIC].value
+//  - Engagement-over-time (GRAPH, time_scale=DAILY, single channel):
+//      data.metrics[METRIC].ALL_CHANNELS[date]   (value | null per day)
 
-export const CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'TWITTER'] as const
+export const CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'] as const
 export type DashChannel = (typeof CHANNELS)[number]
 
-export const METRICS = {
-  totalFollowers: 'TOTAL_FOLLOWERS',
-  netNewFollowers: 'NET_NEW_FOLLOWERS',
-  impressions: 'IMPRESSIONS',
-  engagements: 'TOTAL_ENGAGEMENTS',
-} as const
+export const CHANNEL_LABEL: Record<DashChannel, string> = {
+  INSTAGRAM: 'Instagram',
+  FACEBOOK: 'Facebook',
+  TWITTER: 'X',
+  LINKEDIN: 'LinkedIn',
+}
 
-/** Engagement Rate = TOTAL_ENGAGEMENTS / IMPRESSIONS (reach unavailable for >30d windows). */
-export const ENGAGEMENT_RATE_BASIS = 'impressions' as const
+export interface ChannelMetricMap {
+  followers: string
+  netNewFollowers: string
+  engagements: string
+  /** Dash-computed engagement rate (0..1). */
+  engagementRate: string
+  /** Per-channel exposure metric (views for IG/FB, impressions for X/LinkedIn). */
+  exposure: string
+  exposureLabel: 'Views' | 'Impressions'
+}
 
-/** /reports/data exposes no aggregate EFFECTIVENESS on these channels (400). Deferred. */
-export const HAS_AGGREGATE_EFFECTIVENESS = false
+export const CHANNEL_METRICS: Record<DashChannel, ChannelMetricMap> = {
+  INSTAGRAM: {
+    followers: 'TOTAL_FOLLOWERS',
+    netNewFollowers: 'NET_NEW_FOLLOWERS',
+    engagements: 'TOTAL_ENGAGEMENTS',
+    engagementRate: 'AVG_ENGAGEMENT_RATE',
+    exposure: 'VIEWS',
+    exposureLabel: 'Views',
+  },
+  FACEBOOK: {
+    followers: 'TOTAL_FOLLOWERS',
+    netNewFollowers: 'NET_NEW_FOLLOWERS',
+    engagements: 'TOTAL_ENGAGEMENTS_POSTS_V2',
+    engagementRate: 'AVG_ENGAGEMENT_RATE_V2',
+    exposure: 'PAID_AND_ORGANIC_VIEWS_BY_POST',
+    exposureLabel: 'Views',
+  },
+  TWITTER: {
+    followers: 'TOTAL_FOLLOWERS',
+    netNewFollowers: 'NET_NEW_FOLLOWERS',
+    engagements: 'TOTAL_ENGAGEMENTS',
+    engagementRate: 'AVG_ENGAGEMENT_RATE',
+    exposure: 'IMPRESSIONS',
+    exposureLabel: 'Impressions',
+  },
+  LINKEDIN: {
+    followers: 'TOTAL_FOLLOWERS',
+    netNewFollowers: 'NET_NEW_FOLLOWERS',
+    engagements: 'ENGAGEMENTS',
+    engagementRate: 'AVG_ENGAGEMENT_RATE',
+    exposure: 'IMPRESSIONS',
+    exposureLabel: 'Impressions',
+  },
+}

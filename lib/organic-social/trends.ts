@@ -1,16 +1,41 @@
-import { dashClientFor, isoRange, displayChannel, channelMetricEntries } from './base'
-import { METRICS } from './metrics'
-import type { ReportsDataResponse, GraphMetric } from '@/lib/dash-social/types'
+import { dashClientFor, isoRangeTz } from './base'
+import { CHANNELS, CHANNEL_LABEL, CHANNEL_METRICS } from './metrics'
+import type { GraphMetric } from '@/lib/dash-social/types'
 import type { TrendSeries, TrendPoint } from './types'
 
-/** GRAPH shape: data[channelKey].metrics[metric][channelKey] = { [date]: value|null }. */
-export function transformTrend(res: ReportsDataResponse<GraphMetric>, metric: string): TrendSeries {
+// GRAPH (single channel) shape: data.metrics[METRIC].ALL_CHANNELS[date] = value|null.
+// res.data carries both per-channel entries and a top-level `metrics` aggregate.
+type GraphData = { metrics?: Record<string, GraphMetric> }
+
+export async function getEngagementTrend(slug: string, dateRange: string): Promise<TrendSeries> {
+  const { client, brandId } = await dashClientFor(slug)
+  const { start, end } = isoRangeTz(dateRange)
+
+  const perChannel = await Promise.all(
+    CHANNELS.map(async (channel) => {
+      const metric = CHANNEL_METRICS[channel].engagements
+      try {
+        const res = await client.getReportsData<GraphMetric>({
+          brandId,
+          channels: [channel],
+          reportType: 'GRAPH',
+          timeScale: 'DAILY',
+          metrics: [metric],
+          startDate: start,
+          endDate: end,
+        })
+        const daily = (res.data as GraphData).metrics?.[metric]?.ALL_CHANNELS
+        return { label: CHANNEL_LABEL[channel], daily: daily ?? null }
+      } catch {
+        return { label: CHANNEL_LABEL[channel], daily: null }
+      }
+    }),
+  )
+
   const channels: string[] = []
   const byDate = new Map<string, TrendPoint>()
-  for (const [channelKey, metrics] of channelMetricEntries(res)) {
-    const daily = metrics[metric]?.[channelKey]   // inner key repeats the channel
+  for (const { label, daily } of perChannel) {
     if (!daily) continue
-    const label = displayChannel(channelKey)
     channels.push(label)
     for (const [date, value] of Object.entries(daily)) {
       const row = byDate.get(date) ?? ({ date } as TrendPoint)
@@ -20,15 +45,4 @@ export function transformTrend(res: ReportsDataResponse<GraphMetric>, metric: st
   }
   const points = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)))
   return { points, channels }
-}
-
-export async function getTrends(slug: string, dateRange: string): Promise<{ followers: TrendSeries; engagement: TrendSeries }> {
-  const { client, brandId, channels } = await dashClientFor(slug)
-  const { start, end } = isoRange(dateRange)
-  const res = await client.getReportsData<GraphMetric>({
-    brandId, channels, reportType: 'GRAPH', timeScale: 'DAILY',
-    metrics: [METRICS.totalFollowers, METRICS.engagements],
-    startDate: start, endDate: end,
-  })
-  return { followers: transformTrend(res, METRICS.totalFollowers), engagement: transformTrend(res, METRICS.engagements) }
 }

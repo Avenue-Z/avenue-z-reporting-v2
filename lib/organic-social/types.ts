@@ -1,17 +1,23 @@
 export type SourceType = 'organic' | 'influencer'
 
-export interface OrganicKpi {
-  key: string; label: string; value: number
-  prefix?: string; suffix?: string; delta?: number; tooltip?: string
-}
-
-/** One row of the per-channel contribution table. */
-export interface ChannelRow {
-  channel: string            // display: 'Instagram'
+/** Headline KPIs for a single platform (channel). */
+export interface PlatformHeadline {
+  channel: string            // Dash channel key, e.g. 'INSTAGRAM'
+  label: string              // display: 'Instagram'
+  exposureLabel: string      // 'Views' | 'Impressions'
   followers: number
   netNewFollowers: number
+  exposure: number           // views or impressions
   engagements: number
-  engagementRate: number     // percent
+  engagementRate: number     // percent (0..100)
+  /** Prior-period percent-change deltas, where Dash returned a comparison context. */
+  deltas?: {
+    followers?: number
+    netNewFollowers?: number
+    exposure?: number
+    engagements?: number
+    engagementRate?: number
+  }
 }
 
 /** A daily point for a single channel in a trend series. */

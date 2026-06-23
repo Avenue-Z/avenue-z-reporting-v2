@@ -80,6 +80,8 @@ export class DashSocialClient {
     if (p.timeScale) q.set('time_scale', p.timeScale)
     if (p.contextStartDate) q.set('context_start_date', p.contextStartDate)
     if (p.contextEndDate) q.set('context_end_date', p.contextEndDate)
+    if (p.aggregateBy) q.set('aggregate_by', p.aggregateBy)
+    if (p.requirePosts) q.set('require_posts', 'true')
     return this.request<ReportsDataResponse<M>>('GET', `${DASHBOARD}/reports/data?${q}`)
   }
 
