@@ -1,112 +1,21 @@
 'use client'
 
 // components/report-sections/peec-ai/sentiment-insights.tsx
-// FB-010: AEO PR Influence — Sentiment Insights card. Sits between the PR
-// Placement Matchback table and the Top Editorial Domains table per Tina's
-// "above Top Editorial Domains" placement instruction.
-//
-// Layout matches Tina's design feedback:
-//   - Sentiment KPI pill at the top (Positive 89.4%)
-//   - Side-by-side: Positive Themes (left), Negative Themes (right)
-//   - Each theme is a click-to-expand accordion that reveals its sources
-//
-// Data is STATIC and HARDCODED to Avenue Z while this is the sandbox client.
-// Other clients see nothing in this slot. Same pattern as FB-006
-// Winners/Losers. When this is later wired to live per-client data, drop
-// the SANDBOX_CLIENT_SLUG gate.
+// FB-026: data-driven Sentiment Insights card. Previously this file held
+// hardcoded Avenue Z sandbox content (POSITIVE_THEMES / WEAKNESSES const
+// arrays + a fixed 89.4% pill, gated to clientSlug==='avenue-z'). Tina v1
+// CSV R4 + R5: card and pill must react to date AND model. The sandbox gate
+// is LIFTED (precedent: FB-023). The component now takes `data` as a prop
+// and renders accordions over the live themes returned by the Glean-backed
+// helper at lib/peec/sentiment-insights.ts.
 
 import { useState } from 'react'
 import { Sparkles, ChevronRight } from 'lucide-react'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
-
-const SANDBOX_CLIENT_SLUG = 'avenue-z'
-
-type PositiveTheme = { title: string; urls: string[] }
-type Weakness = { title: string; explanation: string }
-
-const SENTIMENT_PCT = 89.4
-const SENTIMENT_LABEL = 'Positive'
-
-const POSITIVE_THEMES: PositiveTheme[] = [
-  {
-    title: 'Strong AI Visibility Gains',
-    urls: [
-      'https://avenuez.com/blog/top-ai-seo-agencies-2025/',
-      'https://amclickworks.com/blog/ai-seo-agencies/',
-      'https://20northmarketing.com/blog/top-ai-optimization-agencies',
-    ],
-  },
-  {
-    title: 'Expert LLM Visibility Optimization',
-    urls: [
-      'https://nogood.io/blog/best-answer-engine-optimization-agencies/',
-      'https://compare.growthmarshal.io/best-aio-agencies-2026/',
-    ],
-  },
-  {
-    title: 'Leading AI Search Optimization',
-    urls: [
-      'https://avenuez.com/blog/top-ai-seo-agencies-2025/',
-      'https://adogy.com/the-top-generative-engine-optimization-geo-agencies/',
-      'https://m8l.com/blog/top-10-answer-engine-optimization-aeo-agencies',
-      'https://icoda.io/ai/best-ai-seo-agency-fintech/',
-      'https://avenuez.com/blog/best-ai-search-optimization-marketing-agencies-to-rank-on-chatgpt/',
-      'https://gracker.ai/news/top-10-ai-seo-agencies-digital-marketing-firms-for-2026',
-    ],
-  },
-  {
-    title: 'Leading Answer & Generative Optimization',
-    urls: [
-      'https://growthmarketingpro.com/best-geo-marketing-agencies/',
-    ],
-  },
-  {
-    title: 'Effective PR & SEO Integration',
-    urls: [
-      'https://singlegrain.com/search-everywhere-optimization/10-expert-geo-seo-agencies-capturing-local-visibility-in-2025/',
-      'https://martech.zone/best-ai-seo-agencies/',
-      'https://userp.io/seo/top-ai-seo-agencies/',
-      'https://rankz.co/blog/best-agencies-for-ai-search-optimization/',
-      'https://firstpagesage.com/seo-blog/the-top-answer-engine-optimization-aeo-companies/',
-      'https://greenbananaseo.com/best-ai-seo-agencies-2026-category-winners-scoring-rubric-enterprise-picks/',
-      'https://position.digital/blog/top-geo-agencies/',
-    ],
-  },
-  {
-    title: 'Strong Visibility Measurement',
-    urls: [
-      'https://icoda.io/ai/best-ai-seo-agency-fintech/',
-    ],
-  },
-  {
-    title: 'Strong Industry Reputation',
-    urls: [
-      'https://nogood.io/blog/best-answer-engine-optimization-agencies/',
-    ],
-  },
-  {
-    title: 'Proven Client Success',
-    urls: [
-      'https://avenuez.com/blog/top-ai-seo-agencies-2025/',
-      'https://clutch.co/profile/avenue-z',
-      'https://position.digital/blog/top-geo-agencies/',
-    ],
-  },
-]
-
-const WEAKNESSES: Weakness[] = [
-  {
-    title: 'Unclear Answer Engine Methodology',
-    explanation: 'This seems to be due to lack of content around methodology of attributing ROI to AI search efforts.',
-  },
-  {
-    title: 'Unproven Answer Engine Impact',
-    explanation: 'This seems to be due to lack of independent validation of impact.',
-  },
-]
+import type { SentimentInsights as SentimentInsightsData } from '@/lib/peec/sentiment-insights'
 
 const HEADLINE_TOOLTIP =
-  'Share of AI-cited sources expressing positive sentiment toward the brand. Sentiment is classified across the positive themes and weaknesses below. Avenue Z sandbox: static for now while we validate the layout; wires to live per-client data later.'
+  'Share of analyzed AI-cited URLs classified as positive in tone toward your brand. Themes are grouped from URL titles and metadata by the Glean Chat API.'
 
 function hostOf(url: string): string {
   try {
@@ -114,6 +23,18 @@ function hostOf(url: string): string {
   } catch {
     return url
   }
+}
+
+function pctLabel(p: number): string {
+  if (p >= 75) return 'Positive'
+  if (p >= 45) return 'Mixed'
+  return 'Negative'
+}
+
+function pctTint(p: number): { ring: string; bg: string; text: string } {
+  if (p >= 75) return { ring: 'border-[#60FF80]/30', bg: 'bg-[#60FF80]/10', text: 'text-[#60FF80]' }
+  if (p >= 45) return { ring: 'border-[#FFD700]/30', bg: 'bg-[#FFD700]/10', text: 'text-[#FFD700]' }
+  return { ring: 'border-[#FF4444]/30', bg: 'bg-[#FF4444]/10', text: 'text-[#FF4444]' }
 }
 
 function ThemeAccordion({
@@ -152,13 +73,9 @@ function ThemeAccordion({
   )
 }
 
-export function SentimentInsights({ clientSlug }: { clientSlug?: string }) {
-  // Sandbox: only Avenue Z gets the static content. Other clients render
-  // nothing in this slot. Same gate pattern as FB-006 Winners/Losers.
-  const [openPos, setOpenPos] = useState<Set<number>>(new Set())
-  const [openWeak, setOpenWeak] = useState<Set<number>>(new Set())
-
-  if (clientSlug !== SANDBOX_CLIENT_SLUG) return null
+export function SentimentInsights({ data }: { data: SentimentInsightsData | null }) {
+  const [openPos, setOpenPos]   = useState<Set<number>>(new Set())
+  const [openNeg, setOpenNeg]   = useState<Set<number>>(new Set())
 
   const togglePos = (i: number) => {
     const next = new Set(openPos)
@@ -166,12 +83,14 @@ export function SentimentInsights({ clientSlug }: { clientSlug?: string }) {
     else next.add(i)
     setOpenPos(next)
   }
-  const toggleWeak = (i: number) => {
-    const next = new Set(openWeak)
+  const toggleNeg = (i: number) => {
+    const next = new Set(openNeg)
     if (next.has(i)) next.delete(i)
     else next.add(i)
-    setOpenWeak(next)
+    setOpenNeg(next)
   }
+
+  const noData = !data || data.analyzedUrlCount === 0
 
   return (
     <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
@@ -181,73 +100,114 @@ export function SentimentInsights({ clientSlug }: { clientSlug?: string }) {
         </span>
         <h3 className="text-sm font-bold uppercase tracking-widest text-text-muted">Sentiment Insights</h3>
         <InfoTooltip text={HEADLINE_TOOLTIP} />
-        <span
-          className="ml-auto inline-flex items-center gap-2 rounded-full border border-[#60FF80]/30 bg-[#60FF80]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#60FF80]"
-          title="Current sentiment headline"
-        >
-          {SENTIMENT_LABEL}
-          <span className="tabular-nums">{SENTIMENT_PCT.toFixed(1)}%</span>
-        </span>
+        {!noData && (() => {
+          const tint = pctTint(data!.sentimentPct)
+          return (
+            <span
+              className={`ml-auto inline-flex items-center gap-2 rounded-full border ${tint.ring} ${tint.bg} px-3 py-1 text-xs font-bold uppercase tracking-widest ${tint.text}`}
+              title="Sentiment headline for the selected date range and model"
+            >
+              {pctLabel(data!.sentimentPct)}
+              <span className="tabular-nums">{data!.sentimentPct.toFixed(1)}%</span>
+            </span>
+          )
+        })()}
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-2 items-stretch">
-        {/* Positive Themes */}
-        <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
-          <h4 className="mb-1 text-base font-bold text-white">Positive Themes</h4>
-          <p className="mb-3 text-xs text-text-muted">
-            What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand. Click a theme to see the citing sources.
-          </p>
-          <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
-            {POSITIVE_THEMES.map((theme, i) => (
-              <ThemeAccordion
-                key={theme.title}
-                title={theme.title}
-                count={theme.urls.length}
-                expanded={openPos.has(i)}
-                onToggle={() => togglePos(i)}
-              >
-                <ul className="space-y-1.5">
-                  {theme.urls.map((url) => (
-                    <li key={url} className="flex gap-2 text-xs leading-relaxed">
-                      <span className="text-[#60FF80]">›</span>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="break-all text-white/80 underline-offset-2 hover:text-white hover:underline"
-                        title={url}
-                      >
-                        {hostOf(url)}
-                        <span className="text-text-muted"> · {url.replace(/^https?:\/\/[^/]+/, '') || '/'}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </ThemeAccordion>
-            ))}
-          </div>
-        </div>
+      {noData && (
+        <p className="text-sm text-text-muted">
+          Not enough AI-cited URLs in this date range or model selection to classify sentiment. Try a wider date range or all-models view.
+        </p>
+      )}
 
-        {/* Negative Themes */}
-        <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
-          <h4 className="mb-1 text-base font-bold text-white">Negative Themes</h4>
-          <p className="mb-3 text-xs text-text-muted">
-            What AI-cited sources flag as <span className="font-bold text-white">gaps</span>. Click a theme to see the explanation.
-          </p>
-          <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
-            {WEAKNESSES.map((w, i) => (
-              <ThemeAccordion
-                key={w.title}
-                title={w.title}
-                expanded={openWeak.has(i)}
-                onToggle={() => toggleWeak(i)}
-              >
-                <p className="text-xs leading-relaxed text-white/80">{w.explanation}</p>
-              </ThemeAccordion>
-            ))}
+      {!noData && (
+        <div className="grid gap-5 lg:grid-cols-2 items-stretch">
+          {/* Positive Themes */}
+          <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
+            <h4 className="mb-1 text-base font-bold text-white">Positive Themes</h4>
+            <p className="mb-3 text-xs text-text-muted">
+              What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand. Click a theme to see the citing sources.
+            </p>
+            <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
+              {data!.positiveThemes.length === 0 ? (
+                <p className="text-xs text-text-muted">No positive themes detected in this period.</p>
+              ) : (
+                data!.positiveThemes.map((theme, i) => (
+                  <ThemeAccordion
+                    key={`${theme.title}-${i}`}
+                    title={theme.title}
+                    count={theme.urls.length}
+                    expanded={openPos.has(i)}
+                    onToggle={() => togglePos(i)}
+                  >
+                    <ul className="space-y-1.5">
+                      {theme.urls.map((url) => (
+                        <li key={url} className="flex gap-2 text-xs leading-relaxed">
+                          <span className="text-[#60FF80]">›</span>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="break-all text-white/80 underline-offset-2 hover:text-white hover:underline"
+                            title={url}
+                          >
+                            {hostOf(url)}
+                            <span className="text-text-muted"> · {url.replace(/^https?:\/\/[^/]+/, '') || '/'}</span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </ThemeAccordion>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Negative Themes */}
+          <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
+            <h4 className="mb-1 text-base font-bold text-white">Negative Themes</h4>
+            <p className="mb-3 text-xs text-text-muted">
+              What AI-cited sources flag as <span className="font-bold text-white">gaps</span>. Click a theme to see the explanation.
+            </p>
+            <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
+              {data!.negativeThemes.length === 0 ? (
+                <p className="text-xs text-text-muted">No negative themes detected in this period.</p>
+              ) : (
+                data!.negativeThemes.map((w, i) => (
+                  <ThemeAccordion
+                    key={`${w.title}-${i}`}
+                    title={w.title}
+                    count={w.urls.length}
+                    expanded={openNeg.has(i)}
+                    onToggle={() => toggleNeg(i)}
+                  >
+                    <p className="mb-2 text-xs leading-relaxed text-white/80">{w.explanation}</p>
+                    {w.urls.length > 0 && (
+                      <ul className="space-y-1.5">
+                        {w.urls.map((url) => (
+                          <li key={url} className="flex gap-2 text-xs leading-relaxed">
+                            <span className="text-[#FF4444]">›</span>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="break-all text-white/80 underline-offset-2 hover:text-white hover:underline"
+                              title={url}
+                            >
+                              {hostOf(url)}
+                              <span className="text-text-muted"> · {url.replace(/^https?:\/\/[^/]+/, '') || '/'}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </ThemeAccordion>
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   )
 }

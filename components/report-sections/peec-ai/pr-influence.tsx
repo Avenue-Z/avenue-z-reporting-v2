@@ -15,6 +15,7 @@ import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
 import { SentimentInsights } from './sentiment-insights'
+import { getSentimentInsights, applyEnginesFilter, modelKeyOf } from '@/lib/peec/sentiment-insights'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
@@ -353,6 +354,26 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   const placementsCitedByAI = filteredMatchbackRows.filter(r => r.citedByAI).length
 
+  // ── FB-026 · Sentiment Insights (live, date + model reactive) ─────────────
+  // Filter per-URL citations to the active model selection (same engines-rule
+  // as filteredMatchbackRows above: URLs with no engines at all are dropped
+  // when a filter is active). Then call the Glean-backed sentiment helper;
+  // it returns an empty insights object when there is no data to analyze,
+  // and the component renders an honest empty state.
+  const sentimentCitations = applyEnginesFilter(urlCitations, models)
+  const sentimentModelKey  = modelKeyOf(models)
+  let sentimentData: Awaited<ReturnType<typeof getSentimentInsights>> | null = null
+  if (!demoMode) {
+    try {
+      sentimentData = await getSentimentInsights(clientSlug, dateRange, sentimentModelKey, {
+        citations: sentimentCitations,
+      })
+    } catch (e) {
+      console.error('[pr-influence] sentiment insights generation failed:', e)
+      sentimentData = null
+    }
+  }
+
   // Build opportunity rows (Section E)
   const opportunityRows = data
     ? computeOpportunityRows(data.trackedPrompts, editorialDomains, data.topDomains ?? [], coverage)
@@ -512,12 +533,8 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         context={synopsisContext}
       />
 
-      {/* ── FB-010 + FB-011 · Sentiment Insights ── */}
-      {/* Placement per FB-011: directly below the Executive Synopsis. Tina's
-          mockup flow is Synopsis -> Sentiment Insights -> Top Editorial
-          Domains; Matchback wasn't on her layout so it lives below.
-          Sandboxed to Avenue Z; renders nothing for other clients. */}
-      <SentimentInsights clientSlug={clientSlug} />
+      {/* ── FB-026 · Sentiment Insights (live, Glean-backed, date + model reactive) ── */}
+      <SentimentInsights data={sentimentData} />
 
       {/* ── FB-012 · Top Editorial Domains + Prompt Cluster Opportunity, side-by-side ──
           Tina's recommended layout: Synopsis -> Sentiment -> Top Editorial -> Prompt Clusters,
