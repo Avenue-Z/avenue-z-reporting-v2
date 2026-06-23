@@ -8,6 +8,16 @@ import { clients } from '@/lib/db/schema'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import type { DashboardConfig } from '@/lib/dashboard/types'
+import { resolveBlockNL } from '@/lib/dashboard/nl/resolve'
+import { resolveAggregateNL } from '@/lib/dashboard/nl/aggregate-resolve'
+import type { ResolutionResult } from '@/lib/dashboard/nl/types'
+import type { AggregateResolutionResult } from '@/lib/dashboard/nl/aggregate-types'
+
+export type ProposeBlockInput = {
+  source: 'supermetrics' | 'triplewhale' | 'aggregate'
+  prompt: string // NL prompt for leaf sources; the formula for aggregate
+  slug: string
+}
 
 /**
  * Save a client's configurable dashboard. Internal admins may edit any client;
@@ -32,4 +42,23 @@ export async function saveDashboardConfig(
 
   revalidatePath('/', 'layout')
   return { ok: true }
+}
+
+/**
+ * Resolve a natural-language block request into a proposal (or clarify/error)
+ * via the server-side resolvers. Same edit-permission gate as save.
+ */
+export async function proposeBlock(
+  input: ProposeBlockInput,
+): Promise<ResolutionResult | AggregateResolutionResult> {
+  const session = await auth()
+  if (!session?.user) return { kind: 'error', error: 'unauthenticated' }
+  if (!canEditDashboard(session.user.role, session.user.clientSlug, input.slug)) {
+    return { kind: 'error', error: 'forbidden' }
+  }
+  const actAsEmail = session.user.email ?? ''
+  if (input.source === 'aggregate') {
+    return resolveAggregateNL({ formula: input.prompt, actAsEmail })
+  }
+  return resolveBlockNL({ source: input.source, prompt: input.prompt, actAsEmail })
 }
