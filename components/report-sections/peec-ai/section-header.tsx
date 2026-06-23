@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
 type Props = {
   icon: LucideIcon
   title: string
-  subtitle: string
+  subtitle?: string
   badge?: ReactNode
 }
 
@@ -24,7 +24,7 @@ export function SectionHeader({ icon: Icon, title, subtitle, badge }: Props) {
           <h2 className="text-lg font-bold text-white">{title}</h2>
           {badge}
         </div>
-        <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+        {subtitle && <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>}
       </div>
     </div>
   )

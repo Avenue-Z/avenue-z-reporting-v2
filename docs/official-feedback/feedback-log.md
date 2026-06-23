@@ -16,6 +16,235 @@ _(none)_
 
 ## Closed
 
+### FB-024 — YTD chart pinned to today + drop misleading "Tracking began" line + revert Neon column
+
+- **Status:** done
+- **Source:** Thomas after Paul declined the FB-022 Neon migration. Re-read of Tina's literal CSV E7: *"this YTD chart is changing based on the date range selector. Please make static to always show YTD."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** data layer fix + cleanup
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, `components/report-sections/peec-ai/visibility-chart.tsx`, `components/report-sections/peec-ai/index.tsx`, `lib/db/schema.ts`, deleted `drizzle/0010_jittery_nextwave.sql` + `drizzle/meta/0010_snapshot.json` + journal entry.
+
+#### Problems FB-022 left open
+
+1. **YTD window still partially reacted to the picker.** FB-022 computed `ytd = { start: Jan 1 of year(mainDates.endDate), end: mainDates.endDate }`. For relative ranges the picker uses today as endDate, so the chart looked static. But for custom historical ranges (e.g. user picks "Jan 1 to Mar 15"), the chart truncated to that end date. Not literally what Tina asked for.
+2. **"Tracking began" line was unsourceable** without the Neon column Paul declined. FB-022 wired it through a new `clients.firstTrackedAt` DB column + Drizzle migration; without the migration the SELECT would fail at runtime.
+
+#### Solution
+
+1. **Pin YTD window to today.** Both clients now compute `ytd = { start: Jan 1 of current year, end: today }`, completely independent of `mainDates.endDate`. Chart is truly static. The picker has zero effect on it.
+2. **Drop the "Tracking began" display entirely.** Tina called the displayed value incorrect. With no source of truth (Neon column reverted), the honest answer is to remove the misleading line. The chart's H1 ("How has AI visibility grown this year?") + the page-level YTD selector already communicate the time window.
+3. **Revert the Neon work.** Removed `firstTrackedAt` from `lib/db/schema.ts`. Deleted the Drizzle migration SQL + snapshot JSON. Reverted the journal entry. Dropped the `firstTrackedAt` prop from `ProviderSection` + `<VisibilityChart>`.
+
+#### Freshness
+
+Chart refreshes daily without any new wiring. Page load triggers the YTD fetch (subject to the existing 1h `cached()` TTL). Peec's nightly ingest lands new bars by morning; once the cache TTL expires, the fresh data appears.
+
+#### Files touched
+
+- `lib/peec/client.ts` — YTD `end_date` now pinned to today (was `mainDates.endDate`).
+- `lib/profound/client.ts` — YTD `end_date` now pinned to today.
+- `components/report-sections/peec-ai/visibility-chart.tsx` — dropped `firstTrackedAt?: Date | null` prop, dropped `trackingStart` declaration, dropped the `<p>Tracking began ...</p>` display line. Tooltip retained (it's accurate).
+- `components/report-sections/peec-ai/index.tsx` — dropped `firstTrackedAt` from `ProviderSection` prop type + destructure + both invocations.
+- `lib/db/schema.ts` — reverted the `firstTrackedAt: timestamp('first_tracked_at', { mode: 'date' })` column add.
+- DELETED `drizzle/0010_jittery_nextwave.sql`, DELETED `drizzle/meta/0010_snapshot.json`, reverted `drizzle/meta/_journal.json` entry idx 10.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- `npx tsx lib/peec/winners-losers.test.ts` all 16 assertions pass.
+- `grep firstTrackedAt|first_tracked_at` across lib/components/app/drizzle returns zero hits.
+- `grep trackingStart|Tracking began` returns zero hits.
+
+#### Open risks
+
+None. Code-only change. No DB touch.
+
+#### Lineage
+
+Supersedes the DB-column portion of FB-022. Keeps FB-022's YTD-fetch and tooltip improvements.
+
+---
+
+### FB-023 — Winners/Losers cards: live, date AND model reactive (CSV E11)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, cell E11: *"ISSUE: This seems like static copy and should be pulling actual data. It doesn't change when a new date range or model is selected and is an exact copy of the example text I provided."*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** data layer + compute + UI rewrite + sandbox lift
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, NEW `lib/peec/winners-losers.ts`, NEW `lib/peec/winners-losers.test.ts`, `components/report-sections/peec-ai/winners-losers-cards.tsx`, `components/report-sections/peec-ai/index.tsx`.
+
+#### Literal interpretation
+
+Tina named BOTH date range AND model selection. Honored literally: cards react to both. Sandbox gate also lifted; keeping the gate would mean other clients see nothing, contradicting "should be pulling actual data" for any client.
+
+#### Two-part change
+
+1. **Data layer (`lib/peec/client.ts`)**:
+   - Updated the existing `promptBrandsRes` fetch to dimension by `['prompt_id', 'model_channel_id', 'model_id']`. Limit bumped 2000 to 5000 to absorb the larger (prompt × model) row count.
+   - Added `promptBrandsPriorRes` with the same model-dimensioned shape, bounded to the prior period.
+   - Built per-prompt-per-model position maps for both periods, scoped to your brand.
+   - Flattened across models for the legacy `promptMetricsById` consumer (downstream code keeps its previous semantics).
+   - Extended `TrackedPrompt` type with `positionByModel` + `priorPositionByModel` (`Partial<Record<AEOModel, number>>`).
+   - Cache version stays at v8 (FB-022 + FB-023 ship together in this branch); comment updated.
+
+2. **Compute + UI**:
+   - New `lib/peec/winners-losers.ts` with TWO pure functions: `applyModelFilter(prompts, models)` collapses per-model maps to flat `{ position, priorPosition }` per prompt, restricted to selected models. `computeWinnersLosers(flat)` splits into winners (delta > 0) and losers (delta < 0), sorts by absolute delta, caps at 20 per side.
+   - Unit tests for both (model filter scenarios + averaging + drops + all compute edge cases). Uses `node:assert` and `tsx` to match the project's existing test convention.
+   - `winners-losers-cards.tsx` rewritten props-driven. Static const arrays removed. Sandbox gate lifted. Empty state copy mentions both date and model.
+   - `peec-ai/index.tsx` `ProviderSection`: chains `applyModelFilter` then `computeWinnersLosers` using the active `models` prop. Profound provider variant runs the same compute but yields empty arrays because Profound's per-model maps are always empty (parity-only mirror).
+
+3. **Profound parity (type-level only)**:
+   - `lib/profound/client.ts` `TrackedPrompt` mirrors the new fields with empty maps. Profound's Overview shows the cards in their empty state because Profound's API doesn't yet expose per-prompt-per-model rows. A separate Profound-parity FB can wire actual data when needed.
+
+#### Lineage
+
+Supersedes FB-006 (static Avenue Z arrays + clientSlug-gated render).
+
+#### Scope of impact
+
+Overview tab Winners/Losers cards. Other surfaces that consume `data.trackedPrompts` see two new fields added to the type; they don't reference them so they are unaffected. Flattened `position` / `visibility` / `sov` fields keep their previous semantics. Demo data (`lib/demo-data/peec.ts`, `lib/demo-data/profound.ts`) typed and populated with empty per-model maps so the Overview demo mode still renders.
+
+#### Performance note
+
+One additional `peecPost('/reports/brands')` per Overview page load (the prior-period prompt fetch). Plus larger response on the current-period fetch (rows now per-prompt-per-model). `limit: 5000` should suffice for current clients; verify during smoke and bump if Peec returns truncated pages. Caches per `(clientSlug, dateRange)` for 1 hour.
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output.
+- `npx tsx lib/peec/winners-losers.test.ts` — 16 assertions pass.
+- Static verification only (tsc + tsx); dev-server smoke deferred until the FB-022 migration is applied so the chart works end-to-end.
+
+#### Open risks
+
+- **`limit: 5000` truncation:** If a client has > 5000 (prompt × model) rows, Peec returns the first page only. Detected during dev smoke by checking response length.
+- **Thin-history clients:** Brand-new clients with no comparable prior period or no prompts under selected models get the empty-state message. Literal "actual data or nothing" interpretation.
+- **Profound provider variant on Overview:** shows empty cards until Profound parity ships.
+
+---
+
+### FB-022 — Visibility chart truly YTD + show correct "Tracking began" date (CSV E7)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, cell E7: *"ISSUE: 'Tracking began May 18' – this is incorrect, this workspace has been tracking data since March 28, 2025. I think that this YTD chart is changing based on the date range selector. Please make static to always show YTD."*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** data layer + display
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, `lib/db/schema.ts`, `drizzle/0010_jittery_nextwave.sql` (new migration), `components/report-sections/peec-ai/index.tsx`, `components/report-sections/peec-ai/visibility-chart.tsx`.
+
+#### Two-part issue
+
+1. **Data-layer bug:** `dailyVisibility` was fetched with the date-range-bound `current` body in both clients. The chart's tooltip claimed YTD but the data tracked the picker. Tina caught it.
+2. **Display bug:** "Tracking began May 18" was rendered from `bucketDaily(data, 'weekly')[0]?.label`, i.e., the first weekly bucket of whatever data was passed in. When the picker was "Last 30 days" and today was a Tuesday, the first weekly bucket fell on a recent Monday. It was a misleading artifact of the picker-bound fetch, not a workspace inception date.
+
+#### Decision (literal CSV fix)
+
+Tina gave us the correct date (March 28, 2025) and said the displayed date is incorrect. Honored literally by sourcing the date from a new `clients.firstTrackedAt` column populated per-client. The leftmost X-axis bucket label of the now-truly-YTD chart won't reflect Avenue Z's actual inception when it predates the current year. Only the DB-sourced label can.
+
+#### Implementation
+
+- `lib/db/schema.ts`: added `firstTrackedAt: timestamp('first_tracked_at', { mode: 'date' })` to clients table.
+- `drizzle/0010_jittery_nextwave.sql`: additive nullable ALTER TABLE migration (auto-generated via drizzle-kit generate).
+- `lib/peec/client.ts`: added YTD window compute; parallel `trendRowsYTD` fetch; routed `dailyVisibility`/`competitorDailyVisibility` to YTD; bumped cache version v7 to v8.
+- `lib/profound/client.ts`: added YTD window compute; added `weeklyYTDRes` fetch in the Promise.all; routed `dailyVisibility`/`competitorDailyVisibility` to YTD; bumped cache version v4 to v5.
+- `components/report-sections/peec-ai/index.tsx`: threaded `firstTrackedAt` from `getClientBySlug` through `ProviderSection` to `<VisibilityChart>`.
+- `components/report-sections/peec-ai/visibility-chart.tsx`: replaced `trackingStart` calc with `firstTrackedAt: Date | null` prop. Formats + displays as "Tracking began {full date}" when provided; omits the line when null. Updated header tooltip from "fixed to year-to-date" to "Year-to-date, this chart shows the full year regardless of the page date picker."
+
+#### Scope of impact
+
+Overview tab visibility chart on both Peec + Profound provider variants. `weeklyVisibility` (consumed by `components/report-sections/demand-overview/index.tsx`) is intentionally LEFT as picker-range bound. Different feature, different consumer.
+
+#### Performance note
+
+Two additional API calls per Overview page load (one to Peec, one to Profound for clients with both). YTD ranges are wider than picker ranges, so payload is larger. The `cached()` wrapper caches per `(clientSlug, dateRange)` for 1 hour.
+
+#### Verification
+
+- `npx tsc --noEmit`: zero output.
+- `grep trackingStart` shows the new firstTrackedAt-sourced declaration only in visibility-chart.tsx.
+
+#### Open follow-ups (post-commit operational)
+
+- Apply the migration: `npx drizzle-kit migrate` (Thomas to run after review).
+- Populate Avenue Z: `UPDATE clients SET first_tracked_at = '2025-03-28T00:00:00Z' WHERE slug = 'avenue-z';` (Thomas to run after migration).
+- Non-Avenue-Z clients are left NULL until backfilled. Their chart silently omits the "Tracking began" line. Acceptable for the v2 review (Tina is reviewing Avenue Z).
+
+#### Open risks
+
+None code-side. Operational risks above.
+
+---
+
+### FB-021 — Remove "Which prompts are AI engines answering with our brand?" chart (Rule #11, CSV E12)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, row 12 (free-standing column-E entry, no original ask in columns A-D): *"REMOVE Chart: 'Which prompts are AI engines answering with our brand?' at the very bottom. This wasn't explicitly stated to remove in the initial doc, but it was not included in the recommended layout."*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** layout removal
+- **Scope:** `components/report-sections/peec-ai/index.tsx`, `components/report-sections/profound-ai/index.tsx`. Two component files deleted entirely.
+
+#### Decision
+
+Honor Rule #11 ("recommended layout = full spec"): if it's not in Tina's recommended layout, it gets removed. Apply to BOTH the Peec provider variant AND the Profound provider variant of the Overview tab for layout parity. Delete the two component files since no other surface imports them.
+
+#### Implementation
+
+- `peec-ai/index.tsx`: removed the 5-line render block conditional on `data.trackedPrompts.length > 0` (rendered TrackedPromptsChart for Peec, ProfoundTrackedPromptsChart for Profound). Removed both imports.
+- `profound-ai/index.tsx`: removed the Tracked prompts render block + comment. Removed the import.
+- Deleted `components/report-sections/peec-ai/tracked-prompts-chart.tsx` and `components/report-sections/profound-ai/tracked-prompts-chart.tsx`.
+
+#### Scope of impact
+
+- Universal layout removal. Both Peec and Profound clients lose the chart from the Overview tab.
+- `data.trackedPrompts` field on PeecOverview + ProfoundOverview types KEPT — still consumed by PR Influence (synopsis context, opportunity rows), Content Impact (citation density), AI summaries, demand-overview, report-generator, and both synopsis libs.
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output.
+- `grep -rn "TrackedPromptsChart\|ProfoundTrackedPromptsChart"` returns zero hits across components/app/lib.
+- `grep -rn "trackedPrompts"` (excluding the deleted files) still returns >10 hits — field intact for downstream consumers.
+
+#### Open risks
+
+None. Pure render removal; no data layer changes.
+
+---
+
+### FB-020 — Remove Overview SectionHeader subtitle (CSV E2)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, cell E2: *"REMOVE: Subtitle 'Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors.'"*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** copy / layout
+- **Scope:** `components/report-sections/peec-ai/section-header.tsx`, `components/report-sections/peec-ai/index.tsx`. Overview tab only. Other 3 AEO tabs unchanged.
+
+#### Decision
+
+Drop the `subtitle` prop from the `<SectionHeader>` call on the Overview tab. Make `subtitle` optional in the shared `SectionHeader` component so the other 3 AEO tabs (PR Influence, Content Impact, Technical Performance) keep their own subtitles unchanged.
+
+#### Implementation
+
+- `section-header.tsx`: `subtitle: string` → `subtitle?: string`. The `<p>` render wrapped in `{subtitle && (...)}` so the line is omitted when no subtitle is passed.
+- `peec-ai/index.tsx` Overview SectionHeader call: removed the `subtitle="..."` line. Title, icon, badge unchanged.
+
+#### Scope of impact
+
+- Every current client sees the Overview header render without a subtitle. Universal layout change, not sandboxed.
+- Other 3 tabs still pass their own subtitle strings (verified via grep):
+  - `pr-influence.tsx:501` — `subtitle="Where earned media earns LLM citations..."`
+  - `content-impact.tsx:589` — `subtitle="Which content assets earn LLM citations..."`
+  - `technical-audit.tsx:388` — `subtitle="AEO technical health. Structured data..."`
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output (clean).
+- Visual: Overview header renders green Sparkles + question only (no subtitle line below). Other 3 tabs unchanged.
+- Grep confirms each non-Overview SectionHeader call still passes a non-empty subtitle.
+
+#### Open risks
+
+None. Trivial prop drop. Conditional render preserves existing tabs.
+
+---
+
 ### FB-019 — Match Prompt Clusters chart height to Top Editorial Domains card (fix dead space + thin bars)
 
 - **Status:** done

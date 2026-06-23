@@ -34,7 +34,6 @@ export function VisibilityChart({
   const CHART_MAX = Math.max(...buckets.map((d) => d.visibility), ...compBuckets.map((d) => d.visibility), 1)
   const n = buckets.length
   const compMap = new Map(compBuckets.map((d) => [d.key, d.visibility]))
-  const trackingStart = data.length > 0 ? bucketDaily(data, 'weekly')[0]?.label : undefined
 
   const competitorPoints = buckets
     .map((b, i) => ({ x: (i + 0.5) / n, vis: compMap.get(b.key) ?? null }))
@@ -52,10 +51,9 @@ export function VisibilityChart({
         <div>
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">How has AI visibility grown this year?</p>
-            <InfoTooltip text="Percentage of AI responses where your brand appears. This chart is fixed to year-to-date and does not respond to the page date picker." />
+            <InfoTooltip text="Percentage of AI responses where your brand appears. Year-to-date — this chart shows the full year regardless of the page date picker." />
           </div>
           {brandName && <p className="mt-0.5 text-xs text-text-muted">{brandName} · {granularity}</p>}
-          {trackingStart && <p className="mt-0.5 text-[11px] text-text-muted">Tracking began {trackingStart}</p>}
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">

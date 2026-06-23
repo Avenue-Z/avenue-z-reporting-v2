@@ -19,11 +19,22 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** `official-feedback-pr-influence-tab`
-- **HEAD:** `30465fd`
-- **PR:** [#52 — AEO PR Influence tab: official feedback (FB-009+)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — OPEN + DRAFT
-- **Base:** `main` (currently `8aa61a8`)
-- **Status:** mid-batch on PR Influence. FB-009 (synopsis + KPI strip removal), FB-010 (Sentiment Insights), FB-011 (Sentiment placement correction), FB-012 (reduce Top Editorial + Prompt Cluster bar chart + side-by-side + Matchback drops below + methodology block removed), FB-013 (per-cluster editorialCitationDensity fix), FB-014 (Top Editorial Opportunities retitle + redesign, Next Pitch deleted), FB-015 (Matchback removed for structural 1:1 with Tina's 5-section mockup) all shipped to this branch. Awaiting Tina's next ask or her sign-off. Next FB ID is **FB-016**.
+- **Branch:** `official-feedback-overview-v2`
+- **HEAD:** `6debb4b` (FB-023 SHA backfill)
+- **Base:** `main` (currently `a2d39b3`)
+- **Status:** Overview v2 iteration shipped (FB-020 → FB-023). Closes every ⚠️ row in Tina's Overview-tab v1 scorecard CSV. Awaiting Tina v2 review.
+- **Items shipped this batch:**
+  - **FB-020** (CSV E2) — Drop SectionHeader subtitle on Overview. `subtitle?: string` now optional in shared component; other 3 AEO tabs keep their own.
+  - **FB-021** (CSV E12, Rule #11) — Remove "Which prompts are AI engines answering with our brand?" chart from both Peec + Profound Overview RSCs. Both component files deleted. `data.trackedPrompts` field kept (consumed by 6+ other surfaces).
+  - **FB-022 + FB-024** (CSV E7) — Visibility chart truly YTD on both providers, pinned to today (Jan 1 of current year through today's date), completely independent of the page date picker. Separate YTD fetch in `lib/peec/client.ts` + `lib/profound/client.ts`; cache versions bumped (peec v7→v8, profound v4→v5). FB-024 reverted the FB-022 Neon column path (Paul declined the DB change) and dropped the misleading "Tracking began" line entirely. Tooltip retained. Chart refreshes daily via 1h `cached()` TTL + nightly Peec ingest.
+  - **FB-023** (CSV E11) — Winners/Losers cards: live per-period compute reactive to BOTH date range AND model filter. Model-dimensioned current + prior prompt fetches in `lib/peec/client.ts` (limit 5000). New `lib/peec/winners-losers.ts` with `applyModelFilter` + `computeWinnersLosers` (16 unit tests via `node:assert`). Sandbox gate lifted; empty-state copy added. Profound type mirrored (empty maps) for parity; Profound provider variant shows empty state until parity FB ships.
+- **Open operational follow-ups (post-merge, not blocking PR review):**
+  - Profound parity on Winners/Losers (requires Profound API to expose per-prompt-per-model rows — separate FB if needed).
+- **Content Impact branch:** parked at `official-feedback-content-impact-tab` (docs-only diff). Resume when Tina sends Content Impact feedback.
+- **Next FB ID:** **FB-025**.
+- **PRs merged historically from earlier branches:**
+  - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22
+  - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22
 
 ## Per-tab workflow going forward
 
@@ -34,11 +45,13 @@ One branch + one PR per AEO sub-tab.
 | Overview | `official-feedback-overview-tab` | [#50](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50) | MERGED |
 | Vis-bar fix (Overview hotfix) | `fix/llm-visibility-bar-scale` | [#53](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/53) | MERGED |
 | FB-006 sandbox (Overview hotfix) | `fix/sandbox-avenue-z-static-content` | [#54](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/54) | MERGED |
-| **PR Influence** | **`official-feedback-pr-influence-tab`** | **[#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52)** | **OPEN + DRAFT** |
-| Content Impact | `official-feedback-content-impact-tab` | (future) | not started |
+| PR Influence (initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
+| PR Influence (FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
+| **Content Impact** | **`official-feedback-content-impact-tab`** | (future) | **ACTIVE — Tina's Google Doc incoming** |
+| Overview iteration (parked) | TBD (cut from main when resumed) | (future) | PARKED — plan complete, see [plan-overview-iteration.md](plan-overview-iteration.md) |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-020.**
+FB IDs continue sequentially across all branches. **Next ID is FB-020** (reclaimed from the parked Overview plan).
 
 ---
 
@@ -66,7 +79,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-020.**
 | **FB-016** | PR Influence | this branch (PR #52) | `4215718` | Visual fix: tooltip on Prompt Clusters bar chart showed "Citation Share : X.X%" in unreadable near-black. Recharts <Tooltip> has separate `labelStyle` + `itemStyle` props beyond `contentStyle`; default itemStyle was rgb(51,51,51). Added explicit white labelStyle + itemStyle. |
 | **FB-017** | PR Influence | this branch (PR #52) | `75db637` | Sentiment Insights right column relabeled from "Weaknesses" to "Negative Themes" to match Tina's literal layout spec ("Positive Themes & Negative Themes side-by-side"). FB-010 had used "Weaknesses" because the underlying content was framed that way. One-line label + copy fix; data/state/behavior unchanged. |
 | **FB-018** | PR Influence | this branch (PR #52) | `30465fd` | Copy correction: Sentiment Insights column intros said "Tap a theme..." but Tina's literal spec said "click on a theme." One-word fix, both columns. |
-| **FB-019** | PR Influence | this branch (follow-up PR needed) | `ff14652` | Post-merge layout polish. Tightened Prompt Clusters chart height + thickened bars so the side-by-side cards end flush with no dead space, and bars look less anemic. Two-line tweak inside `PromptClusterOpportunityMatrix`. |
+| **FB-019** | PR Influence | merged via [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | `ff14652` | Post-merge layout polish. Tightened Prompt Clusters chart height + thickened bars so the side-by-side cards end flush with no dead space, and bars look less anemic. Two-line tweak inside `PromptClusterOpportunityMatrix`. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
@@ -84,6 +97,7 @@ Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA 
 8. **Glean Chat API only** for any LLM inference. See `lib/glean.ts` `gleanChat()` for the canonical pattern.
 9. **Universal across clients for design / layout / UX.** Per-client conditionals ONLY for the Avenue Z sandbox gate on static content.
 10. **Sandbox to Avenue Z** when content is hardcoded Avenue Z data. `const SANDBOX_CLIENT_SLUG = 'avenue-z'` + `if (clientSlug !== SANDBOX_CLIENT_SLUG) return null` at the top of the component. Pass `clientSlug` down from the parent.
+11. **Recommended layout = full spec.** *(Added 2026-06-22, confirmed by Tina.)* When Tina sends a "Recommended layout" mockup for a tab, treat it as the COMPLETE spec, not as a list of edits. Anything currently rendering on the tab that is NOT in her recommended layout gets removed by default. This applies retroactively too: when iterating on a tab, audit any section still rendering against her latest layout sketch and remove what is not there. Confirmed by Tina when she flagged "Which prompts are AI engines answering with our brand?" on the Overview tab — she said: "It seems like the guiding principle for this exercise is if it's not in the recommended layout, then it's gone." We applied this on PR Influence (FB-015 removed Matchback for exactly this reason). We did NOT apply it retroactively to Overview, hence the tracked-prompts chart still being there.
 
 ---
 

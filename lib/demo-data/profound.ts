@@ -118,7 +118,7 @@ export function sampleProfoundOverview(): ProfoundOverview {
     yourBrandCitationsPrior: 174,
     totalCitationsPrior:    1492,
     domainTypes:   DOMAIN_TYPES,
-    trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
+    trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, positionByModel: {}, priorPositionByModel: {}, topicSource: 'inferred' as const })),
     llmBreakdown:  LLM_BREAKDOWN,
   }
 }
