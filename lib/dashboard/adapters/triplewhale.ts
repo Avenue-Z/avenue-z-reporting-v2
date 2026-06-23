@@ -1,6 +1,6 @@
 // lib/dashboard/adapters/triplewhale.ts
 import { twSql, twValue, TwQueryError } from '@/lib/triplewhale/client'
-import { buildMetricSql, isTwMetric } from '@/lib/triplewhale/queries'
+import { buildMetricSql } from '@/lib/triplewhale/queries'
 import type { LeafValue, TripleWhaleBinding } from '../types'
 import { DisconnectedError, NoDataError } from '../errors'
 
@@ -15,8 +15,6 @@ export async function resolveTripleWhaleLeaf(
   dateRange: string,
   compareRange: string | null,
 ): Promise<LeafValue> {
-  if (!isTwMetric(b.metric)) throw new TwQueryError(`Unknown TripleWhale metric: ${b.metric}`)
-
   const { getClientBySlug } = await import('@/lib/db/queries')
   const { parseDateRange } = await import('@/lib/ga4/client')
   const { resolveCompareIso } = await import('@/lib/paid-search/base')
@@ -25,7 +23,7 @@ export async function resolveTripleWhaleLeaf(
   const shopId = (await getClientBySlug(ctx.slug))?.triplewhaleShopId
   if (!apiKey || !shopId) throw new DisconnectedError(`TripleWhale not connected for ${ctx.slug}`)
 
-  const query = buildMetricSql(b.metric)
+  const query = buildMetricSql(b.metric, b.filters)
   const fetchValue = async (isoRange: string): Promise<number> => {
     const [startDate, endDate] = isoRange.split(',')
     const rows = await twSql({ apiKey, shopId, query, startDate, endDate })
