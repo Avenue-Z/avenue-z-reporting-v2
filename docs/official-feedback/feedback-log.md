@@ -16,6 +16,268 @@ _(none)_
 
 ## Closed
 
+### FB-031 — Harden PR Influence synopsis against Glean contradiction
+
+- **Status:** done
+- **Source:** Thomas eyeballed the Vercel preview of PR #64 and caught the Executive Synopsis saying *"AI cited 8 editorial domains, and there were 0 editorial domains where the brand was absent during the period."* while the Top Editorial Opportunities table on the same page showed 5 brand-absent editorial URLs. Two surfaces on the same page contradicted each other.
+- **Author:** Thomas (caught) / Claude (implementation)
+- **Type:** correctness hardening (no UI change)
+- **Scope:** `lib/peec/pr-influence-synopsis.ts`, new `lib/peec/pr-influence-synopsis.test.ts`
+
+#### Problem
+
+The PR Influence Executive Synopsis is a Glean Chat response grounded in `synopsisContext`. In the preview, Glean returned prose that flatly contradicted the table directly beneath it. Code-trace confirmed both surfaces source from the same `byHost` map (`synopsisContext.brandAbsentCount = byHost.size`; table = `sortedByHost.slice(0, 50)`), so they cannot differ at render-time. Root cause was either Glean hallucinating around a numeric count or a stale cached response sneaking past the arg-based cache key. Either way, the previous prompt did not have a rule forbidding the model from rounding a positive count to zero, and there was no post-generation check.
+
+#### Solution — four defensive layers
+
+1. **Prompt hardening.** Section labels in the user message marked `USE THESE EXACT VALUES` so Glean cannot mistake them for prose-adjustable inputs. New explicit `Data integrity (strict)` rule: never round a positive count to zero, never say "no" when a count is positive, never state a positive number when a count is zero.
+2. **Post-Glean validator** (new exported `validateSynopsisGrounding`). Scans the returned prose for three numeric-claim patterns and verifies each one against `synopsisContext`:
+   - brand-absent host count (the exact bug we hit, in both phrasing variants)
+   - total editorial domains cited (`N editorial domains`)
+   - `N of M placements` AI-citation rate
+3. **Retry-on-violation.** If the validator finds a violation, the helper retries once with a stricter prompt that names the specific contradictions. On second failure it throws — the component's existing try/catch (in `pr-influence-synopsis.tsx`) renders the graceful "Synopsis is temporarily unavailable" empty state. We never ship prose that contradicts the page.
+4. **Cache version bump.** `v2-glean-pri` → `v3-glean-pri-grounded` so any older cached responses generated under the weaker integrity rule are evicted on deploy.
+
+#### Files touched
+
+- `lib/peec/pr-influence-synopsis.ts` — prompt hardening, new `validateSynopsisGrounding` export, retry-on-violation loop in `getPRInfluenceSynopsis`, cache version bump.
+- `lib/peec/pr-influence-synopsis.test.ts` — **new file.** 13 unit assertions locking the validator contract. The first assertion reproduces the production bug verbatim and asserts validation flags it.
+
+#### Verification
+
+- `npx tsx lib/peec/pr-influence-synopsis.test.ts` — all 13 assertions pass.
+- `npx tsx lib/peec/sentiment-insights.test.ts` — still green.
+- `npx tsx lib/peec/winners-losers.test.ts` — still green.
+- `npx tsc --noEmit` — zero output.
+- Type signature of `getPRInfluenceSynopsis` unchanged. `pr-influence-synopsis.tsx` requires no edits.
+
+#### Open risks
+
+- The validator regex set is intentionally narrow (three known patterns) to avoid false positives on natural Glean prose. If Glean invents a fourth way to contradict the context, the validator will not catch it. Mitigation: cache bump + stricter prompt should reduce the rate; we extend the regex set if a new pattern surfaces.
+- Overview synopsis (`lib/peec/synopsis.ts`) is **not** hardened in this commit. That is a deliberate scope cut — reserved as a follow-up so this fix can ship clean.
+
+### FB-030 — Remove bottom footnote on PR Influence
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 24 (unmarked REMOVE ask). Verbatim: *"REMOVE: This footnote at the very bottom of report. 'PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . 3 PR placements (2025-06-06 to 2026-01-27)'"*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI removal
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`
+
+#### Problem
+
+A trailing `<p className="text-xs text-text-muted">` block at the bottom of the PR Influence RSC concatenated tab title, data-source disclosure, and PR placement count + date range into a small-print footnote. Tina explicitly asked it gone.
+
+#### Solution
+
+Deleted the `<p>` block entirely. No replacement. The file's top-of-file `// PR Influence on AI Visibility` code comment header is preserved because it is not user-visible.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence.tsx` — one `<p>` block deleted.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Grep confirms the only remaining occurrence of the string "PR Influence on AI Visibility" is in the top-of-file code comment, not in JSX.
+- Existing tests still pass.
+
+#### Open risks
+
+None. Pure deletion, no behavior change beyond removing the footnote.
+
+### FB-029 — PR Placement Matchback restored under Exec Summary
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 23 (R23 REVISION). Verbatim: *"REVISION: We would like to add a chart right beneath the exec summary that is showing this information requested from the PRD. I think the PR placement matchback was the answer to this but somehow got left out of the outline or maybe accidentally was deleted."* PRD quote: *"Did placements achieved by the PR team get cited in AI? The dashboard must compare a maintained list of PR-secured placements against the list of editorial URLs cited in tracked AI answers."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** restore + simplify (formerly removed in FB-015 commit `81b2277` per Tina's V1 5-section layout; her V2 REVISION explicitly asks for it back)
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/pr-influence-tables.tsx`
+
+#### Problem
+
+The PR Placement Matchback table answered the PRD question "Did placements achieved by the PR team get cited in AI?". FB-015 removed it because Tina's V1 5-section "Recommended layout" omitted it. Tina V2 R23 REVISION explicitly says it was the answer to the PRD ask and should be restored — right beneath the Executive Synopsis.
+
+#### Solution
+
+- New focused `PRPlacementMatchbackTable` in `pr-influence-tables.tsx` with 5 columns: Publication / Article / Publish Date / Cited by AI? / AI Engines. Simpler than the pre-FB-015 13-column version. Mapped to Tina's literal title ("which placements are showing up in AI citations").
+- Tina's verbatim title and subtitle wired through the existing `<SectionHeading>` component.
+- "N of M placements cited by AI (rate%)" summary line above the table for instant readability.
+- Rendered between `<PRInfluenceSynopsis>` and `<SentimentInsights>` in `pr-influence.tsx` — exactly where Tina asked.
+- Reuses the still-live `filteredMatchbackRows` (date + model aware) and `placementsCitedByAI` — both kept after FB-015 for the synopsis context. No new fetches, no new data layer.
+- Universal across clients. Empty-state copy honest when there are no placements in the selected timeframe.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — new `PRPlacementMatchbackTable` component + `PRPlacementMatchbackRow` type appended.
+- `components/report-sections/peec-ai/pr-influence.tsx` — import + matchback row list + render between Synopsis and Sentiment.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Grep confirms Tina's verbatim title and subtitle strings live in the source.
+- Existing tests still pass.
+
+#### Open risks
+
+None. Data layer was already in place; this is pure restore + simplified render.
+
+### FB-028 — Top Editorial Opportunities: URL-level brand-absent, Tina R15 5-col shape preserved
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV. R15 ✅ (the V1-accepted 5-column shape that must stay): *"Top Editorial Opportunities: 5 columns (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share)"*. R16 ⚠️: *"There should be more than one pitch opportunity here. When I look in Peec and look at URLs and filter to editorial, there are thousands of articles."* R17 ⚠️: *"See issue above, there must be something wrong with one of the filters."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** data-layer rewrite + table column shape preserved
+- **Scope:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/pr-influence-tables.tsx`
+
+#### Problems
+
+Three compounding bugs collapsed the production table to 0-1 rows even when Peec held hundreds of brand-absent editorial URLs:
+1. `brandAbsentDomains = editorialDomains.filter(d => !prDomains.has(d.domain.toLowerCase()))` defined "brand absent" as "no PR placement on this domain." Wrong definition. A brand can have no PR placement on a domain yet still be mentioned in editorial articles cited there.
+2. `brandAbsentRowsFiltered = brandAbsentDomains.filter((d) => d.retrievedDelta > 0)` required a positive period-over-period delta at the DOMAIN level. R15 ✅'d "Delta of Citation Share" as a COLUMN to DISPLAY, not as a filter to GATE inclusion. Removed.
+3. `.slice(0, 20)` capped the collapsed list.
+
+#### Solution
+
+- **Row source:** `urlCitations` (URL-level), date-scoped to the page date range. The pre-existing `getUrlCitations(clientSlug)` call passed no opts, defaulting to internal `last30()` — also fixed.
+- **Brand-absent filter:** `c.mentionsYourBrand === false` (R16 literal).
+- **Editorial filter:** `c.classification?.toLowerCase() === 'editorial'` (R16's "filter to editorial" Peec UI literal) with a host cross-reference fallback against `editorialDomains` so the table is never silently empty.
+- **Honest Citation Share:** `c.citationCount / sumOfAllPeriodCitations * 100`.
+- **Honest Delta of Citation Share:** added prior-period `getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })` to `Promise.allSettled`. Built `priorShareByUrlKey` map. `delta = currentShare - priorShare`. Reuses the existing `<CitationDelta>` ↑/↓ widget.
+- **R15 ✅ 5 columns preserved verbatim**: Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share.
+- **One row per host:** top brand-absent editorial URL on each host (table reads cleanly when one domain has many brand-absent URLs).
+- **Cap raised from 20 to 50.**
+- **Synopsis context** (`brandAbsentCount` + `topBrandAbsentDomains`) sources from the same URL-level `byHost` map for table-prose consistency.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — `BrandAbsentEditorialDomainRow` shape (replaced `citationCount` + `citationCountDelta` with `citationShare` + `citationShareDelta`), `BrandAbsentEditorialDomainsTable` columns (all 5 columns kept, value formulas updated).
+- `components/report-sections/peec-ai/pr-influence.tsx` — `Promise.allSettled` adds `urlCitationsPriorResult`; URL fetches date-scoped to page range; entire brand-absent compute block rewritten; synopsis context sources from `byHost` map.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- `npx tsx lib/peec/sentiment-insights.test.ts` still passes.
+- `npx tsx lib/peec/winners-losers.test.ts` still passes.
+- Grep confirms the legacy `!prDomains.has` misdefinition and `retrievedDelta > 0` gate no longer appear in `pr-influence.tsx`.
+- Grep confirms both R15 column labels live in `pr-influence-tables.tsx`.
+
+#### Open risks
+
+- The primary editorial filter is `classification === 'editorial'`. If Peec exposes a different exact string (e.g. `'Editorial'` capitalized differently, or `'editorial_news'`), the lowercase check still matches `'editorial'` substring. If it doesn't match at all, the host cross-ref fallback kicks in. Worth verifying on the Vercel preview that the table is populated.
+- URL-level prior-period data depends on Peec returning per-URL rows for the prior date window. If `resolvedCompare` is null (e.g. very long custom range), prior fetch resolves to `[]` and `priorShareByUrlKey` is empty — all deltas equal currentShare in that case. Honest fallback.
+
+### FB-027 — Dynamic X-axis on Prompt Clusters chart
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 14 (R14). Verbatim: *"ISSUE: The bars are appearing very small, can we have this chart dynamically adjust to better show the relativity of rows? For example, if the highest value of one of the rows is only 3.1%, the X-axis doesn't need to go all the way up to 100%. Maybe it could be adjusted to the next highest '5' or '10'."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** chart axis fix
+- **Scope:** `components/report-sections/peec-ai/pr-influence-tables.tsx` — `PromptClusterOpportunityMatrix` only.
+
+#### Problem
+
+`<XAxis domain={[0, 100]}>` was hard-pinned. When a client's top editorial-citation-share value is small (Tina's example: 3.1%), every bar renders as an anemic sliver against the 100% scale.
+
+#### Solution
+
+Compute `maxValue = Math.max(...chartData.map(d => d.value))`. Round it up:
+- `maxValue === 0` → fallback to `upper = 5` (axis still renders gridlines).
+- `maxValue <= 10` → `upper = Math.ceil(maxValue / 5) * 5` (next multiple of 5).
+- `maxValue > 10` → `upper = Math.ceil(maxValue / 10) * 10` (next multiple of 10).
+
+Pass `domain={[0, upper]}` to the X-axis. Everything else unchanged — same chart, same colors, same tooltip, same heights.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` — `PromptClusterOpportunityMatrix` function body.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Grep confirms `domain={[0, 100]}` is gone and `domain={[0, upper]}` is present.
+- Existing tests (lib/peec/sentiment-insights.test.ts + lib/peec/winners-losers.test.ts) still pass.
+
+#### Open risks
+
+None. Single-block change, pure presentation, no data layer impact.
+
+### FB-026 — Live Glean-backed Sentiment Insights, date + model reactive
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV rows R4 + R5 (both same complaint, on the card body and the pill). Verbatim: *"ISSUE: This seems like static copy and should be pulling actual data. It doesn't change when a new date range or model is selected and is an exact copy of the example text I provided."*
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** new feature (live data + Glean classification) + component rewrite
+- **Scope:** `lib/peec/sentiment-insights.ts` (NEW), `lib/peec/sentiment-insights.test.ts` (NEW), `components/report-sections/peec-ai/sentiment-insights.tsx` (rewrite), `components/report-sections/peec-ai/pr-influence.tsx` (RSC plumbing)
+
+#### Problem
+
+Pre-FB-026 the Sentiment Insights card was 100% hardcoded Avenue Z sandbox content: `POSITIVE_THEMES` array, `WEAKNESSES` array, `SENTIMENT_PCT = 89.4`, and a `SANDBOX_CLIENT_SLUG === 'avenue-z'` gate that hid it on every other client. It did not react to the page date range or the model filter because there was no data flow.
+
+#### Solution
+
+1. New `lib/peec/sentiment-insights.ts` helper that:
+   - Accepts per-URL citation data already filtered to period + model by the caller.
+   - Sends the URLs + titles to Glean Chat with a strict-JSON output schema.
+   - Returns `{ sentimentPct, positiveThemes[], negativeThemes[], analyzedUrlCount }`.
+   - Cached per `(clientSlug, dateRange, modelKey)` for one hour. `modelKey` is a stable sorted-comma-join.
+   - Mirrors the canonical `lib/peec/synopsis.ts` pattern (three-tier JSON extractor, gleanChat with saveChat:false, no actAs).
+2. New `lib/peec/sentiment-insights.test.ts` with 10 assertions covering `applyEnginesFilter` and `modelKeyOf`.
+3. `sentiment-insights.tsx` rewritten as a props-driven `'use client'` component that accepts `data: SentimentInsights | null` and renders accordions over the live themes. The pill tint + label derive from the live `sentimentPct`. Empty state copy is honest when zero AI-cited URLs are available.
+4. `pr-influence.tsx` filters URL citations to the active model selection (`applyEnginesFilter`), calls `getSentimentInsights` server-side, and passes the result via props. Wrapped in try/catch so a Glean failure does not crash the page.
+
+The Avenue Z sandbox gate is LIFTED. Every client sees live sentiment.
+
+#### Files touched
+
+- `lib/peec/sentiment-insights.ts` (NEW)
+- `lib/peec/sentiment-insights.test.ts` (NEW)
+- `components/report-sections/peec-ai/sentiment-insights.tsx` (full rewrite)
+- `components/report-sections/peec-ai/pr-influence.tsx` (imports + RSC plumbing + JSX)
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- `npx tsx lib/peec/sentiment-insights.test.ts` all 10 assertions pass.
+- `npx tsx lib/peec/winners-losers.test.ts` still passes.
+- Glean call uses `gleanChat()` with `saveChat: false` and no `actAs` (USER token).
+
+#### Open risks
+
+- Quality of themes depends on Glean's classification accuracy over URL titles. If a period has too few cited URLs (or titles are missing), the empty state path is the honest outcome.
+- Cache key is keyed on `modelKey` plus `dateRange` plus `clientSlug`. Different model orderings collapse to the same key via `modelKeyOf` (sorted-join).
+
+### FB-025 — Round synopsis numerics + strict format rule
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 2 (R2). Verbatim: *"ISSUE: The executive synopsis is returning long decimals that are standing out as unnecessary."* Example she provided: `growthmarketingpro.com at 2.6297537434931484 AI citations`.
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** prompt + format fix
+- **Scope:** `lib/peec/pr-influence-synopsis.ts`
+
+#### Problem
+
+`buildContext()` interpolated per-domain citation counts (Peec `retrieved` field, a float percentage) and opportunity scores (derived 0-100) into the Glean prompt as raw numbers. Glean dutifully echoed them into prose verbatim, producing readable-but-ugly long decimals in the Executive Synopsis.
+
+#### Solution
+
+1. `d.citationCount.toFixed(1)` for per-domain interpolations; `Math.round(o.score)` for opportunity scores.
+2. New strict 'Number formatting' rule in the prompt: at most 1 decimal in prose, integers stay integers, percentages render as 'N.N%', counts use thousands separators.
+3. Bumped cache version `v1-glean-pri` → `v2-glean-pri` so previously-cached responses with raw floats are flushed.
+
+#### Files touched
+
+- `lib/peec/pr-influence-synopsis.ts` — `buildContext()` body, `getPRInfluenceSynopsisImpl()` prompt string, `cached()` version field.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Existing tests (lib/peec/winners-losers.test.ts) still pass.
+
+#### Open risks
+
+None. Single-file change, no schema or render-layer impact.
+
 ### FB-024 — YTD chart pinned to today + drop misleading "Tracking began" line + revert Neon column
 
 - **Status:** done

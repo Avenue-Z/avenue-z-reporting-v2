@@ -19,10 +19,10 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** none currently active. On `main` at `1d8d9e9` (Overview v2 batch just merged via PR #63).
-- **Next round:** PR Influence v2 — Tina has additional feedback on the PR Influence tab. New branch to be cut from current `main` when work begins.
-- **Suggested next branch:** `official-feedback-pr-influence-v2` (cut from `1d8d9e9`).
-- **Next FB ID:** **FB-025**.
+- **Branch:** `official-feedback-pr-influence-v2` (cut from `main` at `91a1971`)
+- **PR:** to be opened in this task; URL recorded in changelog post-merge.
+- **Round:** PR Influence v2 — closes every ⚠️ row in Tina's PR Influence v1 CSV (R2, R4, R5, R14, R16, R17, R23) + the R24 REMOVE ask.
+- **Next FB ID:** **FB-031**.
 
 ## Recently merged
 
@@ -57,11 +57,11 @@ One branch + one PR per round of feedback per AEO sub-tab.
 | PR Influence (v1, initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
 | PR Influence (v1, FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
 | **Overview (v2)** | `official-feedback-overview-v2` | **[#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63)** | **MERGED 2026-06-23** |
-| **PR Influence (v2)** | `official-feedback-pr-influence-v2` (to cut) | (future) | **NEXT — Tina's v2 feedback incoming** |
+| **PR Influence (v2)** | `official-feedback-pr-influence-v2` | (this PR) | **OPEN — in review** |
 | Content Impact | `official-feedback-content-impact-tab` | (future) | parked — awaiting Tina feedback |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-025.**
+FB IDs continue sequentially across all branches. **Next ID is FB-031.**
 
 ---
 
@@ -95,6 +95,12 @@ FB IDs continue sequentially across all branches. **Next ID is FB-025.**
 | **FB-022** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `360d7c1` | Visibility trend chart truly YTD. Separate YTD fetch in `lib/peec/client.ts` (`trendRowsYTD`) + `lib/profound/client.ts` (`weeklyYTDRes`); `dailyVisibility`/`competitorDailyVisibility` sourced from YTD; `weeklyVisibility` (demand-overview consumer) stays picker-range bound. Cache versions bumped (peec v7→v8, profound v4→v5). Initial implementation also added `clients.firstTrackedAt` DB column + Drizzle migration; that portion was reverted in FB-024 after Paul declined the Neon change. |
 | **FB-023** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `d9086ce` | Winners/Losers cards swapped from static FB-006 arrays to live per-period per-model compute. Updated current `promptBrandsRes` (Peec) with dimensions `['prompt_id','model_channel_id','model_id']` limit 5000; added matching `promptBrandsPriorRes`. Built per-prompt-per-model position maps for both periods. Extended `TrackedPrompt` with `positionByModel` + `priorPositionByModel`. New `lib/peec/winners-losers.ts` with `applyModelFilter` + `computeWinnersLosers` (16 unit tests via `node:assert`). `winners-losers-cards.tsx` rewritten props-driven; **sandbox gate lifted**; empty-state copy mentions both date and model. Profound `TrackedPrompt` mirrored with empty maps for type parity (Profound provider variant shows empty state until parity FB ships). |
 | **FB-024** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `47ea1cb` | Cleanup on top of FB-022 after Paul declined the Neon migration. (1) Pinned YTD chart window to today (Jan 1 of current year through today's date), completely independent of the page date picker. Earlier FB-022 still derived `end_date` from `mainDates.endDate` which truncated for custom historical ranges. (2) Dropped the misleading "Tracking began" line entirely from `visibility-chart.tsx` — no DB read, no fake fallback. (3) Reverted `clients.firstTrackedAt` column add, deleted `drizzle/0010_jittery_nextwave.sql` + meta snapshot + journal entry, dropped `firstTrackedAt` prop threading from `ProviderSection` + `<VisibilityChart>`. Tooltip retained. No Neon touch. |
+| **FB-025** | PR Influence (v2) | this branch (PR future) | `d20b321` | Synopsis decimals fix per Tina v1 CSV R2. buildContext in lib/peec/pr-influence-synopsis.ts now interpolates d.citationCount.toFixed(1) + Math.round(o.score). Prompt strengthened with explicit 'Number formatting (strict)' rule. Cache version v1-glean-pri -> v2-glean-pri. |
+| **FB-026** | PR Influence (v2) | this branch (PR future) | `d385c55` + `79ad31c` | Sentiment Insights wired to live Glean-backed classification per Tina v1 CSV R4 + R5. New lib/peec/sentiment-insights.ts (Glean-backed, cached per clientSlug + dateRange + modelKey, 1h TTL) + lib/peec/sentiment-insights.test.ts (11 assertions, node:assert + tsx). sentiment-insights.tsx rewritten props-driven; SANDBOX_CLIENT_SLUG gate LIFTED (precedent: FB-023). Pill tint + label derive from live sentimentPct. Empty state when zero analyzed URLs. Follow-up `79ad31c` fixed JSDoc + dropped null-title URLs (hallucination bait). Date + model reactive. |
+| **FB-027** | PR Influence (v2) | this branch (PR future) | `e9fbe2c` | Prompt Clusters chart X-axis is now dynamic per Tina v1 CSV R14. domain={[0, upper]} where upper = next 5 (max <= 10) or next 10 (max > 10). Fallback to 5 when empty. One-block edit in PromptClusterOpportunityMatrix. |
+| **FB-028** | PR Influence (v2) | this branch (PR future) | `6cb2e25` + `9eaa991` | Top Editorial Opportunities rewritten per Tina V1 R15 ✅ + R16/R17 ⚠️. R15 ✅ 5-column shape preserved verbatim (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share). Row source flipped from data.topDomains (domain-rows) to urlCitations (URL-rows). Brand-absent now at URL level: mentionsYourBrand=false (R16 literal). Editorial filter: urlCitation.classification === 'editorial' (R16 Peec UI literal) with host cross-ref fallback. Citation Share = URL count / sum-all-period * 100. Delta of Citation Share = currentShare - priorShare from new prior-period URL fetch. Dropped !prDomains.has misdef + retrievedDelta > 0 killer. Cap raised from 20 to 50. URL fetch date-scoped to page range. Follow-up `9eaa991` fixed stale empty-state copy + restored model-filter passthrough via isModelMatch. Synopsis context sources from same URL-level byHost map. |
+| **FB-029** | PR Influence (v2) | this branch (PR future) | `6d37b5a` | PR Placement Matchback restored under Exec Summary per Tina v1 CSV R23 REVISION (was removed in FB-015 #81b2277 per V1 layout; V2 explicitly asks for it back). New focused 5-col PRPlacementMatchbackTable (Publication / Article / Publish Date / Cited by AI? / AI Engines). Tina's literal title + subtitle verbatim. Rendered between <PRInfluenceSynopsis> and <SentimentInsights>. Reuses filteredMatchbackRows (date + model aware). 'N of M placements cited by AI (rate%)' summary above table. |
+| **FB-030** | PR Influence (v2) | this branch (PR future) | `364ee5c` | Removed bottom footnote on PR Influence per Tina v1 CSV R24 ('REMOVE: This footnote at the very bottom of report. PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements ...'). Deleted the trailing <p> block. Top-of-file code comment preserved (not user-visible). |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 

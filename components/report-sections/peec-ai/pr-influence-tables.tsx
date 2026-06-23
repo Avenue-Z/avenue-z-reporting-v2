@@ -141,8 +141,8 @@ export interface BrandAbsentEditorialDomainRow {
   domain: string
   articleTitle: string | null
   articleUrl: string | null
-  citationCount: number
-  citationCountDelta: number
+  citationShare: number       // FB-028: URL's share of total period AI citations, 0-100.
+  citationShareDelta: number  // FB-028: current-period share minus prior-period share (percentage points).
   competitorsMentioned: string | null
 }
 
@@ -192,7 +192,7 @@ export function BrandAbsentEditorialDomainsTable({
       label: 'Competitors Mentioned',
       align: 'left',
       tooltip:
-        'Competing brands mentioned in this article or by this domain in AI responses. (Avenue Z internal.)',
+        'Competing brands mentioned in this article. (Peec AI source data.)',
       accessor: (r) => r.competitorsMentioned ?? '',
       render: (r) =>
         r.competitorsMentioned ? (
@@ -202,26 +202,26 @@ export function BrandAbsentEditorialDomainsTable({
         ),
     },
     {
-      key: 'citationCount',
+      key: 'citationShare',
       label: 'Citation Share',
       align: 'right',
-      tooltip: PEEC.citations.text,
-      accessor: (r) => r.citationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.citationCount.toFixed(1)}%</span>,
+      tooltip: "This URL's share of total tracked-AI citations in the selected period. (URL citation count divided by the sum across all AI-cited URLs in period.)",
+      accessor: (r) => r.citationShare,
+      render: (r) => <span className="tabular-nums text-white">{r.citationShare.toFixed(1)}%</span>,
     },
     {
-      key: 'citationCountDelta',
+      key: 'citationShareDelta',
       label: 'Delta of Citation Share',
       align: 'right',
-      tooltip: 'Period-over-period change in this domain\'s citation share. (Peec AI source data.)',
-      accessor: (r) => r.citationCountDelta,
-      render: (r) => <CitationDelta value={r.citationCountDelta} />,
+      tooltip: "Period-over-period change in this URL's share of AI citations (percentage points).",
+      accessor: (r) => r.citationShareDelta,
+      render: (r) => <CitationDelta value={r.citationShareDelta} />,
     },
   ]
 
   const emptyMessage = !hasEditorialDomains
     ? 'No editorial domain data available from Peec AI'
-    : 'No brand-absent editorial domains with a positive citation share delta in this period.'
+    : 'No brand-absent editorial URLs cited by AI in this period or model selection.'
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
@@ -266,11 +266,22 @@ export function PromptClusterOpportunityMatrix({
       topic: r.cluster,
       value: Number(r.editorialCitationDensity.toFixed(1)),
     }))
-  // FB-019: tighter per-row spacing (24 vs 34) so this card matches the height
-  // of the Top Editorial Domains card in the side-by-side wrapper, and an
-  // explicit barSize so individual bars stay visually prominent even at the
-  // tighter spacing (Tina/Thomas: "less anemic").
+  // FB-019: tighter per-row spacing + explicit barSize so bars stay visually
+  // prominent at the side-by-side height.
   const chartHeight = Math.max(200, chartData.length * 24 + 36)
+
+  // FB-027 — dynamic X-axis upper bound. Tina v1 CSV R14: a 3.1% top value
+  // against a 0-100 axis renders as anemic slivers. Round the max value up
+  // to the next 5 (when max ≤ 10) or the next 10 (when max > 10). Falls back
+  // to 5 when chartData is empty or max is exactly 0 so the axis still
+  // renders gridlines.
+  const maxValue = chartData.length > 0 ? Math.max(...chartData.map((d) => d.value)) : 0
+  const upper =
+    maxValue === 0
+      ? 5
+      : maxValue <= 10
+        ? Math.ceil(maxValue / 5) * 5
+        : Math.ceil(maxValue / 10) * 10
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
@@ -289,7 +300,7 @@ export function PromptClusterOpportunityMatrix({
           >
             <XAxis
               type="number"
-              domain={[0, 100]}
+              domain={[0, upper]}
               tick={{ fill: '#8A8A8A', fontSize: 11 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
               tickLine={false}
@@ -333,3 +344,141 @@ export function PromptClusterOpportunityMatrix({
   )
 }
 
+// ─── 5. PR Placement Matchback (FB-029 — restored under Exec Summary) ────────
+// Tina v1 CSV R23 REVISION. The PRD ask: 'Did placements achieved by the
+// PR team get cited in AI? The dashboard must compare a maintained list of
+// PR-secured placements against the list of editorial URLs cited in tracked
+// AI answers.' This component is the answer. Lives directly under the
+// Executive Synopsis. Reuses filteredMatchbackRows from pr-influence.tsx
+// (already date + model aware). Five columns mapped to Tina's literal
+// title: which placement (Publication + Article), when (Publish Date),
+// is it showing up in AI citations (Cited by AI? + AI Engines).
+
+export interface PRPlacementMatchbackRow {
+  outlet: string
+  headline: string
+  link: string
+  publicationDate: string
+  citedByAI: boolean
+  aiEnginesCiting: string[]
+}
+
+export function PRPlacementMatchbackTable({
+  rows,
+  totalPlacements,
+  placementsCitedByAI,
+}: {
+  rows: PRPlacementMatchbackRow[]
+  totalPlacements: number
+  placementsCitedByAI: number
+}) {
+  const citationRatePct =
+    totalPlacements > 0 ? (placementsCitedByAI / totalPlacements) * 100 : 0
+
+  const columns: SortableColumn<PRPlacementMatchbackRow>[] = [
+    {
+      key: 'outlet',
+      label: 'Publication',
+      align: 'left',
+      accessor: (r) => r.outlet,
+      render: (r) => <span className="font-medium text-white">{r.outlet}</span>,
+    },
+    {
+      key: 'headline',
+      label: 'Article',
+      align: 'left',
+      accessor: (r) => r.headline,
+      render: (r) => (
+        <a
+          href={r.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block max-w-[280px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
+          title={r.headline}
+        >
+          {r.headline}
+        </a>
+      ),
+    },
+    {
+      key: 'publicationDate',
+      label: 'Publish Date',
+      align: 'left',
+      accessor: (r) => r.publicationDate,
+      render: (r) => (
+        <span className="tabular-nums text-white/60">{r.publicationDate || '--'}</span>
+      ),
+    },
+    {
+      key: 'citedByAI',
+      label: 'Cited by AI',
+      align: 'left',
+      tooltip:
+        'Whether this URL or its domain has been cited by any tracked AI engine in Peec AI data. (Peec AI source data.)',
+      accessor: (r) => (r.citedByAI ? 1 : 0),
+      render: (r) => (
+        <span
+          className={cn(
+            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+            r.citedByAI ? 'bg-[#60FDFF]/10 text-[#60FDFF]' : 'bg-white/[0.06] text-white/40',
+          )}
+        >
+          {r.citedByAI ? 'Yes' : 'No'}
+        </span>
+      ),
+    },
+    {
+      key: 'aiEnginesCiting',
+      label: 'AI Engines',
+      align: 'left',
+      tooltip:
+        'List of AI engines (ChatGPT, Perplexity, Gemini, Claude, Copilot, Google) where this URL or its domain was cited. (Peec AI source data.)',
+      accessor: (r) => r.aiEnginesCiting.join(', '),
+      render: (r) =>
+        r.aiEnginesCiting.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {r.aiEnginesCiting.map((e) => (
+              <span
+                key={e}
+                className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-white/80"
+              >
+                {e}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-white/40">--</span>
+        ),
+    },
+  ]
+
+  return (
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
+      <SectionHeading
+        title="Which secured PR placements are showing up in AI citations?"
+        tooltip="Compares your PR-secured placements (PR Proof Library) against the editorial URLs cited in tracked AI answers (Peec AI)."
+        subtitle="See which placements secured in the selected timeframe are being cited in AI-generated answers and how they are shaping brand visibility, sentiment, and reputation across your tracked prompts."
+      />
+      {totalPlacements > 0 && (
+        <p className="mb-4 text-xs text-text-muted">
+          <span className="font-bold tabular-nums text-white">{placementsCitedByAI}</span> of {totalPlacements} placements cited by AI (<span className="tabular-nums">{citationRatePct.toFixed(1)}%</span>)
+        </p>
+      )}
+      {rows.length > 0 ? (
+        <SortableTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.link || r.headline}
+          initialPageSize={15}
+          emptyMessage="No PR placements in the selected timeframe."
+        />
+      ) : (
+        <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
+          <p className="text-xs text-text-muted">
+            No PR placements in the selected timeframe.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}

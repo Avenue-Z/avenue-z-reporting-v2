@@ -15,15 +15,18 @@ import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
 import { SentimentInsights } from './sentiment-insights'
+import { getSentimentInsights, applyEnginesFilter, modelKeyOf } from '@/lib/peec/sentiment-insights'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
   TopEditorialDomainsTable,
   BrandAbsentEditorialDomainsTable,
   PromptClusterOpportunityMatrix,
+  PRPlacementMatchbackTable,
   type TopEditorialDomainRow,
   type BrandAbsentEditorialDomainRow,
   type PromptClusterOpportunityRow,
+  type PRPlacementMatchbackRow,
 } from './pr-influence-tables'
 
 // ---------------------------------------------------------------------------
@@ -204,7 +207,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     : null
 
   // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult] = await Promise.allSettled([
+  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult] = await Promise.allSettled([
     // Editorial domains / citations here are a stable all-time reference set, so
     // request YTD explicitly rather than the page date range.
     getPeecOverview(clientSlug, 'year_to_date'),
@@ -226,7 +229,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         })
       : Promise.resolve(null),
     getDomainCoverage(clientSlug),   // per-domain prompt coverage + tag names (matchback + Section C/D)
-    getUrlCitations(clientSlug),     // per-URL citations (Section D article fields, avg position)
+    getUrlCitations(clientSlug, { startDate: resolvedMain.startDate, endDate: resolvedMain.endDate }),
+    resolvedCompare
+      ? getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })
+      : Promise.resolve([]),
   ])
 
   let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
@@ -237,6 +243,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ? coverageResult.value
     : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }
   let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
+  let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
 
   // Demo mode: force-substitute every data source so the demo never
   // mixes real client data with synthetic. `prIsDemo` is retained as
@@ -249,6 +256,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
     coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }  // demo: matchback/§C/§D use demo fallbacks
     urlCitations   = []  // demo: §D uses demo fallbacks
+    urlCitationsPrior = []  // demo: no prior period
   }
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
@@ -330,16 +338,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
   // Citation-count-weighted avg citations-per-answer per domain (Peec citation_avg).
   const avgCitByDomain = avgCitationsByDomain(urlCitations)
-  // Representative brand-absent URL per host: the highest-cited URL on that host
-  // where our brand is not mentioned — used for Section D Article Title/URL/Competitors.
-  const topBrandAbsentUrlByHost = new Map<string, UrlCitation>()
-  for (const c of urlCitations) {
-    if (c.mentionsYourBrand) continue
-    const k = hostKey(c.domain)
-    const cur = topBrandAbsentUrlByHost.get(k)
-    if (!cur || c.citationCount > cur.citationCount) topBrandAbsentUrlByHost.set(k, c)
-  }
-
   // ── Filter PR placement matchback rows by selected AI models ─────────────────
   // When a filter is active, keep only rows that have at least one cited AI
   // engine matching the selection. Rows with no AI engines at all are DROPPED
@@ -353,17 +351,44 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   const placementsCitedByAI = filteredMatchbackRows.filter(r => r.citedByAI).length
 
+  // ── FB-029 · PR Placement Matchback rows for the new card ─────────────────
+  // Tina v1 CSV R23 REVISION. The data layer (buildMatchback,
+  // filteredMatchbackRows) survived FB-015's removal; the render + component
+  // were what got deleted. Map filteredMatchbackRows to the simplified 5-col
+  // row shape that matches Tina's literal title.
+  const matchbackTableRows: PRPlacementMatchbackRow[] = filteredMatchbackRows.map((r) => ({
+    outlet: r.outlet ?? r.domain,
+    headline: r.headline ?? r.domain,
+    link: r.link ?? '',
+    publicationDate: r.publicationDate ?? '',
+    citedByAI: r.citedByAI,
+    aiEnginesCiting: r.aiEnginesCiting,
+  }))
+
+  // ── FB-026 · Sentiment Insights (live, date + model reactive) ─────────────
+  // Filter per-URL citations to the active model selection (same engines-rule
+  // as filteredMatchbackRows above: URLs with no engines at all are dropped
+  // when a filter is active). Then call the Glean-backed sentiment helper;
+  // it returns an empty insights object when there is no data to analyze,
+  // and the component renders an honest empty state.
+  const sentimentCitations = applyEnginesFilter(urlCitations, models)
+  const sentimentModelKey  = modelKeyOf(models)
+  let sentimentData: Awaited<ReturnType<typeof getSentimentInsights>> | null = null
+  if (!demoMode) {
+    try {
+      sentimentData = await getSentimentInsights(clientSlug, dateRange, sentimentModelKey, {
+        citations: sentimentCitations,
+      })
+    } catch (e) {
+      console.error('[pr-influence] sentiment insights generation failed:', e)
+      sentimentData = null
+    }
+  }
+
   // Build opportunity rows (Section E)
   const opportunityRows = data
     ? computeOpportunityRows(data.trackedPrompts, editorialDomains, data.topDomains ?? [], coverage)
     : []
-
-  // Brand-absent editorial domains (Section D)
-  const brandAbsentDomains = editorialDomains.filter(d => {
-    // Domains cited by AI but NOT in our PR placement domains
-    const prDomains = new Set((prData?.uniqueDomains ?? []).map(pd => pd.toLowerCase()))
-    return !prDomains.has(d.domain.toLowerCase())
-  })
 
   // Prompt Coverage % per editorial domain for Section C — share of tracked
   // prompts in which a URL on the domain is cited (from per-URL citation data).
@@ -396,7 +421,78 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ? filterDomainRowsByModel(rawTopEditorialRows, data.domainCitationsByModel, models)
     : rawTopEditorialRows
 
-  // 3. Brand-Absent Editorial Domains rows
+  // ── FB-028 · Top Editorial Opportunities (URL-level brand-absent, Tina R15+R16+R17) ──
+  // Tina V1 R15 ✅: "5 columns (Publication / Article / Competitors Mentioned /
+  // Citation Share / Delta of Citation Share)" — labels preserved verbatim.
+  // Tina V1 R16 ⚠️: "When I look in Peec and look at URLs and filter to editorial,
+  // there are thousands of articles." → URL-level data source + Peec's literal
+  // editorial filter (classification === 'editorial').
+  // Tina V1 R17 ⚠️: "must be something wrong with one of the filters" → drop the
+  // legacy PR-placement-set misdefinition AND drop the positive-delta gate filter.
+  //
+  // Honest URL-level Citation Share = c.citationCount / sumOfAllPeriodCitations * 100.
+  // Honest URL-level Delta = currentShare - priorShare (priorShare computed from
+  // the new prior-period URL fetch added in Step 4).
+  // One row per host (highest-cited brand-absent editorial URL on that host) so the
+  // table reads cleanly when a single domain has many brand-absent URLs.
+
+  // (a) Editorial check — Tina's literal Peec UI filter, with a host fallback so
+  //     we never go silently empty if Peec exposes a different exact string.
+  const editorialHostSet = new Set(editorialDomains.map((d) => hostKey(d.domain)))
+  const isEditorialUrl = (c: typeof urlCitations[number]): boolean => {
+    const cls = (c.classification ?? '').toLowerCase()
+    if (cls === 'editorial') return true
+    return editorialHostSet.has(hostKey(c.domain))
+  }
+
+  // (b) Per-period totals for honest URL-level share %.
+  const totalCurrentCitations = urlCitations.reduce((s, c) => s + c.citationCount, 0)
+  const totalPriorCitations   = urlCitationsPrior.reduce((s, c) => s + c.citationCount, 0)
+  const priorShareByUrlKey    = new Map<string, number>()
+  if (totalPriorCitations > 0) {
+    for (const c of urlCitationsPrior) {
+      priorShareByUrlKey.set(c.urlKey, (c.citationCount / totalPriorCitations) * 100)
+    }
+  }
+  const shareOf = (c: typeof urlCitations[number]): number =>
+    totalCurrentCitations > 0 ? (c.citationCount / totalCurrentCitations) * 100 : 0
+  const deltaOf = (c: typeof urlCitations[number]): number =>
+    shareOf(c) - (priorShareByUrlKey.get(c.urlKey) ?? 0)
+
+  // (c) Build the row set — URL-level, brand-absent + editorial, one per host.
+  // FB-028 follow-up: also apply the active model filter via c.engines so this
+  // table reacts to model selection (same rule as filteredMatchbackRows above
+  // and applyEnginesFilter in lib/peec/sentiment-insights.ts).
+  const isModelMatch = (c: typeof urlCitations[number]): boolean => {
+    if (!models || models.length === 0) return true
+    if (c.engines.length === 0) return false  // no model-specific signal — drop
+    return c.engines.some((e) => (models as string[]).includes(e))
+  }
+  const opportunityUrls = urlCitations.filter((c) => !c.mentionsYourBrand && isEditorialUrl(c) && isModelMatch(c))
+  const byHost = new Map<string, typeof urlCitations[number]>()
+  for (const u of opportunityUrls) {
+    const k = hostKey(u.domain)
+    const cur = byHost.get(k)
+    if (!cur || u.citationCount > cur.citationCount) byHost.set(k, u)
+  }
+  const sortedByHost = Array.from(byHost.values()).sort((a, b) => b.citationCount - a.citationCount)
+
+  const brandAbsentTableRowsAll: BrandAbsentEditorialDomainRow[] = sortedByHost
+    .slice(0, 50)
+    .map((c) => {
+      const competitors = c.competitorBrandNames
+      return {
+        domain: c.domain,
+        articleTitle: c.title ?? null,
+        articleUrl: c.url ?? null,
+        citationShare: shareOf(c),
+        citationShareDelta: deltaOf(c),
+        competitorsMentioned: competitors.length > 0 ? competitors.join(', ') : 'None',
+      }
+    })
+
+  // (d) Demo mode: keep the original demo arrays for the demo path so the demo
+  //     tab still renders example rows. Real client view goes through (c).
   const DEMO_BRAND_ABSENT_TITLES = [
     'How AI is reshaping editorial coverage',
     'Inside the AEO playbook for 2026',
@@ -422,36 +518,26 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ['BCW', 'Weber Shandwick'],
     ['FleishmanHillard'],
   ]
-  // FB-014 — Top Editorial Opportunities. Tina:
-  // "Only show articles where the brand is not mentioned (or if it has no data
-  //  so we can check manually)" — topBrandAbsentUrlByHost already filters URLs
-  //  to mentionsYourBrand === false; rows where topUrl is null pass through
-  //  with article fields = null so they can be checked manually.
-  // "Only show articles with a positive delta on citation share" — applied as
-  //  `d.retrievedDelta > 0` at the row-build step. brandAbsentDomains itself
-  //  stays unfiltered so the synopsis context still reflects the full brand-absent
-  //  count for executive accuracy.
-  const brandAbsentRowsFiltered = brandAbsentDomains.filter((d) => d.retrievedDelta > 0)
-  const rawBrandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentRowsFiltered.slice(0, 20).map((d, i) => {
-    const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
-    // Representative brand-absent URL cited on this editorial domain (top by citations).
-    const topUrl = topBrandAbsentUrlByHost.get(hostKey(d.domain))
-    return {
-      domain: d.domain,
-      articleTitle: prIsDemo ? DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length] : (topUrl?.title ?? null),
-      articleUrl: prIsDemo ? `https://${d.domain}/${slug}` : (topUrl?.url ?? null),
-      citationCount: d.retrieved,
-      citationCountDelta: d.retrievedDelta,
-      // "None" when we found the article but it named no competitors; -- only
-      // when there's no representative article for the domain at all.
-      competitorsMentioned: prIsDemo
-        ? DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', ')
-        : (topUrl ? (topUrl.competitorBrandNames.length > 0 ? topUrl.competitorBrandNames.join(', ') : 'None') : null),
-    }
-  })
-  const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = data?.domainCitationsByModel
-    ? filterDomainRowsByModel(rawBrandAbsentTableRows, data.domainCitationsByModel, models)
-    : rawBrandAbsentTableRows
+  const demoBrandAbsentRows: BrandAbsentEditorialDomainRow[] = prIsDemo
+    ? editorialDomains.slice(0, 8).map((d, i) => {
+        const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
+        // Demo values: synthetic share % and delta. Real path computes honest values.
+        const demoShare = Number(((d.retrieved ?? 1) * 0.1).toFixed(1))
+        const demoDelta = ((i % 2 === 0 ? 1 : -1) * Number(((i + 1) * 0.3).toFixed(1)))
+        return {
+          domain: d.domain,
+          articleTitle: DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length],
+          articleUrl: `https://${d.domain}/${slug}`,
+          citationShare: demoShare,
+          citationShareDelta: demoDelta,
+          competitorsMentioned: DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', '),
+        }
+      })
+    : []
+
+  const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = prIsDemo
+    ? demoBrandAbsentRows
+    : brandAbsentTableRowsAll
 
   // 4. Prompt Cluster Opportunity Matrix rows
   const opportunityTableRows: PromptClusterOpportunityRow[] = opportunityRows.map((row) => ({
@@ -481,10 +567,14 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     aiReferralSessions:     aiReferralOk ? aiSessions : null,
     aiReferralSessionsDelta: aiSessionsDelta ?? null,
     totalEditorialDomains:  editorialDomains.length,
-    brandAbsentCount:       brandAbsentDomains.length,
-    topBrandAbsentDomains:  brandAbsentDomains.slice(0, 5).map(d => ({
-      domain: d.domain,
-      citationCount: d.retrieved,
+    // FB-028: synopsis count + top list now source from the URL-level byHost map
+    // for consistency with the visible table. Synopsis type uses `citationCount`
+    // (raw integer count) per its existing shape; we pass the URL's raw count
+    // there, not the share %.
+    brandAbsentCount:       byHost.size,
+    topBrandAbsentDomains:  sortedByHost.slice(0, 5).map((c) => ({
+      domain: c.domain,
+      citationCount: c.citationCount,
     })),
     topOpportunityClusters: opportunityRows.slice(0, 3).map(o => ({
       cluster: o.cluster,
@@ -512,12 +602,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         context={synopsisContext}
       />
 
-      {/* ── FB-010 + FB-011 · Sentiment Insights ── */}
-      {/* Placement per FB-011: directly below the Executive Synopsis. Tina's
-          mockup flow is Synopsis -> Sentiment Insights -> Top Editorial
-          Domains; Matchback wasn't on her layout so it lives below.
-          Sandboxed to Avenue Z; renders nothing for other clients. */}
-      <SentimentInsights clientSlug={clientSlug} />
+      {/* ── FB-029 · PR Placement Matchback (restored under Exec Summary per Tina v1 CSV R23 REVISION) ── */}
+      <PRPlacementMatchbackTable
+        rows={matchbackTableRows}
+        totalPlacements={prData?.totalPlacements ?? 0}
+        placementsCitedByAI={placementsCitedByAI}
+      />
+
+      {/* ── FB-026 · Sentiment Insights (live, Glean-backed, date + model reactive) ── */}
+      <SentimentInsights data={sentimentData} />
 
       {/* ── FB-012 · Top Editorial Domains + Prompt Cluster Opportunity, side-by-side ──
           Tina's recommended layout: Synopsis -> Sentiment -> Top Editorial -> Prompt Clusters,
@@ -537,13 +630,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         rows={brandAbsentTableRows}
         hasEditorialDomains={editorialDomains.length > 0}
       />
-
-      <p className="text-xs text-text-muted">
-        PR Influence on AI Visibility
-        {data && ' . Peec AI (live)'}
-        {aiSessions > 0 && ` . GA4 AI referral sessions (live)`}
-        {prData && prData.totalPlacements > 0 && ` . ${prData.totalPlacements} PR placements (${prData.dateRange?.earliest} to ${prData.dateRange?.latest})`}
-      </p>
     </div>
   )
 }
