@@ -22,9 +22,11 @@ import {
   TopEditorialDomainsTable,
   BrandAbsentEditorialDomainsTable,
   PromptClusterOpportunityMatrix,
+  PRPlacementMatchbackTable,
   type TopEditorialDomainRow,
   type BrandAbsentEditorialDomainRow,
   type PromptClusterOpportunityRow,
+  type PRPlacementMatchbackRow,
 } from './pr-influence-tables'
 
 // ---------------------------------------------------------------------------
@@ -349,6 +351,20 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   const placementsCitedByAI = filteredMatchbackRows.filter(r => r.citedByAI).length
 
+  // ── FB-029 · PR Placement Matchback rows for the new card ─────────────────
+  // Tina v1 CSV R23 REVISION. The data layer (buildMatchback,
+  // filteredMatchbackRows) survived FB-015's removal; the render + component
+  // were what got deleted. Map filteredMatchbackRows to the simplified 5-col
+  // row shape that matches Tina's literal title.
+  const matchbackTableRows: PRPlacementMatchbackRow[] = filteredMatchbackRows.map((r) => ({
+    outlet: r.outlet ?? r.domain,
+    headline: r.headline ?? r.domain,
+    link: r.link ?? '',
+    publicationDate: r.publicationDate ?? '',
+    citedByAI: r.citedByAI,
+    aiEnginesCiting: r.aiEnginesCiting,
+  }))
+
   // ── FB-026 · Sentiment Insights (live, date + model reactive) ─────────────
   // Filter per-URL citations to the active model selection (same engines-rule
   // as filteredMatchbackRows above: URLs with no engines at all are dropped
@@ -584,6 +600,13 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         clientSlug={clientSlug}
         dateRange={dateRange}
         context={synopsisContext}
+      />
+
+      {/* ── FB-029 · PR Placement Matchback (restored under Exec Summary per Tina v1 CSV R23 REVISION) ── */}
+      <PRPlacementMatchbackTable
+        rows={matchbackTableRows}
+        totalPlacements={prData?.totalPlacements ?? 0}
+        placementsCitedByAI={placementsCitedByAI}
       />
 
       {/* ── FB-026 · Sentiment Insights (live, Glean-backed, date + model reactive) ── */}
