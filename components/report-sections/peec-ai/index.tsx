@@ -1,5 +1,6 @@
 import { getPeecOverview } from '@/lib/peec/client'
-import type { PeecOverview } from '@/lib/peec/client'
+import type { PeecOverview, TrackedPrompt } from '@/lib/peec/client'
+import { applyModelFilter, computeWinnersLosers } from '@/lib/peec/winners-losers'
 import { getProfoundOverview } from '@/lib/profound/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
 import { BrandRankingsTable } from './brand-rankings-table'
@@ -195,6 +196,16 @@ function ProviderSection({
       ? ((aiTraffic.sessions - aiTraffic.sessionsPrior) / aiTraffic.sessionsPrior) * 100
       : undefined
 
+  // FB-023: Biggest Winners / Biggest Losers — live per-period compute, reactive
+  // to BOTH date range (because trackedPrompts is fetched per-range) AND model
+  // filter (because applyModelFilter restricts the per-model maps to the active
+  // selection). Sandbox gate is lifted — every client sees their own real cards.
+  // Profound provider variant: trackedPrompts have empty positionByModel +
+  // priorPositionByModel maps (parity defer), so applyModelFilter drops them all
+  // and the cards render the empty state.
+  const flat = applyModelFilter(data.trackedPrompts as TrackedPrompt[], models)
+  const { winners, losers } = computeWinnersLosers(flat)
+
   return (
     <div className="space-y-8">
       <SectionHeader
@@ -255,7 +266,11 @@ function ProviderSection({
 
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
 
-      <WinnersLosersCards clientSlug={clientSlug} />
+      <WinnersLosersCards
+        clientSlug={clientSlug}
+        winners={winners}
+        losers={losers}
+      />
 
       <Rankings rankings={data.brandRankings} />
 

@@ -84,8 +84,8 @@ const TOP_DOMAINS_YTD: TopDomain[] = [
   { domain: 'reddit.com',                  retrieved:  2.6, retrievedDelta:  0.4, citationRate:  3.9, citationRateDelta:  0.5, type: 'UGC' },
 ]
 
-// topicSource is added in samplePeecOverview() via .map, so it's omitted here.
-const TRACKED_PROMPTS: Omit<TrackedPrompt, 'topicSource'>[] = [
+// topicSource, positionByModel, priorPositionByModel are added in samplePeecOverview() via .map, so they're omitted here.
+const TRACKED_PROMPTS: Omit<TrackedPrompt, 'topicSource' | 'positionByModel' | 'priorPositionByModel'>[] = [
   // Agency Selection
   { text: 'best PR agency for tech startups',                    sources: ['ChatGPT', 'Claude', 'Perplexity'], visibility: 58.4, sov: 24.1, position: 1.8, group: 'Agency Selection' },
   { text: 'top digital marketing agencies 2026',                 sources: ['ChatGPT', 'Gemini'],               visibility: 48.2, sov: 19.3, position: 2.4, group: 'Agency Selection' },
@@ -169,7 +169,7 @@ export function samplePeecOverview(): PeecOverview {
     yourBrandCitationsPrior:    389,
     totalCitationsPrior:        3082,
     domainTypes:    DOMAIN_TYPES,
-    trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, topicSource: 'inferred' as const })),
+    trackedPrompts: TRACKED_PROMPTS.map((p) => ({ ...p, positionByModel: {}, priorPositionByModel: {}, topicSource: 'inferred' as const })),
     llmBreakdown:   LLM_BREAKDOWN,
     domainCitationsByModel: DOMAIN_CITATIONS_BY_MODEL,
     brandVisibilityByModel: BRAND_VISIBILITY_BY_MODEL,

@@ -3,6 +3,7 @@ import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
 import { buildPeriodChange } from '@/lib/aeo/period-change'
 import { urlJoinKey } from '@/lib/url'
+import type { AEOModel } from '@/lib/peec/models'
 
 const BASE_URL = 'https://api.tryprofound.com'
 
@@ -97,6 +98,13 @@ export type TrackedPrompt = {
   visibility: number
   sov: number
   position: number
+  /** Matches the Peec TrackedPrompt shape for cross-provider type compatibility.
+   *  Profound does not currently fetch model-dimensioned prompt rows — always
+   *  empty objects. The Winners/Losers compute uses these maps; with empty
+   *  maps for both periods, the compute yields empty arrays, so Profound
+   *  variant of Overview shows the empty-state cards. */
+  positionByModel: Partial<Record<AEOModel, number>>
+  priorPositionByModel: Partial<Record<AEOModel, number>>
   group: string
   topicSource: TopicSource
 }
@@ -518,6 +526,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
       visibility:  (r.metrics[0] ?? 0) * 100,
       sov:         (r.metrics[1] ?? 0) * 100,
       position:    r.metrics[2] ?? 0,
+      positionByModel:      {},
+      priorPositionByModel: {},
       group:       promptTopic.get(r.dimensions[0]!) ?? categorizePrompt(r.dimensions[0]!),
       topicSource: (promptTopic.has(r.dimensions[0]!) ? 'provider' : 'inferred') as TopicSource,
     }))

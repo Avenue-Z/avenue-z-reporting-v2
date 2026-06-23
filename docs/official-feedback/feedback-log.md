@@ -16,6 +16,63 @@ _(none)_
 
 ## Closed
 
+### FB-023 — Winners/Losers cards: live, date AND model reactive (CSV E11)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, cell E11: *"ISSUE: This seems like static copy and should be pulling actual data. It doesn't change when a new date range or model is selected and is an exact copy of the example text I provided."*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** data layer + compute + UI rewrite + sandbox lift
+- **Scope:** `lib/peec/client.ts`, `lib/profound/client.ts`, NEW `lib/peec/winners-losers.ts`, NEW `lib/peec/winners-losers.test.ts`, `components/report-sections/peec-ai/winners-losers-cards.tsx`, `components/report-sections/peec-ai/index.tsx`.
+
+#### Literal interpretation
+
+Tina named BOTH date range AND model selection. Honored literally: cards react to both. Sandbox gate also lifted; keeping the gate would mean other clients see nothing, contradicting "should be pulling actual data" for any client.
+
+#### Two-part change
+
+1. **Data layer (`lib/peec/client.ts`)**:
+   - Updated the existing `promptBrandsRes` fetch to dimension by `['prompt_id', 'model_channel_id', 'model_id']`. Limit bumped 2000 to 5000 to absorb the larger (prompt × model) row count.
+   - Added `promptBrandsPriorRes` with the same model-dimensioned shape, bounded to the prior period.
+   - Built per-prompt-per-model position maps for both periods, scoped to your brand.
+   - Flattened across models for the legacy `promptMetricsById` consumer (downstream code keeps its previous semantics).
+   - Extended `TrackedPrompt` type with `positionByModel` + `priorPositionByModel` (`Partial<Record<AEOModel, number>>`).
+   - Cache version stays at v8 (FB-022 + FB-023 ship together in this branch); comment updated.
+
+2. **Compute + UI**:
+   - New `lib/peec/winners-losers.ts` with TWO pure functions: `applyModelFilter(prompts, models)` collapses per-model maps to flat `{ position, priorPosition }` per prompt, restricted to selected models. `computeWinnersLosers(flat)` splits into winners (delta > 0) and losers (delta < 0), sorts by absolute delta, caps at 20 per side.
+   - Unit tests for both (model filter scenarios + averaging + drops + all compute edge cases). Uses `node:assert` and `tsx` to match the project's existing test convention.
+   - `winners-losers-cards.tsx` rewritten props-driven. Static const arrays removed. Sandbox gate lifted. Empty state copy mentions both date and model.
+   - `peec-ai/index.tsx` `ProviderSection`: chains `applyModelFilter` then `computeWinnersLosers` using the active `models` prop. Profound provider variant runs the same compute but yields empty arrays because Profound's per-model maps are always empty (parity-only mirror).
+
+3. **Profound parity (type-level only)**:
+   - `lib/profound/client.ts` `TrackedPrompt` mirrors the new fields with empty maps. Profound's Overview shows the cards in their empty state because Profound's API doesn't yet expose per-prompt-per-model rows. A separate Profound-parity FB can wire actual data when needed.
+
+#### Lineage
+
+Supersedes FB-006 (static Avenue Z arrays + clientSlug-gated render).
+
+#### Scope of impact
+
+Overview tab Winners/Losers cards. Other surfaces that consume `data.trackedPrompts` see two new fields added to the type; they don't reference them so they are unaffected. Flattened `position` / `visibility` / `sov` fields keep their previous semantics. Demo data (`lib/demo-data/peec.ts`, `lib/demo-data/profound.ts`) typed and populated with empty per-model maps so the Overview demo mode still renders.
+
+#### Performance note
+
+One additional `peecPost('/reports/brands')` per Overview page load (the prior-period prompt fetch). Plus larger response on the current-period fetch (rows now per-prompt-per-model). `limit: 5000` should suffice for current clients; verify during smoke and bump if Peec returns truncated pages. Caches per `(clientSlug, dateRange)` for 1 hour.
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output.
+- `npx tsx lib/peec/winners-losers.test.ts` — 16 assertions pass.
+- Static verification only (tsc + tsx); dev-server smoke deferred until the FB-022 migration is applied so the chart works end-to-end.
+
+#### Open risks
+
+- **`limit: 5000` truncation:** If a client has > 5000 (prompt × model) rows, Peec returns the first page only. Detected during dev smoke by checking response length.
+- **Thin-history clients:** Brand-new clients with no comparable prior period or no prompts under selected models get the empty-state message. Literal "actual data or nothing" interpretation.
+- **Profound provider variant on Overview:** shows empty cards until Profound parity ships.
+
+---
+
 ### FB-022 — Visibility chart truly YTD + show correct "Tracking began" date (CSV E7)
 
 - **Status:** done

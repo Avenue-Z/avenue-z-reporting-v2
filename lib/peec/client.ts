@@ -159,6 +159,16 @@ export type TrackedPrompt = {
   visibility: number
   sov: number
   position: number
+  /** FB-023: per-model average rank position in the SELECTED period.
+   *  Empty when this prompt was not surfaced by any tracked model in the
+   *  current period. Used to apply the active model filter on the
+   *  Winners/Losers compute before sorting. */
+  positionByModel: Partial<Record<AEOModel, number>>
+  /** FB-023: per-model average rank position in the IMMEDIATELY-PRECEDING
+   *  period of equal length. Empty when this prompt was not tracked at
+   *  all in the prior period. Used for delta vs prior period in
+   *  Biggest Winners / Biggest Losers. */
+  priorPositionByModel: Partial<Record<AEOModel, number>>
   group: string
   topicSource: TopicSource
 }
@@ -383,12 +393,16 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes, promptBrandsPriorRes] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
-    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id'], limit: 2000 }, pid),
+    // FB-023: prompt-level rows now ALSO dimensioned by model so the Winners/Losers
+    // compute can filter by the active model selection. Limit bumped from 2000 to
+    // 5000 because rows are now (prompt × model). Adjust upward if Peec returns
+    // truncated pages for clients with high prompt counts.
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['prompt_id', 'model_channel_id', 'model_id'], limit: 5000 }, pid),
     peecPost<{ data: ApiQueryRow[]; totalCount: number }>('/queries/search', { ...current, limit: 2000 }, pid),
     // FB-005: include both model_channel_id and model_id so we can bucket by
     // the friendly scraper id (e.g. "gemini-scraper") instead of the channel id
@@ -399,6 +413,10 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     // the prompt's primary subject tag instead of keyword inference.
     peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
     peecGet<{ data: { id: string; messages?: { content?: string }[]; tags?: { id: string }[] }[]; totalCount: number }>('/prompts', { limit: '1000' }, pid),
+    // FB-023: prior-period prompt-level rows, same model-dimensioned shape as the
+    // current-period fetch above. Used for the rank delta in Winners/Losers, with
+    // model-filter reactivity per Tina's literal text on CSV E11.
+    peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior, dimensions: ['prompt_id', 'model_channel_id', 'model_id'], limit: 5000 }, pid),
   ])
 
   // FB-022: keep picker-bound trendRows for weeklyVisibility consumers (the
@@ -507,20 +525,93 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     return null
   }
 
-  // Build UUID → metrics for your brand only
+  // FB-023: Build per-prompt-per-model position maps for the CURRENT period.
+  // promptBrandsRes is now dimensioned by ['prompt_id', 'model_channel_id', 'model_id'],
+  // so each row is one (prompt × model) cell. We aggregate metric averages within
+  // each cell, then later (a) aggregate across all models for promptMetricsById
+  // for non-Winners/Losers consumers, (b) keep the per-model map for the
+  // model-filter-aware Winners/Losers compute.
   type PromptMetric = { visibility: number; sov: number; position: number }
-  const promptMetricsById = new Map<string, PromptMetric>()
-
+  type PromptModelAgg = { visCount: number; visTotal: number; sovSum: number; sovRows: number; posSum: number; posCount: number }
+  const promptModelAggs = new Map<string, Map<AEOModel, PromptModelAgg>>()
   for (const row of promptBrandsRes.data ?? []) {
     if (yourBrand && !row.brand.name.toLowerCase().includes(yourBrand.toLowerCase())) continue
     const uuid = row.prompt?.id != null ? String(row.prompt.id) : null
     if (!uuid) continue
-    const metric: PromptMetric = {
-      visibility: row.visibility_total > 0 ? (row.visibility_count / row.visibility_total) * 100 : 0,
-      sov: row.share_of_voice * 100,
-      position: row.position_count > 0 ? row.position_sum / row.position_count : 0,
+    const rawModelId = row.model?.id ?? row.model_channel?.id ?? ''
+    const model = normalizeSource(rawModelId) as AEOModel | null
+    if (!model) continue
+    if (!promptModelAggs.has(uuid)) promptModelAggs.set(uuid, new Map())
+    const byModel = promptModelAggs.get(uuid)!
+    const existing = byModel.get(model)
+    if (existing) {
+      existing.visCount += row.visibility_count
+      existing.visTotal += row.visibility_total
+      existing.sovSum   += row.share_of_voice
+      existing.sovRows  += 1
+      existing.posSum   += row.position_sum
+      existing.posCount += row.position_count
+    } else {
+      byModel.set(model, {
+        visCount: row.visibility_count, visTotal: row.visibility_total,
+        sovSum:   row.share_of_voice,   sovRows:  1,
+        posSum:   row.position_sum,     posCount: row.position_count,
+      })
     }
-    promptMetricsById.set(uuid, metric)
+  }
+
+  // Flatten per-prompt across all models for the legacy promptMetricsById consumer
+  // (used elsewhere on the page — visibility, sov, position aggregates).
+  const promptMetricsById = new Map<string, PromptMetric>()
+  // And build the per-model position map for Winners/Losers.
+  const positionByUuidByModel = new Map<string, Partial<Record<AEOModel, number>>>()
+  for (const [uuid, byModel] of promptModelAggs.entries()) {
+    let visCount = 0, visTotal = 0, sovSum = 0, sovRows = 0, posSum = 0, posCount = 0
+    const modelMap: Partial<Record<AEOModel, number>> = {}
+    for (const [model, a] of byModel.entries()) {
+      visCount += a.visCount; visTotal += a.visTotal
+      sovSum   += a.sovSum;   sovRows  += a.sovRows
+      posSum   += a.posSum;   posCount += a.posCount
+      if (a.posCount > 0) modelMap[model] = a.posSum / a.posCount
+    }
+    promptMetricsById.set(uuid, {
+      visibility: visTotal > 0 ? (visCount / visTotal) * 100 : 0,
+      sov:        sovRows > 0 ? (sovSum / sovRows) * 100 : 0,
+      position:   posCount > 0 ? posSum / posCount : 0,
+    })
+    positionByUuidByModel.set(uuid, modelMap)
+  }
+
+  // FB-023: same per-prompt-per-model aggregation for the PRIOR period.
+  // Only the position-by-model map is needed downstream — used by
+  // Winners/Losers to compute the rank delta with model-filter reactivity.
+  const priorPositionByUuidByModel = new Map<string, Partial<Record<AEOModel, number>>>()
+  {
+    const priorAggs = new Map<string, Map<AEOModel, { posSum: number; posCount: number }>>()
+    for (const row of promptBrandsPriorRes.data ?? []) {
+      if (yourBrand && !row.brand.name.toLowerCase().includes(yourBrand.toLowerCase())) continue
+      const uuid = row.prompt?.id != null ? String(row.prompt.id) : null
+      if (!uuid) continue
+      const rawModelId = row.model?.id ?? row.model_channel?.id ?? ''
+      const model = normalizeSource(rawModelId) as AEOModel | null
+      if (!model) continue
+      if (!priorAggs.has(uuid)) priorAggs.set(uuid, new Map())
+      const byModel = priorAggs.get(uuid)!
+      const existing = byModel.get(model)
+      if (existing) {
+        existing.posSum   += row.position_sum
+        existing.posCount += row.position_count
+      } else {
+        byModel.set(model, { posSum: row.position_sum, posCount: row.position_count })
+      }
+    }
+    for (const [uuid, byModel] of priorAggs.entries()) {
+      const modelMap: Partial<Record<AEOModel, number>> = {}
+      for (const [model, a] of byModel.entries()) {
+        if (a.posCount > 0) modelMap[model] = a.posSum / a.posCount
+      }
+      priorPositionByUuidByModel.set(uuid, modelMap)
+    }
   }
 
   // Sources cited per prompt UUID (which AI models surfaced each prompt).
@@ -556,6 +647,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
       visibility: m?.visibility ?? 0,
       sov: m?.sov ?? 0,
       position: m?.position ?? 0,
+      positionByModel:      positionByUuidByModel.get(uuid)      ?? {},
+      priorPositionByModel: priorPositionByUuidByModel.get(uuid) ?? {},
       group: subjectTag ?? categorizePrompt(text),
       topicSource: subjectTag ? 'provider' : 'inferred',
     }
@@ -723,6 +816,10 @@ export const getPeecOverview = cached(
     // v8 = FB-022: visibility trend chart now uses a separate YTD fetch
     //      (dailyVisibility/competitorDailyVisibility), while weeklyVisibility
     //      stays picker-range bound for the demand-overview consumer.
+    //      FB-023: TrackedPrompt now carries per-model position maps for both
+    //      current and prior periods, from a new model-dimensioned
+    //      promptBrandsPriorRes fetch + an updated current promptBrandsRes
+    //      with the same dimensions. Used by lib/peec/winners-losers.ts.
     version: 'v8',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
