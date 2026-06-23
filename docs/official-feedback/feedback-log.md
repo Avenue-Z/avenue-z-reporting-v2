@@ -16,6 +16,37 @@ _(none)_
 
 ## Closed
 
+### FB-025 — Round synopsis numerics + strict format rule
+
+- **Status:** done
+- **Source:** Tina v1 PR Influence CSV row 2 (R2). Verbatim: *"ISSUE: The executive synopsis is returning long decimals that are standing out as unnecessary."* Example she provided: `growthmarketingpro.com at 2.6297537434931484 AI citations`.
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** prompt + format fix
+- **Scope:** `lib/peec/pr-influence-synopsis.ts`
+
+#### Problem
+
+`buildContext()` interpolated per-domain citation counts (Peec `retrieved` field, a float percentage) and opportunity scores (derived 0-100) into the Glean prompt as raw numbers. Glean dutifully echoed them into prose verbatim, producing readable-but-ugly long decimals in the Executive Synopsis.
+
+#### Solution
+
+1. `d.citationCount.toFixed(1)` for per-domain interpolations; `Math.round(o.score)` for opportunity scores.
+2. New strict 'Number formatting' rule in the prompt: at most 1 decimal in prose, integers stay integers, percentages render as 'N.N%', counts use thousands separators.
+3. Bumped cache version `v1-glean-pri` → `v2-glean-pri` so previously-cached responses with raw floats are flushed.
+
+#### Files touched
+
+- `lib/peec/pr-influence-synopsis.ts` — `buildContext()` body, `getPRInfluenceSynopsisImpl()` prompt string, `cached()` version field.
+
+#### Verification
+
+- `npx tsc --noEmit` zero output.
+- Existing tests (lib/peec/winners-losers.test.ts) still pass.
+
+#### Open risks
+
+None. Single-file change, no schema or render-layer impact.
+
 ### FB-024 — YTD chart pinned to today + drop misleading "Tracking began" line + revert Neon column
 
 - **Status:** done
