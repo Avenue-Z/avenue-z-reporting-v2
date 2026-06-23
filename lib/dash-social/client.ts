@@ -20,19 +20,37 @@ export class DashSocialClient {
   private token: string
   private fetchImpl: typeof fetch
   private maxRetries: number
-  constructor(opts: { token: string; fetchImpl?: typeof fetch; maxRetries?: number }) {
+  private timeoutMs: number
+  constructor(opts: { token: string; fetchImpl?: typeof fetch; maxRetries?: number; timeoutMs?: number }) {
     this.token = opts.token
     this.fetchImpl = opts.fetchImpl ?? fetch
     this.maxRetries = opts.maxRetries ?? 3
+    this.timeoutMs = opts.timeoutMs ?? 30000
   }
 
   private async request<T>(method: string, url: string, body?: unknown): Promise<T> {
-    const headers = { Authorization: `Bearer ${this.token}`, Accept: 'application/json', 'Content-Type': 'application/json' }
+    const hasBody = body != null
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.token}`,
+      Accept: 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+    }
     for (let attempt = 0; ; attempt++) {
-      const res = await this.fetchImpl(url, {
-        method, headers, body: body == null ? undefined : JSON.stringify(body),
-        next: { revalidate: 3600 },
-      } as RequestInit)
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs)
+      let res: Response
+      try {
+        res = await this.fetchImpl(url, {
+          method, headers, body: hasBody ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+          next: { revalidate: 3600 },
+        } as RequestInit)
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') throw new DashTimeoutError()
+        throw err
+      } finally {
+        clearTimeout(timer)
+      }
       if (res.status === 401 || res.status === 403) throw new DashAuthError(`${res.status} from ${url}`)
       if (res.status === 429) {
         if (attempt >= this.maxRetries) throw new DashRateLimitError(`429 persistent at ${url}`)

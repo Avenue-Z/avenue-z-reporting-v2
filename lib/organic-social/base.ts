@@ -13,7 +13,9 @@ export const CHANNEL_DISPLAY: Record<string, string> = {
   TWITTER: 'X', LINKEDIN: 'LinkedIn', TIKTOK: 'TikTok', YOUTUBE: 'YouTube', PINTEREST: 'Pinterest',
 }
 export function displayChannel(source: string): string {
-  return CHANNEL_DISPLAY[source] ?? source
+  if (source in CHANNEL_DISPLAY) return CHANNEL_DISPLAY[source]
+  const prefix = source.split('_')[0]
+  return CHANNEL_DISPLAY[prefix] ?? source
 }
 
 /** Yield [channelKey, metrics] for CHANNEL entries only — skips the data_type:'BRAND' entry. */
