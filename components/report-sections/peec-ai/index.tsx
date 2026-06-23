@@ -200,7 +200,6 @@ function ProviderSection({
       <SectionHeader
         icon={Sparkles}
         title="How visible is the brand across AI answer engines?"
-        subtitle="Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors."
         badge={isDemo ? <SampleDataBadge /> : undefined}
       />
 

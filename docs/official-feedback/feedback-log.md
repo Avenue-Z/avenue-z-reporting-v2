@@ -16,6 +16,43 @@ _(none)_
 
 ## Closed
 
+### FB-020 — Remove Overview SectionHeader subtitle (CSV E2)
+
+- **Status:** done
+- **Source:** Tina's Overview-tab v1 scorecard CSV, cell E2: *"REMOVE: Subtitle 'Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors.'"*
+- **Author:** Tina (flagged) / Claude (implementation)
+- **Type:** copy / layout
+- **Scope:** `components/report-sections/peec-ai/section-header.tsx`, `components/report-sections/peec-ai/index.tsx`. Overview tab only. Other 3 AEO tabs unchanged.
+
+#### Decision
+
+Drop the `subtitle` prop from the `<SectionHeader>` call on the Overview tab. Make `subtitle` optional in the shared `SectionHeader` component so the other 3 AEO tabs (PR Influence, Content Impact, Technical Performance) keep their own subtitles unchanged.
+
+#### Implementation
+
+- `section-header.tsx`: `subtitle: string` → `subtitle?: string`. The `<p>` render wrapped in `{subtitle && (...)}` so the line is omitted when no subtitle is passed.
+- `peec-ai/index.tsx` Overview SectionHeader call: removed the `subtitle="..."` line. Title, icon, badge unchanged.
+
+#### Scope of impact
+
+- Every current client sees the Overview header render without a subtitle. Universal layout change, not sandboxed.
+- Other 3 tabs still pass their own subtitle strings (verified via grep):
+  - `pr-influence.tsx:501` — `subtitle="Where earned media earns LLM citations..."`
+  - `content-impact.tsx:589` — `subtitle="Which content assets earn LLM citations..."`
+  - `technical-audit.tsx:388` — `subtitle="AEO technical health. Structured data..."`
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output (clean).
+- Visual: Overview header renders green Sparkles + question only (no subtitle line below). Other 3 tabs unchanged.
+- Grep confirms each non-Overview SectionHeader call still passes a non-empty subtitle.
+
+#### Open risks
+
+None. Trivial prop drop. Conditional render preserves existing tabs.
+
+---
+
 ### FB-019 — Match Prompt Clusters chart height to Top Editorial Domains card (fix dead space + thin bars)
 
 - **Status:** done
