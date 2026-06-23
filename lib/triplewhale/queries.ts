@@ -34,7 +34,7 @@ export function isTwMetric(s: string): s is TwMetric {
 
 export interface TwFilter { column: string; value: string }
 
-const COLUMN_RE = /^[a-z0-9_]+$/i
+const COLUMN_RE = /^[a-z0-9_]+$/
 export function isSafeColumn(c: string): boolean {
   return COLUMN_RE.test(c)
 }

@@ -16,7 +16,7 @@ export const PIXEL_TVF = `pixel_joined_tvf(
   use_click_date           = false
 )`
 
-const COLUMN_RE = /^[a-z0-9_]+$/i
+const COLUMN_RE = /^[a-z0-9_]+$/
 
 /** ClickHouse numeric types, after unwrapping Nullable(...). */
 export function isNumericType(type: string): boolean {
