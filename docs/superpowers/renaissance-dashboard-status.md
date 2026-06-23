@@ -20,7 +20,7 @@ built.
 | 1 | **Paid Search Advertising** | ✅ Built, reviewed, live-validated | Google Ads `AW` · acct `4136001852` |
 | 2 | **Meta Advertising** | ✅ Built, reviewed | Facebook Ads `FA` · acct `act_1480350426850960` |
 | 3 | **LinkedIn Advertising** | ✅ Built (PR #57) | LinkedIn Ads `LIA` · acct `503368877` |
-| 4 | **Organic Social + Influencer** | 🟡 Spec'd (below), not built | **Dash Social (net-new connector)** |
+| 4 | **Organic Social** (influencer deferred) | ✅ Built (`feat/renaissance-organic-social`) | **Dash Social** brand `26952`, net-new connector |
 
 All ad-platform connectors are authenticated under the Avenue Z Supermetrics
 account; all three ad accounts are confirmed connected. The shared enterprise key
@@ -119,7 +119,22 @@ account; all three ad accounts are confirmed connected. The shared enterprise ke
 - **Acceptance:** 3 sections; KPIs incl. the lead-form set; creative table; state geo; prior-period deltas; config-driven; live smoke test against `503368877`.
 - **Effort:** fast follow — reuses the entire foundation; main new work is the report-type handling.
 
-## 4 — Organic Social + Influencer 🟡 spec'd, not built (Phase 2)
+## 4 — Organic Social ✅ built (influencer deferred to Phase 2b)
+
+**Spec:** `docs/superpowers/specs/2026-06-23-renaissance-organic-social-design.md` · **Plan:** `…/plans/2026-06-23-renaissance-organic-social.md` · **Built on `feat/renaissance-organic-social`** (off `feat/renaissance-dashboard`).
+
+- **Built:** net-new `lib/dash-social/` connector (Bearer `DASH_API_TOKEN`, brand-agnostic; retry/backoff/429 + AbortController timeout); `lib/organic-social/` data layer (base + kpis/channels/trends/top-content, all fixture-tested); components (KPI grid, channel contribution, multi-series trends via new `LineChart`, top-content table); `safe()` orchestrator; `organic-social` slug wired into nav + all 4 routes; `dash_social_config` jsonb + migration `0010`.
+- **Spike findings (Renaissance brand `26952`, 2026-06-23) that shaped v1:**
+  - `/reports/data` validity is **per-channel**, and a multi-channel request 400s if any metric is invalid for any channel. **Blended-safe across IG/FB/X:** `TOTAL_FOLLOWERS`, `NET_NEW_FOLLOWERS`, `IMPRESSIONS`, `TOTAL_ENGAGEMENTS` only. So v1 KPI scorecards = **5 cards** (those four + derived Engagement Rate). `PROFILE_VIEWS` (IG-only), `SHARES`/`SAVES`/`LIKES`/`REACTIONS` (scattered per-channel), `COMMENTS`/`EFFECTIVENESS` (invalid names) are **not** in v1 — they aren't blendable.
+  - TOTAL response keyed by channel + a `data_type:'BRAND'` entry (skipped); deltas come from the API `context`. GRAPH is doubly-nested `metrics[METRIC][channel][date]`.
+  - **LinkedIn is top-content-only** (confirmed: absent from `/reports/data`; present in `/media/v2`).
+- **Status:** code complete, reviewed clean (whole-branch review = READY TO MERGE), `npm run build` green, 5/5 unit tests pass. **Not yet live** — see gate below.
+- **Go-live gate (pending):** apply migration `0010` to the target DB, set the Renaissance `clients` row (`dash_social_config = {"brandId":26952}`, add `organic-social` to `enabled_reports`), ensure `DASH_API_TOKEN` in the environment, then live smoke-test.
+- **Deferred (Phase 2b):** influencer (source not yet confirmed; data layer already carries `sourceType` + the table has a "Source Type" column); per-component engagement KPIs (Comments/Shares/Saves/Likes) via `/media/v2` aggregation; Top Formats/Themes.
+
+---
+
+### (original Phase-2 spec notes, for reference)
 
 - **Purpose:** one merged client-facing view of Organic Social **and** Influencer — overall performance, per-channel contribution, top content, and influencer contribution.
 - **Channels:** Instagram, Facebook, LinkedIn, X.
