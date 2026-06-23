@@ -4,6 +4,7 @@
  * Verified endpoints (Bearer key): GET /query/fields and GET /query/accounts.
  */
 import { SmQueryError } from './types'
+import { smQuery } from './client'
 
 const BASE = 'https://api.supermetrics.com/enterprise/v2'
 const CLOSED_GROUP = 'CLOSED AND DISABLED ACCOUNTS'
@@ -50,4 +51,41 @@ export async function smFields(apiKey: string, dsId: string, fetchImpl: typeof f
 
 export async function smAccounts(apiKey: string, dsId: string, fetchImpl: typeof fetch = fetch): Promise<AccountOption[]> {
   return parseAccounts(await getJson('query/accounts', dsId, apiKey, fetchImpl))
+}
+
+const COLUMN_RE = /^[A-Za-z0-9_]+$/
+
+/** Keep only dimensions (drop metrics); map to {value,label,group}. */
+export function parseDimensions(json: unknown): MetricOption[] {
+  const data = (json as { data?: FieldRow[] }).data ?? []
+  return data
+    .filter((f): f is FieldRow & { field_id: string } => f['@type'] === 'ds_dimension' && typeof f.field_id === 'string')
+    .map((f) => ({ value: f.field_id, label: f.field_name || f.field_id, group: f.group_name || undefined }))
+}
+
+export async function smDimensions(apiKey: string, dsId: string, fetchImpl: typeof fetch = fetch): Promise<MetricOption[]> {
+  return parseDimensions(await getJson('query/fields', dsId, apiKey, fetchImpl))
+}
+
+/** Distinct values of a dimension for one account, via a `fields=[column]` query. */
+export async function smDimensionValues(
+  apiKey: string,
+  dsId: string,
+  account: string,
+  column: string,
+  range: { startDate: string; endDate: string },
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<string[]> {
+  if (!COLUMN_RE.test(column)) throw new SmQueryError(`unsafe column: ${column}`)
+  const result = await smQuery(
+    { apiKey, dsId, dsAccounts: account, fields: [column], dateRange: `${range.startDate},${range.endDate}`, maxRows: 100 },
+    opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
+  )
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const row of result.rows) {
+    const v = row[0]
+    if (typeof v === 'string' && v !== '' && !seen.has(v)) { seen.add(v); out.push(v) }
+  }
+  return out
 }

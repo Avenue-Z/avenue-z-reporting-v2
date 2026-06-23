@@ -1,6 +1,6 @@
 // Run: npx tsx lib/supermetrics/discovery.test.ts
 import { strict as assert } from 'node:assert'
-import { parseFields, parseAccounts, smFields, smAccounts } from './discovery'
+import { parseFields, parseAccounts, smFields, smAccounts, parseDimensions, smDimensions, smDimensionValues } from './discovery'
 import { SmQueryError } from './types'
 
 const okFetch = (body: unknown): typeof fetch =>
@@ -46,6 +46,36 @@ async function main() {
 
   // non-ok throws SmQueryError
   await assert.rejects(smFields('k', 'FA', failFetch(403)), (e: unknown) => e instanceof SmQueryError)
+
+  // --- dimensions + dimension values ---
+  // parseDimensions keeps only ds_dimension
+  {
+    const dims = parseDimensions({ data: [
+      { '@type': 'ds_metric', field_id: 'total_sales', field_name: 'Total sales' },
+      { '@type': 'ds_dimension', field_id: 'order_shipping_country', field_name: 'Shipping country', group_name: 'GEO' },
+    ] })
+    assert.deepEqual(dims.map((d) => d.value), ['order_shipping_country'])
+    assert.equal(dims[0].label, 'Shipping country')
+  }
+
+  async function dimMain() {
+    // smDimensions via /query/fields
+    const dims = await smDimensions('k', 'SHP', okFetch({ data: [
+      { '@type': 'ds_dimension', field_id: 'order_shipping_country', field_name: 'Shipping country' },
+      { '@type': 'ds_metric', field_id: 'total_sales', field_name: 'Total sales' },
+    ] }))
+    assert.deepEqual(dims.map((d) => d.value), ['order_shipping_country'])
+
+    // smDimensionValues: SM sync response shape (header row + value rows); dedupe non-empty first column
+    const vals = await smDimensionValues('k', 'SHP', 'acct1', 'order_shipping_country',
+      { startDate: '2026-05-01', endDate: '2026-06-23' },
+      { fetchImpl: okFetch({ meta: { status_code: 'SUCCESS' }, data: [['Shipping country'], ['United States'], ['Canada'], [''], ['United States']] }) })
+    assert.deepEqual(vals, ['United States', 'Canada'])
+
+    // unsafe column rejected
+    await assert.rejects(smDimensionValues('k', 'SHP', 'a', 'bad col', { startDate: 'x', endDate: 'y' }, { fetchImpl: okFetch({}) }))
+  }
+  await dimMain()
 
   console.log('ok')
 }
