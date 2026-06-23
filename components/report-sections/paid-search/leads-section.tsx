@@ -1,5 +1,7 @@
+'use client'
 import { ComboChart } from '@/components/charts/combo-chart'
-import { pct } from '@/lib/paid-search/base'
+import { pct } from '@/lib/supermetrics/format'
+import { weekLabel } from '@/lib/paid-search/week-label'
 import { CHART_COLORS } from '@/lib/constants'
 import type { LeadBreakdown } from '@/lib/paid-search/types'
 import type { LeadCategory } from '@/lib/db/schema'
@@ -21,6 +23,7 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
         <ComboChart
           data={data.weekly}
           xKey="week"
+          xFormatter={weekLabel}
           bar={{ key: 'leads', color: CHART_COLORS.googleAds, label: 'Leads' }}
           line={{ key: 'leads', color: CHART_COLORS.primary, label: 'Leads Trend' }}
         />
