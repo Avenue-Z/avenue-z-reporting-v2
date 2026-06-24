@@ -1,5 +1,8 @@
+import { Suspense } from 'react'
 import { FileText, Clock, TrendingUp, TrendingDown } from 'lucide-react'
 import { SectionHeader } from './section-header'
+import { ContentImpactSynopsis } from './content-impact-synopsis'
+import type { ContentImpactSynopsisContext } from '@/lib/peec/content-impact-synopsis'
 import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
@@ -467,6 +470,64 @@ export async function ContentImpactReport({
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
   const sectionCOk = timingOk
 
+  // ── FB-033 · Build context for the Executive Synopsis card ─────────────────
+  // Every value here mirrors the exact expression the §A KPI cards render
+  // (content-impact.tsx §A KPI strip below), so the synopsis and the KPI
+  // strip can never disagree on a numeric claim.
+  //
+  // topBrandAbsentCompetitorUrls + brandAbsentCompetitorUrlCount mirror the
+  // §H.2 live derivation: a "brand-absent" URL is a cited URL that does NOT
+  // mention your brand and DOES mention at least one competitor brand. We
+  // reuse the same filter §H.2 uses (urlCitations.filter(c => !c.mentionsYourBrand
+  // && c.competitorBrandNames.length > 0)) so the count + items can never
+  // disagree with the §H.2 table further down the page.
+
+  // Top 3 owned domains by AI citation count.
+  const topOwnedForSynopsis = filteredOwnDomains
+    .slice()
+    .sort((a, b) => (b.citationRate ?? 0) - (a.citationRate ?? 0))
+    .slice(0, 3)
+    .map(d => ({ domain: d.domain, citationCount: d.citationRate ?? 0 }))
+
+  // Top 3 competitor domains by AI citation count.
+  const topCompetitorForSynopsis = filteredCompetitorDomains
+    .slice()
+    .sort((a, b) => (b.citationRate ?? 0) - (a.citationRate ?? 0))
+    .slice(0, 3)
+    .map(d => ({ domain: d.domain, citationCount: d.citationRate ?? 0 }))
+
+  // Brand-absent URLs, mirror §H.2 live filter exactly.
+  const brandAbsentUrlsForSynopsis = urlCitations.filter(
+    c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0,
+  )
+  const topBrandAbsentForSynopsis = brandAbsentUrlsForSynopsis
+    .slice()
+    .sort((a, b) => b.citationCount - a.citationCount)
+    .slice(0, 3)
+    .map(c => ({ url: c.url, host: c.domain, citationCount: c.citationCount }))
+
+  // §A "Owned URLs with AI Activity", mirror the exact expression at the KPI card.
+  const ownedUrlsWithAiActivity = agentData
+    ? (models != null
+        ? filteredBots.reduce((s, b) => s + b.uniquePages, 0)
+        : agentData.uniquePagesVisited)
+    : null
+
+  const synopsisContext: ContentImpactSynopsisContext = {
+    plannedUrlsInScope: calendarData?.plannedCount ?? null,
+    liveUrls: calendarData?.liveCount ?? null,
+    totalSessions: ga4TotalSessions,
+    totalAiCitations: totalCitations,
+    aiReferredSessions: ga4AiReferredSessions,
+    ownedUrlsWithAiActivity,
+    unmatchedPct,
+    ownedDomainsCited: filteredOwnDomains.length,
+    topOwnedDomainsByCitations: topOwnedForSynopsis,
+    topCompetitorDomainsByCitations: topCompetitorForSynopsis,
+    topBrandAbsentCompetitorUrls: topBrandAbsentForSynopsis,
+    brandAbsentCompetitorUrlCount: brandAbsentUrlsForSynopsis.length,
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -481,6 +542,26 @@ export async function ContentImpactReport({
       {calendarIsDemo && (
         <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
       )}
+
+      {/* ── FB-033 · Executive Synopsis (AI-generated, Glean-backed) ────────── */}
+      <Suspense
+        fallback={
+          <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
+            <div className="mb-4 h-4 w-40 animate-pulse rounded bg-white/10" />
+            <div className="space-y-2">
+              <div className="h-3 w-full animate-pulse rounded bg-white/10" />
+              <div className="h-3 w-11/12 animate-pulse rounded bg-white/10" />
+              <div className="h-3 w-10/12 animate-pulse rounded bg-white/10" />
+            </div>
+          </section>
+        }
+      >
+        <ContentImpactSynopsis
+          clientSlug={clientSlug}
+          dateRange={dateRange}
+          context={synopsisContext}
+        />
+      </Suspense>
 
       {/* ── Section A: KPI Strip (PRD: 6-8 cards) ─────────────────────────── */}
       <div>
