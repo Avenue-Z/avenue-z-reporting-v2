@@ -2,25 +2,32 @@ import { cache } from 'react'
 import { eq } from 'drizzle-orm'
 import { db } from './client'
 import { clients, users, type Client, type User, type ClientRole } from './schema'
+import { cached } from '@/lib/cache'
 import { timed } from '@/lib/perf'
 
 /**
- * Find one client by slug, including its users.
- * Returns null if not found. Per-render deduplicated via React.cache.
+ * Find one client by slug, including its users. Returns null if not found.
+ *
+ * Persistently cached (5-min TTL) so report navigations don't re-query Neon on
+ * every server render — the dominant per-navigation cost once data fetches are
+ * cache hits. React.cache (outer) dedups within a single render; cached() (inner)
+ * persists across requests. Client config changes rarely; staleness is bounded
+ * by the TTL and bustable via revalidateTag('db'). Slug-tagged for PERF logs.
  */
-const getClientBySlugImpl = cache(async (slug: string): Promise<(Client & { users: User[] }) | null> => {
+const getClientBySlugImpl = async (slug: string): Promise<(Client & { users: User[] }) | null> => {
   const row = await db.query.clients.findFirst({
     where: eq(clients.slug, slug),
     with: { users: true },
   })
   return row ?? null
-})
+}
 
-export const getClientBySlug = timed(
-  'db',
-  'getClientBySlug',
-  getClientBySlugImpl,
-  ([slug]) => ({ client: slug }),
+export const getClientBySlug = cache(
+  cached('db', 'getClientBySlug', getClientBySlugImpl, {
+    ttlSeconds: 300,
+    tags: ['db'],
+    extractTags: ([slug]) => ({ client: slug }),
+  }),
 )
 
 /**
@@ -44,11 +51,15 @@ export const getClientByEmail = timed('db', 'getClientByEmail', getClientByEmail
 /**
  * List all clients ordered by name, including their users.
  */
-const getAllClientsImpl = cache(async (): Promise<(Client & { users: User[] })[]> => {
+const getAllClientsImpl = async (): Promise<(Client & { users: User[] })[]> => {
   return db.query.clients.findMany({
     orderBy: (c, { asc }) => [asc(c.name)],
     with: { users: true },
   })
-})
+}
 
-export const getAllClients = timed('db', 'getAllClients', getAllClientsImpl)
+// Persistently cached (5-min TTL); called once per render by the dashboard
+// layout. See getClientBySlug for the rationale and staleness tradeoff.
+export const getAllClients = cache(
+  cached('db', 'getAllClients', getAllClientsImpl, { ttlSeconds: 300, tags: ['db'] }),
+)
