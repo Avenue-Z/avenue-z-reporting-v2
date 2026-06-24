@@ -395,7 +395,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
 
   const pid = resolvedProjectId // shorthand
 
-  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes, promptBrandsPriorRes] = await Promise.all([
+  const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes, promptBrandsPriorRes, trendRows, trendRowsYTD] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
@@ -419,14 +419,13 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     // current-period fetch above. Used for the rank delta in Winners/Losers, with
     // model-filter reactivity per Tina's literal text on CSV E11.
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior, dimensions: ['prompt_id', 'model_channel_id', 'model_id'], limit: 5000 }, pid),
-  ])
-
-  // FB-022: keep picker-bound trendRows for weeklyVisibility consumers (the
-  // demand-overview page reads weeklyVisibility); add a YTD variant for the chart.
-  const [trendRows, trendRowsYTD] = await Promise.all([
+    // Daily trend series (paginated), picker-bound + a YTD variant for the chart
+    // (FB-022). Independent of the calls above (only need current/ytd/pid), so
+    // fetched concurrently with the batch instead of serially afterward.
     fetchAllRows({ ...current, dimensions: ['date'] }, pid),
     fetchAllRows({ ...ytd,     dimensions: ['date'] }, pid),
   ])
+
 
   // --- Brand rankings ---
   const currentAgg = aggregateBrandRows(currentBrandsRes.data ?? [])

@@ -82,9 +82,12 @@ function yoyDelta(current: number, prior: number): number | undefined {
 }
 
 export async function HubSpotPerformanceReport({ clientSlug }: HubSpotPerformanceProps) {
-  // Sequential — HubSpot search API is rate-limited to 4 req/s
-  const deals    = await getPipelineDeals(clientSlug)
-  const ownerMap = await getOwnerMap(clientSlug)
+  // Concurrent — deals search is throttled by the client's rate limiter and
+  // the owners lookup is a separate (unthrottled) endpoint.
+  const [deals, ownerMap] = await Promise.all([
+    getPipelineDeals(clientSlug),
+    getOwnerMap(clientSlug),
+  ])
 
   const closeYear = (d: { properties: { closedate: string | null } }, yr: number) => {
     const cd = d.properties.closedate

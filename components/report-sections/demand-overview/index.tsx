@@ -110,13 +110,13 @@ export async function DemandOverviewReport({ clientSlug }: DemandOverviewProps) 
     getPeecOverview(clientSlug, 'year_to_date'),
   ])
 
-  // ── Phase 2: HubSpot — sequential to respect 4 req/s rate limit ──────────
-  // getContactStats and getPipelineDeals both paginate heavily; running them
-  // concurrently alongside GA4 reliably triggers rate-limit rejections.
-  const [contactRes]      = await Promise.allSettled([getContactStats(clientSlug)])
-  const [dealsRes]        = await Promise.allSettled([getPipelineDeals(clientSlug)])
-  // These two reuse the React cache() from getContactStats — no extra pagination
-  const [contactYearlyRes, breakdownRes] = await Promise.allSettled([
+  // ── Phase 2: HubSpot — fan out; the client's search-API rate limiter keeps
+  // all contacts/deals searches under the 4 req/s quota, so heavy paginators
+  // can run concurrently. getYearlyContactStats/getContactBreakdown reuse the
+  // React cache() that getContactStats populates — no duplicate pagination. ──
+  const [contactRes, dealsRes, contactYearlyRes, breakdownRes] = await Promise.allSettled([
+    getContactStats(clientSlug),
+    getPipelineDeals(clientSlug),
     getYearlyContactStats(clientSlug),
     getContactBreakdown(clientSlug),
   ])

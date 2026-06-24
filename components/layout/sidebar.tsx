@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
+import Link, { useLinkStatus } from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -17,8 +17,21 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Wrench,
+  Loader2,
 } from 'lucide-react'
 import { AvenueZLogo } from './avenue-z-logo'
+
+/**
+ * Instant pending feedback for a sidebar Link. `useLinkStatus` (Next 15.3+)
+ * reports `pending` for the duration of the navigation it triggers, so the
+ * clicked item shows a spinner in the brief window before the route's loading
+ * skeleton streams in. Must be rendered as a descendant of the <Link>.
+ */
+function LinkPending() {
+  const { pending } = useLinkStatus()
+  if (!pending) return null
+  return <Loader2 className="ml-auto h-3.5 w-3.5 shrink-0 animate-spin text-text-muted" />
+}
 
 // Generate a consistent color from a string
 const AVATAR_COLORS = [
@@ -448,13 +461,14 @@ function ClientSidebar({
                               <Link
                                 href={`/dashboard/${clientSlug}/reports?${ifBaseParams.toString()}`}
                                 className={cn(
-                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  'flex items-center rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                                   isActive
                                     ? 'text-white'
                                     : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
                                 )}
                               >
-                                {REPORT_NAMES[slug] ?? slug}
+                                <span className="truncate">{REPORT_NAMES[slug] ?? slug}</span>
+                                <LinkPending />
                               </Link>
                               {isActive && (
                                 <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
@@ -470,13 +484,14 @@ function ClientSidebar({
                                         <Link
                                           href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
                                           className={cn(
-                                            'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                            'flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
                                             subIsActive
                                               ? 'bg-white/[0.08] text-white'
                                               : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
                                           )}
                                         >
-                                          {sub.label}
+                                          <span className="truncate">{sub.label}</span>
+                                          <LinkPending />
                                         </Link>
                                       </li>
                                     )
@@ -499,13 +514,14 @@ function ClientSidebar({
                               <Link
                                 href={`/dashboard/${clientSlug}/reports?${aeoBaseParams.toString()}`}
                                 className={cn(
-                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  'flex items-center rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                                   isActive
                                     ? 'text-white'
                                     : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
                                 )}
                               >
-                                {REPORT_NAMES[slug] ?? slug}
+                                <span className="truncate">{REPORT_NAMES[slug] ?? slug}</span>
+                                <LinkPending />
                               </Link>
                               {isActive && (
                                 <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
@@ -538,13 +554,14 @@ function ClientSidebar({
                                         <Link
                                           href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
                                           className={cn(
-                                            'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                            'flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
                                             subIsActive
                                               ? 'bg-white/[0.08] text-white'
                                               : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
                                           )}
                                         >
-                                          {sub.label}
+                                          <span className="truncate">{sub.label}</span>
+                                          <LinkPending />
                                         </Link>
                                       </li>
                                     )
@@ -566,13 +583,14 @@ function ClientSidebar({
                               <Link
                                 href={`/dashboard/${clientSlug}/reports?${pmBaseParams.toString()}`}
                                 className={cn(
-                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  'flex items-center rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                                   isActive
                                     ? 'text-white'
                                     : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
                                 )}
                               >
-                                {REPORT_NAMES[slug] ?? slug}
+                                <span className="truncate">{REPORT_NAMES[slug] ?? slug}</span>
+                                <LinkPending />
                               </Link>
                               {isActive && (
                                 <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
@@ -590,13 +608,14 @@ function ClientSidebar({
                                         <Link
                                           href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
                                           className={cn(
-                                            'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                            'flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
                                             subIsActive
                                               ? 'bg-white/[0.08] text-white'
                                               : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
                                           )}
                                         >
-                                          {sub.label}
+                                          <span className="truncate">{sub.label}</span>
+                                          <LinkPending />
                                         </Link>
                                       </li>
                                     )
@@ -616,13 +635,14 @@ function ClientSidebar({
                               <Link
                                 href={`/dashboard/${clientSlug}/reports?${ga4BaseParams.toString()}`}
                                 className={cn(
-                                  'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  'flex items-center rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                                   isActive
                                     ? 'text-white'
                                     : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
                                 )}
                               >
-                                {REPORT_NAMES[slug] ?? slug}
+                                <span className="truncate">{REPORT_NAMES[slug] ?? slug}</span>
+                                <LinkPending />
                               </Link>
                               {isActive && (
                                 <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
@@ -652,13 +672,14 @@ function ClientSidebar({
                                         <Link
                                           href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
                                           className={cn(
-                                            'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                            'flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
                                             subIsActive
                                               ? 'bg-white/[0.08] text-white'
                                               : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
                                           )}
                                         >
-                                          {sub.label}
+                                          <span className="truncate">{sub.label}</span>
+                                          <LinkPending />
                                         </Link>
                                       </li>
                                     )
@@ -674,13 +695,14 @@ function ClientSidebar({
                             <Link
                               href={`/dashboard/${clientSlug}/reports?${linkParams.toString()}`}
                               className={cn(
-                                'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                'flex items-center rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                                 isActive
                                   ? 'bg-white/[0.08] text-white'
                                   : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
                               )}
                             >
-                              {REPORT_NAMES[slug] ?? slug}
+                              <span className="truncate">{REPORT_NAMES[slug] ?? slug}</span>
+                              <LinkPending />
                             </Link>
                           </li>
                         )
