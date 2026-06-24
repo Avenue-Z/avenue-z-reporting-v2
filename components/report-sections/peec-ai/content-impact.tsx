@@ -10,13 +10,13 @@ import { urlJoinKey } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
-import type { ContentCalendarData, ContentCalendarRow } from '@/lib/content-calendar/types'
+import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
 import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query, deriveCompareRange } from '@/lib/ga4/client'
+import { ga4Query } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import {
@@ -191,12 +191,8 @@ export async function ContentImpactReport({
   models?: AEOModel[] | null
 }) {
   const effectiveRange = dateRange ?? 'last_30_days'
-  // Prior period for §E trajectory (decay vs. compounding). previous_period
-  // always resolves to a range, so this is non-null; fall back defensively.
-  const priorRange = deriveCompareRange(effectiveRange, 'previous_period')
-  const priorRangeStr = priorRange ? `${priorRange.startDate},${priorRange.endDate}` : effectiveRange
 
-  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4PriorResult, ga4AiPathResult] = await Promise.allSettled([
+  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4AiPathResult] = await Promise.allSettled([
     getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
@@ -216,14 +212,7 @@ export async function ContentImpactReport({
       dimensions: ['hostName', 'sessionSource'],
       limit: 1000,
     }),
-    ga4Query({                          // §E prior-period page sessions (trajectory)
-      clientSlug,
-      dateRange: priorRangeStr,
-      metrics: ['sessions'],
-      dimensions: ['pagePath'],
-      limit: 1000,
-    }),
-    ga4Query({                          // §B/§G per-path AI-referred sessions (all engines)
+    ga4Query({                          // §B per-path AI-referred sessions (all engines)
       clientSlug,
       dateRange: effectiveRange,
       metrics: ['sessions'],
@@ -241,11 +230,10 @@ export async function ContentImpactReport({
     ? coverageResult.value
     : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }
   const citationsOk = urlCitationsResult.status === 'fulfilled'
-  // GA4 host×source rows (§A totals + §F per-host AI-referred) and prior-period
-  // page rows (§E trajectory). null when the query rejected (GA4 unconfigured /
-  // property not shared) → callers reserve -- for that case, 0 stays 0.
+  // GA4 host×source rows (§A totals + §F per-host AI-referred). null when the
+  // query rejected (GA4 unconfigured / property not shared) → callers reserve
+  // -- for that case, 0 stays 0.
   const ga4AiHostRows = ga4AiHostResult.status === 'fulfilled' ? ga4AiHostResult.value.rows : null
-  const ga4PriorRows  = ga4PriorResult.status  === 'fulfilled' ? ga4PriorResult.value.rows  : null
   const ga4AiPathRows = ga4AiPathResult.status === 'fulfilled' ? ga4AiPathResult.value.rows : null
 
   // Demo mode: force-substitute every data source so the demo is
@@ -267,7 +255,6 @@ export async function ContentImpactReport({
   if (calendarResult.status     === 'rejected') console.error('[content-impact] Content calendar error:', calendarResult.reason)
   if (ga4Result.status          === 'rejected') console.error('[content-impact] GA4 error:', ga4Result.reason)
   if (ga4AiHostResult.status    === 'rejected') console.error('[content-impact] GA4 host/source error:', ga4AiHostResult.reason)
-  if (ga4PriorResult.status     === 'rejected') console.error('[content-impact] GA4 prior-period error:', ga4PriorResult.reason)
   if (ga4AiPathResult.status    === 'rejected') console.error('[content-impact] GA4 path/source error:', ga4AiPathResult.reason)
   if (urlCitationsResult.status === 'rejected') console.error('[content-impact] URL citations error:', urlCitationsResult.reason)
 
@@ -363,7 +350,7 @@ export async function ContentImpactReport({
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
   const avgCitByDomain = avgCitationsByDomain(urlCitations)
 
-  // ── GA4 derivations (§A glance totals, §F per-host, §E trajectory) ──────────
+  // ── GA4 derivations (§A glance totals, §F per-host) ──────────────────────────
   // 0-vs-no-data rule (#35): when the query resolved, a 0 is a real 0; -- is
   // reserved for a rejected query (handled by the *Ok booleans below).
   const normPath = (p: string) => p.replace(/\/$/, '') || '/'
@@ -393,7 +380,7 @@ export async function ContentImpactReport({
     }
   }
 
-  // §B/§G · AI-referred sessions per page path (all engines). A path GA4 tracks
+  // §B · AI-referred sessions per page path (all engines). A path GA4 tracks
   // shows its real count (0 if none); a path GA4 doesn't cover stays -- (null).
   const aiPathOk = ga4AiPathRows !== null
   const aiRefByPath = new Map<string, number>()
@@ -412,17 +399,16 @@ export async function ContentImpactReport({
     return aiRefByPath.get(np) ?? 0
   }
 
-  // ── §C/§D · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────
-  // Both sections key off planned content (URL + publish date + new/optimized).
-  // One date-bucketed GA4 query, restricted to the planned paths over the window
-  // from the earliest publish date to today, feeds both: §C aggregates
-  // days-to-first across URLs; §D reuses it per new/optimized group. Gated on the
-  // content calendar — without publish dates there is no URL spine to measure.
+  // ── §C · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────────
+  // Keys off planned content (URL + publish date). One date-bucketed GA4 query,
+  // restricted to the planned paths over the window from the earliest publish
+  // date to today, feeds §C: days-to-first across URLs. Gated on the content
+  // calendar — without publish dates there is no URL spine to measure.
   const isoDate = (s: string | null): string | null =>
     s && /^\d{4}-\d{2}-\d{2}/.test(s.trim()) ? s.trim().slice(0, 10) : null
   const plannedTiming = (calendarData?.rows ?? [])
-    .map(r => ({ path: extractPath(r.url), publishDate: isoDate(r.publishDate), action: r.contentAction }))
-    .filter((r): r is { path: string; publishDate: string; action: ContentCalendarRow['contentAction'] } =>
+    .map(r => ({ path: extractPath(r.url), publishDate: isoDate(r.publishDate) }))
+    .filter((r): r is { path: string; publishDate: string } =>
       r.path !== null && r.publishDate !== null)
 
   const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
@@ -461,17 +447,16 @@ export async function ContentImpactReport({
         byDate.set(iso, acc)
       }
     } catch (e) {
-      console.error('[content-impact] GA4 §C/§D timing error:', e)
+      console.error('[content-impact] GA4 §C timing error:', e)
     }
   }
 
   const daysFor = (path: string) =>
     [...(daysByPath.get(normPath(path))?.entries() ?? [])].map(([date, v]) => ({ date, ...v }))
 
-  const urlTimings = plannedTiming.map(r => ({
-    action: r.action,
-    ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
-  }))
+  const urlTimings = plannedTiming.map(r =>
+    computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
+  )
 
   // §C aggregates (median days-to-first; fastest/slowest AI-indexed).
   const firstTrafficDays = urlTimings.map(t => t.daysToFirstTraffic).filter((n): n is number => n !== null)
@@ -704,7 +689,7 @@ export async function ContentImpactReport({
         )
       })()}
 
-      {/* ── Section H: Competitor / Third-Party Content (PRD: 3 sub-views) ── */}
+      {/* ── Section H: Competitor / Third-Party Content (PRD: 2 sub-views) ── */}
       <SectionCard
         title="Which competitor or third-party pages are cited for our prompts?"
         description="Non-owned content that AI tools cite for your tracked prompts. Understanding what wins informs what to create or pitch."
