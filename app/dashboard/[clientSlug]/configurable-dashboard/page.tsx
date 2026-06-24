@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientBySlug, getDashboardConfig } from '@/lib/db/queries'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { resolveBlock } from '@/lib/dashboard/resolve'
+import { resolveBlock, resolveGroupedBlock, resolveSeriesBlock } from '@/lib/dashboard/resolve'
 import { resolveCompareIso } from '@/lib/paid-search/base'
 import { Header } from '@/components/layout/header'
 import { DashboardShell } from '@/components/dashboard/dashboard-shell'
@@ -13,6 +13,8 @@ import { BlockValue } from '@/components/dashboard/block-value'
 import { BlockDelta } from '@/components/dashboard/block-delta'
 import { ValueSkeleton, DeltaSkeleton, EmptyDashboardState } from '@/components/dashboard/metric-block-states'
 import { UnsupportedBlockState } from '@/components/dashboard/blocks/unsupported-block'
+import { BarBlock } from '@/components/dashboard/blocks/bar-block'
+import { LineBlock } from '@/components/dashboard/blocks/line-block'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 export default async function ConfigurableDashboardPage({
@@ -83,8 +85,8 @@ export default async function ConfigurableDashboardPage({
 }
 
 /** Per-block kind dispatcher. 'kpi' → progressive-streaming KPI tile via
- *  MetricBlockShell + BlockValue + BlockDelta. Future kinds (bar, line, table,
- *  narrative, header) land their own renderers in sub-projects #3–#4. */
+ *  MetricBlockShell + BlockValue + BlockDelta. 'bar'/'line' → BarBlock/LineBlock,
+ *  fed by resolveGroupedBlock/resolveSeriesBlock from sub-project #2. */
 function renderBlockNode(
   block: PersistedBlock,
   activeDefault: { dateRange: string; compareRange: string | null },
@@ -95,10 +97,8 @@ function renderBlockNode(
   const kind = block.kind ?? 'kpi'
   switch (kind) {
     case 'kpi': {
-      const eff = block.range ?? activeDefault // effective range (per-block override or global)
+      const eff = block.range ?? activeDefault
       const ctx = { slug: clientSlug }
-      // resolveBlock prefers config.range over the passed global, so null the clone's
-      // range and pass the effective range as global. compareRange:null ⇒ value only.
       const blockNoRange = { ...block, range: null }
       const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx)
       const compareIso = resolveCompareIso(eff.dateRange, eff.compareRange)
@@ -115,12 +115,7 @@ function renderBlockNode(
           activeDefault={activeDefault}
           value={
             <Suspense fallback={<ValueSkeleton />}>
-              <BlockValue
-                valuePromise={valuePromise}
-                slug={clientSlug}
-                target={block.target}
-                ceiling={block.ceiling}
-              />
+              <BlockValue valuePromise={valuePromise} slug={clientSlug} target={block.target} ceiling={block.ceiling} />
             </Suspense>
           }
           delta={
@@ -132,7 +127,42 @@ function renderBlockNode(
         />
       )
     }
-    // 'bar' | 'line' | 'table' | 'narrative' | 'header' arrive in sub-projects #3–#4.
+    case 'bar': {
+      const eff = block.range ?? activeDefault
+      const groupedPromise = resolveGroupedBlock(
+        block,
+        { dateRange: eff.dateRange, compareRange: eff.compareRange },
+        { slug: clientSlug },
+      )
+      return (
+        <BarBlock
+          block={block}
+          groupedPromise={groupedPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'line': {
+      const eff = block.range ?? activeDefault
+      const seriesPromise = resolveSeriesBlock(
+        block,
+        { dateRange: eff.dateRange, compareRange: eff.compareRange },
+        { slug: clientSlug },
+      )
+      return (
+        <LineBlock
+          block={block}
+          seriesPromise={seriesPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
     default:
       return <UnsupportedBlockState kind={kind} name={block.name} />
   }
