@@ -45,7 +45,7 @@ export interface AggregateBinding {
 export type Binding = LeafBinding | CalculatedBinding | AggregateBinding
 
 /** Block kind discriminator. Default at parse/render time is 'kpi' for back-compat. */
-export type BlockKind = 'kpi' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
+export type BlockKind = 'kpi' | 'pills' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
 
 /** Full grid layout: required when present. Missing layout = "auto-pack on next save". */
 export interface BlockLayout {
@@ -69,6 +69,10 @@ export interface BlockConfig {
   target?: number
   /** Orange when value ≥ ceiling. */
   ceiling?: number
+  /** Header-only: heading level (1 = largest). Default 2. */
+  headerLevel?: 1 | 2 | 3
+  /** Narrative-only: markdown body (rendered via react-markdown). */
+  narrativeBody?: string
 }
 
 export type BlockError = 'disconnected' | 'invalid-metric' | 'no-data' | 'rate-limited' | 'error'

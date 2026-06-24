@@ -1,33 +1,32 @@
 // lib/dashboard/types.test.ts
 // Run: npx tsx lib/dashboard/types.test.ts
 import { strict as assert } from 'node:assert'
-import type { BlockConfig, ResolveResult, DashboardConfig } from './types'
+import type { BlockKind, BlockConfig } from './types'
+import { DEFAULT_LAYOUT } from '../../components/dashboard/block-grid-defaults'
 
-const block: BlockConfig = {
-  id: 'b1',
-  name: 'Blended ROAS',
-  binding: {
-    source: 'aggregate',
-    op: '/',
-    left: { source: 'triplewhale', metric: 'revenue' },
-    right: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '4136001852' },
-  },
-  format: 'number',
-  range: null,
-}
-const ok: ResolveResult = { ok: true, value: 2, format: 'number', formatted: '2' }
-assert.equal(block.binding.source, 'aggregate')
-assert.equal(ok.ok, true)
+// Type-level: 'pills' is assignable to BlockKind
+const k: BlockKind = 'pills'
+assert.equal(k, 'pills')
 
-const dash: DashboardConfig = {
-  defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
-  blocks: [
-    { id: 'b1', name: 'Cost', format: 'currency', range: null,
-      binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' },
-      layout: { x: 0, y: 0, w: 2, h: 2 } },
-  ],
+// Type-level: BlockConfig accepts new annotations
+const h: BlockConfig = {
+  id: 'h', name: 'Q3 Performance', kind: 'header', format: 'number', range: null,
+  binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' },
+  headerLevel: 2,
 }
-assert.equal(dash.blocks.length, 1)
-assert.equal(dash.blocks[0].layout?.w, 2)
-assert.equal(dash.blocks[0].layout?.x, 0)
+assert.equal(h.headerLevel, 2)
+
+const n: BlockConfig = {
+  id: 'n', name: 'Notes', kind: 'narrative', format: 'number', range: null,
+  binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' },
+  narrativeBody: '## Highlights\n- Cost down 12%',
+}
+assert.equal(n.narrativeBody?.startsWith('## '), true)
+
+// Runtime: pills layout default exists
+assert.equal(DEFAULT_LAYOUT.pills.w, 4)
+assert.equal(DEFAULT_LAYOUT.pills.h, 1)
+assert.equal(DEFAULT_LAYOUT.pills.minW, 2)
+assert.equal(DEFAULT_LAYOUT.pills.minH, 1)
+
 console.log('ok')

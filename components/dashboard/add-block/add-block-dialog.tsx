@@ -16,6 +16,7 @@ type Source = ProposeBlockInput['source'] | 'calculated'
 
 const KIND_OPTIONS: { value: BlockKind; label: string; available: boolean; hint?: string }[] = [
   { value: 'kpi',       label: 'KPI tile',         available: true  },
+  { value: 'pills',     label: 'Pills strip',       available: false, hint: 'Coming in v2' },
   { value: 'bar',       label: 'Bar chart',        available: true  },
   { value: 'line',      label: 'Line chart',       available: true  },
   { value: 'table',     label: 'Table',            available: false, hint: 'Coming in v2' },
@@ -30,6 +31,7 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
     { value: 'aggregate',    label: 'Aggregate (formula)' },
     { value: 'calculated',   label: 'Calculated (weighted sum)' },
   ],
+  pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   table:     [],
