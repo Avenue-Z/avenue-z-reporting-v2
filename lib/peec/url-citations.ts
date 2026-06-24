@@ -198,7 +198,7 @@ async function getUrlCitationsImpl(
 }
 
 export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
-  version: 'v2',  // v2: added citationAvg to UrlCitation
+  version: 'v3',  // v3: dateRange opts surfaced to callers (FB-035)
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 
@@ -216,6 +216,8 @@ export type DomainCoverage = {
   tagIdsByDomain: Record<string, string[]>
   /** url join key → distinct theme (tag) ids citing that specific URL (Section H.3) */
   tagIdsByUrlKey: Record<string, string[]>
+  /** url join key → distinct prompt ids citing that specific URL (Section B, FB-035) */
+  promptIdsByUrlKey: Record<string, string[]>
   /** tag id → display name (from /tags), for resolving themes to Prompt Cluster labels */
   tagNameById: Record<string, string>
 }
@@ -251,6 +253,7 @@ export function aggregateDomainCoverage(
     promptIdsByDomain: collect(promptRows, (r) => r.prompt?.id, (r) => hostOf(r.url) || null),
     tagIdsByDomain: collect(tagRows, (r) => r.tag?.id, (r) => hostOf(r.url) || null),
     tagIdsByUrlKey: collect(tagRows, (r) => r.tag?.id, (r) => urlJoinKey(r.url)),
+    promptIdsByUrlKey: collect(promptRows, (r) => r.prompt?.id, (r) => urlJoinKey(r.url)),
     tagNameById,
   }
 }
@@ -279,11 +282,20 @@ export function urlTagNames(cov: DomainCoverage, urlKey: string): string[] {
     .filter((n): n is string => !!n)
 }
 
-const EMPTY_COVERAGE: DomainCoverage = {
-  promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {},
+/** Distinct prompt ids citing a specific URL (by join key). */
+export function urlPromptIds(cov: DomainCoverage, urlKey: string): string[] {
+  return cov.promptIdsByUrlKey[urlKey] ?? []
 }
 
-async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverage> {
+const EMPTY_COVERAGE: DomainCoverage = {
+  promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {},
+  promptIdsByUrlKey: {}, tagNameById: {},
+}
+
+async function getDomainCoverageImpl(
+  clientSlug?: string,
+  opts: { startDate?: string; endDate?: string } = {},
+): Promise<DomainCoverage> {
   let pid: string | undefined
   if (clientSlug) {
     const { getClientBySlug } = await import('@/lib/db/queries')
@@ -292,7 +304,8 @@ async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverag
   }
   if (!pid && !process.env.PEEC_AI_PROJECT_ID) return EMPTY_COVERAGE
 
-  const window = last30()
+  const d = last30()
+  const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
   const [promptRes, tagRes, tagsRes] = await Promise.all([
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['prompt_id'], limit: 2000 }, pid),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['tag_id'], limit: 2000 }, pid),
@@ -303,6 +316,6 @@ async function getDomainCoverageImpl(clientSlug?: string): Promise<DomainCoverag
 }
 
 export const getDomainCoverage = cached('peec', 'getDomainCoverage', getDomainCoverageImpl, {
-  version: 'v3',  // v3: added tagIdsByUrlKey (per-URL themes) to DomainCoverage
+  version: 'v4',  // v4: added promptIdsByUrlKey + dateRange parameter (FB-035)
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })

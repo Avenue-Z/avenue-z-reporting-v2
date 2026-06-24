@@ -290,7 +290,7 @@ export async function ContentImpactReport({
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
   const citationsOk = urlCitationsResult.status === 'fulfilled'
   // GA4 host×source rows (§A totals + §F per-host AI-referred). null when the
   // query rejected (GA4 unconfigured / property not shared) → callers reserve
@@ -319,7 +319,7 @@ export async function ContentImpactReport({
     calendarData = sampleContentCalendarData()
     ga4Rows      = SAMPLE_GA4_CONTENT_IMPACT_ROWS
     urlCitations = []   // demo: §B/§F/§H use their own demo arrays
-    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }  // demo: §H uses demo fallbacks
+    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }  // demo: §H uses demo fallbacks
   }
 
   if (peecResult.status         === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
