@@ -58,12 +58,22 @@ Root cause investigation: the page router (`app/portal/[clientSlug]/reports/[rep
 - **Prompt Coverage delta deferred:** `getDomainCoverage(clientSlug)` in `lib/peec/url-citations.ts:286` does not accept a `dateRange` parameter, so there is no prior-period coverage data to subtract from. Card renders the current value alone with no delta line. Future FB can add prior-period coverage support (would require adding a `dateRange?: string` arg to `getDomainCoverage` + downstream Peec query).
 - **Comparison period defaults to "previous_period" when not explicitly selected**, same default Overview uses. If the user does not pick a comparison range from the date picker, the page still computes deltas vs. the immediately-prior matching window.
 
+#### Follow-up commits after preview verification
+
+| Commit | What |
+|---|---|
+| `e2997d0` (polish) | Scrubbed 2 em-dashes from source-code comments in Task 5 (no-em-dash rule applies to comments too). Functional change: zero. |
+| `741dc69` (revert) | Reverted 2 overreaches that exceeded Tina's literal ask: (a) §A header restored from "Snapshot KPIs" back to original "How is content performing at a glance?" (Tina's screenshot showed "Snapshot KPIs" as her own annotation label, not a header change request); (b) removed `deriveCompareRange('previous_period')` fallback so deltas render only when the user explicitly turns on a comparison period via the date picker. |
+| `b0c1afd` (hotfix #1) | Removed validator Rule 2 after Vercel logs showed the synopsis empty-state firing consistently with `totalAiCitations mismatch: prose claims "3,196 AI citations" but context.totalAiCitations = 105239`. Glean was correctly writing per-domain prose like "example.com earned 3,196 AI citations", but Rule 2's broad regex wrongly treated it as a total claim. Rules 1 + 3 kept. Cache bumped `v2-glean-ci-kpi-swap → v3-glean-ci-rule2-removed`. Regression test added locking the per-domain false positive. |
+| `a4a3d12` (hotfix #2) | Citation Share delta gate fix. Peec returns prior values unconditionally (independent of `compareRange`), so Citation Share's delta was leaking even when comparison period was OFF. Now ALL 3 deltable KPIs gate on `compareIso !== null`. Tina's literal "when you have a comparison period turned on" honored across the board. |
+
 #### Deferred for future FBs
 
 - Tina ADD: Scatter chart "AI Bot Traffic vs. Human Traffic" (next FB in this round).
 - Tina ADD: Slope chart "Which pages are gaining momentum and which are losing it?" (next FB in this round).
 - Tina section labels for §B (Watched Pages), §C (Speed Stats), §F (Fullsite Content Performance), §H (Competitor Analysis), Thomas to confirm next round whether on-page headers or doc labels.
-- Prompt Coverage delta wiring (requires getDomainCoverage refactor).
+- Prompt Coverage delta wiring (requires getDomainCoverage refactor to accept dateRange).
+- Future-FB option: add a narrower Rule 2 to the validator that requires explicit "total" phrasing, IF a real total-misreporting bug appears.
 
 ### FB-033 — Content Impact: AI-generated executive synopsis card at top
 
