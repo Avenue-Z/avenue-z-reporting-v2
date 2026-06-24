@@ -300,11 +300,6 @@ export async function ContentImpactReport({
       })
     : allBots
 
-  // Recompute aggregates from filteredBots so KPI cards stay consistent.
-  const totalBotVisits = models != null
-    ? filteredBots.reduce((s, b) => s + b.totalVisits, 0)
-    : (agentData?.totalBotVisits ?? 0)
-
   // ── Model-filtered domain lists ──────────────────────────────────────────────
   // For Peec citation tables: recompute citationCount from per-model data when
   // a filter is active. Falls back to unfiltered domain list when no filter.
@@ -849,15 +844,6 @@ export async function ContentImpactReport({
 
       </SectionCard>
 
-      {/* Footer */}
-      <p className="text-xs text-text-muted">
-        Content Impact Tracker
-        {peecData && ' · Peec AI (live)'}
-        {agentData && ` · ${totalBotVisits.toLocaleString()} AI bot visits (30d)`}
-        {calendarData && ` · ${calendarData.plannedCount} planned URLs (content calendar)`}
-        {!calendarData && ' · Content calendar pending connection'}
-        {ga4Rows ? ` · GA4 page-level data (live, ${ga4Rows.length} pages)` : ' · GA4 pending service-account access'}
-      </p>
     </div>
   )
 }
