@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useEffect, useState, useTransition } from 'react'
 import { DS_IDS } from '@/lib/supermetrics/constants'
-import { getTwFields, getTwDimensionValues, getMetricOptions, getAccountOptions, getSmDimensions, getSmDimensionValues } from '@/app/actions/dashboard'
+import { getTwFields, getTwDimensionValues, getSmFields, getAccountOptions, getSmDimensionValues } from '@/app/actions/dashboard'
 import type { TwFields } from '@/lib/triplewhale/discovery'
 import { SearchCombobox, type ComboOption } from './search-combobox'
 import { formatFromDataType, COMMON_TW_METRICS, type LeafDraft } from './build-config'
@@ -49,15 +49,15 @@ export function LeafBuilder({
     setErr(null)
     startLoad(async () => {
       try {
-        const [m, a, dm] = await Promise.all([getMetricOptions(slug, dsId), getAccountOptions(slug, dsId), getSmDimensions(slug, dsId)])
+        const [m, a] = await Promise.all([getSmFields(slug, dsId), getAccountOptions(slug, dsId)])
         if (m.ok) {
-          setMetricOpts(m.options.map((o) => ({ value: o.value, label: o.label, group: o.group })))
-          setDataTypeByMetric(Object.fromEntries(m.options.map((o) => [o.value, o.dataType])))
+          setMetricOpts(m.metrics.map((o) => ({ value: o.value, label: o.label, group: o.group })))
+          setDataTypeByMetric(Object.fromEntries(m.metrics.map((o) => [o.value, o.dataType])))
+          setDimOpts(m.dimensions.map((o) => ({ value: o.value, label: o.label, group: o.group })))
         } else {
-          setErr(m.error); setMetricOpts([]); setDataTypeByMetric({})
+          setErr(m.error); setMetricOpts([]); setDataTypeByMetric({}); setDimOpts([])
         }
         setAcctOpts(a.ok ? a.options.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })) : [])
-        setDimOpts(dm.ok ? dm.options.map((o) => ({ value: o.value, label: o.label, group: o.group })) : [])
       } catch {
         setErr('discovery unavailable'); setMetricOpts([]); setDataTypeByMetric({}); setAcctOpts([]); setDimOpts([])
       }

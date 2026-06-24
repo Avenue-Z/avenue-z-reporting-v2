@@ -10,7 +10,7 @@ import { getClientBySlug, getCachedSmDimensionValues } from '@/lib/db/queries'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { resolveSmApiKey } from '@/lib/dashboard/adapters/supermetrics'
-import { smFields, smAccounts, smDimensions, type MetricOption, type AccountOption } from '@/lib/supermetrics/discovery'
+import { smAccounts, smFieldsAndDimensions, type MetricOption, type AccountOption } from '@/lib/supermetrics/discovery'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import { resolveBlockNL } from '@/lib/dashboard/nl/resolve'
 import { resolveAggregateNL } from '@/lib/dashboard/nl/aggregate-resolve'
@@ -76,23 +76,24 @@ async function resolveKeyForSlug(slug: string): Promise<string | undefined> {
   return resolveSmApiKey(client?.smApiKeyEnvVar, process.env)
 }
 
-/** Live Supermetrics metric options for a data source. Same edit gate as save; cached per (dsId, key). */
-export async function getMetricOptions(
+/** Live Supermetrics metrics + dimensions for a data source, from a single
+ *  /query/fields fetch. Same edit gate as save; cached per (dsId, key). */
+export async function getSmFields(
   slug: string,
   dsId: string,
-): Promise<{ ok: true; options: MetricOption[] } | { ok: false; error: string }> {
+): Promise<{ ok: true; metrics: MetricOption[]; dimensions: MetricOption[] } | { ok: false; error: string }> {
   const session = await auth()
   if (!session?.user) return { ok: false, error: 'unauthenticated' }
   if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
   const apiKey = await resolveKeyForSlug(slug)
   if (!apiKey) return { ok: false, error: 'disconnected' }
   try {
-    const options = await unstable_cache(
-      () => smFields(apiKey, dsId),
+    const { metrics, dimensions } = await unstable_cache(
+      () => smFieldsAndDimensions(apiKey, dsId),
       ['sm-fields', dsId, keyHash(apiKey)],
       { revalidate: 3600 },
     )()
-    return { ok: true, options }
+    return { ok: true, metrics, dimensions }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'discovery failed' }
   }
@@ -162,28 +163,6 @@ export async function getTwDimensionValues(
       { revalidate: 3600 },
     )()
     return { ok: true, values }
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'discovery failed' }
-  }
-}
-
-/** Live Supermetrics dimension options for a data source. Same edit gate as save; cached per (dsId, key). */
-export async function getSmDimensions(
-  slug: string,
-  dsId: string,
-): Promise<{ ok: true; options: MetricOption[] } | { ok: false; error: string }> {
-  const session = await auth()
-  if (!session?.user) return { ok: false, error: 'unauthenticated' }
-  if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
-  const apiKey = await resolveKeyForSlug(slug)
-  if (!apiKey) return { ok: false, error: 'disconnected' }
-  try {
-    const options = await unstable_cache(
-      () => smDimensions(apiKey, dsId),
-      ['sm-dimensions', dsId, keyHash(apiKey)],
-      { revalidate: 3600 },
-    )()
-    return { ok: true, options }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'discovery failed' }
   }

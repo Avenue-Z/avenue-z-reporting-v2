@@ -67,6 +67,16 @@ export async function smDimensions(apiKey: string, dsId: string, fetchImpl: type
   return parseDimensions(await getJson('query/fields', dsId, apiKey, fetchImpl))
 }
 
+/** Metrics + dimensions from a SINGLE /query/fields fetch (they share one payload). */
+export async function smFieldsAndDimensions(
+  apiKey: string,
+  dsId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ metrics: MetricOption[]; dimensions: MetricOption[] }> {
+  const json = await getJson('query/fields', dsId, apiKey, fetchImpl)
+  return { metrics: parseFields(json), dimensions: parseDimensions(json) }
+}
+
 /** Distinct values of a dimension for one account, via a `fields=[column]` query. */
 export async function smDimensionValues(
   apiKey: string,

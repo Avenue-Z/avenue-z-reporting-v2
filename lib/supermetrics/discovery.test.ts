@@ -1,6 +1,6 @@
 // Run: npx tsx lib/supermetrics/discovery.test.ts
 import { strict as assert } from 'node:assert'
-import { parseFields, parseAccounts, smFields, smAccounts, parseDimensions, smDimensions, smDimensionValues } from './discovery'
+import { parseFields, parseAccounts, smFields, smAccounts, parseDimensions, smDimensions, smFieldsAndDimensions, smDimensionValues } from './discovery'
 import { SmQueryError } from './types'
 
 const okFetch = (body: unknown): typeof fetch =>
@@ -76,6 +76,22 @@ async function main() {
     await assert.rejects(smDimensionValues('k', 'SHP', 'a', 'bad col', { startDate: 'x', endDate: 'y' }, { fetchImpl: okFetch({}) }))
   }
   await dimMain()
+
+  // smFieldsAndDimensions: ONE /query/fields fetch yields both metrics and dimensions
+  {
+    let calls = 0
+    const countingFetch = (async () => {
+      calls += 1
+      return { ok: true, status: 200, json: async () => ({ data: [
+        { '@type': 'ds_metric', field_id: 'cost', field_name: 'Cost', data_type: 'float.currency.value' },
+        { '@type': 'ds_dimension', field_id: 'order_shipping_country', field_name: 'Shipping country' },
+      ] }) } as unknown as Response
+    }) as unknown as typeof fetch
+    const { metrics, dimensions } = await smFieldsAndDimensions('k', 'SHP', countingFetch)
+    assert.equal(calls, 1) // single network round-trip
+    assert.deepEqual(metrics.map((m) => m.value), ['cost'])
+    assert.deepEqual(dimensions.map((d) => d.value), ['order_shipping_country'])
+  }
 
   console.log('ok')
 }
