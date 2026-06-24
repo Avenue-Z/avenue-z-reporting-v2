@@ -8,6 +8,7 @@ import {
   setBlockRange,
   resetBlockRange,
   addBlock,
+  applyLayoutChange,
 } from './config-mutations'
 
 const block = (id: string, range: PersistedBlock['range'] = null): PersistedBlock => ({
@@ -75,6 +76,32 @@ const base: DashboardConfig = {
   assert.equal(next.blocks[0].id, 'n1')
   assert.notEqual(next.blocks, base.blocks, 'new array')
   assert.equal(base.blocks.length, 0, 'input unchanged')
+}
+
+// applyLayoutChange: writes {x,y,w,h} to matching blocks; unmatched blocks untouched.
+{
+  const next = applyLayoutChange(base, [
+    { i: 'a', x: 0, y: 0, w: 3, h: 2 },
+    { i: 'c', x: 6, y: 0, w: 6, h: 4 },
+  ])
+  assert.deepEqual(next.blocks[0].layout, { x: 0, y: 0, w: 3, h: 2 })
+  assert.equal(next.blocks[1].layout, undefined, "block 'b' had no layout entry — untouched")
+  assert.deepEqual(next.blocks[2].layout, { x: 6, y: 0, w: 6, h: 4 })
+}
+// applyLayoutChange: ignores layout entries with no matching block id.
+{
+  const next = applyLayoutChange(base, [
+    { i: 'a', x: 0, y: 0, w: 3, h: 2 },
+    { i: 'ghost', x: 0, y: 0, w: 3, h: 2 },
+  ])
+  assert.equal(next.blocks.length, 3)
+  assert.deepEqual(next.blocks[0].layout, { x: 0, y: 0, w: 3, h: 2 })
+}
+// applyLayoutChange: immutable — input config not mutated.
+{
+  const before = JSON.stringify(base)
+  applyLayoutChange(base, [{ i: 'a', x: 0, y: 0, w: 3, h: 2 }])
+  assert.equal(JSON.stringify(base), before, 'input must be unchanged')
 }
 
 console.log('ok')
