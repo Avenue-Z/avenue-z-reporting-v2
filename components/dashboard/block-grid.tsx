@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { reorderBlocks } from './config-mutations'
+import { OptimisticBlockCard } from './metric-block-states'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 export interface BlockGridProps {
@@ -28,9 +29,11 @@ export interface BlockGridProps {
   config: DashboardConfig
   /** Rendered child per block (the <MetricBlockShell>). */
   renderBlock: (block: PersistedBlock) => ReactNode
+  optimisticBlocks?: { id: string; name: string }[]
 }
 
-export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockGridProps) {
+export function BlockGrid({ blocks, canEdit, slug, config, renderBlock, optimisticBlocks }: BlockGridProps) {
+  const optimistics = optimisticBlocks ?? []
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -61,6 +64,9 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
         {blocks.map((b) => (
           <div key={b.id}>{renderBlock(b)}</div>
         ))}
+        {optimistics.map((o) => (
+          <div key={o.id}><OptimisticBlockCard name={o.name} /></div>
+        ))}
       </div>
     )
   }
@@ -79,6 +85,9 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
               <SortableBlock key={b.id} id={b.id}>
                 {renderBlock(b)}
               </SortableBlock>
+            ))}
+            {optimistics.map((o) => (
+              <div key={o.id}><OptimisticBlockCard name={o.name} /></div>
             ))}
           </div>
         </SortableContext>

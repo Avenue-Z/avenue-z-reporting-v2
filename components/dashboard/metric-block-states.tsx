@@ -64,3 +64,15 @@ export function BlockValueError({ error, slug }: { error: BlockError; slug: stri
     </div>
   )
 }
+
+/** Client-only placeholder for a just-added block (shown until the refreshed
+ *  server config includes it). Reuses the section skeletons. */
+export function OptimisticBlockCard({ name }: { name: string }) {
+  return (
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px]" aria-busy="true">
+      <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{name}</p>
+      <div className="mt-2"><ValueSkeleton /></div>
+      <div className="mt-1"><DeltaSkeleton /></div>
+    </div>
+  )
+}

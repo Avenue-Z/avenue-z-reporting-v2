@@ -20,7 +20,7 @@ const SOURCES: { value: Source; label: string }[] = [
 ]
 const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
-export function AddBlockDialog({ slug, config, onClose }: { slug: string; config: DashboardConfig | null; onClose: () => void }) {
+export function AddBlockDialog({ slug, config, onClose, onAdded }: { slug: string; config: DashboardConfig | null; onClose: () => void; onAdded?: (b: { id: string; name: string }) => void }) {
   const router = useRouter()
   const [step, setStep] = useState<'pick' | 'mode' | 'prompt' | 'preview' | 'build'>('pick')
   const [source, setSource] = useState<Source>('supermetrics')
@@ -56,7 +56,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) setError(res.error)
-      else { onClose(); router.refresh() }
+      else { onAdded?.({ id: block.id, name: block.name }); onClose(); router.refresh() }
     })
   }
 
@@ -67,7 +67,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) setError(res.error)
-      else { onClose(); router.refresh() }
+      else { onAdded?.({ id: block.id, name: block.name }); onClose(); router.refresh() }
     })
   }
 
