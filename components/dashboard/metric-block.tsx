@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { getMainLabel } from '@/components/layout/date-range-picker'
 import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
+import { useBlockActions } from './block-actions'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 import type { ReactNode } from 'react'
 
@@ -46,20 +48,31 @@ export function MetricBlockShell({ block, canEdit, slug, config, activeDefault, 
   const [draftCompare, setDraftCompare] = useState<string | null>(block.range?.compareRange ?? activeDefault.compareRange)
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const router = useRouter()
+  const { hide, unhide } = useBlockActions()
 
   const isOverridden = block.range !== null
 
   function closeMenu() { setMenuOpen(false); setView('menu'); setErrorMsg(null) }
+  // router.refresh() re-renders with the fresh config while KEEPING the SM/TW
+  // query Data Cache warm (saveDashboardConfig no longer revalidatePath's it).
   function runSave(nextConfig: DashboardConfig) {
     startTransition(async () => {
       const res = await saveDashboardConfig(slug, nextConfig)
       if (!res.ok) { setErrorMsg(res.error); return }
-      closeMenu()
+      closeMenu(); router.refresh()
     })
   }
   function applyOverride() { runSave(setBlockRange(config, block.id, { dateRange: draftDate, compareRange: draftCompare })) }
   function confirmReset() { runSave(resetBlockRange(config, block.id)) }
-  function confirmDelete() { runSave(removeBlock(config, block.id)) }
+  function confirmDelete() {
+    hide(block.id) // optimistic: drop it from the grid immediately
+    startTransition(async () => {
+      const res = await saveDashboardConfig(slug, removeBlock(config, block.id))
+      if (!res.ok) { setErrorMsg(res.error); unhide(block.id); return } // revert on failure
+      closeMenu(); router.refresh()
+    })
+  }
 
   const overrideLabel = isOverridden ? getMainLabel(block.range!.dateRange) : null
   const badge = isOverridden ? (

@@ -1,7 +1,7 @@
 'use server'
 
 import { eq } from 'drizzle-orm'
-import { revalidatePath, unstable_cache } from 'next/cache'
+import { unstable_cache } from 'next/cache'
 import { createHash } from 'node:crypto'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
@@ -46,7 +46,10 @@ export async function saveDashboardConfig(
     .set({ dashboardConfig: parsed.config, updatedAt: new Date() })
     .where(eq(clients.slug, slug))
 
-  revalidatePath('/', 'layout')
+  // No revalidatePath here: the config is read per-request (React cache) and the
+  // dashboard page is dynamic, so callers re-render via router.refresh(). A broad
+  // revalidatePath('/', 'layout') would purge the SM/TW query Data Cache on every
+  // edit, forcing a full cold re-resolution.
   return { ok: true }
 }
 

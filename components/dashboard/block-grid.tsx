@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   DndContext,
   PointerSensor,
@@ -36,6 +37,7 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock, optimist
   const optimistics = optimisticBlocks ?? []
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const router = useRouter()
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -54,6 +56,7 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock, optimist
     startTransition(async () => {
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) setErrorMsg(res.error)
+      else router.refresh()
     })
   }
 
