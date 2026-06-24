@@ -26,14 +26,15 @@ Out of scope:
 
 ## Columns
 
-Leading **name** column + Spend, Impressions, Reach, Frequency, Link Clicks,
+Leading **Name** column + Spend, Impressions, Reach, Frequency, Link Clicks,
 CTR, CPC, LPV, Cost / LPV, Engagements, Share of Spend, Status.
 
-The leading column is labeled **"Campaign"** (matching the screenshots) and holds the
-node's name at each level: campaign name on campaign rows, ad set name on ad-set rows
-(indented), ad name on ad rows (indented further). This **replaces** the flat table's
-two separate "Ad Name" + "Campaign" columns — they merge into this one hierarchical name
-column. All metric columns are unchanged from the current table.
+The leading column (header: **"Name"**) shows each row's own entity name — the campaign
+name on campaign rows, the ad set name on ad-set rows (indented one level), the ad name on
+ad rows (indented a further level). It is a single contextual name column, not a merge of
+values: every row displays only its own name. This replaces the flat table's "Ad Name"
+column; the old separate "Campaign" column is no longer needed because the campaign is now
+the top-level row. All metric columns are unchanged from the current table.
 
 ## Data Loading
 
@@ -80,7 +81,10 @@ screenshots' numbers:
 
 Note on Frequency/reach: reach is not truly additive across ad sets (a user reached in
 two ad sets is double-counted when summed). We accept this approximation — it mirrors the
-existing flat totals row, which already computes `impressions / summed reach`.
+existing flat totals row, which already computes `impressions / summed reach`. To make this
+explicit to viewers, the **Frequency column header carries a tooltip disclaimer** (reusing
+the existing `KpiCard`-style "?" tooltip pattern) noting that parent-level frequency sums
+reach and may double-count users reached across multiple ad sets.
 
 ## Component
 
