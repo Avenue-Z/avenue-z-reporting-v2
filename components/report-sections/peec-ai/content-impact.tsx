@@ -6,7 +6,7 @@ import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, urlTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
-import { urlJoinKey, labelFromPath } from '@/lib/url'
+import { urlJoinKey } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
@@ -22,9 +22,6 @@ import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import {
   PlannedContentPerformanceTable,
   OwnedContentCitedTable,
-  TrafficNoCitationsTable,
-  CitationsLittleTrafficTable,
-  BotAttentionNoCitationsTable,
   CompetitorDomainsCitedTable,
   CompetitorUrlsBrandAbsentTable,
   RepeatedCompetitorPagesTable,
@@ -32,9 +29,6 @@ import {
   ContentTeamRecommendationsTable,
   type PlannedContentRow,
   type OwnedContentCitedRow,
-  type TrafficNoCitationsRow,
-  type CitationsLittleTrafficRow,
-  type BotAttentionNoCitationsRow,
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
   type RepeatedCompetitorPagesRow,
@@ -430,25 +424,6 @@ export async function ContentImpactReport({
     return aiRefByPath.get(np) ?? 0
   }
 
-  // §G content-gap maps — owned pages keyed by normalized path: GA4 sessions,
-  // owned-page citation counts, and calendar topics. "Owned" = a page on an
-  // owned Peec domain or one that mentions the brand.
-  const ownedHostSet = new Set(ownDomains.map(d => hostKey(d.domain)))
-  const sessionsByPath = new Map<string, number>()
-  for (const r of (ga4Rows ?? [])) sessionsByPath.set(normPath(String(r.pagePath ?? '')), Number(r.sessions) || 0)
-  const citedOwnedByPath = new Map<string, number>()
-  for (const c of urlCitations) {
-    if (!(ownedHostSet.has(hostKey(c.domain)) || c.mentionsYourBrand) || c.citationCount <= 0) continue
-    const p = extractPath(c.url); if (!p) continue
-    const np = normPath(p)
-    citedOwnedByPath.set(np, Math.max(citedOwnedByPath.get(np) ?? 0, c.citationCount))
-  }
-  const topicByPath = new Map<string, string>()
-  for (const r of enrichedRows) {
-    const p = extractPath(r.url); if (!p) continue
-    topicByPath.set(normPath(p), r.topic)
-  }
-
   // ── §C/§D · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────
   // Both sections key off planned content (URL + publish date + new/optimized).
   // One date-bucketed GA4 query, restricted to the planned paths over the window
@@ -740,118 +715,6 @@ export async function ContentImpactReport({
           />
         )
       })()}
-
-      {/* ── Section G: Content Gaps (PRD: 3 sub-views) ────────────────────── */}
-      <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-        <div>
-          <h3 className="text-sm font-bold text-white">Where is content disconnected from AI demand?</h3>
-          <p className="mt-1 text-xs text-text-muted">
-            Three views of content gap: pages with traffic but no AI citations, AI-cited pages without human traffic, and bot-crawled pages without citations or visits.
-          </p>
-        </div>
-
-        {/* Sub-view 1: Traffic but No AI Citations */}
-        {(() => {
-          const g1Rows: TrafficNoCitationsRow[] = calendarIsDemo
-            ? [
-                { url: '/services',                          topic: 'Services Overview',       sessions: 827,  aiCitations: 0, opportunityNote: 'Add structured data + brand authority signals to surface in agency-comparison queries' },
-                { url: '/about',                             topic: 'About Avenue Z',          sessions: 1042, aiCitations: 0, opportunityNote: 'Add founder story + clear capability statement for "who is Avenue Z" type prompts' },
-                { url: '/blog/audit-brand-chatgpt',          topic: 'How to Audit Brand',      sessions: 447,  aiCitations: 0, opportunityNote: 'Already strong page — needs interlinking from AEO pillar to compound citation signal' },
-                { url: '/pricing',                           topic: 'Pricing',                 sessions: 274,  aiCitations: 0, opportunityNote: 'Add ROI calculator + comparison framing for "agency pricing" prompts' },
-              ]
-            : ga4Rows === null || !citationsOk
-              ? []
-              : [...sessionsByPath.entries()]
-                  .filter(([np, s]) => s > 0 && !citedOwnedByPath.has(np))
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 10)
-                  .map(([np, s]) => ({
-                    url: np,
-                    topic: topicByPath.get(np) ?? labelFromPath(np),
-                    sessions: s,
-                    aiCitations: 0,
-                    opportunityNote: 'Earns human traffic but no AI citations — add direct-answer blocks, FAQ schema, and clear entity definitions to become citable',
-                  }))
-          return (
-            <TrafficNoCitationsTable
-              rows={g1Rows}
-              emptyMessage="Requires GA4 page sessions + Peec AI owned-domain URL-level data"
-            />
-          )
-        })()}
-
-        <div className="border-t border-white/[0.06]" />
-
-        {/* Sub-view 2: AI Citations but Little Human Traffic */}
-        {(() => {
-          const g2Rows: CitationsLittleTrafficRow[] = calendarIsDemo
-            ? [
-                { url: '/methodology/brand-authority',        topic: 'Brand Authority',         aiCitations: 18, sessions: 524, opportunityNote: 'Highly cited but low human traffic — add prominent CTA to drive trial sign-ups' },
-                { url: '/press/techcrunch-feature',           topic: 'Press: TechCrunch',       aiCitations:  9, sessions: 213, opportunityNote: 'Press coverage drives AI citation but doesn\'t convert — add follow-up content path' },
-                { url: '/case-studies/renaissance-benefits',  topic: 'Renaissance Case Study',  aiCitations: 14, sessions: 392, opportunityNote: 'Industry credibility piece — link from services page to convert authority into demos' },
-                { url: '/resources/geo-glossary',             topic: 'GEO Glossary',            aiCitations: 36, sessions: 983, opportunityNote: 'Strong organic citation — embed in-context CTAs without disrupting reference utility' },
-              ]
-            : !citationsOk
-              ? []
-              : urlCitations
-                  .filter(c => (ownedHostSet.has(hostKey(c.domain)) || c.mentionsYourBrand) && c.citationCount > 0)
-                  .map(c => {
-                    const np = normPath(extractPath(c.url) ?? '')
-                    return {
-                      url: c.url,
-                      topic: topicByPath.get(np) ?? labelFromPath(c.url),
-                      aiCitations: c.citationCount,
-                      sessions: sessionsByPath.get(np) ?? 0,
-                      opportunityNote: 'Cited by AI but earns little human traffic — add a prominent CTA and internal links to convert citation visibility into visits',
-                    }
-                  })
-                  .sort((a, b) => a.sessions - b.sessions)
-                  .slice(0, 10)
-          return (
-            <CitationsLittleTrafficTable
-              rows={g2Rows}
-              emptyMessage="Requires GA4 + Peec AI URL-level citation data"
-            />
-          )
-        })()}
-
-        <div className="border-t border-white/[0.06]" />
-
-        {/* Sub-view 3: AI Bot Attention but No Citations/Visits (LIVE from agent-analytics)
-            v1 limitation: this table is built from agentData.topPaths, which is path-level
-            and not segmented by bot identity. We cannot honor the model filter here without
-            backend changes to expose per-bot path breakdowns. When a model filter is active,
-            this table shows the all-bots view as-is. Future enhancement: add a
-            topPathsByBot field to AgentAnalyticsData. */}
-        {(() => {
-          const g3DemoTopics = ['Services Overview', 'About Avenue Z', 'Brand Authority', 'GEO Glossary', 'How to Audit Brand', 'Renaissance Case Study', 'Press: TechCrunch', 'Pricing', 'AEO Services', '2026 AI Trends']
-          const g3DemoCites = [3, 1, 8, 12, 5, 2, 4, 0, 6, 9]
-          const g3DemoSessions = [42, 18, 87, 156, 64, 31, 53, 12, 78, 109]
-          const g3Rows: BotAttentionNoCitationsRow[] = (agentData?.topPaths ?? []).slice(0, 10).map((p, idx) => {
-            const calMatch = enrichedRows.find(r => {
-              const rPath = extractPath(r.url)
-              return rPath && (rPath === p.path || rPath === p.path.replace(/\/$/, ''))
-            })
-            return {
-              urlPath: p.path,
-              topic: calMatch?.topic ?? (calendarIsDemo ? g3DemoTopics[idx % 10] : labelFromPath(p.path)),
-              aiBotVisits: p.visits,
-              aiCitations: calendarIsDemo ? g3DemoCites[idx % 10]
-                : citationsOk ? (citedOwnedByPath.get(normPath(p.path)) ?? 0) : null,
-              aiReferredSessions: calendarIsDemo ? g3DemoSessions[idx % 10] : aiReferredForPath(p.path),
-              opportunityNote: p.status >= 400 ? 'Error page -- fix or redirect'
-                : p.status >= 300 ? 'Redirect -- verify final destination'
-                : 'Crawled but not cited -- check content format for LLM extraction',
-            }
-          })
-          return (
-            <BotAttentionNoCitationsTable
-              rows={g3Rows}
-              emptyMessage="No AI bot crawl data available -- check PEEC_AI_CUSTOMER_TOKEN configuration."
-            />
-          )
-        })()}
-      </div>
 
       {/* ── Section H: Competitor / Third-Party Content (PRD: 3 sub-views) ── */}
       <SectionCard
