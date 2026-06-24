@@ -1,6 +1,6 @@
 # Official Feedback — Status
 
-Snapshot of where the `official-feedback` branch is. Updated whenever a feedback batch ships. Read this first before continuing work on this branch.
+Snapshot of where the AEO feedback workstream is. Updated whenever a batch ships. Read this first before continuing work.
 
 ---
 
@@ -9,84 +9,143 @@ Snapshot of where the `official-feedback` branch is. Updated whenever a feedback
 Process Tina's feedback on the **Answer Engine Optimization** section of the Avenue Z reporting platform. All changes must:
 
 1. Match Tina's literal ask. No silent reinterpretation.
-2. Apply universally to every current and future AEO client (no per-client conditionals).
-3. Use the **Glean Chat API** for any LLM inference. No Vertex/Gemini, OpenAI, Anthropic direct, etc.
-4. Avoid em-dashes and AI-tell punctuation in any copy I write.
-5. Be documented per item in `feedback-log.md` with verbatim ask, decisions, and risks so Paul (or future-Thomas) can pick up cold.
+2. Apply universally **for design / layout / UX changes**. New clients inherit by construction.
+3. **Sandbox to Avenue Z when the content is hardcoded Avenue Z data.** Gate via `clientSlug === 'avenue-z'` and return `null` for other clients. Two sandboxed components today: Winners/Losers (FB-006) and Sentiment Insights (FB-010).
+4. Use the **Glean Chat API** for any LLM inference. No Vertex/Gemini, OpenAI, Anthropic direct, etc. `gleanChat()` helper in `lib/glean.ts`. ActAs is opt-in (token is a Glean user token).
+5. Avoid em-dashes and AI-tell punctuation in any copy written.
+6. Be documented per item in `feedback-log.md` with verbatim ask, decisions, and risks so Paul (or future-Thomas) can pick up cold.
 
 ---
 
-## Branch
+## Active branch
 
-- Branch: `official-feedback-overview-tab` (renamed from `official-feedback` on 2026-06-18 to make room for per-tab PRs going forward)
-- Base: `main`
-- Origin: `https://github.com/Avenue-Z/avenue-z-reporting-v2`
-- PR: [#50 — AEO Overview tab: official feedback (FB-001 to FB-008)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50)
-- Prior PR [#48](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/48) was closed automatically when the branch was renamed; superseded by #50
+- **Branch:** none currently active. On `main` at `f6fd533` (PR Influence v2 batch just merged via PR #64).
+- **Next round:** Content Impact (v1) — branch `official-feedback-content-impact-tab` is parked as docs-only; resume when Tina sends Content Impact feedback. **Pre-empt:** apply the FB-031 footnote-removal pattern proactively at [content-impact.tsx:1279-1285](../../components/report-sections/peec-ai/content-impact.tsx:1279) (saved to memory as `project_content_impact_preempt.md`) BEFORE Tina sees Content Impact for v1 review.
+- **Suggested next branch:** `official-feedback-content-impact-tab` (cut a fresh one from `f6fd533` when work begins).
+- **Next FB ID:** **FB-032**.
+
+## Recently merged
+
+- **PR Influence v2** — [#64 — PR Influence v2: Tina CSV feedback (FB-025 through FB-030)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) — **MERGED 2026-06-23** at merge commit `f6fd533`. Closed every ⚠️ row in Tina's PR Influence v1 scorecard CSV (R2, R4, R5, R14, R16, R17, R23) + R24 REMOVE ask. **+ FB-031 hardening** shipped on the same branch in response to a synopsis-vs-table contradiction caught on the Vercel preview. Items shipped in this batch:
+  - **FB-025** (CSV R2) — Synopsis decimals fix: `.toFixed(1)` + `Math.round(o.score)` in `buildContext()`, strict 'Number formatting' prompt rule, cache version `v1-glean-pri` → `v2-glean-pri`. Commit `d20b321`.
+  - **FB-026** (CSV R4 + R5) — Sentiment Insights wired to live Glean-backed classification over `UrlCitation[]`; sandbox gate LIFTED (precedent: FB-023); date + model reactive; 11 unit tests. New `lib/peec/sentiment-insights.ts` + `lib/peec/sentiment-insights.test.ts`. Commits `d385c55` + `79ad31c` (follow-up dropped null-title URL hallucination bait + JSDoc fix).
+  - **FB-027** (CSV R14) — Prompt Clusters X-axis dynamic: `upper = next 5 (max ≤ 10) or next 10 (max > 10)`, fallback 5 when empty. One-block edit in `PromptClusterOpportunityMatrix`. Commit `e9fbe2c`.
+  - **FB-028** (CSV R15 ✅ + R16 + R17) — Top Editorial Opportunities rewritten: Tina's R15 ✅ 5-column shape preserved verbatim; row source flipped from `data.topDomains` (domain-rows) to `urlCitations` (URL-rows); brand-absent at URL level via `mentionsYourBrand=false`; editorial filter via `classification === 'editorial'` with host cross-ref fallback; honest URL-level Citation Share + Delta of Citation Share (new prior-period URL fetch); dropped `!prDomains.has` + `retrievedDelta > 0`; cap raised 20→50. Commits `6cb2e25` + `9eaa991` (follow-up fixed stale empty-state copy + restored model-filter passthrough via `isModelMatch`).
+  - **FB-029** (CSV R23 REVISION) — PR Placement Matchback restored under Exec Summary with Tina's literal title + subtitle. New focused 5-col `PRPlacementMatchbackTable` (Publication / Article / Publish Date / Cited by AI? / AI Engines). Reuses still-live `filteredMatchbackRows`. Commit `6d37b5a`.
+  - **FB-030** (CSV R24) — Bottom footnote deleted. Top-of-file code comment preserved. Commit `364ee5c`.
+  - **FB-031** — 4-layer hardening of the PR Influence synopsis after a Vercel-preview bug where the prose said "0 editorial domains where brand absent" while the table showed 5. (1) Prompt hardening with `USE THESE EXACT VALUES` labels + `Data integrity (strict)` rule. (2) New exported `validateSynopsisGrounding()` post-Glean validator (3 regex patterns: brand-absent host count, total editorial domains, N-of-M placements). (3) Retry-on-violation loop with stricter prompt; throws on second failure so component renders graceful empty state. (4) Cache version `v2-glean-pri` → `v3-glean-pri-grounded`. 13 unit tests including the production bug as the regression test. Commit `245905b`.
+- **Overview v2** — [#63 — Overview v2: Tina CSV feedback (FB-020 through FB-024)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) — **MERGED 2026-06-23** at merge commit `1d8d9e9`. Closed every ⚠️ row in Tina's Overview-tab v1 scorecard CSV. Items shipped in this batch:
+  - **FB-020** (CSV E2) — Drop SectionHeader subtitle on Overview. `subtitle?: string` now optional in shared component; other 3 AEO tabs keep their own. Commit `07f021e`.
+  - **FB-021** (CSV E12, Rule #11) — Remove "Which prompts are AI engines answering with our brand?" chart from both Peec + Profound Overview RSCs. Both component files deleted. `data.trackedPrompts` field kept (consumed by 6+ other surfaces). Commit `ffbe3b5`.
+  - **FB-022 + FB-024** (CSV E7) — Visibility chart truly YTD on both providers, pinned to today (Jan 1 of current year through today's date), completely independent of the page date picker. Separate YTD fetch in `lib/peec/client.ts` + `lib/profound/client.ts`; cache versions bumped (peec v7→v8, profound v4→v5). FB-024 reverted the FB-022 Neon column path (Paul declined the DB change) and dropped the misleading "Tracking began" line entirely. Tooltip retained. Chart refreshes daily via 1h `cached()` TTL + nightly Peec ingest. Commits `360d7c1` + `47ea1cb`.
+  - **FB-023** (CSV E11) — Winners/Losers cards: live per-period compute reactive to BOTH date range AND model filter. Model-dimensioned current + prior prompt fetches in `lib/peec/client.ts` (limit 5000). New `lib/peec/winners-losers.ts` with `applyModelFilter` + `computeWinnersLosers` (16 unit tests via `node:assert`). Sandbox gate lifted; empty-state copy added. Profound type mirrored (empty maps) for parity; Profound provider variant shows empty state until parity FB ships. Commit `d9086ce`.
+- **Earlier PR Influence v1 work** (historical):
+  - [#52 — PR Influence tab: official feedback (FB-009 through FB-018)](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) — MERGED 2026-06-22
+  - [#58 — FB-019 chart height match](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) — MERGED 2026-06-22
+
+## Open follow-ups (operational, not blocking next round)
+
+- Profound parity on Winners/Losers (requires Profound API to expose per-prompt-per-model rows; separate FB when needed).
+- Backfill of any per-client identifiers as new clients onboard.
+
+## Parked branches
+
+- `official-feedback-content-impact-tab` — docs-only diff. Resume when Tina sends Content Impact feedback.
+- `official-feedback-pr-influence-tab` — historical (v1 work, merged via #52 + #58). Keep around for reference; do NOT push new work here. Cut a fresh `official-feedback-pr-influence-v2` from main for the next round.
 
 ## Per-tab workflow going forward
 
-One branch + one PR per AEO sub-tab. Future branches:
+One branch + one PR per round of feedback per AEO sub-tab.
 
-| Tab | Branch | PR |
-|---|---|---|
-| Overview | `official-feedback-overview-tab` | [#50](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50) |
-| PR Influence | `official-feedback-pr-influence-tab` | (next batch) |
-| Content Impact | `official-feedback-content-impact-tab` | (later batch) |
-| Technical Performance | `official-feedback-technical-performance-tab` | (later batch) |
+| Tab | Branch | PR | State |
+|---|---|---|---|
+| Overview (v1) | `official-feedback-overview-tab` | [#50](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/50) | MERGED |
+| Vis-bar fix (Overview hotfix) | `fix/llm-visibility-bar-scale` | [#53](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/53) | MERGED |
+| FB-006 sandbox (Overview hotfix) | `fix/sandbox-avenue-z-static-content` | [#54](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/54) | MERGED |
+| PR Influence (v1, initial batch) | `official-feedback-pr-influence-tab` | [#52](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/52) | MERGED |
+| PR Influence (v1, FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
+| **Overview (v2)** | `official-feedback-overview-v2` | **[#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63)** | **MERGED 2026-06-23** |
+| **PR Influence (v2)** | `official-feedback-pr-influence-v2` | **[#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64)** | **MERGED 2026-06-23** |
+| **Content Impact (v1)** | `official-feedback-content-impact-tab` (to cut) | (future) | **NEXT — parked, awaiting Tina feedback; FB-031 footnote pre-empt ready to apply** |
+| Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-Each new branch cuts from `main` (after the previous tab merges in) and only contains changes to that one tab's render path. FB IDs continue sequentially across all branches (next item is FB-009).
+FB IDs continue sequentially across all branches. **Next ID is FB-032.**
 
 ---
 
 ## Shipped — FB log
 
-| FB ID | What it was | Commit | Status |
-|---|---|---|---|
-| **FB-001** | Tina — consistent header across all 4 AEO tabs. Shared `<SectionHeader>` component, applied universally. Overview gets Sparkles + new copy. PR Influence gets Megaphone + new copy. Content Impact unchanged (the reference). Technical Performance icon color flipped yellow → green for consistency. | `7097a19` | ✅ done |
-| **FB-002** | Tina — AEO Overview tab redesign batch (5 sub-items a–e). | `ae8fc06` | ✅ done |
-| ↳ 002a | Removed the "What changed" pills (`<PeriodRibbon />`) | | ✅ |
-| ↳ 002b | Swapped the 3 KPI cards. Visibility / Citation Share / AI Referral Traffic. Citation Share is truth-grounded for both Peec and Profound: sum of citations attributed to client's own domain ÷ total tracked-domain citations. | | ✅ |
-| ↳ 002c | New Executive Synopsis card at top of Overview. Calls Glean Chat (was Vertex Gemini at first ship, migrated in FB-003). Cached 1h per (client, dateRange, provider). | | ✅ |
-| ↳ 002d | Added `Snapshot KPIs` eyebrow heading above the KPI grid | | ✅ |
-| ↳ 002e | Moved `<VisibilityChart>` to render after the KPI grid (matches Tina's mockup vertical order) | | ✅ |
-| **FB-003** | Thomas — Glean-only LLM rule. Migrated FB-002c synopsis from Vertex Gemini to Glean Chat API. Added reusable `gleanChat()` helper to `lib/glean.ts`. Cache version bumped `v1` → `v2-glean`. | `e33ed66` | ✅ done |
-| **FB-004** | Tina — added vertical axis to the AEO Overview visibility trend chart. 5 percent-tick labels computed from existing `CHART_MAX`, aligned to the 5 existing gridlines. X-axis row gets a matching spacer so bars stay aligned to date labels. | `da74c23` | ✅ done |
-| **FB-005** | Tina — disambiguated "Google" in the AEO Model Breakdown. Investigation against live Peec API revealed Gemini data was silently being bucketed into "Google" (Peec channel id `google-2` = gemini-scraper). Fix: pull `model_id` dimension, prefer `row.model.id` over `row.model_channel.id` in `normalizeSource`, add display label map (`Google` → `Google AI Overview`). After fix, the breakdown shows Gemini and Google AI Overview as separate truthful rows. | `6142968` | ✅ done |
-| **FB-006** | Tina — Biggest Winners / Biggest Losers side-by-side cards on AEO Overview between Model Breakdown and Leaderboard. **Static content** (Tina's exact 17 + 20 rows from her AEO Analysis doc live inline in the component as two `const` arrays, no props, no data layer). Symmetrical (`grid lg:grid-cols-2 items-stretch`), scroll-bounded (`max-h-[400px] overflow-y-auto`). Initial commit `364f696` was a computed/live version; reverted to static per Thomas. | `d9f8f70` | ✅ done |
-| **FB-007** | Tina — removed the "Which categories of brands earn AI share of voice?" chart and the "What do these brand categories mean?" definitions block from the AEO Overview Leaderboard row. Collapsed the surrounding `lg:grid-cols-[1fr_280px]` grid so the Rankings table stretches to full width. Deleted the now-unused `BRAND_TYPE_MAP`/`BRAND_TYPE_COLORS`/`BRAND_TYPE_DEFINITIONS` import and the two helper functions in the file. One file. | `2077037` | ✅ done |
-| **FB-008** | Tina — recolored the Domain Types chart + legend with the Avenue Z brand palette. Extracted shared `DOMAIN_TYPE_COLORS` const so chart bar and legend dot always match. Five brand accents at 100% for primary categories (Own cyan, UGC green, Editorial blue, Corporate yellow, Competitor purple); Reference + Institutional use parent-accent at 60% opacity; Other at 20% white. Zero `#8A8A8A` gray remains. Brand-doc compliant. | `c19733e` | ✅ done |
+| FB ID | Tab | Branch | Commit | Summary |
+|---|---|---|---|---|
+| **FB-001** | Overview | (merged via #50) | `7097a19` | Consistent `<SectionHeader>` across all 4 AEO tabs. |
+| **FB-002** | Overview | (merged via #50) | `ae8fc06` | AEO Overview redesign batch: removed pills (a), swapped 3 KPIs (b), added Executive Synopsis (c), Snapshot KPIs eyebrow (d), reordered trend chart (e). |
+| **FB-003** | Overview | (merged via #50) | `e33ed66` | Migrated Overview synopsis from Vertex Gemini to Glean Chat. Added `gleanChat()` helper. |
+| **FB-004** | Overview | (merged via #50) | `da74c23` | Added vertical axis to visibility trend chart. |
+| **FB-005** | Overview | (merged via #50) | `6142968` | Disambiguated "Google" in Model Breakdown. Fixed bucketing bug where Gemini was silently merged into Google. Display label `Google` → `Google AI Overview`. |
+| **FB-006** | Overview | (merged via #50, sandbox fix #54) | `d9f8f70` + `d71d18c` | Biggest Winners + Biggest Losers cards, static Avenue Z content. **Sandbox-gated to `clientSlug === 'avenue-z'`.** |
+| **FB-007** | Overview | (merged via #50) | `2077037` | Removed Brand Categories chart + definitions. Stretched Leaderboard to full width. |
+| **FB-008** | Overview | (merged via #50) | `c19733e` | Recolored Domain Types chart + legend with Avenue Z brand palette. Zero `#8A8A8A` gray. |
+| **Glean fix** | Overview | (merged via #50) | `f6b0534` | `gleanChat()` no longer auto-adds `X-Scio-Actas`. Required because the token is a Glean user token. |
+| **Vis-bar fix** | Overview | (merged via #53) | `bb9ec14` | Model Breakdown visibility bar uses absolute 0-100 scale, not relative-to-max. |
+| **FB-009** | PR Influence | this branch (PR #52) | `9edb823` | ADD: Executive Synopsis on PR Influence (Glean, mirrors Overview synopsis pattern). REMOVE: duplicate `<h3>` + 6-card KPI strip beneath the section header. |
+| **FB-010** | PR Influence | this branch (PR #52) | `bf13917` | ADD: Sentiment Insights section with Tina's static Avenue Z content (89.4% positive, 8 themes, 2 weaknesses). Click-to-expand accordions, KPI pill. **Sandbox-gated to Avenue Z.** |
+| **FB-011** | PR Influence | this branch (PR #52) | `b4906a2` | Iteration on FB-010. Moved Sentiment Insights from between Matchback and Top Editorial Domains to directly under the Executive Synopsis. |
+| **FB-012** | PR Influence | this branch (PR #52) | `f1d5c5a` | Reduce Top Editorial Domains (Citation Count → Citation Share, drop Avg Citations + PR cols + legend, new subtitle, drop green-on-PR styling). Replace Prompt Cluster Opportunity 7-col table with simple horizontal bar chart (Topic × % editorial citation share). Side-by-side `lg:grid-cols-2` layout for the two reduced cards directly under Sentiment Insights. PR Placement Matchback drops below the side-by-side row (matches Tina's recommended layout). Removed the 4-weight "How is the opportunity score calculated?" methodology block (explains a number that no longer renders). |
+| **FB-013** | PR Influence | this branch (PR #52) | `41d2091` | Fix pre-existing data bug surfaced by FB-012 bar chart: editorialCitationDensity was computed ONCE globally and assigned identically to every cluster, so every bar rendered at 100%. Now computed PER CLUSTER via coverage.tagNameById + tagIdsByDomain + topDomain.retrieved: `sum(retrieved across editorial-typed domains tagged with cluster) / sum(retrieved across all domains tagged with cluster) * 100`. Real ranking emerges. No render changes; same FB-012 chart, real numbers now. |
+| **FB-014** | PR Influence | this branch (PR #52) | `293599c` | Brand-Absent table retitled "Top Editorial Opportunities" with Tina's new title + subtitle. 5-column shape: Publication, Article (combined title + URL hyperlink), Competitors Mentioned, Citation Share, Delta of Citation Share. Filter: brand-not-mentioned (or no data) AND positive citation-share delta. Removed: 3 columns (Brand Mentioned, Opportunity Priority, Suggested PR Angle), footnote, isDemo prop. Deleted entire NextPitchOpportunitiesTable component + Sparkles wrapper + nextPitchRows compute (Tina REMOVE "Where should we pitch next..."). Methodology block REMOVE already shipped in FB-012. Matchback kept in place (Tina did not list it as a removal). Universal change. |
+| **FB-015** | PR Influence | this branch (PR #52) | `81b2277` | Close FB-014 open risk #1. Removed PR Placement Matchback render + component to match Tina's 5-section recommended layout (consistently omitted across FB-011, FB-012, FB-014). Final tab order: Synopsis → Sentiment → [Top Editorial + Prompt Clusters side-by-side] → Top Editorial Opportunities. buildMatchback / placementsCitedByAI compute kept for synopsis context. |
+| **FB-016** | PR Influence | this branch (PR #52) | `4215718` | Visual fix: tooltip on Prompt Clusters bar chart showed "Citation Share : X.X%" in unreadable near-black. Recharts <Tooltip> has separate `labelStyle` + `itemStyle` props beyond `contentStyle`; default itemStyle was rgb(51,51,51). Added explicit white labelStyle + itemStyle. |
+| **FB-017** | PR Influence | this branch (PR #52) | `75db637` | Sentiment Insights right column relabeled from "Weaknesses" to "Negative Themes" to match Tina's literal layout spec ("Positive Themes & Negative Themes side-by-side"). FB-010 had used "Weaknesses" because the underlying content was framed that way. One-line label + copy fix; data/state/behavior unchanged. |
+| **FB-018** | PR Influence | this branch (PR #52) | `30465fd` | Copy correction: Sentiment Insights column intros said "Tap a theme..." but Tina's literal spec said "click on a theme." One-word fix, both columns. |
+| **FB-019** | PR Influence | merged via [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | `ff14652` | Post-merge layout polish. Tightened Prompt Clusters chart height + thickened bars so the side-by-side cards end flush with no dead space, and bars look less anemic. Two-line tweak inside `PromptClusterOpportunityMatrix`. |
+| **FB-020** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `07f021e` | Drop Overview `<SectionHeader>` subtitle per Tina v2 CSV E2. Made `subtitle?: string` optional in the shared component; other 3 AEO tabs still pass their own. |
+| **FB-021** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `ffbe3b5` | Remove "Which prompts are AI engines answering with our brand?" chart from BOTH Peec + Profound Overview RSCs per Tina v2 CSV E12 + Rule #11. Deleted both `tracked-prompts-chart.tsx` files. `data.trackedPrompts` field kept (consumed by 6+ other surfaces). |
+| **FB-022** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `360d7c1` | Visibility trend chart truly YTD. Separate YTD fetch in `lib/peec/client.ts` (`trendRowsYTD`) + `lib/profound/client.ts` (`weeklyYTDRes`); `dailyVisibility`/`competitorDailyVisibility` sourced from YTD; `weeklyVisibility` (demand-overview consumer) stays picker-range bound. Cache versions bumped (peec v7→v8, profound v4→v5). Initial implementation also added `clients.firstTrackedAt` DB column + Drizzle migration; that portion was reverted in FB-024 after Paul declined the Neon change. |
+| **FB-023** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `d9086ce` | Winners/Losers cards swapped from static FB-006 arrays to live per-period per-model compute. Updated current `promptBrandsRes` (Peec) with dimensions `['prompt_id','model_channel_id','model_id']` limit 5000; added matching `promptBrandsPriorRes`. Built per-prompt-per-model position maps for both periods. Extended `TrackedPrompt` with `positionByModel` + `priorPositionByModel`. New `lib/peec/winners-losers.ts` with `applyModelFilter` + `computeWinnersLosers` (16 unit tests via `node:assert`). `winners-losers-cards.tsx` rewritten props-driven; **sandbox gate lifted**; empty-state copy mentions both date and model. Profound `TrackedPrompt` mirrored with empty maps for type parity (Profound provider variant shows empty state until parity FB ships). |
+| **FB-024** | Overview (v2) | merged via [#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63) | `47ea1cb` | Cleanup on top of FB-022 after Paul declined the Neon migration. (1) Pinned YTD chart window to today (Jan 1 of current year through today's date), completely independent of the page date picker. Earlier FB-022 still derived `end_date` from `mainDates.endDate` which truncated for custom historical ranges. (2) Dropped the misleading "Tracking began" line entirely from `visibility-chart.tsx` — no DB read, no fake fallback. (3) Reverted `clients.firstTrackedAt` column add, deleted `drizzle/0010_jittery_nextwave.sql` + meta snapshot + journal entry, dropped `firstTrackedAt` prop threading from `ProviderSection` + `<VisibilityChart>`. Tooltip retained. No Neon touch. |
+| **FB-025** | PR Influence (v2) | this branch (PR future) | `d20b321` | Synopsis decimals fix per Tina v1 CSV R2. buildContext in lib/peec/pr-influence-synopsis.ts now interpolates d.citationCount.toFixed(1) + Math.round(o.score). Prompt strengthened with explicit 'Number formatting (strict)' rule. Cache version v1-glean-pri -> v2-glean-pri. |
+| **FB-026** | PR Influence (v2) | this branch (PR future) | `d385c55` + `79ad31c` | Sentiment Insights wired to live Glean-backed classification per Tina v1 CSV R4 + R5. New lib/peec/sentiment-insights.ts (Glean-backed, cached per clientSlug + dateRange + modelKey, 1h TTL) + lib/peec/sentiment-insights.test.ts (11 assertions, node:assert + tsx). sentiment-insights.tsx rewritten props-driven; SANDBOX_CLIENT_SLUG gate LIFTED (precedent: FB-023). Pill tint + label derive from live sentimentPct. Empty state when zero analyzed URLs. Follow-up `79ad31c` fixed JSDoc + dropped null-title URLs (hallucination bait). Date + model reactive. |
+| **FB-027** | PR Influence (v2) | this branch (PR future) | `e9fbe2c` | Prompt Clusters chart X-axis is now dynamic per Tina v1 CSV R14. domain={[0, upper]} where upper = next 5 (max <= 10) or next 10 (max > 10). Fallback to 5 when empty. One-block edit in PromptClusterOpportunityMatrix. |
+| **FB-028** | PR Influence (v2) | this branch (PR future) | `6cb2e25` + `9eaa991` | Top Editorial Opportunities rewritten per Tina V1 R15 ✅ + R16/R17 ⚠️. R15 ✅ 5-column shape preserved verbatim (Publication / Article / Competitors Mentioned / Citation Share / Delta of Citation Share). Row source flipped from data.topDomains (domain-rows) to urlCitations (URL-rows). Brand-absent now at URL level: mentionsYourBrand=false (R16 literal). Editorial filter: urlCitation.classification === 'editorial' (R16 Peec UI literal) with host cross-ref fallback. Citation Share = URL count / sum-all-period * 100. Delta of Citation Share = currentShare - priorShare from new prior-period URL fetch. Dropped !prDomains.has misdef + retrievedDelta > 0 killer. Cap raised from 20 to 50. URL fetch date-scoped to page range. Follow-up `9eaa991` fixed stale empty-state copy + restored model-filter passthrough via isModelMatch. Synopsis context sources from same URL-level byHost map. |
+| **FB-029** | PR Influence (v2) | this branch (PR future) | `6d37b5a` | PR Placement Matchback restored under Exec Summary per Tina v1 CSV R23 REVISION (was removed in FB-015 #81b2277 per V1 layout; V2 explicitly asks for it back). New focused 5-col PRPlacementMatchbackTable (Publication / Article / Publish Date / Cited by AI? / AI Engines). Tina's literal title + subtitle verbatim. Rendered between <PRInfluenceSynopsis> and <SentimentInsights>. Reuses filteredMatchbackRows (date + model aware). 'N of M placements cited by AI (rate%)' summary above table. |
+| **FB-030** | PR Influence (v2) | merged via [#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) | `364ee5c` | Removed bottom footnote on PR Influence per Tina v1 CSV R24 ('REMOVE: This footnote at the very bottom of report. PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements ...'). Deleted the trailing <p> block. Top-of-file code comment preserved (not user-visible). |
+| **FB-031** | PR Influence (v2) | merged via [#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) | `245905b` | Four-layer hardening of the PR Influence Executive Synopsis after a Vercel-preview bug where Glean produced "0 editorial domains where brand absent" while the Top Editorial Opportunities table on the same page (sourced from the SAME byHost map) showed 5 rows. (1) Prompt hardening: section labels marked `(USE THESE EXACT VALUES)`; new `Data integrity (strict)` rule forbids rounding positive to zero, saying 'no'/'none' for positive counts, stating positive when count is zero. (2) New exported `validateSynopsisGrounding(synopsis, context)` post-Glean validator scanning three numeric-claim regex patterns: brand-absent host count, total editorial domains, N-of-M placements. (3) Retry-on-violation loop (`MAX_GENERATION_ATTEMPTS = 2`); second attempt's prompt enumerates violations from attempt 1; throws on second failure so the component's existing try/catch renders the graceful empty state instead of shipping bad prose. (4) Cache version `v2-glean-pri` → `v3-glean-pri-grounded` defensive flush. 13 unit tests in new `lib/peec/pr-influence-synopsis.test.ts` (node:assert + tsx); the FIRST assertion reproduces the production bug verbatim and asserts validation flags it. Reusable validator pattern; ready to copy to Overview synopsis (`lib/peec/synopsis.ts`) when needed. |
 
-Full per-item decision logs (verbatim ask, what was unambiguous, every inferred decision, what was out of scope, files touched, risks) live in [feedback-log.md](feedback-log.md).
-
-One-line SHA lookup in [changelog.md](changelog.md).
+Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
 ---
 
-## Working rules established during this branch
+## Working rules established across this workstream
 
-1. **One user message = one FB group.** Multiple changes in one message become sub-items inside that group (`FB-NNN-a`, `b`, `c`). Easier to track for Tina and Paul.
+1. **One user message = one FB group.** Multiple changes become sub-items inside the group.
 2. **One commit per group.** Sub-items ship together, get reverted together if needed.
-3. **No "—" em-dashes in copy I write.** Use periods or commas.
-4. **Decisions over questions.** Make the call, document why. Only ask Thomas when truly blocked (e.g. data the codebase cannot answer for me).
-5. **Show receipts.** Every claim of "done" is backed by a file:line reference, a commit SHA, or a verification output.
-6. **Truth-grounded data.** No proxies, no derivations that ship wrong numbers. If a metric is not computable for a provider, the card shows `--` with an honest tooltip, never an invented value.
-7. **Glean Chat API only** for any LLM inference. See `lib/glean.ts` `gleanChat()` for the canonical pattern.
-8. **Universal across clients by construction.** Edit shared components/data layers. No per-client conditionals. New clients inherit changes automatically.
+3. **Iterations on prior FB items get a new FB ID.** Audit trail stays linear. Note lineage in the decision log.
+4. **No em-dashes in copy I write.** Use periods or commas.
+5. **Decisions over questions.** Make the call, document why. Only ask Thomas when truly blocked (e.g. data the codebase cannot answer for me, or genuinely different visual outcomes).
+6. **Show receipts.** Every claim of "done" is backed by a file:line reference, a commit SHA, or a verification output.
+7. **Truth-grounded data.** No proxies, no derivations that ship wrong numbers. If a metric is not computable for a provider, the card shows `--` with an honest tooltip, never an invented value.
+8. **Glean Chat API only** for any LLM inference. See `lib/glean.ts` `gleanChat()` for the canonical pattern.
+9. **Universal across clients for design / layout / UX.** Per-client conditionals ONLY for the Avenue Z sandbox gate on static content.
+10. **Sandbox to Avenue Z** when content is hardcoded Avenue Z data. `const SANDBOX_CLIENT_SLUG = 'avenue-z'` + `if (clientSlug !== SANDBOX_CLIENT_SLUG) return null` at the top of the component. Pass `clientSlug` down from the parent.
+11. **Recommended layout = full spec.** *(Added 2026-06-22, confirmed by Tina.)* When Tina sends a "Recommended layout" mockup for a tab, treat it as the COMPLETE spec, not as a list of edits. Anything currently rendering on the tab that is NOT in her recommended layout gets removed by default. This applies retroactively too: when iterating on a tab, audit any section still rendering against her latest layout sketch and remove what is not there. Confirmed by Tina when she flagged "Which prompts are AI engines answering with our brand?" on the Overview tab — she said: "It seems like the guiding principle for this exercise is if it's not in the recommended layout, then it's gone." We applied this on PR Influence (FB-015 removed Matchback for exactly this reason). We did NOT apply it retroactively to Overview, hence the tracked-prompts chart still being there.
 
 ---
 
-## Files added on this branch
+## Files added across this workstream
 
 | Path | Purpose |
 |---|---|
 | `components/report-sections/peec-ai/section-header.tsx` | Canonical AEO section header (FB-001) |
 | `components/report-sections/peec-ai/overview-synopsis.tsx` | Executive Synopsis RSC at top of Overview (FB-002c) |
-| `lib/peec/synopsis.ts` | Glean-backed synopsis generator with cache + JSON extractor (FB-002c, FB-003) |
+| `components/report-sections/peec-ai/winners-losers-cards.tsx` | Biggest Winners + Biggest Losers cards (FB-006). **Sandboxed.** |
+| `components/report-sections/peec-ai/pr-influence-synopsis.tsx` | Executive Synopsis RSC at top of PR Influence (FB-009-a) |
+| `components/report-sections/peec-ai/sentiment-insights.tsx` | Sentiment Insights client component (FB-010 + FB-011). **Sandboxed.** |
+| `lib/peec/synopsis.ts` | Glean-backed Overview synopsis generator (FB-002c, FB-003) |
+| `lib/peec/pr-influence-synopsis.ts` | Glean-backed PR Influence synopsis generator (FB-009-a) |
 | `docs/official-feedback/feedback-log.md` | Source of truth for every FB item with decision log |
 | `docs/official-feedback/changelog.md` | Terse SHA-keyed lookup |
 | `docs/official-feedback/status.md` | This file |
-| `docs/official-feedback/handoff.md` | Cold-start prompt to give a new chat after compaction |
+| `docs/official-feedback/handoff.md` | Cold-start prompt for new chats after compaction |
 
 ---
 
@@ -94,34 +153,37 @@ One-line SHA lookup in [changelog.md](changelog.md).
 
 These must be set in Vercel for everything to render real data:
 
-| Var | Needed for | Value |
+| Var | Needed for | Value / note |
 |---|---|---|
-| `GLEAN_INSTANCE` | Executive Synopsis | `avenuez` |
-| `GLEAN_API_TOKEN` | Executive Synopsis | rotate before going live, set Sensitive=on |
-| `GLEAN_ACT_AS` | Executive Synopsis | `thomas.chang@avenuez.com` (optional, defaults to that) |
-| `clients.domain` populated in DB | Citation Share KPI | one row per client — without it the card shows `--` |
-| `clients.ga4_property_id` populated | AI Referral Traffic KPI | already true for current clients |
+| `GLEAN_INSTANCE` | Both synopses | `avenuez` |
+| `GLEAN_API_TOKEN` | Both synopses | USER token. Do NOT pass `actAs` to `gleanChat()` unless the value is swapped to a GLOBAL token. |
+| `GLEAN_ACT_AS` | (optional) | Currently unused; safe to remove. |
+| `clients.domain` populated in DB | Citation Share KPI (Overview) | one row per client. Without it the card shows `--`. |
+| `clients.ga4_property_id` populated | AI Referral Traffic (Overview), AI Referral Sessions (PR Influence) | already true for current clients |
 
 If any of these are missing the affected card or synopsis falls back gracefully. Other metrics on the page are unaffected.
 
 ---
 
-## What's NOT done (deliberately out of scope)
+## What's NOT done (deliberately out of scope or deferred)
 
 | Item | Why deferred |
 |---|---|
-| Migrate `lib/bigquery/gemini.ts` (Fun Spot conversational summary) to Glean | Different feature, different code path. Should be a separate FB item when we get to Fun Spot. |
-| Refactor `app/api/glean/meeting-brief/route.ts` to use the new `gleanChat()` helper | Working endpoint, cleanup not requested. Out of scope for FB-003. |
-| Scrub em-dashes from existing tooltips/comments/strings across the codebase | Not requested. Per-fix scrubbing applied only on lines I was editing for a Tina item. |
+| Migrate `lib/bigquery/gemini.ts` (Fun Spot conversational summary) to Glean | Different feature, different code path. Separate FB item when we get to Fun Spot. |
+| Refactor `app/api/glean/meeting-brief/route.ts` to use `gleanChat()` and to skip ActAs | Working endpoint, hardcodes `bill.hoerr@avenuez.com` as ActAs which will hit the user-token 400 if called. Not blocking AEO. |
+| Scrub em-dashes from existing tooltips / comments / strings across the codebase | Not requested. Per-fix scrubbing applied only on lines being edited for a Tina item. |
 | The `period-ribbon.tsx` component file (now unused) | Left in repo for trivial revert if Tina ever wants the pills back. |
+| Live data wiring for FB-006 Winners/Losers and FB-010 Sentiment Insights | Static for now per Thomas. Avenue Z is the sandbox client; cross the bridge when other clients are ready. |
+| Google AI Mode handling in `normalizeSource` | Currently lumps into the Google AI Overview bucket. No current client has it enabled. Future FB item. |
 
 ---
 
 ## Next batches
 
-Awaiting Tina's next piece of feedback. When it arrives:
+**Next up:** Content Impact (v1) — awaiting Tina's first round of Content Impact feedback. When it arrives:
 
-- It becomes **FB-004**.
-- If it contains multiple sub-asks, they become `FB-004-a`, `b`, `c` (etc.).
-- One combined commit per group.
-- Update this file + `feedback-log.md` + `changelog.md` on close.
+- First FB ID = **FB-032**. Multi-part asks become `FB-032-a/b/c` etc.
+- Cut a fresh `official-feedback-content-impact-tab` from current `main` (`f6fd533`).
+- **PRE-EMPT** (memory: `project_content_impact_preempt.md`): apply the FB-030 footnote-removal pattern proactively to `components/report-sections/peec-ai/content-impact.tsx:1279-1285`. Same concatenated "tab title · data source · counts" pattern Tina just removed on PR Influence; she will almost certainly flag it again on Content Impact v1 if it ships unchanged.
+- Reusable hardening pattern from FB-031: if Content Impact gains a Glean-backed synopsis or any AI-generated prose, lift `validateSynopsisGrounding` style (post-Glean validator + retry-on-violation + cache version) into that surface from day one.
+- Update this file + `feedback-log.md` + `changelog.md` per closed FB. Same per-FB ritual (code commit + decision log commit + SHA backfill commit).

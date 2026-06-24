@@ -3,6 +3,7 @@ import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
 import { buildPeriodChange } from '@/lib/aeo/period-change'
 import { urlJoinKey } from '@/lib/url'
+import type { AEOModel } from '@/lib/peec/models'
 
 const BASE_URL = 'https://api.tryprofound.com'
 
@@ -97,6 +98,13 @@ export type TrackedPrompt = {
   visibility: number
   sov: number
   position: number
+  /** Matches the Peec TrackedPrompt shape for cross-provider type compatibility.
+   *  Profound does not currently fetch model-dimensioned prompt rows — always
+   *  empty objects. The Winners/Losers compute uses these maps; with empty
+   *  maps for both periods, the compute yields empty arrays, so Profound
+   *  variant of Overview shows the empty-state cards. */
+  positionByModel: Partial<Record<AEOModel, number>>
+  priorPositionByModel: Partial<Record<AEOModel, number>>
   group: string
   topicSource: TopicSource
 }
@@ -395,6 +403,13 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
+  // FB-022 + FB-024: visibility trend chart is always YTD, pinned to TODAY
+  // (Jan 1 of the current year through today's date), independent of the page
+  // date picker. Earlier FB-022 used mainDates.endDate which still reacted to
+  // custom historical ranges. Tina's literal ask: "make static to always show YTD."
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const ytd = { start_date: `${todayISO.slice(0, 4)}-01-01`, end_date: todayISO }
+
   const base = (dates: { start_date: string; end_date: string }) => ({
     category_id: categoryId,
     ...dates,
@@ -417,6 +432,7 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     domainTypesRes,
     promptsRes,
     promptTopicsRes,
+    weeklyYTDRes,
   ] = await Promise.all([
     profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
     profoundPost('/v1/reports/visibility', { ...base(prior), metrics: BRAND_METRICS, dimensions: ['asset_name'] }),
@@ -427,6 +443,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     profoundPost('/v1/reports/citations', { ...base(current), metrics: ['citation_share'], dimensions: ['citation_category'] }),
     profoundPost('/v1/reports/visibility', { ...base(current), metrics: BRAND_METRICS, dimensions: ['prompt'], ...brandFilter }),
     profoundPost('/v1/reports/visibility', { ...base(current), metrics: ['visibility_score'], dimensions: ['prompt', 'topic'] }),
+    // FB-022: YTD trend for the visibility chart.
+    profoundPost('/v1/reports/visibility', { ...base(ytd), metrics: ['visibility_score'], dimensions: ['date', 'asset_name'], date_interval: 'day' }),
   ])
 
   // --- Brand rankings ---
@@ -435,10 +453,12 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   // --- Weekly visibility ---
   const isYou = (asset: string) =>
     yourBrand ? asset.toLowerCase().includes(yourBrand.toLowerCase()) : false
-  const weeklyVisibility = groupByWeekFromRows(weeklyRes.data, isYou)
-  const competitorWeeklyVisibility = groupByWeekFromRows(weeklyRes.data, (a) => !isYou(a))
-  const dailyVisibility = groupByDayFromRows(weeklyRes.data, isYou)
-  const competitorDailyVisibility = groupByDayFromRows(weeklyRes.data, (a) => !isYou(a))
+  // FB-022: weeklyVisibility stays picker-range bound (demand-overview consumer).
+  // dailyVisibility/competitorDailyVisibility are ALWAYS YTD for the trend chart.
+  const weeklyVisibility           = groupByWeekFromRows(weeklyRes.data,    isYou)
+  const competitorWeeklyVisibility = groupByWeekFromRows(weeklyRes.data,    (a) => !isYou(a))
+  const dailyVisibility            = groupByDayFromRows(weeklyYTDRes.data,  isYou)
+  const competitorDailyVisibility  = groupByDayFromRows(weeklyYTDRes.data,  (a) => !isYou(a))
 
   // --- Competitor averages ---
   const competitors = brandRankings.filter((b) => !b.isYou)
@@ -509,6 +529,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
       visibility:  (r.metrics[0] ?? 0) * 100,
       sov:         (r.metrics[1] ?? 0) * 100,
       position:    r.metrics[2] ?? 0,
+      positionByModel:      {},
+      priorPositionByModel: {},
       group:       promptTopic.get(r.dimensions[0]!) ?? categorizePrompt(r.dimensions[0]!),
       topicSource: (promptTopic.has(r.dimensions[0]!) ? 'provider' : 'inferred') as TopicSource,
     }))
@@ -564,7 +586,10 @@ export const getProfoundOverview = cached(
     // v4 = overview now honors the page date range (dateRange arg); response shape
     //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
     //      records) and deltas compare vs the previous period, not prior year.
-    version: 'v4',
+    // v5 = FB-022: visibility trend chart now uses a separate YTD fetch
+    //      (dailyVisibility/competitorDailyVisibility), while weeklyVisibility
+    //      stays picker-range bound for the demand-overview consumer.
+    version: 'v5',
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )

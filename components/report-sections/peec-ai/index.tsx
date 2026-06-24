@@ -1,11 +1,11 @@
 import { getPeecOverview } from '@/lib/peec/client'
-import type { PeecOverview } from '@/lib/peec/client'
+import type { PeecOverview, TrackedPrompt } from '@/lib/peec/client'
+import { applyModelFilter, computeWinnersLosers } from '@/lib/peec/winners-losers'
 import { getProfoundOverview } from '@/lib/profound/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
 import { BrandRankingsTable } from './brand-rankings-table'
 import { TopDomainsTable } from './top-domains-table'
 import { VisibilityChart } from './visibility-chart'
-import { TrackedPromptsChart } from './tracked-prompts-chart'
 import { LLMBreakdownTable } from './llm-breakdown-table'
 import { WinnersLosersCards } from './winners-losers-cards'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
@@ -16,7 +16,6 @@ import { isAiSource } from '@/lib/constants'
 import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
-import { TrackedPromptsChart as ProfoundTrackedPromptsChart } from '../profound-ai/tracked-prompts-chart'
 import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/llm-breakdown-table'
 import { sampleProfoundOverview } from '@/lib/demo-data/profound'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
@@ -195,12 +194,21 @@ function ProviderSection({
       ? ((aiTraffic.sessions - aiTraffic.sessionsPrior) / aiTraffic.sessionsPrior) * 100
       : undefined
 
+  // FB-023: Biggest Winners / Biggest Losers — live per-period compute, reactive
+  // to BOTH date range (because trackedPrompts is fetched per-range) AND model
+  // filter (because applyModelFilter restricts the per-model maps to the active
+  // selection). Sandbox gate is lifted — every client sees their own real cards.
+  // Profound provider variant: trackedPrompts have empty positionByModel +
+  // priorPositionByModel maps (parity defer), so applyModelFilter drops them all
+  // and the cards render the empty state.
+  const flat = applyModelFilter(data.trackedPrompts as TrackedPrompt[], models)
+  const { winners, losers } = computeWinnersLosers(flat)
+
   return (
     <div className="space-y-8">
       <SectionHeader
         icon={Sparkles}
         title="How visible is the brand across AI answer engines?"
-        subtitle="Visibility, share of voice, and sentiment across tracked LLMs, with side-by-side comparison to competitors."
         badge={isDemo ? <SampleDataBadge /> : undefined}
       />
 
@@ -255,7 +263,11 @@ function ProviderSection({
 
       {llmFiltered.length > 0 && <LLM breakdown={llmFiltered} />}
 
-      <WinnersLosersCards clientSlug={clientSlug} />
+      <WinnersLosersCards
+        clientSlug={clientSlug}
+        winners={winners}
+        losers={losers}
+      />
 
       <Rankings rankings={data.brandRankings} />
 
@@ -266,12 +278,6 @@ function ProviderSection({
           <DomainTypeDefinitions source={provider} />
         </div>
       </div>
-
-      {data.trackedPrompts.length > 0 && (
-        isPeec
-          ? <TrackedPromptsChart prompts={data.trackedPrompts} brandName={brandName} />
-          : <ProfoundTrackedPromptsChart prompts={data.trackedPrompts} />
-      )}
 
       <p className="text-xs text-text-muted">{isDemo ? 'Sample data — demo mode' : `Live data from ${label}`}</p>
     </div>
