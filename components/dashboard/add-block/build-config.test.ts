@@ -111,6 +111,13 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
     { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
   ])
 }
+// non-finite coefficient dropped
+{
+  const bNaN = calculatedToBinding({ source: 'calculated', terms: [
+    { coefficient: 'abc', leaf: { source: 'triplewhale', metric: 'revenue' } },
+  ] })
+  assert.deepEqual(bNaN.terms, [])
+}
 // buildBlockConfig: calculated kind
 {
   const cfg = buildBlockConfig({ kind: 'calculated', name: 'Net', format: 'currency',

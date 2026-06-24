@@ -7,7 +7,6 @@ type LeafSource = 'supermetrics' | 'triplewhale'
 const emptyLeaf = (s: LeafSource): LeafDraft =>
   s === 'supermetrics' ? { source: s, dsId: '', metricField: '', account: '' } : { source: s, metric: '' }
 
-const ctrl = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
 const labelCls = 'text-[10px] font-extrabold uppercase tracking-widest text-text-muted'
 
 /** Weighted-sum editor: rows of [coefficient] × [leaf]. value = Σ coefficient × leaf. */
