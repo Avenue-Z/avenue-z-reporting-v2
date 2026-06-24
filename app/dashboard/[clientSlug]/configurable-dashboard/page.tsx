@@ -15,6 +15,10 @@ import { ValueSkeleton, DeltaSkeleton, EmptyDashboardState } from '@/components/
 import { UnsupportedBlockState } from '@/components/dashboard/blocks/unsupported-block'
 import { BarBlock } from '@/components/dashboard/blocks/bar-block'
 import { LineBlock } from '@/components/dashboard/blocks/line-block'
+import { HeaderBlock } from '@/components/dashboard/blocks/header-block'
+import { NarrativeBlock } from '@/components/dashboard/blocks/narrative-block'
+import { PillsBlock } from '@/components/dashboard/blocks/pills-block'
+import { TableBlock } from '@/components/dashboard/blocks/table-block'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 export default async function ConfigurableDashboardPage({
@@ -156,6 +160,57 @@ function renderBlockNode(
         <LineBlock
           block={block}
           seriesPromise={seriesPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'pills': {
+      return (
+        <PillsBlock
+          block={block}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'table': {
+      const eff = block.range ?? activeDefault
+      const groupedPromise = resolveGroupedBlock(
+        block,
+        { dateRange: eff.dateRange, compareRange: eff.compareRange },
+        { slug: clientSlug },
+      )
+      return (
+        <TableBlock
+          block={block}
+          groupedPromise={groupedPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'header': {
+      return (
+        <HeaderBlock
+          block={block}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'narrative': {
+      return (
+        <NarrativeBlock
+          block={block}
           canEdit={canEdit}
           slug={clientSlug}
           config={config}
