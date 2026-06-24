@@ -173,4 +173,50 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   assert.equal(r.ok, false)
 }
 
+// dimensions: SM length-1 valid string → round-trips.
+{
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel'] }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') {
+    assert.deepEqual(r.block.binding.dimensions, ['Channel'])
+  }
+}
+// dimensions: TW length-1 valid string → round-trips.
+{
+  const r = parseBlockConfig(block({ source: 'triplewhale', metric: 'ad_spend', dimensions: ['channel'] }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'triplewhale') {
+    assert.deepEqual(r.block.binding.dimensions, ['channel'])
+  }
+}
+// dimensions: length 0 rejected.
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: [] })).ok, false)
+// dimensions: length 2 rejected (v1 invariant).
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel', 'Country'] })).ok, false)
+// dimensions: SM unsafe column rejected.
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['bad col'] })).ok, false)
+// dimensions: TW unsafe column rejected (uppercase fails TW's lowercase column regex).
+assert.equal(parseBlockConfig(block({ source: 'triplewhale', metric: 'ad_spend', dimensions: ['BadCol'] })).ok, false)
+// dimensions: omitted → parses, no field.
+{
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.dimensions, undefined)
+}
+
+// granularity: 'day' / 'week' / 'month' round-trip.
+for (const g of ['day', 'week', 'month'] as const) {
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', granularity: g }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.granularity, g)
+}
+// granularity: 'minute' rejected.
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', granularity: 'minute' })).ok, false)
+// granularity: omitted → parses, no field.
+{
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.granularity, undefined)
+}
+
 console.log('ok')

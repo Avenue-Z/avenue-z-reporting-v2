@@ -1,5 +1,5 @@
 import type {
-  AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig, LeafBinding,
+  AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig, Granularity, LeafBinding,
   MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
 } from './types'
 
@@ -8,6 +8,9 @@ type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
 const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
 const BLOCK_KINDS: BlockKind[] = ['kpi', 'bar', 'line', 'table', 'narrative', 'header']
+const GRANULARITIES: Granularity[] = ['day', 'week', 'month']
+const SM_DIM_RE = /^[A-Za-z0-9_]+$/                     // mirrors SM_COLUMN_RE in lib/dashboard/adapters/supermetrics.ts
+const TW_DIM_RE = /^[a-z0-9_]+$/                        // mirrors isSafeColumn in lib/triplewhale/queries.ts
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -53,6 +56,22 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
       if (!pf.ok) return pf
       b.filters = pf.value
     }
+    if (v.dimensions !== undefined) {
+      if (!Array.isArray(v.dimensions) || v.dimensions.length !== 1) {
+        return { ok: false, error: `${path}.dimensions: expected array of length 1 (v1)` }
+      }
+      const d = v.dimensions[0]
+      if (!isNonEmptyStr(d) || !SM_DIM_RE.test(d)) {
+        return { ok: false, error: `${path}.dimensions[0]: expected safe SM column (matching ^[A-Za-z0-9_]+$)` }
+      }
+      b.dimensions = [d]
+    }
+    if (v.granularity !== undefined) {
+      if (!GRANULARITIES.includes(v.granularity as Granularity)) {
+        return { ok: false, error: `${path}.granularity: expected one of ${GRANULARITIES.join(',')}` }
+      }
+      b.granularity = v.granularity as Granularity
+    }
     return { ok: true, value: b }
   }
   if (v.source === 'triplewhale') {
@@ -64,6 +83,22 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
       const pf = parseFilters(v.filters, `${path}.filters`)
       if (!pf.ok) return pf
       b.filters = pf.value
+    }
+    if (v.dimensions !== undefined) {
+      if (!Array.isArray(v.dimensions) || v.dimensions.length !== 1) {
+        return { ok: false, error: `${path}.dimensions: expected array of length 1 (v1)` }
+      }
+      const d = v.dimensions[0]
+      if (!isNonEmptyStr(d) || !TW_DIM_RE.test(d)) {
+        return { ok: false, error: `${path}.dimensions[0]: expected safe TW column (matching ^[a-z0-9_]+$)` }
+      }
+      b.dimensions = [d]
+    }
+    if (v.granularity !== undefined) {
+      if (!GRANULARITIES.includes(v.granularity as Granularity)) {
+        return { ok: false, error: `${path}.granularity: expected one of ${GRANULARITIES.join(',')}` }
+      }
+      b.granularity = v.granularity as Granularity
     }
     return { ok: true, value: b }
   }
