@@ -50,4 +50,38 @@ assert.equal(escapeSqlValue("O'Brien"), "O''Brien")
 assert.throws(() => build2('bad col'))
 assert.throws(() => build2('ad_spend', [{ column: 'bad col', values: ['x'] }]))
 
+// Grouped: SELECT dim, SUM(...) AS value ... GROUP BY dim ORDER BY value DESC.
+{
+  const sql = buildMetricSql('ad_spend', [], { groupBy: 'channel' })
+  assert.match(sql, /SELECT channel AS dim, SUM\(spend\) AS value/)
+  assert.match(sql, /GROUP BY channel/)
+  assert.match(sql, /ORDER BY value DESC/)
+}
+// Grouped + filters: filter AND clause appears AFTER BASE_WHERE.
+{
+  const sql = buildMetricSql('ad_spend', [{ column: 'country', values: ['US'] }], { groupBy: 'channel' })
+  assert.match(sql, /AND country = 'US'/)
+  assert.match(sql, /GROUP BY channel/)
+}
+// Grouped: unsafe dim column rejected.
+assert.throws(() => buildMetricSql('ad_spend', [], { groupBy: 'bad col' }), /unsafe TripleWhale dimension/)
+// Series day.
+{
+  const sql = buildMetricSql('ad_spend', [], { bucket: 'day' })
+  assert.match(sql, /DATE_TRUNC\('day', event_date\) AS bucket/)
+  assert.match(sql, /SUM\(spend\) AS value/)
+  assert.match(sql, /GROUP BY bucket/)
+  assert.match(sql, /ORDER BY bucket ASC/)
+}
+// Series week.
+{
+  const sql = buildMetricSql('ad_spend', [], { bucket: 'week' })
+  assert.match(sql, /DATE_TRUNC\('week', event_date\) AS bucket/)
+}
+// Series month.
+{
+  const sql = buildMetricSql('ad_spend', [], { bucket: 'month' })
+  assert.match(sql, /DATE_TRUNC\('month', event_date\) AS bucket/)
+}
+
 console.log('ok')
