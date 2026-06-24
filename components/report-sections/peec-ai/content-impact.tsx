@@ -19,7 +19,7 @@ import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import { ga4Query, parseDateRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import {
@@ -210,15 +210,15 @@ export async function ContentImpactReport({
   const effectiveRange = dateRange ?? 'last_30_days'
 
   // FB-034: derive compare-period ISO ranges. compareRange is passed by
-  // the page router (already wired) but was previously ignored. Use
-  // deriveCompareRange to default to 'previous_period' when the caller
-  // doesn't pass an explicit comparison range; null means no compare.
+  // the page router when the user explicitly turns on a comparison
+  // period via the date picker. When compareRange is not passed, prior
+  // data is not fetched and KPI cards render their value with no delta
+  // line (Tina's literal ask: deltas show "when you have a comparison
+  // period turned on", not always).
   const mainRangeStr = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(mainRangeStr)
   const mainIso = `${mainDates.startDate},${mainDates.endDate}`
-  const compareDates = compareRange
-    ? parseDateRange(compareRange)
-    : deriveCompareRange(mainRangeStr, 'previous_period')
+  const compareDates = compareRange ? parseDateRange(compareRange) : null
   const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
 
   const [
@@ -719,9 +719,9 @@ export async function ContentImpactReport({
         />
       </Suspense>
 
-      {/* ── Section A: Snapshot KPIs (FB-034, Tina's 4 new metrics) ─────────── */}
+      {/* ── Section A: KPI Strip (FB-034, Tina's 4 new metrics) ─────────── */}
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Snapshot KPIs</h3>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">How is content performing at a glance?</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {/* KPI 1 · Citation Share */}
           <KpiCard
