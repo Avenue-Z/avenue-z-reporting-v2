@@ -1,4 +1,5 @@
 import { awQuery, isLeadAction } from './base'
+import { weekLabel } from './week-label'
 import type { LeadBreakdown, LeadActionRow } from './types'
 import type { PaidSearchConfig, LeadCategory } from '@/lib/db/schema'
 
@@ -22,7 +23,12 @@ export function transformLeads(
     if (!isLeadAction(r.ConversionTypeName, cfg)) continue
     weekMap.set(r.Yearweekiso, (weekMap.get(r.Yearweekiso) ?? 0) + Number(r.Conversions || 0))
   }
-  const weekly = [...weekMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([week, leads]) => ({ week, leads }))
+  // Sort chronologically on the raw "year|week" key, then format to the week's
+  // Monday date for display (formatting server-side — ComboChart is a Client
+  // Component and can't receive a formatter function as a prop).
+  const weekly = [...weekMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([week, leads]) => ({ week: weekLabel(week), leads }))
 
   return { byAction, categoryTotals, weekly, totalLeads }
 }

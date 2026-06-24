@@ -27,4 +27,5 @@ assert.equal(b.categoryTotals.employer, 3)     // dental 3 + vision 0
 assert.equal(b.categoryTotals.contact, 14)
 assert.equal(b.byAction.find((a) => a.name === 'employer_vision_lead')!.count, 0) // absent → 0
 assert.equal(b.weekly[0].leads, 2)             // calls excluded from weekly
+assert.equal(b.weekly[0].week, 'Dec 29')       // "2026|01" formatted to its Monday's date
 console.log('ok')
