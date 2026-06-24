@@ -1,4 +1,5 @@
-import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, MetricFormat } from '@/lib/dashboard/types'
+import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, FormulaBinding, FormulaOperand, MetricFormat } from '@/lib/dashboard/types'
+import { operandKeys, parse } from '@/lib/dashboard/formula/parse'
 
 /**
  * Common TripleWhale metrics surfaced at the top of the builder's metric picker,
@@ -32,11 +33,22 @@ export type OperandDraft =
   | { kind: 'leaf'; leaf: LeafDraft }
   | { kind: 'calculated'; calc: CalculatedDraft }
 
+export type FormulaOperandDraft =
+  | { kind: 'ref'; blockId: string }
+  | { kind: 'metric'; leaf: LeafDraft }
+
+export type FormulaDraft = {
+  source: 'formula'
+  expr: string
+  operands: Record<string, FormulaOperandDraft>
+}
+
 /** The whole manual form's state. */
 export type ManualDraft =
   | { kind: 'leaf'; name: string; format: MetricFormat; leaf: LeafDraft }
   | { kind: 'calculated'; name: string; format: MetricFormat; calc: CalculatedDraft }
   | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: OperandDraft; right: OperandDraft }
+  | { kind: 'formula'; name: string; format: MetricFormat; formula: FormulaDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
   if (d.source === 'supermetrics') {
@@ -69,6 +81,31 @@ export function isOperandComplete(o: OperandDraft): boolean {
   return o.kind === 'calculated' ? isCalculatedComplete(o.calc) : isLeafComplete(o.leaf)
 }
 
+/** Build a formula binding: keep only operands whose key is used in the expr,
+ *  converting metric drafts via leafToBinding. */
+export function formulaToBinding(d: FormulaDraft): FormulaBinding {
+  let used: string[]
+  try { used = operandKeys(d.expr) } catch { used = [] }
+  const operands: Record<string, FormulaOperand> = {}
+  for (const key of used) {
+    const op = d.operands[key]
+    if (!op) continue
+    operands[key] = op.kind === 'ref' ? { kind: 'ref', blockId: op.blockId } : { kind: 'metric', leaf: leafToBinding(op.leaf) }
+  }
+  return { source: 'formula', expr: d.expr, operands }
+}
+
+function isFormulaOperandComplete(op: FormulaOperandDraft): boolean {
+  return op.kind === 'ref' ? op.blockId !== '' : isLeafComplete(op.leaf)
+}
+
+export function isFormulaComplete(d: FormulaDraft): boolean {
+  let used: string[]
+  try { parse(d.expr); used = operandKeys(d.expr) } catch { return false }
+  if (used.length === 0 && d.expr.trim() === '') return false
+  return used.every((k) => { const op = d.operands[k]; return !!op && isFormulaOperandComplete(op) })
+}
+
 /** Assemble the final block config (id is assigned later, at confirm). */
 export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
   const binding =
@@ -76,7 +113,9 @@ export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
       ? leafToBinding(d.leaf)
       : d.kind === 'calculated'
         ? calculatedToBinding(d.calc)
-        : { source: 'aggregate' as const, op: d.op, left: operandToBinding(d.left), right: operandToBinding(d.right) }
+        : d.kind === 'formula'
+          ? formulaToBinding(d.formula)
+          : { source: 'aggregate' as const, op: d.op, left: operandToBinding(d.left), right: operandToBinding(d.right) }
   return { name: d.name, format: d.format, range: null, binding }
 }
 
@@ -103,5 +142,6 @@ export function isDraftComplete(d: ManualDraft): boolean {
   if (d.name.trim() === '') return false
   if (d.kind === 'leaf') return isLeafComplete(d.leaf)
   if (d.kind === 'calculated') return isCalculatedComplete(d.calc)
+  if (d.kind === 'formula') return isFormulaComplete(d.formula)
   return isOperandComplete(d.left) && isOperandComplete(d.right)
 }

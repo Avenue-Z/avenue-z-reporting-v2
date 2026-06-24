@@ -1,6 +1,6 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, formulaToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
@@ -163,6 +163,35 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
     right: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } } })
   assert.equal(cfg.binding.source, 'aggregate')
   if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.left.source, 'calculated')
+}
+
+// formulaToBinding: assembles expr + operands; drops operand keys not used in expr
+{
+  const b = formulaToBinding({ source: 'formula', expr: '@a / @b',
+    operands: {
+      a: { kind: 'ref', blockId: 'rev' },
+      b: { kind: 'metric', leaf: { source: 'triplewhale', metric: 'ad_spend' } },
+      z: { kind: 'ref', blockId: 'unused' }, // not in expr -> dropped
+    } })
+  assert.equal(b.source, 'formula')
+  assert.equal(b.expr, '@a / @b')
+  assert.deepEqual(Object.keys(b.operands).sort(), ['a', 'b'])
+}
+// buildBlockConfig: formula kind
+{
+  const cfg = buildBlockConfig({ kind: 'formula', name: 'ROAS', format: 'number',
+    formula: { source: 'formula', expr: '@a / @b', operands: { a: { kind: 'ref', blockId: 'rev' }, b: { kind: 'metric', leaf: { source: 'triplewhale', metric: 'ad_spend' } } } } })
+  assert.equal(cfg.binding.source, 'formula')
+}
+// isDraftComplete: needs name, a parseable expr, and every used operand complete
+{
+  const ok = { kind: 'formula' as const, name: 'X', format: 'number' as const,
+    formula: { source: 'formula' as const, expr: '@a + 1', operands: { a: { kind: 'metric' as const, leaf: { source: 'triplewhale' as const, metric: 'revenue' } } } } }
+  assert.equal(isDraftComplete(ok), true)
+  assert.equal(isDraftComplete({ ...ok, name: '' }), false)                                   // no name
+  assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a + ', operands: ok.formula.operands } }), false) // bad expr
+  assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a + @b', operands: ok.formula.operands } }), false) // @b unbound
+  assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a', operands: { a: { kind: 'metric', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } } } } }), false) // incomplete metric
 }
 
 console.log('ok')
