@@ -1,7 +1,7 @@
 // lib/dashboard/resolve.ts
 import type { BlockConfig, LeafAttempt, LeafBinding, LeafValue, ResolveResult } from './types'
 import { resolveLeaf as defaultResolveLeaf } from './registry'
-import { resolveAggregate, type AttemptLeaf } from './aggregate'
+import { resolveAggregate, resolveCalculated, type AttemptLeaf } from './aggregate'
 import { mapError } from './errors'
 import { computeDelta } from '@/lib/metrics'
 import { formatMetric } from './format'
@@ -35,7 +35,9 @@ export async function resolveBlock(
   const res: LeafAttempt =
     config.binding.source === 'aggregate'
       ? await resolveAggregate(config.binding, attemptLeaf, ctx, range.dateRange, range.compareRange)
-      : await attemptLeaf(config.binding, ctx, range.dateRange, range.compareRange)
+      : config.binding.source === 'calculated'
+        ? await resolveCalculated(config.binding, attemptLeaf, ctx, range.dateRange, range.compareRange)
+        : await attemptLeaf(config.binding, ctx, range.dateRange, range.compareRange)
 
   if (!res.ok) return { ok: false, error: res.error }
 

@@ -79,4 +79,35 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   assert.equal(r.ok, false)
 }
 
+// calculated binding round-trips
+{
+  const r = parseBlockConfig({ id: 'b', name: 'Net', format: 'currency', range: null,
+    binding: { source: 'calculated', terms: [
+      { coefficient: 1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+      { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    ] } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'calculated') assert.equal(r.block.binding.terms.length, 2)
+}
+// empty terms rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null, binding: { source: 'calculated', terms: [] } })
+  assert.equal(r.ok, false)
+}
+// non-number coefficient rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'calculated', terms: [{ coefficient: 'x', leaf: { source: 'triplewhale', metric: 'revenue' } }] } })
+  assert.equal(r.ok, false)
+}
+// calculated as aggregate operand round-trips
+{
+  const r = parseBlockConfig({ id: 'b', name: 'ROAS', format: 'number', range: null,
+    binding: { source: 'aggregate', op: '/',
+      left: { source: 'calculated', terms: [{ coefficient: 1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } }] },
+      right: { source: 'triplewhale', metric: 'ad_spend' } } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'aggregate') assert.equal(r.block.binding.left.source, 'calculated')
+}
+
 console.log('ok')

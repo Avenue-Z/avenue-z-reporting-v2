@@ -113,6 +113,6 @@ function dedupe(opts: { value: string; label: string }[]): { value: string; labe
 function describeAggregate(p: AggregateProposal): string {
   const b = p.config.binding
   if (b.source !== 'aggregate') return p.config.name
-  const leaf = (x: typeof b.left) => (x.source === 'supermetrics' ? x.metricField : x.metric)
+  const leaf = (x: typeof b.left) => (x.source === 'supermetrics' ? x.metricField : x.source === 'triplewhale' ? x.metric : 'calc')
   return `${leaf(b.left)} ${b.op} ${leaf(b.right)}`
 }

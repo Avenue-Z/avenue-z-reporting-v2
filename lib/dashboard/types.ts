@@ -18,14 +18,22 @@ export interface TripleWhaleBinding {
 
 export type LeafBinding = SupermetricsBinding | TripleWhaleBinding
 
-export interface AggregateBinding {
-  source: 'aggregate'
-  left: LeafBinding
-  op: '+' | '-' | '*' | '/'
-  right: LeafBinding
+export interface CalculatedBinding {
+  source: 'calculated'
+  terms: { coefficient: number; leaf: LeafBinding }[] // value = Σ coefficientᵢ × leafᵢ
 }
 
-export type Binding = LeafBinding | AggregateBinding
+/** An operand of a binary aggregate: a single leaf or a weighted-sum calculation. */
+export type AggregateOperand = LeafBinding | CalculatedBinding
+
+export interface AggregateBinding {
+  source: 'aggregate'
+  left: AggregateOperand
+  op: '+' | '-' | '*' | '/'
+  right: AggregateOperand
+}
+
+export type Binding = LeafBinding | CalculatedBinding | AggregateBinding
 
 export interface BlockConfig {
   id: string

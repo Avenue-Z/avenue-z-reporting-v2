@@ -1,5 +1,5 @@
 import type {
-  AggregateBinding, Binding, DashboardConfig, LeafBinding,
+  AggregateBinding, AggregateOperand, Binding, CalculatedBinding, DashboardConfig, LeafBinding,
   MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
 } from './types'
 
@@ -69,17 +69,40 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
   return { ok: false, error: `${path}.source: expected 'supermetrics' or 'triplewhale'` }
 }
 
+function parseCalculated(v: unknown, path: string): Parsed<CalculatedBinding> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (!Array.isArray(v.terms) || v.terms.length === 0) return { ok: false, error: `${path}.terms: expected non-empty array` }
+  const terms: CalculatedBinding['terms'] = []
+  for (let i = 0; i < v.terms.length; i++) {
+    const t = v.terms[i]
+    if (!isObj(t)) return { ok: false, error: `${path}.terms[${i}]: expected object` }
+    if (typeof t.coefficient !== 'number' || !Number.isFinite(t.coefficient)) {
+      return { ok: false, error: `${path}.terms[${i}].coefficient: expected finite number` }
+    }
+    const leaf = parseLeaf(t.leaf, `${path}.terms[${i}].leaf`)
+    if (!leaf.ok) return leaf
+    terms.push({ coefficient: t.coefficient, leaf: leaf.value })
+  }
+  return { ok: true, value: { source: 'calculated', terms } }
+}
+
+function parseOperand(v: unknown, path: string): Parsed<AggregateOperand> {
+  if (isObj(v) && v.source === 'calculated') return parseCalculated(v, path)
+  return parseLeaf(v, path)
+}
+
 function parseBinding(v: unknown, path: string): Parsed<Binding> {
   if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
   if (v.source === 'aggregate') {
     if (!OPS.includes(v.op as AggregateBinding['op'])) return { ok: false, error: `${path}.op: expected one of ${OPS.join(',')}` }
-    const left = parseLeaf(v.left, `${path}.left`)
+    const left = parseOperand(v.left, `${path}.left`)
     if (!left.ok) return left
-    const right = parseLeaf(v.right, `${path}.right`)
+    const right = parseOperand(v.right, `${path}.right`)
     if (!right.ok) return right
     const b: AggregateBinding = { source: 'aggregate', op: v.op as AggregateBinding['op'], left: left.value, right: right.value }
     return { ok: true, value: b }
   }
+  if (v.source === 'calculated') return parseCalculated(v, path)
   return parseLeaf(v, path)
 }
 

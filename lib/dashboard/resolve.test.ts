@@ -64,6 +64,17 @@ async function run() {
     assert.equal(r.ok && r.value, 4)
     assert.equal(r.ok && r.formatted, '4')
   }
+  // calculated block path: weighted sum routed through resolveBlock (100 - 25 = 75)
+  {
+    const fn: LeafResolver = async (b) => (b.source === 'triplewhale' ? { value: 100 } : { value: 25 })
+    const calc: BlockConfig = { id: 'c', name: 'Net', format: 'number', range: null,
+      binding: { source: 'calculated', terms: [
+        { coefficient: 1, leaf: { source: 'triplewhale', metric: 'revenue' } },
+        { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'X', metricField: 'fee', account: '1' } },
+      ] } }
+    const r = await resolveBlock(calc, GLOBAL, { slug: 'k' }, { resolveLeaf: fn })
+    assert.equal(r.ok && r.value, 75)
+  }
   console.log('ok')
 }
 
