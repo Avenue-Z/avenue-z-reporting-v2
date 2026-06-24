@@ -1,4 +1,4 @@
-import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, MetricFormat } from '@/lib/dashboard/types'
+import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, MetricFormat, Granularity } from '@/lib/dashboard/types'
 
 /**
  * Common TripleWhale metrics surfaced at the top of the builder's metric picker,
@@ -32,11 +32,27 @@ export type OperandDraft =
   | { kind: 'leaf'; leaf: LeafDraft }
   | { kind: 'calculated'; calc: CalculatedDraft }
 
+/** Bar block draft: a leaf + a single dimension column. */
+export type BarDraft = {
+  source: 'bar'
+  leaf: LeafDraft
+  dimension: string
+}
+
+/** Line block draft: a leaf + a granularity. */
+export type LineDraft = {
+  source: 'line'
+  leaf: LeafDraft
+  granularity: Granularity
+}
+
 /** The whole manual form's state. */
 export type ManualDraft =
   | { kind: 'leaf'; name: string; format: MetricFormat; leaf: LeafDraft }
   | { kind: 'calculated'; name: string; format: MetricFormat; calc: CalculatedDraft }
   | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: OperandDraft; right: OperandDraft }
+  | { kind: 'bar'; name: string; format: MetricFormat; bar: BarDraft }
+  | { kind: 'line'; name: string; format: MetricFormat; line: LineDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
   if (d.source === 'supermetrics') {
@@ -69,15 +85,30 @@ export function isOperandComplete(o: OperandDraft): boolean {
   return o.kind === 'calculated' ? isCalculatedComplete(o.calc) : isLeafComplete(o.leaf)
 }
 
+/** Convert a bar draft into a Bar block config (kind: 'bar', leaf binding with dimensions). */
+export function barToBlockConfig(d: BarDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
+  const base = leafToBinding(d.leaf)
+  // SupermetricsBinding and TripleWhaleBinding both carry an optional `dimensions: string[]`,
+  // so spreading the union and adding the field preserves the discriminated source.
+  const binding: LeafBinding = { ...base, dimensions: [d.dimension] }
+  return { name, format, range: null, binding, kind: 'bar' }
+}
+
+/** Convert a line draft into a Line block config (kind: 'line', leaf binding with granularity). */
+export function lineToBlockConfig(d: LineDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
+  const base = leafToBinding(d.leaf)
+  const binding: LeafBinding = { ...base, granularity: d.granularity }
+  return { name, format, range: null, binding, kind: 'line' }
+}
+
 /** Assemble the final block config (id is assigned later, at confirm). */
 export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
-  const binding =
-    d.kind === 'leaf'
-      ? leafToBinding(d.leaf)
-      : d.kind === 'calculated'
-        ? calculatedToBinding(d.calc)
-        : { source: 'aggregate' as const, op: d.op, left: operandToBinding(d.left), right: operandToBinding(d.right) }
-  return { name: d.name, format: d.format, range: null, binding }
+  if (d.kind === 'leaf')       return { name: d.name, format: d.format, range: null, binding: leafToBinding(d.leaf) }
+  if (d.kind === 'calculated') return { name: d.name, format: d.format, range: null, binding: calculatedToBinding(d.calc) }
+  if (d.kind === 'aggregate')  return { name: d.name, format: d.format, range: null,
+    binding: { source: 'aggregate' as const, op: d.op, left: operandToBinding(d.left), right: operandToBinding(d.right) } }
+  if (d.kind === 'bar')        return barToBlockConfig(d.bar, d.name, d.format)
+  return lineToBlockConfig(d.line, d.name, d.format)
 }
 
 /** Best-guess format from a Supermetrics field data_type (user can override). */
@@ -99,9 +130,13 @@ export function isCalculatedComplete(c: CalculatedDraft): boolean {
   return c.terms.some((t) => isLeafComplete(t.leaf) && (t.coefficient.trim() === '' || Number.isFinite(Number(t.coefficient))))
 }
 
+const GRANULARITIES: Granularity[] = ['day', 'week', 'month']
+
 export function isDraftComplete(d: ManualDraft): boolean {
   if (d.name.trim() === '') return false
-  if (d.kind === 'leaf') return isLeafComplete(d.leaf)
+  if (d.kind === 'leaf')       return isLeafComplete(d.leaf)
   if (d.kind === 'calculated') return isCalculatedComplete(d.calc)
-  return isOperandComplete(d.left) && isOperandComplete(d.right)
+  if (d.kind === 'aggregate')  return isOperandComplete(d.left) && isOperandComplete(d.right)
+  if (d.kind === 'bar')        return isLeafComplete(d.bar.leaf) && d.bar.dimension.trim() !== ''
+  return isLeafComplete(d.line.leaf) && (GRANULARITIES as string[]).includes(d.line.granularity)
 }

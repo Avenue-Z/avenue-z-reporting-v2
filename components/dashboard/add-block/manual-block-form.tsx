@@ -3,11 +3,18 @@
 import { useState } from 'react'
 import { LeafBuilder } from './leaf-builder'
 import { CalculatedBuilder } from './calculated-builder'
-import { buildBlockConfig, isDraftComplete, type LeafDraft, type ManualDraft, type CalculatedDraft, type OperandDraft } from './build-config'
-import type { BlockConfig, MetricFormat } from '@/lib/dashboard/types'
+import { BarBuilder } from './bar-builder'
+import { LineBuilder } from './line-builder'
+import {
+  buildBlockConfig, isDraftComplete,
+  type LeafDraft, type ManualDraft, type CalculatedDraft, type OperandDraft,
+  type BarDraft, type LineDraft,
+} from './build-config'
+import type { BlockConfig, BlockKind, Granularity, MetricFormat } from '@/lib/dashboard/types'
 
 type LeafSource = 'supermetrics' | 'triplewhale'
 type Op = '+' | '-' | '*' | '/'
+type FormSource = 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'
 
 const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
 const OPS: { value: Op; label: string }[] = [
@@ -23,13 +30,15 @@ const ctrl = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 
 const labelCls = 'text-[10px] font-extrabold uppercase tracking-widest text-text-muted'
 
 export function ManualBlockForm({
+  kind,
   source,
   slug,
   pending,
   onConfirm,
   onBack,
 }: {
-  source: 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'
+  kind: BlockKind
+  source: FormSource
   slug: string
   pending: boolean
   onConfirm: (cfg: Omit<BlockConfig, 'id'>) => void
@@ -37,37 +46,43 @@ export function ManualBlockForm({
 }) {
   const [name, setName] = useState('')
   const [format, setFormat] = useState<MetricFormat>('number')
-  const [leaf, setLeaf] = useState<LeafDraft>(() => emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source))
+  const [leaf, setLeaf] = useState<LeafDraft>(() => emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source as LeafSource))
   const [calc, setCalc] = useState<CalculatedDraft>(() => ({ source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] }))
   const [op, setOp] = useState<Op>('/')
   const [left, setLeft] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('triplewhale') }))
   const [right, setRight] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('supermetrics') }))
+  const [bar, setBar] = useState<BarDraft>(() => ({ source: 'bar', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
+  const [line, setLine] = useState<LineDraft>(() => ({ source: 'line', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), granularity: 'day' as Granularity }))
 
   const draft: ManualDraft =
-    source === 'aggregate'
-      ? { kind: 'aggregate', name, format, op, left, right }
-      : source === 'calculated'
-        ? { kind: 'calculated', name, format, calc }
-        : { kind: 'leaf', name, format, leaf }
+    kind === 'bar'
+      ? { kind: 'bar', name, format, bar }
+      : kind === 'line'
+        ? { kind: 'line', name, format, line }
+        : source === 'aggregate'
+          ? { kind: 'aggregate', name, format, op, left, right }
+          : source === 'calculated'
+            ? { kind: 'calculated', name, format, calc }
+            : { kind: 'leaf', name, format, leaf }
 
   return (
     <div className="flex flex-col gap-3">
-      <p className={labelCls}>Build manually · {source}</p>
+      <p className={labelCls}>Build manually · {kind} · {source}</p>
 
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Name</span>
         <input className={ctrl} value={name} onChange={(e) => setName(e.target.value)} placeholder="Block name" />
       </label>
 
-      {source !== 'aggregate' && source !== 'calculated' && (
+      {kind === 'kpi' && source !== 'aggregate' && source !== 'calculated' && (
         <LeafBuilder source={source} value={leaf} onChange={setLeaf} slug={slug} onSuggestFormat={setFormat} />
       )}
 
-      {source === 'calculated' && (
+      {kind === 'kpi' && source === 'calculated' && (
         <CalculatedBuilder value={calc} onChange={setCalc} slug={slug} />
       )}
 
-      {source === 'aggregate' && (
+      {kind === 'kpi' && source === 'aggregate' && (
         <>
           <label className="flex flex-col gap-1">
             <span className={labelCls}>Operator</span>
@@ -79,6 +94,9 @@ export function ManualBlockForm({
           <Operand title="Right" value={right} onChange={setRight} slug={slug} />
         </>
       )}
+
+      {kind === 'bar' && <BarBuilder value={bar} onChange={setBar} slug={slug} />}
+      {kind === 'line' && <LineBuilder value={line} onChange={setLine} slug={slug} />}
 
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Format</span>
@@ -102,17 +120,14 @@ export function ManualBlockForm({
 }
 
 function Operand({
-  title,
-  value,
-  onChange,
-  slug,
+  title, value, onChange, slug,
 }: {
   title: string
   value: OperandDraft
   onChange: (v: OperandDraft) => void
   slug: string
 }) {
-  const kind = value.kind === 'calculated' ? 'calculated' : value.leaf.source
+  const kindOp = value.kind === 'calculated' ? 'calculated' : value.leaf.source
   const onKind = (k: string) => {
     if (k === 'calculated') onChange({ kind: 'calculated', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] } })
     else onChange({ kind: 'leaf', leaf: emptyLeaf(k as 'supermetrics' | 'triplewhale') })
@@ -121,7 +136,7 @@ function Operand({
     <div className="rounded-md border border-white/10 p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className={labelCls}>{title}</span>
-        <select className="rounded-md border border-white/10 bg-bg-surface px-2 py-1 text-xs text-white" value={kind} onChange={(e) => onKind(e.target.value)}>
+        <select className="rounded-md border border-white/10 bg-bg-surface px-2 py-1 text-xs text-white" value={kindOp} onChange={(e) => onKind(e.target.value)}>
           <option value="supermetrics">Supermetrics</option>
           <option value="triplewhale">TripleWhale</option>
           <option value="calculated">Calculated (weighted sum)</option>

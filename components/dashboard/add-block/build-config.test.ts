@@ -165,4 +165,65 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.left.source, 'calculated')
 }
 
+// barToBlockConfig: produces leaf binding with dimensions: [dim] and kind: 'bar'.
+{
+  const cfg = buildBlockConfig({
+    kind: 'bar', name: 'Spend by Channel', format: 'currency',
+    bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Network' },
+  })
+  assert.equal(cfg.kind, 'bar')
+  assert.equal(cfg.binding.source, 'supermetrics')
+  if (cfg.binding.source === 'supermetrics') assert.deepEqual(cfg.binding.dimensions, ['Network'])
+}
+
+// barToBlockConfig (TW leaf): dimension carried into TW binding.
+{
+  const cfg = buildBlockConfig({
+    kind: 'bar', name: 'Revenue by Country', format: 'currency',
+    bar: { source: 'bar', leaf: { source: 'triplewhale', metric: 'revenue' }, dimension: 'country' },
+  })
+  assert.equal(cfg.binding.source, 'triplewhale')
+  if (cfg.binding.source === 'triplewhale') assert.deepEqual(cfg.binding.dimensions, ['country'])
+}
+
+// lineToBlockConfig: produces leaf binding with granularity and kind: 'line'.
+{
+  const cfg = buildBlockConfig({
+    kind: 'line', name: 'Spend over time', format: 'currency',
+    line: { source: 'line', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, granularity: 'week' },
+  })
+  assert.equal(cfg.kind, 'line')
+  if (cfg.binding.source === 'supermetrics') assert.equal(cfg.binding.granularity, 'week')
+}
+
+// isDraftComplete: bar without dimension → false.
+assert.equal(isDraftComplete({
+  kind: 'bar', name: 'X', format: 'number',
+  bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' },
+}), false)
+
+// isDraftComplete: bar with complete leaf + dimension → true.
+assert.equal(isDraftComplete({
+  kind: 'bar', name: 'X', format: 'number',
+  bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' },
+}), true)
+
+// isDraftComplete: bar with incomplete leaf → false.
+assert.equal(isDraftComplete({
+  kind: 'bar', name: 'X', format: 'number',
+  bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' }, dimension: 'Channel' },
+}), false)
+
+// isDraftComplete: line without granularity → false (TS-wise impossible, but defensive).
+assert.equal(isDraftComplete({
+  kind: 'line', name: 'X', format: 'number',
+  line: { source: 'line', leaf: { source: 'triplewhale', metric: 'revenue' }, granularity: '' as unknown as 'day' },
+}), false)
+
+// isDraftComplete: line with complete leaf + valid granularity → true.
+assert.equal(isDraftComplete({
+  kind: 'line', name: 'X', format: 'number',
+  line: { source: 'line', leaf: { source: 'triplewhale', metric: 'revenue' }, granularity: 'day' },
+}), true)
+
 console.log('ok')

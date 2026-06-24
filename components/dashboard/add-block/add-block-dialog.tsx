@@ -8,22 +8,41 @@ import { addBlock } from '../config-mutations'
 import { applySelections, type BlockSelections } from './draft'
 import { BlockPreviewCard } from './block-preview-card'
 import { ManualBlockForm } from './manual-block-form'
-import type { DashboardConfig, BlockConfig } from '@/lib/dashboard/types'
+import type { BlockConfig, BlockKind, DashboardConfig } from '@/lib/dashboard/types'
 import type { BlockProposal } from '@/lib/dashboard/nl/types'
 import type { AggregateProposal } from '@/lib/dashboard/nl/aggregate-types'
 
 type Source = ProposeBlockInput['source'] | 'calculated'
-const SOURCES: { value: Source; label: string }[] = [
-  { value: 'supermetrics', label: 'Supermetrics' },
-  { value: 'triplewhale', label: 'TripleWhale' },
-  { value: 'aggregate', label: 'Aggregate (formula)' },
-  { value: 'calculated', label: 'Calculated (weighted sum)' },
+
+const KIND_OPTIONS: { value: BlockKind; label: string; available: boolean; hint?: string }[] = [
+  { value: 'kpi',       label: 'KPI tile',         available: true  },
+  { value: 'bar',       label: 'Bar chart',        available: true  },
+  { value: 'line',      label: 'Line chart',       available: true  },
+  { value: 'table',     label: 'Table',            available: false, hint: 'Coming in v2' },
+  { value: 'narrative', label: 'Narrative panel',  available: false, hint: 'Coming in v2' },
+  { value: 'header',    label: 'Section header',   available: false, hint: 'Coming in v2' },
 ]
+
+const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
+  kpi: [
+    { value: 'supermetrics', label: 'Supermetrics' },
+    { value: 'triplewhale',  label: 'TripleWhale' },
+    { value: 'aggregate',    label: 'Aggregate (formula)' },
+    { value: 'calculated',   label: 'Calculated (weighted sum)' },
+  ],
+  bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
+  line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
+  table:     [],
+  narrative: [],
+  header:    [],
+}
+
 const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
 export function AddBlockDialog({ slug, config, onClose }: { slug: string; config: DashboardConfig | null; onClose: () => void }) {
   const router = useRouter()
-  const [step, setStep] = useState<'pick' | 'mode' | 'prompt' | 'preview' | 'build'>('pick')
+  const [step, setStep] = useState<'kind' | 'pick' | 'mode' | 'prompt' | 'preview' | 'build'>('kind')
+  const [kind, setKind] = useState<BlockKind>('kpi')
   const [source, setSource] = useState<Source>('supermetrics')
   const [prompt, setPrompt] = useState('')
   const [clarify, setClarify] = useState<string | null>(null)
@@ -72,6 +91,9 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
   }
 
   const input = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
+  // Bar/Line are leaf-only — skip the mode (AI vs manual) step when KPI-only modes don't apply,
+  // and go straight to 'build' after source selection. KPI keeps the full prompt/mode flow.
+  const isChartKind = kind === 'bar' || kind === 'line'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
@@ -81,15 +103,37 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
           <button className="text-text-muted hover:text-white" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
+        {step === 'kind' && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">Block kind</p>
+            {KIND_OPTIONS.map((k) => (
+              <button
+                key={k.value}
+                disabled={!k.available}
+                onClick={() => { setKind(k.value); setSource(SOURCES_BY_KIND[k.value][0]?.value ?? 'supermetrics'); setStep('pick') }}
+                className={cn(
+                  'rounded-md border px-3 py-2 text-left text-sm',
+                  k.available
+                    ? 'border-white/10 text-white/90 hover:border-white/25 hover:bg-white/[0.04]'
+                    : 'cursor-not-allowed border-white/[0.04] text-white/30',
+                )}
+              >
+                {k.label}{k.hint ? <span className="ml-2 text-[10px] uppercase tracking-widest text-white/40">· {k.hint}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
+
         {step === 'pick' && (
           <div className="flex flex-col gap-2">
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">Source</p>
-            {SOURCES.map((s) => (
-              <button key={s.value} onClick={() => { setSource(s.value); setStep('mode') }}
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">Source · {kind}</p>
+            {SOURCES_BY_KIND[kind].map((s) => (
+              <button key={s.value} onClick={() => { setSource(s.value); setStep(isChartKind ? 'build' : 'mode') }}
                 className="rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/90 hover:border-white/25 hover:bg-white/[0.04]">
                 {s.label}
               </button>
             ))}
+            <button className="mt-1 self-start rounded-md px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.06]" onClick={() => setStep('kind')} disabled={pending}>Back</button>
           </div>
         )}
 
@@ -112,7 +156,14 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
 
         {step === 'build' && (
           <>
-            <ManualBlockForm source={source} slug={slug} pending={pending} onConfirm={confirmManual} onBack={() => setStep('mode')} />
+            <ManualBlockForm
+              kind={kind}
+              source={source as 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'}
+              slug={slug}
+              pending={pending}
+              onConfirm={confirmManual}
+              onBack={() => setStep(isChartKind ? 'pick' : 'mode')}
+            />
             {error && <p className="mt-2 text-xs text-[#FF6666]">Error: {error}</p>}
           </>
         )}
