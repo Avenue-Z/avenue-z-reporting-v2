@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
@@ -13,6 +14,7 @@ import { postPublishTrend, addDays } from '@/lib/ga4/content-derive'
 import { Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
+import { SynopsisSkeleton } from './synopsis-skeleton'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
 import { SentimentInsights } from './sentiment-insights'
 import { getSentimentInsights, applyEnginesFilter, modelKeyOf } from '@/lib/peec/sentiment-insights'
@@ -596,11 +598,13 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       )}
 
       {/* ── FB-009-a · Executive Synopsis (replaces the prior Section A KPI Strip per Tina's FB-009-b ask) ── */}
-      <PRInfluenceSynopsis
-        clientSlug={clientSlug}
-        dateRange={dateRange}
-        context={synopsisContext}
-      />
+      <Suspense fallback={<SynopsisSkeleton />}>
+        <PRInfluenceSynopsis
+          clientSlug={clientSlug}
+          dateRange={dateRange}
+          context={synopsisContext}
+        />
+      </Suspense>
 
       {/* ── FB-029 · PR Placement Matchback (restored under Exec Summary per Tina v1 CSV R23 REVISION) ── */}
       <PRPlacementMatchbackTable
