@@ -62,16 +62,17 @@ export default async function ConfigurableDashboardPage({
   }
 
   const blockNodes: Record<string, ReactNode> = {}
+  const blocksById = new Map(config.blocks.map((b) => [b.id, b]))
   for (const block of config.blocks) {
     const eff = block.range ?? activeDefault // effective range (per-block override or global)
     const ctx = { slug: clientSlug }
     // resolveBlock prefers config.range over the passed global, so null the clone's
     // range and pass the effective range as global. compareRange:null ⇒ value only.
     const blockNoRange = { ...block, range: null }
-    const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx)
+    const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx, { blocksById })
     const compareIso = resolveCompareIso(eff.dateRange, eff.compareRange)
     const prevPromise = compareIso
-      ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx)
+      ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx, { blocksById })
       : null
 
     blockNodes[block.id] = (

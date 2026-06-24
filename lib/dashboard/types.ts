@@ -33,7 +33,17 @@ export interface AggregateBinding {
   right: AggregateOperand
 }
 
-export type Binding = LeafBinding | CalculatedBinding | AggregateBinding
+export type FormulaOperand =
+  | { kind: 'ref'; blockId: string }       // live reference to another block
+  | { kind: 'metric'; leaf: LeafBinding }   // a freshly-defined SM/TW pull
+
+export interface FormulaBinding {
+  source: 'formula'
+  expr: string                              // e.g. "(@a - @b) / @c"; numeric literals are constants
+  operands: Record<string, FormulaOperand>  // placeholder key -> operand (keys are stable, not names)
+}
+
+export type Binding = LeafBinding | CalculatedBinding | AggregateBinding | FormulaBinding
 
 export interface BlockConfig {
   id: string
