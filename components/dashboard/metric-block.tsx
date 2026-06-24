@@ -21,9 +21,8 @@ export interface MetricBlockShellProps {
  *  unchanged from prior versions — this file is now a thin composition wrapper. */
 export function MetricBlockShell({ block, canEdit, slug, config, activeDefault, value, delta, sub }: MetricBlockShellProps) {
   const label = detachBadgeLabel(block)
-  // The badge is a static indicator in this refactor — onReset is a no-op since
-  // popover state lives inside <BlockChrome> now. Users still reach Reset via the kebab.
-  const badge = label !== null ? <DetachBadge label={label} canEdit={canEdit} onReset={() => {}} /> : null
+  // Visual indicator only — the kebab menu is the actionable way to reset.
+  const badge = label !== null ? <DetachBadge label={label} canEdit={false} onReset={() => {}} /> : null
 
   return (
     <BlockChrome block={block} canEdit={canEdit} slug={slug} config={config} activeDefault={activeDefault}>

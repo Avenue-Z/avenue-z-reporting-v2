@@ -36,9 +36,6 @@ export interface BlockChromeProps {
   activeDefault: { dateRange: string; compareRange: string | null }
   /** The kind-specific body card (KpiBlockBody, BarBlockBody, LineBlockBody, …). */
   children: ReactNode
-  /** Optional badge slot rendered inside the body — for kinds that surface the
-   *  drift badge themselves (KPI). Bar/Line pass their own; default = none. */
-  renderBadge?: (badge: ReactNode | null) => ReactNode
 }
 
 /** Shared block chrome: relative positioning + kebab popover + range override + drift badge.
