@@ -25,7 +25,7 @@
 This plan is written so a parallel agent fleet can pick up tasks with minimal collisions. Key facts:
 
 **Shared files (collision points):**
-- `lib/paid-search/types.ts` — Task 1 adds ALL new interfaces up front so Tasks 3–6 never touch it again. **Only Task 1 edits this file.**
+- `lib/paid-search/types.ts` — **Only Task 1 (adds) and Task 9 (removes) edit this file**, and they are in different waves. Tasks 3–6 never touch it. This is what keeps the keyword and geo streams collision-free in the same wave.
 - `components/report-sections/paid-search/index.tsx` — **Only Task 4 edits this file.** Task 6 (geo) deliberately preserves the `getGeoRows` and `GeoSection` names/imports so the geo data-shape change flows through `index.tsx` without an edit there.
 - `lib/ga4/client.ts` — **Only Task 2 edits this file** (delegates `parseDateRange` to the new module; removes orphaned private helpers). 14 files import `parseDateRange`/`deriveCompareRange` from `@/lib/ga4/client`; Task 2 keeps that import path working via re-export, so none of them change.
 
@@ -40,12 +40,15 @@ This plan is written so a parallel agent fleet can pick up tasks with minimal co
 | 5. Geo DMA lib + test | Task 1 | Task 1 done |
 | 6. Geo DMA component | Task 5 | Task 5 done |
 | 7. Date picker custom range + resolved dates | Task 2 | Task 2 done |
-| 8. Verify discrepancy fix | Task 2 | Task 2 done |
+| 8. Verify discrepancy fix (manual) | Tasks 2–7 merged | end (run by controller/human) |
+| 9. Types cleanup (`types.ts`) | Tasks 3–6 | Tasks 4 & 6 done |
 
 **Parallel waves:**
 - **Wave 1 (parallel):** Task 1, Task 2.
-- **Wave 2 (parallel):** Task 3, Task 5, Task 7, Task 8 (3 & 5 need Task 1; 7 & 8 need Task 2).
+- **Wave 2 (parallel):** Task 3, Task 5, Task 7 (3 & 5 need Task 1; 7 needs Task 2).
 - **Wave 3 (parallel):** Task 4 (needs 3), Task 6 (needs 5).
+- **Wave 4 (serial):** Task 9 (types cleanup, after 4 & 6).
+- **Final:** Task 8 verification — run by the controller/human against live data, not a dispatched implementer (needs Google Ads UI access + client slug).
 
 No two tasks in the same wave write the same file.
 
@@ -62,7 +65,7 @@ No two tasks in the same wave write the same file.
 
 - [ ] **Step 1: Add the new interfaces**
 
-Add these three interfaces to `lib/paid-search/types.ts` (leave the existing `SearchTermRow` and `GeoRow` in place for now — Tasks 3 and 5 remove them as cleanup):
+Add these three interfaces to `lib/paid-search/types.ts` (leave the existing `SearchTermRow` and `GeoRow` in place for now — Task 9 removes them in a final cleanup, so `types.ts` is only ever edited by Task 1 and Task 9):
 
 ```typescript
 export interface KeywordRow { keyword: string; matchType: string; clicks: number; impressions: number; ctr: number; cost: number; leads: number; cpl: number }
@@ -405,20 +408,12 @@ export async function getKeywordRows(slug: string, dateRange: string): Promise<K
 Run: `npx tsx lib/paid-search/keywords.test.ts`
 Expected: PASS — prints `ok`.
 
-- [ ] **Step 6: Remove the orphaned `SearchTermRow` type**
+Do NOT touch `lib/paid-search/types.ts` here — the now-unused `SearchTermRow` interface is removed later in Task 9 (final cleanup), so `types.ts` stays owned by Task 1 only and this task never collides with Task 5 in the same wave.
 
-In `lib/paid-search/types.ts`, delete the line:
-
-```typescript
-export interface SearchTermRow { term: string; clicks: number; impressions: number; ctr: number; cost: number; leads: number; cpl: number }
-```
-
-(Task 4 removes the last consumer — the old component — in the same wave; if running strictly sequentially, `npx tsc --noEmit` will still flag the old component until Task 4 lands. That is expected and resolved by Task 4.)
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add lib/paid-search/keywords.ts lib/paid-search/keywords.test.ts lib/paid-search/types.ts
+git add lib/paid-search/keywords.ts lib/paid-search/keywords.test.ts
 git commit -m "feat(paid-search): keyword data layer (replaces search terms)"
 ```
 
@@ -648,20 +643,12 @@ export async function getGeoRows(slug: string, dateRange: string): Promise<GeoRe
 Run: `npx tsx lib/paid-search/geo.test.ts`
 Expected: PASS — prints `ok`.
 
-- [ ] **Step 5: Remove the orphaned `GeoRow` type**
+Do NOT touch `lib/paid-search/types.ts` here — the now-unused `GeoRow` interface is removed later in Task 9 (final cleanup), so `types.ts` stays owned by Task 1 only and this task never collides with Task 3 in the same wave.
 
-In `lib/paid-search/types.ts`, delete the line:
-
-```typescript
-export interface GeoRow { region: string; leads: number; clicks: number; cost: number }
-```
-
-(The old `geo-section.tsx` still imports `GeoRow` until Task 6 lands; if running sequentially, `npx tsc --noEmit` flags it until then. Expected, resolved by Task 6.)
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/paid-search/geo.ts lib/paid-search/geo.test.ts lib/paid-search/types.ts
+git add lib/paid-search/geo.ts lib/paid-search/geo.test.ts
 git commit -m "feat(paid-search): nest geo data as region -> DMA breakdown"
 ```
 
@@ -1103,6 +1090,41 @@ If numbers still diverge on an identical explicit window, the remaining suspect 
 
 ---
 
+## Task 9: Final types cleanup
+
+**Files:**
+- Modify: `lib/paid-search/types.ts`
+
+**Interfaces:**
+- Consumes: nothing. Runs only after Tasks 4 and 6 have removed every consumer of `SearchTermRow` and `GeoRow`.
+- Produces: nothing.
+
+- [ ] **Step 1: Remove the two now-unused interfaces**
+
+In `lib/paid-search/types.ts`, delete these two lines:
+
+```typescript
+export interface SearchTermRow { term: string; clicks: number; impressions: number; ctr: number; cost: number; leads: number; cpl: number }
+export interface GeoRow { region: string; leads: number; clicks: number; cost: number }
+```
+
+- [ ] **Step 2: Verify nothing references them and the project compiles**
+
+Run: `grep -rn "SearchTermRow\|GeoRow" lib/ components/ app/`
+Expected: no matches.
+
+Run: `npx tsc --noEmit && npm run lint`
+Expected: passes.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/paid-search/types.ts
+git commit -m "chore(paid-search): remove unused SearchTermRow and GeoRow types"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage:**
@@ -1110,10 +1132,11 @@ If numbers still diverge on an identical explicit window, the remaining suspect 
 - Item 2 (region → DMA drill-down): Tasks 1, 5, 6. ✓
 - Item 3 (custom range + visible resolved dates, shared picker): Tasks 2, 7. ✓
 - Item 4 (window fix, global) + verify: Tasks 2, 8. ✓
+- Cleanup of replaced types: Task 9. ✓
 - Out-of-scope timezone work: explicitly deferred in Task 8 Step 5. ✓
 
 **Type consistency:** `KeywordRow`/`GeoDma`/`GeoRegion` defined in Task 1 and used identically in Tasks 3–6. `resolveDateRange`/`formatResolvedRange` defined in Task 2, consumed in Task 7. `getGeoRows`/`GeoSection` names preserved so `index.tsx` is touched only by Task 4. Field IDs (`Keyword`, `Matchtype`, `Metroarea`) match `field_discovery`.
 
 **Placeholder scan:** none — every code step contains full content; every run step has an exact command and expected result.
 
-**Risks captured:** Tasks 3/5 leave a transient type-orphan (old component referencing removed type) that resolves when the paired component task (4/6) lands in the same wave; called out inline. `smQuery` report-type auto-resolution noted in Global Constraints.
+**Parallel-safety:** `lib/paid-search/types.ts` is edited only by Task 1 (add) and Task 9 (remove), in different waves — so the keyword and geo streams never collide on it. The replaced types (`SearchTermRow`, `GeoRow`) stay in place until every consumer is gone (after Tasks 4 & 6), so no wave boundary leaves the branch failing to compile; Task 9 then deletes them. `smQuery` report-type auto-resolution noted in Global Constraints.
