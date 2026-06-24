@@ -6,12 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { getMainLabel } from '@/components/layout/date-range-picker'
 import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
-import { MetricBlockErrorState } from './metric-block-states'
-import type {
-  DashboardConfig,
-  PersistedBlock,
-  ResolveResult,
-} from '@/lib/dashboard/types'
+import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+import type { ReactNode } from 'react'
 
 const PRESETS = [
   { value: 'last_7_days', label: 'Last 7 Days' },
@@ -33,103 +29,42 @@ const COMPARES = [
   { value: 'previous_year', label: 'Previous Year' },
 ] as const
 
-export interface MetricBlockProps {
+export interface MetricBlockShellProps {
   block: PersistedBlock
-  result: ResolveResult
   canEdit: boolean
   slug: string
   config: DashboardConfig
   activeDefault: { dateRange: string; compareRange: string | null }
+  value: ReactNode
+  delta: ReactNode
 }
 
-export function MetricBlock({ block, result, canEdit, slug, config, activeDefault }: MetricBlockProps) {
+export function MetricBlockShell({ block, canEdit, slug, config, activeDefault, value, delta }: MetricBlockShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'range' | 'confirm-delete' | 'confirm-reset'>('menu')
   const [draftDate, setDraftDate] = useState<string>(block.range?.dateRange ?? activeDefault.dateRange)
-  const [draftCompare, setDraftCompare] = useState<string | null>(
-    block.range?.compareRange ?? activeDefault.compareRange,
-  )
+  const [draftCompare, setDraftCompare] = useState<string | null>(block.range?.compareRange ?? activeDefault.compareRange)
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const isOverridden = block.range !== null
-  const activeCompare = block.range ? block.range.compareRange : activeDefault.compareRange
-  const deltaSuffix =
-    activeCompare === 'previous_year'
-      ? 'vs prior year'
-      : activeCompare && activeCompare.startsWith('custom:')
-        ? 'vs comparison'
-        : 'vs prior period'
 
-  function closeMenu() {
-    setMenuOpen(false)
-    setView('menu')
-    setErrorMsg(null)
-  }
-
+  function closeMenu() { setMenuOpen(false); setView('menu'); setErrorMsg(null) }
   function runSave(nextConfig: DashboardConfig) {
     startTransition(async () => {
       const res = await saveDashboardConfig(slug, nextConfig)
-      if (!res.ok) {
-        setErrorMsg(res.error)
-        return
-      }
+      if (!res.ok) { setErrorMsg(res.error); return }
       closeMenu()
     })
   }
-
-  function applyOverride() {
-    runSave(setBlockRange(config, block.id, { dateRange: draftDate, compareRange: draftCompare }))
-  }
-
-  function confirmReset() {
-    runSave(resetBlockRange(config, block.id))
-  }
-
-  function confirmDelete() {
-    runSave(removeBlock(config, block.id))
-  }
+  function applyOverride() { runSave(setBlockRange(config, block.id, { dateRange: draftDate, compareRange: draftCompare })) }
+  function confirmReset() { runSave(resetBlockRange(config, block.id)) }
+  function confirmDelete() { runSave(removeBlock(config, block.id)) }
 
   const overrideLabel = isOverridden ? getMainLabel(block.range!.dateRange) : null
-
   const badge = isOverridden ? (
-    <DetachBadge
-      label={overrideLabel!}
-      canEdit={canEdit}
-      onReset={() => {
-        setView('confirm-reset')
-        setMenuOpen(true)
-      }}
-    />
+    <DetachBadge label={overrideLabel!} canEdit={canEdit} onReset={() => { setView('confirm-reset'); setMenuOpen(true) }} />
   ) : null
-
-  if (!result.ok) {
-    return (
-      <BlockShell
-        name={block.name}
-        canEdit={canEdit}
-        menuOpen={menuOpen}
-        setMenuOpen={setMenuOpen}
-        view={view}
-        setView={setView}
-        pending={pending}
-        errorMsg={errorMsg}
-        isOverridden={isOverridden}
-        draftDate={draftDate}
-        setDraftDate={setDraftDate}
-        draftCompare={draftCompare}
-        setDraftCompare={setDraftCompare}
-        applyOverride={applyOverride}
-        confirmDelete={confirmDelete}
-        confirmReset={confirmReset}
-      >
-        <div className="flex flex-col gap-2">
-          {badge}
-          <MetricBlockErrorState name={block.name} error={result.error} slug={slug} />
-        </div>
-      </BlockShell>
-    )
-  }
 
   return (
     <BlockShell
@@ -151,26 +86,10 @@ export function MetricBlock({ block, result, canEdit, slug, config, activeDefaul
       confirmReset={confirmReset}
     >
       <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px]">
-        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">
-          {block.name}
-        </p>
+        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{block.name}</p>
         {badge && <div className="mt-2">{badge}</div>}
-        <p className="mt-2 text-3xl font-extrabold text-white">{result.formatted}</p>
-        {result.delta !== undefined && (
-          <p
-            className={cn(
-              'mt-1 text-sm font-bold',
-              result.delta > 0
-                ? 'text-brand-green'
-                : result.delta < 0
-                  ? 'text-[#FF4444]'
-                  : 'text-text-muted',
-            )}
-          >
-            {result.delta > 0 ? '↑' : result.delta < 0 ? '↓' : '—'}{' '}
-            {Math.abs(result.delta).toFixed(1)}% {deltaSuffix}
-          </p>
-        )}
+        <div className="mt-2">{value}</div>
+        <div className="mt-1">{delta}</div>
       </div>
     </BlockShell>
   )

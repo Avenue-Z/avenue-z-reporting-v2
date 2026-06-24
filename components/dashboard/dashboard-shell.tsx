@@ -12,7 +12,7 @@ export interface DashboardShellProps {
   canEdit: boolean
   activeDefault: { dateRange: string; compareRange: string | null }
   slug: string
-  /** Map of block id → rendered server island (the Suspense-wrapped <MetricBlock>). */
+  /** Map of block id → rendered server island (the <MetricBlockShell>). */
   blockNodes: Record<string, ReactNode>
 }
 
