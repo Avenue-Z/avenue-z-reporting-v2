@@ -607,6 +607,7 @@ Slide 2 of the source deck is now a live dashboard.
 - Chart export (PNG / SVG). Track for the eventual report-export feature; not a #3 deliverable.
 - Per-bar / per-point click-to-drill-down. v2 — would route to a filtered KPI block view.
 - A11y deep work (screen-reader chart annotation). Recharts has basic ARIA; spec-track for v2.
+- **Live-streamed preview card for chart kinds**: deferred from v1 — chart blocks save directly to the dashboard and stream there. Preview-card kind dispatch is a v2 polish item.
 
 ---
 

@@ -44,6 +44,8 @@ export async function BarBlockBody({ name, groupedPromise, target, ceiling, slug
           yKeys={yKeys}
           orientation="horizontal"
           referenceLines={referenceLines}
+          unwrapped
+          height="100%"
         />
       </div>
     </div>
