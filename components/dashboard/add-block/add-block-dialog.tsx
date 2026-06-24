@@ -37,6 +37,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
   }, [onClose])
 
   function resolve() {
+    if (source === 'formula') return // formula is manual-only; never goes through the NL proposer
     setClarify(null); setError(null)
     startTransition(async () => {
       const r = await proposeBlock({ source: source as ProposeBlockInput['source'], prompt, slug }) // 'formula' never reaches here (guard above)
