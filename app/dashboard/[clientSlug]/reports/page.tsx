@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { resolveDemoMode } from '@/lib/demo-data/resolve'
-import { REPORT_NAMES } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { GA4Report } from '@/components/report-sections/ga4'
@@ -126,10 +126,16 @@ export default async function ReportPage({
     cookieValue:  cookieStore.get('demoMode')?.value,
   })
 
+  // Default landing: when no section is requested, open the first enabled
+  // report in sidebar (NAV_GROUPS) order so it matches the first visible nav
+  // item — not enabledReports[0], which can lead with a legacy/empty slug.
+  const defaultSection =
+    NAV_SLUG_ORDER.find((s) => client.enabledReports.includes(s as ReportSlug)) ??
+    client.enabledReports[0]
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)
       ? section
-      : client.enabledReports[0]
+      : defaultSection
   ) as ReportSlug
 
   const dateRange    = dateRangeParam  ?? 'last_30_days'
