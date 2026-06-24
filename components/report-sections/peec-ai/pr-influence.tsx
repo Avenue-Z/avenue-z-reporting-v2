@@ -15,8 +15,8 @@ import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import { SynopsisSkeleton } from './synopsis-skeleton'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
-import { SentimentInsights } from './sentiment-insights'
-import { getSentimentInsights, applyEnginesFilter, modelKeyOf } from '@/lib/peec/sentiment-insights'
+import { SentimentInsightsSection, SentimentSkeleton } from './sentiment-insights-section'
+import { applyEnginesFilter, modelKeyOf } from '@/lib/peec/sentiment-insights'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
@@ -329,22 +329,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // ── FB-026 · Sentiment Insights (live, date + model reactive) ─────────────
   // Filter per-URL citations to the active model selection (same engines-rule
   // as filteredMatchbackRows above: URLs with no engines at all are dropped
-  // when a filter is active). Then call the Glean-backed sentiment helper;
-  // it returns an empty insights object when there is no data to analyze,
-  // and the component renders an honest empty state.
+  // when a filter is active). The Glean-backed fetch happens inside
+  // SentimentInsightsSection behind its own Suspense boundary, so this slow
+  // call streams independently instead of blocking the rest of the tab.
   const sentimentCitations = applyEnginesFilter(urlCitations, models)
   const sentimentModelKey  = modelKeyOf(models)
-  let sentimentData: Awaited<ReturnType<typeof getSentimentInsights>> | null = null
-  if (!demoMode) {
-    try {
-      sentimentData = await getSentimentInsights(clientSlug, dateRange, sentimentModelKey, {
-        citations: sentimentCitations,
-      })
-    } catch (e) {
-      console.error('[pr-influence] sentiment insights generation failed:', e)
-      sentimentData = null
-    }
-  }
 
   // Build opportunity rows (Section E)
   const opportunityRows = data
@@ -573,7 +562,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       />
 
       {/* ── FB-026 · Sentiment Insights (live, Glean-backed, date + model reactive) ── */}
-      <SentimentInsights data={sentimentData} />
+      <Suspense fallback={<SentimentSkeleton />}>
+        <SentimentInsightsSection
+          clientSlug={clientSlug}
+          dateRange={dateRange}
+          modelKey={sentimentModelKey}
+          citations={sentimentCitations}
+          demoMode={demoMode}
+        />
+      </Suspense>
 
       {/* ── FB-012 · Top Editorial Domains + Prompt Cluster Opportunity, side-by-side ──
           Tina's recommended layout: Synopsis -> Sentiment -> Top Editorial -> Prompt Clusters,
