@@ -16,6 +16,18 @@ _(none)_
 
 ## Closed
 
+### FB-035 — Watched Pages table overhaul (Tina, 2026-06-24)
+- **Ask:** Replace 16-column Planned Content Performance table with 9-column shape: Content Piece (topic + URL hyperlinked), Content Type, Publish Date, Last Updated, Prompt Coverage (+ delta), Citation Share (+ delta), AI Referral Traffic (+ delta), Organic Sessions (+ delta), Engagement Rate (+ delta). Only completed work (strict literal: status === "published" case-insensitive). Paginate at 10 with expand. Default sort Citation Share desc. New title and subtitle. Comparison-period deltas across all 5 metrics.
+- **Bug discovered en route:** compareRange was not wired to ContentImpactReport at app/dashboard/[clientSlug]/reports/page.tsx:71, silently killing FB-034 §A delta wiring. Fixed in Task 3.
+- **Files touched:**
+  - lib/peec/url-citations.ts: added promptIdsByUrlKey field + urlPromptIds helper + dateRange opt on getDomainCoverage; cache versions v3 to v4 (coverage) and v2 to v3 (citations).
+  - lib/peec/url-citations.test.ts: appended assertions locking promptIdsByUrlKey aggregation.
+  - components/report-sections/peec-ai/sortable-table.tsx: added defaultSortKey + defaultSortDir props.
+  - app/dashboard/[clientSlug]/reports/page.tsx:71: wired compareRange prop.
+  - components/report-sections/peec-ai/content-impact.tsx: 6 new fetches (4 GA4 + 2 Peec prior-period), per-row metric x period derivation, strict literal status filter.
+  - components/report-sections/peec-ai/content-impact-tables.tsx: PlannedContentRow redefined, columns rebuilt, new title and subtitle, pagination at 10, default sort Citation Share desc, inline delta renderer.
+- **Sheet row:** Content Impact | Watched Pages: 9-col overhaul + strict status==='published' filter + paginate at 10 + default sort by Citation Share + comparison-period deltas on all 5 metrics + new title/subtitle | Done
+
 ### FB-034 — Content Impact §A Snapshot KPIs: replace 8 cards with Tina's 4 + fix delta display
 
 - **Status:** done
