@@ -541,6 +541,88 @@ export async function ContentImpactReport({
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
   const sectionCOk = timingOk
 
+  // ── FB-034 · §A Snapshot KPI derivations (Tina's 4 new metrics) ─────────────
+
+  // Helper: sessions sum across rows filtered by predicate. Returns null only
+  // when rows itself is null (query rejected); 0 means "real zero".
+  const sumSessions = (
+    rows: typeof ga4TrafficMainRows,
+    pred: (r: { sessionSource?: unknown; sessionDefaultChannelGroup?: unknown }) => boolean,
+  ): number | null => {
+    if (rows === null) return null
+    return rows.filter(pred).reduce((s, r) => s + (Number(r.sessions) || 0), 0)
+  }
+
+  const isAiRow = (r: { sessionSource?: unknown }) =>
+    isAiSource(String(r.sessionSource ?? ''))
+  const isOrganicRow = (r: { sessionDefaultChannelGroup?: unknown }) =>
+    String(r.sessionDefaultChannelGroup ?? '') === 'Organic Search'
+
+  // KPI 1: Citation Share. Mirror Overview's definition (peec-ai/index.tsx:188).
+  // Numerator: peecData.yourBrandCitations. Denominator: peecData.totalCitations.
+  // Prior values come from peecData.yourBrandCitationsPrior + .totalCitationsPrior.
+  const totalCitationsAllDomains = peecData?.totalCitations ?? 0
+  const yourBrandCitations = peecData?.yourBrandCitations ?? 0
+  const citationSharePct = totalCitationsAllDomains > 0
+    ? (yourBrandCitations / totalCitationsAllDomains) * 100
+    : null
+  const yourBrandCitationsPrior = peecData?.yourBrandCitationsPrior ?? null
+  const totalCitationsPrior = peecData?.totalCitationsPrior ?? null
+  const citationSharePctPrior =
+    yourBrandCitationsPrior != null && totalCitationsPrior != null && totalCitationsPrior > 0
+      ? (yourBrandCitationsPrior / totalCitationsPrior) * 100
+      : null
+  const citationSharePctDelta =
+    citationSharePct != null && citationSharePctPrior != null
+      ? citationSharePct - citationSharePctPrior
+      : null
+
+  // KPI 2: Prompt Coverage. Aggregate across all owned domains (union of
+  // prompt IDs cited). No prior-period value available in v1 because
+  // getDomainCoverage(clientSlug) does not accept a dateRange parameter
+  // (lib/peec/url-citations.ts:286). Card renders value with no delta line.
+  const ownedPromptIdSet = new Set<string>()
+  for (const d of ownDomains) {
+    for (const pid of domainPromptIds(coverage, d.domain)) {
+      ownedPromptIdSet.add(pid)
+    }
+  }
+  const promptCoveragePct = coverageAvailable && totalTrackedPrompts > 0
+    ? Math.round((ownedPromptIdSet.size / totalTrackedPrompts) * 100)
+    : null
+
+  // KPI 3: AI Referral Traffic. Same definition as the current §A KPI #5
+  // (ga4AiReferredSessions), sourced from the new sessionSource ×
+  // sessionDefaultChannelGroup query so prior-period is available in one
+  // place. Delta = ((current - prior) / prior) * 100 when prior > 0.
+  const aiReferralTraffic = sumSessions(ga4TrafficMainRows, isAiRow)
+  const aiReferralTrafficPrior = sumSessions(ga4TrafficPriorRows, isAiRow)
+  const aiReferralTrafficDelta =
+    aiReferralTraffic != null && aiReferralTrafficPrior != null && aiReferralTrafficPrior > 0
+      ? ((aiReferralTraffic - aiReferralTrafficPrior) / aiReferralTrafficPrior) * 100
+      : null
+
+  // KPI 4: Organic Traffic. GA4's "Organic Search" channel grouping,
+  // includes Google, Bing, etc. organic search but excludes paid search,
+  // direct, referral, AI sources. Delta same as AI Referral Traffic.
+  const organicTraffic = sumSessions(ga4TrafficMainRows, isOrganicRow)
+  const organicTrafficPrior = sumSessions(ga4TrafficPriorRows, isOrganicRow)
+  const organicTrafficDelta =
+    organicTraffic != null && organicTrafficPrior != null && organicTrafficPrior > 0
+      ? ((organicTraffic - organicTrafficPrior) / organicTrafficPrior) * 100
+      : null
+
+  // Booleans for the delta-rendering gate. When prior data is unavailable
+  // (rejected query, no compareRange selected) we render the value with
+  // no delta line. Truth-grounded: no fake "+0%".
+  const aiPriorAvailable = aiReferralTrafficPrior !== null
+  const organicPriorAvailable = organicTrafficPrior !== null
+  const citationSharePriorAvailable = citationSharePctPrior !== null
+  // promptCoveragePriorAvailable intentionally absent, v1 limitation noted above.
+  void aiPriorAvailable
+  void organicPriorAvailable
+  void citationSharePriorAvailable
+
   // ── FB-033 · Build context for the Executive Synopsis card ─────────────────
   // Every value here mirrors the exact expression the §A KPI cards render
   // (content-impact.tsx §A KPI strip below), so the synopsis and the KPI
