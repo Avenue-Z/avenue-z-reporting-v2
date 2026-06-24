@@ -13,6 +13,7 @@ import { BetaAnalyticsDataClient } from '@google-analytics/data'
 import { getClientBySlug } from '@/lib/db/queries'
 import type { GA4QueryParams, GA4ReportResult, GA4Row } from './types'
 import { cached } from '@/lib/cache'
+import { resolveDateRange } from '@/lib/date-range'
 
 let _client: BetaAnalyticsDataClient | null = null
 
@@ -37,97 +38,13 @@ function toISO(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-function _startOfWeek(d: Date): Date {
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day // Monday-based
-  const r = new Date(d)
-  r.setDate(d.getDate() + diff)
-  r.setHours(0, 0, 0, 0)
-  return r
-}
-
-function _endOfWeek(d: Date): Date {
-  const s = _startOfWeek(d)
-  const e = new Date(s)
-  e.setDate(s.getDate() + 6)
-  return e
-}
-
-function _startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
-
-function _endOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
-}
-
-function _startOfQuarter(d: Date): Date {
-  const q = Math.floor(d.getMonth() / 3)
-  return new Date(d.getFullYear(), q * 3, 1)
-}
-
-function _endOfQuarter(d: Date): Date {
-  const q = Math.floor(d.getMonth() / 3)
-  return new Date(d.getFullYear(), q * 3 + 3, 0)
-}
-
 /**
  * Resolve any date range preset or custom string to ISO date strings.
+ * Delegates to lib/date-range (client-safe, single source of truth).
  * Always returns { startDate: "YYYY-MM-DD", endDate: "YYYY-MM-DD" }.
  */
 export function parseDateRange(dateRange: string): { startDate: string; endDate: string } {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  if (dateRange.startsWith('custom:')) {
-    const [s, e] = dateRange.replace('custom:', '').split(',')
-    return { startDate: s.trim(), endDate: e.trim() }
-  }
-
-  if (dateRange.includes(',')) {
-    const [s, e] = dateRange.split(',')
-    return { startDate: s.trim(), endDate: e.trim() }
-  }
-
-  const match = dateRange.match(/last_(\d+)_days/)
-  if (match) {
-    const days = parseInt(match[1])
-    const start = new Date(today)
-    start.setDate(today.getDate() - days)
-    return { startDate: toISO(start), endDate: toISO(today) }
-  }
-
-  switch (dateRange) {
-    case 'this_week':
-      return { startDate: toISO(_startOfWeek(today)), endDate: toISO(today) }
-    case 'last_week': {
-      const prev = new Date(today); prev.setDate(today.getDate() - 7)
-      return { startDate: toISO(_startOfWeek(prev)), endDate: toISO(_endOfWeek(prev)) }
-    }
-    case 'this_month':
-      return { startDate: toISO(_startOfMonth(today)), endDate: toISO(today) }
-    case 'last_month': {
-      const lastM = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-      return { startDate: toISO(_startOfMonth(lastM)), endDate: toISO(_endOfMonth(lastM)) }
-    }
-    case 'this_quarter':
-      return { startDate: toISO(_startOfQuarter(today)), endDate: toISO(today) }
-    case 'last_quarter': {
-      const lq = new Date(today); lq.setMonth(today.getMonth() - 3)
-      return { startDate: toISO(_startOfQuarter(lq)), endDate: toISO(_endOfQuarter(lq)) }
-    }
-    case 'this_year':
-    case 'year_to_date':
-      return { startDate: `${today.getFullYear()}-01-01`, endDate: toISO(today) }
-    case 'last_year': {
-      const ly = today.getFullYear() - 1
-      return { startDate: `${ly}-01-01`, endDate: `${ly}-12-31` }
-    }
-    default: {
-      const start = new Date(today); start.setDate(today.getDate() - 30)
-      return { startDate: toISO(start), endDate: toISO(today) }
-    }
-  }
+  return resolveDateRange(dateRange)
 }
 
 /**
