@@ -1,4 +1,5 @@
 // lib/dashboard/adapters/supermetrics.ts
+import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { createHash } from 'node:crypto'
 import { smQuery, parseSmRows } from '@/lib/supermetrics/client'
@@ -50,36 +51,39 @@ export function resolveSmApiKey(
   return perClient ?? env.SUPERMETRICS_API_KEY
 }
 
+/** Stable cross-render cache-key parts for one SM metric query (raw key hashed). */
+export function smDataKey(
+  apiKey: string, dsId: string, account: string, metricField: string, isoRange: string, filter: string,
+): string[] {
+  return ['sm-data', dsId, account, metricField, isoRange, filter, keyHash(apiKey)]
+}
+
+// Request-scoped dedupe (react cache) around cross-request persistence (unstable_cache),
+// both keyed by the same primitive query identity. Two callers in one render (e.g. a
+// formula's ref-pull and the referenced block's own island) share ONE in-flight fetch.
+const cachedSum = cache(
+  (apiKey: string, dsId: string, account: string, metricField: string, isoRange: string, filter: string): Promise<number> =>
+    unstable_cache(
+      async () => {
+        const result = await smQuery({
+          apiKey, dsId, dsAccounts: account, fields: [metricField], dateRange: isoRange,
+          filters: filter || undefined,
+        })
+        const rows = parseSmRows(result)
+        if (rows.length === 0) throw new NoDataError(`no rows for ${metricField} in ${isoRange}`)
+        return sumMetric(rows, result.header[0] ?? metricField)
+      },
+      smDataKey(apiKey, dsId, account, metricField, isoRange, filter),
+      { revalidate: 3600 },
+    )(),
+)
+
 async function sumForRange(
   apiKey: string,
   b: SupermetricsBinding,
   isoRange: string, // "YYYY-MM-DD,YYYY-MM-DD"
 ): Promise<number> {
-  const filter = buildSmFilter(b.filters)
-  // Cache the resolved sum per (ds, account, field, range, filter, key). SM's own
-  // per-query latency is ~3s (≈9s on a cold start), so re-resolving the same block
-  // on every render/refresh/date-toggle is pure waste; cache it for an hour.
-  // A thrown NoDataError is not cached — unstable_cache only stores resolved values.
-  return unstable_cache(
-    async () => {
-      const result = await smQuery({
-        apiKey,
-        dsId: b.dsId,
-        dsAccounts: b.account, // scope the query to the bound account(s)
-        fields: [b.metricField],
-        dateRange: isoRange,
-        filters: filter,
-      })
-      const rows = parseSmRows(result)
-      if (rows.length === 0) throw new NoDataError(`no rows for ${b.metricField} in ${isoRange}`)
-      // Supermetrics returns the field's display NAME as the column header (e.g.
-      // "Social spend"), not its field id ("SocialSpend"). The leaf query requests a
-      // single field, so sum that one returned column.
-      return sumMetric(rows, result.header[0] ?? b.metricField)
-    },
-    ['sm-data', b.dsId, b.account, b.metricField, isoRange, filter ?? '', keyHash(apiKey)],
-    { revalidate: 3600 },
-  )()
+  return cachedSum(apiKey, b.dsId, b.account, b.metricField, isoRange, buildSmFilter(b.filters) ?? '')
 }
 
 export async function resolveSupermetricsLeaf(

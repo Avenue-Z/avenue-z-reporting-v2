@@ -1,8 +1,34 @@
 // lib/dashboard/adapters/triplewhale.ts
+import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
+import { createHash } from 'node:crypto'
 import { twSql, twValue, TwQueryError } from '@/lib/triplewhale/client'
 import { buildMetricSql } from '@/lib/triplewhale/queries'
 import type { LeafValue, TripleWhaleBinding } from '../types'
 import { DisconnectedError, NoDataError } from '../errors'
+
+const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16)
+
+/** Stable cross-render cache-key parts for one TW metric query (raw key hashed). */
+export function twDataKey(apiKey: string, shopId: string, query: string, isoRange: string): string[] {
+  return ['tw-data', shopId, query, isoRange, keyHash(apiKey)]
+}
+
+// Request-scoped dedupe (react cache) around cross-request persistence (unstable_cache).
+const cachedTwValue = cache(
+  (apiKey: string, shopId: string, query: string, isoRange: string): Promise<number> =>
+    unstable_cache(
+      async () => {
+        const [startDate, endDate] = isoRange.split(',')
+        const rows = await twSql({ apiKey, shopId, query, startDate, endDate })
+        const v = twValue(rows)
+        if (v === null) throw new NoDataError(`no TripleWhale data for ${query} in ${isoRange}`)
+        return v
+      },
+      twDataKey(apiKey, shopId, query, isoRange),
+      { revalidate: 3600 },
+    )(),
+)
 
 /**
  * Resolve one TripleWhale metric for a client over a date range via the SQL API.
@@ -24,13 +50,7 @@ export async function resolveTripleWhaleLeaf(
   if (!apiKey || !shopId) throw new DisconnectedError(`TripleWhale not connected for ${ctx.slug}`)
 
   const query = buildMetricSql(b.metric, b.filters)
-  const fetchValue = async (isoRange: string): Promise<number> => {
-    const [startDate, endDate] = isoRange.split(',')
-    const rows = await twSql({ apiKey, shopId, query, startDate, endDate })
-    const v = twValue(rows)
-    if (v === null) throw new NoDataError(`no TripleWhale data for ${b.metric} in ${isoRange}`)
-    return v
-  }
+  const fetchValue = (isoRange: string): Promise<number> => cachedTwValue(apiKey, shopId, query, isoRange)
 
   const { startDate, endDate } = parseDateRange(dateRange)
   const value = await fetchValue(`${startDate},${endDate}`)
