@@ -16,7 +16,7 @@ import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query, deriveCompareRange, parseDateRange } from '@/lib/ga4/client'
+import { ga4Query, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { tallyTrajectories, median, computeUrlTiming, type Trajectory } from '@/lib/ga4/content-derive'
 import {
@@ -353,10 +353,6 @@ export async function ContentImpactReport({
     aiBotVisits: getAiBotVisits(row.url, agentData),
   }))
 
-  // Section D aggregates (new vs optimized)
-  const newRows       = enrichedRows.filter(r => r.contentAction === 'new')
-  const optimizedRows = enrichedRows.filter(r => r.contentAction === 'optimized')
-
   const unmatchedPct = calendarData && calendarData.plannedCount > 0
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
     : null
@@ -552,32 +548,6 @@ export async function ContentImpactReport({
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
   const sectionCOk = timingOk
 
-  // §D per-group aggregation. AI-referred is summed within the report window.
-  const { startDate: rStart, endDate: rEnd } = parseDateRange(effectiveRange)
-  const groupMedianFirstAi = (action: ContentCalendarRow['contentAction']) =>
-    median(urlTimings.filter(t => t.action === action).map(t => t.daysToFirstAi).filter((n): n is number => n !== null))
-  function sectionDGroup(group: ContentCalendarRow[]) {
-    const urls = group.map(r => r.url).filter((u): u is string => !!u)
-    const sess = urls.map(u => getGA4Metrics(u, ga4Rows).sessions).filter((n): n is number => n !== null)
-    const avgSessions = ga4Rows && sess.length ? Math.round(sess.reduce((a, b) => a + b, 0) / sess.length) : null
-    const citedCount = urls.filter(u => (citeByKey.get(urlJoinKey(u) ?? '')?.citationCount ?? 0) > 0).length
-    const citationRate = urls.length ? Math.round((citedCount / urls.length) * 100) : null
-    // Empty group → -- (consistent with avgSessions/citationRate above); a real
-    // group with no AI-referred sessions stays 0.
-    let aiReferred: number | null = null
-    if (timingOk && urls.length > 0) {
-      aiReferred = 0
-      for (const u of urls) {
-        const p = extractPath(u)
-        if (!p) continue
-        for (const [date, v] of daysByPath.get(normPath(p))?.entries() ?? []) {
-          if (date >= rStart && date <= rEnd) aiReferred += v.aiSessions
-        }
-      }
-    }
-    return { avgSessions, citationRate, aiReferred }
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -745,77 +715,6 @@ export async function ContentImpactReport({
                 : 'Requires content calendar publish dates + GA4 page-level first-session data'}
             </p>
           </div>
-        )}
-      </SectionCard>
-
-      {/* ── Section D: Net-New vs Optimized Content Lift ───────────────────── */}
-      <SectionCard
-        title="Which delivers more lift — new content or optimization?"
-        description="Compares performance between net-new content launches and optimized (refreshed/expanded) pages."
-      >
-        {calendarData && (newRows.length > 0 || optimizedRows.length > 0) ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              { label: 'Net-New Content',   rows: newRows,       action: 'new' as const,       color: '#60FF80',
-                demoAvgSessions: '1,012', demoCitationRate: '26%', demoAiRefSessions: '847', demoTimeToAI: '18 days' },
-              { label: 'Optimized Content', rows: optimizedRows, action: 'optimized' as const, color: '#39A0FF',
-                demoAvgSessions: '715',   demoCitationRate: '18%', demoAiRefSessions: '315', demoTimeToAI: '9 days' },
-            ].map(({ label, rows: group, action, color, demoAvgSessions, demoCitationRate, demoAiRefSessions, demoTimeToAI }) => {
-              const g = sectionDGroup(group)
-              const tAi = groupMedianFirstAi(action)
-              return (
-              <div key={label} className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                  <p className="text-xs font-bold text-white/70">{label}</p>
-                  <span className="ml-auto text-xs tabular-nums text-white/40">{group.length} URLs</span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {[
-                    {
-                      metric: 'Live URLs',
-                      value: group.filter(r => r.matchStatus === 'matched' || r.matchStatus === 'unknown').length.toString(),
-                      live: true,
-                    },
-                    {
-                      metric: 'Bot-Crawled Pages',
-                      value: group.filter(r => (r.aiBotVisits ?? 0) > 0).length.toString(),
-                      live: true,
-                    },
-                    { metric: 'Avg Sessions (30d)',          value: calendarIsDemo ? demoAvgSessions : g.avgSessions !== null ? g.avgSessions.toLocaleString() : 'None',  live: calendarIsDemo || g.avgSessions !== null },
-                    { metric: 'AI Citation Rate',            value: calendarIsDemo ? demoCitationRate : g.citationRate !== null ? `${g.citationRate}%` : 'None', live: calendarIsDemo || g.citationRate !== null },
-                    { metric: 'AI-Referred Sessions',        value: calendarIsDemo ? demoAiRefSessions : g.aiReferred !== null ? g.aiReferred.toLocaleString() : 'None', live: calendarIsDemo || g.aiReferred !== null },
-                    { metric: 'Time to First AI Activity',   value: calendarIsDemo ? demoTimeToAI : tAi !== null ? `${Math.round(tAi)} days` : 'None',     live: calendarIsDemo || tAi !== null },
-                  ].map(({ metric, value, live }) => (
-                    <div key={metric} className="flex items-center justify-between text-xs">
-                      <span className="text-text-muted">{metric}</span>
-                      <span className={cn('tabular-nums', live ? 'text-white' : 'text-white/20')}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {['Net-New Content', 'Optimized Content'].map((type) => (
-              <div key={type} className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-                <p className="text-xs font-bold text-white/60">{type}</p>
-                <div className="flex flex-col gap-2">
-                  {['Avg Sessions (30d)', 'AI Citation Rate', 'AI-Referred Sessions', 'Time to First AI Activity'].map(m => (
-                    <div key={m} className="flex items-center justify-between text-xs">
-                      <span className="text-text-muted">{m}</span>
-                      <span className="tabular-nums text-white/20">None</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {!calendarData && (
-          <p className="text-[10px] text-text-muted">Requires content calendar with Content Action column (new / optimized / other).</p>
         )}
       </SectionCard>
 
