@@ -54,12 +54,12 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: triplewhale carries non-empty filters as values arrays
 {
-  const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', value: 'facebook-ads' }] })
-  if (b.source === 'triplewhale') assert.deepEqual(b.filters, [{ column: 'channel', values: ['facebook-ads'] }])
+  const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', values: ['facebook-ads', 'google-ads'] }] })
+  if (b.source === 'triplewhale') assert.deepEqual(b.filters, [{ column: 'channel', values: ['facebook-ads', 'google-ads'] }])
 }
 // empty/incomplete filter rows are dropped (no filters key)
 {
-  const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: '', value: '' }, { column: 'channel', value: '' }] })
+  const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: '', values: [] }, { column: 'channel', values: [''] }] })
   if (b.source === 'triplewhale') assert.equal(b.filters, undefined)
 }
 // no filters provided -> no filters key
@@ -80,12 +80,12 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // supermetrics carries cleaned filters as values arrays
 {
-  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'order_shipping_country', value: 'United States' }] })
-  if (b.source === 'supermetrics') assert.deepEqual(b.filters, [{ column: 'order_shipping_country', values: ['United States'] }])
+  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'order_shipping_country', values: ['United States', 'Canada'] }] })
+  if (b.source === 'supermetrics') assert.deepEqual(b.filters, [{ column: 'order_shipping_country', values: ['United States', 'Canada'] }])
 }
 // empty/incomplete SM filter rows dropped (no filters key)
 {
-  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: '', value: '' }, { column: 'order_shipping_country', value: '' }] })
+  const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: '', values: [] }, { column: 'order_shipping_country', values: [''] }] })
   if (b.source === 'supermetrics') assert.equal(b.filters, undefined)
 }
 // no SM filters provided -> no filters key

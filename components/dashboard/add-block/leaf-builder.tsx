@@ -6,6 +6,7 @@ import { DS_IDS } from '@/lib/supermetrics/constants'
 import { getTwFields, getTwDimensionValues, getSmFields, getAccountOptions, getSmDimensionValues } from '@/app/actions/dashboard'
 import type { TwFields } from '@/lib/triplewhale/discovery'
 import { SearchCombobox, type ComboOption } from './search-combobox'
+import { MultiSelectCombobox } from './multi-select-combobox'
 import { formatFromDataType, COMMON_TW_METRICS, type LeafDraft } from './build-config'
 import type { MetricFormat } from '@/lib/dashboard/types'
 
@@ -138,7 +139,7 @@ export function LeafBuilder({
               ))}
               <button
                 type="button"
-                onClick={() => set({ filters: [...(v.filters ?? []), { column: '', value: '' }] })}
+                onClick={() => set({ filters: [...(v.filters ?? []), { column: '', values: [] }] })}
                 className="self-start rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.06]"
               >
                 + Add filter
@@ -167,9 +168,9 @@ function TwLeafFields({
   onChange,
 }: {
   metric: string
-  filters: { column: string; value: string }[]
+  filters: { column: string; values: string[] }[]
   slug: string
-  onChange: (next: { metric: string; filters: { column: string; value: string }[] }) => void
+  onChange: (next: { metric: string; filters: { column: string; values: string[] }[] }) => void
 }) {
   const [fields, setFields] = useState<TwFields>({ metrics: [], dimensions: [] })
   const [err, setErr] = useState<string | null>(null)
@@ -189,9 +190,9 @@ function TwLeafFields({
   }, [slug])
 
   const setMetric = (m: string) => onChange({ metric: m, filters })
-  const setFilter = (i: number, f: { column: string; value: string }) =>
+  const setFilter = (i: number, f: { column: string; values: string[] }) =>
     onChange({ metric, filters: filters.map((x, j) => (j === i ? f : x)) })
-  const addFilter = () => onChange({ metric, filters: [...filters, { column: '', value: '' }] })
+  const addFilter = () => onChange({ metric, filters: [...filters, { column: '', values: [] }] })
   const removeFilter = (i: number) => onChange({ metric, filters: filters.filter((_, j) => j !== i) })
 
   return (
@@ -236,11 +237,11 @@ function TwFilterRow({
   onChange,
   onRemove,
 }: {
-  filter: { column: string; value: string }
+  filter: { column: string; values: string[] }
   dimensions: ComboOption[]
   slug: string
   disabled: boolean
-  onChange: (f: { column: string; value: string }) => void
+  onChange: (f: { column: string; values: string[] }) => void
   onRemove: () => void
 }) {
   const [values, setValues] = useState<ComboOption[]>([])
@@ -263,15 +264,15 @@ function TwFilterRow({
         options={dimensions}
         disabled={disabled}
         placeholder="Dimension"
-        onChange={(column) => onChange({ column, value: '' })}
+        onChange={(column) => onChange({ column, values: [] })}
       />
-      <SearchCombobox
-        value={filter.value}
+      <MultiSelectCombobox
+        values={filter.values}
         options={values}
         disabled={disabled || filter.column === ''}
         loading={loading}
-        placeholder="Value"
-        onChange={(v) => onChange({ column: filter.column, value: v })}
+        placeholder="Values"
+        onChange={(vs) => onChange({ column: filter.column, values: vs })}
       />
       <button type="button" onClick={onRemove} className="text-text-muted hover:text-white" aria-label="Remove filter">✕</button>
     </div>
@@ -287,12 +288,12 @@ function SmFilterRow({
   onChange,
   onRemove,
 }: {
-  filter: { column: string; value: string }
+  filter: { column: string; values: string[] }
   dimensions: ComboOption[]
   slug: string
   dsId: string
   account: string
-  onChange: (f: { column: string; value: string }) => void
+  onChange: (f: { column: string; values: string[] }) => void
   onRemove: () => void
 }) {
   const [values, setValues] = useState<ComboOption[]>([])
@@ -333,30 +334,32 @@ function SmFilterRow({
         value={filter.column}
         options={dimensions}
         placeholder="Dimension"
-        onChange={(column) => onChange({ column, value: '' })}
+        onChange={(column) => onChange({ column, values: [] })}
       />
       {cached ? (
-        <SearchCombobox
-          value={filter.value}
+        <MultiSelectCombobox
+          values={filter.values}
           options={values}
           disabled={filter.column === '' || account === ''}
           loading={loading}
-          placeholder="Value"
-          onChange={(v) => onChange({ column: filter.column, value: v })}
+          placeholder="Values"
+          onChange={(vs) => onChange({ column: filter.column, values: vs })}
         />
       ) : (
-        <div className="flex flex-1 items-center gap-2">
-          <input
-            className={ctrl}
-            value={filter.value}
-            onChange={(e) => onChange({ column: filter.column, value: e.target.value })}
-            placeholder="Value (type, or load)"
+        <div className="flex flex-1 flex-col gap-2">
+          <MultiSelectCombobox
+            values={filter.values}
+            options={[]}
+            allowCustom
+            disabled={filter.column === '' || account === ''}
+            placeholder="Type values, or load"
+            onChange={(vs) => onChange({ column: filter.column, values: vs })}
           />
           <button
             type="button"
             onClick={loadValues}
             disabled={refreshing || filter.column === '' || account === ''}
-            className="shrink-0 rounded-md border border-white/10 px-2 py-1.5 text-xs text-white/70 hover:bg-white/[0.06] disabled:opacity-40"
+            className="self-start shrink-0 rounded-md border border-white/10 px-2 py-1.5 text-xs text-white/70 hover:bg-white/[0.06] disabled:opacity-40"
           >
             {refreshing ? 'Loading… (~1–2 min)' : 'Load values'}
           </button>

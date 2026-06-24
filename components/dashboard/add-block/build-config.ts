@@ -18,8 +18,8 @@ export const COMMON_TW_METRICS: { value: string; label: string }[] = [
 
 /** A single leaf's manual selections. */
 export type LeafDraft =
-  | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; value: string }[] }
-  | { source: 'triplewhale'; metric: string; filters?: { column: string; value: string }[] }
+  | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; values: string[] }[] }
+  | { source: 'triplewhale'; metric: string; filters?: { column: string; values: string[] }[] }
 
 /** The whole manual form's state. */
 export type ManualDraft =
@@ -29,13 +29,13 @@ export type ManualDraft =
 export function leafToBinding(d: LeafDraft): LeafBinding {
   if (d.source === 'supermetrics') {
     const filters = (d.filters ?? [])
-      .filter((f) => f.column !== '' && f.value !== '')
-      .map((f) => ({ column: f.column, values: [f.value] }))
+      .map((f) => ({ column: f.column, values: f.values.filter((v) => v !== '') }))
+      .filter((f) => f.column !== '' && f.values.length > 0)
     return { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account, ...(filters.length ? { filters } : {}) }
   }
   const filters = (d.filters ?? [])
-    .filter((f) => f.column !== '' && f.value !== '')
-    .map((f) => ({ column: f.column, values: [f.value] }))
+    .map((f) => ({ column: f.column, values: f.values.filter((v) => v !== '') }))
+    .filter((f) => f.column !== '' && f.values.length > 0)
   return { source: 'triplewhale', metric: d.metric, ...(filters.length ? { filters } : {}) }
 }
 
