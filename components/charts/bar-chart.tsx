@@ -43,21 +43,17 @@ export function BarChart({
   // Naming is famously confusing; we map our external prop to Recharts' internal:
   const rechartsLayout = horizontal ? 'vertical' : 'horizontal'
 
-  // Category axis carries dataKey (xKey); value axis is numeric.
-  const categoryAxis = horizontal
-    ? <YAxis dataKey={xKey} type="category" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} width={140} />
-    : <XAxis dataKey={xKey} tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-  const valueAxis = horizontal
-    ? <XAxis type="number" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-    : <YAxis tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} />
-
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>
         <RechartsBarChart data={data} layout={rechartsLayout} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          {categoryAxis}
-          {valueAxis}
+          {horizontal
+            ? <YAxis dataKey={xKey} type="category" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} width={140} />
+            : <XAxis dataKey={xKey} tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />}
+          {horizontal
+            ? <XAxis type="number" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
+            : <YAxis tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} />}
           <Tooltip
             contentStyle={{
               background: '#272727',
