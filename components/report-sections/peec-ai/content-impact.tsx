@@ -19,7 +19,7 @@ import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query } from '@/lib/ga4/client'
+import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import {
@@ -197,17 +197,42 @@ const BOT_TO_MODEL: Record<string, AEOModel> = {
 export async function ContentImpactReport({
   clientSlug,
   dateRange,
+  compareRange,
   demoMode = false,
   models,
 }: {
   clientSlug: string
   dateRange?: string
+  compareRange?: string
   demoMode?: boolean
   models?: AEOModel[] | null
 }) {
   const effectiveRange = dateRange ?? 'last_30_days'
 
-  const [peecResult, agentResult, calendarResult, ga4Result, urlCitationsResult, coverageResult, ga4AiHostResult, ga4AiPathResult] = await Promise.allSettled([
+  // FB-034: derive compare-period ISO ranges. compareRange is passed by
+  // the page router (already wired) but was previously ignored. Use
+  // deriveCompareRange to default to 'previous_period' when the caller
+  // doesn't pass an explicit comparison range; null means no compare.
+  const mainRangeStr = dateRange ?? 'last_30_days'
+  const mainDates = parseDateRange(mainRangeStr)
+  const mainIso = `${mainDates.startDate},${mainDates.endDate}`
+  const compareDates = compareRange
+    ? parseDateRange(compareRange)
+    : deriveCompareRange(mainRangeStr, 'previous_period')
+  const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
+
+  const [
+    peecResult,
+    agentResult,
+    calendarResult,
+    ga4Result,
+    urlCitationsResult,
+    coverageResult,
+    ga4AiHostResult,
+    ga4AiPathResult,
+    ga4TrafficMainResult,
+    ga4TrafficPriorResult,
+  ] = await Promise.allSettled([
     getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
     getAgentAnalytics(clientSlug),
     getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
@@ -234,6 +259,28 @@ export async function ContentImpactReport({
       dimensions: ['pagePath', 'sessionSource'],
       limit: 2000,
     }),
+    // FB-034: sessionSource × sessionDefaultChannelGroup for §A KPI cards.
+    // Single shape, run for both main + prior so we can compute AI Referral
+    // Traffic and Organic Traffic + their deltas off two queries instead of
+    // four. limit 1000 because (source × channel-group) cardinality is small.
+    clientSlug
+      ? ga4Query({
+          clientSlug,
+          dateRange: mainIso,
+          metrics: ['sessions'],
+          dimensions: ['sessionSource', 'sessionDefaultChannelGroup'],
+          limit: 1000,
+        })
+      : Promise.resolve(null),
+    clientSlug && compareIso
+      ? ga4Query({
+          clientSlug,
+          dateRange: compareIso,
+          metrics: ['sessions'],
+          dimensions: ['sessionSource', 'sessionDefaultChannelGroup'],
+          limit: 1000,
+        })
+      : Promise.resolve(null),
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -250,6 +297,16 @@ export async function ContentImpactReport({
   // -- for that case, 0 stays 0.
   const ga4AiHostRows = ga4AiHostResult.status === 'fulfilled' ? ga4AiHostResult.value.rows : null
   const ga4AiPathRows = ga4AiPathResult.status === 'fulfilled' ? ga4AiPathResult.value.rows : null
+
+  // FB-034: §A KPI source rows. null = query rejected or no compareRange;
+  // each derived KPI uses its own ok-check (aiPriorAvailable, organicPriorAvailable)
+  // to distinguish "no prior available" from "real zero".
+  const ga4TrafficMainRows = ga4TrafficMainResult.status === 'fulfilled' && ga4TrafficMainResult.value
+    ? ga4TrafficMainResult.value.rows
+    : null
+  const ga4TrafficPriorRows = ga4TrafficPriorResult.status === 'fulfilled' && ga4TrafficPriorResult.value
+    ? ga4TrafficPriorResult.value.rows
+    : null
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
@@ -272,6 +329,8 @@ export async function ContentImpactReport({
   if (ga4AiHostResult.status    === 'rejected') console.error('[content-impact] GA4 host/source error:', ga4AiHostResult.reason)
   if (ga4AiPathResult.status    === 'rejected') console.error('[content-impact] GA4 path/source error:', ga4AiPathResult.reason)
   if (urlCitationsResult.status === 'rejected') console.error('[content-impact] URL citations error:', urlCitationsResult.reason)
+  if (ga4TrafficMainResult.status  === 'rejected') console.error('[content-impact] GA4 §A traffic main error:', ga4TrafficMainResult.reason)
+  if (ga4TrafficPriorResult.status === 'rejected') console.error('[content-impact] GA4 §A traffic prior error:', ga4TrafficPriorResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
   const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
