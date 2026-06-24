@@ -1,0 +1,25 @@
+name: DB migrate (manual)
+
+# Runs `drizzle-kit migrate` against a target database using a secret stored in
+# GitHub — the connection string never touches a developer machine, and Drizzle's
+# __drizzle_migrations table is updated normally (no drift). Manual trigger only.
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    # Scopes the secret to the `production` environment; add required reviewers
+    # there if you want an approval gate before migrations run.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
