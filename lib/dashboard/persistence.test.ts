@@ -140,5 +140,18 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
     binding: { source: 'formula', expr: '@a', operands: { a: { kind: 'ref' } } } })
   assert.equal(r.ok, false)
 }
+// constant-only formula (no operands) is valid
+{
+  const r = parseBlockConfig({ id: 'b', name: 'Const', format: 'number', range: null,
+    binding: { source: 'formula', expr: '1 + 2 * 3', operands: {} } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'formula') assert.equal(Object.keys(r.block.binding.operands).length, 0)
+}
+// metric operand with an invalid leaf is rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '@a', operands: { a: { kind: 'metric', leaf: { source: 'nonsense' } } } } })
+  assert.equal(r.ok, false)
+}
 
 console.log('ok')
