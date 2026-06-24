@@ -72,18 +72,30 @@ function KpiCard({
   label,
   value,
   hint,
-  live = false,
+  live,
+  delta,
+  invertDelta,
 }: {
   label: string
   value: string
   hint: string
   live?: boolean
+  delta?: number
+  invertDelta?: boolean
 }) {
+  const positive = invertDelta ? (delta != null && delta <= 0) : (delta != null && delta >= 0)
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-white/[0.06] bg-bg-surface p-4">
-      <span className="text-[11px] font-semibold text-text-muted">{label}</span>
-      <span className={cn('text-xl font-bold tabular-nums', live ? 'text-white' : 'text-white/20')}>{value}</span>
-      <span className="text-[10px] text-text-muted">{hint}</span>
+    <div className="rounded-xl border border-white/[0.08] bg-bg-surface p-4">
+      <p className="text-xs font-bold uppercase tracking-widest text-text-muted">{label}</p>
+      <p className={cn('mt-2 text-2xl font-bold tabular-nums', live ? 'text-white' : 'text-white/20')}>
+        {value}
+      </p>
+      {delta !== undefined && (
+        <p className={cn('mt-1 text-sm font-bold', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
+          {positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs previous period
+        </p>
+      )}
+      <p className="mt-1 text-xs text-text-muted">{hint}</p>
     </div>
   )
 }
