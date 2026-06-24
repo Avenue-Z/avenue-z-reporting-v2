@@ -6,7 +6,7 @@ export function transformGeo(metricRows: Record<string, string>[], leadRows: Rec
   const leads = new Map<string, number>() // key: region␟dma
   for (const r of leadRows) {
     if (!isLeadAction(r.ConversionTypeName, cfg)) continue
-    const k = `${r.Region}␟${r.Metroarea}`
+    const k = `${r.Region || 'Unknown'}␟${r.Metroarea || '—'}`
     leads.set(k, (leads.get(k) ?? 0) + Number(r.Conversions || 0))
   }
 
@@ -15,7 +15,7 @@ export function transformGeo(metricRows: Record<string, string>[], leadRows: Rec
     const region = r.Region || 'Unknown'
     const dma = r.Metroarea || '—'
     const clicks = Number(r.Clicks || 0), cost = Number(r.Cost || 0)
-    const l = leads.get(`${r.Region}␟${r.Metroarea}`) ?? 0
+    const l = leads.get(`${region}␟${dma}`) ?? 0
     let reg = regions.get(region)
     if (!reg) { reg = { region, clicks: 0, cost: 0, leads: 0, dmas: [] }; regions.set(region, reg) }
     reg.clicks += clicks; reg.cost += cost; reg.leads += l

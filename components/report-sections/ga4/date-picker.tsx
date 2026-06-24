@@ -8,7 +8,7 @@ import type { DateRange } from 'react-day-picker'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { resolveDateRange, formatResolvedRange } from '@/lib/date-range'
+import { formatResolvedRange } from '@/lib/date-range'
 
 const DATE_PRESETS = [
   { value: 'last_7_days',  label: 'Last 7 Days'  },
