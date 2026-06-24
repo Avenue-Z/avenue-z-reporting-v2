@@ -664,14 +664,20 @@ export async function ContentImpactReport({
     : null
 
   const synopsisContext: ContentImpactSynopsisContext = {
-    plannedUrlsInScope: calendarData?.plannedCount ?? null,
-    liveUrls: calendarData?.liveCount ?? null,
-    totalSessions: ga4TotalSessions,
+    // FB-034 §A KPI values — same expressions the KPI cards render.
+    citationSharePct,
+    citationSharePctDelta,
+    promptCoveragePct,
+    aiReferralTraffic,
+    aiReferralTrafficDelta,
+    organicTraffic,
+    organicTrafficDelta,
+    // Supporting context — prose grounding + validator inputs.
     totalAiCitations: totalCitations,
-    aiReferredSessions: ga4AiReferredSessions,
-    ownedUrlsWithAiActivity,
-    unmatchedPct,
+    yourBrandCitations,
+    totalCitationsAllDomains,
     ownedDomainsCited: filteredOwnDomains.length,
+    // Top-items lists (unchanged from FB-033).
     topOwnedDomainsByCitations: topOwnedForSynopsis,
     topCompetitorDomainsByCitations: topCompetitorForSynopsis,
     topBrandAbsentCompetitorUrls: topBrandAbsentForSynopsis,

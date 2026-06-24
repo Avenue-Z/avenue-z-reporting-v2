@@ -4,13 +4,16 @@ import { validateContentImpactSynopsisGrounding, type ContentImpactSynopsisConte
 
 function baseContext(over: Partial<ContentImpactSynopsisContext> = {}): ContentImpactSynopsisContext {
   return {
-    plannedUrlsInScope: 130,
-    liveUrls: 117,
-    totalSessions: 48210,
+    citationSharePct: 24.5,
+    citationSharePctDelta: 2.3,
+    promptCoveragePct: 67,
+    aiReferralTraffic: 1243,
+    aiReferralTrafficDelta: 18.4,
+    organicTraffic: 6667,
+    organicTrafficDelta: -4.2,
     totalAiCitations: 1407,
-    aiReferredSessions: 1243,
-    ownedUrlsWithAiActivity: 56,
-    unmatchedPct: 10,
+    yourBrandCitations: 345,
+    totalCitationsAllDomains: 1407,
     ownedDomainsCited: 4,
     topOwnedDomainsByCitations: [
       { domain: 'example.com', citationCount: 412 },

@@ -19,18 +19,26 @@ export type ContentImpactSynopsis = {
 }
 
 export type ContentImpactSynopsisContext = {
-  plannedUrlsInScope: number | null
-  liveUrls: number | null
-  totalSessions: number | null
-  totalAiCitations: number
-  aiReferredSessions: number | null
-  ownedUrlsWithAiActivity: number | null
-  unmatchedPct: number | null
-  ownedDomainsCited: number
+  // §A KPI values (FB-034, what the page renders).
+  citationSharePct: number | null
+  citationSharePctDelta: number | null
+  promptCoveragePct: number | null
+  aiReferralTraffic: number | null
+  aiReferralTrafficDelta: number | null
+  organicTraffic: number | null
+  organicTrafficDelta: number | null
+
+  // Supporting context (prose grounding + validator inputs).
+  totalAiCitations: number                // validator Rule 2
+  yourBrandCitations: number
+  totalCitationsAllDomains: number
+  ownedDomainsCited: number               // validator Rule 3
+
+  // Top-items lists (unchanged from FB-033).
   topOwnedDomainsByCitations: Array<{ domain: string; citationCount: number }>
   topCompetitorDomainsByCitations: Array<{ domain: string; citationCount: number }>
   topBrandAbsentCompetitorUrls: Array<{ url: string; host: string; citationCount: number }>
-  brandAbsentCompetitorUrlCount: number
+  brandAbsentCompetitorUrlCount: number   // validator Rule 1
 }
 
 /**
@@ -101,13 +109,22 @@ function buildContext(args: { context: ContentImpactSynopsisContext; dateRange: 
 
   // FB-025: every numeric value rendered here uses toLocaleString() for
   // thousands separators (counts) or fixed-decimal (rates). No raw floats.
-  const planned = c.plannedUrlsInScope != null ? c.plannedUrlsInScope.toLocaleString() : 'not configured'
-  const live    = c.liveUrls != null ? c.liveUrls.toLocaleString() : 'not configured'
-  const sess    = c.totalSessions != null ? c.totalSessions.toLocaleString() : 'not configured'
-  const cites   = c.totalAiCitations.toLocaleString()
-  const aiRef   = c.aiReferredSessions != null ? c.aiReferredSessions.toLocaleString() : 'not configured'
-  const owned   = c.ownedUrlsWithAiActivity != null ? c.ownedUrlsWithAiActivity.toLocaleString() : 'not configured'
-  const unmatch = c.unmatchedPct != null ? `${c.unmatchedPct}%` : 'not configured'
+  const citShare = c.citationSharePct != null ? `${c.citationSharePct.toFixed(1)}%` : 'not configured'
+  const citShareDelta = c.citationSharePctDelta != null
+    ? `${c.citationSharePctDelta >= 0 ? '+' : ''}${c.citationSharePctDelta.toFixed(1)}pp`
+    : 'n/a'
+  const promptCov = c.promptCoveragePct != null ? `${c.promptCoveragePct}%` : 'not configured'
+  const aiRef = c.aiReferralTraffic != null ? c.aiReferralTraffic.toLocaleString() : 'not configured'
+  const aiRefDelta = c.aiReferralTrafficDelta != null
+    ? `${c.aiReferralTrafficDelta >= 0 ? '+' : ''}${c.aiReferralTrafficDelta.toFixed(1)}%`
+    : 'n/a'
+  const organic = c.organicTraffic != null ? c.organicTraffic.toLocaleString() : 'not configured'
+  const organicDelta = c.organicTrafficDelta != null
+    ? `${c.organicTrafficDelta >= 0 ? '+' : ''}${c.organicTrafficDelta.toFixed(1)}%`
+    : 'n/a'
+  const cites = c.totalAiCitations.toLocaleString()
+  const yourBrand = c.yourBrandCitations.toLocaleString()
+  const totalCites = c.totalCitationsAllDomains.toLocaleString()
   const ownedDom = c.ownedDomainsCited.toLocaleString()
 
   // FB-025: round per-row counts to 1 decimal before interpolation.
@@ -126,25 +143,20 @@ ${c.topCompetitorDomainsByCitations.map((d, i) => `${i + 1}. ${d.domain} - ${d.c
 ${c.topBrandAbsentCompetitorUrls.map((u, i) => `${i + 1}. ${u.url} (${u.host}) - ${u.citationCount.toFixed(1)} AI citations`).join('\n')}`
     : 'Top competitor or third-party URLs where the brand is absent: none reported in period.'
 
-  // FB-031: section labels marked "USE THESE EXACT VALUES" + metric semantics
-  // spelled out so Glean cannot reinterpret. Numeric values are the literal
-  // source of truth.
   return `
 Period: ${dateRange}
-Data sources: Peec AI (citations, owned/competitor domains, brand-absent URL set), GA4 (sessions, AI-referred sessions), Bot Analytics (owned URLs with AI activity), Content Calendar (planned and live URLs)
+Data sources: Peec AI (citations, owned/competitor domains, brand-absent URL set), GA4 (sessions by source and channel grouping for AI Referral Traffic and Organic Traffic)
 
-Content footprint in scope (USE THESE EXACT VALUES):
-- Planned URLs in scope (content calendar): ${planned}
-- Live URLs (matched or discoverable): ${live}
-- Percent null or unmatched (planned content with no data): ${unmatch}
-
-Human and AI traffic to owned content (USE THESE EXACT VALUES):
-- Total Sessions (GA4, all sources): ${sess}
-- AI-Referred Sessions (GA4, AI-source sessions): ${aiRef}
+Snapshot KPIs for the period (USE THESE EXACT VALUES):
+- Citation Share (owned share of total AI citations): ${citShare} (vs prior period: ${citShareDelta})
+- Prompt Coverage (tracked prompts citing owned domains): ${promptCov}
+- AI Referral Traffic (GA4 sessions from AI sources): ${aiRef} (vs prior period: ${aiRefDelta})
+- Organic Traffic (GA4 Organic Search channel sessions): ${organic} (vs prior period: ${organicDelta})
 
 Owned-content AI footprint (USE THESE EXACT VALUES):
 - Total AI Citations across owned domains: ${cites}
-- Owned URLs with AI bot activity (crawled in 30d): ${owned}
+- Your-brand citation numerator: ${yourBrand}
+- All-domains citation denominator: ${totalCites}
 - Distinct owned domains cited in AI: ${ownedDom}
 
 Competitor and third-party AI footprint (USE THESE EXACT VALUES):
@@ -249,15 +261,15 @@ ${dataSection}`
 
 // Cache key derives from positional args: clientSlug + dateRange + context.
 // Next.js unstable_cache serializes args into the key, so a different context
-// (e.g. totalAiCitations changes) produces a different cache key and forces
-// a fresh fetch. Cache version 'v1-glean-ci' is the first cached version of
-// this helper; future prompt or schema changes must bump it to flush.
+// (e.g. citationSharePct changes) produces a different cache key and forces
+// a fresh fetch. Cache version 'v2-glean-ci-kpi-swap' is the FB-034 schema
+// (4 new KPIs replace 8 old ones); FB-033's v1 cache is evicted on deploy.
 export const getContentImpactSynopsis = cached(
   'glean',
   'getContentImpactSynopsis',
   getContentImpactSynopsisImpl,
   {
-    version: 'v1-glean-ci',
+    version: 'v2-glean-ci-kpi-swap',
     ttlSeconds: 3600,
     extractTags: ([clientSlug, dateRange]) => ({
       client: clientSlug,
