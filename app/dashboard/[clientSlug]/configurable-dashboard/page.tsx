@@ -7,7 +7,8 @@ import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { resolveBlock } from '@/lib/dashboard/resolve'
 import { Header } from '@/components/layout/header'
 import { DashboardShell } from '@/components/dashboard/dashboard-shell'
-import { MetricBlock } from '@/components/dashboard/metric-block'
+import { KpiBlock } from '@/components/dashboard/blocks/kpi-block'
+import { UnsupportedBlockState } from '@/components/dashboard/blocks/unsupported-block'
 import { MetricBlockSkeleton, EmptyDashboardState } from '@/components/dashboard/metric-block-states'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
@@ -102,15 +103,23 @@ async function ResolvedBlockIsland({
   canEdit: boolean
   config: DashboardConfig
 }) {
-  const result = await resolveBlock(block, activeDefault, { slug })
-  return (
-    <MetricBlock
-      block={block}
-      result={result}
-      canEdit={canEdit}
-      slug={slug}
-      config={config}
-      activeDefault={activeDefault}
-    />
-  )
+  const kind = block.kind ?? 'kpi'
+  switch (kind) {
+    case 'kpi': {
+      const result = await resolveBlock(block, activeDefault, { slug })
+      return (
+        <KpiBlock
+          block={block}
+          result={result}
+          canEdit={canEdit}
+          slug={slug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    // 'bar' | 'line' | 'table' | 'narrative' | 'header' arrive in sub-projects #3–#4.
+    default:
+      return <UnsupportedBlockState kind={kind} name={block.name} />
+  }
 }
