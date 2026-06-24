@@ -19,7 +19,7 @@ import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
 import { samplePeecOverview } from '@/lib/demo-data/peec'
 import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
 import { SampleDataBadge } from '@/lib/demo-data/badge'
-import { ga4Query, parseDateRange } from '@/lib/ga4/client'
+import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import {
@@ -218,7 +218,12 @@ export async function ContentImpactReport({
   const mainRangeStr = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(mainRangeStr)
   const mainIso = `${mainDates.startDate},${mainDates.endDate}`
-  const compareDates = compareRange ? parseDateRange(compareRange) : null
+  // FB-035 hotfix: compareRange from the URL is a magic string like
+  // 'previous_period'. parseDateRange does NOT handle that and falls
+  // through to its default (last 30 days), making prior == main and
+  // every delta read as 0. deriveCompareRange is the codebase pattern
+  // every other tab uses; mirror it here.
+  const compareDates = compareRange ? deriveCompareRange(mainRangeStr, compareRange) : null
   const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
 
   const [
