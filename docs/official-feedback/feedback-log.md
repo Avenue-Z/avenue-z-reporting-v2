@@ -16,6 +16,58 @@ _(none)_
 
 ## Closed
 
+### FB-033 — Content Impact: AI-generated executive synopsis card at top
+
+- **Status:** done
+- **Source:** Tina's Google Doc "Content Impact Tab — Recommended layout" (ADD #1, 2026-06-24): "AI-generated synopsis of overall performance & recommended actions during the period, executive overview style."
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI addition (new section at top of Content Impact tab)
+- **Scope:** `lib/peec/content-impact-synopsis.ts` (new), `lib/peec/content-impact-synopsis.test.ts` (new), `components/report-sections/peec-ai/content-impact-synopsis.tsx` (new), `components/report-sections/peec-ai/content-impact.tsx` (mount + synopsisContext build)
+- **Branch:** `official-feedback-content-impact-tab-content-v1`
+- **Sheet row:** `Content Impact | ADD: AI-generated synopsis of overall performance & recommended actions during the period, executive overview style. | Added. Sparkles-iconed Executive Synopsis card at top of the tab between the demo badge and the §A KPI strip. Glean-backed, FB-031 hardened (post-Glean validator with 3 numeric-claim patterns + retry-on-violation), FB-025 decimal cap (1 decimal max in prose). Cached 1h per (client, date range, context).`
+
+#### Problem
+
+Tina's v1 recommended layout has a green ADD block at the top of Content Impact for an AI-generated executive synopsis card mirroring the one PR Influence and Overview already ship. Tina did not write the prose herself, she described the brief: "AI-generated synopsis of overall performance & recommended actions during the period, executive overview style." Glean-backed card that summarizes the §A KPIs + the surviving §B/§C/§F/§H sections in 2 to 3 paragraphs followed by 2 to 4 recommended actions, hardened against every prior synopsis bug.
+
+#### Solution — 5 commits + 1 docs commit, FB-031 four-layer pattern from day one
+
+| Sub-item | Commit | What |
+|---|---|---|
+| **FB-033 (Task 1)** | `fc66a93` | Scaffold `lib/peec/content-impact-synopsis.ts` with `ContentImpactSynopsis` + `ContentImpactSynopsisContext` types + Rule 1 of the validator (brand-absent URL count). FIRST test assertion reproduces the FB-031 analog: context = 5, prose = "0 URLs where brand was absent", validator flags it. |
+| **FB-033 (Task 2)** | `054c718` | Round out validator with Rule 2 (total AI citations, thousands-separator aware) + Rule 3 (owned domains cited rounded-to-zero). Plus happy-path + "no" wording + empty-prose tests so accept-by-default behavior is locked. |
+| **FB-033 (Task 3)** | `30570d1` | `buildContext()` data section with `USE THESE EXACT VALUES` labels + Glean prompt (executive tone + 1-decimal rule + no-em-dash rule + data-integrity strict rule) + retry-on-violation loop (max 2 attempts; throws to graceful empty state on second failure) + `cached('glean', 'getContentImpactSynopsis', impl, { version: 'v1-glean-ci', ttlSeconds: 3600, tags by client + dateRange })`. |
+| **FB-033 (Task 4)** | `91e27f6` | `ContentImpactSynopsis` RSC mirroring the PR Influence shell exactly: Sparkles icon, "Executive Synopsis" eyebrow, paragraph prose, "Recommended actions" list, empty state on error ("Synopsis is temporarily unavailable. Other metrics on this page are unaffected."). |
+| **FB-033 (Task 5)** | `b34b3bd` | Mount in `content-impact.tsx`: build `synopsisContext` from the exact same expressions §A KPI cards use (so synopsis numbers can never disagree with KPI strip) + brand-absent count + top-3 brand-absent items mirror the §H.2 live derivation verbatim (`urlCitations.filter(c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)`) so the synopsis count cannot disagree with the §H.2 table. Insert `<Suspense fallback={skeleton}><ContentImpactSynopsis .../></Suspense>` between the demo badge and §A label. |
+
+#### Hardening pattern (FB-031 carried forward, all four layers)
+
+1. **Prompt labels** `(USE THESE EXACT VALUES)` on every section in the data block so Glean cannot reinterpret them. 4 section labels in the Data block + 1 explanatory comment.
+2. **Post-Glean validator** with 3 regex patterns: brand-absent URL count (FB-031 analog), total AI citations (with thousands separator support), owned domains cited (rounded-to-zero guard). Intentionally narrow.
+3. **Retry-on-violation** max 2 attempts. Second-attempt prompt includes the specific violations from attempt 1 with explicit instructions. Second failure throws to graceful empty state.
+4. **Cache version** `v1-glean-ci`, first cached version of this helper. Future prompt or schema changes must bump it to flush.
+
+Plus FB-025 numeric formatting carried forward: per-row counts rounded to 1 decimal in `buildContext()` before interpolation; "Number formatting (strict)" rule in the prompt.
+
+#### Field-name correction during implementation
+
+The plan's example for §H.2 brand-absent derivation assumed `urlCitations` rows had `brandCitations`/`competitorCitations` numeric fields. Actual `UrlCitation` type (verified in `lib/peec/url-citations.ts`) uses `mentionsYourBrand: boolean` + `competitorBrandNames: string[]`. Implementer (Task 5) adjusted to mirror §H.2's actual live filter verbatim: `urlCitations.filter(c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)`. This is the same filter §H.2 uses, so by construction the synopsis count + the §H.2 table cannot diverge. `host` populated from `c.domain` (already lowercased + www-stripped via `hostOf()`).
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output, after every commit.
+- `npx tsx lib/peec/content-impact-synopsis.test.ts` — both `passed.` lines (regression assertion + 9 validator tests).
+- `grep -c "—" lib/peec/content-impact-synopsis.ts components/report-sections/peec-ai/content-impact-synopsis.tsx lib/peec/content-impact-synopsis.test.ts` — zero literal em-dashes in any new file.
+- `grep -n "USE THESE EXACT VALUES" lib/peec/content-impact-synopsis.ts` — 5 hits.
+- `grep -n "v1-glean-ci" lib/peec/content-impact-synopsis.ts` — 2 hits (1 in version field, 1 in comment).
+
+#### Deferred for later FBs
+
+- Tina ADD: Scatter chart "AI Bot Traffic vs. Human Traffic" (next FB).
+- Tina ADD: Slope chart "Which pages are gaining momentum and which are losing it?" (next FB).
+- Tina ADD: Section labels (Snapshot KPIs / Watched Pages / Speed Stats / Fullsite Content Performance / Competitor Analysis), Thomas to confirm whether on-page headers or doc labels.
+- Tina ISSUE: Snapshot KPIs don't show change when comparison period is on, KPI delta-wiring bug, separate FB.
+
 ### FB-032 — Content Impact (v1) layout: delete 7 sections + dead-code cleanup
 
 - **Status:** done
