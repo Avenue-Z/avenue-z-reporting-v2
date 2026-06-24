@@ -232,6 +232,12 @@ export async function ContentImpactReport({
     ga4AiPathResult,
     ga4TrafficMainResult,
     ga4TrafficPriorResult,
+    urlCitationsPriorResult,
+    coveragePriorResult,
+    ga4PerPathPriorResult,
+    ga4AiPathPriorResult,
+    ga4ChannelMainResult,
+    ga4ChannelPriorResult,
   ] = await Promise.allSettled([
     getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
     getAgentAnalytics(clientSlug),
@@ -281,6 +287,54 @@ export async function ContentImpactReport({
           limit: 1000,
         })
       : Promise.resolve(null),
+    // FB-035 §B prior-period url-citations (Citation Share delta + AI Citations prior)
+    compareIso
+      ? getUrlCitations(clientSlug, { startDate: compareDates!.startDate, endDate: compareDates!.endDate })
+      : Promise.resolve([] as Awaited<ReturnType<typeof getUrlCitations>>),
+    // FB-035 §B prior-period coverage (Prompt Coverage delta)
+    compareIso
+      ? getDomainCoverage(clientSlug, { startDate: compareDates!.startDate, endDate: compareDates!.endDate })
+      : Promise.resolve({ promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }),
+    // FB-035 §B prior-period per-path full-metrics (Engagement Rate prior)
+    clientSlug && compareIso
+      ? ga4Query({
+          clientSlug,
+          dateRange: compareIso,
+          metrics: ['sessions', 'activeUsers', 'screenPageViews', 'engagementRate'],
+          dimensions: ['pagePath'],
+          limit: 1000,
+        })
+      : Promise.resolve(null),
+    // FB-035 §B prior-period per-path × source (AI Referral Traffic per-page prior)
+    clientSlug && compareIso
+      ? ga4Query({
+          clientSlug,
+          dateRange: compareIso,
+          metrics: ['sessions'],
+          dimensions: ['pagePath', 'sessionSource'],
+          limit: 2000,
+        })
+      : Promise.resolve(null),
+    // FB-035 §B current-period per-path × channel-group (Organic Sessions per page, current)
+    clientSlug
+      ? ga4Query({
+          clientSlug,
+          dateRange: mainIso,
+          metrics: ['sessions'],
+          dimensions: ['pagePath', 'sessionDefaultChannelGroup'],
+          limit: 2000,
+        })
+      : Promise.resolve(null),
+    // FB-035 §B prior-period per-path × channel-group (Organic Sessions per page, prior)
+    clientSlug && compareIso
+      ? ga4Query({
+          clientSlug,
+          dateRange: compareIso,
+          metrics: ['sessions'],
+          dimensions: ['pagePath', 'sessionDefaultChannelGroup'],
+          limit: 2000,
+        })
+      : Promise.resolve(null),
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -308,6 +362,29 @@ export async function ContentImpactReport({
     ? ga4TrafficPriorResult.value.rows
     : null
 
+  // FB-035 §B prior-period url-citations rows. Empty array = no compareIso; null deltas handled downstream.
+  const urlCitationsPrior = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
+  // FB-035 §B prior-period coverage. Empty shape = no compareIso.
+  const coveragePrior = coveragePriorResult.status === 'fulfilled'
+    ? coveragePriorResult.value
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
+  // FB-035 §B prior-period per-path full-metrics (used for Engagement Rate prior).
+  const ga4PerPathPriorRows = ga4PerPathPriorResult.status === 'fulfilled' && ga4PerPathPriorResult.value
+    ? ga4PerPathPriorResult.value.rows
+    : null
+  // FB-035 §B prior-period per-path × source (used for AI Referral Traffic per-page prior).
+  const ga4AiPathPriorRows = ga4AiPathPriorResult.status === 'fulfilled' && ga4AiPathPriorResult.value
+    ? ga4AiPathPriorResult.value.rows
+    : null
+  // FB-035 §B current-period per-path × channel-group (used for Organic Sessions per page current).
+  const ga4ChannelMainRows = ga4ChannelMainResult.status === 'fulfilled' && ga4ChannelMainResult.value
+    ? ga4ChannelMainResult.value.rows
+    : null
+  // FB-035 §B prior-period per-path × channel-group (used for Organic Sessions per page prior).
+  const ga4ChannelPriorRows = ga4ChannelPriorResult.status === 'fulfilled' && ga4ChannelPriorResult.value
+    ? ga4ChannelPriorResult.value.rows
+    : null
+
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
   // data. `calendarIsDemo` is retained as the boolean some downstream
@@ -331,6 +408,12 @@ export async function ContentImpactReport({
   if (urlCitationsResult.status === 'rejected') console.error('[content-impact] URL citations error:', urlCitationsResult.reason)
   if (ga4TrafficMainResult.status  === 'rejected') console.error('[content-impact] GA4 §A traffic main error:', ga4TrafficMainResult.reason)
   if (ga4TrafficPriorResult.status === 'rejected') console.error('[content-impact] GA4 §A traffic prior error:', ga4TrafficPriorResult.reason)
+  if (urlCitationsPriorResult.status === 'rejected') console.error('[content-impact] URL citations prior error:', urlCitationsPriorResult.reason)
+  if (coveragePriorResult.status    === 'rejected') console.error('[content-impact] Coverage prior error:', coveragePriorResult.reason)
+  if (ga4PerPathPriorResult.status  === 'rejected') console.error('[content-impact] GA4 per-path prior error:', ga4PerPathPriorResult.reason)
+  if (ga4AiPathPriorResult.status   === 'rejected') console.error('[content-impact] GA4 AI per-path prior error:', ga4AiPathPriorResult.reason)
+  if (ga4ChannelMainResult.status   === 'rejected') console.error('[content-impact] GA4 channel-group main error:', ga4ChannelMainResult.reason)
+  if (ga4ChannelPriorResult.status  === 'rejected') console.error('[content-impact] GA4 channel-group prior error:', ga4ChannelPriorResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
   const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
