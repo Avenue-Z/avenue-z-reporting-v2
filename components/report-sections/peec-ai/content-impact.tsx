@@ -24,13 +24,11 @@ import {
   OwnedContentCitedTable,
   CompetitorDomainsCitedTable,
   CompetitorUrlsBrandAbsentTable,
-  AISystemsInteractingTable,
   ContentTeamRecommendationsTable,
   type PlannedContentRow,
   type OwnedContentCitedRow,
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
-  type AISystemsInteractingRow,
   type ContentTeamRecommendationsRow,
 } from './content-impact-tables'
 
@@ -305,7 +303,6 @@ export async function ContentImpactReport({
     : allBots
 
   // Recompute aggregates from filteredBots so KPI cards stay consistent.
-  const bots = filteredBots
   const totalBotVisits = models != null
     ? filteredBots.reduce((s, b) => s + b.totalVisits, 0)
     : (agentData?.totalBotVisits ?? 0)
@@ -853,28 +850,6 @@ export async function ContentImpactReport({
         })()}
 
       </SectionCard>
-
-      {/* ── Section I: AI Systems Interacting with Our Content (LIVE) ─────── */}
-      {(() => {
-        const sectionIRows: AISystemsInteractingRow[] = (agentData && bots.length > 0)
-          ? bots.map(b => ({
-              botId:       b.botId,
-              botName:     b.botName,
-              botType:     b.botType,
-              totalVisits: b.totalVisits,
-              uniquePages: b.uniquePages,
-              successRate: b.successRate,
-              lastSeen:    b.lastSeen,
-            }))
-          : []
-        return (
-          <AISystemsInteractingTable
-            rows={sectionIRows}
-            totalBotVisits={totalBotVisits}
-            emptyMessage="No AI bot crawl data available -- check PEEC_AI_CUSTOMER_TOKEN configuration."
-          />
-        )
-      })()}
 
       {/* ── Section J: Recommended Actions (PRD: 7-column data table) ─────── */}
       {(() => {
