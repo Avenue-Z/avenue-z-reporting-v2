@@ -18,7 +18,7 @@ import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impa
 import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
-import { tallyTrajectories, median, computeUrlTiming, type Trajectory } from '@/lib/ga4/content-derive'
+import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import {
   PlannedContentPerformanceTable,
   OwnedContentCitedTable,
@@ -449,35 +449,6 @@ export async function ContentImpactReport({
     topicByPath.set(normPath(p), r.topic)
   }
 
-  // §E · trajectory buckets — current vs. prior page sessions × AI-citation
-  // presence. Needs both GA4 page queries to have resolved.
-  const decayOk = !demoMode && ga4Rows !== null && ga4PriorRows !== null
-  let decayBuckets: Record<Trajectory, number> | null = null
-  if (decayOk) {
-    const curByPath = new Map<string, number>()
-    for (const r of ga4Rows!) curByPath.set(normPath(String(r.pagePath ?? '')), Number(r.sessions) || 0)
-    const priorByPath = new Map<string, number>()
-    for (const r of ga4PriorRows!) priorByPath.set(normPath(String(r.pagePath ?? '')), Number(r.sessions) || 0)
-    // "Cited" = an owned-domain page earns an AI citation. Scope to owned hosts
-    // so a competitor citation sharing a path (e.g. /blog/x) can't false-match
-    // an owned GA4 page. Match by path within that owned-host set.
-    const ownedHostSet = new Set(ownDomains.map(d => hostKey(d.domain)))
-    const citedPaths = new Set<string>()
-    for (const c of urlCitations) {
-      if (!ownedHostSet.has(hostKey(c.domain))) continue
-      const p = extractPath(c.url)
-      if (p) citedPaths.add(normPath(p))
-    }
-    const allPaths = new Set([...curByPath.keys(), ...priorByPath.keys()])
-    decayBuckets = tallyTrajectories(
-      [...allPaths].map(path => ({
-        cur: curByPath.get(path) ?? 0,
-        prior: priorByPath.get(path) ?? 0,
-        cited: citedPaths.has(path),
-      })),
-    )
-  }
-
   // ── §C/§D · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────
   // Both sections key off planned content (URL + publish date + new/optimized).
   // One date-bucketed GA4 query, restricted to the planned paths over the window
@@ -715,37 +686,6 @@ export async function ContentImpactReport({
                 : 'Requires content calendar publish dates + GA4 page-level first-session data'}
             </p>
           </div>
-        )}
-      </SectionCard>
-
-      {/* ── Section E: Decay vs Compounding Content ────────────────────────── */}
-      <SectionCard
-        title="Which content is decaying vs. compounding over time?"
-        description="Classifies owned content by trajectory. Compounding content with AI citation activity represents the highest-value assets to protect and scale."
-      >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {[
-            { label: 'Compounding URLs',       color: '#60FF80', desc: 'Traffic accelerating + AI cited',     demoCount: 5 },
-            { label: 'Stable URLs',            color: '#FFFC60', desc: 'Flat traffic, some AI activity',      demoCount: 4 },
-            { label: 'Decaying URLs',          color: '#FF4444', desc: 'Declining traffic, low AI citation',  demoCount: 2 },
-            { label: 'High AI / Low Traffic',  color: '#60FDFF', desc: 'AI-cited but no human traffic yet',   demoCount: 2 },
-            { label: 'High Traffic / No AI',   color: '#39A0FF', desc: 'Popular but not AI-indexed',          demoCount: 1 },
-            { label: 'No Activity',            color: '#8A8A8A', desc: 'Neither traffic nor AI citations',    demoCount: 1 },
-          ].map(({ label, color, desc, demoCount }) => (
-            <div key={label} className="flex flex-col gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-[11px] font-semibold text-white/60">{label}</span>
-              </div>
-              <span className={cn('text-lg font-bold', (calendarIsDemo || decayBuckets) ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demoCount : decayBuckets ? decayBuckets[label as Trajectory] : 'None'}
-              </span>
-              <span className="text-[10px] text-text-muted">{desc}</span>
-            </div>
-          ))}
-        </div>
-        {!calendarIsDemo && !decayBuckets && (
-          <p className="text-[10px] text-text-muted">Requires GA4 page-level session trends (MoM) + Peec AI citation data to classify content trajectory.</p>
         )}
       </SectionCard>
 
