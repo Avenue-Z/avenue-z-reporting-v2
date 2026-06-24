@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { resolveDemoMode } from '@/lib/demo-data/resolve'
-import { REPORT_NAMES } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { GA4Report } from '@/components/report-sections/ga4'
@@ -126,10 +126,31 @@ export default async function ReportPage({
     cookieValue:  cookieStore.get('demoMode')?.value,
   })
 
+  // Default landing: open the first enabled report in sidebar (NAV_GROUPS)
+  // order so it matches the first visible nav item — not enabledReports[0],
+  // which can lead with a legacy/empty slug.
+  const defaultSection =
+    NAV_SLUG_ORDER.find((s) => client.enabledReports.includes(s as ReportSlug)) ??
+    client.enabledReports[0]
+
+  // The sidebar derives its highlighted item from the URL's `section` param, so
+  // a bare /reports (no section) renders content but highlights nothing.
+  // Redirect to the canonical URL so the page and sidebar share one source of
+  // truth — both read the same `section`.
+  if (!section && defaultSection) {
+    const sp = new URLSearchParams()
+    if (dateRangeParam)    sp.set('dateRange', dateRangeParam)
+    if (compareRangeParam) sp.set('compareRange', compareRangeParam)
+    if (periodParam)       sp.set('period', periodParam)
+    if (modelsParam)       sp.set('models', modelsParam)
+    sp.set('section', defaultSection)
+    redirect(`/dashboard/${clientSlug}/reports?${sp.toString()}`)
+  }
+
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)
       ? section
-      : client.enabledReports[0]
+      : defaultSection
   ) as ReportSlug
 
   const dateRange    = dateRangeParam  ?? 'last_30_days'

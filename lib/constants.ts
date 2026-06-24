@@ -99,6 +99,12 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
   },
 ]
 
+/** Report slugs in sidebar display order (flattened from NAV_GROUPS). Used to
+ *  pick the default landing section so it matches the first visible nav item
+ *  rather than the client's raw enabledReports order (which can lead with a
+ *  legacy/empty slug). */
+export const NAV_SLUG_ORDER: string[] = NAV_GROUPS.flatMap((g) => g.slugs)
+
 /** Sub-items shown under the Answer Engine Optimization parent nav item */
 export const AEO_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
   { id: null,             label: 'Overview'            },
