@@ -20,6 +20,11 @@ assert.ok(sql.includes('pixel_joined_tvf'))
 assert.ok(sql.includes('@startDate') && sql.includes('@endDate'))
 assert.ok(sql.includes("attribution_window = '7_days'"))
 
+// curated alias resolves to its expression
+assert.ok(buildMetricSql('revenue').includes('SUM(channel_reported_conversion_value) AS value'))
+// raw (non-curated) safe column -> SUM(column)
+assert.ok(buildMetricSql('channel_reported_conversion_value').includes('SUM(channel_reported_conversion_value) AS value'))
+
 // New tests: generic metric + filters
 import { isSafeColumn, escapeSqlValue, buildMetricSql as build2 } from './queries'
 assert.equal(isSafeColumn('channel'), true)
