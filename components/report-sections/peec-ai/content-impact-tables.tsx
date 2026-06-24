@@ -98,19 +98,18 @@ export interface PlannedContentRow {
   topic: string
   url: string | null
   contentType: string
-  status: string
-  contentAction: string
   publishDate: string | null
   updateDate: string | null
-  sessions: number | null
-  users: number | null
-  views: number | null
-  engagementRate: number | null
-  aiCitations: number | null
-  aiBotActivity: number | null
-  aiReferredSessions: number | null
-  matchStatus: MatchStatus
-  recommendedAction: string
+  promptCoverage: number | null              // % (0-100)
+  promptCoverageDelta: number | null         // pp change vs prior
+  citationShare: number | null               // % (0-100)
+  citationShareDelta: number | null          // pp change vs prior
+  aiReferralTraffic: number | null           // session count
+  aiReferralTrafficDelta: number | null      // % change vs prior
+  organicSessions: number | null             // session count
+  organicSessionsDelta: number | null        // % change vs prior
+  engagementRate: number | null              // fraction [0,1]
+  engagementRateDelta: number | null         // pp change vs prior
   _key: string
 }
 
@@ -123,20 +122,37 @@ export function PlannedContentPerformanceTable({
   ga4Connected: boolean
   emptyMessage: string
 }) {
+  // Inline delta renderer. Renders nothing when delta is null.
+  // Mode 'pp' (percentage-point change) shows up/down N.N pp; mode 'pct' shows up/down N.N%.
+  const renderDelta = (delta: number | null, mode: 'pp' | 'pct') => {
+    if (delta === null) return null
+    const positive = delta >= 0
+    const arrow = positive ? '↑' : '↓'
+    const suffix = mode === 'pp' ? ' pp' : '%'
+    const colorClass = positive ? 'text-[#60FF80]' : 'text-[#FF4444]'
+    return (
+      <span className={cn('block text-[10px] font-semibold tabular-nums', colorClass)}>
+        {arrow} {Math.abs(delta).toFixed(1)}{suffix}
+      </span>
+    )
+  }
+
   const columns: SortableColumn<PlannedContentRow>[] = [
     {
-      key: 'topic', label: 'Topic',
+      key: 'contentPiece', label: 'Content Piece',
       tooltip: TT.calendarField,
       accessor: (r) => r.topic,
-      render: (r) => <span className="block max-w-[160px] truncate font-medium text-white" title={r.topic}>{r.topic}</span>,
-    },
-    {
-      key: 'url', label: 'URL',
-      tooltip: TT.calendarField,
-      accessor: (r) => r.url ?? '',
       render: (r) => r.url
-        ? <span className="block max-w-[180px] truncate font-mono text-[10px] text-white/50" title={r.url}>{r.url}</span>
-        : <span className="text-white/20">--</span>,
+        ? <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[220px] truncate font-medium text-white underline-offset-2 hover:underline"
+            title={`${r.topic} → ${r.url}`}
+          >
+            {r.topic}
+          </a>
+        : <span className="block max-w-[220px] truncate font-medium text-white" title={r.topic}>{r.topic}</span>,
     },
     {
       key: 'contentType', label: 'Content Type',
@@ -145,53 +161,65 @@ export function PlannedContentPerformanceTable({
       render: (r) => <span className="text-white/60">{r.contentType}</span>,
     },
     {
-      key: 'status', label: 'Status',
-      tooltip: TT.calendarField,
-      accessor: (r) => r.status,
-      render: (r) => <span className="text-white/60">{r.status}</span>,
-    },
-    {
-      key: 'contentAction', label: 'Content Action',
-      tooltip: TT.contentAction,
-      accessor: (r) => r.contentAction,
-      render: (r) => (
-        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize', ACTION_COLORS[r.contentAction])}>
-          {r.contentAction}
-        </span>
-      ),
-    },
-    {
       key: 'publishDate', label: 'Publish Date',
       accessor: (r) => r.publishDate ?? '',
       render: (r) => <span className="text-[10px] text-white/40">{r.publishDate ?? '--'}</span>,
     },
     {
-      key: 'updateDate', label: 'Update Date',
+      key: 'updateDate', label: 'Last Updated',
       accessor: (r) => r.updateDate ?? '',
       render: (r) => <span className="text-[10px] text-white/40">{r.updateDate ?? '--'}</span>,
     },
     {
-      key: 'sessions', label: 'Sessions', align: 'right',
-      tooltip: TT.sessions,
-      accessor: (r) => r.sessions ?? -1,
-      render: (r) => r.sessions !== null
-        ? <span className="tabular-nums text-white">{r.sessions.toLocaleString()}</span>
+      key: 'promptCoverage', label: 'Prompt Coverage', align: 'right',
+      tooltip: 'Percentage of tracked prompts citing this specific URL. (Avenue Z internal - derived from Peec per-URL prompt_id dimension.)',
+      accessor: (r) => r.promptCoverage ?? -1,
+      render: (r) => r.promptCoverage !== null
+        ? (
+          <div>
+            <span className="tabular-nums text-white">{r.promptCoverage.toFixed(0)}%</span>
+            {renderDelta(r.promptCoverageDelta, 'pp')}
+          </div>
+        )
         : <span className="text-white/20">--</span>,
     },
     {
-      key: 'users', label: 'Users', align: 'right',
-      tooltip: TT.users,
-      accessor: (r) => r.users ?? -1,
-      render: (r) => r.users !== null
-        ? <span className="tabular-nums text-white/70">{r.users.toLocaleString()}</span>
+      key: 'citationShare', label: 'Citation Share', align: 'right',
+      tooltip: "This URL's share of total AI citations across all tracked URLs in the period. (Peec AI citation_count weighted by URL.)",
+      accessor: (r) => r.citationShare ?? -1,
+      render: (r) => r.citationShare !== null
+        ? (
+          <div>
+            <span className="tabular-nums text-white">{r.citationShare.toFixed(1)}%</span>
+            {renderDelta(r.citationShareDelta, 'pp')}
+          </div>
+        )
         : <span className="text-white/20">--</span>,
     },
     {
-      key: 'views', label: 'Views', align: 'right',
-      tooltip: TT.views,
-      accessor: (r) => r.views ?? -1,
-      render: (r) => r.views !== null
-        ? <span className="tabular-nums text-white/70">{r.views.toLocaleString()}</span>
+      key: 'aiReferralTraffic', label: 'AI Referral Traffic', align: 'right',
+      tooltip: TT.aiReferredSessions,
+      accessor: (r) => r.aiReferralTraffic ?? -1,
+      render: (r) => r.aiReferralTraffic !== null
+        ? (
+          <div>
+            <span className="tabular-nums text-white">{r.aiReferralTraffic.toLocaleString()}</span>
+            {renderDelta(r.aiReferralTrafficDelta, 'pct')}
+          </div>
+        )
+        : <span className="text-white/20">--</span>,
+    },
+    {
+      key: 'organicSessions', label: 'Organic Sessions', align: 'right',
+      tooltip: 'GA4 sessions whose default channel group is Organic Search. (GA4 sessionDefaultChannelGroup dimension.)',
+      accessor: (r) => r.organicSessions ?? -1,
+      render: (r) => r.organicSessions !== null
+        ? (
+          <div>
+            <span className="tabular-nums text-white">{r.organicSessions.toLocaleString()}</span>
+            {renderDelta(r.organicSessionsDelta, 'pct')}
+          </div>
+        )
         : <span className="text-white/20">--</span>,
     },
     {
@@ -199,81 +227,35 @@ export function PlannedContentPerformanceTable({
       tooltip: TT.engagementRate,
       accessor: (r) => r.engagementRate ?? -1,
       render: (r) => r.engagementRate !== null
-        ? <span className="tabular-nums text-white/70">{(r.engagementRate * 100).toFixed(1)}%</span>
+        ? (
+          <div>
+            <span className="tabular-nums text-white">{(r.engagementRate * 100).toFixed(1)}%</span>
+            {renderDelta(r.engagementRateDelta, 'pp')}
+          </div>
+        )
         : <span className="text-white/20">--</span>,
-    },
-    {
-      key: 'aiCitations', label: 'AI Citations', align: 'right',
-      tooltip: TT.aiCitations,
-      accessor: (r) => r.aiCitations ?? -1,
-      render: (r) => r.aiCitations !== null
-        ? <span className="tabular-nums text-white">{r.aiCitations}</span>
-        : <span className="text-white/20">--</span>,
-    },
-    {
-      key: 'aiBotActivity', label: 'AI Bot Activity', align: 'right',
-      tooltip: TT.aiBotActivity,
-      accessor: (r) => r.aiBotActivity ?? -1,
-      render: (r) => (r.aiBotActivity ?? 0) > 0
-        ? <span className="tabular-nums text-[#60FDFF]">{r.aiBotActivity}</span>
-        : <span className="text-white/20">0</span>,
-    },
-    {
-      key: 'aiReferredSessions', label: 'AI-Referred Sessions', align: 'right',
-      tooltip: TT.aiReferredSessions,
-      accessor: (r) => r.aiReferredSessions ?? -1,
-      render: (r) => r.aiReferredSessions !== null
-        ? <span className="tabular-nums text-white">{r.aiReferredSessions.toLocaleString()}</span>
-        : <span className="text-white/20">--</span>,
-    },
-    {
-      key: 'matchStatus', label: 'Match Status',
-      tooltip: TT.matchStatus,
-      accessor: (r) => r.matchStatus,
-      render: (r) => (
-        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize', MATCH_STATUS_COLORS[r.matchStatus])}>
-          {r.matchStatus}
-        </span>
-      ),
-    },
-    {
-      key: 'recommendedAction', label: 'Recommended Action',
-      tooltip: TT.recommendedAction,
-      accessor: (r) => r.recommendedAction,
-      render: (r) => <span className="block max-w-[200px] text-[11px] text-white/50">{r.recommendedAction}</span>,
     },
   ]
 
   return (
     <SectionWrapper
-      title="How is each planned content piece performing?"
-      description="Each content-calendar URL tracked against AI citations and bot activity. Connect GA4 for sessions, users, views, and engagement rate."
+      title="Which planned content pieces are actually earning AI-driven engagement?"
+      description="See where each URL is represented in AI citations, how often it is being retrieved, and whether that exposure is translating into referral traffic and meaningful on-site behavior."
     >
       <SortableTable
         columns={columns}
         rows={rows}
         rowKey={(r) => r._key}
-        initialPageSize={50}
+        initialPageSize={10}
+        defaultSortKey="citationShare"
+        defaultSortDir="desc"
         emptyMessage={emptyMessage}
       />
       {ga4Connected && (
         <p className="text-[10px] text-text-muted">
-          Sessions, Users, Views, and Engagement Rate: GA4 page-level data. Rows without a match show --.
+          AI Referral Traffic, Organic Sessions, Engagement Rate: GA4 page-level data. Rows without a match show --.
         </p>
       )}
-      <div className="flex flex-col gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.02] p-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Match Status Definitions</p>
-        <div className="flex flex-wrap gap-3">
-          {(Object.entries(MATCH_STATUS_COLORS) as [MatchStatus, string][]).map(([status, cls]) => (
-            <span key={status} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${cls}`}>{status}</span>
-          ))}
-        </div>
-        <p className="text-[10px] text-text-muted">
-          Content Action: <span className="text-white/40">New</span> = net-new publish,{' '}
-          <span className="text-white/40">Optimized</span> = existing page refreshed or rewritten,{' '}
-          <span className="text-white/40">Other</span> = unclassified
-        </p>
-      </div>
     </SectionWrapper>
   )
 }
