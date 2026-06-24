@@ -74,20 +74,16 @@ export function validateContentImpactSynopsisGrounding(
     }
   }
 
-  // Rule 2, total AI citations (the headline §A KPI). Supports thousands
-  // separators since buildContext() interpolates with toLocaleString().
-  const citationsRe = /\b(\d{1,3}(?:,\d{3})*)\s+AI\s+citations?\b/i
-  const c = synopsis.match(citationsRe)
-  if (c) {
-    const claimed = parseInt(c[1].replace(/,/g, ''), 10)
-    if (claimed !== context.totalAiCitations) {
-      violations.push(
-        `totalAiCitations mismatch: prose claims "${c[0]}" but context.totalAiCitations = ${context.totalAiCitations}`,
-      )
-    }
-  }
+  // Rule 2 removed (FB-034 hotfix). The pattern /N AI citations/ was too
+  // broad: with totalAiCitations + yourBrandCitations + per-domain counts
+  // all in the context, Glean naturally writes "example.com earned 3,196
+  // AI citations" referring to a per-domain or your-brand subset, and
+  // the regex wrongly treats it as a total claim. The USE THESE EXACT
+  // VALUES prompt label still anchors the total; a future FB can add a
+  // narrower Rule 2 if a real total-misreporting bug appears.
 
-  // Rule 3, owned domains cited. Guards against rounding a positive count
+  // Rule 3 (was Rule 3, now the second rule), owned domains cited.
+  // Guards against rounding a positive count
   // to zero or saying "no owned domains cited" when the count is positive.
   const ownedRe = /\b(\d+|no|zero)\s+owned\s+domains?\s+(?:are\s+|were\s+)?cited/i
   const o = synopsis.match(ownedRe)
@@ -269,7 +265,7 @@ export const getContentImpactSynopsis = cached(
   'getContentImpactSynopsis',
   getContentImpactSynopsisImpl,
   {
-    version: 'v2-glean-ci-kpi-swap',
+    version: 'v3-glean-ci-rule2-removed',
     ttlSeconds: 3600,
     extractTags: ([clientSlug, dateRange]) => ({
       client: clientSlug,

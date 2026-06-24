@@ -76,23 +76,19 @@ console.log('content-impact-synopsis.test.ts: Task 1 regression assertion passed
   assert.ok(result.violations[0].includes('brandAbsentCompetitorUrlCount mismatch'))
 }
 
-// Rule 2, AI citations match (validator must accept).
-{
-  const result = validateContentImpactSynopsisGrounding(
-    'Brand-owned domains earned 1,407 AI citations in the period.',
-    baseContext({ totalAiCitations: 1407 }),
-  )
-  assert.equal(result.ok, true, `expected ok=true, got: ${result.violations.join(' | ')}`)
-}
+// Rule 2 removed (FB-034 hotfix). Per-domain "N AI citations" prose
+// produced false positives against totalAiCitations. See lib/peec/content-impact-synopsis.ts.
 
-// Rule 2, AI citations mismatch (validator must reject).
+// FB-034 REGRESSION: per-domain prose must NOT trip a totalAiCitations violation.
+// Glean producing "example.com earned 3,196 AI citations" while context says
+// totalAiCitations=105239 is a TRUE claim (3,196 is the per-domain count),
+// not a contradiction. Validator must let it through.
 {
   const result = validateContentImpactSynopsisGrounding(
-    'Brand-owned domains earned 800 AI citations in the period.',
-    baseContext({ totalAiCitations: 1407 }),
+    'example.com earned 3,196 AI citations during the period, leading the owned set.',
+    baseContext({ totalAiCitations: 105239 }),
   )
-  assert.equal(result.ok, false, 'validator must reject citation-count mismatch')
-  assert.ok(result.violations.some(v => v.includes('totalAiCitations mismatch')))
+  assert.equal(result.ok, true, `per-domain N AI citations must not trip the total guard; got: ${result.violations.join(' | ')}`)
 }
 
 // Rule 3, owned domains cited match.
