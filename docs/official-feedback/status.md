@@ -19,10 +19,10 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Active branch
 
-- **Branch:** none currently active. On `main` at `f6fd533` (PR Influence v2 batch just merged via PR #64).
-- **Next round:** Content Impact (v1) — branch `official-feedback-content-impact-tab` is parked as docs-only; resume when Tina sends Content Impact feedback. **Pre-empt:** apply the FB-031 footnote-removal pattern proactively at [content-impact.tsx:1279-1285](../../components/report-sections/peec-ai/content-impact.tsx:1279) (saved to memory as `project_content_impact_preempt.md`) BEFORE Tina sees Content Impact for v1 review.
-- **Suggested next branch:** `official-feedback-content-impact-tab` (cut a fresh one from `f6fd533` when work begins).
-- **Next FB ID:** **FB-032**.
+- **Branch:** `official-feedback-content-impact-tab-format-v1` (cut from `main@f9f99da` on 2026-06-24). 9 commits ahead of main. Open as PR #74, awaiting merge.
+- **In flight:** Content Impact (v1) — layout-only deletion round. FB-032 sub-items FB-032-a through FB-032-h shipped + 1 dead-component cleanup commit on `content-impact-tables.tsx`. Type-check clean. Cross-tab FB-030 footer pre-empt applied as FB-032-g.
+- **Next round (Content Impact v2):** Tina ADDs (synopsis card, scatter chart, slope chart), section labels (Snapshot KPIs / Watched Pages / Speed Stats / Fullsite Content Performance / Competitor Analysis), and the Snapshot KPIs delta-wiring bug she flagged as an ISSUE. Awaiting Thomas to deliver content for the 3 ADD sections.
+- **Next FB ID:** **FB-033**.
 
 ## Recently merged
 
@@ -50,7 +50,7 @@ Process Tina's feedback on the **Answer Engine Optimization** section of the Ave
 
 ## Parked branches
 
-- `official-feedback-content-impact-tab` — docs-only diff. Resume when Tina sends Content Impact feedback.
+- `official-feedback-content-impact-tab` — docs-only diff from earlier scaffolding (superseded by `official-feedback-content-impact-tab-format-v1`). Delete after FB-032 merges if no longer referenced.
 - `official-feedback-pr-influence-tab` — historical (v1 work, merged via #52 + #58). Keep around for reference; do NOT push new work here. Cut a fresh `official-feedback-pr-influence-v2` from main for the next round.
 
 ## Per-tab workflow going forward
@@ -66,10 +66,11 @@ One branch + one PR per round of feedback per AEO sub-tab.
 | PR Influence (v1, FB-019 polish) | `official-feedback-pr-influence-tab` | [#58](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/58) | MERGED |
 | **Overview (v2)** | `official-feedback-overview-v2` | **[#63](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/63)** | **MERGED 2026-06-23** |
 | **PR Influence (v2)** | `official-feedback-pr-influence-v2` | **[#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64)** | **MERGED 2026-06-23** |
-| **Content Impact (v1)** | `official-feedback-content-impact-tab` (to cut) | (future) | **NEXT — parked, awaiting Tina feedback; FB-031 footnote pre-empt ready to apply** |
+| **Content Impact (v1)** | `official-feedback-content-impact-tab-format-v1` | (PR pending) | **IN FLIGHT — layout deletions code-complete, awaiting PR** |
+| Content Impact (v2) | (future) | (future) | not started — Tina ADDs + labels + Snapshot KPIs delta bug |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID is FB-032.**
+FB IDs continue sequentially across all branches. **Next ID is FB-033.**
 
 ---
 
@@ -110,6 +111,7 @@ FB IDs continue sequentially across all branches. **Next ID is FB-032.**
 | **FB-029** | PR Influence (v2) | this branch (PR future) | `6d37b5a` | PR Placement Matchback restored under Exec Summary per Tina v1 CSV R23 REVISION (was removed in FB-015 #81b2277 per V1 layout; V2 explicitly asks for it back). New focused 5-col PRPlacementMatchbackTable (Publication / Article / Publish Date / Cited by AI? / AI Engines). Tina's literal title + subtitle verbatim. Rendered between <PRInfluenceSynopsis> and <SentimentInsights>. Reuses filteredMatchbackRows (date + model aware). 'N of M placements cited by AI (rate%)' summary above table. |
 | **FB-030** | PR Influence (v2) | merged via [#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) | `364ee5c` | Removed bottom footnote on PR Influence per Tina v1 CSV R24 ('REMOVE: This footnote at the very bottom of report. PR Influence on AI Visibility . Peec AI (live) . GA4 AI referral sessions (live) . N PR placements ...'). Deleted the trailing <p> block. Top-of-file code comment preserved (not user-visible). |
 | **FB-031** | PR Influence (v2) | merged via [#64](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/64) | `245905b` | Four-layer hardening of the PR Influence Executive Synopsis after a Vercel-preview bug where Glean produced "0 editorial domains where brand absent" while the Top Editorial Opportunities table on the same page (sourced from the SAME byHost map) showed 5 rows. (1) Prompt hardening: section labels marked `(USE THESE EXACT VALUES)`; new `Data integrity (strict)` rule forbids rounding positive to zero, saying 'no'/'none' for positive counts, stating positive when count is zero. (2) New exported `validateSynopsisGrounding(synopsis, context)` post-Glean validator scanning three numeric-claim regex patterns: brand-absent host count, total editorial domains, N-of-M placements. (3) Retry-on-violation loop (`MAX_GENERATION_ATTEMPTS = 2`); second attempt's prompt enumerates violations from attempt 1; throws on second failure so the component's existing try/catch renders the graceful empty state instead of shipping bad prose. (4) Cache version `v2-glean-pri` → `v3-glean-pri-grounded` defensive flush. 13 unit tests in new `lib/peec/pr-influence-synopsis.test.ts` (node:assert + tsx); the FIRST assertion reproduces the production bug verbatim and asserts validation flags it. Reusable validator pattern; ready to copy to Overview synopsis (`lib/peec/synopsis.ts`) when needed. |
+| **FB-032** | Content Impact (v1) | `official-feedback-content-impact-tab-format-v1` ([#74](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/74)) | `46c00cc` + `5ff00a3` + `923edea` + `d3fef39` + `5644c5d` + `126dcc8` + `d0f5e32` + `7e8514a` + `7ff0e6b` | Content Impact v1 layout-only deletions per Tina's recommended-layout doc. Seven REMOVE sections gone: §D "Which delivers more lift..." (a, `46c00cc`), §E "Which content is decaying..." (b, `5ff00a3`), §G "Where is content disconnected..." entire wrapper + all 3 sub-views (c, `923edea`), §H.3 "Which competitor pages repeat..." (d, `d3fef39`), §I "Which AI systems are interacting..." (e, `5644c5d`), §J "What should the content team do next?" (f, `126dcc8`), bottom concatenated footer (g, `d0f5e32`; FB-030 cross-tab pre-empt). FB-032-h follow-up commit (`7e8514a`) from code-quality review: removed dead §E prior-period GA4 query (priorRange/ga4PriorResult slot/prior-period ga4Query call/ga4PriorRows/rejected-logger — wasted a real GA4 round-trip per render), dropped unused ContentCalendarData import + dead `action` field from plannedTiming/urlTimings, scrubbed 7 orphan comments, dropped now-orphan deriveCompareRange import. Final cleanup commit (`7ff0e6b`) drops 6 dead table exports + their Row types + PRIORITY_COLORS + opportunityNote TT key + Globe2/Sparkles lucide imports from content-impact-tables.tsx (-532 lines). Surviving page (top → bottom): SectionHeader → §A Snapshot KPIs → §B Watched Pages → §C Speed Stats → §F Fullsite Content Performance → §H Competitor Analysis (H.1 + H.2). Library files (lib/ga4/content-derive.ts, lib/peec/url-citations.ts) intentionally untouched — their tests still consume the helpers; only the imports in content-impact.tsx were dropped. All deletions in JSX itself, not behind calendarIsDemo gates. Type-check clean. Universal across clients. Deferred to v2: Tina ADDs (synopsis card, scatter chart, slope chart), Tina section labels (Snapshot KPIs/Watched Pages/Speed Stats/Fullsite Content Performance/Competitor Analysis), Tina ISSUE on Snapshot KPIs comparison-period delta wiring. |
 
 Full per-item decision logs in [feedback-log.md](feedback-log.md). One-line SHA lookup in [changelog.md](changelog.md).
 
@@ -180,10 +182,16 @@ If any of these are missing the affected card or synopsis falls back gracefully.
 
 ## Next batches
 
-**Next up:** Content Impact (v1) — awaiting Tina's first round of Content Impact feedback. When it arrives:
+**Next up:** Content Impact (v2) — Tina's ADDs + section labels + the Snapshot KPIs delta-wiring bug she flagged. Awaiting Thomas to deliver content for:
 
-- First FB ID = **FB-032**. Multi-part asks become `FB-032-a/b/c` etc.
-- Cut a fresh `official-feedback-content-impact-tab` from current `main` (`f6fd533`).
-- **PRE-EMPT** (memory: `project_content_impact_preempt.md`): apply the FB-030 footnote-removal pattern proactively to `components/report-sections/peec-ai/content-impact.tsx:1279-1285`. Same concatenated "tab title · data source · counts" pattern Tina just removed on PR Influence; she will almost certainly flag it again on Content Impact v1 if it ships unchanged.
-- Reusable hardening pattern from FB-031: if Content Impact gains a Glean-backed synopsis or any AI-generated prose, lift `validateSynopsisGrounding` style (post-Glean validator + retry-on-violation + cache version) into that surface from day one.
-- Update this file + `feedback-log.md` + `changelog.md` per closed FB. Same per-FB ritual (code commit + decision log commit + SHA backfill commit).
+- Tina ADD: AI-generated synopsis card at top (apply FB-031 hardening pattern from day one: `USE THESE EXACT VALUES` labels + `Data integrity (strict)` prompt rule + post-Glean `validateXxxGrounding` validator + retry-on-violation + cache version bump).
+- Tina ADD: Scatter chart "AI Bot Traffic vs. Human Traffic" + verbatim title + subtitle + 2×2 quadrants (High Bot/Low Human, High Bot/High Human, Low Bot/Low Human, Low Bot/High Human).
+- Tina ADD: Slope chart "Which pages are gaining momentum and which are losing it?" + verbatim subtitle + toggle buttons for AI Referral Traffic / Organic Search Traffic / Citation Share.
+- Tina labels: confirm whether "Snapshot KPIs" / "Watched Pages" / "Speed Stats" / "Fullsite Content Performance" / "Competitor Analysis" become on-page section headers or stay as doc-organization labels.
+- Tina ISSUE: Snapshot KPIs comparison-period delta wiring (a separate FB — KPI delta logic, not layout).
+
+After Content Impact v2 closes, Technical Performance is next.
+
+FB IDs continue sequentially. **Next ID after FB-032 is FB-033.**
+
+Same per-FB ritual every round: code commit + decision log entry + changelog SHA + status.md FB log update + PR.
