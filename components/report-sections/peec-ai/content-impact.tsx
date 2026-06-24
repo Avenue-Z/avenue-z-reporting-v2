@@ -664,7 +664,7 @@ export async function ContentImpactReport({
     : null
 
   const synopsisContext: ContentImpactSynopsisContext = {
-    // FB-034 §A KPI values — same expressions the KPI cards render.
+    // FB-034 §A KPI values, same expressions the KPI cards render.
     citationSharePct,
     citationSharePctDelta,
     promptCoveragePct,
@@ -672,7 +672,7 @@ export async function ContentImpactReport({
     aiReferralTrafficDelta,
     organicTraffic,
     organicTrafficDelta,
-    // Supporting context — prose grounding + validator inputs.
+    // Supporting context, prose grounding + validator inputs.
     totalAiCitations: totalCitations,
     yourBrandCitations,
     totalCitationsAllDomains,
