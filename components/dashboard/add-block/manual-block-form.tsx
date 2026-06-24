@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { LeafBuilder } from './leaf-builder'
-import { buildBlockConfig, isDraftComplete, type LeafDraft, type ManualDraft } from './build-config'
+import { CalculatedBuilder } from './calculated-builder'
+import { buildBlockConfig, isDraftComplete, type LeafDraft, type ManualDraft, type CalculatedDraft } from './build-config'
 import type { BlockConfig, MetricFormat } from '@/lib/dashboard/types'
 
 type LeafSource = 'supermetrics' | 'triplewhale'
@@ -28,7 +29,7 @@ export function ManualBlockForm({
   onConfirm,
   onBack,
 }: {
-  source: 'supermetrics' | 'triplewhale' | 'aggregate'
+  source: 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'
   slug: string
   pending: boolean
   onConfirm: (cfg: Omit<BlockConfig, 'id'>) => void
@@ -36,7 +37,8 @@ export function ManualBlockForm({
 }) {
   const [name, setName] = useState('')
   const [format, setFormat] = useState<MetricFormat>('number')
-  const [leaf, setLeaf] = useState<LeafDraft>(() => emptyLeaf(source === 'aggregate' ? 'supermetrics' : source))
+  const [leaf, setLeaf] = useState<LeafDraft>(() => emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source))
+  const [calc, setCalc] = useState<CalculatedDraft>(() => ({ source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] }))
   const [op, setOp] = useState<Op>('/')
   const [leftSource, setLeftSource] = useState<LeafSource>('triplewhale')
   const [rightSource, setRightSource] = useState<LeafSource>('supermetrics')
@@ -46,7 +48,9 @@ export function ManualBlockForm({
   const draft: ManualDraft =
     source === 'aggregate'
       ? { kind: 'aggregate', name, format, op, left, right }
-      : { kind: 'leaf', name, format, leaf }
+      : source === 'calculated'
+        ? { kind: 'calculated', name, format, calc }
+        : { kind: 'leaf', name, format, leaf }
 
   return (
     <div className="flex flex-col gap-3">
@@ -57,8 +61,12 @@ export function ManualBlockForm({
         <input className={ctrl} value={name} onChange={(e) => setName(e.target.value)} placeholder="Block name" />
       </label>
 
-      {source !== 'aggregate' && (
+      {source !== 'aggregate' && source !== 'calculated' && (
         <LeafBuilder source={source} value={leaf} onChange={setLeaf} slug={slug} onSuggestFormat={setFormat} />
+      )}
+
+      {source === 'calculated' && (
+        <CalculatedBuilder value={calc} onChange={setCalc} slug={slug} />
       )}
 
       {source === 'aggregate' && (

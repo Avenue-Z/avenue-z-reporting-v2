@@ -1,6 +1,6 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
@@ -97,6 +97,31 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
 {
   const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1' })
   if (b.source === 'supermetrics') assert.equal(b.filters, undefined)
+}
+
+// calculatedToBinding: blank coeff → 1; incomplete term dropped; signs preserved
+{
+  const b = calculatedToBinding({ source: 'calculated', terms: [
+    { coefficient: '', leaf: { source: 'triplewhale', metric: 'revenue' } },
+    { coefficient: '-1', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    { coefficient: '2', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } }, // incomplete → dropped
+  ] })
+  assert.deepEqual(b.terms, [
+    { coefficient: 1, leaf: { source: 'triplewhale', metric: 'revenue' } },
+    { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+  ])
+}
+// buildBlockConfig: calculated kind
+{
+  const cfg = buildBlockConfig({ kind: 'calculated', name: 'Net', format: 'currency',
+    calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } })
+  assert.equal(cfg.binding.source, 'calculated')
+}
+// isDraftComplete: calculated needs name + ≥1 complete term
+{
+  assert.equal(isDraftComplete({ kind: 'calculated', name: '', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), false)
+  assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: '' } }] } }), false)
+  assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), true)
 }
 
 console.log('ok')

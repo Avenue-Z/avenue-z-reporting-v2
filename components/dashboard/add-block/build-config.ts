@@ -1,4 +1,4 @@
-import type { BlockConfig, LeafBinding, AggregateBinding, MetricFormat } from '@/lib/dashboard/types'
+import type { BlockConfig, LeafBinding, AggregateBinding, CalculatedBinding, MetricFormat } from '@/lib/dashboard/types'
 
 /**
  * Common TripleWhale metrics surfaced at the top of the builder's metric picker,
@@ -21,9 +21,16 @@ export type LeafDraft =
   | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; values: string[] }[] }
   | { source: 'triplewhale'; metric: string; filters?: { column: string; values: string[] }[] }
 
+/** Manual weighted-sum draft. `coefficient` is the raw input (parsed at build; blank → 1). */
+export type CalculatedDraft = {
+  source: 'calculated'
+  terms: { coefficient: string; leaf: LeafDraft }[]
+}
+
 /** The whole manual form's state. */
 export type ManualDraft =
   | { kind: 'leaf'; name: string; format: MetricFormat; leaf: LeafDraft }
+  | { kind: 'calculated'; name: string; format: MetricFormat; calc: CalculatedDraft }
   | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: LeafDraft; right: LeafDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
@@ -39,12 +46,24 @@ export function leafToBinding(d: LeafDraft): LeafBinding {
   return { source: 'triplewhale', metric: d.metric, ...(filters.length ? { filters } : {}) }
 }
 
+/** Build a calculated binding: keep terms with a complete leaf and a numeric
+ *  coefficient (blank → 1); drop the rest. */
+export function calculatedToBinding(c: CalculatedDraft): CalculatedBinding {
+  const terms = c.terms
+    .filter((t) => isLeafComplete(t.leaf))
+    .map((t) => ({ coefficient: t.coefficient.trim() === '' ? 1 : Number(t.coefficient), leaf: leafToBinding(t.leaf) }))
+    .filter((t) => Number.isFinite(t.coefficient))
+  return { source: 'calculated', terms }
+}
+
 /** Assemble the final block config (id is assigned later, at confirm). */
 export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
   const binding =
     d.kind === 'leaf'
       ? leafToBinding(d.leaf)
-      : { source: 'aggregate' as const, op: d.op, left: leafToBinding(d.left), right: leafToBinding(d.right) }
+      : d.kind === 'calculated'
+        ? calculatedToBinding(d.calc)
+        : { source: 'aggregate' as const, op: d.op, left: leafToBinding(d.left), right: leafToBinding(d.right) }
   return { name: d.name, format: d.format, range: null, binding }
 }
 
@@ -63,7 +82,13 @@ export function isLeafComplete(d: LeafDraft): boolean {
     : d.metric !== ''
 }
 
+export function isCalculatedComplete(c: CalculatedDraft): boolean {
+  return c.terms.some((t) => isLeafComplete(t.leaf) && (t.coefficient.trim() === '' || Number.isFinite(Number(t.coefficient))))
+}
+
 export function isDraftComplete(d: ManualDraft): boolean {
   if (d.name.trim() === '') return false
-  return d.kind === 'leaf' ? isLeafComplete(d.leaf) : isLeafComplete(d.left) && isLeafComplete(d.right)
+  if (d.kind === 'leaf') return isLeafComplete(d.leaf)
+  if (d.kind === 'calculated') return isCalculatedComplete(d.calc)
+  return isLeafComplete(d.left) && isLeafComplete(d.right)
 }
