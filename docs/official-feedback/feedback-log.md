@@ -16,6 +16,86 @@ _(none)_
 
 ## Closed
 
+### FB-032 — Content Impact (v1) layout: delete 7 sections + dead-code cleanup
+
+- **Status:** done
+- **Source:** Tina's Google Doc "Content Impact Tab — Recommended layout" (3 screenshots, 2026-06-24)
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI removal (layout-only round; no adds, no renames, no copy edits)
+- **Scope:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
+- **Branch:** `official-feedback-content-impact-tab-v1`
+
+#### Problem
+
+Tina's v1 recommended layout for Content Impact marks 6 sections REMOVE (red highlight) plus a footer concatenated provenance string that mirrors the one she removed from PR Influence in FB-030 (cross-tab pre-empt). She also calls out 3 new sections to ADD (synopsis card, scatter chart, slope chart) and 5 section labels she's introducing ("Snapshot KPIs"/"Watched Pages"/"Speed Stats"/"Fullsite Content Performance"/"Competitor Analysis"). The ADDs and labels are explicitly deferred to next round per Thomas — content for the new sections will come then; this round is deletion-only to land the layout reshape first.
+
+#### Solution — 9 commits, surgical, deletion-only
+
+| Sub-item | Commit | What |
+|---|---|---|
+| **FB-032-a** | `46c00cc` | Delete §D "Which delivers more lift — new content or optimization?" + `newRows`/`optimizedRows` split + `sectionDGroup()` + `groupMedianFirstAi()` + `parseDateRange` import (§D was their only caller) |
+| **FB-032-b** | `5ff00a3` | Delete §E "Which content is decaying vs. compounding over time?" + `decayBuckets`/`decayOk` block + `tallyTrajectories` and `Trajectory` imports (kept `median` + `computeUrlTiming` for §C) |
+| **FB-032-c** | `923edea` | Delete §G "Where is content disconnected from AI demand?" entire wrapper + all 3 sub-views (G.1 Traffic but No AI Citations, G.2 Citations but Little Human Traffic, G.3 Bot Attention but No Citations/Visits) + `ownedHostSet`/`sessionsByPath`/`citedOwnedByPath`/`topicByPath` compute + `labelFromPath` import + 3 G.* table component imports |
+| **FB-032-d** | `d3fef39` | Delete §H.3 "Which competitor pages repeat across our target themes?" (IIFE + leading separator) + `urlTagNames` import + `RepeatedCompetitorPagesTable` import |
+| **FB-032-e** | `5644c5d` | Delete §I "Which AI systems are interacting with our content?" + `bots` alias (kept `filteredBots` — §A KPI "Owned URLs with AI Activity" still consumes it) + `AISystemsInteractingTable` import |
+| **FB-032-f** | `126dcc8` | Delete §J "What should the content team do next?" + all 5 heuristic row builders + `ContentTeamRecommendationsTable` import |
+| **FB-032-g** | `d0f5e32` | Delete bottom concatenated footer (FB-030 cross-tab pre-empt — same pattern Tina removed on PR Influence) + now-fully-dead `totalBotVisits` compute |
+| **FB-032-h** | `7e8514a` | Code-quality follow-ups from review. Dead §E prior-period GA4 query removed (`priorRange`/`priorRangeStr`, `ga4PriorResult` slot in `Promise.allSettled`, the prior-period `ga4Query` block, `ga4PriorRows`, rejected-logger) — killed a wasted GA4 round-trip per render. Dropped unused `ContentCalendarData` type import. Dropped dead `action` field from `plannedTiming`/`urlTimings` (§D was the only consumer via `groupMedianFirstAi`). Scrubbed seven orphan comments referencing removed sections. Dropped now-orphan `deriveCompareRange` import. |
+| **FB-032 (tables cleanup)** | `7ff0e6b` | Drop 6 dead table component exports + Row types from `content-impact-tables.tsx` (`TrafficNoCitationsTable`, `CitationsLittleTrafficTable`, `BotAttentionNoCitationsTable`, `RepeatedCompetitorPagesTable`, `AISystemsInteractingTable`, `ContentTeamRecommendationsTable`). Drop `PRIORITY_COLORS` constant, `opportunityNote` `TT` key, and the entire `Globe2`/`Sparkles` lucide import line. Surviving exports: `PlannedContentPerformanceTable` (§B), `OwnedContentCitedTable` (§F), `CompetitorDomainsCitedTable` (§H.1), `CompetitorUrlsBrandAbsentTable` (§H.2). Net change: -532 lines, single file. |
+
+#### Surviving page (top → bottom)
+
+1. `SectionHeader` (existing, untouched)
+2. **§A** Snapshot KPIs — 8-card grid (untouched)
+3. **§B** Watched Pages — Planned Content Performance table (untouched)
+4. **§C** Speed Stats — Time-to-First-Traffic/AI-Activity cards (untouched)
+5. **§F** Fullsite Content Performance — Owned Content Cited table (untouched)
+6. **§H** Competitor Analysis — H.1 Top Competitor Domains + H.2 Brand-Absent Editorial URLs (H.3 stripped, wrapper preserved)
+
+All deletions land in JSX itself, not behind `calendarIsDemo` gates — demo-on and demo-off render identically.
+
+#### Library files INTENTIONALLY untouched
+
+`lib/ga4/content-derive.ts` (kept — `tallyTrajectories` / `Trajectory` / `classifyTrajectory` still consumed by `lib/ga4/content-derive.test.ts`). `lib/peec/url-citations.ts` (kept — `urlTagNames` still consumed by `lib/peec/url-citations.test.ts`). Only the *imports* in `content-impact.tsx` were dropped. No library API change.
+
+#### Files touched
+
+- `components/report-sections/peec-ai/content-impact.tsx` — 7 JSX deletions + supporting compute + import cleanup across 8 commits.
+- `components/report-sections/peec-ai/content-impact-tables.tsx` — 6 dead exports + tooltip key + lucide imports dropped in 1 commit.
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output, after every commit.
+- `grep -n "Section [A-Z]:" components/report-sections/peec-ai/content-impact.tsx` — only A, B, C, F, H. Zero hits for D, E, G, I, J.
+- `grep -nc "export function" components/report-sections/peec-ai/content-impact-tables.tsx` — `4`.
+- `grep -n "Content Impact Tracker" components/report-sections/peec-ai/content-impact.tsx` — 1 hit (the file-header doc comment banner at line 34, source-code only; the user-visible footer `<p>` block is gone).
+- `grep -n "ga4PriorRows\|priorRange\|tallyTrajectories\|Trajectory\|urlTagNames\|labelFromPath\|parseDateRange\|deriveCompareRange\|sectionDGroup\|groupMedianFirstAi\|decayBuckets\|sessionsByPath\|citedOwnedByPath\|topicByPath\|totalBotVisits\|sectionJRows\|ContentCalendarData" components/report-sections/peec-ai/content-impact.tsx` — zero hits.
+
+#### Deferred (cataloged for next round)
+
+- **Tina ADD: AI-generated synopsis card** at top of page (will apply FB-031 hardening pattern: section labels with `USE THESE EXACT VALUES`, `Data integrity (strict)` prompt rule, post-Glean `validateXxxGrounding` validator, retry-on-violation, cache version bump).
+- **Tina ADD: Scatter chart** "AI Bot Traffic vs. Human Traffic" with verbatim title + subtitle, 2x2 quadrants (High Bot/Low Human, High Bot/High Human, Low Bot/Low Human, Low Bot/High Human).
+- **Tina ADD: Slope chart** "Which pages are gaining momentum and which are losing it?" with verbatim subtitle and toggle buttons for AI Referral Traffic / Organic Search Traffic / Citation Share.
+- **Tina labels** ("Snapshot KPIs"/"Watched Pages"/"Speed Stats"/"Fullsite Content Performance"/"Competitor Analysis") — Thomas to confirm next round whether these become on-page section headers or stay as doc-organization labels.
+- **Tina ISSUE on Snapshot KPIs:** "Right now, when you have a comparison period turned on, it doesn't display change." Separate FB next round — KPI delta-wiring bug, not layout.
+
+#### Plain-English summaries for Tina's sheet (column F equivalent)
+
+When Tina sets up the Content Impact tab in her scorecard sheet, these are the column-F-style "what shipped" notes for each REMOVE row:
+
+- §D: Done. Section removed.
+- §E: Done. Section removed.
+- §G: Done. All three views in this section removed.
+- §H.3 (Repeated Competitor Pages): Done. Subsection removed; the broader Competitor Analysis section above it kept.
+- §I (AI Systems Interacting): Done. Section removed.
+- §J (What should the content team do next?): Done. Section removed.
+- Bottom footnote: Done. The footnote is gone.
+
+#### Open risks
+
+- The `SectionHeader` subtitle at the top of the page still ends "...and what the content team should build next" — wording that referenced §J, which is now deleted. Tina did not flag the subtitle copy, so it was intentionally left alone per literal-interpretation policy. If Tina raises it on v1 review, ship a one-line copy edit next round.
+- The `// Content Impact Tracker` source-code comment at line 34 of `content-impact.tsx` is preserved (source-code only, not user-visible) — same handling as the matching code comment on PR Influence after FB-030.
+
 ### FB-031 — Harden PR Influence synopsis against Glean contradiction
 
 - **Status:** done
