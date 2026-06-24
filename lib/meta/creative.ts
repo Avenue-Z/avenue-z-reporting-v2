@@ -32,7 +32,7 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
       const spend = num(r, 'cost')
       return {
         ad: r.ad_name,
-        campaign: r.Campaignname,
+        campaign: r.adcampaign_name,
         status: r.adstatus ?? '',
         spend,
         impressions: num(r, 'impressions'),
@@ -56,7 +56,7 @@ export async function getCreativeRows(
 ): Promise<CreativeRow[]> {
   const rows = await metaQuery(slug, [
     'ad_name',
-    'Campaignname',
+    'adcampaign_name',
     'adstatus',
     'cost',
     'impressions',

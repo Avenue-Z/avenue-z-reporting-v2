@@ -28,6 +28,7 @@ export function transformMetaKpis(
       label: 'Frequency',
       value: +n(totals, 'Frequency').toFixed(1),
       suffix: 'x',
+      delta: d('Frequency'),
     },
     {
       key: 'linkClicks',
@@ -50,6 +51,7 @@ export function transformMetaKpis(
       label: 'Cost / LPV',
       value: Math.round(n(totals, 'cost_per_landing_page_view')),
       prefix: '$',
+      delta: d('cost_per_landing_page_view'),
     },
     {
       key: 'postEng',
