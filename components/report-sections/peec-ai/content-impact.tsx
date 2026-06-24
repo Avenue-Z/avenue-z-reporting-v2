@@ -24,12 +24,10 @@ import {
   OwnedContentCitedTable,
   CompetitorDomainsCitedTable,
   CompetitorUrlsBrandAbsentTable,
-  ContentTeamRecommendationsTable,
   type PlannedContentRow,
   type OwnedContentCitedRow,
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
-  type ContentTeamRecommendationsRow,
 } from './content-impact-tables'
 
 // ---------------------------------------------------------------------------
@@ -850,72 +848,6 @@ export async function ContentImpactReport({
         })()}
 
       </SectionCard>
-
-      {/* ── Section J: Recommended Actions (PRD: 7-column data table) ─────── */}
-      {(() => {
-        const sectionJRows: ContentTeamRecommendationsRow[] = []
-        if (calendarData && calendarData.rows.filter(r => r.matchStatus === 'unpublished').length > 0) {
-          sectionJRows.push({
-            urlOrTopic:       'Unpublished planned content',
-            issueOpportunity: `${calendarData.rows.filter(r => r.matchStatus === 'unpublished').length} calendar URLs not yet live`,
-            evidenceType:     'Content Calendar',
-            suggestedAction:  'Prioritize publishing -- planned content generates zero AI visibility until live',
-            reason:           'Unpublished content earns no citations or crawls',
-            priority:         'High',
-            owner:            'Content',
-          })
-        }
-        if (agentData && agentData.topPaths.length > 0) {
-          sectionJRows.push({
-            urlOrTopic:       'High-crawl pages without citations',
-            issueOpportunity: `${agentData.uniquePagesVisited} pages crawled by AI bots; many earn 0 citations`,
-            evidenceType:     'AI Bot + Peec AI',
-            suggestedAction:  'Add direct answer blocks, FAQ schema, and clearer entity definitions on top-crawled pages',
-            reason:           'LLMs extract better from structured, definitional content than narrative copy',
-            priority:         'Medium',
-            owner:            'Content',
-          })
-        }
-        if (filteredCompetitorDomains.length > 0) {
-          sectionJRows.push({
-            urlOrTopic:       'Competitor-dominated clusters',
-            issueOpportunity: `${filteredCompetitorDomains.length} competitor domains cited in AI for your prompts`,
-            evidenceType:     'Peec AI',
-            suggestedAction:  'Create targeted content for each competitor-dominated prompt cluster',
-            reason:           'Displace competitor citations with higher-quality owned content',
-            priority:         'Medium',
-            owner:            'Content',
-          })
-        }
-        if (filteredEditorialDomains.length > 0) {
-          sectionJRows.push({
-            urlOrTopic:       'High-cite editorial outlets w/o brand mention',
-            issueOpportunity: `${filteredEditorialDomains.length} editorial domains AI cites where brand is absent`,
-            evidenceType:     'Peec AI',
-            suggestedAction:  'Brief PR / editorial team to pitch contributed pieces, expert quotes, or data exclusives to these outlets',
-            reason:           'Earned coverage on AI-trusted outlets compounds brand citation share',
-            priority:         'Medium',
-            owner:            'Content / PR',
-          })
-        }
-        if (peecData && peecData.trackedPrompts.filter(p => p.visibility < 30).length > 0) {
-          sectionJRows.push({
-            urlOrTopic:       'Low-visibility tracked prompts',
-            issueOpportunity: `${peecData.trackedPrompts.filter(p => p.visibility < 30).length} prompts where brand visibility < 30%`,
-            evidenceType:     'Peec AI',
-            suggestedAction:  'Write direct-answer pages targeting each low-visibility prompt: clear definition, comparison table, and named-entity references',
-            reason:           'Direct-answer pages are the highest-yield format for LLM citation',
-            priority:         'High',
-            owner:            'Content',
-          })
-        }
-        return (
-          <ContentTeamRecommendationsTable
-            rows={sectionJRows}
-            emptyMessage="Connect content calendar and GA4 to generate URL-level recommendations"
-          />
-        )
-      })()}
 
       {/* Footer */}
       <p className="text-xs text-text-muted">
