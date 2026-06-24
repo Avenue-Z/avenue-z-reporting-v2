@@ -329,7 +329,7 @@ function SmFilterRow({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-start gap-2">
       <SearchCombobox
         value={filter.column}
         options={dimensions}
