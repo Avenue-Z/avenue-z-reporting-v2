@@ -1,7 +1,7 @@
 import { BarChart } from '@/components/charts/bar-chart'
 import { BlockBodyError } from '../metric-block-states'
 import { toBarChartInput } from '@/lib/dashboard/charts'
-import type { GroupedResult, MetricFormat } from '@/lib/dashboard/types'
+import type { GroupedResult } from '@/lib/dashboard/types'
 
 const TARGET_COLOR = '#5DD39E'   // green
 const CEILING_COLOR = '#FF8A3D'  // orange
@@ -12,7 +12,6 @@ export interface BarBlockBodyProps {
   groupedPromise: Promise<GroupedResult>
   target?: number
   ceiling?: number
-  format: MetricFormat
   slug: string
 }
 

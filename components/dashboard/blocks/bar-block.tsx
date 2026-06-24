@@ -23,7 +23,6 @@ export function BarBlock({ block, groupedPromise, canEdit, slug, config, activeD
           groupedPromise={groupedPromise}
           target={block.target}
           ceiling={block.ceiling}
-          format={block.format}
           slug={slug}
         />
       </Suspense>
