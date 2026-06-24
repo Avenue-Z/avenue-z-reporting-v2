@@ -1,7 +1,4 @@
-export interface CreativeRow {
-  ad: string
-  campaign: string
-  status: string
+export interface CreativeMetrics {
   spend: number
   impressions: number
   reach: number
@@ -13,6 +10,23 @@ export interface CreativeRow {
   costPerLpv: number
   engagements: number
   shareOfSpend: number
+}
+
+export interface CreativeRow extends CreativeMetrics {
+  ad: string
+  campaign: string
+  adSet: string
+  status: string
+}
+
+export interface AdSetNode extends CreativeMetrics {
+  name: string
+  ads: CreativeRow[]
+}
+
+export interface CampaignNode extends CreativeMetrics {
+  name: string
+  adSets: AdSetNode[]
 }
 
 export interface MetaGeoRow {

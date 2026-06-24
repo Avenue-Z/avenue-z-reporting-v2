@@ -1,6 +1,6 @@
 import { getMetaKpis } from '@/lib/meta/kpis'
-import { getCreativeRows } from '@/lib/meta/creative'
-import { getMetaGeoRows } from '@/lib/meta/geo'
+import { getCreativeTree } from '@/lib/meta/creative'
+import { getMetaGeoData } from '@/lib/meta/geo'
 import { KpiGrid } from '@/components/report-sections/paid-search/kpi-grid'
 import { CreativeTable } from './creative-table'
 import { MetaGeoSection } from './geo-section'
@@ -36,15 +36,15 @@ export async function MetaAdsReport({
   const compare = compareRange ?? 'previous_period'
   const [kpis, creative, geo] = await Promise.all([
     safe(getMetaKpis(clientSlug, dateRange, compare)),
-    safe(getCreativeRows(clientSlug, dateRange)),
-    safe(getMetaGeoRows(clientSlug, dateRange)),
+    safe(getCreativeTree(clientSlug, dateRange)),
+    safe(getMetaGeoData(clientSlug, dateRange, compare)),
   ])
 
   return (
     <div className="space-y-8">
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <Fallback kind={kpis.error!} />}
-      {creative.data ? <CreativeTable rows={creative.data} /> : <Fallback kind={creative.error!} />}
-      {geo.data ? <MetaGeoSection rows={geo.data} /> : <Fallback kind={geo.error!} />}
+      {creative.data ? <CreativeTable campaigns={creative.data} /> : <Fallback kind={creative.error!} />}
+      {geo.data ? <MetaGeoSection data={geo.data} /> : <Fallback kind={geo.error!} />}
     </div>
   )
 }

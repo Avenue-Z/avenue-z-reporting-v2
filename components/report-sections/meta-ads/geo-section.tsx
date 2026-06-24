@@ -1,10 +1,16 @@
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { CHART_COLORS } from '@/lib/constants'
-import type { MetaGeoRow } from '@/lib/meta/types'
+import type { MetaGeoData } from '@/lib/meta/geo'
 import { usd } from '@/lib/supermetrics/format'
 
-export function MetaGeoSection({ rows }: { rows: MetaGeoRow[] }) {
+function pctDelta(cur: number, prev: number | null): number | undefined {
+  if (prev == null || prev === 0) return undefined
+  return ((cur - prev) / prev) * 100
+}
+
+export function MetaGeoSection({ data }: { data: MetaGeoData }) {
+  const { rows, totalRegions, prevTopRegionSpend, prevTotalRegions } = data
   const top10 = rows.slice(0, 10)
 
   const chartData = top10.map((r) => ({
@@ -17,7 +23,8 @@ export function MetaGeoSection({ rows }: { rows: MetaGeoRow[] }) {
   ]
 
   const topRegion = top10[0] ?? null
-  const totalGeos = rows.length
+  const spendDelta = topRegion ? pctDelta(topRegion.spend, prevTopRegionSpend) : undefined
+  const regionsDelta = pctDelta(totalRegions, prevTotalRegions)
 
   return (
     <div className="space-y-6">
@@ -29,10 +36,12 @@ export function MetaGeoSection({ rows }: { rows: MetaGeoRow[] }) {
         <KpiCard
           title="Spend (Top Region)"
           value={topRegion ? usd(topRegion.spend) : '—'}
+          delta={spendDelta}
         />
         <KpiCard
           title="Total Regions"
-          value={totalGeos}
+          value={totalRegions}
+          delta={regionsDelta}
         />
       </div>
 
