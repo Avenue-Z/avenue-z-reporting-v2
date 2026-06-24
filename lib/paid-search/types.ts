@@ -7,3 +7,6 @@ export interface LeadActionRow { name: string; category: LeadCategory; count: nu
 export interface LeadBreakdown { byAction: LeadActionRow[]; categoryTotals: Record<LeadCategory, number>; weekly: Array<{ week: string; leads: number }>; totalLeads: number }
 export interface GeoRow { region: string; leads: number; clicks: number; cost: number }
 export interface SearchTermRow { term: string; clicks: number; impressions: number; ctr: number; cost: number; leads: number; cpl: number }
+export interface KeywordRow { keyword: string; matchType: string; clicks: number; impressions: number; ctr: number; cost: number; leads: number; cpl: number }
+export interface GeoDma { dma: string; clicks: number; cost: number; leads: number }
+export interface GeoRegion { region: string; clicks: number; cost: number; leads: number; dmas: GeoDma[] }
