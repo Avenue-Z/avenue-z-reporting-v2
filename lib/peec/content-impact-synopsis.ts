@@ -66,7 +66,33 @@ export function validateContentImpactSynopsisGrounding(
     }
   }
 
-  // Rules 2 + 3 land in Task 2.
+  // Rule 2, total AI citations (the headline §A KPI). Supports thousands
+  // separators since buildContext() interpolates with toLocaleString().
+  const citationsRe = /\b(\d{1,3}(?:,\d{3})*)\s+AI\s+citations?\b/i
+  const c = synopsis.match(citationsRe)
+  if (c) {
+    const claimed = parseInt(c[1].replace(/,/g, ''), 10)
+    if (claimed !== context.totalAiCitations) {
+      violations.push(
+        `totalAiCitations mismatch: prose claims "${c[0]}" but context.totalAiCitations = ${context.totalAiCitations}`,
+      )
+    }
+  }
+
+  // Rule 3, owned domains cited. Guards against rounding a positive count
+  // to zero or saying "no owned domains cited" when the count is positive.
+  const ownedRe = /\b(\d+|no|zero)\s+owned\s+domains?\s+(?:are\s+|were\s+)?cited/i
+  const o = synopsis.match(ownedRe)
+  if (o) {
+    const claimedRaw = o[1].toLowerCase()
+    const claimedNum = claimedRaw === 'no' || claimedRaw === 'zero' ? 0 : parseInt(claimedRaw, 10)
+    if (claimedNum !== context.ownedDomainsCited) {
+      violations.push(
+        `ownedDomainsCited mismatch: prose claims "${o[0]}" but context.ownedDomainsCited = ${context.ownedDomainsCited}`,
+      )
+    }
+  }
+
   return { ok: violations.length === 0, violations }
 }
 
