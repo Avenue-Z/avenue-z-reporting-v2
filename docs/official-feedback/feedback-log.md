@@ -16,6 +16,55 @@ _(none)_
 
 ## Closed
 
+### FB-034 — Content Impact §A Snapshot KPIs: replace 8 cards with Tina's 4 + fix delta display
+
+- **Status:** done
+- **Source:** Tina's screenshot annotation on Content Impact §A (2026-06-24). FEEDBACK: "Change these KPIs to: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic." Plus ISSUE: "Right now, when you have a comparison period turned on, it doesn't display change."
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI replacement (8 cards → 4) + bug fix (delta wiring)
+- **Scope:** `components/report-sections/peec-ai/content-impact.tsx` (orchestrator + local KpiCard), `lib/peec/content-impact-synopsis.ts` (context schema + buildContext + cache bump), `lib/peec/content-impact-synopsis.test.ts` (fixture update)
+- **Branch:** `official-feedback-content-impact-tab-content-v1`
+- **Sheet rows:**
+  - `Content Impact | Change these KPIs to: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic. | Done. §A Snapshot KPIs strip now shows exactly 4 cards: Citation Share (% of total AI citations captured by owned domains), Prompt Coverage (% of tracked prompts citing any owned domain), AI Referral Traffic (GA4 sessions from AI sources), Organic Traffic (GA4 Organic Search channel sessions). Old 8-card grid removed.`
+  - `Content Impact | ISSUE: Right now, when you have a comparison period turned on, it doesn't display change. | Fixed. Root cause: page router was passing compareRange prop to ContentImpactReport but the component was ignoring it. Component now accepts compareRange, derives prior period via deriveCompareRange (defaults to previous_period when no explicit range passed), fetches prior-period GA4 sessions, and renders delta line on each KPI card (arrow + magnitude + "vs previous period"). Prompt Coverage shows no delta in v1 because getDomainCoverage does not accept a dateRange (limitation noted; future FB will add prior-period coverage fetch).`
+
+#### Problem
+
+Tina's screenshot on the Content Impact tab marks §A "Snapshot KPIs" with a swap-out for the 8 existing cards (Planned URLs, Live URLs, Total Sessions, AI Citations, AI-Referred Sessions, Owned URLs with AI Activity, % Null/Unmatched, Owned Domains Cited) plus a yellow-highlighted ISSUE: when a comparison period is selected from the date picker, the KPI cards do not display the change between periods.
+
+Root cause investigation: the page router (`app/portal/[clientSlug]/reports/[reportSlug]/page.tsx`) already passes a `compareRange` prop to `ContentImpactReport`, but the component signature did not accept it. The value was silently dropped. No prior-period data was being fetched, so there were no delta values to render even if the cards supported it (which they did not, the local `KpiCard` had no delta slot).
+
+#### Solution — 5 commits
+
+| Sub-item | Commit | What |
+|---|---|---|
+| **FB-034 (Task 1)** | `989e5d1` | Extend local `KpiCard` with `delta?: number` + `invertDelta?: boolean` props, rendering arrow `↑` green `#60FF80` (positive when not inverted) or `↓` red `#FF4444`, magnitude with 1 decimal, " vs previous period" copy. Mirrors Overview's KpiCard delta rendering exactly. When `delta` is undefined the line is omitted (no fake zero). |
+| **FB-034 (Task 2)** | `10b88dc` | Accept `compareRange?: string` on `ContentImpactReport`. Derive `mainIso` and `compareIso` via `parseDateRange` + `deriveCompareRange` (defaults to `'previous_period'`). Add 2 GA4 queries to the existing `Promise.allSettled`: `sessionSource × sessionDefaultChannelGroup × sessions`, one for main and one for prior. Single query shape feeds AI Referral Traffic and Organic Traffic for both periods (4 KPI values from 2 fetches). No JSX changes in this commit. |
+| **FB-034 (Task 3)** | `7845dbf` | Compute 4 new KPI values + deltas. Citation Share = `yourBrandCitations / totalCitations * 100`, prior from `peecData.yourBrandCitationsPrior` + `peecData.totalCitationsPrior`, delta in percentage points. Prompt Coverage = aggregate `(unique-prompt-IDs-across-owned-domains / totalTrackedPrompts) * 100` (no prior in v1). AI Referral Traffic = sum where `isAiSource(sessionSource)` from the new query, prior from prior query, delta = `((cur - prior) / prior) * 100`. Organic Traffic = sum where `sessionDefaultChannelGroup === 'Organic Search'`, same delta math. Truth-grounded: prior unavailable → delta stays null → card omits delta line. |
+| **FB-034 (Task 4)** | `16a117b` | Swap §A JSX: 8-card grid replaced by 4-card grid (Citation Share / Prompt Coverage / AI Referral Traffic / Organic Traffic). Section header copy is "Snapshot KPIs", Tina's section label from her v1 recommended-layout doc (previously deferred from FB-032). Demo-mode hardcoded values: 24.5% / 67% / 1,243 / 6,667 with sample deltas +2.3pp / -- / +18.4% / -4.2% so the delta line is visually testable in demo mode. |
+| **FB-034 (Task 5)** | `3e9a940` | Refactor `ContentImpactSynopsisContext`: drop 6 orphaned old-KPI fields (`plannedUrlsInScope`, `liveUrls`, `totalSessions`, `aiReferredSessions`, `ownedUrlsWithAiActivity`, `unmatchedPct`), keep `totalAiCitations` + `ownedDomainsCited` (validator Rules 2-3 still reference them), add new KPI fields. Update `buildContext()` Data section to reorganize into "Snapshot KPIs for the period" + "Owned-content AI footprint" + "Competitor and third-party AI footprint" with 3 `(USE THESE EXACT VALUES)` section labels. Cache version `v1-glean-ci → v2-glean-ci-kpi-swap` flushes FB-033's stale cached responses. Validator rules 1-3 unchanged. Test fixture `baseContext()` updated to new shape; all 10 assertions still pass. |
+
+#### Verification
+
+- `npx tsc --noEmit` zero output after every commit.
+- `npx tsx lib/peec/content-impact-synopsis.test.ts` both `passed.` lines (regression + 9 validator assertions).
+- `grep -nc "<KpiCard" content-impact.tsx` exactly 4.
+- `grep -n "v2-glean-ci-kpi-swap" content-impact-synopsis.ts` 2 hits (comment + version line).
+- `grep -n "Snapshot KPIs" content-impact.tsx` 1 hit (new §A header).
+- Vercel preview to be confirmed: §A renders exactly 4 cards in both demo and live modes; selecting a comparison period from the date picker causes the delta line to appear under Citation Share + AI Referral Traffic + Organic Traffic (Prompt Coverage stays delta-less by design).
+
+#### Known limitations
+
+- **Prompt Coverage delta deferred:** `getDomainCoverage(clientSlug)` in `lib/peec/url-citations.ts:286` does not accept a `dateRange` parameter, so there is no prior-period coverage data to subtract from. Card renders the current value alone with no delta line. Future FB can add prior-period coverage support (would require adding a `dateRange?: string` arg to `getDomainCoverage` + downstream Peec query).
+- **Comparison period defaults to "previous_period" when not explicitly selected**, same default Overview uses. If the user does not pick a comparison range from the date picker, the page still computes deltas vs. the immediately-prior matching window.
+
+#### Deferred for future FBs
+
+- Tina ADD: Scatter chart "AI Bot Traffic vs. Human Traffic" (next FB in this round).
+- Tina ADD: Slope chart "Which pages are gaining momentum and which are losing it?" (next FB in this round).
+- Tina section labels for §B (Watched Pages), §C (Speed Stats), §F (Fullsite Content Performance), §H (Competitor Analysis), Thomas to confirm next round whether on-page headers or doc labels.
+- Prompt Coverage delta wiring (requires getDomainCoverage refactor).
+
 ### FB-033 — Content Impact: AI-generated executive synopsis card at top
 
 - **Status:** done
