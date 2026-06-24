@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { PeecOverview, TrackedPrompt } from '@/lib/peec/client'
 import { applyModelFilter, computeWinnersLosers } from '@/lib/peec/winners-losers'
@@ -10,6 +11,7 @@ import { LLMBreakdownTable } from './llm-breakdown-table'
 import { WinnersLosersCards } from './winners-losers-cards'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { OverviewSynopsis } from './overview-synopsis'
+import { SynopsisSkeleton } from './synopsis-skeleton'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
 import { isAiSource } from '@/lib/constants'
@@ -212,13 +214,15 @@ function ProviderSection({
         badge={isDemo ? <SampleDataBadge /> : undefined}
       />
 
-      <OverviewSynopsis
-        clientSlug={clientSlug}
-        dateRange={dateRange}
-        provider={provider}
-        data={data}
-        aiSessions={aiTraffic.available ? aiTraffic.sessions : null}
-      />
+      <Suspense fallback={<SynopsisSkeleton />}>
+        <OverviewSynopsis
+          clientSlug={clientSlug}
+          dateRange={dateRange}
+          provider={provider}
+          data={data}
+          aiSessions={aiTraffic.available ? aiTraffic.sessions : null}
+        />
+      </Suspense>
 
       {you && (
         <div>
