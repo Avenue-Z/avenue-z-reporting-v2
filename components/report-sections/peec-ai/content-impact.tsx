@@ -619,9 +619,6 @@ export async function ContentImpactReport({
   const organicPriorAvailable = organicTrafficPrior !== null
   const citationSharePriorAvailable = citationSharePctPrior !== null
   // promptCoveragePriorAvailable intentionally absent, v1 limitation noted above.
-  void aiPriorAvailable
-  void organicPriorAvailable
-  void citationSharePriorAvailable
 
   // ── FB-033 · Build context for the Executive Synopsis card ─────────────────
   // Every value here mirrors the exact expression the §A KPI cards render
@@ -716,83 +713,68 @@ export async function ContentImpactReport({
         />
       </Suspense>
 
-      {/* ── Section A: KPI Strip (PRD: 6-8 cards) ─────────────────────────── */}
+      {/* ── Section A: Snapshot KPIs (FB-034, Tina's 4 new metrics) ─────────── */}
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">How is content performing at a glance?</h3>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Snapshot KPIs</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* KPI 1 · Citation Share */}
           <KpiCard
-            label="Planned URLs in Scope"
-            hint="Content calendar rows"
-            value={calendarData ? calendarData.plannedCount.toLocaleString() : 'None'}
-            live={!!calendarData && calendarData.plannedCount > 0}
-          />
-          <KpiCard
-            label="Live URLs"
-            hint="Matched or discoverable"
-            value={calendarData ? calendarData.liveCount.toLocaleString() : 'None'}
-            live={!!calendarData && calendarData.liveCount > 0}
-          />
-          {/* Total Sessions: GA4 has no model dimension — not filtered.
-              When a model filter is active, append a disclaimer to the hint. */}
-          <KpiCard
-            label="Total Sessions"
-            hint={calendarIsDemo ? 'Sample · last 30d' : 'GA4 sessions, all sources'}
+            label="Citation Share"
+            hint={`Owned share of total AI citations${models ? ' · filtered to selected AI models' : ''}`}
             value={
-              calendarIsDemo ? '9,910'
-                : ga4TotalSessions !== null ? ga4TotalSessions.toLocaleString()
+              calendarIsDemo ? '24.5%'
+                : citationSharePct !== null ? `${citationSharePct.toFixed(1)}%`
                 : 'None'
             }
-            live={calendarIsDemo || ga4TotalSessions !== null}
-          />
-          {/* AI Citations: filtered by selected models via domainCitationsByModel sum */}
-          <KpiCard
-            label="AI Citations"
-            hint={`Peec AI, owned domains YTD${models ? ' · filtered to selected AI models' : ''}`}
-            value={peecData ? totalCitations.toLocaleString() : 'None'}
-            live={totalCitations > 0}
-          />
-          {/* AI-Referred Sessions: GA4 has no model dimension — not filtered.
-              When a model filter is active, append a disclaimer to the hint. */}
-          <KpiCard
-            label="AI-Referred Sessions"
-            hint={
-              calendarIsDemo
-                ? `Sample · last 30d${models ? ' · across all AI engines' : ''}`
-                : `GA4 AI-source sessions${models ? ' · across all AI engines' : ''}`
+            live={calendarIsDemo || citationSharePct !== null}
+            delta={
+              calendarIsDemo ? 2.3
+                : citationSharePriorAvailable && citationSharePctDelta !== null ? citationSharePctDelta
+                : undefined
             }
+          />
+          {/* KPI 2 · Prompt Coverage. No delta in v1 (no prior-period coverage data). */}
+          <KpiCard
+            label="Prompt Coverage"
+            hint="Tracked prompts citing owned domains"
+            value={
+              calendarIsDemo ? '67%'
+                : promptCoveragePct !== null ? `${promptCoveragePct}%`
+                : 'None'
+            }
+            live={calendarIsDemo || promptCoveragePct !== null}
+          />
+          {/* KPI 3 · AI Referral Traffic */}
+          <KpiCard
+            label="AI Referral Traffic"
+            hint={`GA4 sessions from AI sources${models ? ' · across all AI engines' : ''}`}
             value={
               calendarIsDemo ? '1,243'
-                : ga4AiReferredSessions !== null ? ga4AiReferredSessions.toLocaleString()
+                : aiReferralTraffic !== null ? aiReferralTraffic.toLocaleString()
                 : 'None'
             }
-            live={calendarIsDemo || ga4AiReferredSessions !== null}
+            live={calendarIsDemo || aiReferralTraffic !== null}
+            delta={
+              calendarIsDemo ? 18.4
+                : aiPriorAvailable && aiReferralTrafficDelta !== null ? aiReferralTrafficDelta
+                : undefined
+            }
           />
-          {/* Owned URLs with AI Activity: when model filter active, sum uniquePages
-              across filteredBots. When no filter, fall back to the pre-aggregated
-              uniquePagesVisited from the agent-analytics response. */}
+          {/* KPI 4 · Organic Traffic */}
           <KpiCard
-            label="Owned URLs with AI Activity"
-            hint={`Bot-crawled pages (30d)${models ? ' · filtered to selected AI models' : ''}`}
-            value={agentData
-              ? `${models != null
-                  ? filteredBots.reduce((s, b) => s + b.uniquePages, 0)
-                  : agentData.uniquePagesVisited
-                } pages`
-              : 'None'}
-            live={!!agentData && agentData.uniquePagesVisited > 0}
-          />
-          <KpiCard
-            label="% Null / Unmatched"
-            hint="Planned content with no data"
-            value={unmatchedPct !== null ? `${unmatchedPct}%` : 'None'}
-            live={unmatchedPct !== null}
-          />
-          {/* Owned Domains Cited in AI: filtered by selected models via per-model citation data */}
-          <KpiCard
-            label="Owned Domains Cited in AI"
-            hint={`Peec AI brand-owned domains with citations${models ? ' · filtered to selected AI models' : ''}`}
-            value={peecData ? filteredOwnDomains.length.toLocaleString() : 'None'}
-            live={filteredOwnDomains.length > 0}
+            label="Organic Traffic"
+            hint="GA4 Organic Search channel sessions"
+            value={
+              calendarIsDemo ? '6,667'
+                : organicTraffic !== null ? organicTraffic.toLocaleString()
+                : 'None'
+            }
+            live={calendarIsDemo || organicTraffic !== null}
+            delta={
+              calendarIsDemo ? -4.2
+                : organicPriorAvailable && organicTrafficDelta !== null ? organicTrafficDelta
+                : undefined
+            }
           />
         </div>
       </div>
