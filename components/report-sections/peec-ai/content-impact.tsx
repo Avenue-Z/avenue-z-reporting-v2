@@ -5,7 +5,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, urlTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -24,14 +24,12 @@ import {
   OwnedContentCitedTable,
   CompetitorDomainsCitedTable,
   CompetitorUrlsBrandAbsentTable,
-  RepeatedCompetitorPagesTable,
   AISystemsInteractingTable,
   ContentTeamRecommendationsTable,
   type PlannedContentRow,
   type OwnedContentCitedRow,
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
-  type RepeatedCompetitorPagesRow,
   type AISystemsInteractingRow,
   type ContentTeamRecommendationsRow,
 } from './content-impact-tables'
@@ -854,39 +852,6 @@ export async function ContentImpactReport({
           )
         })()}
 
-        <div className="border-t border-white/[0.06]" />
-
-        {/* Sub-view 3: Repeated Competitor Pages Across Themes */}
-        {(() => {
-          const h3Rows: RepeatedCompetitorPagesRow[] = calendarIsDemo
-            ? [
-                { url: 'ogilvy.com/insights/brand-authority-in-llms',     competitor: 'Ogilvy',           clusters: ['Brand authority', 'Reputation / trust', 'Industry expertise'], citations: 24 },
-                { url: 'edelman.com/research/trust-barometer-2026',       competitor: 'Edelman',          clusters: ['Reputation / trust', 'Buying-stage research'],                 citations: 19 },
-                { url: 'webershandwick.com/work/ai-pr-case-studies',      competitor: 'Weber Shandwick',  clusters: ['Industry expertise', 'Competitive comparison'],                citations: 17 },
-                { url: 'bcw-global.com/expertise/aeo-services',           competitor: 'BCW',              clusters: ['Brand authority', 'Buying-stage research'],                    citations: 14 },
-                { url: 'fleishmanhillard.com/2026/ai-search-report',      competitor: 'FleishmanHillard', clusters: ['Industry expertise', 'Reputation / trust', 'Brand authority'], citations: 13 },
-                { url: 'mslgroup.com/insights/generative-pr',             competitor: 'MSL',              clusters: ['Industry expertise', 'Competitive comparison'],                citations: 11 },
-              ]
-            : !coverageAvailable
-              ? []
-              : urlCitations
-                  .filter(c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)
-                  .map(c => ({
-                    url: c.url,
-                    competitor: c.competitorBrandNames.join(', '),
-                    clusters: urlTagNames(coverage, c.urlKey),
-                    citations: c.citationCount,
-                  }))
-                  .filter(r => r.clusters.length >= 2)   // "repeats across themes" = cited under 2+ clusters
-                  .sort((a, b) => b.citations - a.citations)
-                  .slice(0, 10)
-          return (
-            <RepeatedCompetitorPagesTable
-              rows={h3Rows}
-              emptyMessage="Requires URL-level citation data from Peec AI Pro"
-            />
-          )
-        })()}
       </SectionCard>
 
       {/* ── Section I: AI Systems Interacting with Our Content (LIVE) ─────── */}
