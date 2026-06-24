@@ -12,12 +12,11 @@ import type { DashboardConfig, BlockConfig } from '@/lib/dashboard/types'
 import type { BlockProposal } from '@/lib/dashboard/nl/types'
 import type { AggregateProposal } from '@/lib/dashboard/nl/aggregate-types'
 
-type Source = ProposeBlockInput['source'] | 'calculated'
+type Source = 'supermetrics' | 'triplewhale' | 'formula'
 const SOURCES: { value: Source; label: string }[] = [
   { value: 'supermetrics', label: 'Supermetrics' },
   { value: 'triplewhale', label: 'TripleWhale' },
-  { value: 'aggregate', label: 'Aggregate (formula)' },
-  { value: 'calculated', label: 'Calculated (weighted sum)' },
+  { value: 'formula', label: 'Formula' },
 ]
 const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
@@ -40,7 +39,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
   function resolve() {
     setClarify(null); setError(null)
     startTransition(async () => {
-      const r = await proposeBlock({ source: source as ProposeBlockInput['source'], prompt, slug })
+      const r = await proposeBlock({ source: source as ProposeBlockInput['source'], prompt, slug }) // 'formula' never reaches here (guard above)
       if (r.kind === 'clarify') setClarify(r.question)
       else if (r.kind === 'error') setError(r.error)
       else { setProposal(r.proposal); setStep('preview') }
@@ -96,7 +95,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
         {step === 'mode' && (
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">How to build it · {source}</p>
-            {source !== 'calculated' && (
+            {source !== 'formula' && (
               <button onClick={() => setStep('prompt')}
                 className="rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/90 hover:border-white/25 hover:bg-white/[0.04]">
                 Describe with AI
@@ -112,7 +111,14 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
 
         {step === 'build' && (
           <>
-            <ManualBlockForm source={source} slug={slug} pending={pending} onConfirm={confirmManual} onBack={() => setStep('mode')} />
+            <ManualBlockForm
+              source={source}
+              slug={slug}
+              pending={pending}
+              existingBlocks={(config?.blocks ?? []).map((b) => ({ id: b.id, name: b.name }))}
+              onConfirm={confirmManual}
+              onBack={() => setStep('mode')}
+            />
             {error && <p className="mt-2 text-xs text-[#FF6666]">Error: {error}</p>}
           </>
         )}
@@ -120,10 +126,10 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
         {step === 'prompt' && (
           <div className="flex flex-col gap-3">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">
-              {source === 'aggregate' ? 'Formula' : 'Describe the metric'} · {source}
+              Describe the metric · {source}
             </p>
             <textarea className={cn(input, 'min-h-[88px] resize-y')} value={prompt} onChange={(e) => setPrompt(e.target.value)}
-              placeholder={source === 'aggregate' ? 'blended ROAS = TripleWhale revenue ÷ Supermetrics ad spend' : 'Facebook ad spend last 30 days'} />
+              placeholder="Facebook ad spend last 30 days" />
             {clarify && <p className="text-xs text-brand-cyan">{clarify}</p>}
             {error && <p className="text-xs text-[#FF6666]">Error: {error}</p>}
             <div className="flex justify-between">
