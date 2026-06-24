@@ -1,6 +1,6 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
@@ -29,6 +29,7 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   const cfg = buildBlockConfig(d)
   assert.equal(cfg.binding.source, 'aggregate')
   if (cfg.binding.source === 'aggregate') {
+    assert.equal(cfg.binding.op, '/')
     assert.equal(cfg.binding.left.source, 'triplewhale')
     assert.equal(cfg.binding.right.source, 'supermetrics')
   }
@@ -130,6 +131,17 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), true)
 }
 
+// isOperandComplete: leaf complete/incomplete
+{
+  assert.equal(isOperandComplete({ kind: 'leaf', leaf: { source: 'triplewhale', metric: 'revenue' } }), true)
+  assert.equal(isOperandComplete({ kind: 'leaf', leaf: { source: 'triplewhale', metric: '' } }), false)
+}
+// isOperandComplete: calculated delegates to isCalculatedComplete
+{
+  assert.equal(isOperandComplete({ kind: 'calculated', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), true)
+  assert.equal(isOperandComplete({ kind: 'calculated', calc: { source: 'calculated', terms: [] } }), false)
+}
+
 // operandToBinding: leaf
 {
   const b = operandToBinding({ kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } })
@@ -139,6 +151,7 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
 {
   const b = operandToBinding({ kind: 'calculated', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } })
   assert.equal(b.source, 'calculated')
+  if (b.source === 'calculated') assert.equal(b.terms.length, 1)
 }
 // buildBlockConfig: aggregate with calculated left operand (ROAS = (rev - tax) / spend)
 {
