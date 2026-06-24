@@ -23,7 +23,9 @@ interface BarChartProps {
   data: Record<string, string | number>[]
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
-  height?: number | string
+  /** Pixel number (existing report sections) or Recharts percentage literal
+   *  (e.g. "100%") so dashboard block bodies can fill the RGL grid cell. */
+  height?: number | `${number}%`
   /** 'vertical' (default, today's behavior): categories on X, values on Y.
    *  'horizontal': categories on Y, values on X. */
   orientation?: 'horizontal' | 'vertical'
@@ -49,8 +51,7 @@ export function BarChart({
   const rechartsLayout = horizontal ? 'vertical' : 'horizontal'
 
   const chart = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <ResponsiveContainer width="100%" height={height as any}>
+    <ResponsiveContainer width="100%" height={height}>
       <RechartsBarChart data={data} layout={rechartsLayout} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
         {horizontal

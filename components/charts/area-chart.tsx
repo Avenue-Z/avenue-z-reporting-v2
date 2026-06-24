@@ -16,7 +16,9 @@ interface AreaChartProps {
   data: Record<string, string | number>[]
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
-  height?: number | string
+  /** Pixel number (existing report sections) or Recharts percentage literal
+   *  (e.g. "100%") so dashboard block bodies can fill the RGL grid cell. */
+  height?: number | `${number}%`
   /** Optional formatter applied to each x-axis tick label (e.g. ISO bucket → 'Jun 24'). */
   xTickFormatter?: (raw: string) => string
   /** When set, renders an extra dimmed Area for prior-period overlay. The key should
@@ -37,8 +39,7 @@ export function AreaChart({
   unwrapped = false,
 }: AreaChartProps) {
   const chart = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <ResponsiveContainer width="100%" height={height as any}>
+    <ResponsiveContainer width="100%" height={height}>
       <RechartsAreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <defs>
           {yKeys.map((series, i) => {
