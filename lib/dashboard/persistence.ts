@@ -1,7 +1,8 @@
 import type {
-  AggregateBinding, AggregateOperand, Binding, CalculatedBinding, DashboardConfig, LeafBinding,
-  MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
+  AggregateBinding, AggregateOperand, Binding, CalculatedBinding, DashboardConfig, FormulaBinding,
+  FormulaOperand, LeafBinding, MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
 } from './types'
+import { parse, operandKeys } from './formula/parse'
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
@@ -91,6 +92,44 @@ function parseOperand(v: unknown, path: string): Parsed<AggregateOperand> {
   return parseLeaf(v, path)
 }
 
+function parseFormulaOperand(v: unknown, path: string): Parsed<FormulaOperand> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (v.kind === 'ref') {
+    if (!isNonEmptyStr(v.blockId)) return { ok: false, error: `${path}.blockId: expected non-empty string` }
+    return { ok: true, value: { kind: 'ref', blockId: v.blockId } }
+  }
+  if (v.kind === 'metric') {
+    const leaf = parseLeaf(v.leaf, `${path}.leaf`)
+    if (!leaf.ok) return leaf
+    return { ok: true, value: { kind: 'metric', leaf: leaf.value } }
+  }
+  return { ok: false, error: `${path}.kind: expected 'ref' or 'metric'` }
+}
+
+function parseFormula(v: unknown, path: string): Parsed<FormulaBinding> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (!isNonEmptyStr(v.expr)) return { ok: false, error: `${path}.expr: expected non-empty string` }
+  let keys: string[]
+  try {
+    parse(v.expr)               // full structural validation (throws on malformed)
+    keys = operandKeys(v.expr)
+  } catch {
+    return { ok: false, error: `${path}.expr: not a valid formula` }
+  }
+  if (!isObj(v.operands)) return { ok: false, error: `${path}.operands: expected object` }
+  const operands: Record<string, FormulaOperand> = {}
+  for (const key of Object.keys(v.operands)) {
+    const op = parseFormulaOperand(v.operands[key], `${path}.operands.${key}`)
+    if (!op.ok) return op
+    operands[key] = op.value
+  }
+  // every @key used in expr must have an operand, and vice versa
+  const provided = new Set(Object.keys(operands))
+  for (const k of keys) if (!provided.has(k)) return { ok: false, error: `${path}.operands: missing operand for @${k}` }
+  for (const k of provided) if (!keys.includes(k)) return { ok: false, error: `${path}.operands: unused operand @${k}` }
+  return { ok: true, value: { source: 'formula', expr: v.expr, operands } }
+}
+
 function parseBinding(v: unknown, path: string): Parsed<Binding> {
   if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
   if (v.source === 'aggregate') {
@@ -103,6 +142,7 @@ function parseBinding(v: unknown, path: string): Parsed<Binding> {
     return { ok: true, value: b }
   }
   if (v.source === 'calculated') return parseCalculated(v, path)
+  if (v.source === 'formula') return parseFormula(v, path)
   return parseLeaf(v, path)
 }
 

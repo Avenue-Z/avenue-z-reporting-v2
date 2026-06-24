@@ -110,4 +110,35 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   if (r.ok && r.block.binding.source === 'aggregate') assert.equal(r.block.binding.left.source, 'calculated')
 }
 
+// formula binding round-trips (ref + metric + constant)
+{
+  const r = parseBlockConfig({ id: 'b', name: 'ROAS', format: 'number', range: null,
+    binding: { source: 'formula', expr: '(@a - @b) / @c',
+      operands: {
+        a: { kind: 'metric', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+        b: { kind: 'metric', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+        c: { kind: 'ref', blockId: 'spend-block' },
+      } } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'formula') assert.equal(Object.keys(r.block.binding.operands).length, 3)
+}
+// unparseable expr rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '(@a + ', operands: { a: { kind: 'ref', blockId: 'x' } } } })
+  assert.equal(r.ok, false)
+}
+// operand/placeholder mismatch rejected (expr uses @a @b but operands miss @b)
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '@a + @b', operands: { a: { kind: 'ref', blockId: 'x' } } } })
+  assert.equal(r.ok, false)
+}
+// bad operand (ref without blockId) rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '@a', operands: { a: { kind: 'ref' } } } })
+  assert.equal(r.ok, false)
+}
+
 console.log('ok')
