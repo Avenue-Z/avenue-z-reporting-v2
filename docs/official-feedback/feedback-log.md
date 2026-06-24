@@ -23,7 +23,7 @@ _(none)_
 - **Author:** Thomas (called) / Claude (implementation)
 - **Type:** UI removal (layout-only round; no adds, no renames, no copy edits)
 - **Scope:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
-- **Branch:** `official-feedback-content-impact-tab-v1`
+- **Branch:** `official-feedback-content-impact-tab-format-v1`
 
 #### Problem
 
