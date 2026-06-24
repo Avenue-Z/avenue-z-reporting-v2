@@ -18,7 +18,7 @@ const SOURCES: { value: Source; label: string }[] = [
   { value: 'triplewhale', label: 'TripleWhale' },
   { value: 'aggregate', label: 'Aggregate (formula)' },
 ]
-const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: null }, blocks: [] }
+const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
 export function AddBlockDialog({ slug, config, onClose }: { slug: string; config: DashboardConfig | null; onClose: () => void }) {
   const router = useRouter()

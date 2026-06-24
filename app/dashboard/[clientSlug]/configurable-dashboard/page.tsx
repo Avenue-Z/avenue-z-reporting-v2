@@ -47,10 +47,12 @@ export default async function ConfigurableDashboardPage({
 
   const activeDefault = {
     dateRange: dateRangeParam ?? config.defaultRange.dateRange,
-    // Empty string means "no comparison." Missing key → fall back to persisted default.
+    // Empty string means "no comparison" (user toggled it off this session).
+    // Missing key → persisted default, and comparison defaults ON (previous
+    // period) when none is persisted — mirrors the paid-search section.
     compareRange:
       compareRangeParam === undefined
-        ? config.defaultRange.compareRange
+        ? config.defaultRange.compareRange ?? 'previous_period'
         : compareRangeParam === ''
           ? null
           : compareRangeParam,
