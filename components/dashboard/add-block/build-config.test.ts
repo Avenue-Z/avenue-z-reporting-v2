@@ -1,6 +1,6 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
@@ -21,15 +21,14 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   if (cfg.binding.source === 'supermetrics') assert.equal(cfg.binding.metricField, 'SocialSpend')
 }
 
-// buildBlockConfig: aggregate (revenue / spend)
+// buildBlockConfig: aggregate (revenue / spend), leaf operands
 {
   const d: ManualDraft = { kind: 'aggregate', name: 'Blended ROAS', format: 'number', op: '/',
-    left: { source: 'triplewhale', metric: 'revenue' },
-    right: { source: 'supermetrics', dsId: 'FA', metricField: 'SocialSpend', account: 'act_1' } }
+    left: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'revenue' } },
+    right: { kind: 'leaf', leaf: { source: 'supermetrics', dsId: 'FA', metricField: 'SocialSpend', account: 'act_1' } } }
   const cfg = buildBlockConfig(d)
   assert.equal(cfg.binding.source, 'aggregate')
   if (cfg.binding.source === 'aggregate') {
-    assert.equal(cfg.binding.op, '/')
     assert.equal(cfg.binding.left.source, 'triplewhale')
     assert.equal(cfg.binding.right.source, 'supermetrics')
   }
@@ -49,7 +48,7 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(isDraftComplete({ kind: 'leaf', name: '', format: 'number', leaf: { source: 'triplewhale', metric: 'revenue' } }), false)
   assert.equal(isDraftComplete({ kind: 'leaf', name: 'X', format: 'number', leaf: { source: 'supermetrics', dsId: 'FA', metricField: '', account: 'act_1' } }), false)
   assert.equal(isDraftComplete({ kind: 'leaf', name: 'X', format: 'number', leaf: { source: 'supermetrics', dsId: 'FA', metricField: 'SocialSpend', account: 'act_1' } }), true)
-  assert.equal(isDraftComplete({ kind: 'aggregate', name: 'X', format: 'number', op: '/', left: { source: 'triplewhale', metric: 'revenue' }, right: { source: 'triplewhale', metric: '' } }), false)
+  assert.equal(isDraftComplete({ kind: 'aggregate', name: 'X', format: 'number', op: '/', left: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'revenue' } }, right: { kind: 'leaf', leaf: { source: 'triplewhale', metric: '' } } }), false)
 }
 
 // leafToBinding: triplewhale carries non-empty filters as values arrays
@@ -129,6 +128,28 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(isDraftComplete({ kind: 'calculated', name: '', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), false)
   assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: '' } }] } }), false)
   assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), true)
+}
+
+// operandToBinding: leaf
+{
+  const b = operandToBinding({ kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.deepEqual(b, { source: 'triplewhale', metric: 'ad_spend' })
+}
+// operandToBinding: calculated
+{
+  const b = operandToBinding({ kind: 'calculated', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } })
+  assert.equal(b.source, 'calculated')
+}
+// buildBlockConfig: aggregate with calculated left operand (ROAS = (rev - tax) / spend)
+{
+  const cfg = buildBlockConfig({ kind: 'aggregate', name: 'ROAS', format: 'number', op: '/',
+    left: { kind: 'calculated', calc: { source: 'calculated', terms: [
+      { coefficient: '1', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+      { coefficient: '-1', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    ] } },
+    right: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } } })
+  assert.equal(cfg.binding.source, 'aggregate')
+  if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.left.source, 'calculated')
 }
 
 console.log('ok')

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { LeafBuilder } from './leaf-builder'
 import { CalculatedBuilder } from './calculated-builder'
-import { buildBlockConfig, isDraftComplete, type LeafDraft, type ManualDraft, type CalculatedDraft } from './build-config'
+import { buildBlockConfig, isDraftComplete, type LeafDraft, type ManualDraft, type CalculatedDraft, type OperandDraft } from './build-config'
 import type { BlockConfig, MetricFormat } from '@/lib/dashboard/types'
 
 type LeafSource = 'supermetrics' | 'triplewhale'
@@ -40,10 +40,8 @@ export function ManualBlockForm({
   const [leaf, setLeaf] = useState<LeafDraft>(() => emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source))
   const [calc, setCalc] = useState<CalculatedDraft>(() => ({ source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] }))
   const [op, setOp] = useState<Op>('/')
-  const [leftSource, setLeftSource] = useState<LeafSource>('triplewhale')
-  const [rightSource, setRightSource] = useState<LeafSource>('supermetrics')
-  const [left, setLeft] = useState<LeafDraft>(() => emptyLeaf('triplewhale'))
-  const [right, setRight] = useState<LeafDraft>(() => emptyLeaf('supermetrics'))
+  const [left, setLeft] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('triplewhale') }))
+  const [right, setRight] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('supermetrics') }))
 
   const draft: ManualDraft =
     source === 'aggregate'
@@ -77,8 +75,8 @@ export function ManualBlockForm({
               {OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
-          <Operand title="Left" src={leftSource} onSrc={(s) => { setLeftSource(s); setLeft(emptyLeaf(s)) }} value={left} onChange={setLeft} slug={slug} />
-          <Operand title="Right" src={rightSource} onSrc={(s) => { setRightSource(s); setRight(emptyLeaf(s)) }} value={right} onChange={setRight} slug={slug} />
+          <Operand title="Left" value={left} onChange={setLeft} slug={slug} />
+          <Operand title="Right" value={right} onChange={setRight} slug={slug} />
         </>
       )}
 
@@ -105,33 +103,35 @@ export function ManualBlockForm({
 
 function Operand({
   title,
-  src,
-  onSrc,
   value,
   onChange,
   slug,
 }: {
   title: string
-  src: LeafSource
-  onSrc: (s: LeafSource) => void
-  value: LeafDraft
-  onChange: (v: LeafDraft) => void
+  value: OperandDraft
+  onChange: (v: OperandDraft) => void
   slug: string
 }) {
+  const kind = value.kind === 'calculated' ? 'calculated' : value.leaf.source
+  const onKind = (k: string) => {
+    if (k === 'calculated') onChange({ kind: 'calculated', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] } })
+    else onChange({ kind: 'leaf', leaf: emptyLeaf(k as 'supermetrics' | 'triplewhale') })
+  }
   return (
     <div className="rounded-md border border-white/10 p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className={labelCls}>{title}</span>
-        <select
-          className="rounded-md border border-white/10 bg-bg-surface px-2 py-1 text-xs text-white"
-          value={src}
-          onChange={(e) => onSrc(e.target.value as LeafSource)}
-        >
+        <select className="rounded-md border border-white/10 bg-bg-surface px-2 py-1 text-xs text-white" value={kind} onChange={(e) => onKind(e.target.value)}>
           <option value="supermetrics">Supermetrics</option>
           <option value="triplewhale">TripleWhale</option>
+          <option value="calculated">Calculated (weighted sum)</option>
         </select>
       </div>
-      <LeafBuilder source={src} value={value} onChange={onChange} slug={slug} />
+      {value.kind === 'calculated' ? (
+        <CalculatedBuilder value={value.calc} onChange={(calc) => onChange({ kind: 'calculated', calc })} slug={slug} />
+      ) : (
+        <LeafBuilder source={value.leaf.source} value={value.leaf} onChange={(leaf) => onChange({ kind: 'leaf', leaf })} slug={slug} />
+      )}
     </div>
   )
 }

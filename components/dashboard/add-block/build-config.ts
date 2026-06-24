@@ -1,4 +1,4 @@
-import type { BlockConfig, LeafBinding, AggregateBinding, CalculatedBinding, MetricFormat } from '@/lib/dashboard/types'
+import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, MetricFormat } from '@/lib/dashboard/types'
 
 /**
  * Common TripleWhale metrics surfaced at the top of the builder's metric picker,
@@ -27,11 +27,16 @@ export type CalculatedDraft = {
   terms: { coefficient: string; leaf: LeafDraft }[]
 }
 
+/** An aggregate operand draft: a single leaf or a weighted-sum calculation. */
+export type OperandDraft =
+  | { kind: 'leaf'; leaf: LeafDraft }
+  | { kind: 'calculated'; calc: CalculatedDraft }
+
 /** The whole manual form's state. */
 export type ManualDraft =
   | { kind: 'leaf'; name: string; format: MetricFormat; leaf: LeafDraft }
   | { kind: 'calculated'; name: string; format: MetricFormat; calc: CalculatedDraft }
-  | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: LeafDraft; right: LeafDraft }
+  | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: OperandDraft; right: OperandDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
   if (d.source === 'supermetrics') {
@@ -56,6 +61,14 @@ export function calculatedToBinding(c: CalculatedDraft): CalculatedBinding {
   return { source: 'calculated', terms }
 }
 
+export function operandToBinding(o: OperandDraft): AggregateOperand {
+  return o.kind === 'calculated' ? calculatedToBinding(o.calc) : leafToBinding(o.leaf)
+}
+
+export function isOperandComplete(o: OperandDraft): boolean {
+  return o.kind === 'calculated' ? isCalculatedComplete(o.calc) : isLeafComplete(o.leaf)
+}
+
 /** Assemble the final block config (id is assigned later, at confirm). */
 export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
   const binding =
@@ -63,7 +76,7 @@ export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
       ? leafToBinding(d.leaf)
       : d.kind === 'calculated'
         ? calculatedToBinding(d.calc)
-        : { source: 'aggregate' as const, op: d.op, left: leafToBinding(d.left), right: leafToBinding(d.right) }
+        : { source: 'aggregate' as const, op: d.op, left: operandToBinding(d.left), right: operandToBinding(d.right) }
   return { name: d.name, format: d.format, range: null, binding }
 }
 
@@ -90,5 +103,5 @@ export function isDraftComplete(d: ManualDraft): boolean {
   if (d.name.trim() === '') return false
   if (d.kind === 'leaf') return isLeafComplete(d.leaf)
   if (d.kind === 'calculated') return isCalculatedComplete(d.calc)
-  return isLeafComplete(d.left) && isLeafComplete(d.right)
+  return isOperandComplete(d.left) && isOperandComplete(d.right)
 }
