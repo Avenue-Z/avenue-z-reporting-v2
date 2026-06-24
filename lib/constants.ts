@@ -15,6 +15,7 @@ export const CHART_COLORS = {
   bingAds: '#00A4EF', // Microsoft blue — Bing/Microsoft Ads
   shopify: '#96BF48', // Shopify green
   hubspot: '#FF7A59', // HubSpot orange
+  organicSocial: '#FF8A3D', // orange — organic social
   blended: '#FFFFFF', // white — blended/total lines
 
   // Positive / negative deltas
@@ -77,6 +78,7 @@ export const REPORT_NAMES: Record<string, string> = {
   gohighlevel: 'GoHighLevel',
   'ticket-sales': 'Ticket Sales',
   'request-a-report': 'Request a Report',
+  'organic-social': 'Organic Social',
 }
 
 /** Sidebar nav groups in display order */
@@ -89,7 +91,7 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
     label: 'Reports',
     // peec-ai renders as the "Answer Engine Optimization" expandable group;
     // profound-ai and google-search-console are handled as Soon sub-items inside their parents.
-    slugs: ['peec-ai', 'ga4', 'paid-media', 'inbound-funnel', 'hubspot-performance'],
+    slugs: ['peec-ai', 'ga4', 'paid-media', 'organic-social', 'inbound-funnel', 'hubspot-performance'],
   },
   {
     label: 'Tools',
@@ -130,6 +132,7 @@ export const ALL_REPORT_SLUGS: string[] = [
   'paid-media',
   'inbound-funnel',
   'hubspot-performance',
+  'organic-social',
   'request-a-report',
 ]
 

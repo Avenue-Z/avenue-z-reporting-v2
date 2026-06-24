@@ -12,6 +12,7 @@ export type ReportSlug =
   | 'blended-performance'
   | 'linkedin-ads'
   | 'paid-media'
+  | 'organic-social'
   | 'snapchat-ads'
   | 'tiktok-ads'
   | 'shopify-performance'
@@ -59,6 +60,13 @@ export interface MetaConfig {
 export interface LinkedInConfig {
   /** LinkedIn ad account id, digits only, e.g. '503368877'. */
   linkedinAdAccountId: string
+}
+
+export interface DashSocialConfig {
+  /** Dash Social brand id (digits), e.g. 24350. Selects the brand for the shared DASH_API_TOKEN. */
+  brandId: number
+  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter'); defaults to all reportable channels. */
+  channels?: string[]
 }
 
 /**
@@ -120,6 +128,7 @@ export const clients = pgTable('clients', {
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
   metaConfig: jsonb('meta_config').$type<MetaConfig>(),
   linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
+  dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

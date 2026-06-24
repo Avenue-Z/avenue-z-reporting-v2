@@ -24,6 +24,7 @@ import { PRPlacementsReport } from '@/components/report-sections/pr-placements'
 import { GoHighLevelReport } from '@/components/report-sections/gohighlevel'
 import { TicketSalesReport } from '@/components/report-sections/ticket-sales'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ExportPdfButton } from '@/components/export-pdf-button'
 import { DataChat } from '@/components/data-chat'
@@ -93,6 +94,8 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <GoHighLevelReport clientSlug={clientSlug} />
     case 'ticket-sales':
       return <TicketSalesReport clientSlug={clientSlug} />
+    case 'organic-social':
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
   }
 }
 

@@ -23,6 +23,7 @@ import { DemandOverviewReport } from '@/components/report-sections/demand-overvi
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
+import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { PortalReportDateRange } from './report-date-range'
 
 function ReportSkeleton() {
@@ -84,6 +85,8 @@ function getReportSection(
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'request-a-report':
       return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
+    case 'organic-social':
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     default:
       return null
   }

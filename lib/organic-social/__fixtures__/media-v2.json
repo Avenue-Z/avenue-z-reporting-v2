@@ -1,0 +1,2775 @@
+{
+  "data": [
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991466809,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": true,
+        "is_positive": false,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T18:42:35",
+      "custom_metrics": [],
+      "facebook": null,
+      "id": 687980973,
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": {
+        "caption": null,
+        "completion_rate": 0,
+        "completion_rate_views": 1,
+        "emv": 25,
+        "emv_views": 27.325,
+        "exit_rate": 0,
+        "exit_rate_views": 0,
+        "exits": 0,
+        "hashtags": [],
+        "imported_via_dm": 0,
+        "mentions": [],
+        "reach": 12,
+        "replies": 0,
+        "short_url": null,
+        "swipe_up_link": null,
+        "swipe_ups": null,
+        "taps_back": 0,
+        "taps_forward": 9,
+        "url": "https://cdn.dashsocial.com/media/original/1782153752.377474583697.mp4",
+        "views": 0,
+        "views_v2": 15
+      },
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687980973,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "INSTAGRAM_STORY",
+      "source_account_id": "77657313889",
+      "source_created_at": "2026-06-22T18:41:15",
+      "source_id": "18188050321381318",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 28.066667,
+        "frame_rate": 30,
+        "sizes": {
+          "original": {
+            "height": 1280,
+            "size": 5478421,
+            "url": "https://cdn.dashsocial.com/media/original/1782153752.377474583697.mp4",
+            "width": 720
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 5760083,
+            "url": "https://cdn.dashsocial.com/media/full/1782153754.976829515611.mp4",
+            "width": 720
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUzNzUzLjgwNjE3NDM5OTgyNC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 51011,
+            "url": "https://cdn.dashsocial.com/media/full/1782153753.806174399824.jpeg",
+            "width": 720
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUzNzUzLjgwNjE3NDM5OTgyNC5qcGVn.jpg?w=225&h=400",
+            "width": 225
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUzNzUzLjgwNjE3NDM5OTgyNC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991467914,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": false,
+        "is_positive": true,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T18:43:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 687982078,
+      "instagram": {
+        "ad_account_scoped_insights": null,
+        "ad_ids": null,
+        "adset_ids": null,
+        "amount_spent": null,
+        "avg_time_viewed_sec": null,
+        "campaign_ids": null,
+        "caption": "#Ad No one really tells you how much you end up thinking about benefits once you become a parent. Life is busy enough, so having something simple and straightforward through Renaissance Benefits has just made things feel a little easier and less stressful. #RenaissanceBenefits #parentinglife #motherhood #planning",
+        "clicks": null,
+        "comments_count": 1,
+        "cost_per_thruplay": null,
+        "cpc": null,
+        "cpm": null,
+        "crossposted_views": null,
+        "ctr": null,
+        "effectiveness": 0.020378457059679767,
+        "effectiveness_engagements": 0,
+        "emv": 337.4952,
+        "engagement": 0.00611353711790393,
+        "engagement_rate_impressions": 0,
+        "engagement_rate_public": 0.00611353711790393,
+        "engagement_rate_views": 0,
+        "engagements_public": 14,
+        "entertainment_score": 0.0010660980810234544,
+        "facebook_views": null,
+        "followers_gained": null,
+        "follows": null,
+        "hashtags": [
+          "ad",
+          "renaissancebenefits",
+          "parentinglife",
+          "motherhood",
+          "planning"
+        ],
+        "impressions": 0,
+        "is_boosted": false,
+        "is_carousel": false,
+        "is_commented": false,
+        "is_mentioned": false,
+        "is_riq": false,
+        "is_tagged": true,
+        "like_count": 13,
+        "paid_and_organic_reach": 687,
+        "paid_and_organic_saved": 0,
+        "paid_and_organic_shares": 0,
+        "paid_comments": 0,
+        "paid_engagement_rate": 0,
+        "paid_impressions": 0,
+        "paid_likes": 0,
+        "paid_reach": null,
+        "paid_reactions": null,
+        "paid_saved": 0,
+        "paid_shares": null,
+        "paid_total_engagement": 0,
+        "paid_total_engagements": 0,
+        "paid_video_views": 0,
+        "photo_tags": [],
+        "post_type": "reel",
+        "profile_activity": {
+          "bio_link_clicked": 0,
+          "direction": 0,
+          "email": 0,
+          "other": 0,
+          "text": 0,
+          "total": 0
+        },
+        "profile_visits": null,
+        "public_views": null,
+        "reach": 687,
+        "reels_skip_rate": null,
+        "replays": null,
+        "reposts": null,
+        "saved": 0,
+        "shares": 0,
+        "sum_total_engagement": 14,
+        "sum_total_engagements": 14,
+        "thruplays": null,
+        "timestamp": "2026-06-22T18:33:14+00:00",
+        "total_comments": 1,
+        "total_engagement": 14,
+        "total_impressions": 0,
+        "total_likes": 13,
+        "total_plays": null,
+        "total_time_viewed_sec_long": null,
+        "total_video_views": 0,
+        "url": "https://www.instagram.com/reel/DZ5e8gkJE_f/",
+        "video_plays_100": null,
+        "video_plays_25": null,
+        "video_plays_50": null,
+        "video_plays_75": null,
+        "video_views": 0,
+        "views": 0
+      },
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687980973,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "INSTAGRAM",
+      "source_account_id": "77568285400",
+      "source_created_at": "2026-06-22T18:33:14",
+      "source_id": "18113166818508584",
+      "source_type": "UGC",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 28.066667,
+        "frame_rate": 30,
+        "sizes": {
+          "original": {
+            "height": 1280,
+            "size": 5717366,
+            "url": "https://cdn.dashsocial.com/media/original/1782153836.318836746509.mp4",
+            "width": 720
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 5999389,
+            "url": "https://cdn.dashsocial.com/media/full/1782153838.833402662053.mp4",
+            "width": 720
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUzODM3LjAyOTI0MzcxNTA1LmpwZWc=.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 243395,
+            "url": "https://cdn.dashsocial.com/media/full/1782153837.02924371505.jpeg",
+            "width": 720
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUzODM3LjAyOTI0MzcxNTA1LmpwZWc=.jpg?w=225&h=400",
+            "width": 225
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUzODM3LjAyOTI0MzcxNTA1LmpwZWc=.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991441636,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": true,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": true,
+        "is_positive": false,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T17:55:28",
+      "custom_metrics": [],
+      "facebook": null,
+      "id": 687956026,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwOTI2LjkwNzEzMjE2MTU1LmpwZWc=.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 990,
+            "size": 38869,
+            "url": "https://cdn.dashsocial.com/media/original/1782150926.849812387110.png",
+            "width": 990
+          },
+          "original_converted": {
+            "height": 990,
+            "size": 12526,
+            "url": "https://cdn.dashsocial.com/media/full/1782150926.90713216155.jpeg",
+            "width": 990
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwOTI2LjkwNzEzMjE2MTU1LmpwZWc=.jpg?w=400&h=400",
+            "width": 400
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwOTI2LjkwNzEzMjE2MTU1LmpwZWc=.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 123685906,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "TWITTER_TEXT",
+      "source_account_id": "397951689",
+      "source_created_at": "2026-06-22T17:55:26",
+      "source_id": "2069117069803798594",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": {
+        "additional_media_urls": "",
+        "engagement_rate": 0.5,
+        "engagement_rate_organic": 0.5,
+        "engagement_rate_promoted": 0,
+        "engagement_rate_total": 0.5,
+        "engagements": 1,
+        "engagements_organic": 1,
+        "engagements_promoted": 0,
+        "engagements_total": 1,
+        "follows": 0,
+        "follows_organic": 0,
+        "follows_promoted": 0,
+        "follows_total": 0,
+        "impressions": 2,
+        "impressions_organic": 2,
+        "impressions_promoted": 0,
+        "impressions_total": 2,
+        "in_reply_to_status_id": null,
+        "in_reply_to_user_id": null,
+        "is_dark_post": false,
+        "is_promoted": false,
+        "likes": 0,
+        "likes_organic": 0,
+        "likes_promoted": 0,
+        "likes_total": 0,
+        "permalink_url": "https://twitter.com/397951689/status/2069117069803798594",
+        "quote_tweets": 0,
+        "quoted_status_id": null,
+        "replies": 0,
+        "replies_organic": 0,
+        "replies_promoted": 0,
+        "replies_total": 0,
+        "retweeted_status_id": null,
+        "retweets": 0,
+        "retweets_organic": 0,
+        "retweets_promoted": 0,
+        "retweets_total": 0,
+        "text": "Ancillary benefits get called “extras” a lot. In reality, they behave more like the plumbing of a protection strategy.\n\nDental, vision, life, and disability each absorb a slice of risk the medical plan doesn’t fully touch. Together, they fill the space between everyday out-of-pocket costs and the rare, catastrophic events everyone hopes never happen.\n\nWhen you treat those lines as infrastructure instead of add-ons, the finance conversation shifts from “What can we trim?” to “Which risks are we choosing to carry as an employer versus shift to employees?” That’s a different mindset (and a different bar) for plan design.\n\nWhere have you seen ancillary lines quietly doing this infrastructure work in your clients’ portfolios?\n\n#RenaissanceBenefits #AncillaryBenefits #RiskManagement",
+        "total_retweets": 0,
+        "type": "text",
+        "url": null,
+        "url_clicks": 0,
+        "url_clicks_organic": 0,
+        "url_clicks_promoted": 0,
+        "url_clicks_total": 0,
+        "user_profile_clicks": 0,
+        "user_profile_clicks_organic": 0,
+        "user_profile_clicks_promoted": 0,
+        "user_profile_clicks_total": 0,
+        "video_views": 0,
+        "video_views_organic": 0,
+        "video_views_promoted": 0,
+        "video_views_total": 0
+      },
+      "type": "IMAGE",
+      "variants": [
+        "TEXT"
+      ],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991446267,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": true,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": true,
+        "is_positive": false,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T18:03:54",
+      "custom_metrics": [],
+      "facebook": null,
+      "id": 687960656,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUxNDMzLjA4MjU3NjY3NDg5LmpwZWc=.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 960,
+            "size": 9424,
+            "url": "https://cdn.dashsocial.com/media/original/1782151432.99505279555.png",
+            "width": 980
+          },
+          "original_converted": {
+            "height": 960,
+            "size": 13201,
+            "url": "https://cdn.dashsocial.com/media/full/1782151433.08257667489.jpeg",
+            "width": 980
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUxNDMzLjA4MjU3NjY3NDg5LmpwZWc=.jpg?w=408&h=400",
+            "width": 408
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUxNDMzLjA4MjU3NjY3NDg5LmpwZWc=.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": {
+        "caption": "Ancillary benefits get called “extras” a lot. In reality, they behave more like the plumbing of a protection strategy.\n\nDental, vision, life, and disability each absorb a slice of risk the medical plan doesn’t fully touch. Together, they fill the space between everyday out-of-pocket costs and the rare, catastrophic events everyone hopes never happen.\n\nWhen you treat those lines as infrastructure instead of add-ons, the finance conversation shifts from “What can we trim?” to “Which risks are we choosing to carry as an employer versus shift to employees?” That’s a different mindset \\(and a different bar\\) for plan design.\n\nWhere have you seen ancillary lines quietly doing this infrastructure work in your clients’ portfolios?\n\n{hashtag|\\#|RenaissanceBenefits} {hashtag|\\#|AncillaryBenefits} {hashtag|\\#|RiskManagement}",
+        "click_through_rate": 0.02,
+        "clicks": 4,
+        "comments": 0,
+        "engagement_rate": 0.0316,
+        "engagements": 8,
+        "impressions": 253,
+        "likes": 4,
+        "linkedin_link": "https://linkedin.com/feed/update/urn:li:share:7474882728547491840",
+        "shares": 0,
+        "thumbnail_url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUxNDMzLjA4MjU3NjY3NDg5LmpwZWc=.jpg?w=400&h=400&fit=cover",
+        "type": "TEXT",
+        "unique_impressions": 190,
+        "video_analytics_time_watched": null,
+        "video_analytics_time_watched_for_views": null,
+        "video_analytics_unique_viewers": null,
+        "video_analytics_video_views": null
+      },
+      "media_group": 349663442,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "LINKEDIN",
+      "source_account_id": "1249",
+      "source_created_at": "2026-06-22T17:55:19",
+      "source_id": "urn:li:share:7474882728547491840",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991460103,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": false,
+        "is_positive": true,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T18:27:42",
+      "custom_metrics": [],
+      "facebook": {
+        "ad_account_scoped_insights": [],
+        "amount_spend": 0,
+        "audience_public": 4993,
+        "comments": 0,
+        "cost_per_thruplays": 0,
+        "cpc": 0,
+        "cpm": 0,
+        "ctr": 0,
+        "effectiveness": 0,
+        "engagement_rate": 0,
+        "engagement_rate_public": 0,
+        "fb_page_id": "129071870473316",
+        "frequency": 0,
+        "impressions": 0,
+        "is_ad": false,
+        "is_boosted": false,
+        "is_part_of_carousel": false,
+        "link_clicks": 0,
+        "message": "#Ad When it comes to insurance and benefits, simple matters. Appreciated learning more about supplemental coverage through Renaissance Benefits.\n\n#RenaissanceBenefits #SupplementalCoverage #EmployeeBenefits #InsuranceSupport #WorkplaceBenefits",
+        "organic_comments": 0,
+        "organic_effectiveness": 0,
+        "organic_effectiveness_v2": 0,
+        "organic_engagement_rate": 0,
+        "organic_engagement_rate_v2": 0,
+        "organic_engagement_unreliable": false,
+        "organic_engagements": 1,
+        "organic_engagements_v2": 0,
+        "organic_impressions": 0,
+        "organic_link_clicks": 0,
+        "organic_reach": 0,
+        "organic_reactions": 0,
+        "organic_shares": 0,
+        "organic_video_complete_views": 0,
+        "organic_video_views": 24,
+        "organic_views": 147,
+        "other_clicks": 1,
+        "page_avatar": "https://cdn.dashhudson.com/avatars/facebook/26952.png",
+        "page_categories": [],
+        "page_name": "Renaissance Benefits",
+        "paid_and_organic_comments": 0,
+        "paid_and_organic_effectiveness": 0,
+        "paid_and_organic_effectiveness_v2": 0,
+        "paid_and_organic_engagement_rate": 0,
+        "paid_and_organic_engagement_rate_v2": 0,
+        "paid_and_organic_engagements": 1,
+        "paid_and_organic_engagements_v2": 0,
+        "paid_and_organic_impressions": 0,
+        "paid_and_organic_link_clicks": 0,
+        "paid_and_organic_other_clicks": 1,
+        "paid_and_organic_photo_view_clicks": 0,
+        "paid_and_organic_post_clicks": 1,
+        "paid_and_organic_reach": 0,
+        "paid_and_organic_reach_v2": 139,
+        "paid_and_organic_reactions": 0,
+        "paid_and_organic_shares": 0,
+        "paid_and_organic_video_complete_views": 0,
+        "paid_and_organic_video_views": 24,
+        "paid_and_organic_views": 147,
+        "paid_comments": 0,
+        "paid_effectiveness": 0,
+        "paid_effectiveness_v2": 0,
+        "paid_engagement_rate": 0,
+        "paid_engagement_rate_v2": 0,
+        "paid_engagements": 0,
+        "paid_impressions": 0,
+        "paid_link_clicks": 0,
+        "paid_reach": 0,
+        "paid_reach_v2": 0,
+        "paid_reactions": 0,
+        "paid_shares": 0,
+        "paid_video_complete_views": 0,
+        "paid_video_views": 0,
+        "paid_views": 0,
+        "photo_view_clicks": 0,
+        "post_clicks": 1,
+        "reach": 0,
+        "reactions": 0,
+        "reel": {
+          "blue_reels_play_count": 139,
+          "effectiveness": 0,
+          "fb_reel_id": "996071839796133",
+          "fb_reels_replay_count": 8,
+          "fb_reels_total_plays": 147,
+          "post_impressions_unique": 143,
+          "post_video_avg_time_watched": 2291,
+          "post_video_followers": 0,
+          "post_video_reaction_type_angry": 0,
+          "post_video_reaction_type_haha": 0,
+          "post_video_reaction_type_like": 0,
+          "post_video_reaction_type_love": 0,
+          "post_video_reaction_type_sad": 0,
+          "post_video_reaction_type_wow": 0,
+          "post_video_retention_graph": {
+            "0": 1,
+            "1": 1,
+            "2": 1,
+            "3": 1,
+            "4": 0.5833,
+            "5": 0.4167,
+            "6": 0.3333,
+            "7": 0.25,
+            "8": 0.1667,
+            "9": 0.125,
+            "10": 0.0833,
+            "11": 0.0833,
+            "12": 0.0833,
+            "13": 0.0417,
+            "14": 0.0417,
+            "15": 0.0417,
+            "16": 0.0417,
+            "17": 0.0417,
+            "18": 0.0417,
+            "19": 0.0417,
+            "20": 0.0417,
+            "21": 0.0417,
+            "22": 0.0417,
+            "23": 0.0417,
+            "24": 0,
+            "25": 0,
+            "26": 0,
+            "27": 0,
+            "28": 0,
+            "29": 0,
+            "30": 0,
+            "31": 0,
+            "32": 0
+          },
+          "post_video_social_actions_comments": 0,
+          "post_video_social_actions_reactions": 0,
+          "post_video_social_actions_shares": 0,
+          "post_video_view_time": 318569
+        },
+        "shares": 0,
+        "thruplays": 0,
+        "title": null,
+        "total_engagements": 1,
+        "total_engagements_public": 0,
+        "type": "reel",
+        "url": "https://www.facebook.com/reel/996071839796133/",
+        "video_complete_views": 0,
+        "video_plays_25": 0,
+        "video_plays_50": 0,
+        "video_plays_75": 0,
+        "video_views": 24
+      },
+      "id": 687974379,
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 674754905,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "FACEBOOK",
+      "source_account_id": "129071870473316",
+      "source_created_at": "2026-06-22T17:52:03",
+      "source_id": "129071870473316_1646275257508232",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 29.966667,
+        "frame_rate": 30,
+        "sizes": {
+          "original": {
+            "height": 1280,
+            "size": 6349118,
+            "url": "https://cdn.dashsocial.com/media/original/1782152860.643300382401.mp4",
+            "width": 720
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 6635519,
+            "url": "https://cdn.dashsocial.com/media/full/1782152862.612220852530.mp4",
+            "width": 720
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUyODYxLjQ3NDExMzI3MDQwMC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 259589,
+            "url": "https://cdn.dashsocial.com/media/full/1782152861.474113270400.jpeg",
+            "width": 720
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUyODYxLjQ3NDExMzI3MDQwMC5qcGVn.jpg?w=224&h=400",
+            "width": 224
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUyODYxLjQ3NDExMzI3MDQwMC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991437821,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T17:46:22",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 687952211,
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687950990,
+      "meta": {
+        "filename": "Script 1 Captions.mp4",
+        "last_modified_at": "2026-06-22T17:29:50.846Z",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-22T17:46:16",
+      "source_id": "d387b380-0ebe-4261-9cfc-9ae49a23f66f",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 29.966667,
+        "frame_rate": 30,
+        "sizes": {
+          "original": {
+            "height": 3840,
+            "size": 132490444,
+            "url": "https://cdn.dashsocial.com/media/original/1782150376.920581357507.mp4",
+            "width": 2160
+          },
+          "original_converted": {
+            "height": 2276,
+            "size": 83449725,
+            "url": "https://cdn.dashsocial.com/media/full/1782150388.948050793143.mp4",
+            "width": 1280
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwMzc5LjE2MDI4NTU3NTc2Ni5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 3840,
+            "size": 243599,
+            "url": "https://cdn.dashsocial.com/media/full/1782150379.160285575766.jpeg",
+            "width": 2160
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwMzc5LjE2MDI4NTU3NTc2Ni5qcGVn.jpg?w=225&h=400",
+            "width": 225
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwMzc5LjE2MDI4NTU3NTc2Ni5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 991436600,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-22T17:42:46",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 687950990,
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687950990,
+      "meta": {
+        "filename": "Script 1 Captions.mp4",
+        "last_modified_at": "2026-06-22T17:29:50.846Z",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-22T17:42:40",
+      "source_id": "f18f1098-273f-4ad9-bdbf-4640a9956d0e",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 29.966667,
+        "frame_rate": 30,
+        "sizes": {
+          "original": {
+            "height": 3840,
+            "size": 132490444,
+            "url": "https://cdn.dashsocial.com/media/original/1782150160.74790779623.mp4",
+            "width": 2160
+          },
+          "original_converted": {
+            "height": 2276,
+            "size": 83131602,
+            "url": "https://cdn.dashsocial.com/media/full/1782150167.773521791770.mp4",
+            "width": 1280
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwMTYzLjI1Mjg0MjIxOTIxLmpwZWc=.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 3840,
+            "size": 243599,
+            "url": "https://cdn.dashsocial.com/media/full/1782150163.25284221921.jpeg",
+            "width": 2160
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwMTYzLjI1Mjg0MjIxOTIxLmpwZWc=.jpg?w=225&h=400",
+            "width": 225
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgyMTUwMTYzLjI1Mjg0MjIxOTIxLmpwZWc=.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990873847,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": false,
+        "is_positive": true,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-20T19:57:20",
+      "custom_metrics": [],
+      "facebook": {
+        "ad_account_scoped_insights": [],
+        "amount_spend": 0,
+        "audience_public": 4992,
+        "comments": 0,
+        "cost_per_thruplays": 0,
+        "cpc": 0,
+        "cpm": 0,
+        "ctr": 0,
+        "effectiveness": 0,
+        "engagement_rate": 0,
+        "engagement_rate_public": 0,
+        "fb_page_id": "129071870473316",
+        "frequency": 0,
+        "impressions": 0,
+        "is_ad": false,
+        "is_boosted": false,
+        "is_part_of_carousel": false,
+        "link_clicks": 0,
+        "message": "Health coverage has changed. For many people, higher deductibles and more cost sharing are now part of how their healthcare works.\n\nRenSecureHealth supplemental health sits next to medical coverage and pays cash benefits for certain covered conditions.\n\nWithin the Renaissance portfolio, RenSecureHealth works alongside dental, vision, life, and disability, giving employers and brokers more ways to shape a modern benefits mix.\n\n#RenaissanceBenefits #RenSecureHealth #SupplementalHealth #EmployeeBenefits",
+        "organic_comments": 0,
+        "organic_effectiveness": 0,
+        "organic_effectiveness_v2": 0,
+        "organic_engagement_rate": 0,
+        "organic_engagement_rate_v2": 0,
+        "organic_engagement_unreliable": false,
+        "organic_engagements": 0,
+        "organic_engagements_v2": 0,
+        "organic_impressions": 0,
+        "organic_link_clicks": 0,
+        "organic_reach": 0,
+        "organic_reactions": 0,
+        "organic_shares": 0,
+        "organic_video_complete_views": 0,
+        "organic_video_views": 5,
+        "organic_views": 90,
+        "other_clicks": 0,
+        "page_avatar": "https://cdn.dashhudson.com/avatars/facebook/26952.png",
+        "page_categories": [],
+        "page_name": "Renaissance Benefits",
+        "paid_and_organic_comments": 0,
+        "paid_and_organic_effectiveness": 0,
+        "paid_and_organic_effectiveness_v2": 0,
+        "paid_and_organic_engagement_rate": 0,
+        "paid_and_organic_engagement_rate_v2": 0,
+        "paid_and_organic_engagements": 0,
+        "paid_and_organic_engagements_v2": 0,
+        "paid_and_organic_impressions": 0,
+        "paid_and_organic_link_clicks": 0,
+        "paid_and_organic_other_clicks": 0,
+        "paid_and_organic_photo_view_clicks": 0,
+        "paid_and_organic_post_clicks": 0,
+        "paid_and_organic_reach": 0,
+        "paid_and_organic_reach_v2": 81,
+        "paid_and_organic_reactions": 0,
+        "paid_and_organic_shares": 0,
+        "paid_and_organic_video_complete_views": 0,
+        "paid_and_organic_video_views": 5,
+        "paid_and_organic_views": 90,
+        "paid_comments": 0,
+        "paid_effectiveness": 0,
+        "paid_effectiveness_v2": 0,
+        "paid_engagement_rate": 0,
+        "paid_engagement_rate_v2": 0,
+        "paid_engagements": 0,
+        "paid_impressions": 0,
+        "paid_link_clicks": 0,
+        "paid_reach": 0,
+        "paid_reach_v2": 0,
+        "paid_reactions": 0,
+        "paid_shares": 0,
+        "paid_video_complete_views": 0,
+        "paid_video_views": 0,
+        "paid_views": 0,
+        "photo_view_clicks": 0,
+        "post_clicks": 0,
+        "reach": 0,
+        "reactions": 0,
+        "reel": {
+          "blue_reels_play_count": 82,
+          "effectiveness": 0,
+          "fb_reel_id": "1646546600408653",
+          "fb_reels_replay_count": 8,
+          "fb_reels_total_plays": 90,
+          "post_impressions_unique": 82,
+          "post_video_avg_time_watched": 1736,
+          "post_video_followers": 0,
+          "post_video_reaction_type_angry": 0,
+          "post_video_reaction_type_haha": 0,
+          "post_video_reaction_type_like": 0,
+          "post_video_reaction_type_love": 0,
+          "post_video_reaction_type_sad": 0,
+          "post_video_reaction_type_wow": 0,
+          "post_video_retention_graph": {
+            "0": 1,
+            "1": 1,
+            "2": 1,
+            "3": 1,
+            "4": 0.8,
+            "5": 0.8,
+            "6": 0.8,
+            "7": 0.8,
+            "8": 0.6,
+            "9": 0.6,
+            "10": 0.4,
+            "11": 0.4,
+            "12": 0.4,
+            "13": 0.4,
+            "14": 0.2,
+            "15": 0,
+            "16": 0,
+            "17": 0,
+            "18": 0,
+            "19": 0,
+            "20": 0,
+            "21": 0,
+            "22": 0,
+            "23": 0,
+            "24": 0,
+            "25": 0,
+            "26": 0,
+            "27": 0,
+            "28": 0,
+            "29": 0,
+            "30": 0,
+            "31": 0,
+            "32": 0,
+            "33": 0,
+            "34": 0,
+            "35": 0,
+            "36": 0,
+            "37": 0,
+            "38": 0,
+            "39": 0,
+            "40": 0
+          },
+          "post_video_social_actions_comments": 0,
+          "post_video_social_actions_reactions": 0,
+          "post_video_social_actions_shares": 0,
+          "post_video_view_time": 142429
+        },
+        "shares": 0,
+        "thruplays": 0,
+        "title": null,
+        "total_engagements": 0,
+        "total_engagements_public": 0,
+        "type": "reel",
+        "url": "https://www.facebook.com/reel/1646546600408653/",
+        "video_complete_views": 0,
+        "video_plays_25": 0,
+        "video_plays_50": 0,
+        "video_plays_75": 0,
+        "video_views": 5
+      },
+      "id": 687392745,
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687386205,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "FACEBOOK",
+      "source_account_id": "129071870473316",
+      "source_created_at": "2026-06-20T19:29:59",
+      "source_id": "129071870473316_1644400811029010",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 36.666667,
+        "frame_rate": 24,
+        "sizes": {
+          "original": {
+            "height": 1280,
+            "size": 2203831,
+            "url": "https://cdn.dashsocial.com/media/original/1781985438.041357397164.mp4",
+            "width": 720
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 2583370,
+            "url": "https://cdn.dashsocial.com/media/full/1781985439.775538711014.mp4",
+            "width": 720
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxOTg1NDM4LjgyODI2NDc5Nzk4MS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 86168,
+            "url": "https://cdn.dashsocial.com/media/full/1781985438.828264797981.jpeg",
+            "width": 720
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxOTg1NDM4LjgyODI2NDc5Nzk4MS5qcGVn.jpg?w=225&h=400",
+            "width": 225
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxOTg1NDM4LjgyODI2NDc5Nzk4MS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990867307,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": false,
+        "is_positive": true,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-20T19:30:30",
+      "custom_metrics": [],
+      "facebook": null,
+      "id": 687386205,
+      "instagram": {
+        "ad_account_scoped_insights": null,
+        "ad_ids": null,
+        "adset_ids": null,
+        "amount_spent": null,
+        "avg_time_viewed_sec": 2,
+        "campaign_ids": null,
+        "caption": "Health coverage has changed. For many people, higher deductibles and more cost sharing are now part of how their healthcare works.\n\nRenSecureHealth supplemental health sits next to medical coverage and pays cash benefits for certain covered conditions.\n\nWithin the Renaissance portfolio, RenSecureHealth works alongside dental, vision, life, and disability, giving employers and brokers more ways to shape a modern benefits mix.\n\n#RenaissanceBenefits #RenSecureHealth #SupplementalHealth #EmployeeBenefits",
+        "clicks": null,
+        "comments_count": 0,
+        "cost_per_thruplay": null,
+        "cpc": null,
+        "cpm": null,
+        "crossposted_views": 196,
+        "ctr": null,
+        "effectiveness": 0,
+        "effectiveness_engagements": 0,
+        "emv": 300.145,
+        "engagement": 0,
+        "engagement_rate_impressions": 0,
+        "engagement_rate_public": 0,
+        "engagement_rate_views": 0,
+        "engagements_public": 0,
+        "entertainment_score": 0.0010660980810234544,
+        "facebook_views": 90,
+        "followers_gained": null,
+        "follows": null,
+        "hashtags": [
+          "employeebenefits",
+          "renaissancebenefits",
+          "rensecurehealth",
+          "supplementalhealth"
+        ],
+        "impressions": 0,
+        "is_boosted": false,
+        "is_carousel": false,
+        "is_commented": false,
+        "is_mentioned": false,
+        "is_riq": false,
+        "is_tagged": false,
+        "like_count": 0,
+        "paid_and_organic_reach": 101,
+        "paid_and_organic_saved": 0,
+        "paid_and_organic_shares": 0,
+        "paid_comments": 0,
+        "paid_engagement_rate": 0,
+        "paid_impressions": 0,
+        "paid_likes": 0,
+        "paid_reach": null,
+        "paid_reactions": null,
+        "paid_saved": 0,
+        "paid_shares": null,
+        "paid_total_engagement": 0,
+        "paid_total_engagements": 0,
+        "paid_video_views": 0,
+        "photo_tags": [],
+        "post_type": "reel",
+        "profile_activity": {
+          "bio_link_clicked": 0,
+          "direction": 0,
+          "email": 0,
+          "other": 0,
+          "text": 0,
+          "total": 0
+        },
+        "profile_visits": null,
+        "public_views": 195,
+        "reach": 101,
+        "reels_skip_rate": 0.96,
+        "replays": 0,
+        "reposts": 0,
+        "saved": 0,
+        "shares": 0,
+        "sum_total_engagement": 0,
+        "sum_total_engagements": 0,
+        "thruplays": null,
+        "timestamp": "2026-06-20T19:29:42+00:00",
+        "total_comments": 0,
+        "total_engagement": 0,
+        "total_impressions": 0,
+        "total_likes": 0,
+        "total_plays": 0,
+        "total_time_viewed_sec_long": 153,
+        "total_video_views": 0,
+        "url": "https://www.instagram.com/reel/DZ0cdEpB5wA/",
+        "video_plays_100": null,
+        "video_plays_25": null,
+        "video_plays_50": null,
+        "video_plays_75": null,
+        "video_views": 0,
+        "views": 106
+      },
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": 0,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687386205,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "INSTAGRAM",
+      "source_account_id": "77657313889",
+      "source_created_at": "2026-06-20T19:29:42",
+      "source_id": "18597465730022534",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "VIDEO",
+      "variants": [],
+      "video": {
+        "duration": 36.666667,
+        "frame_rate": 24,
+        "sizes": {
+          "original": {
+            "height": 1280,
+            "size": 2364834,
+            "url": "https://cdn.dashsocial.com/media/original/1781983828.470804237369.mp4",
+            "width": 720
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 2585185,
+            "url": "https://cdn.dashsocial.com/media/full/1781983830.085918767290.mp4",
+            "width": 720
+          }
+        },
+        "thumbnails": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxOTgzODI5LjE2OTAxODMyNDg2OS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original_converted": {
+            "height": 1280,
+            "size": 85562,
+            "url": "https://cdn.dashsocial.com/media/full/1781983829.169018324869.jpeg",
+            "width": 720
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxOTgzODI5LjE2OTAxODMyNDg2OS5qcGVn.jpg?w=225&h=400",
+            "width": 225
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxOTgzODI5LjE2OTAxODMyNDg2OS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990505175,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": false,
+        "is_positive": true,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-19T17:03:46",
+      "custom_metrics": [],
+      "facebook": null,
+      "id": 687024106,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg4NjI1LjYwMTE3NTM2MzI4OS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1333,
+            "size": 324234,
+            "url": "https://cdn.dashsocial.com/media/original/1781888625.503697931772.jpeg",
+            "width": 2000
+          },
+          "original_converted": {
+            "height": 1333,
+            "size": 324235,
+            "url": "https://cdn.dashsocial.com/media/full/1781888625.601175363289.jpeg",
+            "width": 2000
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg4NjI1LjYwMTE3NTM2MzI4OS5qcGVn.jpg?w=600&h=400",
+            "width": 600
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg4NjI1LjYwMTE3NTM2MzI4OS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": {
+        "caption": "Our Indianapolis team came together this week for the African American Coalition Team’s \\(ACT\\) third annual Juneteenth Luncheon, a meaningful time to share a meal, connect with one another and reflect on a pivotal moment in American history.\n\nThe event brought team members together for camaraderie, conversation and the chance to support local vendors, creating space for both celebration and reflection. We’re grateful to ACT for leading another thoughtful gathering and for helping make this tradition part of how we come together at Renaissance.\n\n{hashtag|\\#|Juneteenth} {hashtag|\\#|RenaissanceBenefits} {hashtag|\\#|TeamRenaissance} {hashtag|\\#|WorkplaceCulture} ",
+        "click_through_rate": 0.75,
+        "clicks": 317,
+        "comments": 0,
+        "engagement_rate": 0.7905,
+        "engagements": 332,
+        "impressions": 420,
+        "likes": 13,
+        "linkedin_link": "https://linkedin.com/feed/update/urn:li:ugcPost:7473776874729517066",
+        "shares": 2,
+        "thumbnail_url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg4NjI1LjYwMTE3NTM2MzI4OS5qcGVn.jpg?w=400&h=400&fit=cover",
+        "type": "MULTI_IMAGE",
+        "unique_impressions": 218,
+        "video_analytics_time_watched": null,
+        "video_analytics_time_watched_for_views": null,
+        "video_analytics_unique_viewers": null,
+        "video_analytics_video_views": null
+      },
+      "media_group": 687019652,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "LINKEDIN",
+      "source_account_id": "1249",
+      "source_created_at": "2026-06-19T16:41:03",
+      "source_id": "urn:li:ugcPost:7473776874729517066",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990500721,
+      "brand_media_status": "PROCESSED",
+      "caption_question": {
+        "is_question": false,
+        "user_overridden": false
+      },
+      "caption_sentiment": {
+        "is_negative": false,
+        "is_neutral": false,
+        "is_positive": true,
+        "user_overridden": false
+      },
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-19T16:50:25",
+      "custom_metrics": [],
+      "facebook": null,
+      "id": 687019652,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg3ODI0LjA3NDI3NTUxMzE5Mi5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 800,
+            "size": 179645,
+            "url": "https://cdn.dashsocial.com/media/original/1781887823.934982399374.jpg",
+            "width": 1200
+          },
+          "original_converted": {
+            "height": 800,
+            "size": 179534,
+            "url": "https://cdn.dashsocial.com/media/full/1781887824.074275513192.jpeg",
+            "width": 1200
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg3ODI0LjA3NDI3NTUxMzE5Mi5qcGVn.jpg?w=600&h=400",
+            "width": 600
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODg3ODI0LjA3NDI3NTUxMzE5Mi5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 687019652,
+      "meta": {},
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "TWITTER",
+      "source_account_id": "397951689",
+      "source_created_at": "2026-06-19T16:40:57",
+      "source_id": "2068011162390917589",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": {
+        "additional_media_urls": "https://cdn.dashsocial.com/twitter/image/2068011162390917589-0.jpg,https://cdn.dashsocial.com/twitter/image/2068011162390917589-1.jpg,https://cdn.dashsocial.com/twitter/image/2068011162390917589-2.jpg",
+        "engagement_rate": 0.29411764705882354,
+        "engagement_rate_organic": 0.29411764705882354,
+        "engagement_rate_promoted": 0,
+        "engagement_rate_total": 0.29411764705882354,
+        "engagements": 5,
+        "engagements_organic": 5,
+        "engagements_promoted": 0,
+        "engagements_total": 5,
+        "follows": 0,
+        "follows_organic": 0,
+        "follows_promoted": 0,
+        "follows_total": 0,
+        "impressions": 17,
+        "impressions_organic": 17,
+        "impressions_promoted": 0,
+        "impressions_total": 17,
+        "in_reply_to_status_id": null,
+        "in_reply_to_user_id": null,
+        "is_dark_post": false,
+        "is_promoted": false,
+        "likes": 1,
+        "likes_organic": 1,
+        "likes_promoted": 0,
+        "likes_total": 1,
+        "permalink_url": "https://twitter.com/397951689/status/2068011162390917589",
+        "quote_tweets": 0,
+        "quoted_status_id": null,
+        "replies": 1,
+        "replies_organic": 1,
+        "replies_promoted": 0,
+        "replies_total": 1,
+        "retweeted_status_id": null,
+        "retweets": 0,
+        "retweets_organic": 0,
+        "retweets_promoted": 0,
+        "retweets_total": 0,
+        "text": "Our Indianapolis team came together this week for the African American Coalition Team’s (ACT) third annual Juneteenth Luncheon, a meaningful time to share a meal, connect with one another and reflect on a pivotal moment in American history.\n\nThe event brought team members together for camaraderie, conversation and the chance to support local vendors, creating space for both celebration and reflection. We’re grateful to ACT for leading another thoughtful gathering and for helping make this tradition part of how we come together at Renaissance.\n\n#Juneteenth #RenaissanceBenefits #TeamRenaissance #WorkplaceCulture",
+        "total_retweets": 0,
+        "type": "photo",
+        "url": "https://t.co/kiDoImDQEl",
+        "url_clicks": 0,
+        "url_clicks_organic": 0,
+        "url_clicks_promoted": 0,
+        "url_clicks_total": 0,
+        "user_profile_clicks": 1,
+        "user_profile_clicks_organic": 1,
+        "user_profile_clicks_promoted": 0,
+        "user_profile_clicks_total": 1,
+        "video_views": 0,
+        "video_views_organic": 0,
+        "video_views_promoted": 0,
+        "video_views_total": 0
+      },
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204436,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:57",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726122,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc1NDQ5NDI4MDY5Ny5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 199326,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.647437321473.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 199104,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.754494280697.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc1NDQ5NDI4MDY5Ny5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc1NDQ5NDI4MDY5Ny5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686690886,
+      "meta": {
+        "filename": "1781811819.359624992342.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "0f181432-03a3-47a1-8856-c0fc79d09b4f",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204437,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:57",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726123,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjcyMDc4NTQ3NDUyOC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 151959,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.584373566122.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 151774,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.720785474528.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjcyMDc4NTQ3NDUyOC5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjcyMDc4NTQ3NDUyOC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686635039,
+      "meta": {
+        "filename": "1781811710.196989895507.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "70190e0f-eb7c-4853-a906-a3294ad0f41a",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204438,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:57",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726124,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc2MjA0MTM2NDU5NS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 199326,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.644543433137.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 199104,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.762041364595.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc2MjA0MTM2NDU5NS5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc2MjA0MTM2NDU5NS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686690886,
+      "meta": {
+        "filename": "1781811819.359624992342.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "a5b3f705-bc63-4967-bbe2-3de760814cd2",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204439,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:57",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726125,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc4Nzk0OTg4NTYzOC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 182630,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.642579888564.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 182467,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.787949885638.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc4Nzk0OTg4NTYzOC5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc4Nzk0OTg4NTYzOC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686635648,
+      "meta": {
+        "filename": "1781811710.473351570411.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "50f9a444-5c2f-4e53-b023-20239d3acce2",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204440,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726126,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjgwNDMyOTQxOTE2OS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 182630,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.652507532218.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 182467,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.804329419169.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjgwNDMyOTQxOTE2OS5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjgwNDMyOTQxOTE2OS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686635648,
+      "meta": {
+        "filename": "1781811710.203585958912.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "c22e75c3-90fd-4303-93c2-b02c88ffc6b9",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204441,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726127,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc4MjE5MTg3OTU1LmpwZWc=.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1536,
+            "size": 386973,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.650846519841.jpeg",
+            "width": 2048
+          },
+          "original_converted": {
+            "height": 1536,
+            "size": 386781,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.78219187955.jpeg",
+            "width": 2048
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc4MjE5MTg3OTU1LmpwZWc=.jpg?w=533&h=400",
+            "width": 533
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc4MjE5MTg3OTU1LmpwZWc=.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686626426,
+      "meta": {
+        "filename": "1781811710.49911156578.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "b904b6ae-7fc7-45f1-b69e-f08894f353ea",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204442,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726128,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc5NzMzMTg2NDY4LmpwZWc=.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1536,
+            "size": 270491,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.64310983319.jpeg",
+            "width": 2048
+          },
+          "original_converted": {
+            "height": 1536,
+            "size": 270303,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.79733186468.jpeg",
+            "width": 2048
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc5NzMzMTg2NDY4LmpwZWc=.jpg?w=533&h=400",
+            "width": 533
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc5NzMzMTg2NDY4LmpwZWc=.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686626443,
+      "meta": {
+        "filename": "1781811710.512460242264.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "2f8f8f42-9d2d-4cb4-a79f-dd8f7a07b40f",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204443,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726129,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljg2OTE4NDU5OTI1MC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 155094,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.63886464341.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 154875,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.869184599250.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljg2OTE4NDU5OTI1MC5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljg2OTE4NDU5OTI1MC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686634103,
+      "meta": {
+        "filename": "1781811710.50975921301.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "4119874b-39a6-4092-8fd7-632b21cdbb42",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204444,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726130,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjgyMTQ1MDIyMTk2MC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 155094,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.643204258479.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 154875,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.821450221960.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjgyMTQ1MDIyMTk2MC5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjgyMTQ1MDIyMTk2MC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686634103,
+      "meta": {
+        "filename": "1781811710.462142542927.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "efc38d61-546e-40a0-905d-c8488852d2e6",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204445,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726131,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljg0Njg2NTQzODYwOS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 151959,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.6434393961.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 151774,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.846865438609.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljg0Njg2NTQzODYwOS5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljg0Njg2NTQzODYwOS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686635039,
+      "meta": {
+        "filename": "1781811710.491217654711.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "44232129-551b-46e8-b61e-30cc67d7afa2",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204446,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726132,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc3ODY1MDU5NDk0NC5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1536,
+            "size": 505431,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.644518623862.jpeg",
+            "width": 2048
+          },
+          "original_converted": {
+            "height": 1536,
+            "size": 505241,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.778650594944.jpeg",
+            "width": 2048
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc3ODY1MDU5NDk0NC5qcGVn.jpg?w=533&h=400",
+            "width": 533
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljc3ODY1MDU5NDk0NC5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686626413,
+      "meta": {
+        "filename": "1781811711.124501721288.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "fd5107f2-b746-4b18-aa31-e0aea13eab27",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204449,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726133,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjcyMzUwNTMzMzcxNi5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1152,
+            "size": 575683,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.58119154381.jpeg",
+            "width": 2048
+          },
+          "original_converted": {
+            "height": 1152,
+            "size": 575473,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.723505333716.jpeg",
+            "width": 2048
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjcyMzUwNTMzMzcxNi5qcGVn.jpg?w=711&h=400",
+            "width": 711
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2LjcyMzUwNTMzMzcxNi5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686626409,
+      "meta": {
+        "filename": "1781811710.520194559239.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "798e21d2-f180-4dcc-80e6-925b1b8e95cf",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204447,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726134,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljk4MDAyNTM2MjE0MS5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 151959,
+            "url": "https://cdn.dashsocial.com/media/original/1781817176.641782862727.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 151774,
+            "url": "https://cdn.dashsocial.com/media/full/1781817176.980025362141.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljk4MDAyNTM2MjE0MS5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc2Ljk4MDAyNTM2MjE0MS5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686635039,
+      "meta": {
+        "filename": "1781811710.188191450151.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "dfdd3581-c1b0-48fa-a4fd-1e1b2f50c8f1",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    },
+    {
+      "audio_analysis": null,
+      "brand_id": 26952,
+      "brand_media_id": 990204450,
+      "brand_media_status": "PROCESSED",
+      "caption_question": null,
+      "caption_sentiment": null,
+      "collections": null,
+      "comment_sentiment": null,
+      "community_engagement": null,
+      "content_rights_expiry_date": null,
+      "content_rights_requested_by": null,
+      "content_rights_requested_date": null,
+      "content_rights_type": null,
+      "content_tags": null,
+      "created_at": "2026-06-18T21:12:58",
+      "custom_metrics": null,
+      "facebook": null,
+      "id": 686726136,
+      "image": {
+        "sizes": {
+          "medium_square": {
+            "height": 640,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc3LjA3Njc3MjU1MTIxMy5qcGVn.jpg?w=640&h=640&fit=cover",
+            "width": 640
+          },
+          "original": {
+            "height": 1350,
+            "size": 199326,
+            "url": "https://cdn.dashsocial.com/media/original/1781817177.000367236634.jpeg",
+            "width": 1080
+          },
+          "original_converted": {
+            "height": 1350,
+            "size": 199104,
+            "url": "https://cdn.dashsocial.com/media/full/1781817177.076772551213.jpeg",
+            "width": 1080
+          },
+          "small": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc3LjA3Njc3MjU1MTIxMy5qcGVn.jpg?w=320&h=400",
+            "width": 320
+          },
+          "small_square": {
+            "height": 400,
+            "url": "https://images.dashsocial.com/aHR0cHM6Ly9jZG4uZGFzaHNvY2lhbC5jb20vbWVkaWEvZnVsbC8xNzgxODE3MTc3LjA3Njc3MjU1MTIxMy5qcGVn.jpg?w=400&h=400&fit=cover",
+            "width": 400
+          }
+        }
+      },
+      "instagram": null,
+      "instagram_ads": null,
+      "instagram_story_frame": null,
+      "likeshop": {
+        "clicks": null,
+        "links": null,
+        "tiktok_clicks": null
+      },
+      "linkedin": null,
+      "media_group": 686690886,
+      "meta": {
+        "filename": "1781811819.359624992342.jpeg",
+        "uploaded_by": 133433
+      },
+      "mute_settings": null,
+      "pinterest": null,
+      "snapchat": null,
+      "source": "UPLOAD",
+      "source_account_id": null,
+      "source_created_at": "2026-06-18T21:12:57",
+      "source_id": "a5edfba3-91f9-4147-ab31-950996055195",
+      "source_type": "OWNED",
+      "threads": null,
+      "tiktok": null,
+      "tiktok_ad": null,
+      "twitter": null,
+      "type": "IMAGE",
+      "variants": [],
+      "youtube": null
+    }
+  ],
+  "paging": {
+    "count": 1647,
+    "next": "https://library-backend.dashsocial.com/brands/26952/media/v2?limit=25&offset=25",
+    "previous": null
+  }
+}
