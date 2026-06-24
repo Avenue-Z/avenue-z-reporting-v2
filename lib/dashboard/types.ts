@@ -6,14 +6,14 @@ export interface SupermetricsBinding {
   metricField: string
   account: string
   expectedAccounts?: string[] // drift guard: returned accounts must be ⊆ this set
-  filters?: { column: string; value: string }[] // dimension equality filters (col == value, AND-combined)
+  filters?: { column: string; values: string[] }[] // OR within a row (any value), AND across rows
 }
 
 export interface TripleWhaleBinding {
   source: 'triplewhale'
   metric: string
   account?: string
-  filters?: { column: string; value: string }[]
+  filters?: { column: string; values: string[] }[]
 }
 
 export type LeafBinding = SupermetricsBinding | TripleWhaleBinding

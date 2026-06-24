@@ -14,6 +14,22 @@ function isObj(v: unknown): v is Record<string, unknown> {
 const isStr = (v: unknown): v is string => typeof v === 'string'
 const isNonEmptyStr = (v: unknown): v is string => isStr(v) && v.length > 0
 
+function parseFilters(v: unknown, path: string): Parsed<{ column: string; values: string[] }[]> {
+  if (!Array.isArray(v)) return { ok: false, error: `${path}: expected array` }
+  const out: { column: string; values: string[] }[] = []
+  for (const f of v) {
+    if (!isObj(f) || !isNonEmptyStr(f.column)) return { ok: false, error: `${path}: expected {column, values}[]` }
+    if (Array.isArray(f.values) && f.values.every(isStr)) {
+      out.push({ column: f.column, values: f.values as string[] })
+    } else if (isStr(f.value)) {
+      out.push({ column: f.column, values: [f.value] }) // legacy {column,value}
+    } else {
+      return { ok: false, error: `${path}: expected {column, values}[]` }
+    }
+  }
+  return { ok: true, value: out }
+}
+
 function parseRange(v: unknown, path: string): Parsed<{ dateRange: string; compareRange: string | null }> {
   if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
   if (!isNonEmptyStr(v.dateRange)) return { ok: false, error: `${path}.dateRange: expected non-empty string` }
@@ -32,15 +48,9 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
     const b: SupermetricsBinding = { source: 'supermetrics', dsId: v.dsId, metricField: v.metricField, account: v.account }
     if (v.expectedAccounts !== undefined) b.expectedAccounts = v.expectedAccounts as string[]
     if (v.filters !== undefined) {
-      if (!Array.isArray(v.filters)) return { ok: false, error: `${path}.filters: expected array` }
-      const filters: { column: string; value: string }[] = []
-      for (const f of v.filters) {
-        if (!isObj(f) || !isNonEmptyStr(f.column) || !isStr(f.value)) {
-          return { ok: false, error: `${path}.filters: expected {column,value}[]` }
-        }
-        filters.push({ column: f.column, value: f.value })
-      }
-      b.filters = filters
+      const pf = parseFilters(v.filters, `${path}.filters`)
+      if (!pf.ok) return pf
+      b.filters = pf.value
     }
     return { ok: true, value: b }
   }
@@ -50,15 +60,9 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
     const b: TripleWhaleBinding = { source: 'triplewhale', metric: v.metric }
     if (v.account !== undefined) b.account = v.account
     if (v.filters !== undefined) {
-      if (!Array.isArray(v.filters)) return { ok: false, error: `${path}.filters: expected array` }
-      const filters: { column: string; value: string }[] = []
-      for (const f of v.filters) {
-        if (!isObj(f) || !isNonEmptyStr(f.column) || !isStr(f.value)) {
-          return { ok: false, error: `${path}.filters: expected {column,value}[]` }
-        }
-        filters.push({ column: f.column, value: f.value })
-      }
-      b.filters = filters
+      const pf = parseFilters(v.filters, `${path}.filters`)
+      if (!pf.ok) return pf
+      b.filters = pf.value
     }
     return { ok: true, value: b }
   }

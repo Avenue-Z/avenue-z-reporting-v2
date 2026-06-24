@@ -10,14 +10,22 @@ const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slic
 
 const SM_COLUMN_RE = /^[A-Za-z0-9_]+$/
 
-/** Build the Supermetrics `filter` string from structured filters: `col == value`
- *  joined by ` AND ` (values unquoted, per the confirmed grammar). Rows with an
- *  unsafe column or empty value are dropped. Returns undefined when nothing remains. */
-export function buildSmFilter(filters?: { column: string; value: string }[]): string | undefined {
+/** Build the Supermetrics `filter` string from structured filters. Each row is
+ *  one column matching ANY of its values (OR); rows are AND-combined. Values are
+ *  unquoted (confirmed grammar). Unsafe columns and empty values are dropped. */
+export function buildSmFilter(filters?: { column: string; values: string[] }[]): string | undefined {
   if (!filters || filters.length === 0) return undefined
-  const parts = filters
-    .filter((f) => SM_COLUMN_RE.test(f.column) && f.value !== '')
-    .map((f) => `${f.column} == ${f.value}`)
+  const parts: string[] = []
+  for (const f of filters) {
+    if (!SM_COLUMN_RE.test(f.column)) continue
+    const vals = f.values.filter((v) => v !== '')
+    if (vals.length === 0) continue
+    parts.push(
+      vals.length === 1
+        ? `${f.column} == ${vals[0]}`
+        : `(${vals.map((v) => `${f.column} == ${v}`).join(' OR ')})`,
+    )
+  }
   return parts.length ? parts.join(' AND ') : undefined
 }
 

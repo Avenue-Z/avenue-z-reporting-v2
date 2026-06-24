@@ -28,10 +28,14 @@ export type ManualDraft =
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
   if (d.source === 'supermetrics') {
-    const filters = (d.filters ?? []).filter((f) => f.column !== '' && f.value !== '')
+    const filters = (d.filters ?? [])
+      .filter((f) => f.column !== '' && f.value !== '')
+      .map((f) => ({ column: f.column, values: [f.value] }))
     return { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account, ...(filters.length ? { filters } : {}) }
   }
-  const filters = (d.filters ?? []).filter((f) => f.column !== '' && f.value !== '')
+  const filters = (d.filters ?? [])
+    .filter((f) => f.column !== '' && f.value !== '')
+    .map((f) => ({ column: f.column, values: [f.value] }))
   return { source: 'triplewhale', metric: d.metric, ...(filters.length ? { filters } : {}) }
 }
 

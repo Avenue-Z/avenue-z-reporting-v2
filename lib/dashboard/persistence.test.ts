@@ -51,39 +51,31 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   if (!r.ok) assert.equal(r.error.includes('blocks[0]'), true)
 }
 
-// triplewhale binding round-trips optional filters
+// triplewhale: legacy {column,value} normalizes to {column, values:[value]}
 {
-  const r = parseBlockConfig({
-    id: 'b1', name: 'X', format: 'number', range: null,
-    binding: { source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', value: 'facebook-ads' }] },
-  })
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', value: 'facebook-ads' }] } })
   assert.equal(r.ok, true)
-  if (r.ok && r.block.binding.source === 'triplewhale') {
-    assert.deepEqual(r.block.binding.filters, [{ column: 'channel', value: 'facebook-ads' }])
-  }
+  if (r.ok && r.block.binding.source === 'triplewhale') assert.deepEqual(r.block.binding.filters, [{ column: 'channel', values: ['facebook-ads'] }])
 }
-// malformed filter entry is rejected
+// triplewhale: new {column, values} (incl. multi) round-trips
 {
-  const r = parseBlockConfig({
-    id: 'b1', name: 'X', format: 'number', range: null,
-    binding: { source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel' }] },
-  })
-  assert.equal(r.ok, false)
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', values: ['google-ads', 'facebook-ads'] }] } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'triplewhale') assert.deepEqual(r.block.binding.filters, [{ column: 'channel', values: ['google-ads', 'facebook-ads'] }])
 }
-
-// supermetrics binding round-trips structured filters
+// supermetrics: legacy value normalizes
 {
-  const r = parseBlockConfig({ id: 'b1', name: 'X', format: 'currency', range: null,
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
     binding: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'order_shipping_country', value: 'United States' }] } })
   assert.equal(r.ok, true)
-  if (r.ok && r.block.binding.source === 'supermetrics') {
-    assert.deepEqual(r.block.binding.filters, [{ column: 'order_shipping_country', value: 'United States' }])
-  }
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.deepEqual(r.block.binding.filters, [{ column: 'order_shipping_country', values: ['United States'] }])
 }
-// malformed SM filter rejected
+// malformed filter rejected (no column)
 {
-  const r = parseBlockConfig({ id: 'b1', name: 'X', format: 'currency', range: null,
-    binding: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'x' }] } })
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ values: ['x'] }] } })
   assert.equal(r.ok, false)
 }
 

@@ -25,16 +25,24 @@ assert.equal(resolveSmApiKey(null, { SUPERMETRICS_API_KEY: 'global' } as unknown
 // neither → undefined
 assert.equal(resolveSmApiKey(null, {} as unknown as NodeJS.ProcessEnv), undefined)
 
-// buildSmFilter: builds the Supermetrics filter string from structured filters
+// buildSmFilter: OR within a row, AND across rows; unsafe/empty dropped
 assert.equal(buildSmFilter(undefined), undefined)
 assert.equal(buildSmFilter([]), undefined)
-assert.equal(buildSmFilter([{ column: 'order_shipping_country', value: 'United States' }]), 'order_shipping_country == United States')
+assert.equal(buildSmFilter([{ column: 'order_shipping_country', values: ['United States'] }]), 'order_shipping_country == United States')
 assert.equal(
-  buildSmFilter([{ column: 'order_shipping_country', value: 'United States' }, { column: 'channel', value: 'google-ads' }]),
-  'order_shipping_country == United States AND channel == google-ads',
+  buildSmFilter([{ column: 'channel', values: ['google-ads', 'facebook-ads'] }]),
+  '(channel == google-ads OR channel == facebook-ads)',
 )
-// unsafe column or empty value dropped
-assert.equal(buildSmFilter([{ column: 'bad col', value: 'x' }]), undefined)
-assert.equal(buildSmFilter([{ column: 'a', value: '' }]), undefined)
+assert.equal(
+  buildSmFilter([
+    { column: 'channel', values: ['google-ads', 'facebook-ads'] },
+    { column: 'order_shipping_country', values: ['United States'] },
+  ]),
+  '(channel == google-ads OR channel == facebook-ads) AND order_shipping_country == United States',
+)
+// unsafe column or all-empty values dropped
+assert.equal(buildSmFilter([{ column: 'bad col', values: ['x'] }]), undefined)
+assert.equal(buildSmFilter([{ column: 'a', values: [''] }]), undefined)
+assert.equal(buildSmFilter([{ column: 'a', values: ['', 'x'] }]), 'a == x')
 
 console.log('ok')

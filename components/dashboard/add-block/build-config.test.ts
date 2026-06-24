@@ -52,10 +52,10 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(isDraftComplete({ kind: 'aggregate', name: 'X', format: 'number', op: '/', left: { source: 'triplewhale', metric: 'revenue' }, right: { source: 'triplewhale', metric: '' } }), false)
 }
 
-// leafToBinding: triplewhale carries non-empty filters
+// leafToBinding: triplewhale carries non-empty filters as values arrays
 {
   const b = leafToBinding({ source: 'triplewhale', metric: 'spend', filters: [{ column: 'channel', value: 'facebook-ads' }] })
-  if (b.source === 'triplewhale') assert.deepEqual(b.filters, [{ column: 'channel', value: 'facebook-ads' }])
+  if (b.source === 'triplewhale') assert.deepEqual(b.filters, [{ column: 'channel', values: ['facebook-ads'] }])
 }
 // empty/incomplete filter rows are dropped (no filters key)
 {
@@ -78,10 +78,10 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.ok(COMMON_TW_METRICS.some((m) => m.value === 'blended_roas'), 'ROAS present')
 }
 
-// supermetrics carries cleaned filters
+// supermetrics carries cleaned filters as values arrays
 {
   const b = leafToBinding({ source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a1', filters: [{ column: 'order_shipping_country', value: 'United States' }] })
-  if (b.source === 'supermetrics') assert.deepEqual(b.filters, [{ column: 'order_shipping_country', value: 'United States' }])
+  if (b.source === 'supermetrics') assert.deepEqual(b.filters, [{ column: 'order_shipping_country', values: ['United States'] }])
 }
 // empty/incomplete SM filter rows dropped (no filters key)
 {

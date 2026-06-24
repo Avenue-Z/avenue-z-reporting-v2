@@ -32,7 +32,7 @@ export function isTwMetric(s: string): s is TwMetric {
   return Object.prototype.hasOwnProperty.call(TW_METRIC_SQL, s)
 }
 
-export interface TwFilter { column: string; value: string }
+export interface TwFilter { column: string; values: string[] }
 
 const COLUMN_RE = /^[a-z0-9_]+$/
 export function isSafeColumn(c: string): boolean {
@@ -53,7 +53,10 @@ export function buildMetricSql(metric: string, filters: TwFilter[] = []): string
   const filterSql = filters
     .map((f) => {
       if (!isSafeColumn(f.column)) throw new TwQueryError(`unsafe TripleWhale filter column: ${f.column}`)
-      return `\n  AND ${f.column} = '${escapeSqlValue(f.value)}'`
+      const vals = f.values.filter((v) => v !== '')
+      if (vals.length === 0) return ''
+      if (vals.length === 1) return `\n  AND ${f.column} = '${escapeSqlValue(vals[0])}'`
+      return `\n  AND ${f.column} IN (${vals.map((v) => `'${escapeSqlValue(v)}'`).join(', ')})`
     })
     .join('')
   return `SELECT ${expr} AS value

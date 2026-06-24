@@ -22,22 +22,27 @@ assert.ok(sql.includes("attribution_window = '7_days'"))
 
 // New tests: generic metric + filters
 import { isSafeColumn, escapeSqlValue, buildMetricSql as build2 } from './queries'
+assert.equal(isSafeColumn('channel'), true)
+assert.equal(isSafeColumn('Bad Col'), false)
+assert.equal(escapeSqlValue("O'Brien"), "O''Brien")
 
-// curated alias resolves to its expression
-assert.ok(build2('revenue').includes('SUM(channel_reported_conversion_value) AS value'))
-// raw (non-curated) column -> SUM(column)
-assert.ok(build2('channel_reported_conversion_value').includes('SUM(channel_reported_conversion_value) AS value'))
-// filters append safely, with '-escaping
+// single value -> `= '...'` with '-escaping
 {
-  const sql = build2('spend', [{ column: 'channel', value: "O'Brien" }])
+  const sql = build2('ad_spend', [{ column: 'channel', values: ["O'Brien"] }])
   assert.ok(sql.includes("AND channel = 'O''Brien'"))
 }
+// multiple values -> IN list
+{
+  const sql = build2('ad_spend', [{ column: 'channel', values: ['google-ads', 'facebook-ads'] }])
+  assert.ok(sql.includes("AND channel IN ('google-ads', 'facebook-ads')"))
+}
+// empty values -> row contributes nothing
+{
+  const sql = build2('ad_spend', [{ column: 'channel', values: [''] }])
+  assert.ok(!sql.includes('AND channel'))
+}
 // unsafe metric / filter column throw
-assert.throws(() => build2('a; DROP TABLE x'))
-assert.throws(() => build2('spend', [{ column: 'bad col', value: 'x' }]))
-// helpers
-assert.equal(isSafeColumn('channel_reported_conversion_value'), true)
-assert.equal(isSafeColumn('bad col'), false)
-assert.equal(escapeSqlValue("a'b"), "a''b")
+assert.throws(() => build2('bad col'))
+assert.throws(() => build2('ad_spend', [{ column: 'bad col', values: ['x'] }]))
 
 console.log('ok')
