@@ -1,7 +1,12 @@
 // lib/dashboard/adapters/supermetrics.ts
+import { unstable_cache } from 'next/cache'
+import { createHash } from 'node:crypto'
 import { smQuery, parseSmRows } from '@/lib/supermetrics/client'
 import type { LeafValue, SupermetricsBinding } from '../types'
 import { DisconnectedError, NoDataError } from '../errors'
+
+// Key part derived from the API key — never put the raw key in a cache key.
+const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16)
 
 const SM_COLUMN_RE = /^[A-Za-z0-9_]+$/
 
@@ -42,20 +47,31 @@ async function sumForRange(
   b: SupermetricsBinding,
   isoRange: string, // "YYYY-MM-DD,YYYY-MM-DD"
 ): Promise<number> {
-  const result = await smQuery({
-    apiKey,
-    dsId: b.dsId,
-    dsAccounts: b.account, // scope the query to the bound account(s)
-    fields: [b.metricField],
-    dateRange: isoRange,
-    filters: buildSmFilter(b.filters),
-  })
-  const rows = parseSmRows(result)
-  if (rows.length === 0) throw new NoDataError(`no rows for ${b.metricField} in ${isoRange}`)
-  // Supermetrics returns the field's display NAME as the column header (e.g.
-  // "Social spend"), not its field id ("SocialSpend"). The leaf query requests a
-  // single field, so sum that one returned column.
-  return sumMetric(rows, result.header[0] ?? b.metricField)
+  const filter = buildSmFilter(b.filters)
+  // Cache the resolved sum per (ds, account, field, range, filter, key). SM's own
+  // per-query latency is ~3s (≈9s on a cold start), so re-resolving the same block
+  // on every render/refresh/date-toggle is pure waste; cache it for an hour.
+  // A thrown NoDataError is not cached — unstable_cache only stores resolved values.
+  return unstable_cache(
+    async () => {
+      const result = await smQuery({
+        apiKey,
+        dsId: b.dsId,
+        dsAccounts: b.account, // scope the query to the bound account(s)
+        fields: [b.metricField],
+        dateRange: isoRange,
+        filters: filter,
+      })
+      const rows = parseSmRows(result)
+      if (rows.length === 0) throw new NoDataError(`no rows for ${b.metricField} in ${isoRange}`)
+      // Supermetrics returns the field's display NAME as the column header (e.g.
+      // "Social spend"), not its field id ("SocialSpend"). The leaf query requests a
+      // single field, so sum that one returned column.
+      return sumMetric(rows, result.header[0] ?? b.metricField)
+    },
+    ['sm-data', b.dsId, b.account, b.metricField, isoRange, filter ?? '', keyHash(apiKey)],
+    { revalidate: 3600 },
+  )()
 }
 
 export async function resolveSupermetricsLeaf(
@@ -76,10 +92,13 @@ export async function resolveSupermetricsLeaf(
   if (!apiKey) throw new DisconnectedError(`Supermetrics not connected for ${ctx.slug}`)
 
   const { startDate, endDate } = parseDateRange(dateRange)
-  const value = await sumForRange(apiKey, b, `${startDate},${endDate}`)
-
   const compareIso = resolveCompareIso(dateRange, compareRange)
-  const prevValue = compareIso ? await sumForRange(apiKey, b, compareIso) : undefined
+
+  // Current and compare ranges are independent SM queries — run them concurrently.
+  const [value, prevValue] = await Promise.all([
+    sumForRange(apiKey, b, `${startDate},${endDate}`),
+    compareIso ? sumForRange(apiKey, b, compareIso) : Promise.resolve(undefined),
+  ])
 
   return { value, prevValue }
 }

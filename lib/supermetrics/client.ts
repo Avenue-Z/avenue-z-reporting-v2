@@ -25,6 +25,25 @@ async function call(url: string, init: RequestInit, fetchImpl: typeof fetch, att
   return res.json()
 }
 
+/** The Supermetrics v2 response shape (same for the data and status endpoints):
+ *  status_code + schedule_id live under `meta`; rows come back inline under
+ *  top-level `data` (header row first), as strings or numbers. */
+interface SmResponse {
+  meta?: { status_code?: string; schedule_id?: string }
+  data?: unknown[][]
+}
+
+/** Rows are returned ready (SUCCESS), still pending, or failed. */
+function readResponse(r: SmResponse): { ready: SmResult } | { ready: null } {
+  const status = r.meta?.status_code
+  if (status && /FAIL|ERROR/i.test(status)) throw new SmQueryError(`Supermetrics query ${status}`)
+  if (status === 'SUCCESS') {
+    const data = (r.data ?? []).map((row) => row.map((cell) => String(cell)))
+    return { ready: { header: data[0] ?? [], rows: data.slice(1) } }
+  }
+  return { ready: null }
+}
+
 export async function smQuery(
   p: SmQueryParams,
   opts: { pollMs?: number; maxPolls?: number; fetchImpl?: typeof fetch } = {},
@@ -34,6 +53,8 @@ export async function smQuery(
   const maxPolls = opts.maxPolls ?? 40 // ~60s ceiling
   const headers = { Authorization: `Bearer ${p.apiKey}`, 'Content-Type': 'application/json' }
 
+  // Small/cached queries complete synchronously (SUCCESS + inline data); large
+  // ones return QUEUED with a schedule_id to poll. Handle both.
   const submit = (await call(`${BASE}/query/data/json`, {
     method: 'POST',
     headers,
@@ -48,26 +69,29 @@ export async function smQuery(
       ...(p.filters ? { filter: p.filters } : {}),
       ...(p.settings ? { settings: p.settings } : {}),
     }),
-  }, fetchImpl)) as { data?: { schedule_id?: string } }
+  }, fetchImpl)) as SmResponse
 
-  const scheduleId = submit.data?.schedule_id
+  const submitted = readResponse(submit)
+  if (submitted.ready) return submitted.ready
+
+  const scheduleId = submit.meta?.schedule_id
   if (!scheduleId) throw new SmQueryError('No schedule_id from submit')
 
+  const statusUrl = `${BASE}/query/status?json=${encodeURIComponent(JSON.stringify({ schedule_id: scheduleId }))}`
   for (let i = 0; i < maxPolls; i++) {
-    const out = (await call(`${BASE}/query/data/json/${scheduleId}`, { headers }, fetchImpl)) as {
-      data?: { status?: string; data?: string[][] }
-    }
-    const status = out.data?.status
-    if (status === 'completed') {
-      const rows = out.data?.data ?? []
-      return { header: rows[0] ?? [], rows: rows.slice(1) }
-    }
-    if (status === 'failed') throw new SmQueryError('Supermetrics query failed')
     await new Promise((r) => setTimeout(r, pollMs))
+    const out = (await call(statusUrl, { headers }, fetchImpl)) as SmResponse
+    const polled = readResponse(out)
+    if (polled.ready) return polled.ready
   }
   throw new SmTimeoutError()
 }
 
-export function parseSmRows(result: SmResult): Record<string, string>[] {
-  return result.rows.map((row) => Object.fromEntries(result.header.map((h, i) => [h, row[i]])))
+// fieldIds overrides header display names so callers can use field IDs as keys.
+// Supermetrics returns human-readable display names in the header (e.g.
+// "Week (Mon-Sun)" for "Weekiso") — passing the original requested fields here
+// gives consistent keys regardless of locale or display name changes.
+export function parseSmRows(result: SmResult, fieldIds?: string[]): Record<string, string>[] {
+  const keys = fieldIds ?? result.header
+  return result.rows.map((row) => Object.fromEntries(keys.map((k, i) => [k, row[i] ?? ''])))
 }
