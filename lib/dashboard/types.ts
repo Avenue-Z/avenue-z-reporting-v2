@@ -35,12 +35,31 @@ export interface AggregateBinding {
 
 export type Binding = LeafBinding | CalculatedBinding | AggregateBinding
 
+/** Block kind discriminator. Default at parse/render time is 'kpi' for back-compat. */
+export type BlockKind = 'kpi' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
+
+/** Full grid layout: required when present. Missing layout = "auto-pack on next save". */
+export interface BlockLayout {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface BlockConfig {
   id: string
   name: string
+  /** Renderer + resolver mode. Omitted = 'kpi' (back-compat). */
+  kind?: BlockKind
   binding: Binding
   format: MetricFormat
   range: { dateRange: string; compareRange: string | null } | null // null = inherit global
+  /** KPI-only annotations (ignored by other kinds). */
+  subLabel?: string
+  /** Green when value ≥ target and < ceiling. */
+  target?: number
+  /** Orange when value ≥ ceiling. */
+  ceiling?: number
 }
 
 export type BlockError = 'disconnected' | 'invalid-metric' | 'no-data' | 'rate-limited' | 'error'
@@ -59,8 +78,8 @@ export type ResolveResult =
   | { ok: true; value: number; prevValue?: number; delta?: number; format: MetricFormat; formatted: string }
   | { ok: false; error: BlockError }
 
-/** A persisted block = a resolvable BlockConfig plus optional grid layout (widened by #3). */
-export type PersistedBlock = BlockConfig & { layout?: { w?: number; h?: number } }
+/** A persisted block = a resolvable BlockConfig plus optional grid layout. */
+export type PersistedBlock = BlockConfig & { layout?: BlockLayout }
 
 /** One per-client configurable dashboard. `blocks` array order is display order. */
 export interface DashboardConfig {

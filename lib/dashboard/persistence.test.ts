@@ -110,4 +110,67 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   if (r.ok && r.block.binding.source === 'aggregate') assert.equal(r.block.binding.left.source, 'calculated')
 }
 
+// kind: omitted → parses (back-compat); the persisted block has no kind field.
+{
+  const r = parseBlockConfig(block(sm))
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.kind, undefined)
+}
+// kind: 'bar' parses (renderer not yet implemented; schema is forward-compatible).
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'bar' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.kind, 'bar')
+}
+// kind: 'wat' rejected with expected-one-of error.
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'wat' })
+  assert.equal(r.ok, false)
+  if (!r.ok) assert.equal(r.error.includes('kind'), true)
+}
+
+// layout: full {x,y,w,h} parses.
+{
+  const r = parseBlockConfig({ ...block(sm), layout: { x: 0, y: 0, w: 3, h: 2 } })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.deepEqual(r.block.layout, { x: 0, y: 0, w: 3, h: 2 })
+}
+// layout: partial {w,h} rejected (full layout required when present).
+{
+  const r = parseBlockConfig({ ...block(sm), layout: { w: 3, h: 2 } })
+  assert.equal(r.ok, false)
+}
+// layout: negative x rejected.
+{
+  const r = parseBlockConfig({ ...block(sm), layout: { x: -1, y: 0, w: 3, h: 2 } })
+  assert.equal(r.ok, false)
+}
+// layout: omitted parses to undefined (auto-pack target).
+{
+  const r = parseBlockConfig(block(sm))
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.layout, undefined)
+}
+
+// KPI annotations: subLabel / target / ceiling round-trip.
+{
+  const r = parseBlockConfig({ ...block(sm), subLabel: '13-wk avg kr251', target: 250, ceiling: 280 })
+  assert.equal(r.ok, true)
+  if (r.ok) {
+    assert.equal(r.block.subLabel, '13-wk avg kr251')
+    assert.equal(r.block.target, 250)
+    assert.equal(r.block.ceiling, 280)
+  }
+}
+// KPI annotations: non-finite target rejected.
+{
+  const r = parseBlockConfig({ ...block(sm), target: Number.NaN })
+  assert.equal(r.ok, false)
+}
+// KPI annotations: non-string subLabel rejected.
+{
+  const r = parseBlockConfig({ ...block(sm), subLabel: 42 })
+  assert.equal(r.ok, false)
+}
+
 console.log('ok')

@@ -24,9 +24,10 @@ const dash: DashboardConfig = {
   blocks: [
     { id: 'b1', name: 'Cost', format: 'currency', range: null,
       binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' },
-      layout: { w: 2 } },
+      layout: { x: 0, y: 0, w: 2, h: 2 } },
   ],
 }
 assert.equal(dash.blocks.length, 1)
 assert.equal(dash.blocks[0].layout?.w, 2)
+assert.equal(dash.blocks[0].layout?.x, 0)
 console.log('ok')
