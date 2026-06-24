@@ -81,3 +81,23 @@ export function EmptyDashboardState({ canEdit, slug }: { canEdit: boolean; slug:
     </div>
   )
 }
+
+/** Inline value-area skeleton (sits inside the block card; name is already shown by the shell). */
+export function ValueSkeleton() {
+  return <div className="h-8 w-32 animate-pulse rounded bg-white/10" aria-busy="true" aria-label="Loading value" />
+}
+
+/** Inline comparison-delta skeleton. */
+export function DeltaSkeleton() {
+  return <div className="h-3 w-20 animate-pulse rounded bg-white/10" aria-busy="true" aria-label="Loading comparison" />
+}
+
+/** Inline value error (no card/name — the shell already renders those). */
+export function BlockValueError({ error, slug }: { error: BlockError; slug: string }) {
+  return (
+    <div role="status">
+      <p className="text-base font-bold text-white">{ERROR_TITLE[error]}</p>
+      <p className="mt-1 text-xs text-text-muted">{errorBody(error, slug)}</p>
+    </div>
+  )
+}
