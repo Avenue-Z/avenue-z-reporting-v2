@@ -5,11 +5,14 @@ import { auth } from '@/auth'
 import { getClientBySlug, getDashboardConfig } from '@/lib/db/queries'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { resolveBlock } from '@/lib/dashboard/resolve'
+import { resolveCompareIso } from '@/lib/paid-search/base'
 import { Header } from '@/components/layout/header'
 import { DashboardShell } from '@/components/dashboard/dashboard-shell'
-import { KpiBlock } from '@/components/dashboard/blocks/kpi-block'
+import { MetricBlockShell } from '@/components/dashboard/metric-block'
+import { BlockValue } from '@/components/dashboard/block-value'
+import { BlockDelta } from '@/components/dashboard/block-delta'
+import { ValueSkeleton, DeltaSkeleton, EmptyDashboardState } from '@/components/dashboard/metric-block-states'
 import { UnsupportedBlockState } from '@/components/dashboard/blocks/unsupported-block'
-import { MetricBlockSkeleton, EmptyDashboardState } from '@/components/dashboard/metric-block-states'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 export default async function ConfigurableDashboardPage({
@@ -59,20 +62,9 @@ export default async function ConfigurableDashboardPage({
           : compareRangeParam,
   }
 
-  // Build one Suspense-wrapped server island per block; the shell renders these in grid order.
   const blockNodes: Record<string, ReactNode> = {}
   for (const block of config.blocks) {
-    blockNodes[block.id] = (
-      <Suspense fallback={<MetricBlockSkeleton name={block.name} />}>
-        <ResolvedBlockIsland
-          block={block}
-          activeDefault={activeDefault}
-          slug={clientSlug}
-          canEdit={canEdit}
-          config={config}
-        />
-      </Suspense>
-    )
+    blockNodes[block.id] = renderBlockNode(block, activeDefault, clientSlug, canEdit, config)
   }
 
   return (
@@ -90,31 +82,53 @@ export default async function ConfigurableDashboardPage({
   )
 }
 
-async function ResolvedBlockIsland({
-  block,
-  activeDefault,
-  slug,
-  canEdit,
-  config,
-}: {
-  block: PersistedBlock
-  activeDefault: { dateRange: string; compareRange: string | null }
-  slug: string
-  canEdit: boolean
-  config: DashboardConfig
-}) {
+/** Per-block kind dispatcher. 'kpi' → progressive-streaming KPI tile via
+ *  MetricBlockShell + BlockValue + BlockDelta. Future kinds (bar, line, table,
+ *  narrative, header) land their own renderers in sub-projects #3–#4. */
+function renderBlockNode(
+  block: PersistedBlock,
+  activeDefault: { dateRange: string; compareRange: string | null },
+  clientSlug: string,
+  canEdit: boolean,
+  config: DashboardConfig,
+): ReactNode {
   const kind = block.kind ?? 'kpi'
   switch (kind) {
     case 'kpi': {
-      const result = await resolveBlock(block, activeDefault, { slug })
+      const eff = block.range ?? activeDefault // effective range (per-block override or global)
+      const ctx = { slug: clientSlug }
+      // resolveBlock prefers config.range over the passed global, so null the clone's
+      // range and pass the effective range as global. compareRange:null ⇒ value only.
+      const blockNoRange = { ...block, range: null }
+      const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx)
+      const compareIso = resolveCompareIso(eff.dateRange, eff.compareRange)
+      const prevPromise = compareIso
+        ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx)
+        : null
+
       return (
-        <KpiBlock
+        <MetricBlockShell
           block={block}
-          result={result}
           canEdit={canEdit}
-          slug={slug}
+          slug={clientSlug}
           config={config}
           activeDefault={activeDefault}
+          value={
+            <Suspense fallback={<ValueSkeleton />}>
+              <BlockValue
+                valuePromise={valuePromise}
+                slug={clientSlug}
+                target={block.target}
+                ceiling={block.ceiling}
+              />
+            </Suspense>
+          }
+          delta={
+            <Suspense fallback={<DeltaSkeleton />}>
+              <BlockDelta valuePromise={valuePromise} prevPromise={prevPromise} compareRange={eff.compareRange} />
+            </Suspense>
+          }
+          sub={block.subLabel}
         />
       )
     }

@@ -21,7 +21,7 @@ export interface BlockGridProps {
   canEdit: boolean
   slug: string
   config: DashboardConfig
-  /** Rendered child per block (the resolved block renderer, e.g. <KpiBlock>). */
+  /** Rendered child per block (the <MetricBlockShell>, kind-dispatched at the page route). */
   renderBlock: (block: PersistedBlock) => ReactNode
 }
 
