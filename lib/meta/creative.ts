@@ -10,7 +10,7 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
       return {
         ad: r.ad_name,
         campaign: r.adcampaign_name,
-        adSet: r.adset_name,
+        adSet: r.adset_name ?? '',
         status: r.adstatus ?? '',
         spend,
         impressions: num(r, 'impressions'),
