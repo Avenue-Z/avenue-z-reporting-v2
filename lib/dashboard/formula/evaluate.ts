@@ -23,7 +23,9 @@ export function evaluate(ast: Ast, resolve: (key: string) => number): number {
         case '/':
           if (r === 0) throw new DivByZeroError()
           return l / r
+        default: throw new Error('unknown operator')
       }
     }
+    default: throw new Error('unknown formula node')
   }
 }

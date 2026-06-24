@@ -27,6 +27,8 @@ assert.deepEqual(operandKeys('(@a - @b) / @a').sort(), ['a', 'b'])
 assert.deepEqual(operandKeys('1 + 2').sort(), [])
 // tokenize rejects unknown chars
 assert.throws(() => tokenize('@a & @b'), (e: unknown) => e instanceof FormulaError)
+// deeply nested parens collapse to the inner node
+assert.deepEqual(parse('(((@a)))'), { n: 'ref', key: 'a' })
 // parse rejects malformed
 assert.throws(() => parse(''), (e: unknown) => e instanceof FormulaError)          // empty
 assert.throws(() => parse('(@a + @b'), (e: unknown) => e instanceof FormulaError)  // unbalanced
