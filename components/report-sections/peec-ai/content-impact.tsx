@@ -612,12 +612,17 @@ export async function ContentImpactReport({
       ? ((organicTraffic - organicTrafficPrior) / organicTrafficPrior) * 100
       : null
 
-  // Booleans for the delta-rendering gate. When prior data is unavailable
-  // (rejected query, no compareRange selected) we render the value with
-  // no delta line. Truth-grounded: no fake "+0%".
-  const aiPriorAvailable = aiReferralTrafficPrior !== null
-  const organicPriorAvailable = organicTrafficPrior !== null
-  const citationSharePriorAvailable = citationSharePctPrior !== null
+  // Booleans for the delta-rendering gate. Tina's literal ask was deltas
+  // show "when you have a comparison period turned on", which means
+  // explicit toggle via the date picker. We gate ALL deltas (including
+  // Peec-driven Citation Share, which would otherwise show unconditionally
+  // because Peec returns prior values regardless of compareRange) on the
+  // user having explicitly turned on a comparison period (compareIso non-null).
+  // Truth-grounded: no fake "+0%" and no delta when the user did not opt in.
+  const compareActive = compareIso !== null
+  const aiPriorAvailable = compareActive && aiReferralTrafficPrior !== null
+  const organicPriorAvailable = compareActive && organicTrafficPrior !== null
+  const citationSharePriorAvailable = compareActive && citationSharePctPrior !== null
   // promptCoveragePriorAvailable intentionally absent, v1 limitation noted above.
 
   // ── FB-033 · Build context for the Executive Synopsis card ─────────────────
