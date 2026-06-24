@@ -1,0 +1,65 @@
+import { Sparkles } from 'lucide-react'
+import { getContentImpactSynopsis, type ContentImpactSynopsisContext } from '@/lib/peec/content-impact-synopsis'
+
+// Executive AI-generated synopsis + recommended actions at the top of the
+// AEO Content Impact tab. RSC: fetches the synopsis server-side via Glean
+// Chat API, cached per (clientSlug, dateRange, context) for one hour.
+// Mirrors the PR Influence synopsis shell so the two cards read as a
+// consistent pattern across tabs.
+// See docs/official-feedback/feedback-log.md FB-033.
+
+type Props = {
+  clientSlug?: string
+  dateRange?: string
+  context: ContentImpactSynopsisContext
+}
+
+export async function ContentImpactSynopsis({ clientSlug, dateRange, context }: Props) {
+  let result: Awaited<ReturnType<typeof getContentImpactSynopsis>> | null = null
+  let errored = false
+  try {
+    result = await getContentImpactSynopsis(clientSlug, dateRange ?? 'last_30_days', context)
+  } catch (err) {
+    console.error('[content-impact-synopsis] generation failed:', err)
+    errored = true
+  }
+
+  return (
+    <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
+      <header className="mb-4 flex items-center gap-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#60FF80]/10">
+          <Sparkles className="h-4 w-4 text-[#60FF80]" />
+        </span>
+        <h3 className="text-sm font-bold uppercase tracking-widest text-text-muted">Executive Synopsis</h3>
+      </header>
+
+      {errored && (
+        <p className="text-sm text-text-muted">Synopsis is temporarily unavailable. Other metrics on this page are unaffected.</p>
+      )}
+
+      {!errored && result && (
+        <div className="space-y-4">
+          <div className="space-y-3 text-sm leading-relaxed text-white/90">
+            {result.synopsis.split('\n\n').map((paragraph, i) => (
+              <p key={i}>{paragraph}</p>
+            ))}
+          </div>
+
+          {result.actions.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-text-muted">Recommended actions</p>
+              <ul className="space-y-1.5 text-sm text-white/90">
+                {result.actions.map((action, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-[#60FF80]">›</span>
+                    <span>{action}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
