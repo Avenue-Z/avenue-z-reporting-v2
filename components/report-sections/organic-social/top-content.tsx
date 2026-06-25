@@ -9,8 +9,8 @@ import type { PlatformTopContent, TopContentRow } from '@/lib/organic-social/typ
 type SortBy = 'engagements' | 'views'
 
 const VIEWS = [
-  { key: 'engagements' as const, label: 'Top 5 by Engagement' },
   { key: 'views' as const, label: 'Top 5 by Views / Impressions' },
+  { key: 'engagements' as const, label: 'Top 5 by Engagement' },
 ]
 
 const columns = [
