@@ -263,6 +263,28 @@ export function domainPromptIds(cov: DomainCoverage, domain: string): string[] {
   return cov.promptIdsByDomain[lookupHost(domain)] ?? []
 }
 
+/**
+ * Section A "Prompt Coverage" KPI: percent of tracked prompts that cite at
+ * least one URL on an owned domain. Prompt ids are unioned across all owned
+ * domains (a prompt citing two owned domains counts once). Returns null when
+ * coverage data is unavailable or there are no tracked prompts, so callers can
+ * tell "missing data" apart from a real 0. Shared by the current and prior
+ * periods so the card's period-over-period delta uses one definition.
+ */
+export function ownedPromptCoveragePct(
+  cov: DomainCoverage,
+  ownedDomains: string[],
+  totalTrackedPrompts: number,
+  available: boolean,
+): number | null {
+  if (!available || totalTrackedPrompts <= 0) return null
+  const ids = new Set<string>()
+  for (const d of ownedDomains) {
+    for (const pid of domainPromptIds(cov, d)) ids.add(pid)
+  }
+  return Math.round((ids.size / totalTrackedPrompts) * 100)
+}
+
 /** Distinct themes (tags) in which any URL on `domain` is cited. */
 export function domainTagIds(cov: DomainCoverage, domain: string): string[] {
   return cov.tagIdsByDomain[lookupHost(domain)] ?? []
