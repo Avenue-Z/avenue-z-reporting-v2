@@ -1,25 +1,43 @@
 import { Sparkles } from 'lucide-react'
 import { getOrganicSocialSynopsis } from '@/lib/organic-social/synopsis'
+import { getPlatformHeadlines } from '@/lib/organic-social/headlines'
+import { getEngagementTrend } from '@/lib/organic-social/trends'
+import { getTopContent } from '@/lib/organic-social/top-content'
 import type { PlatformHeadline, TrendSeries, PlatformTopContent } from '@/lib/organic-social/types'
 
 // Executive AI-generated synopsis + recommended actions at the top of the
-// Organic Social section. RSC: fetches the synopsis server-side via Glean,
-// cached per (clientSlug, dateRange) for one hour. Mirrors the AEO Overview
-// synopsis (components/report-sections/peec-ai/overview-synopsis.tsx).
+// Organic Social section. RSC: fetches its three inputs (shared via React
+// cache() with the display sections) then the Glean synopsis. Streams behind
+// its own Suspense boundary so it never blocks the display sections.
 
 type Props = {
-  clientSlug?: string
+  clientSlug: string
   dateRange?: string
-  headlines: PlatformHeadline[]
-  trend: TrendSeries
-  top: PlatformTopContent[]
+  compareRange?: string | null
 }
 
-export async function OrganicSocialSynopsis({ clientSlug, dateRange, headlines, trend, top }: Props) {
+export async function OrganicSocialSynopsis({ clientSlug, dateRange = 'last_30_days', compareRange = null }: Props) {
+  const effectiveCompare = compareRange ?? 'previous_period'
+
+  let headlines: PlatformHeadline[]
+  let trend: TrendSeries
+  let top: PlatformTopContent[]
+  try {
+    ;[headlines, trend, top] = await Promise.all([
+      getPlatformHeadlines(clientSlug, dateRange, effectiveCompare),
+      getEngagementTrend(clientSlug, dateRange),
+      getTopContent(clientSlug, dateRange),
+    ])
+  } catch {
+    // Input fetch failed — hide the synopsis (mirrors the old data-present guard).
+    // The individual display sections render their own error fallbacks.
+    return null
+  }
+
   let result: Awaited<ReturnType<typeof getOrganicSocialSynopsis>> | null = null
   let errored = false
   try {
-    result = await getOrganicSocialSynopsis(clientSlug, dateRange ?? 'last_30_days', headlines, trend, top)
+    result = await getOrganicSocialSynopsis(clientSlug, dateRange, headlines, trend, top)
   } catch (err) {
     console.error('[organic-social-synopsis] generation failed:', err)
     errored = true

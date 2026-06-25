@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { buildTrendSeries } from './trend-series'
 import { dashClientFor, isoRangeTz } from './base'
 import { CHANNELS, CHANNEL_LABEL, CHANNEL_METRICS } from './metrics'
@@ -8,7 +9,7 @@ import type { TrendSeries } from './types'
 // res.data carries both per-channel entries and a top-level `metrics` aggregate.
 type GraphData = { metrics?: Record<string, GraphMetric> }
 
-export async function getEngagementTrend(slug: string, dateRange: string): Promise<TrendSeries> {
+export const getEngagementTrend = cache(async (slug: string, dateRange: string): Promise<TrendSeries> => {
   const { client, brandId } = await dashClientFor(slug)
   const { start, end } = isoRangeTz(dateRange)
 
@@ -34,4 +35,4 @@ export async function getEngagementTrend(slug: string, dateRange: string): Promi
   )
 
   return buildTrendSeries(perChannel)
-}
+})
