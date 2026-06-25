@@ -38,6 +38,7 @@ export function ManualBlockForm({
   source,
   slug,
   pending,
+  initial,
   onConfirm,
   onBack,
 }: {
@@ -45,11 +46,12 @@ export function ManualBlockForm({
   source: FormSource
   slug: string
   pending: boolean
+  initial?: ManualDraft
   onConfirm: (cfg: Omit<BlockConfig, 'id'>) => void
   onBack: () => void
 }) {
-  const [name, setName] = useState('')
-  const [format, setFormat] = useState<MetricFormat>('number')
+  const [name, setName] = useState(initial?.name ?? '')
+  const [format, setFormat] = useState<MetricFormat>(initial?.format ?? 'number')
   const [leaf, setLeaf] = useState<LeafDraft>(() => emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source as LeafSource))
   const [calc, setCalc] = useState<CalculatedDraft>(() => ({ source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] }))
   const [op, setOp] = useState<Op>('/')
@@ -57,8 +59,10 @@ export function ManualBlockForm({
   const [right, setRight] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('supermetrics') }))
   const [bar, setBar] = useState<BarDraft>(() => ({ source: 'bar', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
   const [line, setLine] = useState<LineDraft>(() => ({ source: 'line', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), granularity: 'day' as Granularity }))
-  const [header, setHeader] = useState<HeaderDraft>(() => ({ source: 'header', level: 2 }))
-  const [narrative, setNarrative] = useState<NarrativeDraft>(() => ({ source: 'narrative', body: '' }))
+  const [header, setHeader] = useState<HeaderDraft>(() =>
+    initial?.kind === 'header' ? initial.header : { source: 'header', level: 2 })
+  const [narrative, setNarrative] = useState<NarrativeDraft>(() =>
+    initial?.kind === 'narrative' ? initial.narrative : { source: 'narrative', body: '' })
   const [pills, setPills] = useState<PillsDraft>(() => ({ source: 'pills', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics') }))
   const [table, setTable] = useState<TableDraft>(() => ({ source: 'table', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
 
@@ -134,7 +138,7 @@ export function ManualBlockForm({
           onClick={() => onConfirm(buildBlockConfig(draft))}
           disabled={pending || !isDraftComplete(draft)}
         >
-          {pending ? 'Adding…' : 'Add block'}
+          {pending ? (initial ? 'Saving…' : 'Adding…') : (initial ? 'Save' : 'Add block')}
         </button>
       </div>
     </div>
