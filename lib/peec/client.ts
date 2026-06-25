@@ -405,8 +405,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes, promptBrandsPriorRes, trendRows, trendRowsYTD] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, limit: 500 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior, limit: 500 }, pid),
     // FB-023: prompt-level rows now ALSO dimensioned by model so the Winners/Losers
     // compute can filter by the active model selection. Limit bumped from 2000 to
     // 5000 because rows are now (prompt × model). Adjust upward if Peec returns

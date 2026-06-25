@@ -1373,7 +1373,7 @@ export async function ContentImpactReport({
           // when we cannot compute it truthfully.
           const totalCompetitorCitations = filteredCompetitorDomains
             .reduce((s, d) => s + (d.citationCount ?? 0), 0)
-          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 10).map((d) => {
+          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 25).map((d) => {
             const promptCovCurrent = getPromptCoverage(d.domain)
             const promptCovPrior   = compareIso ? getPromptCoveragePrior(d.domain) : null
             const promptCovDelta   = compareIso && promptCovCurrent !== null && promptCovPrior !== null
