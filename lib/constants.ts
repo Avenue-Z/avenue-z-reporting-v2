@@ -1,3 +1,5 @@
+import type { AEOModel } from '@/lib/peec/models'
+
 /** Chart color mapping — consistent across all charts */
 export const CHART_COLORS = {
   // Single-series or primary line
@@ -46,6 +48,30 @@ export const AI_REFERRER_DOMAINS = [
 export function isAiSource(source: unknown): boolean {
   const s = String(source ?? '').toLowerCase()
   return (AI_REFERRER_DOMAINS as readonly string[]).some((d) => s.includes(d))
+}
+
+/** Maps a known AI referrer domain to the AEO model it represents. Generic AI
+ *  search engines (you.com, phind, poe, mistral, kagi, brave) and Google AI
+ *  Overview have no clean GA4 referrer signal and are intentionally unmapped. */
+export const AI_SOURCE_TO_MODEL: { domain: string; model: AEOModel }[] = [
+  { domain: 'chat.openai.com',       model: 'ChatGPT'    },
+  { domain: 'chatgpt.com',           model: 'ChatGPT'    },
+  { domain: 'perplexity.ai',         model: 'Perplexity' },
+  { domain: 'claude.ai',             model: 'Claude'     },
+  { domain: 'gemini.google.com',     model: 'Gemini'     },
+  { domain: 'bard.google.com',       model: 'Gemini'     },
+  { domain: 'copilot.microsoft.com', model: 'Copilot'    },
+  { domain: 'bing.com',              model: 'Copilot'    },
+]
+
+/** Map a GA4 sessionSource to its AEO model, or null when the source is not a
+ *  model-attributable AI referrer. First match wins. */
+export function aiSourceModel(source: unknown): AEOModel | null {
+  const s = String(source ?? '').toLowerCase()
+  for (const { domain, model } of AI_SOURCE_TO_MODEL) {
+    if (s.includes(domain)) return model
+  }
+  return null
 }
 
 /** Report display names */
