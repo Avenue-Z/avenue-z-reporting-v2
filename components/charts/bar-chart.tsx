@@ -16,9 +16,10 @@ interface BarChartProps {
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
   height?: number
+  valueFormatter?: (n: number) => string
 }
 
-export function BarChart({ data, xKey, yKeys, height = 300 }: BarChartProps) {
+export function BarChart({ data, xKey, yKeys, height = 300, valueFormatter }: BarChartProps) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>
@@ -34,8 +35,10 @@ export function BarChart({ data, xKey, yKeys, height = 300 }: BarChartProps) {
             tick={{ fill: '#8A8A8A', fontSize: 12 }}
             axisLine={false}
             tickLine={false}
+            tickFormatter={valueFormatter ? (v) => valueFormatter(Number(v)) : undefined}
           />
           <Tooltip
+            formatter={valueFormatter ? (v) => valueFormatter(Number(v)) : undefined}
             contentStyle={{
               background: '#272727',
               border: '1px solid rgba(255,255,255,0.08)',
