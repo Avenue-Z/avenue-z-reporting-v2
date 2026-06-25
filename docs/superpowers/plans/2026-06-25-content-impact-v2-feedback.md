@@ -58,6 +58,7 @@ These bind every task. Copy from this section verbatim into any reviewer dispatc
 | Row 9-d: §H.1 Citation Share tooltip wrong | FB-054 | 1 |
 | Row 9-e: §H.1 delta columns sortable | FB-044 | 2 |
 | Row 10: §H.2 Citation Share tooltip wrong | FB-055 | 1 |
+| Meta-feedback: "metrics seem misnamed / misrepresented... titles, descriptions, and value representation getting jumbled" | FB-051-audit (Task 5.5 sweeping metric coherence audit + any FB-051a..z fixes the audit surfaces) | 1 |
 
 ## Silent bugs caught by forensic sweep (folded into existing FBs)
 
@@ -492,6 +493,82 @@ git commit -m "FB-055: §H.2 Citation Share tooltip now describes share-of-perio
 
 ---
 
+## Task 5.5: Phase 1 metric coherence audit (sweeping pass before PR opens)
+
+**Files:**
+- Read-only audit pass; create one new doc: `docs/official-feedback/content-impact-v2-metric-audit.md`
+- If a mismatch is found beyond what Tasks 1-5 already cover, fold the fix into the appropriate file under a `FB-051a / FB-051b / ...` commit before Task 6 opens the PR
+
+**Background:** Tina's overarching V2 meta-feedback: *"Overall, I'm noticing that a lot of metrics seem like they are misnamed / misrepresented... titles, descriptions, and representation of values (count vs percentage) in the metrics are getting jumbled around."* Phase 1 Tasks 2-5 fix the 4 specific instances she cited (199.9% bug, "AI Visibility" name, §H.1 + §H.2 tooltips). This audit closes the gap so no other jumbled metric escapes to V3 — every metric on the Content Impact tab is reconciled against its real data source before the Phase 1 PR opens.
+
+**Coverage scope — every metric currently rendered on the Content Impact tab:**
+
+| Section | Metrics to audit |
+|---|---|
+| §A KPI cards | Citation Share · Prompt Coverage · AI Referral Traffic · Organic Traffic |
+| §B Watched Pages | Prompt Coverage · Citation Share · AI Referral Traffic · Organic Sessions · Engagement Rate |
+| §C Speed Stats | Median Days to First Traffic · Median Days to First AI Activity · Fastest AI-Indexed · Slowest AI-Indexed |
+| §F Fullsite Content | Prompt Coverage · Citation Share · AI Referral Traffic · Organic Sessions · Engagement Rate |
+| §H.1 Competitor Analysis | Source Visibility · Citation Share · Prompt Coverage |
+| §H.2 Brand-Absent | Citation Share |
+
+**For each metric, record 5 columns:**
+1. **Title** — column header / card label / tile label
+2. **Tooltip text** — what the user reads on hover (verbatim)
+3. **Value source** — exact field from API / computation, with `file:line` receipt
+4. **Units** — count / percentage / fraction [0,1] / days / etc.
+5. **Verdict** — `OK` or `MISMATCH: <which dimension>` (title vs tooltip vs value)
+
+- [ ] **Step 1: Gather every title + tooltip + value-source from the codebase**
+
+```bash
+grep -n "label:\|tooltip:" components/report-sections/peec-ai/content-impact-tables.tsx
+grep -n "KpiCard\|label=\|hint=" components/report-sections/peec-ai/content-impact.tsx | head -60
+cat lib/peec/metric-definitions.ts
+```
+
+- [ ] **Step 2: Cross-check against Peec's verbatim metric definitions**
+
+For every metric that pulls from Peec (`citationShare`, `sourceVisibility`, `promptCoverage`), confirm:
+- the tooltip text reflects Peec's own definition in `lib/peec/metric-definitions.ts` (or Avenue Z's internal derivation if applicable)
+- the value's units match what the tooltip claims (count vs % vs fraction)
+- the title's wording matches what the value actually measures
+
+For GA4-sourced metrics (`aiReferralTraffic`, `organicSessions`, `engagementRate`), confirm:
+- units match GA4's semantics (sessions = count integer; engagementRate = fraction [0,1] rendered as `× 100`%)
+- the renderer and any delta math both apply the same unit transform (FB-039 hotfix lesson)
+
+- [ ] **Step 3: Write the audit doc**
+
+Save `docs/official-feedback/content-impact-v2-metric-audit.md` with:
+- a header section explaining the meta-feedback and audit purpose
+- the full audit table (one row per metric in the coverage scope, ~25 rows total)
+- a "Mismatches found" summary section listing each MISMATCH verdict and the fix that closed it (or `none` if everything reconciled)
+
+- [ ] **Step 4: Fold fixes (if any) into Phase 1 — one commit per mismatch**
+
+For each MISMATCH:
+- **Title wrong** → fix the label string (precedent: FB-053)
+- **Tooltip wrong** → fix the tooltip text (precedent: FB-054 / FB-055)
+- **Value units wrong** → fix the math / render path (precedent: FB-051)
+- **Title implies brand-level but metric is domain-level (or vice versa)** → rename (precedent: FB-053)
+
+Commit each fix individually with message `FB-051a: <section> <metric> <what changed>` (then `FB-051b`, `FB-051c`, ...). Keeps traceability to the meta-feedback root.
+
+- [ ] **Step 5: Type-check + commit the audit doc**
+
+```bash
+npx tsc --noEmit
+git add docs/official-feedback/content-impact-v2-metric-audit.md
+git commit -m "FB-051-audit: Content Impact tab metric coherence audit (titles + tooltips + values reconciled)"
+```
+
+- [ ] **Step 6: Wire the audit into Task 6's PR body**
+
+When Task 6 runs `gh pr create`, the body must include a new `## Metric coherence audit` section pointing at `docs/official-feedback/content-impact-v2-metric-audit.md` and naming any `FB-051a..z` commits that closed mismatches. Task 6's PR-body template (see below) is updated accordingly.
+
+---
+
 ## Task 6: Phase 1 push + docs + open PR
 
 - [ ] **Step 1: Push branch**
@@ -502,7 +579,7 @@ git push -u origin official-feedback-content-impact-tab-content-v2
 
 - [ ] **Step 2: Update feedback-log + changelog + status.md**
 
-Append entries to `docs/official-feedback/feedback-log.md` (one per FB), `docs/official-feedback/changelog.md` (one combined entry for Phase 1), and bump `docs/official-feedback/status.md` (commits ahead count + next FB ID = FB-056). Add 5 sheet rows to the V2 columns of `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab (1).csv` for FB-042, 051, 053, 054, 055.
+Append entries to `docs/official-feedback/feedback-log.md` (one per FB, including any FB-051a/b/c... commits from Task 5.5), `docs/official-feedback/changelog.md` (one combined entry for Phase 1 that names the audit), and bump `docs/official-feedback/status.md` (commits ahead count + next FB ID = FB-056). Add 5 sheet rows to the V2 columns of `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab (1).csv` for FB-042, 051, 053, 054, 055. Add a 6th sheet row for the metric coherence audit ("V2 — What shipped" = "Sweeping audit of every metric on tab; reconciled title/tooltip/value across §A/B/C/F/H.1/H.2. See `docs/official-feedback/content-impact-v2-metric-audit.md`.").
 
 - [ ] **Step 3: Commit docs**
 
@@ -522,6 +599,10 @@ gh pr create --title "Content Impact V2 Phase 1: kill 199.9% bug + synopsis lyin
 - FB-053: §H.1 column "AI Visibility" renamed "Source Visibility" (matches Peec metric definition; old name was misleading)
 - FB-054: §H.1 Citation Share tooltip rewritten (was describing an avg count, now describes share-of-period)
 - FB-055: §H.2 Citation Share tooltip rewritten (FB-041 fixed the math but not the tooltip)
+- FB-051a..z (audit findings): any additional title/tooltip/value mismatches surfaced by the sweeping metric coherence audit (see Metric coherence audit section below)
+
+## Metric coherence audit
+Per Tina's V2 meta-feedback ("metrics seem misnamed / misrepresented... titles, descriptions, and value representation getting jumbled"), every metric currently rendered on the Content Impact tab (§A KPIs, §B Watched Pages, §C Speed Stats, §F Fullsite Content, §H.1 Competitor Analysis, §H.2 Brand-Absent) was audited before this PR opened. Each metric's title, tooltip text, value source (file:line), and units were reconciled against Peec's verbatim metric definitions and GA4's documented semantics. Full audit table: `docs/official-feedback/content-impact-v2-metric-audit.md`. Mismatches found beyond Tasks 1-5 are listed in the FB-051a..z bullets above.
 
 ## Test plan
 - [ ] Type-check clean (`npx tsc --noEmit`)
@@ -531,6 +612,7 @@ gh pr create --title "Content Impact V2 Phase 1: kill 199.9% bug + synopsis lyin
 - [ ] Visual QA: §H.1 column header reads "Source Visibility"
 - [ ] Visual QA: §H.1 and §H.2 tooltips read share-of-period text
 - [ ] Visual QA: synopsis prose does NOT claim inflated citation numbers
+- [ ] Metric audit doc exists and lists every metric on the tab with a verdict
 EOF
 )"
 ```
