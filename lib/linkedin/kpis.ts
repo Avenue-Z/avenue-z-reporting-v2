@@ -61,7 +61,6 @@ export async function getLinkedInKpis(
   const fields = [
     'spend',
     'impressions',
-    'approximateUniqueImpressions',
     'clicks',
     'ctr',
     'cpm',
@@ -72,13 +71,19 @@ export async function getLinkedInKpis(
     'oneClickLeadFormOpens',
     'leadFormCompletionRate',
   ]
+  // Reach (approximateUniqueImpressions) only resolves under the ad_analytics_campaign
+  // report type. Bundled with the lead fields, Supermetrics resolves to a report type
+  // where Reach is unavailable and returns null — so fetch it in its own query and merge.
+  const reachFields = ['approximateUniqueImpressions']
 
   const compareIso = resolveCompareIso(dateRange, compareRange)
 
-  const [main, cmp] = await Promise.all([
+  const [main, mainReach, cmp, cmpReach] = await Promise.all([
     linkedinQuery(slug, fields, dateRange).then((r) => r[0] ?? {}),
+    linkedinQuery(slug, reachFields, dateRange).then((r) => r[0] ?? {}),
     compareIso ? linkedinQuery(slug, fields, compareIso).then((r) => r[0] ?? {}) : Promise.resolve(null),
+    compareIso ? linkedinQuery(slug, reachFields, compareIso).then((r) => r[0] ?? {}) : Promise.resolve(null),
   ])
 
-  return transformLinkedInKpis(main, cmp)
+  return transformLinkedInKpis({ ...main, ...mainReach }, cmp ? { ...cmp, ...cmpReach } : null)
 }
