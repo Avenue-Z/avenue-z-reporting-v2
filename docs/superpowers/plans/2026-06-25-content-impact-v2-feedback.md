@@ -2,7 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Address all 16 of Tina's V2 column-E feedback items on the Content Impact tab, plus 2 silent bugs caught by forensic sweep (synopsis prose lying with inflated numbers; §F subdomain pages silently dropped).
+> **⚠ LINE-NUMBER CORRECTIONS (2026-06-25, post-rebase):** This plan was written against branch base `a447713`. The branch has been rebased onto `c493b30` (current `main` = a447713 + PR #83 remove-demo-mode + PR #84 organic-social + PR #85 Renaissance content-impact). Line numbers in the original task bodies below have drifted. **Implementer subagents MUST read `.superpowers/sdd/plan-reverification-report.md` alongside this plan** — that report contains the verified current line numbers for every FB. The plan's code blocks (what to write) remain correct; only the line numbers (where to write) have drifted.
+
+> **⚠ FB-042 is ALREADY ON MAIN.** PR #85 commit `afd9921` shipped the equivalent Prompt Coverage delta fix before this branch's rebase. Task 1 below is now a no-op: the ask is satisfied in production. Do NOT re-execute Task 1. The plan's Tina coverage map still shows FB-042 for Row 3 — that ask is closed.
+
+> **⚠ FB-050 is PARTIALLY SHIPPED on main.** The `ownedHostKeys` Set scaffold exists at `content-impact.tsx:1224-1233` but still uses exact-match (`.has()`). Task 16 reduces to adding the `.endsWith(\`.${ownedKey}\`)` suffix-match disjunct to the existing `isOwnedHost()` function — smaller change than the plan describes.
+
+**Goal:** Address all 16 of Tina's V2 column-E feedback items on the Content Impact tab, plus 2 silent bugs caught by forensic sweep (synopsis prose lying with inflated numbers; §F subdomain pages silently dropped), plus the meta-feedback about jumbled metrics (Task 5.5 sweeping audit).
 
 **Architecture:** 13 FBs grouped into 3 sequential phases.
 - **Phase 1** (5 FBs, ~80 LOC) = zero-risk surgical fixes that kill the most embarrassing bugs (199.9% Citation Share, lying synopsis, broken Prompt Coverage delta, mislabeled column, wrong tooltips).
