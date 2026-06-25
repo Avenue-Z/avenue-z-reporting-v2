@@ -1164,10 +1164,15 @@ export async function ContentImpactReport({
             _key: `${row.url ?? row.topic}-${i}`,
           }
         })
+        const unmatchedCount = sectionBRows.filter(r =>
+          r.aiReferralTraffic === null && r.organicSessions === null && r.engagementRate === null
+        ).length
         return (
           <PlannedContentPerformanceTable
             rows={sectionBRows}
             ga4Connected={!!ga4Rows}
+            unmatchedCount={unmatchedCount}
+            totalPublishedCount={sectionBRows.length}
             emptyMessage={calendarData
               ? 'No published content yet -- table populates once status flips to live/published/complete'
               : 'Connect content calendar (Google Sheet) + GA4 page-level data to populate'}

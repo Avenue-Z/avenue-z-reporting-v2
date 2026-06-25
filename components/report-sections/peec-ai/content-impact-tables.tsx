@@ -130,10 +130,14 @@ export interface PlannedContentRow {
 export function PlannedContentPerformanceTable({
   rows,
   ga4Connected,
+  unmatchedCount,
+  totalPublishedCount,
   emptyMessage,
 }: {
   rows: PlannedContentRow[]
   ga4Connected: boolean
+  unmatchedCount: number
+  totalPublishedCount: number
   emptyMessage: string
 }) {
   const columns: SortableColumn<PlannedContentRow>[] = [
@@ -250,9 +254,10 @@ export function PlannedContentPerformanceTable({
         defaultSortDir="desc"
         emptyMessage={emptyMessage}
       />
-      {ga4Connected && (
+      {ga4Connected && unmatchedCount > 0 && (
         <p className="text-[10px] text-text-muted">
-          AI Referral Traffic, Organic Sessions, Engagement Rate: GA4 page-level data. Rows without a match show --.
+          {unmatchedCount} of {totalPublishedCount} published URLs have no GA4 sessions in this period.
+          A row shows -- when GA4 was queried successfully but recorded no traffic to that path. This usually means: the URL has not received visits yet, the live URL differs from the calendar entry, or GA4 is not configured to track that hostname.
         </p>
       )}
     </SectionWrapper>
