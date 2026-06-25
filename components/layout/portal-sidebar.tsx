@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { demoLogout } from '@/app/actions/demo-auth'
+import { signOutAction } from '@/app/actions/auth'
 import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import { LogOut, Lock } from 'lucide-react'
@@ -344,7 +344,7 @@ export function PortalSidebar({ clients }: PortalSidebarProps) {
 
       {/* Logout */}
       <div className="border-t border-white/[0.06] p-3">
-        <form action={demoLogout}>
+        <form action={signOutAction}>
           <button
             type="submit"
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition-colors hover:bg-white/[0.04] hover:text-white"

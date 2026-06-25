@@ -72,18 +72,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </form>
       </div>
 
-      {/* One-click preview access for teammates */}
-      <form action={signInWithCredentials}>
-        <input type="hidden" name="email"    value="demo@avenuez.com" />
-        <input type="hidden" name="password" value="demo" />
-        <button
-          type="submit"
-          className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/70 transition-all hover:border-white/20 hover:text-white"
-        >
-          Preview Access
-        </button>
-      </form>
-
       {/* Avenue Z employee Google sign-in footnote */}
       <p className="text-center text-sm text-text-muted">
         Avenue Z employee?{' '}
