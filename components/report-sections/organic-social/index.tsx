@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getPlatformHeadlines } from '@/lib/organic-social/headlines'
 import { getEngagementTrend } from '@/lib/organic-social/trends'
 import { getTopContent } from '@/lib/organic-social/top-content'
@@ -5,6 +6,7 @@ import { PlatformHeadlines } from './platform-headlines'
 import { EngagementTrend } from './trends'
 import { TopContent } from './top-content'
 import { OrganicSocialSynopsis } from './synopsis'
+import { SynopsisSkeleton, HeadlinesSkeleton, TrendSkeleton, TopContentSkeleton } from './skeletons'
 import { DashTimeoutError } from '@/lib/dash-social/client'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
@@ -20,29 +22,39 @@ function Fallback({ kind }: { kind: 'timeout' | 'error' }) {
   )
 }
 
-export async function OrganicSocialReport({
+async function HeadlinesSection({ clientSlug, dateRange, compareRange }: { clientSlug: string; dateRange: string; compareRange: string | null }) {
+  const effectiveCompare = compareRange ?? 'previous_period'
+  const r = await safe(getPlatformHeadlines(clientSlug, dateRange, effectiveCompare))
+  return r.data ? <PlatformHeadlines headlines={r.data} /> : <Fallback kind={r.error!} />
+}
+
+async function TrendSection({ clientSlug, dateRange }: { clientSlug: string; dateRange: string }) {
+  const r = await safe(getEngagementTrend(clientSlug, dateRange))
+  return r.data ? <EngagementTrend series={r.data} /> : <Fallback kind={r.error!} />
+}
+
+async function TopContentSection({ clientSlug, dateRange }: { clientSlug: string; dateRange: string }) {
+  const r = await safe(getTopContent(clientSlug, dateRange))
+  return r.data ? <TopContent groups={r.data} /> : <Fallback kind={r.error!} />
+}
+
+export function OrganicSocialReport({
   clientSlug, dateRange = 'last_30_days', compareRange = null,
 }: { clientSlug: string; dateRange?: string; compareRange?: string | null }) {
-  const effectiveCompare = compareRange ?? 'previous_period'
-  const [headlines, engagement, top] = await Promise.all([
-    safe(getPlatformHeadlines(clientSlug, dateRange, effectiveCompare)),
-    safe(getEngagementTrend(clientSlug, dateRange)),
-    safe(getTopContent(clientSlug, dateRange)),
-  ])
   return (
     <div className="space-y-8">
-      {headlines.data && engagement.data && top.data && (
-        <OrganicSocialSynopsis
-          clientSlug={clientSlug}
-          dateRange={dateRange}
-          headlines={headlines.data}
-          trend={engagement.data}
-          top={top.data}
-        />
-      )}
-      {headlines.data ? <PlatformHeadlines headlines={headlines.data} /> : <Fallback kind={headlines.error!} />}
-      {engagement.data ? <EngagementTrend series={engagement.data} /> : <Fallback kind={engagement.error!} />}
-      {top.data ? <TopContent groups={top.data} /> : <Fallback kind={top.error!} />}
+      <Suspense fallback={<SynopsisSkeleton />}>
+        <OrganicSocialSynopsis clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      </Suspense>
+      <Suspense fallback={<HeadlinesSkeleton />}>
+        <HeadlinesSection clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      </Suspense>
+      <Suspense fallback={<TrendSkeleton />}>
+        <TrendSection clientSlug={clientSlug} dateRange={dateRange} />
+      </Suspense>
+      <Suspense fallback={<TopContentSkeleton />}>
+        <TopContentSection clientSlug={clientSlug} dateRange={dateRange} />
+      </Suspense>
     </div>
   )
 }
