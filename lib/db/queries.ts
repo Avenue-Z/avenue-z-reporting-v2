@@ -46,6 +46,31 @@ const getClientByEmailImpl = cache(async (email: string): Promise<{ email: strin
 export const getClientByEmail = timed('db', 'getClientByEmail', getClientByEmailImpl)
 
 /**
+ * Auth-time lookup: the user's role + their client's slug, id, and shared
+ * password hash. Not cached — runs only on sign-in. Returns null if unknown.
+ */
+export async function getUserAuthRecord(email: string): Promise<{
+  email: string
+  role: ClientRole
+  clientId: string
+  slug: string
+  sharedPasswordHash: string | null
+} | null> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.email, email.toLowerCase()),
+    with: { client: true },
+  })
+  if (!row) return null
+  return {
+    email: row.email,
+    role: row.role,
+    clientId: row.clientId,
+    slug: row.client.slug,
+    sharedPasswordHash: row.client.sharedPasswordHash,
+  }
+}
+
+/**
  * List all clients ordered by name, including their users.
  */
 const getAllClientsImpl = async (): Promise<(Client & { users: User[] })[]> => {

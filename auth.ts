@@ -1,7 +1,9 @@
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
-import { getClientByEmail } from '@/lib/db/queries'
+import { getClientByEmail, getUserAuthRecord } from '@/lib/db/queries'
+import { evaluateCredentialLogin } from '@/lib/auth/credential-login'
+import { verifyPassword } from '@/lib/auth/password'
 
 const WORKSPACE_DOMAIN = 'avenuez.com'
 const WORKSPACE_DEFAULT_ROLE = 'INTERNAL_ANALYST'
@@ -23,15 +25,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        // In production, validate against a hashed password store.
-        // For now, check that the email exists in client config.
         const email = credentials?.email as string | undefined
-        if (!email) return null
-
-        const user = await getClientByEmail(email)
-        if (!user) return null
-
-        return { id: email, email, name: email.split('@')[0] }
+        const password = credentials?.password as string | undefined
+        if (!email || !password) return null
+        const record = await getUserAuthRecord(email)
+        return evaluateCredentialLogin({ email, password, record, verify: verifyPassword })
       },
     }),
   ],
