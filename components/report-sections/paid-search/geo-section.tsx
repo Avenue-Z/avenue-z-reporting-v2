@@ -5,7 +5,7 @@ import { ChevronRightIcon } from 'lucide-react'
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { CHART_COLORS } from '@/lib/constants'
-import { usd, num } from '@/lib/paid-search/base'
+import { usd, num } from '@/lib/supermetrics/format'
 import { cn } from '@/lib/utils'
 import type { GeoRegion } from '@/lib/paid-search/types'
 
