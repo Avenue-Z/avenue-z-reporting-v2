@@ -109,11 +109,11 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
         onLayoutChange={handleLayoutChange}
         compactType="vertical"
         preventCollision={false}
-        draggableCancel=".block-no-drag"
+        draggableHandle=".block-drag-handle"
       >
         {blocks.map((b) => (
-          <div key={b.id} className={canEdit ? 'cursor-grab' : undefined}>
-            <div className="block-no-drag h-full">{renderBlock(b)}</div>
+          <div key={b.id}>
+            <div className="h-full">{renderBlock(b)}</div>
           </div>
         ))}
       </ResponsiveGrid>

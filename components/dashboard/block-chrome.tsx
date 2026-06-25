@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, type ReactNode } from 'react'
+import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
@@ -65,6 +66,16 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
   return (
     <div className="relative">
       {children}
+
+      {canEdit && (
+        <div
+          className="block-drag-handle absolute right-10 top-3 flex h-6 w-6 cursor-grab items-center justify-center rounded text-text-muted hover:bg-white/10 hover:text-white active:cursor-grabbing"
+          aria-label={`Drag ${block.name} to reorder`}
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
 
       {canEdit && (
         <Popover open={menuOpen} onOpenChange={(open) => (open ? setMenuOpen(true) : (setMenuOpen(false), setView('menu')))}>

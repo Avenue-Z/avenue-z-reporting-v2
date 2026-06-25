@@ -173,6 +173,21 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   assert.equal(r.ok, false)
 }
 
+// headerLevel: 1 / 2 / 3 round-trip (regression: was silently dropped on save).
+for (const lvl of [1, 2, 3] as const) {
+  const r = parseBlockConfig({ ...block(sm), kind: 'header', headerLevel: lvl })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.headerLevel, lvl)
+}
+// headerLevel: omitted → parses, no field.
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'header' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.headerLevel, undefined)
+}
+// headerLevel: out-of-range value rejected.
+assert.equal(parseBlockConfig({ ...block(sm), kind: 'header', headerLevel: 4 }).ok, false)
+
 // dimensions: SM length-1 valid string → round-trips.
 {
   const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel'] }))
