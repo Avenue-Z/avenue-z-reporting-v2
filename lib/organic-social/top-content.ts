@@ -4,15 +4,16 @@ import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
 
 const n = (v: unknown): number => (typeof v === 'number' ? v : 0)
+const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null)
 
-/** Extract (caption, views, engagements) from whichever per-platform sub-object is populated. */
-function metricsFor(post: MediaV2Post): { caption: string; views: number; engagements: number } {
+/** Extract (caption, views, engagements, url) from whichever per-platform sub-object is populated. */
+function metricsFor(post: MediaV2Post): { caption: string; views: number; engagements: number; url: string | null } {
   const ig = post.instagram, fb = post.facebook, li = post.linkedin, tw = post.twitter
-  if (ig) return { caption: String(ig.caption ?? ''), views: n(ig.paid_and_organic_reach) || n(ig.impressions), engagements: n(ig.engagements_public) || n(ig.like_count) + n(ig.comments_count) }
-  if (fb) return { caption: String(fb.message ?? ''), views: n(fb.organic_views) || n(fb.organic_reach), engagements: n(fb.organic_engagements) }
-  if (li) return { caption: String(li.caption ?? ''), views: n(li.impressions), engagements: n(li.engagements) }
-  if (tw) return { caption: String(tw.text ?? ''), views: n(tw.impressions), engagements: n(tw.engagements) }
-  return { caption: '', views: 0, engagements: 0 }
+  if (ig) return { caption: String(ig.caption ?? ''), views: n(ig.paid_and_organic_reach) || n(ig.impressions), engagements: n(ig.engagements_public) || n(ig.like_count) + n(ig.comments_count), url: str(ig.url) }
+  if (fb) return { caption: String(fb.message ?? ''), views: n(fb.organic_views) || n(fb.organic_reach), engagements: n(fb.organic_engagements), url: str(fb.url) }
+  if (li) return { caption: String(li.caption ?? ''), views: n(li.impressions), engagements: n(li.engagements), url: str(li.linkedin_link) }
+  if (tw) return { caption: String(tw.text ?? ''), views: n(tw.impressions), engagements: n(tw.engagements), url: str(tw.permalink_url) }
+  return { caption: '', views: 0, engagements: 0, url: null }
 }
 
 export function transformTopContent(res: MediaV2Response, limit?: number): TopContentRow[] {
@@ -27,6 +28,7 @@ export function transformTopContent(res: MediaV2Response, limit?: number): TopCo
         publishDate: (post.source_created_at ?? '').slice(0, 10),
         views: m.views,
         engagements: m.engagements,
+        url: m.url,
       }
     })
     .sort((a, b) => b.engagements - a.engagements)

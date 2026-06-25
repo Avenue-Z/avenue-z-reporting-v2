@@ -26,7 +26,11 @@ function top5(rows: TopContentRow[], sortBy: SortBy) {
     .sort((a, b) => b[sortBy] - a[sortBy])
     .slice(0, 5)
     .map((r) => ({
-      caption: r.caption.length > 80 ? r.caption.slice(0, 77) + '…' : r.caption,
+      caption: r.url
+        ? <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-brand-cyan hover:underline">
+            {r.caption.length > 80 ? r.caption.slice(0, 77) + '…' : r.caption}
+          </a>
+        : (r.caption.length > 80 ? r.caption.slice(0, 77) + '…' : r.caption),
       sourceType: r.sourceType === 'organic' ? 'Organic' : 'Influencer',
       publishDate: r.publishDate,
       views: num(r.views), viewsRaw: r.views,
