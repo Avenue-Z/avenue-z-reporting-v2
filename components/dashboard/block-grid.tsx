@@ -5,6 +5,7 @@ import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
+import { BlockSkeleton } from './blocks/block-skeleton'
 import { applyLayoutChange } from './config-mutations'
 import { DEFAULT_LAYOUT, GRID_COLS_LG } from './block-grid-defaults'
 import type { BlockKind, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
@@ -113,7 +114,7 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
       >
         {blocks.map((b) => (
           <div key={b.id}>
-            <div className="h-full">{renderBlock(b)}</div>
+            <div className="h-full">{renderBlock(b) ?? <BlockSkeleton />}</div>
           </div>
         ))}
       </ResponsiveGrid>
