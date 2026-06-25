@@ -91,6 +91,22 @@ function SubSectionWrapper({
   )
 }
 
+// ─── Shared delta renderer (lifted to module scope for reuse across tables) ────
+// Mode 'pp': percentage-point change, shows up/down N.N pp
+// Mode 'pct': percentage change, shows up/down N.N%
+function renderDelta(delta: number | null, mode: 'pp' | 'pct'): React.ReactNode {
+  if (delta === null) return null
+  const positive = delta >= 0
+  const arrow = positive ? '↑' : '↓'
+  const suffix = mode === 'pp' ? ' pp' : '%'
+  const colorClass = positive ? 'text-[#60FF80]' : 'text-[#FF4444]'
+  return (
+    <span className={cn('block text-[10px] font-semibold tabular-nums', colorClass)}>
+      {arrow} {Math.abs(delta).toFixed(1)}{suffix}
+    </span>
+  )
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // 1. Planned Content Performance (Section B)
 // ═════════════════════════════════════════════════════════════════════════════
@@ -122,21 +138,6 @@ export function PlannedContentPerformanceTable({
   ga4Connected: boolean
   emptyMessage: string
 }) {
-  // Inline delta renderer. Renders nothing when delta is null.
-  // Mode 'pp' (percentage-point change) shows up/down N.N pp; mode 'pct' shows up/down N.N%.
-  const renderDelta = (delta: number | null, mode: 'pp' | 'pct') => {
-    if (delta === null) return null
-    const positive = delta >= 0
-    const arrow = positive ? '↑' : '↓'
-    const suffix = mode === 'pp' ? ' pp' : '%'
-    const colorClass = positive ? 'text-[#60FF80]' : 'text-[#FF4444]'
-    return (
-      <span className={cn('block text-[10px] font-semibold tabular-nums', colorClass)}>
-        {arrow} {Math.abs(delta).toFixed(1)}{suffix}
-      </span>
-    )
-  }
-
   const columns: SortableColumn<PlannedContentRow>[] = [
     {
       key: 'contentPiece', label: 'Content Piece',
@@ -260,108 +261,122 @@ export function PlannedContentPerformanceTable({
   )
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 2. Owned Content Cited in AI (Section F)
-// ═════════════════════════════════════════════════════════════════════════════
-export interface OwnedContentCitedRow {
-  urlOrDomain: string
-  topic: string | null
-  promptCluster: string | null
-  aiCitationCount: number       // citationRate %
-  aiEnginesCiting: string | null
-  avgCitations: number | null
-  aiReferredSessions: number | null
-  postLaunchAILift: number      // retrievedDelta
-  recommendedAction: string
+// ─────────────────────────────────────────────────────────────────────────────
+// FB-039: Section F Fullsite Content Performance (URL-row, 6 columns + deltas)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FullsiteContentPerformanceRow {
+  pageTitle: string
+  url: string
+  promptCoverage: number | null
+  promptCoverageDelta: number | null
+  citationShare: number | null
+  citationShareDelta: number | null
+  aiReferralTraffic: number | null
+  aiReferralTrafficDelta: number | null
+  organicSessions: number | null
+  organicSessionsDelta: number | null
+  engagementRate: number | null
+  engagementRateDelta: number | null
+  _key: string
 }
 
-export function OwnedContentCitedTable({
+export function FullsiteContentPerformanceTable({
   rows,
-  emptyMessage,
+  ga4Connected,
+  emptyMessage = 'No cited owned-domain pages available from Peec AI',
 }: {
-  rows: OwnedContentCitedRow[]
-  emptyMessage: string
+  rows: FullsiteContentPerformanceRow[]
+  ga4Connected: boolean
+  emptyMessage?: string
 }) {
-  const columns: SortableColumn<OwnedContentCitedRow>[] = [
+  const columns: SortableColumn<FullsiteContentPerformanceRow>[] = [
     {
-      key: 'urlOrDomain', label: 'URL / Domain',
-      accessor: (r) => r.urlOrDomain,
-      render: (r) => <span className="font-medium text-white">{r.urlOrDomain}</span>,
+      key: 'pageTitle', label: 'Page',
+      sortable: true,
+      accessor: (r) => r.pageTitle.toLowerCase(),
+      render: (r) => (
+        <a
+          href={r.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-white hover:underline"
+          title={r.url}
+        >
+          {r.pageTitle}
+        </a>
+      ),
     },
     {
-      key: 'topic', label: 'Topic',
-      tooltip: TT.calendarField,
-      accessor: (r) => r.topic ?? '',
-      render: (r) => r.topic
-        ? <span className="text-white/70">{r.topic}</span>
-        : <span className="text-white/40">--</span>,
+      key: 'promptCoverage', label: 'Prompt Coverage', align: 'right',
+      sortable: true,
+      accessor: (r) => r.promptCoverage ?? -1,
+      render: (r) => (
+        <div className="flex flex-col items-end">
+          <span>{r.promptCoverage !== null ? `${r.promptCoverage.toFixed(1)}%` : '--'}</span>
+          {renderDelta(r.promptCoverageDelta, 'pp')}
+        </div>
+      ),
     },
     {
-      key: 'promptCluster', label: 'Prompt Cluster',
-      accessor: (r) => r.promptCluster ?? '',
-      render: (r) => r.promptCluster
-        ? <span className="text-white/70">{r.promptCluster}</span>
-        : <span className="text-white/40">--</span>,
+      key: 'citationShare', label: 'Citation Share', align: 'right',
+      sortable: true,
+      accessor: (r) => r.citationShare ?? -1,
+      render: (r) => (
+        <div className="flex flex-col items-end">
+          <span>{r.citationShare !== null ? `${r.citationShare.toFixed(1)}%` : '--'}</span>
+          {renderDelta(r.citationShareDelta, 'pp')}
+        </div>
+      ),
     },
     {
-      key: 'aiCitationCount', label: 'AI Citation Count', align: 'right',
-      tooltip: TT.aiCitations,
-      accessor: (r) => r.aiCitationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.aiCitationCount.toFixed(1)}%</span>,
+      key: 'aiReferralTraffic', label: 'AI Referral Traffic', align: 'right',
+      sortable: true,
+      accessor: (r) => r.aiReferralTraffic ?? -1,
+      render: (r) => (
+        <div className="flex flex-col items-end">
+          <span>{r.aiReferralTraffic !== null ? r.aiReferralTraffic.toLocaleString() : '--'}</span>
+          {renderDelta(r.aiReferralTrafficDelta, 'pct')}
+        </div>
+      ),
     },
     {
-      key: 'aiEnginesCiting', label: 'AI Engines Citing',
-      tooltip: TT.aiEngines,
-      accessor: (r) => r.aiEnginesCiting ?? '',
-      render: (r) => r.aiEnginesCiting
-        ? <span className="text-white/70">{r.aiEnginesCiting}</span>
-        : <span className="text-white/40">--</span>,
+      key: 'organicSessions', label: 'Organic Sessions', align: 'right',
+      sortable: true,
+      accessor: (r) => r.organicSessions ?? -1,
+      render: (r) => (
+        <div className="flex flex-col items-end">
+          <span>{r.organicSessions !== null ? r.organicSessions.toLocaleString() : '--'}</span>
+          {renderDelta(r.organicSessionsDelta, 'pct')}
+        </div>
+      ),
     },
     {
-      key: 'avgCitations', label: 'Avg. Citations', align: 'right',
-      tooltip: "Average number of times this domain's URLs are cited per AI answer in which they appear (Peec AI — citation_avg). Higher = cited more often.",
-      accessor: (r) => r.avgCitations ?? 0,
-      render: (r) => r.avgCitations !== null
-        ? <span className="tabular-nums text-white">{r.avgCitations.toFixed(1)}</span>
-        : <span className="text-white/40">--</span>,
-    },
-    {
-      key: 'aiReferredSessions', label: 'AI-Referred Sessions', align: 'right',
-      tooltip: TT.aiReferredSessions,
-      accessor: (r) => r.aiReferredSessions ?? -1,
-      render: (r) => r.aiReferredSessions !== null
-        ? <span className="tabular-nums text-white">{r.aiReferredSessions.toLocaleString()}</span>
-        : <span className="text-white/40">--</span>,
-    },
-    {
-      key: 'postLaunchAILift', label: 'Post-Launch AI Lift', align: 'right',
-      tooltip: TT.postLaunchAILift,
-      accessor: (r) => r.postLaunchAILift,
-      render: (r) => r.postLaunchAILift !== 0 ? (
-        <span className={cn('text-xs font-semibold tabular-nums', r.postLaunchAILift > 0 ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-          {r.postLaunchAILift > 0 ? '+' : ''}{r.postLaunchAILift.toFixed(1)}%
-        </span>
-      ) : <span className="text-white/40">--</span>,
-    },
-    {
-      key: 'recommendedAction', label: 'Recommended Action',
-      tooltip: TT.recommendedAction,
-      accessor: (r) => r.recommendedAction,
-      render: (r) => <span className="text-[11px] text-white/50">{r.recommendedAction}</span>,
+      key: 'engagementRate', label: 'Engagement Rate', align: 'right',
+      sortable: true,
+      accessor: (r) => r.engagementRate ?? -1,
+      render: (r) => (
+        <div className="flex flex-col items-end">
+          <span>{r.engagementRate !== null ? `${r.engagementRate.toFixed(1)}%` : '--'}</span>
+          {renderDelta(r.engagementRateDelta, 'pp')}
+        </div>
+      ),
     },
   ]
 
   return (
     <SectionWrapper
-      title="Which of our owned pages do AI engines cite?"
-      description="Your owned domains and URLs that appear in AI-generated responses. Ranked by citation frequency."
+      title="What content across your domain is being cited by AI?"
+      description="See every cited page across your site and measure its performance."
     >
       <SortableTable
-        columns={columns}
         rows={rows}
-        rowKey={(r, i) => `${r.urlOrDomain}-${i}`}
-        initialPageSize={25}
-        emptyMessage={emptyMessage}
+        columns={columns}
+        rowKey={(r) => r._key}
+        initialPageSize={10}
+        defaultSortKey="citationShare"
+        defaultSortDir="desc"
+        emptyMessage={ga4Connected ? emptyMessage : 'Connect GA4 page-level data to populate'}
       />
     </SectionWrapper>
   )
