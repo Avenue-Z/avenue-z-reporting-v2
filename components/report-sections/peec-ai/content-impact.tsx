@@ -14,11 +14,6 @@ import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarRow } from '@/lib/content-calendar/types'
-import { sampleContentCalendarData } from '@/lib/demo-data/content-calendar'
-import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
-import { samplePeecOverview } from '@/lib/demo-data/peec'
-import { SAMPLE_GA4_CONTENT_IMPACT_ROWS } from '@/lib/demo-data/ga4-content-impact'
-import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
@@ -202,13 +197,11 @@ export async function ContentImpactReport({
   clientSlug,
   dateRange,
   compareRange,
-  demoMode = false,
   models,
 }: {
   clientSlug: string
   dateRange?: string
   compareRange?: string
-  demoMode?: boolean
   models?: AEOModel[] | null
 }) {
   const effectiveRange = dateRange ?? 'last_30_days'
@@ -413,20 +406,6 @@ export async function ContentImpactReport({
   const ga4ScatterRows = ga4ScatterResult.status === 'fulfilled' ? ga4ScatterResult.value.rows : null
   if (ga4ScatterResult.status === 'rejected') console.error('[content-impact] GA4 §D scatter error:', ga4ScatterResult.reason)
 
-  // Demo mode: force-substitute every data source so the demo is
-  // exclusively synthetic — no mixing of real client data with sample
-  // data. `calendarIsDemo` is retained as the boolean some downstream
-  // render paths read, but it now equals `demoMode` (no empty guard).
-  const calendarIsDemo = demoMode
-  if (demoMode) {
-    peecData     = samplePeecOverview()
-    agentData    = sampleAgentAnalytics()
-    calendarData = sampleContentCalendarData()
-    ga4Rows      = SAMPLE_GA4_CONTENT_IMPACT_ROWS
-    urlCitations = []   // demo: §B/§F/§H use their own demo arrays
-    coverage     = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }  // demo: §H uses demo fallbacks
-  }
-
   if (peecResult.status         === 'rejected') console.error('[content-impact] Peec error:', peecResult.reason)
   if (agentResult.status        === 'rejected') console.error('[content-impact] Agent analytics error:', agentResult.reason)
   if (calendarResult.status     === 'rejected') console.error('[content-impact] Content calendar error:', calendarResult.reason)
@@ -598,7 +577,7 @@ export async function ContentImpactReport({
 
   const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
   let timingOk = false
-  if (!demoMode && plannedTiming.length > 0) {
+  if (plannedTiming.length > 0) {
     const today = new Date().toISOString().slice(0, 10)
     const minPublish = plannedTiming.reduce((m, r) => (r.publishDate < m ? r.publishDate : m), plannedTiming[0].publishDate)
     // pagePath inListFilter is an exact match, but GA4 may store a path with or
@@ -1015,10 +994,6 @@ export async function ContentImpactReport({
         subtitle="Which content assets earn LLM citations, where content investments translate into AI visibility, and what the content team should build next."
       />
 
-      {calendarIsDemo && (
-        <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
-      )}
-
       {/* ── FB-033 · Executive Synopsis (AI-generated, Glean-backed) ────────── */}
       <Suspense
         fallback={
@@ -1048,14 +1023,12 @@ export async function ContentImpactReport({
             label="Citation Share"
             hint={`Owned share of total AI citations${models ? ' · filtered to selected AI models' : ''}`}
             value={
-              calendarIsDemo ? '24.5%'
-                : citationSharePct !== null ? `${citationSharePct.toFixed(1)}%`
+              citationSharePct !== null ? `${citationSharePct.toFixed(1)}%`
                 : 'None'
             }
-            live={calendarIsDemo || citationSharePct !== null}
+            live={citationSharePct !== null}
             delta={
-              calendarIsDemo ? 2.3
-                : citationSharePriorAvailable && citationSharePctDelta !== null ? citationSharePctDelta
+              citationSharePriorAvailable && citationSharePctDelta !== null ? citationSharePctDelta
                 : undefined
             }
           />
@@ -1064,25 +1037,22 @@ export async function ContentImpactReport({
             label="Prompt Coverage"
             hint="Tracked prompts citing owned domains"
             value={
-              calendarIsDemo ? '67%'
-                : promptCoveragePct !== null ? `${promptCoveragePct}%`
+              promptCoveragePct !== null ? `${promptCoveragePct}%`
                 : 'None'
             }
-            live={calendarIsDemo || promptCoveragePct !== null}
+            live={promptCoveragePct !== null}
           />
           {/* KPI 3 · AI Referral Traffic */}
           <KpiCard
             label="AI Referral Traffic"
             hint={`GA4 sessions from AI sources${models ? ' · across all AI engines' : ''}`}
             value={
-              calendarIsDemo ? '1,243'
-                : aiReferralTraffic !== null ? aiReferralTraffic.toLocaleString()
+              aiReferralTraffic !== null ? aiReferralTraffic.toLocaleString()
                 : 'None'
             }
-            live={calendarIsDemo || aiReferralTraffic !== null}
+            live={aiReferralTraffic !== null}
             delta={
-              calendarIsDemo ? 18.4
-                : aiPriorAvailable && aiReferralTrafficDelta !== null ? aiReferralTrafficDelta
+              aiPriorAvailable && aiReferralTrafficDelta !== null ? aiReferralTrafficDelta
                 : undefined
             }
           />
@@ -1091,14 +1061,12 @@ export async function ContentImpactReport({
             label="Organic Traffic"
             hint="GA4 Organic Search channel sessions"
             value={
-              calendarIsDemo ? '6,667'
-                : organicTraffic !== null ? organicTraffic.toLocaleString()
+              organicTraffic !== null ? organicTraffic.toLocaleString()
                 : 'None'
             }
-            live={calendarIsDemo || organicTraffic !== null}
+            live={organicTraffic !== null}
             delta={
-              calendarIsDemo ? -4.2
-                : organicPriorAvailable && organicTrafficDelta !== null ? organicTrafficDelta
+              organicPriorAvailable && organicTrafficDelta !== null ? organicTrafficDelta
                 : undefined
             }
           />
@@ -1111,13 +1079,6 @@ export async function ContentImpactReport({
         // published, it shouldn't display here". Strict literal filter on the
         // raw status string (case-insensitive, trimmed). No fuzzy bucket.
         const publishedRows = enrichedRows.filter(row => row.status.trim().toLowerCase() === 'published')
-
-        const sectionBDemoCite = [12, 8, 5, 14, 3, 18, 7, 0, 9, 22, 4, 11, 6]
-        const sectionBDemoRef  = [238, 152, 87, 412, 64, 524, 109, 31, 196, 671, 78, 245, 134]
-        const sectionBDemoPub  = ['2026-05-12', '2026-04-28', '2026-04-09', '2026-03-22', '2026-03-04', '2026-02-15', '2026-01-30', '2026-01-14', '2025-12-22', '2025-12-05', '2025-11-19', '2025-10-30', '2025-10-12']
-        const sectionBDemoUpd  = ['2026-05-28', '2026-05-04', '2026-04-22', '2026-04-08', '2026-03-18', '2026-03-01', '2026-02-12', '2026-01-25', '2026-01-08', '2025-12-18', '2025-12-01', '2025-11-09', '2025-10-24']
-        const sectionBDemoOrg  = [1240, 880, 432, 1810, 320, 2340, 580, 145, 920, 3120, 410, 1180, 670]
-        const sectionBDemoEr   = [0.62, 0.58, 0.71, 0.55, 0.68, 0.49, 0.73, 0.52, 0.66, 0.61, 0.59, 0.64, 0.57]
 
         const sectionBRows: PlannedContentRow[] = publishedRows.map((row, i) => {
           const g = getGA4Metrics(row.url, ga4Rows)
@@ -1177,18 +1138,18 @@ export async function ContentImpactReport({
             topic: row.topic,
             url: row.url,
             contentType: row.contentType,
-            publishDate: row.publishDate ?? (calendarIsDemo ? sectionBDemoPub[i % 13] : null),
-            updateDate:  row.updateDate  ?? (calendarIsDemo ? sectionBDemoUpd[i % 13] : null),
-            promptCoverage:        calendarIsDemo ? 42 + (i % 5) * 7 : promptCov,
-            promptCoverageDelta:   calendarIsDemo ? [3.2, -1.4, 0, 2.1, 5.6][i % 5] : promptCovDelta,
-            citationShare:         calendarIsDemo ? sectionBDemoCite[i % 13] : citationShare,
-            citationShareDelta:    calendarIsDemo ? [1.8, -0.4, 0.9, -2.2, 3.0][i % 5] : citationShareDelta,
-            aiReferralTraffic:     calendarIsDemo ? sectionBDemoRef[i % 13] : aiRef,
-            aiReferralTrafficDelta:calendarIsDemo ? [12.4, -5.1, 28.9, 0, -8.3][i % 5] : aiRefDelta,
-            organicSessions:       calendarIsDemo ? sectionBDemoOrg[i % 13] : organic,
-            organicSessionsDelta:  calendarIsDemo ? [6.5, -2.0, 14.3, 1.2, -3.7][i % 5] : organicDelta,
-            engagementRate:        calendarIsDemo ? sectionBDemoEr[i % 13] : er,
-            engagementRateDelta:   calendarIsDemo ? [2.1, -1.5, 0.8, 3.4, -0.6][i % 5] : erDelta,
+            publishDate: row.publishDate ?? null,
+            updateDate:  row.updateDate  ?? null,
+            promptCoverage:        promptCov,
+            promptCoverageDelta:   promptCovDelta,
+            citationShare:         citationShare,
+            citationShareDelta:    citationShareDelta,
+            aiReferralTraffic:     aiRef,
+            aiReferralTrafficDelta:aiRefDelta,
+            organicSessions:       organic,
+            organicSessionsDelta:  organicDelta,
+            engagementRate:        er,
+            engagementRateDelta:   erDelta,
             _key: `${row.url ?? row.topic}-${i}`,
           }
         })
@@ -1210,21 +1171,21 @@ export async function ContentImpactReport({
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', demo: '14 days', val: medFirstTraffic },
-            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', demo: '22 days', val: medFirstAi },
-            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', demo: '4 days', val: fastestAi },
-            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', demo: '47 days', val: slowestAi },
-          ].map(({ icon: Icon, label, color, demo, val }) => (
+            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic },
+            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi },
+            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi },
+            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi },
+          ].map(({ icon: Icon, label, color, val }) => (
             <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
-              <span className={cn('text-lg font-bold', (calendarIsDemo || val !== null) ? 'text-white' : 'text-white/20')}>
-                {calendarIsDemo ? demo : val !== null ? `${Math.round(val)} days` : 'None'}
+              <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
+                {val !== null ? `${Math.round(val)} days` : 'None'}
               </span>
             </div>
           ))}
         </div>
-        {!calendarIsDemo && !sectionCOk && (
+        {!sectionCOk && (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
             <p className="text-xs text-text-muted">
               {calendarData
@@ -1386,8 +1347,7 @@ export async function ContentImpactReport({
 
         {/* Sub-view 2: Brand-Absent Competitor URLs */}
         {(() => {
-          // Live source only. `urlCitations` is [] in demo mode (see line ~426),
-          // so demo renders the empty state. Citation Share math mirrors §B
+          // Live source only. Citation Share math mirrors §B
           // Watched Pages: (urlCitationCount / periodTotalCitations) * 100,
           // delta = current pp - prior pp, gated on compareIso !== null AND
           // the row appearing in citeByKeyPrior with a non-zero prior total.
