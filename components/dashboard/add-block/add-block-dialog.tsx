@@ -16,12 +16,12 @@ type Source = ProposeBlockInput['source'] | 'calculated'
 
 const KIND_OPTIONS: { value: BlockKind; label: string; available: boolean; hint?: string }[] = [
   { value: 'kpi',       label: 'KPI tile',         available: true  },
-  { value: 'pills',     label: 'Pills strip',       available: false, hint: 'Coming in v2' },
+  { value: 'pills',     label: 'Pills (compact KPI)', available: true },
   { value: 'bar',       label: 'Bar chart',        available: true  },
   { value: 'line',      label: 'Line chart',       available: true  },
-  { value: 'table',     label: 'Table',            available: false, hint: 'Coming in v2' },
-  { value: 'narrative', label: 'Narrative panel',  available: false, hint: 'Coming in v2' },
-  { value: 'header',    label: 'Section header',   available: false, hint: 'Coming in v2' },
+  { value: 'table',     label: 'Table',            available: true  },
+  { value: 'narrative', label: 'Narrative panel',  available: true  },
+  { value: 'header',    label: 'Section header',   available: true  },
 ]
 
 const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
@@ -34,7 +34,7 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
   pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
-  table:     [],
+  table:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   narrative: [],
   header:    [],
 }
@@ -93,9 +93,11 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
   }
 
   const input = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
-  // Bar/Line are leaf-only — skip the mode (AI vs manual) step when KPI-only modes don't apply,
-  // and go straight to 'build' after source selection. KPI keeps the full prompt/mode flow.
-  const isChartKind = kind === 'bar' || kind === 'line'
+  // Bar/Line/Pills/Table are leaf-only — skip the AI/manual mode step and go directly to 'build'.
+  // KPI keeps the full prompt/mode flow.
+  const isDataChartKind = kind === 'bar' || kind === 'line' || kind === 'pills' || kind === 'table'
+  // Static kinds need no data source — skip 'pick' entirely and jump from 'kind' → 'build'.
+  const isStaticKind = kind === 'header' || kind === 'narrative'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
@@ -112,7 +114,12 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
               <button
                 key={k.value}
                 disabled={!k.available}
-                onClick={() => { setKind(k.value); setSource(SOURCES_BY_KIND[k.value][0]?.value ?? 'supermetrics'); setStep('pick') }}
+                onClick={() => {
+                  setKind(k.value)
+                  setSource(SOURCES_BY_KIND[k.value][0]?.value ?? 'supermetrics')
+                  // Static kinds (header/narrative) have no source step — jump straight to 'build'.
+                  setStep(k.value === 'header' || k.value === 'narrative' ? 'build' : 'pick')
+                }}
                 className={cn(
                   'rounded-md border px-3 py-2 text-left text-sm',
                   k.available
@@ -130,7 +137,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">Source · {kind}</p>
             {SOURCES_BY_KIND[kind].map((s) => (
-              <button key={s.value} onClick={() => { setSource(s.value); setStep(isChartKind ? 'build' : 'mode') }}
+              <button key={s.value} onClick={() => { setSource(s.value); setStep(isDataChartKind ? 'build' : 'mode') }}
                 className="rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/90 hover:border-white/25 hover:bg-white/[0.04]">
                 {s.label}
               </button>
@@ -164,7 +171,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
               slug={slug}
               pending={pending}
               onConfirm={confirmManual}
-              onBack={() => setStep(isChartKind ? 'pick' : 'mode')}
+              onBack={() => setStep(isStaticKind ? 'kind' : isDataChartKind ? 'pick' : 'mode')}
             />
             {error && <p className="mt-2 text-xs text-[#FF6666]">Error: {error}</p>}
           </>
