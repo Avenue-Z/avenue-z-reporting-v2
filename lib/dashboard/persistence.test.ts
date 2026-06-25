@@ -188,6 +188,21 @@ for (const lvl of [1, 2, 3] as const) {
 // headerLevel: out-of-range value rejected.
 assert.equal(parseBlockConfig({ ...block(sm), kind: 'header', headerLevel: 4 }).ok, false)
 
+// narrativeBody: markdown string round-trips (regression: was silently dropped on save).
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'narrative', narrativeBody: '## Highlights\n- Cost down 12%' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.narrativeBody, '## Highlights\n- Cost down 12%')
+}
+// narrativeBody: omitted → parses, no field.
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'narrative' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.narrativeBody, undefined)
+}
+// narrativeBody: non-string rejected.
+assert.equal(parseBlockConfig({ ...block(sm), kind: 'narrative', narrativeBody: 42 }).ok, false)
+
 // dimensions: SM length-1 valid string → round-trips.
 {
   const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel'] }))
