@@ -13,10 +13,11 @@ Two related capabilities on top of the existing reporting platform:
 1. **Internal admin (Avenue Z):** From the internal dashboard, give a client
    access to *their own* portal only, by (a) setting a per-client shared
    password and (b) assigning one external `CLIENT_ADMIN` for that client.
-2. **External admin (client side):** That `CLIENT_ADMIN` can invite up to a
-   total of **5 client-side seats** (themselves + up to 4 `CLIENT_VIEWER`
-   teammates), each scoped to *only their client's* portal. Teammates log in
-   with their provisioned email + the shared password.
+2. **External admin (client side):** That `CLIENT_ADMIN` can invite client-side
+   seats up to the client's seat limit (**default 5** total, themselves
+   included; Avenue Z can raise it per client), each scoped to *only their
+   client's* portal. Teammates log in with their provisioned email + the shared
+   password, reached via a link the admin sends them.
 
 No client may ever see another client's data.
 
@@ -47,9 +48,10 @@ rebuilding:
 | Decision | Choice |
 |---|---|
 | Team-member identity | **Named seats** — one provisioned email per person |
-| Seat cap | **5 total client-side users per client** (admin counts as 1 → ≤4 viewers) |
+| Seat cap | **Per-client, editable from the internal dash. Default 5** total client-side users (admin counts as 1). Avenue Z can raise it for any client. |
 | Access scope | The client's **whole portal** (their enabled report sections) |
-| Shared password | **One per client, set by Avenue Z** (internal admin) |
+| Shared password | **One per client, set by Avenue Z** (internal admin); value TBD, set via the internal-dash UI built here |
+| Invite delivery | **App generates a copy-able login link; the external admin sends it themselves.** No email infrastructure. |
 | External admin login | **Same as team** — email + the client's shared password; `CLIENT_ADMIN` role only unlocks the Team page |
 | Migration | **Isolated, additive, applied by Thomas** — never touches prod from here |
 | `demo_mode` drop | **Out of scope** for this PR (kept separate) |
@@ -58,35 +60,41 @@ rebuilding:
 
 ## Schema change (the only DB change)
 
-A single additive, nullable column:
+Two additive columns on `clients`, both safe for existing rows:
 
 ```sql
 ALTER TABLE "clients" ADD COLUMN IF NOT EXISTS "shared_password_hash" text;
+ALTER TABLE "clients" ADD COLUMN IF NOT EXISTS "max_seats" integer NOT NULL DEFAULT 5;
 ```
 
-- Stores a **bcrypt hash** of the client's shared password. Nullable: a client
-  with no hash set cannot have client-side users log in (fail closed).
+- `shared_password_hash` — **bcrypt hash** of the client's shared password.
+  Nullable: a client with no hash set cannot have client-side users log in
+  (fail closed).
+- `max_seats` — the per-client seat limit, **default 5**, editable by internal
+  admins from the dashboard so Avenue Z can raise a client's cap at any time.
+  `NOT NULL DEFAULT 5` backfills every existing row to 5 automatically, so the
+  add is still safe and non-breaking.
 - **No new tables.** Named seats are rows in the existing `users` table
-  (`email` unique, `role`, `clientId`). The 5-seat cap is enforced in
+  (`email` unique, `role`, `clientId`). The cap (`max_seats`) is enforced in
   application code via a count-then-insert inside a transaction.
-- **No drops, no NOT-NULL backfills, no type changes** → existing rows are
-  untouched.
+- **No drops, no type changes, no nullable backfill problems** → existing rows
+  are untouched apart from the `max_seats` default.
 
 ### Migration handling (the careful part)
 
-- The migration file is **hand-authored** to contain *only* the `ADD COLUMN IF
-  NOT EXISTS` above, so `drizzle-kit generate` does not bundle the pre-existing
-  pending `users.demo_mode` drop (see `MIGRATIONS-PENDING.md`).
+- The migration file is **hand-authored** to contain *only* the two `ADD COLUMN
+  IF NOT EXISTS` statements above, so `drizzle-kit generate` does not bundle the
+  pre-existing pending `users.demo_mode` drop (see `MIGRATIONS-PENDING.md`).
 - Drizzle metadata (`drizzle/meta/_journal.json` + snapshot) must stay
   consistent. The implementation plan will specify the exact mechanism (either
-  hand-author the snapshot to add only the new column, or generate then strip
+  hand-author the snapshot to add only the new columns, or generate then strip
   the demo_mode drop) and **verify** the resulting `drizzle/` state diffs to
-  exactly one `ADD COLUMN`.
+  exactly the two `ADD COLUMN`s — nothing else.
 - **Application:** the migration is **not** run against production from this
   workflow. Thomas applies it (recommended: against a Neon branch DB first via
   `DATABASE_URL_UNPOOLED`, verify, then promote to prod).
-- `clients.shared_password_hash` is added to `lib/db/schema.ts` so the app and
-  types know about it.
+- `clients.shared_password_hash` and `clients.max_seats` are added to
+  `lib/db/schema.ts` so the app and types know about them.
 
 ---
 
@@ -132,18 +140,25 @@ Location: the internal dashboard, per client (exact placement — the existing
   cache tag.
 - **Assign the external `CLIENT_ADMIN`** for a client → server action inserts/
   updates a `users` row (`role = CLIENT_ADMIN`, `clientId = <client>`), subject
-  to the same 5-seat cap.
-- Both actions hard-gated: `session.user.role === 'INTERNAL_ADMIN'`.
+  to the same `max_seats` cap.
+- **Edit the seat limit** (`clients.max_seats`) for a client → server action
+  raises/sets the per-client cap so Avenue Z can grow a client's team without a
+  code change or redeploy. Must not be set below the client's current seat
+  count.
+- All actions hard-gated: `session.user.role === 'INTERNAL_ADMIN'`.
 
 ### B. External admin — Team page (client side)
 
 Location: a new page inside `/portal/[clientSlug]` visible only to
 `CLIENT_ADMIN`.
 
-- Lists current client-side users for that client with remaining seats.
+- Lists current client-side users for that client with remaining seats
+  (`max_seats − current count`).
 - **Invite teammate** (email) → server action inserts a `users` row
   (`role = CLIENT_VIEWER`, `clientId = <their client>`), **only if** total
-  client-side users for that client `< 5`, checked inside a transaction.
+  client-side users for that client `< client.max_seats`, checked inside a
+  transaction. On success it returns a **copy-able login link** the admin can
+  send to the teammate (their own email/Slack — the app does not send mail).
 - **Remove teammate** → server action deletes the row (cannot remove self;
   cannot remove the `CLIENT_ADMIN`).
 - The "invite link" is simply the portal login URL. The teammate logs in with
@@ -160,7 +175,8 @@ Location: a new page inside `/portal/[clientSlug]` visible only to
    - Team actions require `CLIENT_ADMIN` **and** that the target client equals
      the caller's `session.user.clientSlug`.
 2. **Seat cap is enforced transactionally** (count-then-insert in one DB
-   transaction) to avoid a race that exceeds 5.
+   transaction) against the client's `max_seats` to avoid a race that exceeds
+   the limit.
 3. **Fail closed:** no `shared_password_hash` → no client-side login for that
    client.
 4. **Emails normalized to lowercase** on write (matches existing
@@ -184,6 +200,8 @@ Location: a new page inside `/portal/[clientSlug]` visible only to
 - Single-use invite tokens / magic links (the login URL + provisioned email +
   shared password is sufficient).
 - Per-report (sub-portal) scoping.
+- **Email sending** — no email provider is added; invites are copy-able links
+  the admin sends. (Auto-email is the documented fast-follow if wanted later.)
 - Dropping `users.demo_mode` (tracked separately in `MIGRATIONS-PENDING.md`).
 - Password reset/self-service flows (Avenue Z rotates passwords).
 
@@ -193,8 +211,9 @@ Location: a new page inside `/portal/[clientSlug]` visible only to
 
 - Unit: `authorize` returns `null` for wrong password, missing hash, and
   unknown email; returns the user for a correct match.
-- Unit/integration: seat-cap action rejects the 6th client-side user; rejects
-  cross-client invites; rejects non-admin callers.
+- Unit/integration: seat-cap action rejects an invite past `max_seats` (e.g.
+  the 6th seat when `max_seats = 5`); raising `max_seats` then allows it;
+  rejects cross-client invites; rejects non-admin callers.
 - Manual: internal admin sets a password + assigns a `CLIENT_ADMIN`; that admin
   logs in, adds a viewer, sends the URL; viewer logs in and sees **only** their
   portal; attempting another client's slug → `/unauthorized`.
