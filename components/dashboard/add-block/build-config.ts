@@ -1,4 +1,4 @@
-import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, MetricFormat, Granularity } from '@/lib/dashboard/types'
+import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, MetricFormat, Granularity, PersistedBlock } from '@/lib/dashboard/types'
 
 /**
  * Common TripleWhale metrics surfaced at the top of the builder's metric picker,
@@ -169,6 +169,19 @@ export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
   if (d.kind === 'table')      return tableToBlockConfig(d.table, d.name, d.format)
   if (d.kind === 'header')     return headerToBlockConfig(d.header, d.name, d.format)
   return narrativeToBlockConfig(d.narrative, d.name, d.format)
+}
+
+/** Reverse a persisted block into a builder draft so edit opens pre-filled.
+ *  Scoped to the kinds we currently edit (header, narrative). */
+export function blockToManualDraft(block: PersistedBlock): ManualDraft {
+  const { name, format } = block
+  if (block.kind === 'header') {
+    return { kind: 'header', name, format, header: { source: 'header', level: block.headerLevel ?? 2 } }
+  }
+  if (block.kind === 'narrative') {
+    return { kind: 'narrative', name, format, narrative: { source: 'narrative', body: block.narrativeBody ?? '' } }
+  }
+  throw new Error(`blockToManualDraft: unsupported kind ${block.kind ?? 'kpi'}`)
 }
 
 /** Best-guess format from a Supermetrics field data_type (user can override). */
