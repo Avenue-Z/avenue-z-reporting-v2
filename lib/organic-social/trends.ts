@@ -35,31 +35,3 @@ export async function getEngagementTrend(slug: string, dateRange: string): Promi
 
   return buildTrendSeries(perChannel)
 }
-
-export async function getFollowerTrend(slug: string, dateRange: string): Promise<TrendSeries> {
-  const { client, brandId } = await dashClientFor(slug)
-  const { start, end } = isoRangeTz(dateRange)
-
-  const perChannel = await Promise.all(
-    CHANNELS.map(async (channel) => {
-      const metric = CHANNEL_METRICS[channel].followers
-      try {
-        const res = await client.getReportsData<GraphMetric>({
-          brandId,
-          channels: [channel],
-          reportType: 'GRAPH',
-          timeScale: 'DAILY',
-          metrics: [metric],
-          startDate: start,
-          endDate: end,
-        })
-        const daily = (res.data as GraphData).metrics?.[metric]?.ALL_CHANNELS
-        return { label: CHANNEL_LABEL[channel], daily: daily ?? null }
-      } catch {
-        return { label: CHANNEL_LABEL[channel], daily: null }
-      }
-    }),
-  )
-
-  return buildTrendSeries(perChannel)
-}

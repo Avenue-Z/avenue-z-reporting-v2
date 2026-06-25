@@ -59,7 +59,3 @@ function ChannelTrendChart({ title, series }: { title: string; series: TrendSeri
 export function EngagementTrend({ series }: { series: TrendSeries }) {
   return <ChannelTrendChart title="Engagement Over Time" series={series} />
 }
-
-export function FollowerTrend({ series }: { series: TrendSeries }) {
-  return <ChannelTrendChart title="Follower Growth" series={series} />
-}
