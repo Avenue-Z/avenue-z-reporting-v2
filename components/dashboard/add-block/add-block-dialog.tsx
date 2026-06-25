@@ -186,7 +186,7 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
           <>
             <ManualBlockForm
               kind={kind}
-              source={source as 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'}
+              source={source as 'supermetrics' | 'triplewhale' | 'shopify' | 'aggregate' | 'calculated'}
               slug={slug}
               pending={pending}
               initial={initial}
