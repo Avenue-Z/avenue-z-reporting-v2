@@ -56,15 +56,15 @@ export default function BotVsHumanScatter({ data }: Props) {
 
   const cornerLabel = 'text-[10px] font-semibold uppercase tracking-wide text-text-muted'
 
-  // Render four overlay tags (one per corner). The chart fills the parent
-  // container; the labels are absolutely positioned over the chart pane.
+  // Render four overlay labels in a 2x2 CSS grid so each label sits in its
+  // true quadrant cell (top-left = Low Bot/High Human, etc.).
   return (
     <div className="relative w-full">
-      <div className="pointer-events-none absolute inset-0 z-10">
-        <span className={`absolute left-4 top-4 ${cornerLabel}`}>Low Bot Traffic, High Human Traffic</span>
-        <span className={`absolute right-4 top-4 ${cornerLabel}`}>High Bot Traffic, High Human Traffic</span>
-        <span className={`absolute left-4 bottom-12 ${cornerLabel}`}>Low Bot Traffic, Low Human Traffic</span>
-        <span className={`absolute right-4 bottom-12 ${cornerLabel}`}>High Bot Traffic, Low Human Traffic</span>
+      <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-2 grid-rows-2">
+        <div className="flex items-start justify-start p-4"><span className={cornerLabel}>Low Bot, High Human</span></div>
+        <div className="flex items-start justify-end p-4"><span className={cornerLabel}>High Bot, High Human</span></div>
+        <div className="flex items-end justify-start p-4"><span className={cornerLabel}>Low Bot, Low Human</span></div>
+        <div className="flex items-end justify-end p-4"><span className={cornerLabel}>High Bot, Low Human</span></div>
       </div>
       <ResponsiveContainer width="100%" height={420}>
         <ScatterChart margin={{ top: 24, right: 24, bottom: 40, left: 24 }}>
@@ -94,8 +94,8 @@ export default function BotVsHumanScatter({ data }: Props) {
               return p?.path ?? ''
             }}
           />
-          <ReferenceLine x={data.medianBot} stroke="#FFFFFF40" strokeDasharray="4 4" />
-          <ReferenceLine y={data.medianHuman} stroke="#FFFFFF40" strokeDasharray="4 4" />
+          <ReferenceLine x={data.medianBot} stroke="#FFFFFF80" strokeDasharray="4 4" strokeWidth={1.5} />
+          <ReferenceLine y={data.medianHuman} stroke="#FFFFFF80" strokeDasharray="4 4" strokeWidth={1.5} />
           <Scatter
             data={data.points.map((p) => ({
               ...p,
