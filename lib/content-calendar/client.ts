@@ -46,11 +46,42 @@ function getAuth(): GoogleAuth {
 
 // ─── Sheets fetch ─────────────────────────────────────────────────────────────
 
-async function fetchSheetValues(sheetId: string): Promise<string[][]> {
+/**
+ * Fetch A1:Z1000 from EVERY tab in the spreadsheet, returning one raw grid per
+ * tab. Reads all tabs (not just the first) because content is split across tabs
+ * (e.g. one tab per quarter) and a newly-added tab at index 0 would otherwise
+ * hide the published-content tab. Each grid carries its own header row, so the
+ * caller must parse each tab against its own column map before merging.
+ */
+async function fetchAllTabValues(sheetId: string): Promise<string[][][]> {
   const auth = getAuth()
   const token = await auth.getAccessToken()
-  // Fetch up to 1000 rows, columns A-Z. Range is A1:Z1000 on the first sheet.
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:Z1000`
+
+  // 1) List every tab's title.
+  const metaUrl =
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`
+  const metaRes = await fetch(metaUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+    next: { revalidate: 3600 }, // cache for 1 hour
+  })
+  if (!metaRes.ok) {
+    const text = await metaRes.text()
+    throw new Error(
+      `Sheets API ${metaRes.status} (metadata) for sheet ${sheetId}: ${text.slice(0, 200)}`
+    )
+  }
+  const meta = await metaRes.json() as { sheets?: { properties?: { title?: string } }[] }
+  const titles = (meta.sheets ?? [])
+    .map(s => s.properties?.title)
+    .filter((t): t is string => !!t)
+  if (titles.length === 0) return []
+
+  // 2) Batch-read A1:Z1000 from all tabs in a single request.
+  const ranges = titles
+    .map(t => `ranges=${encodeURIComponent(`${t}!A1:Z1000`)}`)
+    .join('&')
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${ranges}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     next: { revalidate: 3600 }, // cache for 1 hour
@@ -61,8 +92,8 @@ async function fetchSheetValues(sheetId: string): Promise<string[][]> {
       `Sheets API ${res.status} for sheet ${sheetId}: ${text.slice(0, 200)}`
     )
   }
-  const data = await res.json() as { values?: string[][] }
-  return data.values ?? []
+  const data = await res.json() as { valueRanges?: { values?: string[][] }[] }
+  return (data.valueRanges ?? []).map(vr => vr.values ?? [])
 }
 
 // ─── Column detection (PRD FR3: flexible field matching) ─────────────────────
@@ -201,29 +232,22 @@ function deriveMatchStatus(url: string | null, statusRaw: string): MatchStatus {
   return 'unknown'
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ─── Per-tab parsing ──────────────────────────────────────────────────────────
 
-async function getContentCalendarDataImpl(
-  clientSlug: string
-): Promise<ContentCalendarData> {
-  const config = await getClientBySlug(clientSlug)
-  if (!config) throw new Error(`Unknown client: ${clientSlug}`)
-  if (!config.contentCalendarSheetId) {
-    throw new Error(
-      `contentCalendarSheetId not configured for client: ${clientSlug}. ` +
-      `Share the sheet with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com ` +
-      `(Viewer) and set contentCalendarSheetId on the client row in the database.`
-    )
-  }
+/**
+ * Parse one tab's raw grid (header row + data rows) into normalized calendar
+ * rows. Each tab is parsed against its OWN header, so tabs with different
+ * column layouts (e.g. an extra "Suggested Author" column shifting later
+ * columns) map correctly. Returns [] for an empty or header-only grid.
+ */
+export function parseTabRows(raw: string[][]): ContentCalendarRow[] {
+  if (raw.length < 2) return []
 
-  const raw = await fetchSheetValues(config.contentCalendarSheetId)
-  if (raw.length < 2) return emptyData()
-
-  const headers = raw[0]
-  const colMap  = buildColumnMap(headers)
+  const headers  = raw[0]
+  const colMap   = buildColumnMap(headers)
   const dataRows = raw.slice(1)
 
-  const rows: ContentCalendarRow[] = dataRows
+  return dataRows
     .filter(r => r && r.some(cell => (cell ?? '').trim())) // skip blank rows
     .map(r => {
       const get = (field: string): string =>
@@ -247,6 +271,27 @@ async function getContentCalendarDataImpl(
         aiBotVisits:   null,
       }
     })
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+async function getContentCalendarDataImpl(
+  clientSlug: string
+): Promise<ContentCalendarData> {
+  const config = await getClientBySlug(clientSlug)
+  if (!config) throw new Error(`Unknown client: ${clientSlug}`)
+  if (!config.contentCalendarSheetId) {
+    throw new Error(
+      `contentCalendarSheetId not configured for client: ${clientSlug}. ` +
+      `Share the sheet with avenue-z-reporting@avenue-z-reporting.iam.gserviceaccount.com ` +
+      `(Viewer) and set contentCalendarSheetId on the client row in the database.`
+    )
+  }
+
+  // Merge rows across every tab — each parsed against its own header layout.
+  const tabs = await fetchAllTabValues(config.contentCalendarSheetId)
+  const rows: ContentCalendarRow[] = tabs.flatMap(parseTabRows)
+  if (rows.length === 0) return emptyData()
 
   return {
     rows,
@@ -263,7 +308,7 @@ export const getContentCalendarData = cached(
   'getData',
   getContentCalendarDataImpl,
   {
-    version: 'v2',  // v2: publish/update dates parsed to ISO (M/D + month-context year)
+    version: 'v3',  // v3: merge rows across ALL tabs (each parsed by its own header)
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
 )
