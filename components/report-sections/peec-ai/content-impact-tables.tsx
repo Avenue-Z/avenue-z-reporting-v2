@@ -423,7 +423,7 @@ export function CompetitorDomainsCitedTable({
     },
     {
       key: 'citationShare', label: 'Citation Share', align: 'right',
-      tooltip: TT.aiCitations,
+      tooltip: "This domain's share of total citations across all competitor domains in the period. (Avenue Z internal, derived from Peec citation_count.)",
       accessor: (r) => r.citationShare,
       render: (r) => {
         const barWidth = (r.citationShare / maxCitationShare) * 100
