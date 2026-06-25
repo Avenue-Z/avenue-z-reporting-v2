@@ -24,6 +24,8 @@ import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
+import type { SlopeChartInput } from '@/lib/peec/slope-chart'
+import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
 import {
   PlannedContentPerformanceTable,
   OwnedContentCitedTable,
@@ -672,6 +674,93 @@ export async function ContentImpactReport({
   }
   const scatterData = computeBotVsHumanScatter({ pathBots, pathHumans })
 
+  // ── §E · Slope chart inputs (FB-038) ─────────────────────────────────────────
+  // Build per-path / per-url maps for all 3 metrics x 2 periods. All source
+  // vars (ga4AiPathRows, ga4AiPathPriorRows, ga4ChannelMainRows,
+  // ga4ChannelPriorRows, urlCitations, urlCitationsPrior) come from FB-035 and
+  // are already in scope. The chart itself is compare-period gated; when
+  // compareIso is null the prior arrays are empty and the component shows its
+  // empty state.
+
+  // AI Referral Traffic per page: sessions where isAiSource(sessionSource), per pagePath.
+  const slopeAiReferralByPath = new Map<string, [number, number]>()
+  const accAiCurrent = new Map<string, number>()
+  if (ga4AiPathRows) {
+    for (const r of ga4AiPathRows) {
+      if (!isAiSource(r.sessionSource)) continue
+      const k = urlJoinKey(String(r.pagePath ?? ''))
+      if (!k) continue
+      accAiCurrent.set(k, (accAiCurrent.get(k) ?? 0) + (Number(r.sessions) || 0))
+    }
+  }
+  const accAiPrior = new Map<string, number>()
+  if (ga4AiPathPriorRows) {
+    for (const r of ga4AiPathPriorRows) {
+      if (!isAiSource(r.sessionSource)) continue
+      const k = urlJoinKey(String(r.pagePath ?? ''))
+      if (!k) continue
+      accAiPrior.set(k, (accAiPrior.get(k) ?? 0) + (Number(r.sessions) || 0))
+    }
+  }
+  for (const k of new Set<string>([...accAiCurrent.keys(), ...accAiPrior.keys()])) {
+    slopeAiReferralByPath.set(k, [accAiPrior.get(k) ?? 0, accAiCurrent.get(k) ?? 0])
+  }
+
+  // Organic Search Traffic per page: sessions where channel === 'Organic Search'.
+  const slopeOrganicByPath = new Map<string, [number, number]>()
+  const accOrgCurrent = new Map<string, number>()
+  if (ga4ChannelMainRows) {
+    for (const r of ga4ChannelMainRows) {
+      if (String(r.sessionDefaultChannelGroup ?? '') !== 'Organic Search') continue
+      const k = urlJoinKey(String(r.pagePath ?? ''))
+      if (!k) continue
+      accOrgCurrent.set(k, (accOrgCurrent.get(k) ?? 0) + (Number(r.sessions) || 0))
+    }
+  }
+  const accOrgPrior = new Map<string, number>()
+  if (ga4ChannelPriorRows) {
+    for (const r of ga4ChannelPriorRows) {
+      if (String(r.sessionDefaultChannelGroup ?? '') !== 'Organic Search') continue
+      const k = urlJoinKey(String(r.pagePath ?? ''))
+      if (!k) continue
+      accOrgPrior.set(k, (accOrgPrior.get(k) ?? 0) + (Number(r.sessions) || 0))
+    }
+  }
+  for (const k of new Set<string>([...accOrgCurrent.keys(), ...accOrgPrior.keys()])) {
+    slopeOrganicByPath.set(k, [accOrgPrior.get(k) ?? 0, accOrgCurrent.get(k) ?? 0])
+  }
+
+  // Citation Share per URL: (urlCitationCount / periodTotalCitations) * 100,
+  // per period independently. Period total = sum of urlCitations citationCount.
+  const slopeCitationShareByUrlKey = new Map<string, { prior: number; current: number; url: string }>()
+  const totalCurrentCitations = urlCitations.reduce((s, c) => s + (Number(c.citationCount) || 0), 0)
+  const totalPriorCitations   = urlCitationsPrior.reduce((s, c) => s + (Number(c.citationCount) || 0), 0)
+  const currentByUrlKey = new Map<string, { count: number; url: string }>()
+  for (const c of urlCitations) {
+    if (!c.urlKey) continue
+    currentByUrlKey.set(c.urlKey, { count: Number(c.citationCount) || 0, url: c.url })
+  }
+  const priorByUrlKey = new Map<string, { count: number; url: string }>()
+  for (const c of urlCitationsPrior) {
+    if (!c.urlKey) continue
+    priorByUrlKey.set(c.urlKey, { count: Number(c.citationCount) || 0, url: c.url })
+  }
+  for (const k of new Set<string>([...currentByUrlKey.keys(), ...priorByUrlKey.keys()])) {
+    const cur = currentByUrlKey.get(k)
+    const pri = priorByUrlKey.get(k)
+    const currentShare = (cur && totalCurrentCitations > 0) ? (cur.count / totalCurrentCitations) * 100 : 0
+    const priorShare   = (pri && totalPriorCitations > 0)   ? (pri.count / totalPriorCitations)   * 100 : 0
+    const url = cur?.url ?? pri?.url ?? k
+    slopeCitationShareByUrlKey.set(k, { prior: priorShare, current: currentShare, url })
+  }
+
+  const slopeInput: SlopeChartInput = {
+    aiReferralByPath:      slopeAiReferralByPath,
+    organicByPath:         slopeOrganicByPath,
+    citationShareByUrlKey: slopeCitationShareByUrlKey,
+  }
+  const slopeCompareActive = compareIso !== null
+
   // ── FB-034 · §A Snapshot KPI derivations (Tina's 4 new metrics) ─────────────
 
   // Helper: sessions sum across rows filtered by predicate. Returns null only
@@ -1138,6 +1227,14 @@ export async function ContentImpactReport({
         description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Measures the last 30 days, independent of the page date range."
       >
         <BotVsHumanScatter data={scatterData} />
+      </SectionCard>
+
+      {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}
+      <SectionCard
+        title="Which pages are gaining momentum and which are losing it?"
+        description="Track the biggest movers over time to see which URLs are compounding, which are decaying, and where content performance is strengthening or slipping."
+      >
+        <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
 
       {/* ── Section F: Owned Content Cited in AI (PRD: 9 columns) ─────────── */}
