@@ -15,7 +15,7 @@ import type { BlockConfig, BlockKind, DashboardConfig, PersistedBlock } from '@/
 import type { BlockProposal } from '@/lib/dashboard/nl/types'
 import type { AggregateProposal } from '@/lib/dashboard/nl/aggregate-types'
 
-type Source = ProposeBlockInput['source'] | 'calculated'
+type Source = ProposeBlockInput['source'] | 'calculated' | 'shopify'
 
 const KIND_OPTIONS: { value: BlockKind; label: string; available: boolean; hint?: string }[] = [
   { value: 'kpi',       label: 'KPI tile',         available: true  },
@@ -31,10 +31,11 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
   kpi: [
     { value: 'supermetrics', label: 'Supermetrics' },
     { value: 'triplewhale',  label: 'TripleWhale' },
+    { value: 'shopify',      label: 'Shopify (ShopifyQL)' },
     { value: 'aggregate',    label: 'Aggregate (formula)' },
     { value: 'calculated',   label: 'Calculated (weighted sum)' },
   ],
-  pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
+  pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
   bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
   table:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
@@ -167,7 +168,7 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
         {step === 'mode' && (
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">How to build it · {source}</p>
-            {source !== 'calculated' && (
+            {source !== 'calculated' && source !== 'shopify' && (
               <button onClick={() => setStep('prompt')}
                 className="rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/90 hover:border-white/25 hover:bg-white/[0.04]">
                 Describe with AI

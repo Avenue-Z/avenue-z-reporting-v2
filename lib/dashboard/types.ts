@@ -25,7 +25,12 @@ export interface TripleWhaleBinding {
   granularity?: Granularity
 }
 
-export type LeafBinding = SupermetricsBinding | TripleWhaleBinding
+export interface ShopifyBinding {
+  source: 'shopify'
+  query: string // ShopifyQL body (FROM…SHOW…WHERE…) without a SINCE/UNTIL date clause
+}
+
+export type LeafBinding = SupermetricsBinding | TripleWhaleBinding | ShopifyBinding
 
 export interface CalculatedBinding {
   source: 'calculated'

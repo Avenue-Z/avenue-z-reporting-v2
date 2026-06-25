@@ -20,6 +20,7 @@ export const COMMON_TW_METRICS: { value: string; label: string }[] = [
 export type LeafDraft =
   | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; values: string[] }[] }
   | { source: 'triplewhale'; metric: string; filters?: { column: string; values: string[] }[] }
+  | { source: 'shopify'; query: string }
 
 /** Manual weighted-sum draft. `coefficient` is the raw input (parsed at build; blank → 1). */
 export type CalculatedDraft = {
@@ -84,6 +85,9 @@ export type ManualDraft =
   | { kind: 'narrative'; name: string; format: MetricFormat; narrative: NarrativeDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
+  if (d.source === 'shopify') {
+    return { source: 'shopify', query: d.query }
+  }
   if (d.source === 'supermetrics') {
     const filters = (d.filters ?? [])
       .map((f) => ({ column: f.column, values: f.values.filter((v) => v !== '') }))
@@ -117,8 +121,9 @@ export function isOperandComplete(o: OperandDraft): boolean {
 /** Convert a bar draft into a Bar block config (kind: 'bar', leaf binding with dimensions). */
 export function barToBlockConfig(d: BarDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
-  // SupermetricsBinding and TripleWhaleBinding both carry an optional `dimensions: string[]`,
-  // so spreading the union and adding the field preserves the discriminated source.
+  // SM/TW carry an optional `dimensions: string[]`; Shopify (ShopifyQL) has none and isn't
+  // offered as a bar source, so narrow it out before adding the dimension.
+  if (base.source === 'shopify') throw new Error('Shopify is not supported for bar blocks')
   const binding: LeafBinding = { ...base, dimensions: [d.dimension] }
   return { name, format, range: null, binding, kind: 'bar' }
 }
@@ -126,6 +131,7 @@ export function barToBlockConfig(d: BarDraft, name: string, format: MetricFormat
 /** Convert a line draft into a Line block config (kind: 'line', leaf binding with granularity). */
 export function lineToBlockConfig(d: LineDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
+  if (base.source === 'shopify') throw new Error('Shopify is not supported for line blocks')
   const binding: LeafBinding = { ...base, granularity: d.granularity }
   return { name, format, range: null, binding, kind: 'line' }
 }
@@ -138,6 +144,7 @@ export function pillsToBlockConfig(d: PillsDraft, name: string, format: MetricFo
 /** Convert a table draft into a Table block config (kind: 'table', leaf binding with one dim). */
 export function tableToBlockConfig(d: TableDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
+  if (base.source === 'shopify') throw new Error('Shopify is not supported for table blocks')
   const binding: LeafBinding = { ...base, dimensions: [d.dimension] }
   return { name, format, range: null, binding, kind: 'table' }
 }
@@ -194,6 +201,7 @@ export function formatFromDataType(dataType?: string): MetricFormat {
 }
 
 export function isLeafComplete(d: LeafDraft): boolean {
+  if (d.source === 'shopify') return d.query.trim() !== ''
   return d.source === 'supermetrics'
     ? d.dsId !== '' && d.metricField !== '' && d.account !== ''
     : d.metric !== ''

@@ -249,4 +249,19 @@ assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metric
   if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.granularity, undefined)
 }
 
+// shopify leaf binding — valid when query is a non-empty string
+{
+  const r = parseBlockConfig(block({ source: 'shopify', query: "FROM sales SHOW orders_first_time WHERE subscription_or_one_time = 'subscription'" }))
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.binding.source, 'shopify')
+}
+// shopify leaf binding — rejected when query missing/empty
+assert.equal(parseBlockConfig(block({ source: 'shopify' })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: '' })).ok, false)
+// shopify works as an aggregate operand (Subscription CAC = spend ÷ subs)
+{
+  const r = parseBlockConfig(block({ source: 'aggregate', op: '/', left: tw, right: { source: 'shopify', query: 'FROM sales SHOW orders_first_time' } }))
+  assert.equal(r.ok, true)
+}
+
 console.log('ok')

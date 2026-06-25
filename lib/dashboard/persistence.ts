@@ -1,6 +1,6 @@
 import type {
   AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig, Granularity, LeafBinding,
-  MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
+  MetricFormat, PersistedBlock, ShopifyBinding, SupermetricsBinding, TripleWhaleBinding,
 } from './types'
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
@@ -102,7 +102,12 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
     }
     return { ok: true, value: b }
   }
-  return { ok: false, error: `${path}.source: expected 'supermetrics' or 'triplewhale'` }
+  if (v.source === 'shopify') {
+    if (!isNonEmptyStr(v.query)) return { ok: false, error: `${path}.query: expected non-empty string` }
+    const b: ShopifyBinding = { source: 'shopify', query: v.query }
+    return { ok: true, value: b }
+  }
+  return { ok: false, error: `${path}.source: expected 'supermetrics', 'triplewhale', or 'shopify'` }
 }
 
 function parseCalculated(v: unknown, path: string): Parsed<CalculatedBinding> {

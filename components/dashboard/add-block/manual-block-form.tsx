@@ -16,9 +16,9 @@ import {
 } from './build-config'
 import type { BlockConfig, BlockKind, Granularity, MetricFormat } from '@/lib/dashboard/types'
 
-type LeafSource = 'supermetrics' | 'triplewhale'
+type LeafSource = 'supermetrics' | 'triplewhale' | 'shopify'
 type Op = '+' | '-' | '*' | '/'
-type FormSource = 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'
+type FormSource = 'supermetrics' | 'triplewhale' | 'shopify' | 'aggregate' | 'calculated'
 
 const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
 const OPS: { value: Op; label: string }[] = [
@@ -28,7 +28,9 @@ const OPS: { value: Op; label: string }[] = [
   { value: '-', label: '− subtract' },
 ]
 const emptyLeaf = (source: LeafSource): LeafDraft =>
-  source === 'supermetrics' ? { source, dsId: '', metricField: '', account: '' } : { source, metric: '' }
+  source === 'supermetrics' ? { source, dsId: '', metricField: '', account: '' }
+    : source === 'shopify' ? { source, query: '' }
+      : { source, metric: '' }
 
 const ctrl = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
 const labelCls = 'text-[10px] font-extrabold uppercase tracking-widest text-text-muted'
@@ -156,7 +158,7 @@ function Operand({
   const kindOp = value.kind === 'calculated' ? 'calculated' : value.leaf.source
   const onKind = (k: string) => {
     if (k === 'calculated') onChange({ kind: 'calculated', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: emptyLeaf('supermetrics') }] } })
-    else onChange({ kind: 'leaf', leaf: emptyLeaf(k as 'supermetrics' | 'triplewhale') })
+    else onChange({ kind: 'leaf', leaf: emptyLeaf(k as LeafSource) })
   }
   return (
     <div className="rounded-md border border-white/10 p-3">
@@ -165,6 +167,7 @@ function Operand({
         <select className="rounded-md border border-white/10 bg-bg-surface px-2 py-1 text-xs text-white" value={kindOp} onChange={(e) => onKind(e.target.value)}>
           <option value="supermetrics">Supermetrics</option>
           <option value="triplewhale">TripleWhale</option>
+          <option value="shopify">Shopify (ShopifyQL)</option>
           <option value="calculated">Calculated (weighted sum)</option>
         </select>
       </div>

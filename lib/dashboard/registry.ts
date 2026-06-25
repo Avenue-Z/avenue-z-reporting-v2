@@ -1,6 +1,7 @@
 import type { Granularity, GroupedRow, LeafBinding, LeafValue, SeriesPoint } from './types'
 import { resolveSupermetricsLeaf, resolveSupermetricsGrouped, resolveSupermetricsSeries } from './adapters/supermetrics'
 import { resolveTripleWhaleLeaf, resolveTripleWhaleGrouped, resolveTripleWhaleSeries } from './adapters/triplewhale'
+import { resolveShopifyLeaf } from './adapters/shopify'
 
 /** Real leaf dispatcher used at runtime. resolveBlock injects this by default. */
 export function resolveLeaf(
@@ -14,6 +15,8 @@ export function resolveLeaf(
       return resolveSupermetricsLeaf(b, ctx, dateRange, compareRange)
     case 'triplewhale':
       return resolveTripleWhaleLeaf(b, ctx, dateRange, compareRange)
+    case 'shopify':
+      return resolveShopifyLeaf(b, ctx, dateRange, compareRange)
   }
 }
 
@@ -29,6 +32,8 @@ export function resolveGrouped(
       return resolveSupermetricsGrouped(b, ctx, dateRange, compareRange)
     case 'triplewhale':
       return resolveTripleWhaleGrouped(b, ctx, dateRange, compareRange)
+    default:
+      throw new Error(`grouped queries are not supported for source: ${b.source}`)
   }
 }
 
@@ -45,5 +50,7 @@ export function resolveSeries(
       return resolveSupermetricsSeries(b, granularity, ctx, dateRange, compareRange)
     case 'triplewhale':
       return resolveTripleWhaleSeries(b, granularity, ctx, dateRange, compareRange)
+    default:
+      throw new Error(`series queries are not supported for source: ${b.source}`)
   }
 }
