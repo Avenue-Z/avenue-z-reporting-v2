@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { proposeBlock, saveDashboardConfig, type ProposeBlockInput } from '@/app/actions/dashboard'
 import { addBlock, updateBlock } from '../config-mutations'
+import { useOptionalDashboardMutations } from '../dashboard-mutations'
 import { applySelections, type BlockSelections } from './draft'
 import { BlockPreviewCard } from './block-preview-card'
 import { ManualBlockForm } from './manual-block-form'
@@ -54,6 +55,7 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
   const [error, setError] = useState<string | null>(null)
   const [proposal, setProposal] = useState<BlockProposal | AggregateProposal | null>(null)
   const [pending, startTransition] = useTransition()
+  const mutations = useOptionalDashboardMutations()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -74,9 +76,9 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
   function confirm(sel: BlockSelections) {
     if (!proposal) return
     setError(null)
+    const block = applySelections(proposal.config, sel, crypto.randomUUID())
+    if (mutations) { mutations.optimisticAdd(block); onClose(); return }
     startTransition(async () => {
-      const id = crypto.randomUUID()
-      const block = applySelections(proposal.config, sel, id)
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) setError(res.error)
@@ -86,10 +88,19 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
 
   function confirmManual(cfg: Omit<BlockConfig, 'id'>) {
     setError(null)
+    if (editing) {
+      startTransition(async () => {
+        const next = updateBlock(config ?? DEFAULT_CONFIG, editing.id, cfg)
+        const res = await saveDashboardConfig(slug, next)
+        if (!res.ok) { setError(res.error); return }
+        onClose(); router.refresh()
+      })
+      return
+    }
+    const block = { id: crypto.randomUUID(), ...cfg }
+    if (mutations) { mutations.optimisticAdd(block); onClose(); return }
     startTransition(async () => {
-      const next = editing
-        ? updateBlock(config ?? DEFAULT_CONFIG, editing.id, cfg)
-        : addBlock(config ?? DEFAULT_CONFIG, { id: crypto.randomUUID(), ...cfg })
+      const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) { setError(res.error); return }
       onClose(); router.refresh()
