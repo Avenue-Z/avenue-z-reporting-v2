@@ -12,6 +12,7 @@ const TT = {
   views:              'A user-initiated event when content loads or refreshes on a website. (GA4.)',
   engagementRate:     GA4.engagementRate.text,
   aiReferredSessions: 'GA4 sessions whose source matches the AI referrer domain list (chat.openai.com, perplexity.ai, gemini.google.com, etc.). (GA4 filtered by Avenue Z internal referrer list.)',
+  aiVisibility:       PEEC.retrieved.text,
   aiCitations:        PEEC.citations.text,
   position:           PEEC.position.text,
   promptCoverage:     'Percentage of tracked prompts where this domain appears. (Avenue Z internal.)',
@@ -23,7 +24,6 @@ const TT = {
   postLaunchAILift:   'Change in AI citations after content publication. (Avenue Z internal — Peec data.)',
   opportunityPriority:'Composite priority ranking based on competitor mentions and prompt coverage. (Avenue Z internal.)',
   suggestedPRAngle:   'Suggested PR positioning for the brand. (Avenue Z internal.)',
-  themeCoverage:      'Themes the domain consistently covers. (Avenue Z internal — manual review.)',
   calendarField:      'From the content calendar sheet. (Avenue Z internal.)',
 }
 
@@ -387,9 +387,12 @@ export function FullsiteContentPerformanceTable({
 // ═════════════════════════════════════════════════════════════════════════════
 export interface CompetitorDomainsCitedRow {
   domain: string
-  citationCount: number
+  aiVisibility: number
+  aiVisibilityDelta: number | null
+  citationShare: number
+  citationShareDelta: number | null
   promptCoverage: number | null
-  themeCoverage: number | null
+  promptCoverageDelta: number | null
 }
 
 export function CompetitorDomainsCitedTable({
@@ -399,7 +402,7 @@ export function CompetitorDomainsCitedTable({
   rows: CompetitorDomainsCitedRow[]
   emptyMessage: string
 }) {
-  const maxCitations = Math.max(...rows.map((r) => r.citationCount), 1)
+  const maxCitationShare = Math.max(...rows.map((r) => r.citationShare), 1)
 
   const columns: SortableColumn<CompetitorDomainsCitedRow>[] = [
     {
@@ -410,38 +413,43 @@ export function CompetitorDomainsCitedTable({
       ),
     },
     {
-      key: 'citationCount', label: 'Citation Count', align: 'right',
+      key: 'aiVisibility', label: 'AI Visibility', align: 'right',
+      tooltip: TT.aiVisibility,
+      accessor: (r) => r.aiVisibility,
+      render: (r) => (
+        <span className="tabular-nums text-white">
+          {r.aiVisibility.toFixed(1)}%
+          {renderDelta(r.aiVisibilityDelta, 'pp')}
+        </span>
+      ),
+    },
+    {
+      key: 'citationShare', label: 'Citation Share', align: 'right',
       tooltip: TT.aiCitations,
-      accessor: (r) => r.citationCount,
+      accessor: (r) => r.citationShare,
       render: (r) => {
-        const barWidth = (r.citationCount / maxCitations) * 100
+        const barWidth = (r.citationShare / maxCitationShare) * 100
         return (
           <div className="flex items-center justify-end gap-2">
             <div className="h-3 w-20 overflow-hidden rounded bg-white/[0.04]">
               <div className="h-full rounded bg-[#FF4444]/40" style={{ width: `${barWidth}%` }} />
             </div>
-            <span className="tabular-nums text-white/60">{r.citationCount.toFixed(1)}%</span>
+            <span className="tabular-nums text-white/60">
+              {r.citationShare.toFixed(1)}%
+              {renderDelta(r.citationShareDelta, 'pp')}
+            </span>
           </div>
         )
       },
     },
     {
-      key: 'promptCoverage', label: 'Prompt Coverage %', align: 'right',
+      key: 'promptCoverage', label: 'Prompt Coverage', align: 'right',
       tooltip: TT.promptCoverage,
       accessor: (r) => r.promptCoverage ?? -1,
       render: (r) => (
         <span className="tabular-nums text-white">
           {r.promptCoverage !== null ? `${r.promptCoverage}%` : '--'}
-        </span>
-      ),
-    },
-    {
-      key: 'themeCoverage', label: 'Theme Coverage', align: 'right',
-      tooltip: TT.themeCoverage,
-      accessor: (r) => r.themeCoverage ?? -1,
-      render: (r) => (
-        <span className="tabular-nums text-white/60">
-          {r.themeCoverage != null ? `${r.themeCoverage} theme${r.themeCoverage !== 1 ? 's' : ''}` : '--'}
+          {renderDelta(r.promptCoverageDelta, 'pp')}
         </span>
       ),
     },
@@ -449,7 +457,7 @@ export function CompetitorDomainsCitedTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-xs font-bold text-white/60">Which competitor or corporate domains are cited most?</h4>
+      <h4 className="text-xs font-bold text-white/60">Which competitor domains are winning for our target prompts?</h4>
       <SortableTable
         columns={columns}
         rows={rows}

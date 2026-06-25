@@ -8,7 +8,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
 import { urlJoinKey, labelFromPath } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -521,12 +521,21 @@ export async function ContentImpactReport({
   const coverageAvailable =
     Object.keys(coverage.promptIdsByDomain).length > 0 ||
     Object.keys(coverage.tagIdsByDomain).length > 0
+  const coveragePriorAvailable =
+    Object.keys(coveragePrior.promptIdsByDomain).length > 0 ||
+    Object.keys(coveragePrior.tagIdsByDomain).length > 0
   const getPromptCoverage = (domain: string): number | null =>
     coverageAvailable && totalTrackedPrompts > 0
       ? Math.round(domainPromptIds(coverage, domain).length / totalTrackedPrompts * 100)
       : null
-  const getThemeCoverage = (domain: string): number | null =>
-    coverageAvailable ? domainTagIds(coverage, domain).length : null
+  // FB-040: prior-period mirror of getPromptCoverage. Uses the same
+  // totalTrackedPrompts denominator (tracked-prompt list is configuration,
+  // not period-dependent). Returns null when prior coverage is unavailable
+  // so the delta in §H.1 stays null and renders nothing.
+  const getPromptCoveragePrior = (domain: string): number | null =>
+    coveragePriorAvailable && totalTrackedPrompts > 0
+      ? Math.round(domainPromptIds(coveragePrior, domain).length / totalTrackedPrompts * 100)
+      : null
 
   const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
 
@@ -1346,30 +1355,32 @@ export async function ContentImpactReport({
         )
       })()}
 
-      {/* ── Section H: Competitor / Third-Party Content (PRD: 2 sub-views) ── */}
+      {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
       <SectionCard
-        title="Which competitor or third-party pages are cited for our prompts?"
-        description="Non-owned content that AI tools cite for your tracked prompts. Understanding what wins informs what to create or pitch."
+        title="Competitor Analysis"
+        description="See which competitor domains are gaining or losing ground across AI Visibility, Citation Share, and Prompt Coverage for your target prompts."
       >
-        {/* Sub-view 1: Top Competitor Domains */}
+        {/* Sub-view 1: Top Competitor Domains - AI Visibility / Citation Share / Prompt Coverage */}
         {(() => {
           // filteredCompetitorDomains: model-filtered when models filter is active.
-          // v1 limitation: promptCoverage and themeCoverage are not re-computed
-          // per selected model — they reflect all-model aggregates from Peec data.
-          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 10).map((d, i) => {
-            const promptCovReal = getPromptCoverage(d.domain)
-            const themeCovReal  = getThemeCoverage(d.domain)
-            const demoPromptCov = [42, 31, 56, 28, 67, 19, 38, 49, 23, 35][i % 10]
-            const demoThemeCov  = [3, 2, 4, 1, 5, 1, 3, 4, 2, 2][i % 10]
-            // Real coverage (incl. a known 0) is shown as-is; demo fills only
-            // when there's no real coverage (helpers return null).
-            const promptCov = promptCovReal !== null ? promptCovReal : (calendarIsDemo ? demoPromptCov : null)
-            const themeCov  = themeCovReal  !== null ? themeCovReal  : (calendarIsDemo ? demoThemeCov : null)
+          // v1 limitation: promptCoverage is not re-computed per selected model;
+          // it reflects all-model aggregates from Peec data.
+          // Deltas (aiVisibility, citationShare, promptCoverage) gate on
+          // compareIso !== null so they only appear when a compare period is on.
+          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 10).map((d) => {
+            const promptCovCurrent = getPromptCoverage(d.domain)
+            const promptCovPrior   = compareIso ? getPromptCoveragePrior(d.domain) : null
+            const promptCovDelta   = compareIso && promptCovCurrent !== null && promptCovPrior !== null
+              ? promptCovCurrent - promptCovPrior
+              : null
             return {
               domain: d.domain,
-              citationCount: d.citationRate,
-              promptCoverage: promptCov,
-              themeCoverage: themeCov,
+              aiVisibility:        d.retrieved,
+              aiVisibilityDelta:   compareIso ? d.retrievedDelta : null,
+              citationShare:       d.citationRate,
+              citationShareDelta:  compareIso ? d.citationRateDelta : null,
+              promptCoverage:      promptCovCurrent,
+              promptCoverageDelta: promptCovDelta,
             }
           })
           return (
