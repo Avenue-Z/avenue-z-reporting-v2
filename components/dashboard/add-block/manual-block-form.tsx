@@ -138,7 +138,7 @@ export function ManualBlockForm({
           onClick={() => onConfirm(buildBlockConfig(draft))}
           disabled={pending || !isDraftComplete(draft)}
         >
-          {pending ? 'Adding…' : 'Add block'}
+          {pending ? (initial ? 'Saving…' : 'Adding…') : (initial ? 'Save' : 'Add block')}
         </button>
       </div>
     </div>
