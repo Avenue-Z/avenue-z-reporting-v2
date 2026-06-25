@@ -19,8 +19,8 @@ export const COMMON_TW_METRICS: { value: string; label: string }[] = [
 
 /** A single leaf's manual selections. */
 export type LeafDraft =
-  | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; values: string[] }[] }
-  | { source: 'triplewhale'; metric: string; filters?: { column: string; values: string[] }[] }
+  | { source: 'supermetrics'; dsId: string; metricField: string; account: string; expectedAccounts?: string[]; filters?: { column: string; values: string[] }[] }
+  | { source: 'triplewhale'; metric: string; account?: string; filters?: { column: string; values: string[] }[] }
 
 /** Manual weighted-sum draft. `coefficient` is the raw input (parsed at build; blank → 1). */
 export type CalculatedDraft = {
@@ -55,12 +55,20 @@ export function leafToBinding(d: LeafDraft): LeafBinding {
     const filters = (d.filters ?? [])
       .map((f) => ({ column: f.column, values: f.values.filter((v) => v !== '') }))
       .filter((f) => f.column !== '' && f.values.length > 0)
-    return { source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account, ...(filters.length ? { filters } : {}) }
+    return {
+      source: 'supermetrics', dsId: d.dsId, metricField: d.metricField, account: d.account,
+      ...(d.expectedAccounts?.length ? { expectedAccounts: d.expectedAccounts } : {}),
+      ...(filters.length ? { filters } : {}),
+    }
   }
   const filters = (d.filters ?? [])
     .map((f) => ({ column: f.column, values: f.values.filter((v) => v !== '') }))
     .filter((f) => f.column !== '' && f.values.length > 0)
-  return { source: 'triplewhale', metric: d.metric, ...(filters.length ? { filters } : {}) }
+  return {
+    source: 'triplewhale', metric: d.metric,
+    ...(d.account ? { account: d.account } : {}),
+    ...(filters.length ? { filters } : {}),
+  }
 }
 
 /** Build a calculated binding: keep terms with a complete leaf and a numeric
@@ -97,9 +105,18 @@ export function formulaToBinding(d: FormulaDraft): FormulaBinding {
 
 export function leafToDraft(b: LeafBinding): LeafDraft {
   const filters = b.filters?.length ? { filters: b.filters.map((f) => ({ column: f.column, values: [...f.values] })) } : {}
-  return b.source === 'supermetrics'
-    ? { source: 'supermetrics', dsId: b.dsId, metricField: b.metricField, account: b.account, ...filters }
-    : { source: 'triplewhale', metric: b.metric, ...filters }
+  if (b.source === 'supermetrics') {
+    return {
+      source: 'supermetrics', dsId: b.dsId, metricField: b.metricField, account: b.account,
+      ...(b.expectedAccounts?.length ? { expectedAccounts: [...b.expectedAccounts] } : {}),
+      ...filters,
+    }
+  }
+  return {
+    source: 'triplewhale', metric: b.metric,
+    ...(b.account ? { account: b.account } : {}),
+    ...filters,
+  }
 }
 
 export function formulaToDraft(b: FormulaBinding): FormulaDraft {
@@ -120,8 +137,26 @@ export function bindingToFormulaDraft(b: AggregateBinding | CalculatedBinding): 
     operands[k] = { kind: 'metric', leaf: leafToDraft(leaf) }
     return `@${k}`
   }
-  const calcExpr = (c: CalculatedBinding): string =>
-    c.terms.map((t) => (t.coefficient === 1 ? metricExpr(t.leaf) : `${t.coefficient} * ${metricExpr(t.leaf)}`)).join(' + ')
+  const calcExpr = (c: CalculatedBinding): string => {
+    const parts: string[] = []
+    for (const t of c.terms) {
+      const ref = metricExpr(t.leaf)
+      if (parts.length === 0) {
+        // First term: emit without leading connector
+        if (t.coefficient === 1) parts.push(ref)
+        else if (t.coefficient === -1) parts.push(`-${ref}`)
+        else if (t.coefficient < 0) parts.push(`-${Math.abs(t.coefficient)} * ${ref}`)
+        else parts.push(`${t.coefficient} * ${ref}`)
+      } else {
+        // Subsequent terms: choose connector based on sign
+        if (t.coefficient === 1) parts.push(`+ ${ref}`)
+        else if (t.coefficient === -1) parts.push(`- ${ref}`)
+        else if (t.coefficient < 0) parts.push(`- ${Math.abs(t.coefficient)} * ${ref}`)
+        else parts.push(`+ ${t.coefficient} * ${ref}`)
+      }
+    }
+    return parts.join(' ')
+  }
   const operandExpr = (o: AggregateOperand): string =>
     o.source === 'calculated' ? `(${calcExpr(o)})` : metricExpr(o)
   const expr = b.source === 'calculated' ? calcExpr(b) : `${operandExpr(b.left)} ${b.op} ${operandExpr(b.right)}`

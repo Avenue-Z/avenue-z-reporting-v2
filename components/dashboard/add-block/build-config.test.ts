@@ -245,4 +245,27 @@ import { parse } from '@/lib/dashboard/formula/parse'
   if (md.draft.kind === 'formula') { const d = md.draft; assert.doesNotThrow(() => parse(d.formula.expr)) }
 }
 
+// expectedAccounts round-trips through leafToDraft -> leafToBinding
+{
+  const b = { source: 'supermetrics' as const, dsId: 'SHP', metricField: 'total_sales', account: 'a', expectedAccounts: ['a', 'b'] }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// TW account round-trips through leafToDraft -> leafToBinding
+{
+  const b = { source: 'triplewhale' as const, metric: 'revenue', account: 'shop1' }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// bindingToFormulaDraft: (rev - tax) / spend -> natural expr, parses
+{
+  const d = bindingToFormulaDraft({ source: 'aggregate', op: '/',
+    left: { source: 'calculated', terms: [
+      { coefficient: 1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+      { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    ] },
+    right: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.doesNotThrow(() => parse(d.expr))
+  // should not contain " + -" (naive join artifact)
+  assert.equal(d.expr.includes('+ -'), false, 'no "plus negative" in expr')
+}
+
 console.log('ok')
