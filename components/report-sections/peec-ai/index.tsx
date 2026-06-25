@@ -252,7 +252,9 @@ function ProviderSection({
                 value: citationShareValue != null ? `${citationShareValue.toFixed(1)}%` : '--',
                 delta: citationShareDeltaShown,
                 subtitle: modelActive
-                  ? `${citShareNumer.toLocaleString()} of ${citShareDenom.toLocaleString()} citations`
+                  ? (citShareDenom > 0
+                      ? `${citShareNumer.toLocaleString()} of ${citShareDenom.toLocaleString()} citations`
+                      : 'No per-model data')
                   : `${data.yourBrandCitations.toLocaleString()} of ${data.totalCitations.toLocaleString()} citations`,
                 tooltip: `Share of total tracked-domain citations attributed to your brand's own domain in the selected date range vs. the previous period. Sourced from ${label}.`,
               },
@@ -260,7 +262,9 @@ function ProviderSection({
                 title: 'AI Referral Traffic',
                 value: aiTraffic.available ? aiTraffic.sessions.toLocaleString() : '--',
                 delta: modelActive ? undefined : aiTrafficDelta,
-                subtitle: aiTraffic.available ? 'GA4 sessions from AI sources' : 'GA4 not configured',
+                subtitle: aiTraffic.available
+                  ? (modelActive ? 'GA4 sessions from selected AI sources' : 'GA4 sessions from AI sources')
+                  : 'GA4 not configured',
                 tooltip: 'Sessions from AI referrers (ChatGPT, Perplexity, Gemini, etc.) tracked in GA4. Selected date range vs. the previous period.',
               },
             ].map(({ title, value, delta, tooltip, subtitle }) => (
