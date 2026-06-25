@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { proposeBlock, saveDashboardConfig, type ProposeBlockInput } from '@/app/actions/dashboard'
@@ -102,7 +103,10 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
   // Static kinds need no data source — skip 'pick' entirely and jump from 'kind' → 'build'.
   const isStaticKind = kind === 'header' || kind === 'narrative'
 
-  return (
+  // Render into a portal on document.body: the dialog is mounted from inside a
+  // react-grid-layout grid item, whose CSS transform would otherwise become the
+  // containing block for `position: fixed`, trapping the overlay inside the block.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
       <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col overflow-y-auto rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
@@ -205,6 +209,7 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
