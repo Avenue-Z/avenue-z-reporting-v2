@@ -2,6 +2,7 @@ import type {
   AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig, Granularity, LeafBinding,
   MetricFormat, PersistedBlock, ShopifyBinding, SupermetricsBinding, TripleWhaleBinding,
 } from './types'
+import { SHOPIFY_DIM_RE } from '@/lib/shopify/catalog'
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
@@ -105,6 +106,22 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
   if (v.source === 'shopify') {
     if (!isNonEmptyStr(v.query)) return { ok: false, error: `${path}.query: expected non-empty string` }
     const b: ShopifyBinding = { source: 'shopify', query: v.query }
+    if (v.dimensions !== undefined) {
+      if (!Array.isArray(v.dimensions) || v.dimensions.length !== 1) {
+        return { ok: false, error: `${path}.dimensions: expected array of length 1 (v1)` }
+      }
+      const d = v.dimensions[0]
+      if (!isNonEmptyStr(d) || !SHOPIFY_DIM_RE.test(d)) {
+        return { ok: false, error: `${path}.dimensions[0]: expected safe Shopify column (matching ^[a-z0-9_]+$)` }
+      }
+      b.dimensions = [d]
+    }
+    if (v.granularity !== undefined) {
+      if (!GRANULARITIES.includes(v.granularity as Granularity)) {
+        return { ok: false, error: `${path}.granularity: expected one of ${GRANULARITIES.join(',')}` }
+      }
+      b.granularity = v.granularity as Granularity
+    }
     return { ok: true, value: b }
   }
   return { ok: false, error: `${path}.source: expected 'supermetrics', 'triplewhale', or 'shopify'` }

@@ -264,4 +264,21 @@ assert.equal(parseBlockConfig(block({ source: 'shopify', query: '' })).ok, false
   assert.equal(r.ok, true)
 }
 
+// shopify grouped binding: dimension round-trips (safe column)
+{
+  const r = parseBlockConfig(block({ source: 'shopify', query: 'FROM sales SHOW net_sales', dimensions: ['sales_channel'] }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'shopify') assert.deepEqual(r.block.binding.dimensions, ['sales_channel'])
+}
+// shopify series binding: granularity round-trips
+{
+  const r = parseBlockConfig(block({ source: 'shopify', query: 'FROM sales SHOW net_sales', granularity: 'week' }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'shopify') assert.equal(r.block.binding.granularity, 'week')
+}
+// shopify: unsafe dimension rejected; length-2 rejected; bad granularity rejected
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', dimensions: ['bad; drop'] })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', dimensions: ['a', 'b'] })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', granularity: 'minute' })).ok, false)
+
 console.log('ok')

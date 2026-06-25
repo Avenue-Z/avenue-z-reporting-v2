@@ -59,14 +59,14 @@ export function ManualBlockForm({
   const [op, setOp] = useState<Op>('/')
   const [left, setLeft] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('triplewhale') }))
   const [right, setRight] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('supermetrics') }))
-  const [bar, setBar] = useState<BarDraft>(() => ({ source: 'bar', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
-  const [line, setLine] = useState<LineDraft>(() => ({ source: 'line', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), granularity: 'day' as Granularity }))
+  const [bar, setBar] = useState<BarDraft>(() => ({ source: 'bar', leaf: emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source as LeafSource), dimension: '' }))
+  const [line, setLine] = useState<LineDraft>(() => ({ source: 'line', leaf: emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source as LeafSource), granularity: 'day' as Granularity }))
   const [header, setHeader] = useState<HeaderDraft>(() =>
     initial?.kind === 'header' ? initial.header : { source: 'header', level: 2 })
   const [narrative, setNarrative] = useState<NarrativeDraft>(() =>
     initial?.kind === 'narrative' ? initial.narrative : { source: 'narrative', body: '' })
-  const [pills, setPills] = useState<PillsDraft>(() => ({ source: 'pills', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics') }))
-  const [table, setTable] = useState<TableDraft>(() => ({ source: 'table', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
+  const [pills, setPills] = useState<PillsDraft>(() => ({ source: 'pills', leaf: emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source as LeafSource) }))
+  const [table, setTable] = useState<TableDraft>(() => ({ source: 'table', leaf: emptyLeaf(source === 'aggregate' || source === 'calculated' ? 'supermetrics' : source as LeafSource), dimension: '' }))
 
   const draft: ManualDraft =
     kind === 'bar'

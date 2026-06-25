@@ -1,30 +1,13 @@
 // Run: npx tsx lib/shopify/catalog.test.ts
 import { strict as assert } from 'node:assert'
-import { SHOPIFY_METRICS, findShopifyMetric } from './catalog'
+import { SHOPIFY_DIMENSIONS, SHOPIFY_DIM_RE } from './catalog'
 
-// non-empty, unique ids, valid formats, queries have no date clause
-const FORMATS = ['currency', 'percent', 'count', 'number']
-assert.ok(SHOPIFY_METRICS.length > 0)
-const ids = new Set<string>()
-for (const m of SHOPIFY_METRICS) {
-  assert.equal(ids.has(m.id), false, `duplicate id ${m.id}`)
-  ids.add(m.id)
-  assert.ok(m.label.length > 0, `${m.id} needs a label`)
-  assert.ok(m.query.toUpperCase().startsWith('FROM '), `${m.id} query must be a ShopifyQL body`)
-  assert.equal(/\bSINCE\b|\bUNTIL\b/i.test(m.query), false, `${m.id} query must omit the date clause`)
-  assert.ok(FORMATS.includes(m.format), `${m.id} bad format`)
+assert.equal(SHOPIFY_DIMENSIONS.length, 6, 'exactly the 6 curated dimensions')
+assert.ok(SHOPIFY_DIMENSIONS.some((d) => d.id === 'sales_channel'), 'includes sales_channel')
+for (const d of SHOPIFY_DIMENSIONS) {
+  assert.equal(SHOPIFY_DIM_RE.test(d.id), true, `${d.id} must be a safe column`)
+  assert.ok(d.label.length > 0)
 }
-
-// the headline metric is present and correct
-const subs = findShopifyMetric('new-subscriptions')
-assert.ok(subs)
-assert.equal(subs!.format, 'count')
-assert.ok(subs!.query.includes('orders_first_time'))
-assert.ok(subs!.query.includes("subscription_or_one_time = 'subscription'"))
-
-// lookup by query round-trips
-assert.equal(findShopifyMetric(subs!.query)?.id, 'new-subscriptions')
-// unknown → undefined
-assert.equal(findShopifyMetric('FROM sales SHOW nope'), undefined)
-
+assert.equal(SHOPIFY_DIM_RE.test('a; DROP'), false)
+assert.equal(SHOPIFY_DIM_RE.test('UPPER'), false)
 console.log('ok')

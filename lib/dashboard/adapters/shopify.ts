@@ -1,6 +1,10 @@
-import { runShopifyQl } from '@/lib/shopify/client'
-import type { LeafValue, ShopifyBinding } from '../types'
-import { DisconnectedError } from '../errors'
+import { createHash } from 'node:crypto'
+import { unstable_cache } from 'next/cache'
+import { runShopifyQl, runShopifyQlTable, type TableData } from '@/lib/shopify/client'
+import { SHOPIFY_DIM_RE } from '@/lib/shopify/catalog'
+import type { Granularity, GroupedRow, LeafValue, SeriesPoint, ShopifyBinding } from '../types'
+import { DisconnectedError, InvalidMetricError } from '../errors'
+import { joinGrouped, alignSeries } from '../group-join'
 
 /**
  * Per-client Shopify credentials by env-var convention:
@@ -46,4 +50,92 @@ export async function resolveShopifyLeaf(
   const prevValue = compareIso ? await fetchValue(compareIso) : undefined
 
   return { value, prevValue }
+}
+
+function toNumber(v: unknown): number {
+  if (v === null || v === undefined) return 0
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Flatten a 2-column ShopifyQL table (dim, metric) → { dim, value }. */
+export function groupRowsFromShopify(td: TableData): { dim: string; value: number }[] {
+  const dimKey = td.columns[0]?.name
+  const valKey = td.columns[1]?.name
+  if (typeof dimKey !== 'string' || typeof valKey !== 'string') return []
+  return td.rows.map((r) => ({ dim: String(r[dimKey] ?? ''), value: toNumber(r[valKey]) }))
+}
+
+/** Flatten a 2-column ShopifyQL table (bucket, metric) → { bucket, value }, date-asc. */
+export function seriesPointsFromShopify(td: TableData): { bucket: string; value: number }[] {
+  const bKey = td.columns[0]?.name
+  const valKey = td.columns[1]?.name
+  if (typeof bKey !== 'string' || typeof valKey !== 'string') return []
+  return td.rows
+    .map((r) => ({ bucket: String(r[bKey] ?? '').slice(0, 10), value: toNumber(r[valKey]) }))
+    .sort((a, b) => a.bucket.localeCompare(b.bucket))
+}
+
+const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16)
+
+async function fetchShopifyTable(shop: string, token: string, query: string, isoRange: string, tag: string) {
+  return unstable_cache(
+    async () => {
+      const [startDate, endDate] = isoRange.split(',')
+      return runShopifyQlTable({ shop, token, query, startDate, endDate })
+    },
+    ['shopify', tag, shop, isoRange, keyHash(query)],
+    { revalidate: 3600 },
+  )()
+}
+
+export async function resolveShopifyGrouped(
+  b: ShopifyBinding,
+  ctx: { slug: string },
+  dateRange: string,
+  compareRange: string | null,
+): Promise<GroupedRow[]> {
+  if (!b.dimensions || b.dimensions.length !== 1) {
+    throw new InvalidMetricError('resolveShopifyGrouped requires a single dimension')
+  }
+  const dim = b.dimensions[0]
+  if (!SHOPIFY_DIM_RE.test(dim)) throw new InvalidMetricError(`unsafe Shopify dimension: ${dim}`)
+
+  const creds = resolveShopifyCreds(ctx.slug, process.env)
+  if (!creds) throw new DisconnectedError(`Shopify not connected for ${ctx.slug}`)
+  const { parseDateRange } = await import('@/lib/ga4/client')
+  const { resolveCompareIso } = await import('@/lib/paid-search/base')
+
+  const query = `${b.query} GROUP BY ${dim}`
+  const { startDate, endDate } = parseDateRange(dateRange)
+  const compareIso = resolveCompareIso(dateRange, compareRange)
+
+  const [cur, prior] = await Promise.all([
+    fetchShopifyTable(creds.shop, creds.token, query, `${startDate},${endDate}`, 'grouped').then(groupRowsFromShopify),
+    compareIso ? fetchShopifyTable(creds.shop, creds.token, query, compareIso, 'grouped').then(groupRowsFromShopify) : Promise.resolve(null),
+  ])
+  return joinGrouped(cur, prior, dim)
+}
+
+export async function resolveShopifySeries(
+  b: ShopifyBinding,
+  granularity: Granularity,
+  ctx: { slug: string },
+  dateRange: string,
+  compareRange: string | null,
+): Promise<SeriesPoint[]> {
+  const creds = resolveShopifyCreds(ctx.slug, process.env)
+  if (!creds) throw new DisconnectedError(`Shopify not connected for ${ctx.slug}`)
+  const { parseDateRange } = await import('@/lib/ga4/client')
+  const { resolveCompareIso } = await import('@/lib/paid-search/base')
+
+  const query = `${b.query} GROUP BY ${granularity}`
+  const { startDate, endDate } = parseDateRange(dateRange)
+  const compareIso = resolveCompareIso(dateRange, compareRange)
+
+  const [cur, prior] = await Promise.all([
+    fetchShopifyTable(creds.shop, creds.token, query, `${startDate},${endDate}`, 'series').then(seriesPointsFromShopify),
+    compareIso ? fetchShopifyTable(creds.shop, creds.token, query, compareIso, 'series').then(seriesPointsFromShopify) : Promise.resolve(null),
+  ])
+  return alignSeries(cur, prior)
 }

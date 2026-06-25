@@ -33,3 +33,17 @@ export const SHOPIFY_METRICS: ShopifyMetric[] = [
 export function findShopifyMetric(idOrQuery: string): ShopifyMetric | undefined {
   return SHOPIFY_METRICS.find((m) => m.id === idOrQuery || m.query === idOrQuery)
 }
+
+/** ShopifyQL `sales` table columns that are safe + low/medium cardinality to GROUP BY
+ *  in a chart. Verified live against bright-patches 2026-06. */
+export const SHOPIFY_DIMENSIONS: readonly { id: string; label: string }[] = [
+  { id: 'sales_channel',             label: 'Sales Channel' },
+  { id: 'product_type',              label: 'Product Type' },
+  { id: 'product_title',             label: 'Product' },
+  { id: 'billing_country',           label: 'Country' },
+  { id: 'billing_region',            label: 'Region' },
+  { id: 'new_or_returning_customer', label: 'New vs Returning' },
+] as const
+
+/** Safe-column guard for any ShopifyQL dimension before interpolation into a GROUP BY. */
+export const SHOPIFY_DIM_RE = /^[a-z0-9_]+$/

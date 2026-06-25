@@ -87,7 +87,7 @@ export async function resolveGroupedBlock(
   ctx: { slug: string },
   deps: { resolveGrouped?: GroupedResolver } = {},
 ): Promise<GroupedResult> {
-  if (config.binding.source !== 'supermetrics' && config.binding.source !== 'triplewhale') {
+  if (config.binding.source !== 'supermetrics' && config.binding.source !== 'triplewhale' && config.binding.source !== 'shopify') {
     return { ok: false, error: 'invalid-metric' }
   }
   const range = config.range ?? global
@@ -108,7 +108,7 @@ export async function resolveSeriesBlock(
   ctx: { slug: string },
   deps: { resolveSeries?: SeriesResolver } = {},
 ): Promise<SeriesResult> {
-  if (config.binding.source !== 'supermetrics' && config.binding.source !== 'triplewhale') {
+  if (config.binding.source !== 'supermetrics' && config.binding.source !== 'triplewhale' && config.binding.source !== 'shopify') {
     return { ok: false, error: 'invalid-metric' }
   }
   const granularity = config.binding.granularity

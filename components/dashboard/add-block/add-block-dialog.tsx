@@ -36,9 +36,9 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
     { value: 'calculated',   label: 'Calculated (weighted sum)' },
   ],
   pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
-  bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
-  line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
-  table:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }],
+  bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
+  line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
+  table:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
   narrative: [],
   header:    [],
 }
@@ -186,7 +186,7 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
           <>
             <ManualBlockForm
               kind={kind}
-              source={source as 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'}
+              source={source as 'supermetrics' | 'triplewhale' | 'shopify' | 'aggregate' | 'calculated'}
               slug={slug}
               pending={pending}
               initial={initial}

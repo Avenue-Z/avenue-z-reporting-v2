@@ -121,9 +121,6 @@ export function isOperandComplete(o: OperandDraft): boolean {
 /** Convert a bar draft into a Bar block config (kind: 'bar', leaf binding with dimensions). */
 export function barToBlockConfig(d: BarDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
-  // SM/TW carry an optional `dimensions: string[]`; Shopify (ShopifyQL) has none and isn't
-  // offered as a bar source, so narrow it out before adding the dimension.
-  if (base.source === 'shopify') throw new Error('Shopify is not supported for bar blocks')
   const binding: LeafBinding = { ...base, dimensions: [d.dimension] }
   return { name, format, range: null, binding, kind: 'bar' }
 }
@@ -131,7 +128,6 @@ export function barToBlockConfig(d: BarDraft, name: string, format: MetricFormat
 /** Convert a line draft into a Line block config (kind: 'line', leaf binding with granularity). */
 export function lineToBlockConfig(d: LineDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
-  if (base.source === 'shopify') throw new Error('Shopify is not supported for line blocks')
   const binding: LeafBinding = { ...base, granularity: d.granularity }
   return { name, format, range: null, binding, kind: 'line' }
 }
@@ -144,7 +140,6 @@ export function pillsToBlockConfig(d: PillsDraft, name: string, format: MetricFo
 /** Convert a table draft into a Table block config (kind: 'table', leaf binding with one dim). */
 export function tableToBlockConfig(d: TableDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
-  if (base.source === 'shopify') throw new Error('Shopify is not supported for table blocks')
   const binding: LeafBinding = { ...base, dimensions: [d.dimension] }
   return { name, format, range: null, binding, kind: 'table' }
 }
