@@ -8,6 +8,10 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 
 ---
 
+## FB-036 - Speed Stats validation (2026-06-25)
+
+FB-036 | 2026-06-25 | <pending> | a | Tina asked two diagnostic questions about §C "How quickly does new content earn traffic and AI citations?" (a) real or hallucinated, has it been validated? and (b) affected by the date range selector or showing a default timeframe average like the YTD chart? Answered both with full receipts and shipped one copy fix caught while validating. Q1 answer: real GA4 data, validated. Source = Google's official BetaAnalyticsDataClient.runReport at lib/ga4/client.ts:12+185 (same SDK every GA4 metric in the platform uses); §C derivation is pure JavaScript math (min/max/median of firstSessionDate-publishDate per planned URL) via unit-tested helper computeUrlTiming in lib/ga4/content-derive.ts:133 with 3 assertions at content-derive.test.ts:69-97. Zero LLM in the path so nothing can hallucinate. Q2 answer: not affected by the date range selector by design. Query window hardcoded to earliestPublishDate->today at content-impact.tsx:580+592, same always-on pattern as the YTD Visibility chart. Intentional: "days to first" only makes sense from publish date forward through today; tying to the picker would clip out anything published before window start and exclude anything published after. Sub-finding shipped: §C subtitle previously said "first AI citation or bot crawl" but code only measures first AI-referred GA4 session (helper docstring confirms at content-derive.ts:128-131). Subtitle rewritten to accurately describe what's measured AND to call out the always-on behavior so the date-reactivity question doesn't recur. One-line edit at content-impact.tsx:1063. Behavior change zero. tsc clean.
+
 ## FB-035 - Watched Pages table overhaul (2026-06-24)
 
 - Task 1: aggregateDomainCoverage now emits promptIdsByUrlKey; getDomainCoverage accepts dateRange opt; cache version v3 to v4 (coverage), v2 to v3 (citations).

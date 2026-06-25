@@ -16,6 +16,18 @@ _(none)_
 
 ## Closed
 
+### FB-036 — Speed Stats validation (Tina, 2026-06-25)
+- **Ask (verbatim):** Questions about the §C "How quickly does new content earn traffic and AI citations?" chart:
+  - Is it real data or hallucinated? Has it been validated?
+  - Is it affected by the date range selector or is it showing a default timeframe average? (similar to the YTD chart)
+- **Direct answers (for the sheet):**
+  - **Real data, validated.** Pulled live from GA4 via Google's official `BetaAnalyticsDataClient.runReport()` (lib/ga4/client.ts:12, :185) — same source every GA4 metric in the platform uses. Zero LLM in the path: §C is pure JavaScript math (min/max/median of `firstSessionDate - publishDate` per planned URL) via the unit-tested helper `computeUrlTiming` (lib/ga4/content-derive.ts:133, tests at content-derive.test.ts:69-97). Nothing can hallucinate because no model is involved.
+  - **Not affected by the date range selector, by design.** The query window is hardcoded `earliestPublishDate -> today` (content-impact.tsx:580 + :592), same always-on pattern as the YTD Visibility chart. This is intentional: "days to first" only makes sense from publish date forward through today; tying it to the picker would clip out anything published before the selected window and exclude anything published after.
+- **Sub-finding caught while validating (and shipped):** The §C subtitle previously read "first AI citation or bot crawl" but the code only measures first AI-referred GA4 session — no AI citations, no bot crawls. The helper's own docstring confirms this (content-derive.ts:128-131). Subtitle rewritten to: "For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range." Now matches reality + makes the always-on behavior explicit, pre-empting future "is this date-reactive?" questions.
+- **Files touched:** components/report-sections/peec-ai/content-impact.tsx:1063 (subtitle rewrite).
+- **Behavior change:** none. Copy only.
+- **Sheet row:** Content Impact | Speed Stats: (Q1) Is it real or hallucinated? (Q2) Is it affected by the date range selector? | Validated as real, live GA4 data via Google's official SDK; no LLM in the path (pure JavaScript math, unit-tested); not affected by the date range selector by design (always measures publish date through today, same pattern as YTD chart). Subtitle rewritten to accurately describe what's measured (was overclaiming "AI citation or bot crawl"; actually measures first AI-referred GA4 session) and to call out the always-on behavior so this question doesn't recur.
+
 ### FB-035 — Watched Pages table overhaul (Tina, 2026-06-24)
 - **Ask:** Replace 16-column Planned Content Performance table with 9-column shape: Content Piece (topic + URL hyperlinked), Content Type, Publish Date, Last Updated, Prompt Coverage (+ delta), Citation Share (+ delta), AI Referral Traffic (+ delta), Organic Sessions (+ delta), Engagement Rate (+ delta). Only completed work (strict literal: status === "published" case-insensitive). Paginate at 10 with expand. Default sort Citation Share desc. New title and subtitle. Comparison-period deltas across all 5 metrics.
 - **Bug discovered en route:** compareRange was not wired to ContentImpactReport at app/dashboard/[clientSlug]/reports/page.tsx:71, silently killing FB-034 §A delta wiring. Fixed in Task 3.

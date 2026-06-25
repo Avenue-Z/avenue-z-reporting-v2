@@ -1060,7 +1060,7 @@ export async function ContentImpactReport({
       {/* ── Section C: Time to First Traffic / AI Activity ─────────────────── */}
       <SectionCard
         title="How quickly does new content earn traffic and AI citations?"
-        description="For each published URL, measures days from publish date to first GA4 session and first AI citation or bot crawl."
+        description="For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range."
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
