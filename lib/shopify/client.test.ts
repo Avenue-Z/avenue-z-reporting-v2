@@ -79,6 +79,20 @@ async function run() {
     assert.equal(td.columns[0].name, 'sales_channel')
   }
 
+  // runShopifyQlTable: tableData null → empty columns/rows (not a throw)
+  {
+    const fetchImpl = (async () => ({
+      ok: true,
+      json: async () => ({ data: { shopifyqlQuery: { parseErrors: [], tableData: null } } }),
+    })) as unknown as typeof fetch
+    const td = await runShopifyQlTable(
+      { shop: 's.myshopify.com', token: 't', query: 'FROM sales SHOW net_sales', startDate: '2026-05-01', endDate: '2026-05-31' },
+      { fetchImpl },
+    )
+    assert.equal(td.columns.length, 0)
+    assert.equal(td.rows.length, 0)
+  }
+
   console.log('ok')
 }
 run().catch((e) => { console.error(e); process.exit(1) })
