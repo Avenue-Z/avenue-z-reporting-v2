@@ -41,6 +41,11 @@ export async function resolveBlock(
   ctx: { slug: string },
   deps: { resolveLeaf?: LeafResolver } = {},
 ): Promise<ResolveResult> {
+  // Defensive guard: static-kind blocks (header/narrative) carry a __static__ sentinel
+  // binding that must never reach a real resolver (see BlockKind JSDoc in types.ts).
+  if (config.binding.source === 'supermetrics' && config.binding.dsId === '__static__') {
+    return { ok: false, error: 'invalid-metric' }
+  }
   const resolveLeaf = deps.resolveLeaf ?? defaultResolveLeaf
   const range = config.range ?? global // per-block override vs. inherit
 

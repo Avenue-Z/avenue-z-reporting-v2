@@ -1,5 +1,7 @@
 // lib/dashboard/types.test.ts
 // Run: npx tsx lib/dashboard/types.test.ts
+// AggregateBinding round-trip and DashboardConfig.blocks[0].layout coverage lives in
+// lib/dashboard/resolve.test.ts (aggregate path) and lib/dashboard/persistence.test.ts (layout round-trip).
 import { strict as assert } from 'node:assert'
 import type { BlockKind, BlockConfig } from './types'
 import { DEFAULT_LAYOUT } from '../../components/dashboard/block-grid-defaults'

@@ -44,7 +44,18 @@ export interface AggregateBinding {
 
 export type Binding = LeafBinding | CalculatedBinding | AggregateBinding
 
-/** Block kind discriminator. Default at parse/render time is 'kpi' for back-compat. */
+/**
+ * Block kind discriminator. Default at parse/render time is 'kpi' for back-compat.
+ *
+ * Static-kind contract: 'header' and 'narrative' skip ALL resolvers (resolveBlock,
+ * resolveGroupedBlock, resolveSeriesBlock). Their `binding` field is a documented
+ * placeholder sentinel (see headerToBlockConfig / narrativeToBlockConfig in
+ * components/dashboard/add-block/build-config.ts) and must NEVER be passed to a
+ * resolver. The dispatcher in the configurable-dashboard page.tsx enforces this by
+ * rendering static kinds before the resolver switch. resolveBlock additionally
+ * defends against accidental calls by returning 'invalid-metric' if it detects the
+ * __static__ sentinel (see lib/dashboard/resolve.ts).
+ */
 export type BlockKind = 'kpi' | 'pills' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
 
 /** Full grid layout: required when present. Missing layout = "auto-pack on next save". */

@@ -21,6 +21,7 @@ export function toTableInput(
   r: { ok: true; rows: GroupedRow[]; format: MetricFormat },
 ): TableInput {
   // v1: single dim → take the first (and only) dim key from the first row.
+  // The 'dim' fallback is unreachable — TableBlockBody short-circuits empty rows to <BlockBodyError>.
   const dimKey = r.rows.length > 0 ? Object.keys(r.rows[0].dim)[0] : 'dim'
   const hasCompare = r.rows.some((row) => row.prevValue !== undefined)
 

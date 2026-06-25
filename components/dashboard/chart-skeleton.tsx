@@ -6,7 +6,7 @@ export function ChartSkeleton({ kind }: { kind: 'bar' | 'line' | 'table' }) {
     <div
       className="h-full w-full min-h-[180px] animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.04]"
       aria-busy="true"
-      aria-label={`Loading ${kind} chart`}
+      aria-label={`Loading ${kind}`}
     />
   )
 }

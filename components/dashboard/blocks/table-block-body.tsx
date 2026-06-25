@@ -18,7 +18,7 @@ export async function TableBlockBody({
 
   const t = toTableInput(r)
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5 h-full flex flex-col">
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 h-full flex flex-col">
       <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{block.name}</p>
       <div className="mt-3 flex-1 min-h-0 overflow-auto">
         <DataTable columns={t.columns} rows={t.rows} defaultSort={t.defaultSort} />
