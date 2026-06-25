@@ -1256,10 +1256,23 @@ export async function ContentImpactReport({
             .filter((k): k is string => k !== null),
         )
 
+        // FB-050: parent-domain suffix match so blog.X.com counts as owned when X.com is Own.
+        // Exact equality handles the root domain; the endsWith check catches all subdomains.
+        // The dot-prefix prevents renaissance.com from matching notrenaissance.com.
+        const isOwnedHost = (citationHost: string | null): boolean => {
+          if (!citationHost) return false
+          for (const ownedKey of ownedHostKeys) {
+            if (citationHost === ownedKey || citationHost.endsWith(`.${ownedKey}`)) {
+              return true
+            }
+          }
+          return false
+        }
+
         const fullsiteRows: FullsiteContentPerformanceRow[] = urlCitations
           .filter((c) => {
             const hostKey = urlJoinKey(c.domain)
-            return hostKey !== null && ownedHostKeys.has(hostKey) && (c.citationCount ?? 0) > 0
+            return isOwnedHost(hostKey) && (c.citationCount ?? 0) > 0
           })
           .map((c) => {
             const path = extractPath(c.url)
