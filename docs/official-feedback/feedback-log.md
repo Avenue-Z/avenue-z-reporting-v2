@@ -2241,3 +2241,33 @@ Each Δ column: `key: '<metric>Delta'`, `label: 'Δ'`, `align: 'right'`, `access
 **Shipped:** Refactored `SlopeChart` component. Added `useState<string | null>('hoveredUrl')`. Layout now a flex row: chart on the left (its right-margin reduced from 80 → 16 since legend is no longer needed inside the chart pane), legend `<ul>` on the right (`w-56 shrink-0`). Legend items sorted by `p.current` desc; each `<li>` has a colored dot (`DIRECTION_COLOR[p.direction]`), the page label (`p.topic ?? p.url`), and the Current value via `yTickFormatter`. Hover on either a legend `<li>` or a chart line's `activeDot` sets `hoveredUrl`. `opacityFor(url)` drives line `strokeOpacity` + `fillOpacity` + legend row `opacity`: `null` → 0.7, hovered → 1.0 + strokeWidth 3, other → 0.15 (lines) / 0.4 (legend rows). Tooltip only renders when `hoveredUrl !== null` and filters via `(value, name) => String(name) !== hoveredUrl ? [null, null] : ...`. Toggle row, compare-period gating, empty states all unchanged. Pure helper at `lib/peec/slope-chart.ts` not touched (only the .tsx UI consumer).
 
 **Files touched (Phase 2):** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/report-sections/peec-ai/bot-vs-human-scatter.tsx`, `components/report-sections/peec-ai/slope-chart.tsx`.
+
+---
+
+## V2 Phase 3 — Content Impact (FB-048, FB-050, FB-052) — V2 close-out
+
+**Tab:** Content Impact
+**Round:** V2 Phase 3 (investigation-informed fixes — final close-out)
+**Sources:** column E of `Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`, rows 6c, 8b, 9b.
+
+### FB-048 — §D scatter date range (Row 6c) — Path B shipped
+
+**Tina's ask:** "What do you mean by data window for Peec? Why wouldn't this match the date range selector?"
+
+**Task 14 pre-flight outcome:** Could not run a live Peec API call from the local environment (no local credentials). Defaulted to the safer, truthful Path B so the answer to Tina's question is honest and visible in production. If we later confirm Peec retains > 30 days of agent-analytics data, we hotfix to Path A (wire the date picker through).
+
+**Shipped (Path B):** §D subtitle at `content-impact.tsx:1236` rewritten to: "See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range." Tina's question is now answered on the surface of the chart itself.
+
+### FB-050 — §F subdomain page match fix (Row 8b)
+
+**Tina's ask:** "are there really only 14 pages on the entire site that are being cited? I feel like it should be more than that."
+
+**Shipped:** The forensic-sweep root cause was confirmed: §F filter at `content-impact.tsx:1262` was using `ownedHostKeys.has(citationHost)` exact-match equality. Cited URLs on subdomains (e.g. `blog.renaissance.com`) were silently dropped when only the parent (`renaissance.com`) was marked as Own. New `isOwnedHost()` helper iterates `ownedHostKeys` and matches exact host OR `.endsWith(\`.${ownedKey}\`)` parent-domain suffix. The dot-prefix guard prevents accidental matches like `notrenaissance.com`. Empty `ownedHostKeys` still returns false (loop never runs). The §F page count should jump significantly for any client that has subdomain content.
+
+### FB-052 — §H.1 competitor cap bump (Row 9b)
+
+**Tina's ask:** "are there only 7 competitors on the list? There should be more than that."
+
+**Shipped:** Two silent caps were limiting the surface area. (1) The two `peecPost('/reports/domains', ...)` calls in `lib/peec/client.ts:408-409` (current + prior) now both pass `limit: 500` instead of falling back to Peec's default 100. (2) §H.1 UI slice in `content-impact.tsx:1376` raised from `.slice(0, 10)` to `.slice(0, 25)`. Tina should now see up to 25 competitor rows (limited only by what Peec actually surfaces for that workspace).
+
+**Files touched (Phase 3):** `components/report-sections/peec-ai/content-impact.tsx`, `lib/peec/client.ts`.

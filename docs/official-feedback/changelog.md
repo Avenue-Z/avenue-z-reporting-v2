@@ -24,6 +24,12 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 - All deltas gate on compare-period (FB-034 hotfix #2 pattern). Zero new data fetches.
 - §H.2 untouched.
 
+## V2 Phase 3 - Content Impact investigation-informed fixes (2026-06-25)
+
+FB-052 | 2026-06-25 | 172162f | a | §H.1 competitor cap raised. Both /reports/domains peecPost calls (current + prior) now pass limit: 500 instead of relying on Peec's default 100. §H.1 UI .slice(0, 10) raised to .slice(0, 25). Surfaces up to 25 competitor rows where the previous cap was 7-10. Tina v2 CSV row 9b.
+FB-050 | 2026-06-25 | b8c0dcc | a | §F owned-host match accepts subdomains. Previous ownedHostKeys.has(citationHost) exact-equality silently dropped cited URLs on subdomains (blog.X.com when X.com is Own). New isOwnedHost() function does exact match OR .endsWith('.${ownedKey}') suffix match with dot-prefix guard so notX.com still doesn't match. Empty ownedHostKeys safe (loop never runs). Likely root cause of Tina's "only 14 pages" complaint. Tina v2 CSV row 8b.
+FB-048 | 2026-06-25 | e76c188 | a | §D scatter subtitle rewritten to honestly explain the 30d window: "Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range." Path B per Task 14 (pre-flight could not be run from local env — no Peec credentials; safer to ship honest copy than guess at Peec's retention). Hotfix to Path A (wire date picker through) possible if Peec is later confirmed to serve longer windows. Tina v2 CSV row 6c.
+
 ## V2 Phase 2 - Content Impact UI fixes (2026-06-25)
 
 FB-049 | 2026-06-25 | 89317f1 | a | §E slope chart refactored with right-margin legend (sorted by Current desc) + hover-to-mute behavior. Added useState(hoveredUrl). Layout split into flex row: chart left, legend ul right (w-56 shrink-0). Hovering a legend li or chart line activeDot sets hoveredUrl; opacityFor returns null=0.7/active=1.0+strokeWidth3/muted=0.15 for lines and 0.4 for legend rows. Tooltip only renders when hoveredUrl !== null and filters to the hovered URL inside its formatter. Pure helper lib/peec/slope-chart.ts not touched. Tina v2 CSV row 7.
