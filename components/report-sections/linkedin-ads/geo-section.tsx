@@ -1,13 +1,12 @@
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
-import { CHART_COLORS } from '@/lib/constants'
 import type { LinkedInGeoRow } from '@/lib/linkedin/types'
 import { usd } from '@/lib/supermetrics/format'
 
 export function LinkedInGeoSection({ rows }: { rows: LinkedInGeoRow[] }) {
   const top10 = rows.slice(0, 10)
   const chartData = top10.map((r) => ({ region: r.region, spend: r.spend }))
-  const yKeys = [{ key: 'spend', label: 'Spend', color: CHART_COLORS.linkedin }]
+  const yKeys = [{ key: 'spend', label: 'Spend', color: '#60FF80' }] // brand green (Meta + LinkedIn unified)
   const topRegion = top10[0] ?? null
   const totalGeos = rows.length
 
