@@ -1,77 +1,65 @@
-# Handoff — Content Impact (content v1) post-compaction resume
+# Handoff — Content Impact v1 SHIPPED + MERGED, ready for next round
 
-> Copy everything below the `---` line into the new Claude Code session. Persisted to this file on the branch as the durable recovery path.
+> Copy everything below the `---` line into the new Claude Code session. Persisted on `main` as the durable recovery path.
 
 ---
 
-You are picking up an in-flight workstream on the `avenue-z-reporting-v2` repo. Working directory: `/Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback`.
+You are resuming work on the `avenue-z-reporting-v2` repo at `/Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback`.
 
-## State at handoff (2026-06-25)
+## Current state (as of 2026-06-25)
 
-- **Branch:** `official-feedback-content-impact-tab-content-v1` at `b7c7590` (local = remote). 43 commits ahead of `main` (`2c7db77`). Working tree clean.
-- **PR:** [#77](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/77), open.
-- **Next FB ID:** **FB-040**.
+- **Branch:** `main` at `db92aaea` (local = remote, working tree clean)
+- **PR #77** (Content Impact tab v1) MERGED to `main` at `db92aaea`
+- **PR #81** (Paul's separate AEO tab iterations) also merged just before #77
+- **All FB-033 through FB-041 shipped** and live on production after merge
 
-## What shipped this round
+## What Content Impact tab now looks like (top → bottom)
 
-| FB | What | Position |
-|---|---|---|
-| **FB-033** | Executive Synopsis card (Glean, FB-031 hardened) | top of tab |
-| **FB-034** | §A 4 KPI cards (Citation Share / Prompt Coverage / AI Referral / Organic) + delta wiring | §A |
-| **FB-035** | §B Watched Pages: 9-col URL table, strict `status==='published'` filter, paginate 10, default sort Citation Share desc, 5 metric deltas | §B |
-| **FB-036** | §C Speed Stats validation (real GA4, no LLM) + subtitle copy fix (was overclaiming "AI citation or bot crawl") | §C |
-| **FB-037** | §D Bot vs Human scatter (4 median-split quadrants, always-on last-30, zero new fetches for bot side) | §D |
-| **FB-038** | §E Slope chart with 3-toggle (AI Referral / Organic / Citation Share), top 15 by abs delta, compare-period gated | §E |
-| **FB-039** | §F Fullsite Content Performance: drop legacy 9-col domain-row, replace with 6-col URL-row (Page hyperlinked + 5 metrics with deltas) | §F |
+1. SectionHeader (FB-001)
+2. Executive Synopsis card (Glean, FB-033)
+3. **§A Snapshot KPIs** — 4 cards: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic (each with delta when compare is on) — FB-034
+4. **§B Watched Pages** — 9-col URL table, paginated to 10, default sort Citation Share desc, only `published` status, 5 metric deltas — FB-035
+5. **§C Speed Stats** — 4 tiles + plain-English subtitle clarifying days-from-publish window — FB-036
+6. **§D AI Bot Traffic vs. Human Traffic** — 4-quadrant scatter, always last-30 — FB-037
+7. **§E Slope chart** — top 15 pages by abs delta, 3-toggle (AI Referral / Organic / Citation Share) — FB-038
+8. **§F Fullsite Content Performance** — 6-col URL table, Page hyperlinked, 5 metric deltas — FB-039
+9. **§H Competitor Analysis** SectionCard with:
+   - **§H.1** ranking — Domain, AI Visibility, Citation Share, Prompt Coverage (each with delta) — FB-040
+   - **§H.2** brand-absent — Domain, Article (title hyperlinked), Citation Share + delta, Competitors Mentioned — FB-041
 
-Notable mid-round fixes baked in:
-- **FB-035 hotfix #1 (`0485065`):** `parseDateRange(compareRange)` falls through to default last-30 for `'previous_period'` / `'previous_year'` magic strings, making every delta read 0. Fixed by swap to `deriveCompareRange(mainRangeStr, compareRange)`. Regression test at `lib/ga4/client.test.ts`.
-- **FB-034 hotfix #1 (`b0c1afd`):** validator Rule 2 false-positive on per-domain prose. Rule removed, cache bumped.
-- **FB-034 hotfix #2 (`a4a3d12`):** Citation Share delta now gates on `compareIso !== null`. Tina's literal "when comparison turned on" honored.
-- **FB-039 hotfix (`202073c`):** §F engagement rate value renderer + delta both × 100 to match §B (GA4 returns fraction [0,1]).
+## All 6 REMOVE items confirmed gone via grep (zero matches)
 
-## Current Content Impact page top → bottom
+- "Which delivers more lift..."
+- "Which content is decaying vs. compounding..."
+- "Where is content disconnected from AI demand?"
+- "Which competitor pages repeat across our target themes?"
+- "Which AI systems are interacting with our content?"
+- "What should the content team do next?"
 
-1. SectionHeader
-2. Executive Synopsis (FB-033, cached `v3-glean-ci-rule2-removed`)
-3. **§A** "How is content performing at a glance?" → 4 KPI cards
-4. **§B** "Which planned content pieces are actually earning AI-driven engagement?" → 9-col table
-5. **§C** "How quickly does new content earn traffic and AI citations?" → 4 Speed Stats tiles
-6. **§D** "AI Bot Traffic vs. Human Traffic" → scatter chart with 4 quadrants
-7. **§E** "Which pages are gaining momentum and which are losing it?" → slope chart with 3-toggle
-8. **§F** "What content across your domain is being cited by AI?" → 6-col URL table
-9. **§H** "Which competitor or third-party pages are cited for our prompts?" → H.1 + H.2
+## Cross-checked against Tina's Google Doc HTML export
+
+The full HTML at `/Users/thomaschangavenuez/Downloads/AEO Intelligence Platform Feedback/AEOIntelligencePlatformFeedback.html` was parsed; all 16 Tina side comments [aa] through [ap] on the Content Impact section map 1:1 to shipped FBs. Literal title/subtitle blocks ([ac], [al], [an], [ap]) were verbatim-verified in source. **For future feedback rounds: ask Thomas to send the Google Doc HTML export instead of screenshots — every comment is in clean extractable form.**
+
+## Closeout artifacts
+
+- **Google Sheet:** populated columns A/B/C for 9 rows. CSV saved at `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`. Removed sections NOT included in the sheet (nothing to track for those).
+- **Slack to Tina:** sent confirming Content Impact done + sheet updated + awaiting her V2 review.
+- **Production preview:** `https://avenue-z-reporting-v2-ap93gpj01-avenue-z-technology.vercel.app` (last preview before merge). Production now serves merged content.
+
+## Next FB ID: FB-042
 
 ## First moves after compaction
 
-1. **Read in order (use Read, not Explore):**
-   - `CLAUDE.md`
-   - `docs/official-feedback/status.md`
-   - `docs/official-feedback/handoff.md` (this file)
-   - `docs/official-feedback/changelog.md`
-   - `docs/official-feedback/feedback-log.md`
-   - The 5 plan files in `docs/superpowers/plans/` (synopsis card, KPI swap, watched pages, scatter, slope, fullsite)
-   - `~/.claude/projects/-Users-thomaschangavenuez-Desktop-ave-z-reporting-official-feedback/memory/MEMORY.md`
-   - `components/report-sections/peec-ai/content-impact.tsx`
-   - `components/report-sections/peec-ai/content-impact-tables.tsx`
-   - `components/report-sections/peec-ai/bot-vs-human-scatter.tsx`
-   - `components/report-sections/peec-ai/slope-chart.tsx`
-   - `lib/peec/bot-vs-human-scatter.ts`
-   - `lib/peec/slope-chart.ts`
-   - `lib/peec/url-citations.ts`
-   - `lib/ga4/client.ts` + `lib/ga4/client.test.ts` (FB-035 hotfix regression)
-
-2. **Verify lockstep:**
+1. **Verify lockstep:**
    ```
    git branch --show-current && git fetch origin && \
    echo "local  $(git rev-parse HEAD)" && \
    echo "remote $(git rev-parse @{u})" && \
-   echo "main   $(git rev-parse origin/main)" && \
    git status --short
    ```
-   Expected: branch `official-feedback-content-impact-tab-content-v1`, local = remote = `b7c7590` (or later), main = `2c7db77` (or later), clean tree.
+   Expected: on `main`, local = remote = `db92aaea` or later, clean tree.
 
-3. **Run tsc + 6 test files:**
+2. **Run tsc + 6 tests:**
    ```
    npx tsc --noEmit
    DATABASE_URL=postgres://test:test@localhost/test npx tsx lib/ga4/client.test.ts
@@ -81,42 +69,38 @@ Notable mid-round fixes baked in:
    npx tsx lib/peec/content-impact-synopsis.test.ts
    npx tsx lib/ga4/content-derive.test.ts
    ```
-   Expected: tsc empty; every test prints `all assertions passed`.
+   Expected: tsc empty; every test prints `all assertions passed` (synopsis test prints 2 lines).
 
-4. **Reply to Thomas verbatim:**
+3. **Reply to Thomas verbatim:**
+   > Synced. On `main` at `db92aaea`. Content Impact v1 (FB-033 through FB-041) merged via PR #77. Sheet updated, Tina notified. Next FB ID FB-042. Standing by. Literal interpretation only.
 
-   > Synced. On `official-feedback-content-impact-tab-content-v1` at `b7c7590`. FB-033 through FB-039 all shipped on PR [#77](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/77). Tab is now: Synopsis, §A KPIs, §B Watched Pages, §C Speed Stats, §D Scatter, §E Slope, §F Fullsite, §H Competitor. Next FB ID is FB-040. Standing by for your next move. Literal interpretation only.
+4. **Wait for Thomas.** Do not scaffold proactively. If Thomas hands you HTML feedback file, parse it directly.
 
-5. **Wait for Thomas.** Do not scaffold proactively.
+## Working rules (non-negotiable, same as prior branch)
 
-## Working rules (non-negotiable)
-
-1. **Literal interpretation only.** If Tina didn't explicitly ask, don't change.
+1. **Literal interpretation only.** If Tina did not explicitly ask, do not change.
 2. **Glean Chat API for ALL LLM inference.** `gleanChat()` in `lib/glean.ts`. No `actAs`.
-3. **FB-031 hardening pattern** for any Glean-backed prose. Validator patterns SPECIFIC.
-4. **No em-dashes anywhere** in any new code, comment, copy, docs. Commas or hyphens.
-5. **Truth-grounded.** Uncomputable metric → omit / render `--`. Never fake zero.
-6. **Plan-first** via `superpowers:writing-plans` → `superpowers:subagent-driven-development`.
-7. **One user message = one FB.** Multi-part = `FB-NNN-a/b/c`. Hotfixes share parent FB ID.
-8. **Every FB:** feedback-log + changelog + status.md + sheet row + commit + push.
-9. **Vercel preview is truth.** `vercel logs <preview-url> --since 1h --expand`. Authenticated as `thomaschang-avez`.
-10. **Never skip hooks. Never force-push.**
-11. **Paul rule:** No Neon migrations without explicit Paul approval.
-12. **Before adding cross-cutting data plumbing, grep siblings.** If the file you are editing handles a symbol (`compareRange`, `dateRange`, units like fraction-vs-percent) differently than its peers, that is a question not a feature. Lesson from FB-035 hotfix #1 AND FB-039 hotfix (engagement rate units).
+3. **No em-dashes** in any new code, comment, copy, or docs. Commas, periods, or hyphens.
+4. **Truth-grounded.** Uncomputable metric → render `--`. Never fake zero.
+5. **Plan-first** via `superpowers:writing-plans` → `superpowers:subagent-driven-development`.
+6. **One user message = one FB.** Multi-part = `FB-NNN-a/b/c`. Hotfixes share parent FB ID.
+7. **Every FB:** feedback-log + changelog + status.md bump + sheet row + commit + push.
+8. **Never skip hooks. Never force-push. No Neon migrations without Paul approval.**
+9. **Before adding cross-cutting plumbing (compareRange, dateRange, units), grep siblings.** Lesson from FB-035 hotfix #1 (deriveCompareRange not parseDateRange) AND FB-039 hotfix (engagement rate `* 100` in BOTH renderer AND delta).
+10. **GA4 `engagementRate` is a fraction [0,1].** Any consumer must `* 100` in BOTH renderer AND delta.
+11. **Compare-period gating:** all deltas gate on `compareIso !== null` per FB-034 hotfix #2.
+12. **FB-031 hardening pattern** for any Glean-backed prose. Validator patterns SPECIFIC.
 
-## Cross-section unit gotcha (recently bit us)
-
-GA4 returns `engagementRate` as a fraction in `[0, 1]`. §B `(r.engagementRate * 100).toFixed(1)%` and `(er - erPrior) * 100`. §F NOW matches after FB-039 hotfix `202073c`. **If you add another section that consumes engagementRate, multiply by 100 in BOTH the value renderer AND the delta.** Same goes for any other GA4 metric that returns as a fraction.
-
-## Tooling reminders
+## Tooling
 
 - `npx tsc --noEmit` (zero output = clean)
 - `npx tsx <file>.test.ts` (NOT vitest); `client.test.ts` needs `DATABASE_URL=postgres://test:test@localhost/test`
-- `vercel logs <preview-url> --since 1h --expand` (authenticated as `thomaschang-avez`)
-- `vercel ls avenue-z-reporting-v2 --yes` to list previews
+- `vercel logs <preview-url> --since 1h --expand` (authed as `thomaschang-avez`)
+- `vercel ls avenue-z-reporting-v2 --yes` to list deployments
+- `gh pr view <N> --repo Avenue-Z/avenue-z-reporting-v2` for PR state
 
 ## Thomas's posture
 
 Correctness above all. QA sweeps. Receipts. No assumptions, no decisions beyond Tina's literal ask. If implied but not explicit, ASK before acting. Sheet Column F should answer Tina's question directly (paste-ready). All copy: no em-dashes, plain language.
 
-Standing by. PR [#77](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/77) is in flight with the full Content Impact v1 content round.
+Content Impact v1 is closed. Awaiting Tina V2 review feedback or next tab feedback (likely Technical Performance or Overview iterations).
