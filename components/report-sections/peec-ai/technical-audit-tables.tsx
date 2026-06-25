@@ -370,7 +370,6 @@ export interface PageOverlapTableProps {
   // tracks the path (count, 0 if no AI-referred); absent = GA4 doesn't cover it
   // → "--". null/undefined when GA4 data is unavailable.
   aiReferredByPath?: Record<string, number> | null
-  demoMode?: boolean
 }
 
 const LOW_VALUE_PATTERNS = ['/robots.txt', '/sitemap', '/wp-json/', '/oembed', '/.well-known/', '/feed/', '/xmlrpc', '/wp-admin']
@@ -378,7 +377,7 @@ function pageType(path: string): 'Infrastructure' | 'Content' {
   return LOW_VALUE_PATTERNS.some((p) => path.toLowerCase().includes(p)) ? 'Infrastructure' : 'Content'
 }
 
-export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations = [], aiReferredByPath = null, demoMode = false }: PageOverlapTableProps) {
+export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations = [], aiReferredByPath = null }: PageOverlapTableProps) {
   const severityRank: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 }
   const issuesByUrl = new Map<string, { count: number; highestSeverity: string }>()
 
@@ -396,15 +395,9 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
 
   const domain = clientDomain || 'example.com'
 
-  const demoCites    = [12, 8, 5, 0, 18, 3, 14, 0, 9, 22, 4, 11, 6, 0, 16]
-  const demoIndex    = [187, 142, 98, 56, 234, 43, 168, 31, 121, 289, 52, 147, 76, 24, 192]
-  const demoTraining = [89, 64, 47, 23, 112, 19, 81, 14, 58, 137, 27, 71, 36, 11, 92]
-  const demoHumans   = [42, 28, 19, 8, 51, 6, 36, 4, 24, 67, 12, 31, 17, 3, 38]
-  const demoDeltas   = ['+3 new', 'unchanged', '−1 resolved', 'unchanged', '+2 new', 'unchanged', '+1 new', 'unchanged', '−2 resolved', '+4 new', 'unchanged', '+1 new', 'unchanged', 'unchanged', '−1 resolved']
-
   const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
 
-  const rows: PageOverlapRow[] = agentData.topPaths.slice(0, 15).map((p, idx) => {
+  const rows: PageOverlapRow[] = agentData.topPaths.slice(0, 15).map((p) => {
     const fullUrl = `https://${domain}${p.path}`
     const issueData = issuesByUrl.get(fullUrl) ?? issuesByUrl.get(p.path) ?? null
     const type = pageType(p.path)
@@ -417,22 +410,18 @@ export function PageOverlapTable({ agentData, sfData, clientDomain, urlCitations
     return {
       path: p.path,
       type,
-      aiCitations:      demoMode ? demoCites[idx % demoCites.length]
-                                 // Crawled-but-not-cited pages have a known 0 citations
-                                 // (not "unknown") — show 0, like the visit columns.
-                                 : (citeByKey.get(urlJoinKey(fullUrl) ?? '')?.citationCount ?? 0),
-      aiIndexingVisits: demoMode ? demoIndex[idx % demoIndex.length]
-                                 : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.indexing ?? null),
-      aiTrainingVisits: demoMode ? demoTraining[idx % demoTraining.length]
-                                 : (agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.training ?? null),
+      // Crawled-but-not-cited pages have a known 0 citations
+      // (not "unknown") — show 0, like the visit columns.
+      aiCitations:      citeByKey.get(urlJoinKey(fullUrl) ?? '')?.citationCount ?? 0,
+      aiIndexingVisits: agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.indexing ?? null,
+      aiTrainingVisits: agentData.byPath?.[urlJoinKey(p.path) ?? '']?.byType.training ?? null,
       aiAgentVisits:    p.visits,
       // GA4-tracked path → AI-referred session count (0 if none); path GA4
       // doesn't cover → -- (null). See aiReferredByPath prop.
-      humanFromAI:      demoMode ? demoHumans[idx % demoHumans.length]
-                                 : (aiReferredByPath?.[urlJoinKey(p.path) ?? ''] ?? null),
+      humanFromAI:      aiReferredByPath?.[urlJoinKey(p.path) ?? ''] ?? null,
       technicalIssues:  issueData?.count ?? 0,
       highestSeverity:  issueData?.highestSeverity ?? null,
-      changeSinceLastCrawl: demoMode ? demoDeltas[idx % demoDeltas.length] : null,
+      changeSinceLastCrawl: null,
       priorityFlag,
     }
   })
@@ -593,15 +582,10 @@ interface LogAnomalyRow {
 
 export interface LogAnomaliesTableProps {
   agentData: AgentAnalyticsData
-  demoMode?: boolean
 }
 
-export function LogAnomaliesTable({ agentData, demoMode = false }: LogAnomaliesTableProps) {
-  const demoPlatforms = ['OpenAI', 'OpenAI', 'Anthropic', 'Perplexity', 'Google', 'Anthropic', 'OpenAI', 'Perplexity', 'Google', 'Anthropic', 'OpenAI', 'Perplexity']
-  const demoBotTypes  = ['search', 'training', 'training', 'retrieval', 'training', 'retrieval', 'search', 'retrieval', 'training', 'training', 'search', 'retrieval']
-  const demoLastSeen  = ['2026-06-02T10:34Z', '2026-06-02T08:51Z', '2026-06-02T03:18Z', '2026-06-01T22:07Z', '2026-06-01T19:42Z', '2026-06-01T14:23Z', '2026-06-01T11:18Z', '2026-06-01T06:51Z', '2026-05-31T20:04Z', '2026-05-31T15:27Z', '2026-05-31T09:43Z', '2026-05-30T23:18Z']
-
-  const rows: LogAnomalyRow[] = agentData.topPaths.map((p, idx) => {
+export function LogAnomaliesTable({ agentData }: LogAnomaliesTableProps) {
+  const rows: LogAnomalyRow[] = agentData.topPaths.map((p) => {
     const isLowValue = LOW_VALUE_PATTERNS.some((lv) => p.path.toLowerCase().includes(lv))
     const isRedirected = p.status >= 300 && p.status < 400
     const isStrategic = !isLowValue && p.status < 300
@@ -620,14 +604,14 @@ export function LogAnomaliesTable({ agentData, demoMode = false }: LogAnomaliesT
 
     return {
       path: p.path,
-      platform: demoMode ? demoPlatforms[idx % demoPlatforms.length] : (topBot?.provider ?? null),
-      botType:  demoMode ? demoBotTypes[idx % demoBotTypes.length]   : (topBot?.type ?? null),
+      platform: topBot?.provider ?? null,
+      botType:  topBot?.type ?? null,
       status:   p.status,
       visits:   p.visits,
       redirected: isRedirected,
       lowValue:   isLowValue,
       strategic:  isStrategic,
-      lastSeen:   demoMode ? demoLastSeen[idx % demoLastSeen.length] : lastSeenReal,
+      lastSeen:   lastSeenReal,
       action,
     }
   })
@@ -770,9 +754,7 @@ export function LogAnomaliesTable({ agentData, demoMode = false }: LogAnomaliesT
         rowKey={(r) => r.path}
         emptyMessage="No AI bot path data available."
       />
-      {!demoMode && (
-        <p className="text-[10px] text-text-muted">AI Platform and Bot Type per path require per-path bot breakdown (currently aggregated across bots). Last Seen requires extended log retention from Peec.</p>
-      )}
+      <p className="text-[10px] text-text-muted">AI Platform and Bot Type per path require per-path bot breakdown (currently aggregated across bots). Last Seen requires extended log retention from Peec.</p>
     </SectionCard>
   )
 }
