@@ -32,19 +32,40 @@ import type { GroupedRow, MetricFormat } from './types'
   assert.equal(r.columns[2].key, '__prev__')
 }
 
-// undefined value (prior-only dim) renders as em-dash, sorts as -Infinity
+// Columns must be RSC-serializable: TableBlockBody is a Server Component that
+// passes columns to the client <DataTable>, so no column prop may be a function.
+{
+  const rows: GroupedRow[] = [
+    { dim: { Channel: 'Google' }, value: 1500, prevValue: 1000 },
+    { dim: { Channel: 'Meta' }, value: 800 },
+  ]
+  const r = toTableInput({ ok: true, rows, format: 'currency' as MetricFormat })
+  for (const c of r.columns) {
+    for (const [k, v] of Object.entries(c)) {
+      assert.notEqual(typeof v, 'function', `column ${c.key}.${k} must be serializable (no function)`)
+    }
+  }
+  // Sort is declared, not a function: dim sorts as a string by its own key;
+  // numeric columns sort by their hidden __sort field.
+  assert.equal(r.columns[0].sortType, 'string')
+  assert.equal(r.columns[1].sortType, 'number')
+  assert.equal(r.columns[1].sortKey, '__value____sort')
+  // the declared sortKey must be a real field on the rows
+  assert.ok(r.columns[1].sortKey! in r.rows[0])
+}
+
+// undefined value (prior-only dim) renders as em-dash and its hidden numeric
+// sort field is -Infinity, so it sorts below rows with a defined value.
 {
   const rows: GroupedRow[] = [
     { dim: { Channel: 'Google' }, value: 100 },
     { dim: { Channel: 'New' }, value: undefined, prevValue: 50 },
   ]
   const r = toTableInput({ ok: true, rows, format: 'number' as MetricFormat })
-  const sv = r.columns[1].sortValue!
-  // The row whose value is undefined should sort below the row with value 100.
+  const sortField = r.columns[1].sortKey!
   const undefRow = r.rows.find((row) => row.Channel === 'New')!
   const valRow = r.rows.find((row) => row.Channel === 'Google')!
-  assert.equal(typeof sv(undefRow), 'number')
-  assert.equal((sv(undefRow) as number) < (sv(valRow) as number), true)
+  assert.equal((undefRow[sortField] as number) < (valRow[sortField] as number), true)
 }
 
 console.log('ok')

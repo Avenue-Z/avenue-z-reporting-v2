@@ -8,7 +8,11 @@ export interface TableInput {
     label: string
     align?: 'left' | 'right'
     sortable?: boolean
-    sortValue?: (row: Record<string, ReactNode>) => number | string
+    /** Declarative, RSC-serializable sort: the row field to sort by (defaults to
+     *  `key`) and how to compare it. No functions — these cross the server→client
+     *  boundary into <DataTable>. */
+    sortKey?: string
+    sortType?: 'number' | 'string'
   }[]
   rows: Record<string, ReactNode>[]
   defaultSort: { key: string; dir: 'asc' | 'desc' } | undefined
@@ -28,18 +32,14 @@ export function toTableInput(
   const VALUE = '__value__'
   const PREV = '__prev__'
 
-  const sortNumeric = (key: typeof VALUE | typeof PREV) =>
-    (row: Record<string, ReactNode>) => {
-      const n = row[`${key}__sort`]
-      return typeof n === 'number' ? n : -Infinity
-    }
-
+  // Numeric columns sort by their hidden `${key}__sort` field; the dim column
+  // sorts as a string by its own key. Declarative so the columns stay serializable.
   const columns: TableInput['columns'] = [
-    { key: dimKey, label: dimKey, align: 'left', sortable: true, sortValue: (row) => String(row[dimKey] ?? '') },
-    { key: VALUE, label: 'Value', align: 'right', sortable: true, sortValue: sortNumeric(VALUE) },
+    { key: dimKey, label: dimKey, align: 'left', sortable: true, sortType: 'string' },
+    { key: VALUE, label: 'Value', align: 'right', sortable: true, sortKey: `${VALUE}__sort`, sortType: 'number' },
   ]
   if (hasCompare) {
-    columns.push({ key: PREV, label: 'Prev', align: 'right', sortable: true, sortValue: sortNumeric(PREV) })
+    columns.push({ key: PREV, label: 'Prev', align: 'right', sortable: true, sortKey: `${PREV}__sort`, sortType: 'number' })
   }
 
   const rows = r.rows.map((row) => {
