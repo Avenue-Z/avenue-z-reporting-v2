@@ -1,6 +1,6 @@
-# Handoff — Content Impact v1 SHIPPED + MERGED, ready for next round
+# Handoff — Content Impact V2 Feedback (Tina) — plan ready, execution pending
 
-> Copy everything below the `---` line into the new Claude Code session. Persisted on `main` as the durable recovery path.
+> Copy everything below the `---` line into the new Claude Code session (Sonnet 4.6, 200k context). Persisted on branch `official-feedback-content-impact-tab-content-v2`. The full implementation plan lives at `docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md` — read it first; it is the source of truth.
 
 ---
 
@@ -8,47 +8,22 @@ You are resuming work on the `avenue-z-reporting-v2` repo at `/Users/thomaschang
 
 ## Current state (as of 2026-06-25)
 
-- **Branch:** `main` at `db92aaea` (local = remote, working tree clean)
-- **PR #77** (Content Impact tab v1) MERGED to `main` at `db92aaea`
-- **PR #81** (Paul's separate AEO tab iterations) also merged just before #77
-- **All FB-033 through FB-041 shipped** and live on production after merge
+- **Branch:** `official-feedback-content-impact-tab-content-v2` (cut from `main` at `a447713`)
+- **Model:** Sonnet 4.6 (was Opus 4.7 in the planning session)
+- **Status:** Plan is written, committed, and pushed. Zero code changes yet. Awaiting Phase 1 execution.
+- **Plan file (read this FIRST):** `docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md`
 
-## What Content Impact tab now looks like (top → bottom)
+## Context — what happened in the prior session
 
-1. SectionHeader (FB-001)
-2. Executive Synopsis card (Glean, FB-033)
-3. **§A Snapshot KPIs** — 4 cards: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic (each with delta when compare is on) — FB-034
-4. **§B Watched Pages** — 9-col URL table, paginated to 10, default sort Citation Share desc, only `published` status, 5 metric deltas — FB-035
-5. **§C Speed Stats** — 4 tiles + plain-English subtitle clarifying days-from-publish window — FB-036
-6. **§D AI Bot Traffic vs. Human Traffic** — 4-quadrant scatter, always last-30 — FB-037
-7. **§E Slope chart** — top 15 pages by abs delta, 3-toggle (AI Referral / Organic / Citation Share) — FB-038
-8. **§F Fullsite Content Performance** — 6-col URL table, Page hyperlinked, 5 metric deltas — FB-039
-9. **§H Competitor Analysis** SectionCard with:
-   - **§H.1** ranking — Domain, AI Visibility, Citation Share, Prompt Coverage (each with delta) — FB-040
-   - **§H.2** brand-absent — Domain, Article (title hyperlinked), Citation Share + delta, Competitors Mentioned — FB-041
+Tina returned all 16 V2 column-E items as ⚠️ (only the synopsis was ✅). The prior session ran a 5-agent forensic sweep of the entire Content Impact tab + supporting code (~2000 LOC across `content-impact.tsx`, `content-impact-tables.tsx`, `lib/peec/`, scatter + slope chart components). Two critical findings that go BEYOND Tina's explicit asks:
 
-## All 6 REMOVE items confirmed gone via grep (zero matches)
+1. **The synopsis prose was lying.** `lib/peec/content-impact-synopsis.ts:127-135` interpolates `${d.domain} - ${d.citationCount.toFixed(1)} AI citations` — but the `citationCount` it receives at `content-impact.tsx:960, 967` is sourced from `d.citationRate` which is Peec's `citation_rate * 100` (an inflated avg, NOT a count). Glean has been writing inflated "AI citations" numbers in production. **Folded into FB-051.**
 
-- "Which delivers more lift..."
-- "Which content is decaying vs. compounding..."
-- "Where is content disconnected from AI demand?"
-- "Which competitor pages repeat across our target themes?"
-- "Which AI systems are interacting with our content?"
-- "What should the content team do next?"
+2. **§F was silently dropping subdomain pages.** The filter at `content-impact.tsx:1265-1268` does exact-host string equality. Cited URLs on `blog.renaissance.com` are dropped when Peec lists `renaissance.com` as Own. **This is the likely real cause of Tina's "only 14 pages?" complaint.** Folded into FB-050.
 
-## Cross-checked against Tina's Google Doc HTML export
+The plan covers all 16 V2 asks PLUS these 2 silent bugs.
 
-The full HTML at `/Users/thomaschangavenuez/Downloads/AEO Intelligence Platform Feedback/AEOIntelligencePlatformFeedback.html` was parsed; all 16 Tina side comments [aa] through [ap] on the Content Impact section map 1:1 to shipped FBs. Literal title/subtitle blocks ([ac], [al], [an], [ap]) were verbatim-verified in source. **For future feedback rounds: ask Thomas to send the Google Doc HTML export instead of screenshots — every comment is in clean extractable form.**
-
-## Closeout artifacts
-
-- **Google Sheet:** populated columns A/B/C for 9 rows. CSV saved at `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`. Removed sections NOT included in the sheet (nothing to track for those).
-- **Slack to Tina:** sent confirming Content Impact done + sheet updated + awaiting her V2 review.
-- **Production preview:** `https://avenue-z-reporting-v2-ap93gpj01-avenue-z-technology.vercel.app` (last preview before merge). Production now serves merged content.
-
-## Next FB ID: FB-042
-
-## First moves after compaction
+## What you do FIRST
 
 1. **Verify lockstep:**
    ```
@@ -57,9 +32,15 @@ The full HTML at `/Users/thomaschangavenuez/Downloads/AEO Intelligence Platform 
    echo "remote $(git rev-parse @{u})" && \
    git status --short
    ```
-   Expected: on `main`, local = remote = `db92aaea` or later, clean tree.
+   Expected: on `official-feedback-content-impact-tab-content-v2`, local = remote (same SHA), clean tree.
 
-2. **Run tsc + 6 tests:**
+2. **Read the plan in full:**
+   ```
+   cat docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md
+   ```
+   The plan is structured as: Goal, Architecture, Global Constraints (12), Tina coverage map, then 18 tasks across 3 phases. Each task has Files, Interfaces, and bite-sized Steps with code blocks. Tasks 1-6 = Phase 1 (5 FBs, ~80 LOC, single PR). Tasks 7-13 = Phase 2 (6 FBs, ~330 LOC, separate PR). Tasks 14-18 = Phase 3 (3 FBs, ~60 LOC, requires 1 live Peec API call first).
+
+3. **Run baseline tests** (must all pass before Phase 1 starts):
    ```
    npx tsc --noEmit
    DATABASE_URL=postgres://test:test@localhost/test npx tsx lib/ga4/client.test.ts
@@ -69,29 +50,58 @@ The full HTML at `/Users/thomaschangavenuez/Downloads/AEO Intelligence Platform 
    npx tsx lib/peec/content-impact-synopsis.test.ts
    npx tsx lib/ga4/content-derive.test.ts
    ```
-   Expected: tsc empty; every test prints `all assertions passed` (synopsis test prints 2 lines).
+   Every test must print "all assertions passed" (synopsis test prints 2 lines).
 
-3. **Reply to Thomas verbatim:**
-   > Synced. On `main` at `db92aaea`. Content Impact v1 (FB-033 through FB-041) merged via PR #77. Sheet updated, Tina notified. Next FB ID FB-042. Standing by. Literal interpretation only.
+4. **Reply to Thomas verbatim:**
+   > Synced on `official-feedback-content-impact-tab-content-v2` at `<SHA>`. Plan read. Baseline tests green. Ready to execute Phase 1 (FB-042, 051, 053, 054, 055) via subagent-driven-development. Confirm green-light?
 
-4. **Wait for Thomas.** Do not scaffold proactively. If Thomas hands you HTML feedback file, parse it directly.
+5. **Wait for green-light, then invoke `superpowers:subagent-driven-development`** with the plan file path. Execute tasks 1-6 sequentially. Pause after Phase 1 PR opens for Thomas's visual QA on Vercel preview.
 
-## Working rules (non-negotiable, same as prior branch)
+## Phase ordering and gates
+
+| Phase | Tasks | FBs | LOC | Risk | Gate before next phase |
+|---|---|---|---|---|---|
+| **1** | 1-6 | FB-042, 051, 053, 054, 055 | ~80 | Zero (surgical) | Thomas visually QAs preview, confirms Tina's 5 specific items look right |
+| **2** | 7-13 | FB-043, 044, 045, 046, 047, 049 | ~330 | Low (UI mechanical) | Thomas visually QAs preview |
+| **3** | 14-18 | FB-048, 050, 052 | ~60 | Medium (subdomain change has edge cases; FB-048 path locks from Task 14 live API test) | Final V2 closeout to Tina |
+
+## Working rules (non-negotiable — copy-paste these into every reviewer dispatch)
 
 1. **Literal interpretation only.** If Tina did not explicitly ask, do not change.
-2. **Glean Chat API for ALL LLM inference.** `gleanChat()` in `lib/glean.ts`. No `actAs`.
-3. **No em-dashes** in any new code, comment, copy, or docs. Commas, periods, or hyphens.
+2. **Glean for ALL LLM inference.** No actAs. No Vertex/Gemini/OpenAI/Anthropic direct calls.
+3. **No em-dashes** in code, comments, copy, or docs. Commas, periods, or hyphens.
 4. **Truth-grounded.** Uncomputable metric → render `--`. Never fake zero.
-5. **Plan-first** via `superpowers:writing-plans` → `superpowers:subagent-driven-development`.
-6. **One user message = one FB.** Multi-part = `FB-NNN-a/b/c`. Hotfixes share parent FB ID.
-7. **Every FB:** feedback-log + changelog + status.md bump + sheet row + commit + push.
-8. **Never skip hooks. Never force-push. No Neon migrations without Paul approval.**
-9. **Before adding cross-cutting plumbing (compareRange, dateRange, units), grep siblings.** Lesson from FB-035 hotfix #1 (deriveCompareRange not parseDateRange) AND FB-039 hotfix (engagement rate `* 100` in BOTH renderer AND delta).
-10. **GA4 `engagementRate` is a fraction [0,1].** Any consumer must `* 100` in BOTH renderer AND delta.
-11. **Compare-period gating:** all deltas gate on `compareIso !== null` per FB-034 hotfix #2.
-12. **FB-031 hardening pattern** for any Glean-backed prose. Validator patterns SPECIFIC.
+5. **Compare-period gating:** all deltas gate on `compareIso !== null`.
+6. **GA4 `engagementRate` is a fraction [0,1].** `* 100` in BOTH renderer AND delta math.
+7. **Never skip hooks. Never force-push. No Neon migrations without Paul approval.**
+8. **Before adding cross-cutting plumbing, grep siblings.**
+9. **Cache version bump required** when Peec response type shape changes. Currently `v8`; Phase 1 FB-051 bumps to `v9`.
+10. **One commit per task.** Tasks are independently reviewable.
+11. **Type-check + 6 tests before every commit / PR open.**
+12. **Sheet rows go in columns F, G, H** (V2 — What shipped / V2 — Accepted? / V2 — Your feedback) at `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab (1).csv`. Leave G + H blank; Tina fills.
 
-## Tooling
+## Tina V2 → FB coverage map (16 of 16)
+
+| Tina V2 ask | FB | Phase |
+|---|---|---|
+| Row 3: Prompt Coverage delta missing | FB-042 | 1 |
+| Row 4-a: §B `--` rows confusing | FB-043 | 2 |
+| Row 4-b: §B delta columns sortable | FB-044 | 2 |
+| Row 5: §C show source URLs | FB-045 | 2 |
+| Row 6-a: §D 4 quadrants not visible | FB-046 | 2 |
+| Row 6-b: §D hover should show URL | FB-047 | 2 |
+| Row 6-c: §D should honor date range | FB-048 | 3 |
+| Row 7: §E right legend + hover muting | FB-049 | 2 |
+| Row 8-a: §F delta columns sortable | FB-044 | 2 |
+| Row 8-b: §F only 14 pages, should be more | FB-050 | 3 |
+| Row 9-a: §H.1 Citation Share 199.9% bug | FB-051 | 1 |
+| Row 9-b: §H.1 only 7 competitors | FB-052 | 3 |
+| Row 9-c: §H.1 "AI Visibility" wrong | FB-053 | 1 |
+| Row 9-d: §H.1 Citation Share tooltip wrong | FB-054 | 1 |
+| Row 9-e: §H.1 delta columns sortable | FB-044 | 2 |
+| Row 10: §H.2 Citation Share tooltip wrong | FB-055 | 1 |
+
+## Tooling reference
 
 - `npx tsc --noEmit` (zero output = clean)
 - `npx tsx <file>.test.ts` (NOT vitest); `client.test.ts` needs `DATABASE_URL=postgres://test:test@localhost/test`
@@ -101,6 +111,11 @@ The full HTML at `/Users/thomaschangavenuez/Downloads/AEO Intelligence Platform 
 
 ## Thomas's posture
 
-Correctness above all. QA sweeps. Receipts. No assumptions, no decisions beyond Tina's literal ask. If implied but not explicit, ASK before acting. Sheet Column F should answer Tina's question directly (paste-ready). All copy: no em-dashes, plain language.
+Correctness above all. QA sweeps. Receipts. No assumptions, no decisions beyond Tina's literal ask. If implied but not explicit, ASK before acting. Sheet Column F should answer Tina's question directly (paste-ready). All copy: no em-dashes, plain language. He is stressed — his job depends on this round closing cleanly. Earn trust by surfacing risk honestly, not by promising perfection.
 
-Content Impact v1 is closed. Awaiting Tina V2 review feedback or next tab feedback (likely Technical Performance or Overview iterations).
+## After all 3 phases merge
+
+- Update `status.md` (commits ahead, next FB ID = FB-056)
+- Send Slack to Tina with the 3 PR URLs + a 2-line summary of what shipped
+- Confirm Vercel production is serving merged branch
+- Replace this handoff doc with a "V2 SHIPPED" version pointing at the merge SHA
