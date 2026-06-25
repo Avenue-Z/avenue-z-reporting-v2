@@ -87,6 +87,13 @@ export interface DashSocialConfig {
  * | Link | Impact | Date Added).
  */
 export interface PRProofColumnMap {
+  /**
+   * Name of the worksheet tab holding the data. Optional — defaults to
+   * "Master Library", and falls back to the first tab when neither is present.
+   * Set this when a client's PR Proof sheet names its data tab differently, so
+   * the reader targets it by name instead of by position.
+   */
+  tab?:             string
   client?:          string
   outlet?:          string
   headline?:        string
