@@ -164,7 +164,7 @@ export default async function PortalReportPage({
       <div className="h-8" />
 
       <ReportErrorBoundary sectionName={pageTitle}>
-        <Suspense fallback={<SectionSkeleton />}>
+        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection)}
         </Suspense>
       </ReportErrorBoundary>
