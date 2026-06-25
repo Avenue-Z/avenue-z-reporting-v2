@@ -446,7 +446,6 @@ export async function ContentImpactReport({
   // ── Derived metrics ────────────────────────────────────────────────────────
   const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
   const competitorDomains = (peecData?.topDomains ?? []).filter(d => d.type === 'Competitor')
-  const editorialDomains  = (peecData?.topDomains ?? []).filter(d => d.type === 'Editorial')
 
   // ── AI Citations KPI: filtered by selected models when active ───────────────
   // When a model filter is active, sum domainCitationsByModel across selected
@@ -492,14 +491,6 @@ export async function ContentImpactReport({
         models ?? null,
       ).map(d => ({ ...d, citationRate: d.citationCount }))
     : competitorDomains
-
-  const filteredEditorialDomains: TopDomain[] = peecData?.domainCitationsByModel
-    ? filterDomainRowsByModel(
-        editorialDomains.map(d => ({ ...d, citationCount: d.citationRate })),
-        peecData.domainCitationsByModel,
-        models ?? null,
-      ).map(d => ({ ...d, citationRate: d.citationCount }))
-    : editorialDomains
 
   // Enrich content calendar rows with agent analytics data (path matching)
   const enrichedRows: ContentCalendarRow[] = (calendarData?.rows ?? []).map(row => ({
@@ -1393,103 +1384,45 @@ export async function ContentImpactReport({
 
         <div className="border-t border-white/[0.06]" />
 
-        {/* Sub-view 2: Brand-Absent Editorial URLs */}
+        {/* Sub-view 2: Brand-Absent Competitor URLs */}
         {(() => {
-          const demoArticleTitles2 = [
-            'How AI is rewriting brand discovery',
-            'The 2026 PR-to-LLM playbook',
-            'Why brand authority matters more than backlinks',
-            'Inside the AEO arms race',
-            'Earned media in the age of generative AI',
-            'How Fortune 500s rank inside ChatGPT',
-            'The new rules of editorial citation',
-            'Building defensible brand share-of-voice',
-            'AI-first brand strategy for 2026',
-            'Decoding citation patterns across LLMs',
-          ]
-          const demoSlugs2 = [
-            '/insights/ai-brand-discovery',
-            '/guides/pr-llm-playbook-2026',
-            '/analysis/brand-authority-vs-links',
-            '/features/aeo-arms-race',
-            '/columns/earned-media-genai',
-            '/data/fortune-500-chatgpt-rankings',
-            '/op-ed/new-editorial-citation-rules',
-            '/research/defensible-share-of-voice',
-            '/strategy/ai-first-brand-2026',
-            '/data/citation-patterns-llms',
-          ]
-          const demoClusters2 = [
-            'Brand authority',
-            'Buying-stage research',
-            'Reputation / trust',
-            'Brand authority',
-            'Industry expertise',
-            'Competitive comparison',
-            'Reputation / trust',
-            'Buying-stage research',
-            'Brand authority',
-            'Industry expertise',
-          ]
-          const demoCompetitorsAbsent = [
-            ['Ogilvy', 'Edelman'],
-            ['Weber Shandwick'],
-            ['BCW', 'FleishmanHillard'],
-            ['Edelman', 'Ogilvy', 'Weber Shandwick'],
-            ['MSL'],
-            ['Edelman'],
-            ['Ogilvy', 'BCW'],
-            ['Weber Shandwick', 'MSL'],
-            ['Edelman', 'Ogilvy'],
-            ['FleishmanHillard'],
-          ]
-          const demoBrandMentioned = ['No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No']
-          const demoH2Rows: CompetitorUrlsBrandAbsentRow[] = filteredEditorialDomains.slice(0, 10).map((d, i) => {
-            const title   = demoArticleTitles2[i % demoArticleTitles2.length]
-            const slug    = demoSlugs2[i % demoSlugs2.length]
-            const url     = `https://${d.domain}${slug}`
-            const cluster = demoClusters2[i % demoClusters2.length]
-            const comps   = demoCompetitorsAbsent[i % demoCompetitorsAbsent.length]
-            const brand   = demoBrandMentioned[i % demoBrandMentioned.length]
-            return {
-              domain: d.domain,
-              articleTitle: title,
-              url,
-              promptCluster: cluster,
-              citationCount: d.citationRate,
-              competitorsMentioned: comps.join(', '),
-              brandMentioned: brand,
-              opportunityPriority: 'Review',
-              suggestedPRAngle: `Secure coverage on ${d.domain} to displace competitor citations`,
-            }
-          })
-
+          // Live source only. `urlCitations` is [] in demo mode (see line ~426),
+          // so demo renders the empty state. Citation Share math mirrors §B
+          // Watched Pages: (urlCitationCount / periodTotalCitations) * 100,
+          // delta = current pp - prior pp, gated on compareIso !== null AND
+          // the row appearing in citeByKeyPrior with a non-zero prior total.
           const competitorCitedUrls = urlCitations
             .filter((c) => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)
             .sort((a, b) => b.citationCount - a.citationCount)
             .slice(0, 10)
 
-          const h2Rows: CompetitorUrlsBrandAbsentRow[] = calendarIsDemo
-            ? demoH2Rows
-            : competitorCitedUrls.map((c) => ({
-                domain: c.domain,
-                articleTitle: c.title,
-                url: c.url,
-                // Themes (tags) this competitor domain is cited under, joined.
-                // "None" when coverage loaded but no theme; -- only when unavailable.
-                promptCluster: coverageAvailable ? (domainTagNames(coverage, c.domain).join(', ') || 'None') : null,
-                citationCount: c.citationCount,
-                competitorsMentioned: c.competitorBrandNames.join(', ') || null,
-                brandMentioned: 'No',
-                opportunityPriority: 'Review',
-                suggestedPRAngle: `Secure coverage on ${c.domain} to displace competitor citations`,
-              }))
+          const h2Rows: CompetitorUrlsBrandAbsentRow[] = competitorCitedUrls.map((c) => {
+            const cite = c.citationCount
+            const citePrior = citeByKeyPrior.get(c.urlKey)?.citationCount ?? null
+            const citationShare = (citationsOk && totalCitationsCurrentRows > 0)
+              ? (cite / totalCitationsCurrentRows) * 100
+              : null
+            const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
+              ? (citePrior / totalCitationsPriorRows) * 100
+              : null
+            const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
+              ? citationShare - citationSharePrior
+              : null
+            return {
+              domain: c.domain,
+              articleTitle: c.title,
+              url: c.url,
+              citationShare,
+              citationShareDelta,
+              competitorsMentioned: c.competitorBrandNames.join(', ') || null,
+            }
+          })
 
           return (
             <div className="flex flex-col gap-3">
               <CompetitorUrlsBrandAbsentTable
                 rows={h2Rows}
-                emptyMessage="No editorial domain data from Peec AI"
+                emptyMessage="No competitor citation data available from Peec AI"
               />
             </div>
           )

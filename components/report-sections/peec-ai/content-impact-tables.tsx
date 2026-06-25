@@ -22,8 +22,6 @@ const TT = {
   contentAction:      'Was this content created new, optimized from existing, or some other action? (Avenue Z internal — content calendar.)',
   recommendedAction:  "Suggested next action based on the row's data. (Avenue Z internal — heuristic.)",
   postLaunchAILift:   'Change in AI citations after content publication. (Avenue Z internal — Peec data.)',
-  opportunityPriority:'Composite priority ranking based on competitor mentions and prompt coverage. (Avenue Z internal.)',
-  suggestedPRAngle:   'Suggested PR positioning for the brand. (Avenue Z internal.)',
   calendarField:      'From the content calendar sheet. (Avenue Z internal.)',
 }
 
@@ -474,14 +472,11 @@ export function CompetitorDomainsCitedTable({
 // ═════════════════════════════════════════════════════════════════════════════
 export interface CompetitorUrlsBrandAbsentRow {
   domain: string
-  articleTitle: string | null
-  url: string | null
-  promptCluster: string | null
-  citationCount: number
+  articleTitle: string | null  // display text for the Article cell; falls back to url when null
+  url: string                  // always present, always hyperlinked
+  citationShare: number | null
+  citationShareDelta: number | null
   competitorsMentioned: string | null
-  brandMentioned: string | null  // 'Yes' | 'No' | null
-  opportunityPriority: string    // 'High' | 'Medium' | 'Low' | 'Review'
-  suggestedPRAngle: string
 }
 
 export function CompetitorUrlsBrandAbsentTable({
@@ -498,31 +493,33 @@ export function CompetitorUrlsBrandAbsentTable({
       render: (r) => <span className="font-medium text-white">{r.domain}</span>,
     },
     {
-      key: 'articleTitle', label: 'Article Title',
-      accessor: (r) => r.articleTitle ?? '',
-      render: (r) => r.articleTitle
-        ? <span className="block max-w-[180px] truncate text-white/70" title={r.articleTitle}>{r.articleTitle}</span>
-        : <span className="text-white/20">--</span>,
+      key: 'article', label: 'Article',
+      accessor: (r) => r.articleTitle ?? r.url,
+      render: (r) => {
+        const text = r.articleTitle ?? r.url
+        return (
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[220px] truncate text-white/80 underline-offset-2 hover:underline"
+            title={`${text} → ${r.url}`}
+          >
+            {text}
+          </a>
+        )
+      },
     },
     {
-      key: 'url', label: 'URL',
-      accessor: (r) => r.url ?? '',
-      render: (r) => r.url
-        ? <span className="block max-w-[180px] truncate font-mono text-[10px] text-white/50" title={r.url}>{r.url}</span>
-        : <span className="text-white/20">--</span>,
-    },
-    {
-      key: 'promptCluster', label: 'Prompt Cluster',
-      accessor: (r) => r.promptCluster ?? '',
-      render: (r) => r.promptCluster
-        ? <span className="text-white/60">{r.promptCluster}</span>
-        : <span className="text-white/40">--</span>,
-    },
-    {
-      key: 'citationCount', label: 'Citation Count', align: 'right',
+      key: 'citationShare', label: 'Citation Share', align: 'right',
       tooltip: TT.aiCitations,
-      accessor: (r) => r.citationCount,
-      render: (r) => <span className="tabular-nums text-white">{r.citationCount.toFixed(1)}%</span>,
+      accessor: (r) => r.citationShare ?? -1,
+      render: (r) => (
+        <span className="tabular-nums text-white">
+          {r.citationShare !== null ? `${r.citationShare.toFixed(1)}%` : '--'}
+          {renderDelta(r.citationShareDelta, 'pp')}
+        </span>
+      ),
     },
     {
       key: 'competitorsMentioned', label: 'Competitors Mentioned',
@@ -531,34 +528,11 @@ export function CompetitorUrlsBrandAbsentTable({
         ? <span className="text-white/70">{r.competitorsMentioned}</span>
         : <span className="text-white/20">--</span>,
     },
-    {
-      key: 'brandMentioned', label: 'Brand Mentioned',
-      accessor: (r) => r.brandMentioned ?? '',
-      render: (r) => r.brandMentioned
-        ? <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', r.brandMentioned === 'No' ? 'bg-[#FF4444]/10 text-[#FF4444]' : 'bg-[#60FF80]/10 text-[#60FF80]')}>{r.brandMentioned}</span>
-        : <span className="text-white/40">--</span>,
-    },
-    {
-      key: 'opportunityPriority', label: 'Opportunity Priority',
-      tooltip: TT.opportunityPriority,
-      accessor: (r) => r.opportunityPriority,
-      render: (r) => (
-        <span className="rounded-full bg-[#FFFC60]/10 px-2 py-0.5 text-[10px] font-semibold text-[#FFFC60]">
-          {r.opportunityPriority}
-        </span>
-      ),
-    },
-    {
-      key: 'suggestedPRAngle', label: 'Suggested PR Angle',
-      tooltip: TT.suggestedPRAngle,
-      accessor: (r) => r.suggestedPRAngle,
-      render: (r) => <span className="block max-w-[200px] text-[11px] text-white/50">{r.suggestedPRAngle}</span>,
-    },
   ]
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-xs font-bold text-white/60">Where are competitors cited and we&apos;re absent?</h4>
+      <h4 className="text-xs font-bold text-white/60">Where are we absent when competitors are cited or mentioned?</h4>
       <SortableTable
         columns={columns}
         rows={rows}
