@@ -1233,7 +1233,7 @@ export async function ContentImpactReport({
       {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
         title="AI Bot Traffic vs. Human Traffic"
-        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Measures the last 30 days, independent of the page date range."
+        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range."
       >
         <BotVsHumanScatter data={scatterData} />
       </SectionCard>
