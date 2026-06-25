@@ -1,8 +1,4 @@
-export interface LinkedInCreativeRow {
-  ad: string
-  audience: string
-  campaign: string
-  status: string
+export interface LinkedInCreativeMetrics {
   spend: number
   impressions: number
   clicks: number
@@ -14,6 +10,24 @@ export interface LinkedInCreativeRow {
   leadFormCompletionRate: number
   landingPageClicks: number
   shareOfSpend: number
+}
+
+export interface LinkedInCreativeRow extends LinkedInCreativeMetrics {
+  ad: string            // creativeDscName
+  campaign: string      // campaignName
+  campaignGroup: string // campaignGroupName
+  status: string
+}
+
+// Tree: Campaign Group → Campaign → Ad (mirrors Meta's Campaign → Ad Set → Ad).
+export interface LinkedInCampaignNode extends LinkedInCreativeMetrics {
+  name: string // campaignName
+  ads: LinkedInCreativeRow[]
+}
+
+export interface LinkedInCampaignGroupNode extends LinkedInCreativeMetrics {
+  name: string // campaignGroupName
+  campaigns: LinkedInCampaignNode[]
 }
 
 export interface LinkedInGeoRow {

@@ -1,5 +1,5 @@
 import { getLinkedInKpis } from '@/lib/linkedin/kpis'
-import { getCreativeRows } from '@/lib/linkedin/creative'
+import { getCreativeTree } from '@/lib/linkedin/creative'
 import { getLinkedInGeoRows } from '@/lib/linkedin/geo'
 import { KpiGrid } from '@/components/report-sections/paid-search/kpi-grid'
 import { LinkedInCreativeTable } from './creative-table'
@@ -36,14 +36,14 @@ export async function LinkedInAdsReport({
   const compare = compareRange ?? 'previous_period'
   const [kpis, creative, geo] = await Promise.all([
     safe(getLinkedInKpis(clientSlug, dateRange, compare)),
-    safe(getCreativeRows(clientSlug, dateRange)),
+    safe(getCreativeTree(clientSlug, dateRange)),
     safe(getLinkedInGeoRows(clientSlug, dateRange)),
   ])
 
   return (
     <div className="space-y-8">
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <Fallback kind={kpis.error!} />}
-      {creative.data ? <LinkedInCreativeTable rows={creative.data} /> : <Fallback kind={creative.error!} />}
+      {creative.data ? <LinkedInCreativeTable groups={creative.data} /> : <Fallback kind={creative.error!} />}
       {geo.data ? <LinkedInGeoSection rows={geo.data} /> : <Fallback kind={geo.error!} />}
     </div>
   )
