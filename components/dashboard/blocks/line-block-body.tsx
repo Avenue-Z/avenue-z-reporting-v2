@@ -1,7 +1,6 @@
 import { AreaChart } from '@/components/charts/area-chart'
 import { BlockBodyError } from '../metric-block-states'
-import { toLineChartInput, bucketLabelPattern } from '@/lib/dashboard/charts'
-import { format as formatDate, parseISO } from 'date-fns'
+import { toLineChartInput } from '@/lib/dashboard/charts'
 import type { SeriesResult } from '@/lib/dashboard/types'
 
 export interface LineBlockBodyProps {
@@ -25,10 +24,9 @@ export async function LineBlockBody({ name, seriesPromise, slug }: LineBlockBody
       <div className="mt-3 flex-1 min-h-0">
         <AreaChart
           data={input.data}
-          xKey="bucket"
+          xKey="bucketLabel"
           yKeys={[{ key: 'value', label: 'Current' }]}
           compareDataKey={input.hasCompare ? 'prevValue' : undefined}
-          xTickFormatter={(raw) => formatDate(parseISO(raw), bucketLabelPattern(input.granularity))}
           unwrapped
           height="100%"
         />
