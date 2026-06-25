@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { demoLogout } from '@/app/actions/demo-auth'
-import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS } from '@/lib/constants'
+import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, visibleSubsections } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import { LogOut, Lock } from 'lucide-react'
 
@@ -170,7 +170,7 @@ export function PortalSidebar({ clients }: PortalSidebarProps) {
                   </Link>
                   {isActive && (
                     <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
-                      {AEO_SUBSECTIONS.map((sub) => {
+                      {visibleSubsections(AEO_SUBSECTIONS, client.hiddenReports).map((sub) => {
                         if (sub.comingSoon) {
                           return (
                             <li key={sub.id ?? 'soon'}>
