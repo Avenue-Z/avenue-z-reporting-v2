@@ -157,6 +157,40 @@ async function run() {
     if (!r.ok) assert.equal(r.error, 'no-data')
   }
 
+  // resolveGroupedBlock: shopify leaf binding + mock resolver → ok (must NOT be short-circuited).
+  {
+    const cfg: BlockConfig = {
+      id: 'sg', name: 'Net Sales by Channel', format: 'currency', range: null,
+      binding: { source: 'shopify', query: 'FROM sales SHOW net_sales', dimensions: ['sales_channel'] },
+    }
+    const mock: GroupedResolver = async () => [{ dim: { sales_channel: 'Online Store' }, value: 5000 } as GroupedRow]
+    const r = await resolveGroupedBlock(cfg, GLOBAL, { slug: 'k' }, { resolveGrouped: mock })
+    assert.equal(r.ok, true)
+    if (r.ok) {
+      assert.equal(r.rows.length, 1)
+      assert.equal(r.format, 'currency')
+    }
+  }
+
+  // resolveSeriesBlock: shopify leaf binding + granularity + mock → ok (must NOT be short-circuited).
+  {
+    const cfg: BlockConfig = {
+      id: 'ss', name: 'Net Sales over time', format: 'currency', range: null,
+      binding: { source: 'shopify', query: 'FROM sales SHOW net_sales', granularity: 'day' },
+    }
+    const mock: SeriesResolver = async () => [
+      { bucket: '2026-06-22', value: 200 } as SeriesPoint,
+      { bucket: '2026-06-23', value: 300 } as SeriesPoint,
+    ]
+    const r = await resolveSeriesBlock(cfg, GLOBAL, { slug: 'k' }, { resolveSeries: mock })
+    assert.equal(r.ok, true)
+    if (r.ok) {
+      assert.equal(r.points.length, 2)
+      assert.equal(r.granularity, 'day')
+      assert.equal(r.format, 'currency')
+    }
+  }
+
   console.log('ok')
 }
 
