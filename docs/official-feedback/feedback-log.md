@@ -2111,3 +2111,22 @@ If any are missing, the synopsis card falls back to the temporarily-unavailable 
 - §H.2 (`CompetitorUrlsBrandAbsentTable`) untouched per literal-interpretation rule.
 
 **Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
+
+## FB-041 — Content Impact §H Competitor Analysis sub-view 2
+
+**Tab:** Content Impact
+**Section:** §H Competitor Analysis (sub-view 2: brand-absent competitor URLs)
+**Tina's ask:**
+- New chart sub-header: `Where are we absent when competitors are cited or mentioned?`
+- New columns (4 total): Domain, Article (combine Title + hyperlink URL), Citation Share (& Delta), Competitors Mentioned
+
+**Shipped:**
+- §H.2 `CompetitorUrlsBrandAbsentTable` collapsed from 9 columns to 4. Domain unchanged. Article column merges the old `Article Title` + `URL` columns into a single hyperlinked cell (title text falls back to URL when null, opens in a new tab, mirrors the `<a>` pattern from §B Watched Pages Content Piece column). Citation Share is computed live as `(c.citationCount / totalCitationsCurrentRows) * 100` with a percentage-point delta against the prior period via `citeByKeyPrior`. Competitors Mentioned unchanged.
+- Dropped columns: Article Title (merged), URL (merged), Prompt Cluster, Citation Count (replaced by Citation Share), Brand Mentioned, Opportunity Priority, Suggested PR Angle.
+- Citation Share math also fixes a pre-existing display bug: the prior `Citation Count` column rendered raw Peec `citation_count` with a `%` suffix (e.g. "3445.0%" for a single URL). Citation Share is the correct share-of-period denominator and now displays sensible percentages.
+- Delta gates on `compareIso !== null` (FB-034 hotfix #2 pattern). When compare is off, no badge renders.
+- Dead code dropped: `TT.opportunityPriority`, `TT.suggestedPRAngle`, `editorialDomains` derivation, `filteredEditorialDomains` derivation, six §H.2 demo arrays (`demoArticleTitles2`, `demoSlugs2`, `demoClusters2`, `demoCompetitorsAbsent`, `demoBrandMentioned`, `demoH2Rows`).
+- §H.1 (Competitor Analysis ranking, shipped in FB-040) and the SectionCard wrapper title/subtitle are byte-identical to BASE.
+- Zero new Peec or GA4 fetches.
+
+**Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`

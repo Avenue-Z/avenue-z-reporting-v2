@@ -8,6 +8,14 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 
 ---
 
+## FB-041 — §H.2 Brand-Absent table (Content Impact)
+- Collapsed §H.2 from 9 cols to 4: Domain, Article (title hyperlinked to URL), Citation Share (+Δ), Competitors Mentioned.
+- Article column merges the old Article Title + URL cols using the §B Content Piece anchor pattern.
+- Citation Share replaces Citation Count: `(c.citationCount / totalCitationsCurrentRows) * 100` with a pp delta, gated on compare period. Fixes a prior display bug that rendered raw counts with a `%` suffix.
+- Sub-header swapped to Tina's verbatim copy. Dropped Prompt Cluster, Brand Mentioned, Opportunity Priority, Suggested PR Angle.
+- Dead code dropped: `TT.opportunityPriority`, `TT.suggestedPRAngle`, `editorialDomains`, `filteredEditorialDomains`, six §H.2 demo arrays.
+- §H.1 and the SectionCard wrapper untouched.
+
 ## FB-040 — §H.1 Competitor Analysis (Content Impact)
 
 - Rebuilt §H.1 table to Tina's spec: Domain, AI Visibility (+Δ), Citation Share (+Δ), Prompt Coverage (+Δ).
