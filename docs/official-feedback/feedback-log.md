@@ -16,6 +16,26 @@ _(none)_
 
 ## Closed
 
+### FB-037 - Bot vs Human scatter chart (Tina, 2026-06-25)
+
+- **Ask (verbatim):**
+  - ADD: Scatter Plot Chart of Site Pages by Bot Traffic vs. Human Traffic
+  - Title: AI Bot Traffic vs. Human Traffic
+  - Subtitle: See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate.
+  - 4 quadrants: High Bot/Low Human, High Bot/High Human, Low Bot/Low Human, Low Bot/High Human.
+- **Decisions made (Tina did not specify; documented for transparency):**
+  - Page universe: union of paths with > 0 bot visits OR > 0 human sessions in the period. (0, 0) pages dropped (literal site pages with no activity to display).
+  - High/Low threshold: median split on each axis. Adaptive, no magic numbers. Boundary ties go to "low" (strict > comparison).
+  - Window: hardcoded last 30 days, independent of the page date range, matching the Peec agent-analytics window which is already hardcoded last-30 at lib/peec/agent-analytics.ts:284. Mirrors the §C Speed Stats and YTD chart pattern. Subtitle explicitly calls this out to pre-empt the date-reactivity question (lesson from FB-036).
+  - Position: new §D between §C Speed Stats and §F Fullsite Content Performance. Both §C and §D are per-page snapshots; pair narratively.
+  - Quadrant colors (no legend, Tina did not specify): green = both high (winners), blue = low-bot/high-human (human-popular but AI-quiet), yellow = high-bot/low-human (AI crawling but humans not visiting), gray = both low (background).
+- **Files touched:**
+  - lib/peec/bot-vs-human-scatter.ts: pure helper computeBotVsHumanScatter + 4 exported types.
+  - lib/peec/bot-vs-human-scatter.test.ts: 6 assertions covering empty/median odd/median even/(0,0) drop/union/quadrant boundary.
+  - components/report-sections/peec-ai/bot-vs-human-scatter.tsx: Recharts ScatterChart + median ReferenceLines + 4 absolute-positioned corner labels + tooltip + per-quadrant fill colors + empty state.
+  - components/report-sections/peec-ai/content-impact.tsx: import helper + component + urlJoinKey, add 1 new GA4 query (hardcoded last-30, pagePath x sessionSource x sessions, limit 1000), build pathBots from agentData.byPath, build pathHumans from ga4ScatterRows excluding AI referrer sources, compute scatter, mount as §D between §C and §F.
+- **Sheet row:** Content Impact | ADD: Scatter Plot Chart of Site Pages by Bot Traffic vs. Human Traffic (verbatim title and subtitle, 4 quadrants high/low Bot x high/low Human) | Done. New §D between §C and §F. AI bot data from Peec /agent-analytics/visits (already last-30 by SDK). Human data from a new GA4 query (pagePath x sessionSource, hardcoded last-30, excludes AI referrer sources). Median split per axis with boundary ties going low. Always-on last-30 window called out in subtitle so the date-reactivity question doesn't recur.
+
 ### FB-036 - Speed Stats validation (Tina, 2026-06-25)
 - **Ask (verbatim):** Questions about the §C "How quickly does new content earn traffic and AI citations?" chart:
   - Is it real data or hallucinated? Has it been validated?
