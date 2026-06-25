@@ -60,7 +60,11 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
     if (!canEdit) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      const next = applyLayoutChange(config, nextLg.map((l) => ({ i: l.i, x: l.x, y: l.y, w: l.w, h: l.h })))
+      // Scope the layout save to the currently-rendered (optimistic) block set, not
+      // the server `config` prop — otherwise a layout change triggered by an
+      // optimistic add/delete would re-persist the stale full block list and undo
+      // the mutation (e.g. resurrect a just-deleted block).
+      const next = applyLayoutChange({ ...config, blocks }, nextLg.map((l) => ({ i: l.i, x: l.x, y: l.y, w: l.w, h: l.h })))
       startTransition(async () => {
         const res = await saveDashboardConfig(slug, next)
         if (!res.ok) setErrorMsg(res.error)
