@@ -31,10 +31,10 @@ export function transformKpis(
   const cCost = compareTotals ? Number(compareTotals.Cost || 0) : undefined
   const cClicks = compareTotals ? Number(compareTotals.Clicks || 0) : undefined
   const cImpr = compareTotals ? Number(compareTotals.Impressions || 0) : undefined
-  const cCtr = cImpr ? (cClicks! / cImpr) * 100 : undefined
-  const cCpc = cClicks ? cCost! / cClicks : undefined
-  const cCpl = cLeads ? cCost! / cLeads : undefined
-  const cConvRate = cClicks && cLeads != null ? (cLeads / cClicks) * 100 : undefined
+  const cCtr = cImpr && cClicks !== undefined ? (cClicks / cImpr) * 100 : undefined
+  const cCpc = cClicks && cCost !== undefined ? cCost / cClicks : undefined
+  const cCpl = cLeads && cCost !== undefined ? cCost / cLeads : undefined
+  const cConvRate = cClicks && cLeads !== undefined ? (cLeads / cClicks) * 100 : undefined
 
   return [
     { key: 'cost', label: 'Cost', value: Math.round(cost), prefix: '$', delta: delta(cost, cCost) },
