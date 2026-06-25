@@ -16,6 +16,29 @@ _(none)_
 
 ## Closed
 
+### FB-038 - Slope chart (Tina, 2026-06-25)
+
+- **Ask (verbatim):**
+  - ADD: Ranked Slope Chart of Top Site Pages With Toggle Buttons for AI Referral Traffic, Organic Search Traffic, Citation Share
+  - Title: Which pages are gaining momentum and which are losing it?
+  - Subtitle: Track the biggest movers over time to see which URLs are compounding, which are decaying, and where content performance is strengthening or slipping.
+  - Specific request: These toggles would change the metric of the Y-Axis.
+- **Decisions made (Tina did not specify; documented for transparency):**
+  - Position: new §E between §D Bot vs Human Scatter and §F Fullsite Content Performance. Matches Tina's screenshot ordering (scatter, then slope).
+  - Top-N cap: top 15 pages by absolute delta of the active metric (Tina's subtitle says "biggest movers"; 15 keeps the chart readable).
+  - Per-toggle re-ranking: switching the toggle re-runs computeSlopeChart for the new metric and re-derives the top 15. The chart's universe changes with the metric.
+  - Compare-period gating: chart renders only when compareIso !== null. Empty state otherwise asks the user to turn on a comparison period from the date picker. The slope chart inherently needs two periods; honoring Tina's FB-034 "when you have a comparison period turned on" principle.
+  - Line colors by direction: green for gainers, red for losers, gray for flat. 70% stroke opacity to keep 15 lines readable.
+  - Tooltip: hover shows topic + value + URL on the active line.
+  - Y-axis tick formatter: percentages for citation-share, plain integers for ai-referral / organic.
+  - Zero new fetches: all 6 source variables (3 metrics x 2 periods) already in scope at the §E mount point thanks to FB-035 Task 4.
+- **Files touched:**
+  - lib/peec/slope-chart.ts: pure helper computeSlopeChart + 5 exported types.
+  - lib/peec/slope-chart.test.ts: 7 assertion blocks covering empty input, metric routing, (0,0) drop, direction classification, top-15 ranking, absolute-delta ranking, labelFromPath topics.
+  - components/report-sections/peec-ai/slope-chart.tsx: client component (useState for active metric, 3 toggle buttons via ToggleRow, Recharts LineChart with one Line per top-15 page colored by direction, empty states for compare-off and zero-points).
+  - components/report-sections/peec-ai/content-impact.tsx: imports + 3 pre-aggregated maps (aiReferralByPath, organicByPath, citationShareByUrlKey) built from existing FB-035 vars + §E SectionCard mount between §D and §F.
+- **Sheet row:** Content Impact | ADD: Ranked Slope Chart of Top Site Pages With Toggle Buttons for AI Referral Traffic, Organic Search Traffic, Citation Share (toggles change Y-axis metric) | Done. New §E between §D Scatter and §F Fullsite. 3 toggle buttons swap Y-axis. Top 15 pages by absolute change of the active metric. Lines colored green (gainer) or red (loser). All data sourced from existing GA4 + Peec fetches (zero new round trips). Compare-period gated: renders only when comparison period is turned on, otherwise shows a "turn on comparison" empty state.
+
 ### FB-037 - Bot vs Human scatter chart (Tina, 2026-06-25)
 
 - **Ask (verbatim):**
