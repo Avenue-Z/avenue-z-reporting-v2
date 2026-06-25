@@ -1,6 +1,6 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, blockToManualDraft, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
@@ -271,5 +271,37 @@ assert.equal(isDraftComplete({ kind: 'pills', name: 'X', format: 'count', pills:
 // isDraftComplete: table requires complete leaf + dimension
 assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' } }), false)
 assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } }), true)
+
+// blockToManualDraft: header round-trips through buildBlockConfig (name, kind, level)
+{
+  const headerBlock = { id: 'h', name: 'Section A', format: 'number' as const, range: null,
+    kind: 'header' as const, headerLevel: 1 as const,
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
+  const draft = blockToManualDraft(headerBlock)
+  assert.equal(draft.kind, 'header')
+  const cfg = buildBlockConfig(draft)
+  assert.equal(cfg.kind, 'header')
+  assert.equal(cfg.name, 'Section A')
+  assert.equal(cfg.headerLevel, 1)
+}
+// blockToManualDraft: narrative round-trips (name, kind, body)
+{
+  const narrativeBlock = { id: 'n', name: 'Notes', format: 'number' as const, range: null,
+    kind: 'narrative' as const, narrativeBody: '## Hi\n- a',
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
+  const draft = blockToManualDraft(narrativeBlock)
+  assert.equal(draft.kind, 'narrative')
+  const cfg = buildBlockConfig(draft)
+  assert.equal(cfg.kind, 'narrative')
+  assert.equal(cfg.name, 'Notes')
+  assert.equal(cfg.narrativeBody, '## Hi\n- a')
+}
+// blockToManualDraft: missing headerLevel defaults to 2
+{
+  const headerBlock = { id: 'h', name: 'X', format: 'number' as const, range: null, kind: 'header' as const,
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
+  const draft = blockToManualDraft(headerBlock)
+  if (draft.kind === 'header') assert.equal(draft.header.level, 2)
+}
 
 console.log('ok')

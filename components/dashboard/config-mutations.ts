@@ -1,4 +1,4 @@
-import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+import type { BlockConfig, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 type Range = NonNullable<PersistedBlock['range']>
 
@@ -50,4 +50,22 @@ export function applyLayoutChange(
     return { ...b, layout: { x: l.x, y: l.y, w: l.w, h: l.h } }
   })
   return { ...config, blocks }
+}
+
+/** Replace a block's editable fields by id, preserving its id, range, and layout.
+ *  The builder always emits range:null, so the existing range is kept explicitly
+ *  (range stays owned by the "Set range" flow). */
+export function updateBlock(
+  config: DashboardConfig,
+  blockId: string,
+  patch: Omit<BlockConfig, 'id'>,
+): DashboardConfig {
+  return {
+    ...config,
+    blocks: config.blocks.map((b) =>
+      b.id === blockId
+        ? { ...patch, id: b.id, range: b.range, ...(b.layout ? { layout: b.layout } : {}) }
+        : b,
+    ),
+  }
 }

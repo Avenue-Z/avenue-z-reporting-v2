@@ -1,14 +1,17 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { proposeBlock, saveDashboardConfig, type ProposeBlockInput } from '@/app/actions/dashboard'
-import { addBlock } from '../config-mutations'
+import { addBlock, updateBlock } from '../config-mutations'
+import { useOptionalDashboardMutations } from '../dashboard-mutations'
 import { applySelections, type BlockSelections } from './draft'
 import { BlockPreviewCard } from './block-preview-card'
 import { ManualBlockForm } from './manual-block-form'
-import type { BlockConfig, BlockKind, DashboardConfig } from '@/lib/dashboard/types'
+import { blockToManualDraft } from './build-config'
+import type { BlockConfig, BlockKind, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 import type { BlockProposal } from '@/lib/dashboard/nl/types'
 import type { AggregateProposal } from '@/lib/dashboard/nl/aggregate-types'
 
@@ -41,16 +44,18 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
 
 const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
-export function AddBlockDialog({ slug, config, onClose }: { slug: string; config: DashboardConfig | null; onClose: () => void }) {
+export function AddBlockDialog({ slug, config, onClose, editing }: { slug: string; config: DashboardConfig | null; onClose: () => void; editing?: PersistedBlock }) {
   const router = useRouter()
-  const [step, setStep] = useState<'kind' | 'pick' | 'mode' | 'prompt' | 'preview' | 'build'>('kind')
-  const [kind, setKind] = useState<BlockKind>('kpi')
+  const initial = editing ? blockToManualDraft(editing) : undefined
+  const [step, setStep] = useState<'kind' | 'pick' | 'mode' | 'prompt' | 'preview' | 'build'>(editing ? 'build' : 'kind')
+  const [kind, setKind] = useState<BlockKind>(editing?.kind ?? 'kpi')
   const [source, setSource] = useState<Source>('supermetrics')
   const [prompt, setPrompt] = useState('')
   const [clarify, setClarify] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [proposal, setProposal] = useState<BlockProposal | AggregateProposal | null>(null)
   const [pending, startTransition] = useTransition()
+  const mutations = useOptionalDashboardMutations()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -71,9 +76,9 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
   function confirm(sel: BlockSelections) {
     if (!proposal) return
     setError(null)
+    const block = applySelections(proposal.config, sel, crypto.randomUUID())
+    if (mutations) { mutations.optimisticAdd(block); onClose(); return }
     startTransition(async () => {
-      const id = crypto.randomUUID()
-      const block = applySelections(proposal.config, sel, id)
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) setError(res.error)
@@ -83,12 +88,22 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
 
   function confirmManual(cfg: Omit<BlockConfig, 'id'>) {
     setError(null)
+    if (editing) {
+      startTransition(async () => {
+        const next = updateBlock(config ?? DEFAULT_CONFIG, editing.id, cfg)
+        const res = await saveDashboardConfig(slug, next)
+        if (!res.ok) { setError(res.error); return }
+        onClose(); router.refresh()
+      })
+      return
+    }
+    const block = { id: crypto.randomUUID(), ...cfg }
+    if (mutations) { mutations.optimisticAdd(block); onClose(); return }
     startTransition(async () => {
-      const block = { id: crypto.randomUUID(), ...cfg }
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
-      if (!res.ok) setError(res.error)
-      else { onClose(); router.refresh() }
+      if (!res.ok) { setError(res.error); return }
+      onClose(); router.refresh()
     })
   }
 
@@ -99,11 +114,14 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
   // Static kinds need no data source — skip 'pick' entirely and jump from 'kind' → 'build'.
   const isStaticKind = kind === 'header' || kind === 'narrative'
 
-  return (
+  // Render into a portal on document.body: the dialog is mounted from inside a
+  // react-grid-layout grid item, whose CSS transform would otherwise become the
+  // containing block for `position: fixed`, trapping the overlay inside the block.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
       <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col overflow-y-auto rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm font-bold text-white">Add block</p>
+          <p className="text-sm font-bold text-white">{editing ? 'Edit block' : 'Add block'}</p>
           <button className="text-text-muted hover:text-white" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
@@ -170,8 +188,9 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
               source={source as 'supermetrics' | 'triplewhale' | 'aggregate' | 'calculated'}
               slug={slug}
               pending={pending}
+              initial={initial}
               onConfirm={confirmManual}
-              onBack={() => setStep(isStaticKind ? 'kind' : isDataChartKind ? 'pick' : 'mode')}
+              onBack={editing ? onClose : () => setStep(isStaticKind ? 'kind' : isDataChartKind ? 'pick' : 'mode')}
             />
             {error && <p className="mt-2 text-xs text-[#FF6666]">Error: {error}</p>}
           </>
@@ -201,6 +220,7 @@ export function AddBlockDialog({ slug, config, onClose }: { slug: string; config
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

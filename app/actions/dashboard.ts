@@ -46,7 +46,8 @@ export async function saveDashboardConfig(
     .set({ dashboardConfig: parsed.config, updatedAt: new Date() })
     .where(eq(clients.slug, slug))
 
-  revalidatePath('/', 'layout')
+  revalidatePath(`/dashboard/${slug}/configurable-dashboard`)
+  revalidatePath(`/portal/${slug}/configurable-dashboard`)
   return { ok: true }
 }
 

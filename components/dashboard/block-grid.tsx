@@ -5,6 +5,7 @@ import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
+import { BlockSkeleton } from './blocks/block-skeleton'
 import { applyLayoutChange } from './config-mutations'
 import { DEFAULT_LAYOUT, GRID_COLS_LG } from './block-grid-defaults'
 import type { BlockKind, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
@@ -59,7 +60,11 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
     if (!canEdit) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      const next = applyLayoutChange(config, nextLg.map((l) => ({ i: l.i, x: l.x, y: l.y, w: l.w, h: l.h })))
+      // Scope the layout save to the currently-rendered (optimistic) block set, not
+      // the server `config` prop — otherwise a layout change triggered by an
+      // optimistic add/delete would re-persist the stale full block list and undo
+      // the mutation (e.g. resurrect a just-deleted block).
+      const next = applyLayoutChange({ ...config, blocks }, nextLg.map((l) => ({ i: l.i, x: l.x, y: l.y, w: l.w, h: l.h })))
       startTransition(async () => {
         const res = await saveDashboardConfig(slug, next)
         if (!res.ok) setErrorMsg(res.error)
@@ -109,11 +114,11 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
         onLayoutChange={handleLayoutChange}
         compactType="vertical"
         preventCollision={false}
-        draggableCancel=".block-no-drag"
+        draggableHandle=".block-drag-handle"
       >
         {blocks.map((b) => (
-          <div key={b.id} className={canEdit ? 'cursor-grab' : undefined}>
-            <div className="block-no-drag h-full">{renderBlock(b)}</div>
+          <div key={b.id}>
+            <div className="h-full">{renderBlock(b) ?? <BlockSkeleton />}</div>
           </div>
         ))}
       </ResponsiveGrid>

@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useTransition, type ReactNode } from 'react'
+import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { getMainLabel } from '@/components/layout/date-range-picker'
-import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
+import { setBlockRange, resetBlockRange } from './config-mutations'
+import { useDashboardMutations } from './dashboard-mutations'
+import { AddBlockDialog } from './add-block/add-block-dialog'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 const PRESETS = [
@@ -43,10 +46,13 @@ export interface BlockChromeProps {
 export function BlockChrome({ block, canEdit, slug, config, activeDefault, children }: BlockChromeProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'range' | 'confirm-delete' | 'confirm-reset'>('menu')
+  const [editOpen, setEditOpen] = useState(false)
+  const isStatic = block.kind === 'header' || block.kind === 'narrative'
   const [draftDate, setDraftDate] = useState<string>(block.range?.dateRange ?? activeDefault.dateRange)
   const [draftCompare, setDraftCompare] = useState<string | null>(block.range?.compareRange ?? activeDefault.compareRange)
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { optimisticRemove } = useDashboardMutations()
 
   const isOverridden = block.range !== null
 
@@ -60,11 +66,25 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
   }
   function applyOverride() { runSave(setBlockRange(config, block.id, { dateRange: draftDate, compareRange: draftCompare })) }
   function confirmReset() { runSave(resetBlockRange(config, block.id)) }
-  function confirmDelete() { runSave(removeBlock(config, block.id)) }
+  function confirmDelete() { optimisticRemove(block.id); closeMenu() }
 
   return (
     <div className="relative">
       {children}
+
+      {canEdit && editOpen && (
+        <AddBlockDialog slug={slug} config={config} editing={block} onClose={() => setEditOpen(false)} />
+      )}
+
+      {canEdit && (
+        <div
+          className="block-drag-handle absolute right-10 top-3 flex h-6 w-6 cursor-grab items-center justify-center rounded text-text-muted hover:bg-white/10 hover:text-white active:cursor-grabbing"
+          aria-label={`Drag ${block.name} to reorder`}
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
 
       {canEdit && (
         <Popover open={menuOpen} onOpenChange={(open) => (open ? setMenuOpen(true) : (setMenuOpen(false), setView('menu')))}>
@@ -79,9 +99,16 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
           <PopoverContent className="w-64 border-white/[0.08] bg-[#1a1a1a] p-2" align="end" sideOffset={4}>
             {view === 'menu' && (
               <div className="flex flex-col">
-                <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('range')}>Set range…</button>
-                {isOverridden && (
-                  <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('confirm-reset')}>Reset to inherit</button>
+                {isStatic ? (
+                  <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
+                    onClick={() => { setMenuOpen(false); setEditOpen(true) }}>Edit…</button>
+                ) : (
+                  <>
+                    <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('range')}>Set range…</button>
+                    {isOverridden && (
+                      <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('confirm-reset')}>Reset to inherit</button>
+                    )}
+                  </>
                 )}
                 <button className="px-3 py-2 text-left text-[13px] text-[#FF6666] hover:bg-white/[0.06]" onClick={() => setView('confirm-delete')}>Delete block</button>
               </div>
