@@ -141,6 +141,10 @@ export type ProfoundOverview = {
   domainTypes: DomainType[]
   trackedPrompts: TrackedPrompt[]
   llmBreakdown: LLMBreakdown[]
+  /** Profound exposes no per-model citation data (v1). Always empty — Citation
+   *  Share renders `--` on the Profound tab when a model filter is active. */
+  totalCitationsByModel: Partial<Record<AEOModel, number>>
+  yourBrandCitationsByModel: Partial<Record<AEOModel, number>>
   periodChange: PeriodChange
 }
 
@@ -370,6 +374,8 @@ function emptyOverview(): ProfoundOverview {
     domainTypes:                [],
     trackedPrompts:             [],
     llmBreakdown:               [],
+    totalCitationsByModel:      {},
+    yourBrandCitationsByModel:  {},
     periodChange:               { visibilityMover: null, domainMover: null, competitorShift: null, promptOpportunity: null },
   }
 }
@@ -571,6 +577,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
     domainTypes,
     trackedPrompts,
     llmBreakdown,
+    totalCitationsByModel: {},
+    yourBrandCitationsByModel: {},
     periodChange,
   }
 }

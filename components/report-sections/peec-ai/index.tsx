@@ -14,7 +14,8 @@ import { OverviewSynopsis } from './overview-synopsis'
 import { SynopsisSkeleton } from './synopsis-skeleton'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
-import { isAiSource } from '@/lib/constants'
+import { isAiSource, aiSourceModel } from '@/lib/constants'
+import { sumModelMap } from '@/lib/peec/by-model'
 import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
@@ -189,6 +190,16 @@ function ProviderSection({
   const citationSharePrior = data.totalCitationsPrior > 0 ? (data.yourBrandCitationsPrior / data.totalCitationsPrior) * 100 : null
   const citationShareDelta = citationShareNow != null && citationSharePrior != null ? citationShareNow - citationSharePrior : undefined
 
+  // Model-filtered Citation Share: recompute from per-model citation totals when
+  // a model is selected. Profound's maps are empty → denom 0 → null → '--'.
+  // Delta hidden while filtered (no per-model prior-period data).
+  const citShareNumer = sumModelMap(data.yourBrandCitationsByModel, models)
+  const citShareDenom = sumModelMap(data.totalCitationsByModel, models)
+  const citationShareValue = modelActive
+    ? (citShareDenom > 0 ? (citShareNumer / citShareDenom) * 100 : null)
+    : citationShareNow
+  const citationShareDeltaShown = modelActive ? undefined : citationShareDelta
+
   // AI Referral Traffic % delta: undefined when the prior period had zero
   // sessions (no meaningful baseline). Value shown as raw session count.
   const aiTrafficDelta =
@@ -238,16 +249,22 @@ function ProviderSection({
               },
               {
                 title: 'Citation Share',
-                value: citationShareNow != null ? `${citationShareNow.toFixed(1)}%` : '--',
-                delta: citationShareDelta,
-                subtitle: `${data.yourBrandCitations.toLocaleString()} of ${data.totalCitations.toLocaleString()} citations`,
+                value: citationShareValue != null ? `${citationShareValue.toFixed(1)}%` : '--',
+                delta: citationShareDeltaShown,
+                subtitle: modelActive
+                  ? (citShareDenom > 0
+                      ? `${citShareNumer.toLocaleString()} of ${citShareDenom.toLocaleString()} citations`
+                      : 'No per-model data')
+                  : `${data.yourBrandCitations.toLocaleString()} of ${data.totalCitations.toLocaleString()} citations`,
                 tooltip: `Share of total tracked-domain citations attributed to your brand's own domain in the selected date range vs. the previous period. Sourced from ${label}.`,
               },
               {
                 title: 'AI Referral Traffic',
                 value: aiTraffic.available ? aiTraffic.sessions.toLocaleString() : '--',
-                delta: aiTrafficDelta,
-                subtitle: aiTraffic.available ? 'GA4 sessions from AI sources' : 'GA4 not configured',
+                delta: modelActive ? undefined : aiTrafficDelta,
+                subtitle: aiTraffic.available
+                  ? (modelActive ? 'GA4 sessions from selected AI sources' : 'GA4 sessions from AI sources')
+                  : 'GA4 not configured',
                 tooltip: 'Sessions from AI referrers (ChatGPT, Perplexity, Gemini, etc.) tracked in GA4. Selected date range vs. the previous period.',
               },
             ].map(({ title, value, delta, tooltip, subtitle }) => (
@@ -332,9 +349,14 @@ export async function PeecAIReport({
     profoundData = sampleProfoundOverview()
   }
 
+  const matchesAiFilter = (source: unknown): boolean => {
+    if (!models) return isAiSource(source)
+    const m = aiSourceModel(source)
+    return m != null && models.includes(m)
+  }
   const sumAiSessions = (rows: GA4Row[] | undefined | null) =>
     (rows ?? [])
-      .filter((r) => isAiSource(r.sessionSource))
+      .filter((r) => matchesAiFilter(r.sessionSource))
       .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
 
   const aiNowOk    = demoMode || aiNowRes.status === 'fulfilled'

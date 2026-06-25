@@ -12,6 +12,7 @@ import type {
   TrackedPrompt, LLMBreakdown, CompetitorAverages, DomainType,
 } from '@/lib/peec/client'
 import type { ByModel } from '@/lib/peec/by-model'
+import { citationTotalsByModel } from '@/lib/peec/by-model'
 
 const YOUR_BRAND = 'Avenue Z'
 
@@ -138,6 +139,11 @@ const DOMAIN_CITATIONS_BY_MODEL: ByModel<string, number> = {
   'en.wikipedia.org':   { ChatGPT:  48,               Perplexity:  62, Gemini:  34              },
 }
 
+// Demo your-brand domain = avenuez.com (exact host, matching the real client's
+// exact-host citation match). blog.avenuez.com is a separate host, excluded.
+const { totalByModel: DEMO_TOTAL_CITATIONS_BY_MODEL, yourByModel: DEMO_YOUR_CITATIONS_BY_MODEL } =
+  citationTotalsByModel(DOMAIN_CITATIONS_BY_MODEL, (d) => d === 'avenuez.com')
+
 const BRAND_VISIBILITY_BY_MODEL: ByModel<string, number> = {
   'Avenue Z':         { ChatGPT: 44.7, Claude: 41.3, Perplexity: 47.9, Gemini: 36.8, Copilot: 32.1 },
   'Edelman':          { ChatGPT: 40.1, Claude: 37.6, Perplexity: 43.2, Gemini: 33.4, Copilot: 29.0 },
@@ -173,6 +179,8 @@ export function samplePeecOverview(): PeecOverview {
     llmBreakdown:   LLM_BREAKDOWN,
     domainCitationsByModel: DOMAIN_CITATIONS_BY_MODEL,
     brandVisibilityByModel: BRAND_VISIBILITY_BY_MODEL,
+    totalCitationsByModel: DEMO_TOTAL_CITATIONS_BY_MODEL,
+    yourBrandCitationsByModel: DEMO_YOUR_CITATIONS_BY_MODEL,
   }
 }
 
