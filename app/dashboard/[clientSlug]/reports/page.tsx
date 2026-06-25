@@ -207,7 +207,7 @@ export default async function ReportPage({
             same-route ?section= change) remounts this boundary and shows the
             skeleton immediately, instead of holding the old section on screen
             for the duration of the new section's server-side data fetch. */}
-        <Suspense key={`${activeSection}:${subsection ?? ''}`} fallback={<SectionSkeleton />}>
+        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode, models)}
         </Suspense>
       </ReportErrorBoundary>

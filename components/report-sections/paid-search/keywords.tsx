@@ -1,9 +1,10 @@
 import { DataTable } from '@/components/charts/data-table'
 import { usd, pct, num } from '@/lib/paid-search/base'
-import type { SearchTermRow } from '@/lib/paid-search/types'
+import type { KeywordRow } from '@/lib/paid-search/types'
 
 const COLUMNS = [
-  { key: 'term', label: 'Search Term', align: 'left' as const },
+  { key: 'keyword', label: 'Keyword', align: 'left' as const },
+  { key: 'matchType', label: 'Match Type', align: 'left' as const },
   { key: 'clicks', label: 'Clicks', align: 'right' as const, sortable: true, sortKey: '_clicks' },
   { key: 'impressions', label: 'Impressions', align: 'right' as const, sortable: true, sortKey: '_impressions' },
   { key: 'ctr', label: 'CTR', align: 'right' as const, sortable: true, sortKey: '_ctr' },
@@ -12,9 +13,10 @@ const COLUMNS = [
   { key: 'cpl', label: 'CPL', align: 'right' as const, sortable: true, sortKey: '_cpl' },
 ]
 
-export function SearchTermsTable({ rows }: { rows: SearchTermRow[] }) {
+export function KeywordsTable({ rows }: { rows: KeywordRow[] }) {
   const tableRows = rows.map((r) => ({
-    term: r.term,
+    keyword: r.keyword,
+    matchType: r.matchType,
     clicks: num(r.clicks),
     impressions: num(r.impressions),
     ctr: pct(r.ctr),

@@ -25,7 +25,6 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
           xKey="week"
           xFormatter={weekLabel}
           bar={{ key: 'leads', color: CHART_COLORS.googleAds, label: 'Leads' }}
-          line={{ key: 'leads', color: CHART_COLORS.primary, label: 'Leads Trend' }}
         />
       </div>
 

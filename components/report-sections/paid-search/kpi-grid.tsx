@@ -12,6 +12,7 @@ export function KpiGrid({ kpis }: { kpis: Kpi[] }) {
           prefix={k.prefix}
           suffix={k.suffix}
           delta={k.delta}
+          invertDelta={k.invertDelta}
           tooltip={k.tooltip}
         />
       ))}

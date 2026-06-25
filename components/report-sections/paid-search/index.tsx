@@ -3,13 +3,13 @@ import { getHeroSeries } from '@/lib/paid-search/hero'
 import { getCampaignRows } from '@/lib/paid-search/campaigns'
 import { getLeadBreakdown } from '@/lib/paid-search/leads'
 import { getGeoRows } from '@/lib/paid-search/geo'
-import { getSearchTermRows } from '@/lib/paid-search/search-terms'
+import { getKeywordRows } from '@/lib/paid-search/keywords'
 import { Hero } from './hero'
 import { KpiGrid } from './kpi-grid'
 import { CampaignTable } from './campaign-table'
 import { LeadsSection } from './leads-section'
 import { GeoSection } from './geo-section'
-import { SearchTermsTable } from './search-terms'
+import { KeywordsTable } from './keywords'
 import { SmTimeoutError } from '@/lib/supermetrics/client'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
@@ -42,14 +42,14 @@ export async function PaidSearchReport({
   // PRD: automatic prior-period comparison — default to previous_period when
   // the URL doesn't specify a compare mode (an explicit value still wins).
   const effectiveCompare = compareRange ?? 'previous_period'
-  const [kpis, hero, campaigns, leads, geo, terms] = await Promise.all([
+  const [kpis, hero, campaigns, leads, geo, keywords] = await Promise.all([
     safe(getPaidSearchKpis(clientSlug, dateRange, effectiveCompare)),
     // Spec §6.1: hero is always weekly year-to-date, independent of the page range.
     safe(getHeroSeries(clientSlug, 'year_to_date')),
     safe(getCampaignRows(clientSlug, dateRange)),
     safe(getLeadBreakdown(clientSlug, dateRange)),
     safe(getGeoRows(clientSlug, dateRange)),
-    safe(getSearchTermRows(clientSlug, dateRange)),
+    safe(getKeywordRows(clientSlug, dateRange)),
   ])
 
   return (
@@ -59,7 +59,7 @@ export async function PaidSearchReport({
       {campaigns.data ? <CampaignTable rows={campaigns.data} /> : <Fallback kind={campaigns.error!} />}
       {leads.data ? <LeadsSection data={leads.data} /> : <Fallback kind={leads.error!} />}
       {geo.data ? <GeoSection rows={geo.data} /> : <Fallback kind={geo.error!} />}
-      {terms.data ? <SearchTermsTable rows={terms.data} /> : <Fallback kind={terms.error!} />}
+      {keywords.data ? <KeywordsTable rows={keywords.data} /> : <Fallback kind={keywords.error!} />}
     </div>
   )
 }
