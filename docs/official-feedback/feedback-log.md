@@ -16,6 +16,30 @@ _(none)_
 
 ## Closed
 
+### FB-039 - Fullsite Content Performance (Tina, 2026-06-25)
+
+- **Ask (verbatim):**
+  - Revised Columns:
+    - Page (combine page title and hyperlink it with the URL)
+    - Prompt Coverage (& Delta)
+    - Citation Share (& Delta)
+    - AI Referral Traffic (& Delta)
+    - Organic Sessions (& Delta)
+    - Engagement Rate (& Delta)
+  - New Title: What content across your domain is being cited by AI?
+  - New Subtitle: See every cited page across your site and measure its performance.
+- **Decisions made (Tina did not specify; documented for transparency):**
+  - Row universe: every UrlCitation whose host matches an owned domain AND has citationCount > 0. "Every cited page across your site" literal.
+  - Page label fallback chain: UrlCitation.title, then labelFromPath(url), then raw URL. Truth-grounded.
+  - Default sort: Citation Share descending. Matches §B Watched Pages.
+  - Pagination: 10 with expand. Matches §B.
+  - Inline deltas appear only when compareIso !== null. Matches §B and FB-034 hotfix #2 principle.
+  - Owned-domain detection: urlJoinKey match against filteredOwnDomains (Peec /reports/domains, already model-filtered).
+- **Files touched:**
+  - components/report-sections/peec-ai/content-impact-tables.tsx: dropped OwnedContentCitedTable + OwnedContentCitedRow. Added FullsiteContentPerformanceTable + FullsiteContentPerformanceRow (6 cols, mirrors §B's metric+delta shape). Lifted renderDelta helper to module scope so both §B and §F reuse it.
+  - components/report-sections/peec-ai/content-impact.tsx: rewrote §F orchestrator block. Drops demoTopics/demoClusters/demoEngines/demoPositions/demoAiSessions arrays and the enginesByDomain map (all unused after the column shape change). Builds per-URL row enrichment reusing FB-035 helpers (aiReferredForPath, organicForPath, engagementRateForPath, urlPromptIds, citeByKeyPrior, total*Citations, totalTrackedPrompts) with zero new fetches. Mounts the new table.
+- **Sheet row:** Content Impact | Fullsite Content Performance: new 6-col URL-row table (Page hyperlinked, Prompt Coverage, Citation Share, AI Referral Traffic, Organic Sessions, Engagement Rate, each with comparison delta) + verbatim new title/subtitle | Done. Replaced the legacy 9-col domain-row table. Row universe is every owned cited URL. Sort default Citation Share desc, paginate at 10. Deltas show when comparison period is on. Zero new fetches: reused FB-035's per-path helpers and per-URL Peec data.
+
 ### FB-038 - Slope chart (Tina, 2026-06-25)
 
 - **Ask (verbatim):**
