@@ -831,16 +831,70 @@ git commit -m "feat(health): HealthProbe + health-mode branch on both report sur
 
 ---
 
-### Task 7: Sweep route (crawler + differ + Slack)
+### Task 7: Shared service-cookie module + sweep route (crawler + differ + Slack)
 
 **Files:**
+- Create: `lib/auth/service-cookie.ts`
+- Modify: `app/api/cache-warm/route.ts` (replace its local `mintServiceCookie` with the shared import)
 - Create: `app/api/health/sweep/route.ts`
 
 **Interfaces:**
 - Consumes: `getAllClients`, `getAllHealthState`, `upsertHealthState` (queries); `deriveStatus` (derive); `diffHealth`, `formatTransitions` (diff); `postHealthChanges` (slack); `ProbeResult`, `Surface` (types).
-- Produces: `GET(req: Request)` route handler.
+- Produces:
+  - `mintServiceCookie(secret: string, salt: string, principal: { email: string; name: string }): Promise<string>` in `lib/auth/service-cookie.ts`.
+  - `GET(req: Request)` route handler in the sweep route.
 
-**Note:** The service-cookie minting logic is copied from `app/api/cache-warm/route.ts` (lines 44–62) to avoid editing that working, pre-launch file. Keep the two in sync if either changes.
+**Decision (from human):** The service-cookie minting is extracted to a shared
+module rather than copied. Both `cache-warm` and the sweep route import it. The
+extraction must preserve cache-warm's existing behavior exactly (same token
+fields, same `cache-warm@avenuez.com` principal) — only the source of the
+function changes.
+
+- [ ] **Step 0: Extract the shared service-cookie helper**
+
+Create `lib/auth/service-cookie.ts`:
+
+```typescript
+import { encode } from '@auth/core/jwt'
+
+/**
+ * Mint a short-lived (1h) INTERNAL_ADMIN session cookie value for server-to-
+ * server self-fetches (cache warming, health sweeps). The principal email/name
+ * identifies the run in logs. Shared by app/api/cache-warm and app/api/health/sweep.
+ */
+export async function mintServiceCookie(
+  secret: string,
+  salt: string,
+  principal: { email: string; name: string },
+): Promise<string> {
+  const maxAge = 60 * 60
+  const now = Math.floor(Date.now() / 1000)
+  return encode({
+    secret,
+    salt,
+    maxAge,
+    token: {
+      sub: principal.email,
+      email: principal.email,
+      name: principal.name,
+      role: 'INTERNAL_ADMIN',
+      clientSlug: 'avenue-z',
+      iat: now,
+      exp: now + maxAge,
+      jti: crypto.randomUUID(),
+    },
+  })
+}
+```
+
+Then in `app/api/cache-warm/route.ts`: remove the local `mintServiceCookie`
+function (lines 44–62) and its now-unused `import { encode } from '@auth/core/jwt'`
+(line 23); add `import { mintServiceCookie } from '@/lib/auth/service-cookie'`;
+and change its single call site (line ~110) from
+`mintServiceCookie(authSecret, cookieName)` to
+`mintServiceCookie(authSecret, cookieName, { email: 'cache-warm@avenuez.com', name: 'cache-warm' })`.
+
+Verify cache-warm still typechecks: `npx tsc --noEmit` (expected: no errors).
 
 - [ ] **Step 1: Implement the sweep route**
 
@@ -859,8 +913,8 @@ git commit -m "feat(health): HealthProbe + health-mode branch on both report sur
  * from app/api/cache-warm/route.ts.
  */
 import { NextResponse } from 'next/server'
-import { encode } from '@auth/core/jwt'
 import { getAllClients, getAllHealthState, upsertHealthState } from '@/lib/db/queries'
+import { mintServiceCookie } from '@/lib/auth/service-cookie'
 import { deriveStatus } from '@/lib/health/derive'
 import { diffHealth, formatTransitions } from '@/lib/health/diff'
 import { postHealthChanges } from '@/lib/health/slack'
@@ -874,26 +928,6 @@ interface Unit {
   surface: Surface
   clientSlug: string
   section: string
-}
-
-async function mintServiceCookie(secret: string, salt: string): Promise<string> {
-  const maxAge = 60 * 60
-  const now = Math.floor(Date.now() / 1000)
-  return encode({
-    secret,
-    salt,
-    maxAge,
-    token: {
-      sub: 'health-sweep@avenuez.com',
-      email: 'health-sweep@avenuez.com',
-      name: 'health-sweep',
-      role: 'INTERNAL_ADMIN',
-      clientSlug: 'avenue-z',
-      iat: now,
-      exp: now + maxAge,
-      jti: crypto.randomUUID(),
-    },
-  })
 }
 
 async function probe(u: Unit, cookieHeader: string): Promise<ProbeResult> {
@@ -920,7 +954,7 @@ export async function GET(req: Request) {
     : (process.env.APP_URL ?? new URL(req.url).origin)
   const isSecure = baseUrl.startsWith('https://')
   const cookieName = isSecure ? '__Secure-authjs.session-token' : 'authjs.session-token'
-  const token = await mintServiceCookie(authSecret, cookieName)
+  const token = await mintServiceCookie(authSecret, cookieName, { email: 'health-sweep@avenuez.com', name: 'health-sweep' })
   const cookieHeader = `${cookieName}=${token}`
 
   const clients = await getAllClients()
@@ -980,8 +1014,8 @@ Expected: JSON like `{"probed":N,"down":M,"transitions":K}` where `N` = 2 × (su
 - [ ] **Step 4: Commit**
 
 ```bash
-git add app/api/health/sweep/route.ts
-git commit -m "feat(health): /api/health/sweep cron route"
+git add lib/auth/service-cookie.ts app/api/cache-warm/route.ts app/api/health/sweep/route.ts
+git commit -m "feat(health): shared service-cookie helper + /api/health/sweep cron route"
 ```
 
 ---
