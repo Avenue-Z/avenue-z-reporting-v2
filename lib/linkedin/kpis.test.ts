@@ -34,4 +34,20 @@ assert.equal(k.find((c) => c.key === 'leadFormCompletionRate')!.value, 30)
 // delta vs a prior period (spend 10000 → +20%)
 const k2 = transformLinkedInKpis(totals, { ...totals, spend: '10000' })
 assert.equal(k2.find((c) => c.key === 'spend')!.delta, 20)
+
+// Reach unavailable (LinkedIn returns null for ranges >~90 days) → show "—",
+// drop the Frequency suffix, and suppress deltas. Must NOT render a false 0.
+const noReach: Record<string, string> = { ...totals }
+delete noReach.approximateUniqueImpressions
+const k3 = transformLinkedInKpis(noReach, null)
+const reach = k3.find((c) => c.key === 'reach')!
+const freq = k3.find((c) => c.key === 'frequency')!
+assert.equal(reach.value, '—')
+assert.equal(reach.delta, undefined)
+assert.equal(freq.value, '—')
+assert.equal(freq.suffix, undefined)
+assert.equal(freq.delta, undefined)
+// a real zero reach ('0') is NOT treated as unavailable
+const zeroReach = transformLinkedInKpis({ ...totals, approximateUniqueImpressions: '0' }, null)
+assert.equal(zeroReach.find((c) => c.key === 'reach')!.value, 0)
 console.log('ok')
