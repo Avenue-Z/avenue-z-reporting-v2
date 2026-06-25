@@ -20,9 +20,6 @@ import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
 import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
 import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/llm-breakdown-table'
-import { sampleProfoundOverview } from '@/lib/demo-data/profound'
-import { samplePeecOverview } from '@/lib/demo-data/peec'
-import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
@@ -146,7 +143,6 @@ type Overview = PeecOverview | ProfoundOverview
 function ProviderSection({
   data,
   provider,
-  isDemo,
   models = null,
   aiTraffic,
   clientSlug,
@@ -154,7 +150,6 @@ function ProviderSection({
 }: {
   data: Overview
   provider: AeoProvider
-  isDemo: boolean
   models?: AEOModel[] | null
   aiTraffic: AIReferralKPI
   clientSlug?: string
@@ -222,7 +217,6 @@ function ProviderSection({
       <SectionHeader
         icon={Sparkles}
         title="How visible is the brand across AI answer engines?"
-        badge={isDemo ? <SampleDataBadge /> : undefined}
       />
 
       <Suspense fallback={<SynopsisSkeleton />}>
@@ -300,7 +294,7 @@ function ProviderSection({
         </div>
       </div>
 
-      <p className="text-xs text-text-muted">{isDemo ? 'Sample data — demo mode' : `Live data from ${label}`}</p>
+      <p className="text-xs text-text-muted">{`Live data from ${label}`}</p>
     </div>
   )
 }
@@ -310,18 +304,17 @@ function ProviderSection({
 export async function PeecAIReport({
   clientSlug,
   dateRange,
-  demoMode = false,
   models = null,
-}: { clientSlug?: string; dateRange?: string; demoMode?: boolean; models?: AEOModel[] | null } = {}) {
+}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null } = {}) {
   const config = clientSlug ? await getClientBySlug(clientSlug) : null
-  const peecConfigured = demoMode || !!config?.peecCustomerProjectId
-  const profoundConfigured = demoMode || !!config?.profoundCategoryId
+  const peecConfigured = !!config?.peecCustomerProjectId
+  const profoundConfigured = !!config?.profoundCategoryId
 
   // GA4 AI Referral Traffic for the Overview KPI strip. Same pattern as
   // PR Influence: fetch sessions by sessionSource for the current and prior
   // period, then sum the AI-sourced rows via isAiSource(). Skipped entirely
   // when GA4 is not configured for the client.
-  const ga4Configured = demoMode || !!config?.ga4PropertyId
+  const ga4Configured = !!config?.ga4PropertyId
   const mainRange = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(mainRange)
   const compareDates = deriveCompareRange(mainRange, 'previous_period')
@@ -339,15 +332,8 @@ export async function PeecAIReport({
       : Promise.resolve(null),
   ])
 
-  let peecData     = peecRes.status     === 'fulfilled' ? peecRes.value     : null
-  let profoundData = profoundRes.status === 'fulfilled' ? profoundRes.value : null
-
-  // Demo mode: force-substitute BOTH providers with sample data so the demo
-  // never mixes real client data with synthetic.
-  if (demoMode) {
-    peecData     = samplePeecOverview()
-    profoundData = sampleProfoundOverview()
-  }
+  const peecData     = peecRes.status     === 'fulfilled' ? peecRes.value     : null
+  const profoundData = profoundRes.status === 'fulfilled' ? profoundRes.value : null
 
   const matchesAiFilter = (source: unknown): boolean => {
     if (!models) return isAiSource(source)
@@ -359,8 +345,8 @@ export async function PeecAIReport({
       .filter((r) => matchesAiFilter(r.sessionSource))
       .reduce((sum, r) => sum + ((r.sessions as number) ?? 0), 0)
 
-  const aiNowOk    = demoMode || aiNowRes.status === 'fulfilled'
-  const aiPriorOk  = demoMode || aiPriorRes.status === 'fulfilled'
+  const aiNowOk    = aiNowRes.status === 'fulfilled'
+  const aiPriorOk  = aiPriorRes.status === 'fulfilled'
   const aiNowRows  = aiNowRes.status   === 'fulfilled' ? (aiNowRes.value?.rows   ?? []) : []
   const aiPriorRows = aiPriorRes.status === 'fulfilled' ? (aiPriorRes.value?.rows ?? []) : []
   const aiTraffic: AIReferralKPI = {
@@ -378,8 +364,8 @@ export async function PeecAIReport({
   }
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" isDemo={demoMode} models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} />
 
   return (
     <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />

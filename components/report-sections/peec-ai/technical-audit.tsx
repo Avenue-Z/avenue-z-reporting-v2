@@ -11,10 +11,6 @@ import { getClientBySlug } from '@/lib/db/queries'
 import type { SFData } from '@/lib/screaming-frog/types'
 import type { AgentBot } from '@/lib/peec/agent-analytics'
 import type { AEOChecklist, AEOChecklistItem, AEOStatus } from '@/lib/sitebulb/types'
-import { sampleSFData } from '@/lib/demo-data/screaming-frog'
-import { sampleAgentAnalytics } from '@/lib/demo-data/agent-analytics'
-import { sampleSitebulbData } from '@/lib/demo-data/sitebulb'
-import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { SectionHeader } from './section-header'
 import {
   WhatChangedTable,
@@ -292,13 +288,9 @@ function DataUnavailable({ label }: { label: string }) {
 
 // ── Main RSC ──────────────────────────────────────────────────────────────────
 
-export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = false }: { clientSlug: string; dateRange?: string; demoMode?: boolean }) {
-  // Get client config for domain and other client-specific settings.
-  // In demo mode, override with the sample SF fixture's domain so the
-  // page-overlap matching and FixList URL stripping behave consistently
-  // — otherwise the real client's domain leaks into a sample render.
+export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSlug: string; dateRange?: string }) {
   const clientConfig = await getClientBySlug(clientSlug)
-  const clientDomain = demoMode ? 'avenuez.com' : (clientConfig?.domain ?? '')
+  const clientDomain = clientConfig?.domain ?? ''
 
   // Fetch all data sources in parallel, with graceful degradation on each
   const [sfResult, sitebulbResult, agentResult, urlCitationsResult, ga4AiPathResult] = await Promise.allSettled([
@@ -321,17 +313,6 @@ export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = f
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   const ga4AiPathRows = ga4AiPathResult.status === 'fulfilled' ? ga4AiPathResult.value.rows : null
 
-  // Demo mode: force-substitute every data source so the demo is
-  // exclusively synthetic. Powers Sections A (KPIs), B (delta), C
-  // (trends), D (bot activity), E (page overlap), F (anomalies), and
-  // the AEO Checklist at the bottom.
-  if (demoMode) {
-    sfData       = sampleSFData()
-    agentData    = sampleAgentAnalytics()
-    sitebulbData = sampleSitebulbData()
-    urlCitations = []   // demo: PageOverlapTable uses its own demo arrays
-  }
-
   // Log any errors server-side (visible in Vercel logs / local dev)
   if (sfResult.status            === 'rejected') console.error('[technical-audit] SF data error:', sfResult.reason)
   if (sitebulbResult.status      === 'rejected') console.error('[technical-audit] Sitebulb error:', sitebulbResult.reason)
@@ -344,7 +325,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = f
   // AI-referred); a path GA4 doesn't cover is absent → the table renders -- (not a
   // misleading 0). null when the GA4 query rejected (GA4 unconfigured / not shared).
   let aiReferredByPath: Record<string, number> | null = null
-  if (!demoMode && ga4AiPathRows) {
+  if (ga4AiPathRows) {
     aiReferredByPath = {}
     for (const r of ga4AiPathRows) {
       const k = urlJoinKey(String(r.pagePath ?? ''))
@@ -386,7 +367,6 @@ export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = f
         icon={Settings}
         title="What's the technical state of the site for AI crawlers?"
         subtitle="AEO technical health. Structured data, crawlability, AI bot behavior, and the issue delta between crawl snapshots."
-        badge={demoMode ? <SampleDataBadge /> : undefined}
       />
 
       {/* ── Section A: Snapshot KPIs ── */}
@@ -465,7 +445,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = f
 
       {/* ── Section E: Pages with AI + Issues ── */}
       {sfData && agentData ? (
-        <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} urlCitations={urlCitations} aiReferredByPath={aiReferredByPath} demoMode={demoMode} />
+        <PageOverlapTable agentData={agentData} sfData={sfData} clientDomain={clientDomain} urlCitations={urlCitations} aiReferredByPath={aiReferredByPath} />
       ) : (
         <SectionCard
           title="Where do AI activity and technical issues overlap?"
@@ -477,7 +457,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange, demoMode = f
 
       {/* ── Section F: Anomalies ── */}
       {agentData ? (
-        <LogAnomaliesTable agentData={agentData} demoMode={demoMode} />
+        <LogAnomaliesTable agentData={agentData} />
       ) : (
         <SectionCard
           title="Where are AI crawlers wasting requests?"

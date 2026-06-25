@@ -4,10 +4,6 @@ import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
-import { samplePRProofData } from '@/lib/demo-data/pr-proof'
-import { samplePeecOverview } from '@/lib/demo-data/peec'
-import { SAMPLE_GA4_AI_REFERRAL_ROWS, SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS } from '@/lib/demo-data/ga4-pr-influence'
-import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { Megaphone } from 'lucide-react'
@@ -198,7 +194,7 @@ function computeOpportunityRows(
 
 // ── Main RSC ─────────────────────────────────────────────────────────────────
 
-export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', demoMode = false, models = null }: { clientSlug: string; dateRange?: string; demoMode?: boolean; models?: AEOModel[] | null }) {
+export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', models = null }: { clientSlug: string; dateRange?: string; models?: AEOModel[] | null }) {
   // Date range setup for GA4 AI referral sessions
   const resolvedMain = parseDateRange(dateRange)
   const mainIso = `${resolvedMain.startDate},${resolvedMain.endDate}`
@@ -246,26 +242,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
 
-  // Demo mode: force-substitute every data source so the demo never
-  // mixes real client data with synthetic. `prIsDemo` is retained as
-  // the boolean some render paths read, but it now equals demoMode.
-  const prIsDemo = demoMode
-  if (demoMode) {
-    data           = samplePeecOverview()
-    prData         = samplePRProofData()
-    aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
-    compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
-    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }  // demo: matchback/§C/§D use demo fallbacks
-    urlCitations   = []  // demo: §D uses demo fallbacks
-    urlCitationsPrior = []  // demo: no prior period
-  }
-
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
 
   // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
   // Only when the query failed / GA4 is unconfigured do we show -- (no data).
-  const aiReferralOk = demoMode || aiReferralResult.status === 'fulfilled'
+  const aiReferralOk = aiReferralResult.status === 'fulfilled'
 
   const aiSessions = aiReferralRows
     .filter(r => isAiSource(r.sessionSource))
@@ -354,16 +336,14 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // First build the full list up to 15, then pass through the filter helper which
   // recomputes citationCount from per-model data and drops zero-count rows.
   // Note: citationCountDelta is intentionally left stale (v1 limitation — see helper).
-  const rawTopEditorialRows: TopEditorialDomainRow[] = editorialDomains.slice(0, 15).map((d, idx) => {
-    const hasPR = prIsDemo
-      ? [true, false, true, true, false, true, false, true, false, true, false, true, true, false, true][idx % 15]
-      : (prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false)
+  const rawTopEditorialRows: TopEditorialDomainRow[] = editorialDomains.slice(0, 15).map((d) => {
+    const hasPR = prData?.uniqueDomains.some(pd => pd.toLowerCase() === d.domain.toLowerCase()) ?? false
     return {
       domain: d.domain,
       citationCount: d.retrieved,
       citationCountDelta: d.retrievedDelta,
       promptCoverage: getEditorialPromptCoverage(d.domain),
-      avgCitations: prIsDemo ? 1.5 + (idx % 5) * 0.4 : (avgCitByDomain[hostKey(d.domain)] ?? null),
+      avgCitations: avgCitByDomain[hostKey(d.domain)] ?? null,
       hasPR,
     }
   })
@@ -441,53 +421,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       }
     })
 
-  // (d) Demo mode: keep the original demo arrays for the demo path so the demo
-  //     tab still renders example rows. Real client view goes through (c).
-  const DEMO_BRAND_ABSENT_TITLES = [
-    'How AI is reshaping editorial coverage',
-    'Inside the AEO playbook for 2026',
-    'Five brands winning in AI search',
-    'The new SEO is AEO',
-    'Why traditional PR is broken',
-    'What ChatGPT cites and why it matters',
-    'The agencies leading AI-first marketing',
-    'How brand visibility is changing in the LLM era',
-  ]
-  const DEMO_BRAND_ABSENT_SLUGS = [
-    'ai-editorial-shift', 'aeo-playbook-2026', 'brands-winning-ai-search',
-    'aeo-new-seo', 'pr-is-broken', 'what-chatgpt-cites',
-    'ai-first-agencies', 'brand-visibility-llm-era',
-  ]
-  const DEMO_BRAND_ABSENT_COMPETITORS = [
-    ['Ogilvy', 'Edelman'],
-    ['Weber Shandwick'],
-    ['FleishmanHillard', 'BCW'],
-    ['Burson'],
-    ['Edelman', 'Praytell'],
-    ['Ogilvy'],
-    ['BCW', 'Weber Shandwick'],
-    ['FleishmanHillard'],
-  ]
-  const demoBrandAbsentRows: BrandAbsentEditorialDomainRow[] = prIsDemo
-    ? editorialDomains.slice(0, 8).map((d, i) => {
-        const slug = DEMO_BRAND_ABSENT_SLUGS[i % DEMO_BRAND_ABSENT_SLUGS.length]
-        // Demo values: synthetic share % and delta. Real path computes honest values.
-        const demoShare = Number(((d.retrieved ?? 1) * 0.1).toFixed(1))
-        const demoDelta = ((i % 2 === 0 ? 1 : -1) * Number(((i + 1) * 0.3).toFixed(1)))
-        return {
-          domain: d.domain,
-          articleTitle: DEMO_BRAND_ABSENT_TITLES[i % DEMO_BRAND_ABSENT_TITLES.length],
-          articleUrl: `https://${d.domain}/${slug}`,
-          citationShare: demoShare,
-          citationShareDelta: demoDelta,
-          competitorsMentioned: DEMO_BRAND_ABSENT_COMPETITORS[i % DEMO_BRAND_ABSENT_COMPETITORS.length].join(', '),
-        }
-      })
-    : []
-
-  const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = prIsDemo
-    ? demoBrandAbsentRows
-    : brandAbsentTableRowsAll
+  const brandAbsentTableRows: BrandAbsentEditorialDomainRow[] = brandAbsentTableRowsAll
 
   // 4. Prompt Cluster Opportunity Matrix rows
   const opportunityTableRows: PromptClusterOpportunityRow[] = opportunityRows.map((row) => ({
@@ -541,10 +475,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         subtitle="Where earned media earns LLM citations, which publications carry the most AI authority, and the opportunities to grow share of voice."
       />
 
-      {prIsDemo && (
-        <div><SampleDataBadge note="Demo mode — all data on this page is synthetic" /></div>
-      )}
-
       {/* ── FB-009-a · Executive Synopsis (replaces the prior Section A KPI Strip per Tina's FB-009-b ask) ── */}
       <Suspense fallback={<SynopsisSkeleton />}>
         <PRInfluenceSynopsis
@@ -568,7 +498,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
           dateRange={dateRange}
           modelKey={sentimentModelKey}
           citations={sentimentCitations}
-          demoMode={demoMode}
         />
       </Suspense>
 

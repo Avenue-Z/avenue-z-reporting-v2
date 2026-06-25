@@ -9,7 +9,6 @@ declare module 'next-auth' {
       image?: string | null
       role: string
       clientSlug: string | null
-      demoMode: boolean
     }
   }
 }
@@ -18,6 +17,5 @@ declare module 'next-auth/jwt' {
   interface JWT {
     role?: string
     clientSlug?: string | null
-    demoMode?: boolean
   }
 }

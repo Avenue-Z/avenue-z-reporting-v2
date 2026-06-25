@@ -35,15 +35,12 @@ export async function SentimentInsightsSection({
   dateRange,
   modelKey,
   citations,
-  demoMode,
 }: {
   clientSlug: string
   dateRange: string
   modelKey: string
   citations: Parameters<typeof getSentimentInsights>[3]['citations']
-  demoMode: boolean
 }) {
-  if (demoMode) return <SentimentInsights data={null} />
 
   let data: Awaited<ReturnType<typeof getSentimentInsights>> | null = null
   try {
