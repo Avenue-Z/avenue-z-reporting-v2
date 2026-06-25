@@ -8,6 +8,14 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 
 ---
 
+## FB-040 — §H.1 Competitor Analysis (Content Impact)
+
+- Rebuilt §H.1 table to Tina's spec: Domain, AI Visibility (+Δ), Citation Share (+Δ), Prompt Coverage (+Δ).
+- SectionCard title → `Competitor Analysis`. Subtitle + chart sub-header swapped to Tina's verbatim copy.
+- Dropped Theme Coverage column; deleted dead `getThemeCoverage` helper, `TT.themeCoverage`, and the now-unused `domainTagIds` import.
+- All deltas gate on compare-period (FB-034 hotfix #2 pattern). Zero new data fetches.
+- §H.2 untouched.
+
 ## FB-039 - Fullsite Content Performance (2026-06-25)
 
 FB-039 | 2026-06-25 | <pending> | a | §F Fullsite Content Performance rebuilt per Tina ADD. Dropped the legacy 9-col domain-row OwnedContentCitedTable (1 row per owned domain, typically just avenuez.com). Built new 6-col URL-row FullsiteContentPerformanceTable: Page (hyperlinked title), Prompt Coverage, Citation Share, AI Referral Traffic, Organic Sessions, Engagement Rate. Each metric carries an inline comparison-period delta gated on compareIso !== null. Title and subtitle verbatim from Tina. Page label = UrlCitation.title, else labelFromPath(url), else raw URL. Row universe = urlCitations filtered to owned domains (urlJoinKey match against filteredOwnDomains) with citationCount > 0. Default sort Citation Share desc; pagination 10 with expand. Zero new fetches: per-URL prompt coverage from coverage.promptIdsByUrlKey (FB-035 Task 1), per-URL citation share from urlCitations + urlCitationsPrior (FB-035), per-path AI referral/organic/engagement from FB-035's aiReferredForPath/organicForPath/engagementRateForPath helpers. Lifted renderDelta helper to module scope in content-impact-tables.tsx so §B and §F reuse one copy. Dropped demoTopics/demoClusters/demoEngines/demoPositions/demoAiSessions arrays and enginesByDomain map from §F (all unused after the column shape change). Engagement rate value renderer + delta both multiply by 100 to mirror §B's existing handling (GA4 returns fraction [0,1]); correction shipped in hotfix commit 202073c. Universal across clients. tsc clean. All 6 test files pass.

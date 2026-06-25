@@ -2088,3 +2088,26 @@ If any are missing, the synopsis card falls back to the temporarily-unavailable 
 2. **The Sparkles icon for Overview** was my pick. If Tina prefers a different icon (e.g., Eye, BarChart3, Compass), trivial to swap one prop.
 3. **The yellow-to-green color flip on Technical Performance** is the one place existing code was overwritten. If the yellow was a deliberate design decision, swap back by editing one constant in `section-header.tsx` (or pass color as a prop).
 4. **The Megaphone icon for PR Influence** was my pick. Trivial swap if Tina wants Newspaper, Radio, or something else.
+
+---
+
+## FB-040 — Content Impact §H Competitor Analysis sub-view 1
+
+**Tab:** Content Impact
+**Section:** §H Competitor Analysis (sub-view 1: top competitor domains)
+**Tina's ask:**
+- New section title: `Competitor Analysis`
+- New section subtitle: `See which competitor domains are gaining or losing ground across AI Visibility, Citation Share, and Prompt Coverage for your target prompts.`
+- New chart sub-header: `Which competitor domains are winning for our target prompts?`
+- New columns: AI Visibility (& Delta), Citation Share (& Delta), Prompt Coverage (& Delta)
+
+**Shipped:**
+- §H.1 `CompetitorDomainsCitedTable` rebuilt: 4 columns (Domain + 3 metric cols), each metric col renders value with a percentage-point delta when a compare period is active.
+- Column mappings: AI Visibility = `TopDomain.retrieved` (Peec `retrieved_percentage * 100`), Citation Share = `TopDomain.citationRate` (Peec `citation_rate * 100`), Prompt Coverage = existing `getPromptCoverage` helper. Deltas: `retrievedDelta` / `citationRateDelta` come pre-baked from `buildTopDomains`; Prompt Coverage delta computed inline against the already-fetched `coveragePrior` via a new `getPromptCoveragePrior` helper.
+- Zero new Peec or GA4 fetches; reused `peecData.topDomains` (current + prior), `coverage`, `coveragePrior`.
+- All deltas gate on `compareIso !== null` per FB-034 hotfix #2.
+- Theme Coverage column + `getThemeCoverage` helper + `TT.themeCoverage` tooltip + `domainTagIds` import deleted as dead code.
+- Demo fills for prompt/theme coverage removed (Tina's literal: live or `--`, no demo backfill).
+- §H.2 (`CompetitorUrlsBrandAbsentTable`) untouched per literal-interpretation rule.
+
+**Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
