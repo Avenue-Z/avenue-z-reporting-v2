@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // --- Domain types preserved from the deleted clients.config.ts ---
