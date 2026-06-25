@@ -23,6 +23,7 @@ export function ComboChart<T extends object>({ data, xKey, bar, line, valueForma
           {line && <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => fmtLine(Number(v))} tick={{ fill: '#8A8A8A', fontSize: 11 }} tickLine={false} axisLine={false} />}
           <Tooltip
             contentStyle={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
+            labelFormatter={xFormatter ? (label) => xFormatter(String(label)) : undefined}
             formatter={(v, name) => (line && name === line.label ? fmtLine(Number(v)) : fmtBar(Number(v)))}
           />
           <Bar yAxisId="left" dataKey={bar.key} name={bar.label} fill={bar.color} radius={[3, 3, 0, 0]} />

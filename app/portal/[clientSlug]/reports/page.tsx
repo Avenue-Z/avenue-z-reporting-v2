@@ -121,9 +121,15 @@ export default async function PortalReportPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string }>
 }) {
   const { clientSlug } = await params
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
+
+  // A subsection the client has hidden (e.g. Technical Performance) is not reachable
+  // via direct URL — fall back to the section overview.
+  const subsection = subsectionParam && client.hiddenReports?.includes(subsectionParam as ReportSlug)
+    ? undefined
+    : subsectionParam
 
   const dateRange    = dateRangeParam  ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null

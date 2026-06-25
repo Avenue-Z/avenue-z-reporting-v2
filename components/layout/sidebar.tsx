@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
-import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS, visibleSubsections } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
@@ -510,7 +510,7 @@ function ClientSidebar({
                               </Link>
                               {isActive && (
                                 <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
-                                  {AEO_SUBSECTIONS.map((sub) => {
+                                  {visibleSubsections(AEO_SUBSECTIONS, client.hiddenReports).map((sub) => {
                                     if (sub.comingSoon) {
                                       return (
                                         <li key={sub.id ?? 'soon'}>

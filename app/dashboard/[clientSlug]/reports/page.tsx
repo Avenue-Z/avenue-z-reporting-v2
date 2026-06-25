@@ -108,9 +108,15 @@ export default async function ReportPage({
   searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string }>
 }) {
   const { clientSlug } = await params
-  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
+
+  // A subsection the client has hidden (e.g. Technical Performance) is not reachable
+  // via direct URL — fall back to the section overview.
+  const subsection = subsectionParam && client.hiddenReports?.includes(subsectionParam as ReportSlug)
+    ? undefined
+    : subsectionParam
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
