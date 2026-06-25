@@ -22,6 +22,8 @@ import { SampleDataBadge } from '@/lib/demo-data/badge'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
+import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
+import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
 import {
   PlannedContentPerformanceTable,
   OwnedContentCitedTable,
@@ -243,6 +245,7 @@ export async function ContentImpactReport({
     ga4AiPathPriorResult,
     ga4ChannelMainResult,
     ga4ChannelPriorResult,
+    ga4ScatterResult,
   ] = await Promise.allSettled([
     getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
     getAgentAnalytics(clientSlug),
@@ -340,6 +343,21 @@ export async function ContentImpactReport({
           limit: 2000,
         })
       : Promise.resolve(null),
+    // FB-037 §D: GA4 page-level sessions over a HARDCODED last-30-days window,
+    // matched to the Peec agent-analytics window (also hardcoded last-30-days at
+    // lib/peec/agent-analytics.ts:284). Used by the scatter chart only.
+    ga4Query({
+      clientSlug,
+      dateRange: `${(() => {
+        const end = new Date()
+        const start = new Date()
+        start.setDate(start.getDate() - 30)
+        return start.toISOString().slice(0, 10)
+      })()},${new Date().toISOString().slice(0, 10)}`,
+      metrics: ['sessions'],
+      dimensions: ['pagePath', 'sessionSource'],
+      limit: 1000,
+    }),
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -389,6 +407,9 @@ export async function ContentImpactReport({
   const ga4ChannelPriorRows = ga4ChannelPriorResult.status === 'fulfilled' && ga4ChannelPriorResult.value
     ? ga4ChannelPriorResult.value.rows
     : null
+  // FB-037 §D: hardcoded last-30-days page×source rows for the scatter chart.
+  const ga4ScatterRows = ga4ScatterResult.status === 'fulfilled' ? ga4ScatterResult.value.rows : null
+  if (ga4ScatterResult.status === 'rejected') console.error('[content-impact] GA4 §D scatter error:', ga4ScatterResult.reason)
 
   // Demo mode: force-substitute every data source so the demo is
   // exclusively synthetic — no mixing of real client data with sample
@@ -628,6 +649,28 @@ export async function ContentImpactReport({
   const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
   const sectionCOk = timingOk
+
+  // ── §D · Bot vs Human scatter (FB-037) ───────────────────────────────────────
+  // Build per-path maps over the hardcoded last-30-days window. Bot side comes
+  // from agentData.byPath (already last-30 by getAgentAnalytics window). Human
+  // side comes from the new ga4ScatterRows query (same last-30 window). Both
+  // maps are keyed by urlJoinKey so a (pagePath, request_path) pair joins.
+  const pathBots = new Map<string, number>()
+  if (agentData) {
+    for (const [k, agg] of Object.entries(agentData.byPath)) {
+      pathBots.set(k, agg.totalVisits)
+    }
+  }
+  const pathHumans = new Map<string, number>()
+  if (ga4ScatterRows) {
+    for (const row of ga4ScatterRows) {
+      if (isAiSource(String(row.sessionSource ?? ''))) continue
+      const k = urlJoinKey(String(row.pagePath ?? ''))
+      if (!k) continue
+      pathHumans.set(k, (pathHumans.get(k) ?? 0) + (Number(row.sessions) || 0))
+    }
+  }
+  const scatterData = computeBotVsHumanScatter({ pathBots, pathHumans })
 
   // ── FB-034 · §A Snapshot KPI derivations (Tina's 4 new metrics) ─────────────
 
@@ -1087,6 +1130,14 @@ export async function ContentImpactReport({
             </p>
           </div>
         )}
+      </SectionCard>
+
+      {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
+      <SectionCard
+        title="AI Bot Traffic vs. Human Traffic"
+        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Measures the last 30 days, independent of the page date range."
+      >
+        <BotVsHumanScatter data={scatterData} />
       </SectionCard>
 
       {/* ── Section F: Owned Content Cited in AI (PRD: 9 columns) ─────────── */}
