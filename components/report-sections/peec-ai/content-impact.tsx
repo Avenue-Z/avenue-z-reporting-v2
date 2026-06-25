@@ -574,8 +574,8 @@ export async function ContentImpactReport({
   const isoDate = (s: string | null): string | null =>
     s && /^\d{4}-\d{2}-\d{2}/.test(s.trim()) ? s.trim().slice(0, 10) : null
   const plannedTiming = (calendarData?.rows ?? [])
-    .map(r => ({ path: extractPath(r.url), publishDate: isoDate(r.publishDate) }))
-    .filter((r): r is { path: string; publishDate: string } =>
+    .map(r => ({ path: extractPath(r.url), url: r.url ?? null, publishDate: isoDate(r.publishDate) }))
+    .filter((r): r is { path: string; url: string | null; publishDate: string } =>
       r.path !== null && r.publishDate !== null)
 
   const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
@@ -621,9 +621,10 @@ export async function ContentImpactReport({
   const daysFor = (path: string) =>
     [...(daysByPath.get(normPath(path))?.entries() ?? [])].map(([date, v]) => ({ date, ...v }))
 
-  const urlTimings = plannedTiming.map(r =>
-    computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
-  )
+  const urlTimings = plannedTiming.map(r => ({
+    url: r.url,
+    ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
+  }))
 
   // §C aggregates (median days-to-first; fastest/slowest AI-indexed).
   const firstTrafficDays = urlTimings.map(t => t.daysToFirstTraffic).filter((n): n is number => n !== null)
@@ -632,6 +633,12 @@ export async function ContentImpactReport({
   const medFirstAi = median(firstAiDays)
   const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
+  const fastestAiUrl = fastestAi !== null
+    ? urlTimings.find(t => t.daysToFirstAi === fastestAi)?.url ?? null
+    : null
+  const slowestAiUrl = slowestAi !== null
+    ? urlTimings.find(t => t.daysToFirstAi === slowestAi)?.url ?? null
+    : null
   const sectionCOk = timingOk
 
   // ── §D · Bot vs Human scatter (FB-037) ───────────────────────────────────────
@@ -1187,17 +1194,28 @@ export async function ContentImpactReport({
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic },
-            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi },
-            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi },
-            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi },
-          ].map(({ icon: Icon, label, color, val }) => (
+            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
+            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
+            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
+            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
+          ].map(({ icon: Icon, label, color, val, sourceUrl }) => (
             <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
               <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
                 {val !== null ? `${Math.round(val)} days` : 'None'}
               </span>
+              {sourceUrl && (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block max-w-full truncate text-[10px] text-white/40 underline-offset-2 hover:text-white/70 hover:underline"
+                  title={sourceUrl}
+                >
+                  {sourceUrl}
+                </a>
+              )}
             </div>
           ))}
         </div>
