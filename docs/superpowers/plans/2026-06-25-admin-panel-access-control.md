@@ -14,7 +14,9 @@
 - **Never run a migration against the production database.** Produce the migration file; Thomas applies it (Neon branch first, then prod).
 - **Only DB change allowed:** two additive columns on `clients`: `shared_password_hash text` (nullable) and `max_seats integer NOT NULL DEFAULT 5`. No drops, no type changes. The pending `users.demo_mode` drop stays out of this PR and must remain pending (snapshot keeps `demo_mode`).
 - **DB driver is `drizzle-orm/neon-http` — NO `db.transaction()`.** Race-safe writes use a single atomic SQL statement.
-- **No test framework is installed.** Tests are plain files run with `npx tsx <file>.test.ts` using `node:assert`. Only *pure* logic gets automated tests; DB/UI is verified by `npx tsc --noEmit`, `npm run build`, and a manual checklist against a Neon branch.
+- **No test framework is installed.** Tests are plain files run with `npx tsx <file>.test.ts` using `node:assert`. Only *pure* logic gets automated tests; DB/UI is verified by `npx tsc --noEmit` and a manual checklist against a Neon branch.
+- **This workspace has NO `.env.local` and NO database.** `lib/db/client.ts` throws on import when `DATABASE_URL` is unset, so any module that imports it cannot be executed here. Implementers must verify with `npx tsc --noEmit` and `npm run lint` ONLY. **Do NOT run `npm run build`, `npm run db:migrate`, `npm run db:seed`, `db:studio`, or any `npx tsx` file that transitively imports `lib/db/client.ts`.** `npm run db:generate` and `npx drizzle-kit check` are offline (diff schema vs snapshots) and ARE allowed. `npm run build` and live DB verification are Thomas's manual steps in the runbook.
+- **Pure test files must not import the DB client.** A `*.test.ts` may only import modules whose transitive imports exclude `lib/db/client.ts` (keep pure logic in its own module).
 - **Fail closed:** a client with no `shared_password_hash` cannot have any client-side user log in.
 - **Emails are lowercased on every write and lookup.**
 - **Credentials login is for client-side roles only** (`CLIENT_ADMIN`, `CLIENT_VIEWER`). Internal users (`INTERNAL_*`) sign in with Google, unchanged.
@@ -496,27 +498,28 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 6: Admin DB queries (seat-safe writes)
 
 **Files:**
+- Create: `lib/db/seat-result.ts` (pure — no DB import — so its test runs without env)
 - Create: `lib/db/admin-queries.ts`
-- Test: `lib/db/admin-queries.test.ts` (pure result-shape helper only)
+- Test: `lib/db/seat-result.test.ts` (pure result-shape helper only)
 
 **Interfaces:**
 - Consumes: `db` (`lib/db/client.ts`), `clients`/`users` (`lib/db/schema.ts`), `sql`/`eq`/`and` (`drizzle-orm`), `revalidateTag` (`next/cache`)
 - Produces:
+  - `interpretAddResult(r: { insertedRows: number; duplicate: boolean }): { ok: boolean; reason?: 'seat_limit' | 'duplicate' }` (pure, in `lib/db/seat-result.ts`, tested; re-exported from `admin-queries.ts`)
   - `getClientAccessOverview(slug): Promise<{ clientId: string; slug: string; name: string; maxSeats: number; hasPassword: boolean; users: { id: string; email: string; role: ClientRole }[] } | null>`
   - `setClientSharedPassword(clientId: string, hash: string): Promise<void>`
   - `setClientMaxSeats(clientId: string, maxSeats: number): Promise<{ ok: boolean; reason?: 'below_current_count' }>`
   - `addClientUser(args: { clientId: string; email: string; role: 'CLIENT_ADMIN' | 'CLIENT_VIEWER' }): Promise<{ ok: boolean; reason?: 'seat_limit' | 'duplicate' }>`
   - `removeClientUser(args: { clientId: string; userId: string }): Promise<{ ok: boolean; reason?: 'not_found' }>`
-  - `interpretAddResult(rowCountOrError): { ok: boolean; reason?: 'seat_limit' | 'duplicate' }` (pure, tested)
 
 - [ ] **Step 1: Write the failing test for the pure result interpreter**
 
-Create `lib/db/admin-queries.test.ts`:
+Create `lib/db/seat-result.test.ts`:
 
 ```ts
-/** Run with: npx tsx lib/db/admin-queries.test.ts */
+/** Run with: npx tsx lib/db/seat-result.test.ts */
 import { strict as assert } from 'node:assert'
-import { interpretAddResult } from './admin-queries'
+import { interpretAddResult } from './seat-result'
 
 // One row inserted -> success.
 assert.deepEqual(interpretAddResult({ insertedRows: 1, duplicate: false }), { ok: true })
@@ -524,15 +527,29 @@ assert.deepEqual(interpretAddResult({ insertedRows: 1, duplicate: false }), { ok
 assert.deepEqual(interpretAddResult({ insertedRows: 0, duplicate: true }), { ok: false, reason: 'duplicate' })
 // Zero rows, not a duplicate -> seat limit hit.
 assert.deepEqual(interpretAddResult({ insertedRows: 0, duplicate: false }), { ok: false, reason: 'seat_limit' })
-console.log('admin-queries.test.ts PASS')
+console.log('seat-result.test.ts PASS')
 ```
 
 - [ ] **Step 2: Run it, verify it fails**
 
-Run: `npx tsx lib/db/admin-queries.test.ts`
+Run: `npx tsx lib/db/seat-result.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement the queries**
+- [ ] **Step 3a: Implement the pure interpreter (no DB import)**
+
+Create `lib/db/seat-result.ts`:
+
+```ts
+/** Pure: turn the atomic-insert outcome into a typed result. No DB import. */
+export function interpretAddResult(r: { insertedRows: number; duplicate: boolean }):
+  { ok: boolean; reason?: 'seat_limit' | 'duplicate' } {
+  if (r.insertedRows > 0) return { ok: true }
+  if (r.duplicate) return { ok: false, reason: 'duplicate' }
+  return { ok: false, reason: 'seat_limit' }
+}
+```
+
+- [ ] **Step 3b: Implement the queries**
 
 Create `lib/db/admin-queries.ts`:
 
@@ -541,14 +558,9 @@ import { sql, eq, and } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from './client'
 import { clients, users, type ClientRole } from './schema'
+import { interpretAddResult } from './seat-result'
 
-/** Pure: turn the atomic-insert outcome into a typed result. */
-export function interpretAddResult(r: { insertedRows: number; duplicate: boolean }):
-  { ok: boolean; reason?: 'seat_limit' | 'duplicate' } {
-  if (r.insertedRows > 0) return { ok: true }
-  if (r.duplicate) return { ok: false, reason: 'duplicate' }
-  return { ok: false, reason: 'seat_limit' }
-}
+export { interpretAddResult }
 
 export async function getClientAccessOverview(slug: string) {
   const row = await db.query.clients.findFirst({
@@ -637,8 +649,8 @@ export async function removeClientUser(args: {
 
 - [ ] **Step 4: Run the pure test, verify it passes**
 
-Run: `npx tsx lib/db/admin-queries.test.ts`
-Expected: `admin-queries.test.ts PASS`.
+Run: `npx tsx lib/db/seat-result.test.ts`
+Expected: `seat-result.test.ts PASS`. (Do NOT run anything that imports `admin-queries.ts` — it loads the DB client, which throws without env here.)
 
 - [ ] **Step 5: Typecheck**
 
@@ -648,7 +660,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/db/admin-queries.ts lib/db/admin-queries.test.ts
+git add lib/db/seat-result.ts lib/db/seat-result.test.ts lib/db/admin-queries.ts
 git commit -m "feat: seat-safe admin DB queries (atomic capped insert, no transaction)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -846,10 +858,10 @@ In `app/dashboard/[clientSlug]/page.tsx`, inside the `<Header>` children (after 
         </Link>
 ```
 
-- [ ] **Step 5: Typecheck + build**
+- [ ] **Step 5: Typecheck + lint**
 
-Run: `npx tsc --noEmit && npm run build`
-Expected: PASS (build compiles the new route).
+Run: `npx tsc --noEmit && npm run lint`
+Expected: PASS. (Do NOT run `npm run build` — no DB env here; build is Thomas's manual step.)
 
 - [ ] **Step 6: Commit**
 
@@ -1081,10 +1093,10 @@ interface PortalSidebarProps {
       )}
 ```
 
-- [ ] **Step 6: Typecheck + build**
+- [ ] **Step 6: Typecheck + lint**
 
-Run: `npx tsc --noEmit && npm run build`
-Expected: PASS.
+Run: `npx tsc --noEmit && npm run lint`
+Expected: PASS. (Do NOT run `npm run build` — no DB env here; build is Thomas's manual step.)
 
 - [ ] **Step 7: Commit**
 
@@ -1109,13 +1121,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 npx tsx lib/auth/password.test.ts
 npx tsx lib/admin/access.test.ts
 npx tsx lib/auth/credential-login.test.ts
-npx tsx lib/db/admin-queries.test.ts
+npx tsx lib/db/seat-result.test.ts
 npx tsc --noEmit
 npm run lint
-npm run build
 ```
 
-Expected: every test prints `PASS`; typecheck, lint, and build succeed.
+Expected: every test prints `PASS`; typecheck and lint succeed. (`npm run build` and live-DB checks are Thomas's manual steps — no DB env in this workspace. The runbook covers them.)
 
 - [ ] **Step 2: Write the launch runbook**
 
