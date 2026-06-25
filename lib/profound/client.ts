@@ -374,6 +374,8 @@ function emptyOverview(): ProfoundOverview {
     domainTypes:                [],
     trackedPrompts:             [],
     llmBreakdown:               [],
+    totalCitationsByModel:      {},
+    yourBrandCitationsByModel:  {},
     periodChange:               { visibilityMover: null, domainMover: null, competitorShift: null, promptOpportunity: null },
   }
 }
