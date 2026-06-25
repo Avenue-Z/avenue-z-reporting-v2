@@ -27,7 +27,9 @@ export interface TripleWhaleBinding {
 
 export interface ShopifyBinding {
   source: 'shopify'
-  query: string // ShopifyQL body (FROM…SHOW…WHERE…) without a SINCE/UNTIL date clause
+  query: string // ShopifyQL body (FROM…SHOW…WHERE…) without a date or GROUP BY clause
+  dimensions?: string[]      // grouped mode (bar/table): single dim — GROUP BY <dim>
+  granularity?: Granularity  // series mode (line): GROUP BY day|week|month
 }
 
 export type LeafBinding = SupermetricsBinding | TripleWhaleBinding | ShopifyBinding
