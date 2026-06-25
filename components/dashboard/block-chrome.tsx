@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { getMainLabel } from '@/components/layout/date-range-picker'
-import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
+import { setBlockRange, resetBlockRange } from './config-mutations'
+import { useDashboardMutations } from './dashboard-mutations'
 import { AddBlockDialog } from './add-block/add-block-dialog'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
@@ -51,6 +52,7 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
   const [draftCompare, setDraftCompare] = useState<string | null>(block.range?.compareRange ?? activeDefault.compareRange)
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { optimisticRemove } = useDashboardMutations()
 
   const isOverridden = block.range !== null
 
@@ -64,7 +66,7 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
   }
   function applyOverride() { runSave(setBlockRange(config, block.id, { dateRange: draftDate, compareRange: draftCompare })) }
   function confirmReset() { runSave(resetBlockRange(config, block.id)) }
-  function confirmDelete() { runSave(removeBlock(config, block.id)) }
+  function confirmDelete() { optimisticRemove(block.id); closeMenu() }
 
   return (
     <div className="relative">
