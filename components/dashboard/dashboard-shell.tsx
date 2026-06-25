@@ -13,6 +13,7 @@ export interface DashboardShellProps {
   canEdit: boolean
   activeDefault: { dateRange: string; compareRange: string | null }
   slug: string
+  /** Map of block id → rendered server island (the kind-specific renderer). */
   blockNodes: Record<string, ReactNode>
 }
 
