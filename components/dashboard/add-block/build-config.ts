@@ -1,4 +1,4 @@
-import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, FormulaBinding, FormulaOperand, MetricFormat } from '@/lib/dashboard/types'
+import type { BlockConfig, LeafBinding, AggregateBinding, AggregateOperand, CalculatedBinding, FormulaBinding, FormulaOperand, MetricFormat, PersistedBlock } from '@/lib/dashboard/types'
 import { operandKeys, parse } from '@/lib/dashboard/formula/parse'
 
 /**
@@ -93,6 +93,50 @@ export function formulaToBinding(d: FormulaDraft): FormulaBinding {
     operands[key] = op.kind === 'ref' ? { kind: 'ref', blockId: op.blockId } : { kind: 'metric', leaf: leafToBinding(op.leaf) }
   }
   return { source: 'formula', expr: d.expr, operands }
+}
+
+export function leafToDraft(b: LeafBinding): LeafDraft {
+  const filters = b.filters?.length ? { filters: b.filters.map((f) => ({ column: f.column, values: [...f.values] })) } : {}
+  return b.source === 'supermetrics'
+    ? { source: 'supermetrics', dsId: b.dsId, metricField: b.metricField, account: b.account, ...filters }
+    : { source: 'triplewhale', metric: b.metric, ...filters }
+}
+
+export function formulaToDraft(b: FormulaBinding): FormulaDraft {
+  const operands: Record<string, FormulaOperandDraft> = {}
+  for (const [k, op] of Object.entries(b.operands)) {
+    operands[k] = op.kind === 'ref' ? { kind: 'ref', blockId: op.blockId } : { kind: 'metric', leaf: leafToDraft(op.leaf) }
+  }
+  return { source: 'formula', expr: b.expr, operands }
+}
+
+/** Convert a legacy aggregate/calculated binding into an equivalent formula draft.
+ *  Operand keys are unique (m0, m1, …); negative coefficients rely on unary minus. */
+export function bindingToFormulaDraft(b: AggregateBinding | CalculatedBinding): FormulaDraft {
+  const operands: Record<string, FormulaOperandDraft> = {}
+  let n = 0
+  const metricExpr = (leaf: LeafBinding): string => {
+    const k = `m${n++}`
+    operands[k] = { kind: 'metric', leaf: leafToDraft(leaf) }
+    return `@${k}`
+  }
+  const calcExpr = (c: CalculatedBinding): string =>
+    c.terms.map((t) => (t.coefficient === 1 ? metricExpr(t.leaf) : `${t.coefficient} * ${metricExpr(t.leaf)}`)).join(' + ')
+  const operandExpr = (o: AggregateOperand): string =>
+    o.source === 'calculated' ? `(${calcExpr(o)})` : metricExpr(o)
+  const expr = b.source === 'calculated' ? calcExpr(b) : `${operandExpr(b.left)} ${b.op} ${operandExpr(b.right)}`
+  return { source: 'formula', expr, operands }
+}
+
+export function blockToManualDraft(block: PersistedBlock): { source: 'supermetrics' | 'triplewhale' | 'formula'; draft: ManualDraft } {
+  const { name, format, binding } = block
+  if (binding.source === 'supermetrics' || binding.source === 'triplewhale') {
+    return { source: binding.source, draft: { kind: 'leaf', name, format, leaf: leafToDraft(binding) } }
+  }
+  if (binding.source === 'formula') {
+    return { source: 'formula', draft: { kind: 'formula', name, format, formula: formulaToDraft(binding) } }
+  }
+  return { source: 'formula', draft: { kind: 'formula', name, format, formula: bindingToFormulaDraft(binding) } }
 }
 
 function isFormulaOperandComplete(op: FormulaOperandDraft): boolean {

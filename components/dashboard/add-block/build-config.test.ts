@@ -1,7 +1,8 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, formulaToBinding, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, formulaToBinding, leafToDraft, formulaToDraft, bindingToFormulaDraft, blockToManualDraft, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
+import { parse } from '@/lib/dashboard/formula/parse'
 
 // leafToBinding: supermetrics + triplewhale
 {
@@ -192,6 +193,56 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a + ', operands: ok.formula.operands } }), false) // bad expr
   assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a + @b', operands: ok.formula.operands } }), false) // @b unbound
   assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a', operands: { a: { kind: 'metric', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } } } } }), false) // incomplete metric
+}
+
+// leafToDraft round-trips through leafToBinding (supermetrics with filters)
+{
+  const b = { source: 'supermetrics' as const, dsId: 'SHP', metricField: 'total_sales', account: 'a', filters: [{ column: 'order_shipping_country', values: ['United States', 'Canada'] }] }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// leafToDraft round-trips (triplewhale, no filters)
+{
+  const b = { source: 'triplewhale' as const, metric: 'ad_spend' }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// formulaToDraft round-trips through formulaToBinding
+{
+  const b = { source: 'formula' as const, expr: '@a / @b', operands: { a: { kind: 'ref' as const, blockId: 'rev' }, b: { kind: 'metric' as const, leaf: { source: 'triplewhale' as const, metric: 'ad_spend' } } } }
+  assert.deepEqual(formulaToBinding(formulaToDraft(b)), b)
+}
+// bindingToFormulaDraft: aggregate of two leaves -> "@m0 / @m1", parses
+{
+  const d = bindingToFormulaDraft({ source: 'aggregate', op: '/', left: { source: 'triplewhale', metric: 'revenue' }, right: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.doesNotThrow(() => parse(d.expr))
+  assert.equal(Object.keys(d.operands).length, 2)
+}
+// bindingToFormulaDraft: (rev - tax) / spend -> parses, 3 operands
+{
+  const d = bindingToFormulaDraft({ source: 'aggregate', op: '/',
+    left: { source: 'calculated', terms: [
+      { coefficient: 1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+      { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    ] },
+    right: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.doesNotThrow(() => parse(d.expr)) // negative coefficient must produce parser-valid expr
+  assert.equal(Object.keys(d.operands).length, 3)
+}
+// bindingToFormulaDraft: standalone calculated with a negative coefficient parses
+{
+  const d = bindingToFormulaDraft({ source: 'calculated', terms: [
+    { coefficient: 0.8, leaf: { source: 'triplewhale', metric: 'revenue' } },
+    { coefficient: -1, leaf: { source: 'triplewhale', metric: 'ad_spend' } },
+  ] })
+  assert.doesNotThrow(() => parse(d.expr))
+}
+// blockToManualDraft dispatch
+{
+  const leafBlock = { id: 'x', name: 'Spend', format: 'currency' as const, range: null, binding: { source: 'triplewhale' as const, metric: 'ad_spend' } }
+  assert.equal(blockToManualDraft(leafBlock).source, 'triplewhale')
+  const aggBlock = { id: 'y', name: 'ROAS', format: 'number' as const, range: null, binding: { source: 'aggregate' as const, op: '/' as const, left: { source: 'triplewhale' as const, metric: 'revenue' }, right: { source: 'triplewhale' as const, metric: 'ad_spend' } } }
+  const md = blockToManualDraft(aggBlock)
+  assert.equal(md.source, 'formula')
+  if (md.draft.kind === 'formula') { const d = md.draft; assert.doesNotThrow(() => parse(d.formula.expr)) }
 }
 
 console.log('ok')

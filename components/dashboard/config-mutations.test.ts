@@ -8,6 +8,7 @@ import {
   setBlockRange,
   resetBlockRange,
   addBlock,
+  updateBlock,
 } from './config-mutations'
 
 const block = (id: string, range: PersistedBlock['range'] = null): PersistedBlock => ({
@@ -75,6 +76,26 @@ const base: DashboardConfig = {
   assert.equal(next.blocks[0].id, 'n1')
   assert.notEqual(next.blocks, base.blocks, 'new array')
   assert.equal(base.blocks.length, 0, 'input unchanged')
+}
+
+// updateBlock: updates name/format/binding; preserves id, range, layout; leaves other blocks intact
+{
+  const cfg: DashboardConfig = {
+    defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
+    blocks: [
+      { id: 'a', name: 'Old', format: 'number', range: { dateRange: 'last_7_days', compareRange: null }, layout: { w: 2 },
+        binding: { source: 'triplewhale', metric: 'ad_spend' } },
+      { id: 'b', name: 'Other', format: 'currency', range: null, binding: { source: 'triplewhale', metric: 'revenue' } },
+    ],
+  }
+  const next = updateBlock(cfg, 'a', { name: 'New', format: 'currency', range: null, binding: { source: 'triplewhale', metric: 'revenue' } })
+  const a = next.blocks.find((x) => x.id === 'a')!
+  assert.equal(a.name, 'New')
+  assert.equal(a.format, 'currency')
+  assert.equal(a.binding.source === 'triplewhale' && a.binding.metric, 'revenue')
+  assert.deepEqual(a.range, { dateRange: 'last_7_days', compareRange: null }) // preserved
+  assert.deepEqual(a.layout, { w: 2 })                                        // preserved
+  assert.equal(next.blocks.find((x) => x.id === 'b')!.name, 'Other')         // untouched
 }
 
 console.log('ok')

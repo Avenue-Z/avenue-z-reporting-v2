@@ -1,4 +1,4 @@
-import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+import type { BlockConfig, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 type Range = NonNullable<PersistedBlock['range']>
 
@@ -37,4 +37,18 @@ export function resetBlockRange(config: DashboardConfig, blockId: string): Dashb
 
 export function addBlock(config: DashboardConfig, block: PersistedBlock): DashboardConfig {
   return { ...config, blocks: [...config.blocks, block] }
+}
+
+/** Replace a block's name/format/binding by id, preserving its id, range, and layout. */
+export function updateBlock(
+  config: DashboardConfig,
+  blockId: string,
+  patch: Omit<BlockConfig, 'id'>,
+): DashboardConfig {
+  return {
+    ...config,
+    blocks: config.blocks.map((b) =>
+      b.id === blockId ? { ...b, name: patch.name, format: patch.format, binding: patch.binding } : b,
+    ),
+  }
 }
