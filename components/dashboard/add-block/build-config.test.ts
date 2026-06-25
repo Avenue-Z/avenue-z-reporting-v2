@@ -226,4 +226,50 @@ assert.equal(isDraftComplete({
   line: { source: 'line', leaf: { source: 'triplewhale', metric: 'revenue' }, granularity: 'day' },
 }), true)
 
+// header draft → header config (no binding semantics — synthesize a no-op leaf)
+{
+  const cfg = buildBlockConfig({ kind: 'header', name: 'Q3', format: 'number',
+    header: { source: 'header', level: 1 } })
+  assert.equal(cfg.kind, 'header')
+  assert.equal(cfg.headerLevel, 1)
+}
+
+// narrative draft → narrative config
+{
+  const cfg = buildBlockConfig({ kind: 'narrative', name: 'Notes', format: 'number',
+    narrative: { source: 'narrative', body: '## Hi' } })
+  assert.equal(cfg.kind, 'narrative')
+  assert.equal(cfg.narrativeBody, '## Hi')
+}
+
+// pills draft → pills config (kind='pills', leaf binding)
+{
+  const cfg = buildBlockConfig({ kind: 'pills', name: 'Sessions', format: 'count',
+    pills: { source: 'pills', leaf: { source: 'supermetrics', dsId: 'GAWA', metricField: 'sessions', account: '1' } } })
+  assert.equal(cfg.kind, 'pills')
+  assert.equal(cfg.binding.source, 'supermetrics')
+}
+
+// table draft → table config (kind='table', leaf binding with single dim)
+{
+  const cfg = buildBlockConfig({ kind: 'table', name: 'By channel', format: 'currency',
+    table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } })
+  assert.equal(cfg.kind, 'table')
+  if (cfg.binding.source === 'supermetrics') {
+    assert.deepEqual(cfg.binding.dimensions, ['Channel'])
+  } else {
+    throw new Error('expected supermetrics binding')
+  }
+}
+
+// isDraftComplete: empty narrative body still completes (name required, body optional in v1)
+assert.equal(isDraftComplete({ kind: 'narrative', name: 'X', format: 'number', narrative: { source: 'narrative', body: '' } }), true)
+// isDraftComplete: header always completes once name set
+assert.equal(isDraftComplete({ kind: 'header', name: 'X', format: 'number', header: { source: 'header', level: 2 } }), true)
+// isDraftComplete: pills requires a complete leaf
+assert.equal(isDraftComplete({ kind: 'pills', name: 'X', format: 'count', pills: { source: 'pills', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } } }), false)
+// isDraftComplete: table requires complete leaf + dimension
+assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' } }), false)
+assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } }), true)
+
 console.log('ok')

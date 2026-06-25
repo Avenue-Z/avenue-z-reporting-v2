@@ -5,10 +5,14 @@ import { LeafBuilder } from './leaf-builder'
 import { CalculatedBuilder } from './calculated-builder'
 import { BarBuilder } from './bar-builder'
 import { LineBuilder } from './line-builder'
+import { HeaderBuilder } from './header-builder'
+import { NarrativeBuilder } from './narrative-builder'
+import { PillsBuilder } from './pills-builder'
+import { TableBuilder } from './table-builder'
 import {
   buildBlockConfig, isDraftComplete,
   type LeafDraft, type ManualDraft, type CalculatedDraft, type OperandDraft,
-  type BarDraft, type LineDraft,
+  type BarDraft, type LineDraft, type HeaderDraft, type NarrativeDraft, type PillsDraft, type TableDraft,
 } from './build-config'
 import type { BlockConfig, BlockKind, Granularity, MetricFormat } from '@/lib/dashboard/types'
 
@@ -53,17 +57,29 @@ export function ManualBlockForm({
   const [right, setRight] = useState<OperandDraft>(() => ({ kind: 'leaf', leaf: emptyLeaf('supermetrics') }))
   const [bar, setBar] = useState<BarDraft>(() => ({ source: 'bar', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
   const [line, setLine] = useState<LineDraft>(() => ({ source: 'line', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), granularity: 'day' as Granularity }))
+  const [header, setHeader] = useState<HeaderDraft>(() => ({ source: 'header', level: 2 }))
+  const [narrative, setNarrative] = useState<NarrativeDraft>(() => ({ source: 'narrative', body: '' }))
+  const [pills, setPills] = useState<PillsDraft>(() => ({ source: 'pills', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics') }))
+  const [table, setTable] = useState<TableDraft>(() => ({ source: 'table', leaf: emptyLeaf(source === 'triplewhale' ? 'triplewhale' : 'supermetrics'), dimension: '' }))
 
   const draft: ManualDraft =
     kind === 'bar'
       ? { kind: 'bar', name, format, bar }
       : kind === 'line'
         ? { kind: 'line', name, format, line }
-        : source === 'aggregate'
-          ? { kind: 'aggregate', name, format, op, left, right }
-          : source === 'calculated'
-            ? { kind: 'calculated', name, format, calc }
-            : { kind: 'leaf', name, format, leaf }
+        : kind === 'pills'
+          ? { kind: 'pills', name, format, pills }
+          : kind === 'table'
+            ? { kind: 'table', name, format, table }
+            : kind === 'header'
+              ? { kind: 'header', name, format, header }
+              : kind === 'narrative'
+                ? { kind: 'narrative', name, format, narrative }
+                : source === 'aggregate'
+                  ? { kind: 'aggregate', name, format, op, left, right }
+                  : source === 'calculated'
+                    ? { kind: 'calculated', name, format, calc }
+                    : { kind: 'leaf', name, format, leaf }
 
   return (
     <div className="flex flex-col gap-3">
@@ -97,13 +113,19 @@ export function ManualBlockForm({
 
       {kind === 'bar' && <BarBuilder value={bar} onChange={setBar} slug={slug} />}
       {kind === 'line' && <LineBuilder value={line} onChange={setLine} slug={slug} />}
+      {kind === 'pills' && <PillsBuilder value={pills} onChange={setPills} slug={slug} />}
+      {kind === 'table' && <TableBuilder value={table} onChange={setTable} slug={slug} />}
+      {kind === 'header' && <HeaderBuilder value={header} onChange={setHeader} />}
+      {kind === 'narrative' && <NarrativeBuilder value={narrative} onChange={setNarrative} />}
 
-      <label className="flex flex-col gap-1">
-        <span className={labelCls}>Format</span>
-        <select className={ctrl} value={format} onChange={(e) => setFormat(e.target.value as MetricFormat)}>
-          {FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
-        </select>
-      </label>
+      {kind !== 'header' && kind !== 'narrative' && (
+        <label className="flex flex-col gap-1">
+          <span className={labelCls}>Format</span>
+          <select className={ctrl} value={format} onChange={(e) => setFormat(e.target.value as MetricFormat)}>
+            {FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </label>
+      )}
 
       <div className="mt-2 flex justify-between">
         <button className="rounded-md px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.06]" onClick={onBack} disabled={pending}>Back</button>
