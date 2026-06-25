@@ -37,6 +37,27 @@ export interface BotVsHumanScatterInput {
   pathHumans: Map<string, number>
 }
 
+/**
+ * Renderability of the scatter:
+ *   'ok'        — both axes have data; plot the chart.
+ *   'no-bots'   — pages exist but zero AI bot crawls (e.g. Peec agent analytics
+ *                 not yet tracking the site). Plotting would pin every point at
+ *                 x=0, so the caller should show an explanatory empty state.
+ *   'no-humans' — bot crawls exist but no GA4 human sessions for those pages.
+ *   'empty'     — no page-level data on either axis.
+ */
+export type BotVsHumanState = 'ok' | 'no-bots' | 'no-humans' | 'empty'
+
+export function botVsHumanState(result: BotVsHumanScatterResult): BotVsHumanState {
+  if (result.points.length === 0) return 'empty'
+  const hasBots = result.points.some((p) => p.bots > 0)
+  const hasHumans = result.points.some((p) => p.humans > 0)
+  if (!hasBots && !hasHumans) return 'empty'
+  if (!hasBots) return 'no-bots'
+  if (!hasHumans) return 'no-humans'
+  return 'ok'
+}
+
 function median(nums: number[]): number {
   if (nums.length === 0) return 0
   const sorted = [...nums].sort((a, b) => a - b)

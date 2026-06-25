@@ -17,10 +17,21 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts'
-import type { BotVsHumanScatterResult } from '@/lib/peec/bot-vs-human-scatter'
+import { type BotVsHumanScatterResult, type BotVsHumanState, botVsHumanState } from '@/lib/peec/bot-vs-human-scatter'
 
 interface Props {
   data: BotVsHumanScatterResult
+}
+
+// Message per non-renderable state. Distinguishes "no bot data" (the common
+// case — Peec agent analytics not yet crawling the site) from a fully empty
+// chart, so the reader isn't shown a degenerate strip of points at x=0.
+const EMPTY_MESSAGE: Record<Exclude<BotVsHumanState, 'ok'>, string> = {
+  'no-bots':
+    "No AI bot crawl data in the last 30 days, so the bot axis can't be plotted. Peec agent analytics shows no AI crawler visits for this site yet.",
+  'no-humans': 'No human GA4 sessions in the last 30 days for these pages.',
+  'empty':
+    'No page-level bot or human traffic in the last 30 days. Requires GA4 page-level data and Peec agent analytics.',
 }
 
 // Per-quadrant fill so the four buckets are visually distinct without a legend.
@@ -32,11 +43,12 @@ const QUADRANT_FILL: Record<string, string> = {
 }
 
 export default function BotVsHumanScatter({ data }: Props) {
-  if (data.points.length === 0) {
+  const state = botVsHumanState(data)
+  if (state !== 'ok') {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-        <p className="text-xs text-text-muted">
-          No page-level bot or human traffic in the last 30 days. Requires GA4 page-level data and Peec agent analytics.
+        <p className="max-w-md text-center text-xs text-text-muted">
+          {EMPTY_MESSAGE[state]}
         </p>
       </div>
     )
