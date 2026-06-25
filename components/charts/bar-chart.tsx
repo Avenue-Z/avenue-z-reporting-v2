@@ -11,7 +11,7 @@ import {
   ReferenceLine,
   Legend,
 } from 'recharts'
-import { CHART_COLORS } from '@/lib/constants'
+import { CHART_COLORS, formatChartNumber } from '@/lib/constants'
 
 export interface BarChartReferenceLine {
   value: number
@@ -58,9 +58,10 @@ export function BarChart({
           ? <YAxis dataKey={xKey} type="category" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} width={140} />
           : <XAxis dataKey={xKey} tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />}
         {horizontal
-          ? <XAxis type="number" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-          : <YAxis tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} />}
+          ? <XAxis type="number" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} tickFormatter={(v) => formatChartNumber(v)} />
+          : <YAxis tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatChartNumber(v)} />}
         <Tooltip
+          formatter={(value) => formatChartNumber(value as number)}
           contentStyle={{
             background: '#272727',
             border: '1px solid rgba(255,255,255,0.08)',
