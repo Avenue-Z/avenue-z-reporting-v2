@@ -112,7 +112,7 @@ async function run() {
       right: { source: 'triplewhale', metric: 'ad_spend' } }
     const at: AttemptLeaf = async (b) =>
       b.source === 'triplewhale' ? { ok: true, value: 200 }
-        : b.metricField === 'total_sales' ? { ok: true, value: 1000 } : { ok: true, value: 200 }
+        : b.source === 'supermetrics' && b.metricField === 'total_sales' ? { ok: true, value: 1000 } : { ok: true, value: 200 }
     const r = await resolveAggregate(agg, at, { slug: 'k' }, 'last_30_days', null)
     assert.equal(r.ok && r.value, 4)
   }

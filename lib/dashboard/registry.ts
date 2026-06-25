@@ -1,6 +1,7 @@
 import type { LeafBinding, LeafValue } from './types'
 import { resolveSupermetricsLeaf } from './adapters/supermetrics'
 import { resolveTripleWhaleLeaf } from './adapters/triplewhale'
+import { resolveShopifyLeaf } from './adapters/shopify'
 
 /** Real leaf dispatcher used at runtime. resolveBlock injects this by default. */
 export function resolveLeaf(
@@ -14,5 +15,7 @@ export function resolveLeaf(
       return resolveSupermetricsLeaf(b, ctx, dateRange, compareRange)
     case 'triplewhale':
       return resolveTripleWhaleLeaf(b, ctx, dateRange, compareRange)
+    case 'shopify':
+      return resolveShopifyLeaf(b, ctx, dateRange, compareRange)
   }
 }
