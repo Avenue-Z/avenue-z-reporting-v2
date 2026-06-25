@@ -158,6 +158,11 @@ export default async function PortalReportPage({
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
         )}
+        {activeSection === 'organic-social' && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
         <ExportPdfButton />
       </StickyReportHeader>
 
