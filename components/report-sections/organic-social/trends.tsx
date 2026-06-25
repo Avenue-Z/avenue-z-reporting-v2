@@ -8,7 +8,7 @@ import type { TrendSeries } from '@/lib/organic-social/types'
 
 const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
-export function EngagementTrend({ series }: { series: TrendSeries }) {
+function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
   const colorFor = (channel: string) => PALETTE[series.channels.indexOf(channel) % PALETTE.length]
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
 
@@ -26,7 +26,7 @@ export function EngagementTrend({ series }: { series: TrendSeries }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Engagement Over Time</h2>
+      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{title}</h2>
       <div className="flex flex-wrap gap-2">
         {series.channels.map((c) => {
           const on = active.has(c)
@@ -54,4 +54,8 @@ export function EngagementTrend({ series }: { series: TrendSeries }) {
       <LineChart data={series.points} xKey="date" yKeys={yKeys} />
     </section>
   )
+}
+
+export function EngagementTrend({ series }: { series: TrendSeries }) {
+  return <ChannelTrendChart title="Engagement Over Time" series={series} />
 }

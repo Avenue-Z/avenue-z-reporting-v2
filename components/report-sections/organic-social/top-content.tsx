@@ -9,8 +9,8 @@ import type { PlatformTopContent, TopContentRow } from '@/lib/organic-social/typ
 type SortBy = 'engagements' | 'views'
 
 const VIEWS = [
-  { key: 'engagements' as const, label: 'Top 5 by Engagement' },
   { key: 'views' as const, label: 'Top 5 by Views / Impressions' },
+  { key: 'engagements' as const, label: 'Top 5 by Engagement' },
 ]
 
 const columns = [
@@ -26,7 +26,11 @@ function top5(rows: TopContentRow[], sortBy: SortBy) {
     .sort((a, b) => b[sortBy] - a[sortBy])
     .slice(0, 5)
     .map((r) => ({
-      caption: r.caption.length > 80 ? r.caption.slice(0, 77) + '…' : r.caption,
+      caption: r.url
+        ? <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-brand-cyan hover:underline">
+            {r.caption.length > 80 ? r.caption.slice(0, 77) + '…' : r.caption}
+          </a>
+        : (r.caption.length > 80 ? r.caption.slice(0, 77) + '…' : r.caption),
       sourceType: r.sourceType === 'organic' ? 'Organic' : 'Influencer',
       publishDate: r.publishDate,
       views: num(r.views), viewsRaw: r.views,
@@ -62,7 +66,10 @@ export function TopContent({ groups }: { groups: PlatformTopContent[] }) {
       {groups.map((g) => (
         <div key={g.platform} className="space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">{g.platform}</h3>
-          <DataTable columns={columns} rows={top5(g.rows, sortBy)} defaultSort={{ key: sortBy, dir: 'desc' }} />
+          {/* key on sortBy: DataTable seeds its sort state from defaultSort only
+              on mount, so remount it when the metric toggles to re-sort the table
+              by the clicked column. */}
+          <DataTable key={sortBy} columns={columns} rows={top5(g.rows, sortBy)} defaultSort={{ key: sortBy, dir: 'desc' }} />
         </div>
       ))}
     </section>

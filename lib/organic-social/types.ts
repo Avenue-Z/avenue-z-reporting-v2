@@ -35,6 +35,7 @@ export interface TopContentRow {
   publishDate: string        // ISO date
   views: number              // views/impressions
   engagements: number
+  url: string | null         // permalink to the live post, when Dash returns one
 }
 
 /** Top content for one platform — rendered as its own section. */

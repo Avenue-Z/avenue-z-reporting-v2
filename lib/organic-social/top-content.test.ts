@@ -14,4 +14,12 @@ assert.ok(rows.every((r) => r.sourceType === 'organic'), 'all organic in v1')
 assert.ok(rows.every((r) => typeof r.engagements === 'number'), 'numeric engagements')
 // sorted by engagements desc
 for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].engagements >= rows[i].engagements, 'desc by engagements')
+
+// URL extraction: every row exposes a `url` field; at least one Instagram
+// post in the fixture carries its permalink.
+assert.ok('url' in rows[0], 'row exposes url field')
+const ig = rows.find((r) => r.platform === 'Instagram' && r.url)
+assert.ok(ig && ig.url!.startsWith('https://www.instagram.com/'), 'instagram permalink extracted')
+assert.ok(rows.every((r) => r.url === null || typeof r.url === 'string'), 'url is string | null')
+
 console.log('organic top-content: all assertions passed')
