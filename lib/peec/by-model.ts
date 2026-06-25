@@ -54,3 +54,33 @@ export function avgByModel<K extends string, V extends number>(
   if (vals.length === 0) return 0
   return vals.reduce<number>((a, b) => a + b, 0) / vals.length
 }
+
+/** Aggregate a per-domain × per-model citation map into per-model totals (all
+ *  domains) and per-model your-brand totals. `isYours(domain)` decides which
+ *  domains count as the client's own brand. */
+export function citationTotalsByModel(
+  byModel: ByModel<string, number>,
+  isYours: (domain: string) => boolean,
+): { totalByModel: Partial<Record<AEOModel, number>>; yourByModel: Partial<Record<AEOModel, number>> } {
+  const totalByModel: Partial<Record<AEOModel, number>> = {}
+  const yourByModel: Partial<Record<AEOModel, number>> = {}
+  for (const [domain, perModel] of Object.entries(byModel)) {
+    const mine = isYours(domain)
+    for (const [model, value] of Object.entries(perModel) as [AEOModel, number][]) {
+      const v = value ?? 0
+      totalByModel[model] = (totalByModel[model] ?? 0) + v
+      if (mine) yourByModel[model] = (yourByModel[model] ?? 0) + v
+    }
+  }
+  return { totalByModel, yourByModel }
+}
+
+/** Sum a single-level per-model map over the selected models (all models when
+ *  `selected` is null). */
+export function sumModelMap(
+  map: Partial<Record<AEOModel, number>>,
+  selected: readonly AEOModel[] | null,
+): number {
+  const models = selected ?? (Object.keys(map) as AEOModel[])
+  return models.reduce<number>((acc, m) => acc + (map[m] ?? 0), 0)
+}
