@@ -49,8 +49,8 @@ export interface ShopifyQlOpts {
 
 const GQL = `query($q: String!){ shopifyqlQuery(query:$q){ parseErrors tableData { columns { name dataType } rows } } }`
 
-/** Run one ShopifyQL query and return the summed first column. */
-export async function runShopifyQl(args: ShopifyQlArgs, opts: ShopifyQlOpts = {}): Promise<number> {
+/** Run one ShopifyQL query and return the raw TableData (columns + rows). */
+export async function runShopifyQlTable(args: ShopifyQlArgs, opts: ShopifyQlOpts = {}): Promise<TableData> {
   const fetchImpl = opts.fetchImpl ?? fetch
   const apiVersion = opts.apiVersion ?? DEFAULT_API_VERSION
   const url = `https://${args.shop}/admin/api/${apiVersion}/graphql.json`
@@ -62,7 +62,6 @@ export async function runShopifyQl(args: ShopifyQlArgs, opts: ShopifyQlOpts = {}
     body: JSON.stringify({ query: GQL, variables: { q } }),
   })
   if (!res.ok) throw new ShopifyQlError(`Shopify Admin API ${res.status}: ${(await res.text()).slice(0, 300)}`)
-
   const json = (await res.json()) as {
     errors?: { message?: string }[]
     data?: { shopifyqlQuery?: { parseErrors?: string[]; tableData?: TableData | null } }
@@ -71,5 +70,10 @@ export async function runShopifyQl(args: ShopifyQlArgs, opts: ShopifyQlOpts = {}
   const result = json.data?.shopifyqlQuery
   if (!result) throw new ShopifyQlError('Empty shopifyqlQuery response')
   if (result.parseErrors?.length) throw new ShopifyQlError(`ShopifyQL parse error(s): ${result.parseErrors.join('; ')}`)
-  return sumFirstColumn(result.tableData)
+  return result.tableData ?? { columns: [], rows: [] }
+}
+
+/** Run one ShopifyQL query and return the summed first column. */
+export async function runShopifyQl(args: ShopifyQlArgs, opts: ShopifyQlOpts = {}): Promise<number> {
+  return sumFirstColumn(await runShopifyQlTable(args, opts))
 }

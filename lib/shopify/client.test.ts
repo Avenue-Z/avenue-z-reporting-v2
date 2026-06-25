@@ -1,6 +1,6 @@
 // Run: npx tsx lib/shopify/client.test.ts
 import { strict as assert } from 'node:assert'
-import { buildShopifyQl, sumFirstColumn, runShopifyQl, ShopifyQlError } from './client'
+import { buildShopifyQl, sumFirstColumn, runShopifyQl, runShopifyQlTable, ShopifyQlError } from './client'
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
@@ -59,6 +59,24 @@ async function run() {
       runShopifyQl({ shop: 's', token: 't', query: 'q', startDate: 'a', endDate: 'b' }, { fetchImpl }),
       (e: unknown) => e instanceof ShopifyQlError,
     )
+  }
+
+  // runShopifyQlTable returns the raw TableData (columns + rows), not a scalar
+  {
+    const fetchImpl = (async () => ({
+      ok: true,
+      json: async () => ({ data: { shopifyqlQuery: { parseErrors: [], tableData: {
+        columns: [{ name: 'sales_channel' }, { name: 'net_sales' }],
+        rows: [{ sales_channel: 'Online Store', net_sales: '100.5' }, { sales_channel: 'TikTok', net_sales: '40' }],
+      } } } }),
+    })) as unknown as typeof fetch
+    const td = await runShopifyQlTable(
+      { shop: 's.myshopify.com', token: 't', query: 'FROM sales SHOW net_sales GROUP BY sales_channel', startDate: '2026-05-01', endDate: '2026-05-31' },
+      { fetchImpl },
+    )
+    assert.equal(td.columns.length, 2)
+    assert.equal(td.rows.length, 2)
+    assert.equal(td.columns[0].name, 'sales_channel')
   }
 
   console.log('ok')
