@@ -8,6 +8,7 @@ import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { getMainLabel } from '@/components/layout/date-range-picker'
 import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
 import { useBlockActions } from './block-actions'
+import { AddBlockDialog } from './add-block/add-block-dialog'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 import type { ReactNode } from 'react'
 
@@ -43,6 +44,7 @@ export interface MetricBlockShellProps {
 
 export function MetricBlockShell({ block, canEdit, slug, config, activeDefault, value, delta }: MetricBlockShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'range' | 'confirm-delete' | 'confirm-reset'>('menu')
   const [draftDate, setDraftDate] = useState<string>(block.range?.dateRange ?? activeDefault.dateRange)
   const [draftCompare, setDraftCompare] = useState<string | null>(block.range?.compareRange ?? activeDefault.compareRange)
@@ -80,31 +82,37 @@ export function MetricBlockShell({ block, canEdit, slug, config, activeDefault, 
   ) : null
 
   return (
-    <BlockShell
-      name={block.name}
-      canEdit={canEdit}
-      menuOpen={menuOpen}
-      setMenuOpen={setMenuOpen}
-      view={view}
-      setView={setView}
-      pending={pending}
-      errorMsg={errorMsg}
-      isOverridden={isOverridden}
-      draftDate={draftDate}
-      setDraftDate={setDraftDate}
-      draftCompare={draftCompare}
-      setDraftCompare={setDraftCompare}
-      applyOverride={applyOverride}
-      confirmDelete={confirmDelete}
-      confirmReset={confirmReset}
-    >
-      <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px]">
-        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{block.name}</p>
-        {badge && <div className="mt-2">{badge}</div>}
-        <div className="mt-2">{value}</div>
-        <div className="mt-1">{delta}</div>
-      </div>
-    </BlockShell>
+    <>
+      {editOpen && (
+        <AddBlockDialog slug={slug} config={config} editing={block} onClose={() => setEditOpen(false)} />
+      )}
+      <BlockShell
+        name={block.name}
+        canEdit={canEdit}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+        view={view}
+        setView={setView}
+        pending={pending}
+        errorMsg={errorMsg}
+        isOverridden={isOverridden}
+        draftDate={draftDate}
+        setDraftDate={setDraftDate}
+        draftCompare={draftCompare}
+        setDraftCompare={setDraftCompare}
+        applyOverride={applyOverride}
+        confirmDelete={confirmDelete}
+        confirmReset={confirmReset}
+        onEdit={() => { setMenuOpen(false); setEditOpen(true) }}
+      >
+        <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px]">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{block.name}</p>
+          {badge && <div className="mt-2">{badge}</div>}
+          <div className="mt-2">{value}</div>
+          <div className="mt-1">{delta}</div>
+        </div>
+      </BlockShell>
+    </>
   )
 }
 
@@ -147,6 +155,7 @@ function BlockShell({
   applyOverride,
   confirmDelete,
   confirmReset,
+  onEdit,
   children,
 }: {
   name: string
@@ -165,6 +174,7 @@ function BlockShell({
   applyOverride: () => void
   confirmDelete: () => void
   confirmReset: () => void
+  onEdit: () => void
   children: React.ReactNode
 }) {
   return (
@@ -189,6 +199,12 @@ function BlockShell({
           >
             {view === 'menu' && (
               <div className="flex flex-col">
+                <button
+                  className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
+                  onClick={onEdit}
+                >
+                  Edit metric…
+                </button>
                 <button
                   className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
                   onClick={() => setView('range')}

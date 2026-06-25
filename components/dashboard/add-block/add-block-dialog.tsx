@@ -4,11 +4,12 @@ import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { proposeBlock, saveDashboardConfig, type ProposeBlockInput } from '@/app/actions/dashboard'
-import { addBlock } from '../config-mutations'
+import { addBlock, updateBlock } from '../config-mutations'
+import { blockToManualDraft } from './build-config'
 import { applySelections, type BlockSelections } from './draft'
 import { BlockPreviewCard } from './block-preview-card'
 import { ManualBlockForm } from './manual-block-form'
-import type { DashboardConfig, BlockConfig } from '@/lib/dashboard/types'
+import type { DashboardConfig, BlockConfig, PersistedBlock } from '@/lib/dashboard/types'
 import type { BlockProposal } from '@/lib/dashboard/nl/types'
 import type { AggregateProposal } from '@/lib/dashboard/nl/aggregate-types'
 
@@ -20,10 +21,11 @@ const SOURCES: { value: Source; label: string }[] = [
 ]
 const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
-export function AddBlockDialog({ slug, config, onClose, onAdded }: { slug: string; config: DashboardConfig | null; onClose: () => void; onAdded?: (b: { id: string; name: string }) => void }) {
+export function AddBlockDialog({ slug, config, onClose, onAdded, editing }: { slug: string; config: DashboardConfig | null; onClose: () => void; onAdded?: (b: { id: string; name: string }) => void; editing?: PersistedBlock }) {
   const router = useRouter()
-  const [step, setStep] = useState<'pick' | 'mode' | 'prompt' | 'preview' | 'build'>('pick')
-  const [source, setSource] = useState<Source>('supermetrics')
+  const editSeed = editing ? blockToManualDraft(editing) : null
+  const [step, setStep] = useState<'pick' | 'mode' | 'prompt' | 'preview' | 'build'>(editing ? 'build' : 'pick')
+  const [source, setSource] = useState<Source>(editSeed?.source ?? 'supermetrics')
   const [prompt, setPrompt] = useState('')
   const [clarify, setClarify] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -63,11 +65,16 @@ export function AddBlockDialog({ slug, config, onClose, onAdded }: { slug: strin
   function confirmManual(cfg: Omit<BlockConfig, 'id'>) {
     setError(null)
     startTransition(async () => {
-      const block = { id: crypto.randomUUID(), ...cfg }
-      const next = addBlock(config ?? DEFAULT_CONFIG, block)
+      const next = editing
+        ? updateBlock(config ?? DEFAULT_CONFIG, editing.id, cfg)
+        : addBlock(config ?? DEFAULT_CONFIG, { id: crypto.randomUUID(), ...cfg })
       const res = await saveDashboardConfig(slug, next)
-      if (!res.ok) setError(res.error)
-      else { onAdded?.({ id: block.id, name: block.name }); onClose(); router.refresh() }
+      if (!res.ok) { setError(res.error); return }
+      if (!editing) {
+        const added = next.blocks[next.blocks.length - 1]
+        onAdded?.({ id: added.id, name: added.name })
+      }
+      onClose(); router.refresh()
     })
   }
 
@@ -77,7 +84,7 @@ export function AddBlockDialog({ slug, config, onClose, onAdded }: { slug: strin
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
       <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col overflow-y-auto rounded-lg border border-white/[0.08] bg-[#1a1a1a] p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm font-bold text-white">Add block</p>
+          <p className="text-sm font-bold text-white">{editing ? 'Edit block' : 'Add block'}</p>
           <button className="text-text-muted hover:text-white" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
@@ -116,9 +123,10 @@ export function AddBlockDialog({ slug, config, onClose, onAdded }: { slug: strin
               source={source}
               slug={slug}
               pending={pending}
-              existingBlocks={(config?.blocks ?? []).map((b) => ({ id: b.id, name: b.name }))}
+              existingBlocks={(config?.blocks ?? []).filter((b) => b.id !== editing?.id).map((b) => ({ id: b.id, name: b.name }))}
+              initial={editSeed?.draft}
               onConfirm={confirmManual}
-              onBack={() => setStep('mode')}
+              onBack={editing ? onClose : () => setStep('mode')}
             />
             {error && <p className="mt-2 text-xs text-[#FF6666]">Error: {error}</p>}
           </>

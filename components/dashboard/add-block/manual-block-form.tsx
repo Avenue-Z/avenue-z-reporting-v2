@@ -18,6 +18,7 @@ export function ManualBlockForm({
   slug,
   pending,
   existingBlocks,
+  initial,
   onConfirm,
   onBack,
 }: {
@@ -25,13 +26,18 @@ export function ManualBlockForm({
   slug: string
   pending: boolean
   existingBlocks: { id: string; name: string }[]
+  initial?: ManualDraft
   onConfirm: (cfg: Omit<BlockConfig, 'id'>) => void
   onBack: () => void
 }) {
-  const [name, setName] = useState('')
-  const [format, setFormat] = useState<MetricFormat>('number')
-  const [leaf, setLeaf] = useState<LeafDraft>(() => (source === 'formula' ? { source: 'supermetrics', dsId: '', metricField: '', account: '' } : emptyLeaf(source)))
-  const [formula, setFormula] = useState<FormulaDraft>(() => ({ source: 'formula', expr: '', operands: {} }))
+  const [name, setName] = useState(initial?.name ?? '')
+  const [format, setFormat] = useState<MetricFormat>(initial?.format ?? 'number')
+  const [leaf, setLeaf] = useState<LeafDraft>(() =>
+    initial?.kind === 'leaf' ? initial.leaf : (source === 'formula' ? { source: 'supermetrics', dsId: '', metricField: '', account: '' } : emptyLeaf(source)),
+  )
+  const [formula, setFormula] = useState<FormulaDraft>(() =>
+    initial?.kind === 'formula' ? initial.formula : { source: 'formula', expr: '', operands: {} },
+  )
 
   const draft: ManualDraft =
     source === 'formula'
