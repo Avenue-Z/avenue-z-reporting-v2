@@ -66,7 +66,10 @@ export function TopContent({ groups }: { groups: PlatformTopContent[] }) {
       {groups.map((g) => (
         <div key={g.platform} className="space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">{g.platform}</h3>
-          <DataTable columns={columns} rows={top5(g.rows, sortBy)} defaultSort={{ key: sortBy, dir: 'desc' }} />
+          {/* key on sortBy: DataTable seeds its sort state from defaultSort only
+              on mount, so remount it when the metric toggles to re-sort the table
+              by the clicked column. */}
+          <DataTable key={sortBy} columns={columns} rows={top5(g.rows, sortBy)} defaultSort={{ key: sortBy, dir: 'desc' }} />
         </div>
       ))}
     </section>
