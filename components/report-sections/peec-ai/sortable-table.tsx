@@ -25,6 +25,8 @@ export interface SortableTableProps<T> {
   rows: T[]
   rowKey: (row: T, index: number) => string | number
   initialPageSize?: number
+  defaultSortKey?: string
+  defaultSortDir?: 'asc' | 'desc'
   onRowClick?: (row: T) => void
   rowClassName?: (row: T) => string
   emptyMessage?: string
@@ -52,12 +54,14 @@ export function SortableTable<T>({
   rows,
   rowKey,
   initialPageSize,
+  defaultSortKey,
+  defaultSortDir,
   onRowClick,
   rowClassName,
   emptyMessage = 'No rows to display.',
 }: SortableTableProps<T>) {
-  const [sortKey, setSortKey]   = useState<string | null>(null)
-  const [sortDir, setSortDir]   = useState<SortDir>(null)
+  const [sortKey, setSortKey]   = useState<string | null>(defaultSortKey ?? null)
+  const [sortDir, setSortDir]   = useState<SortDir>(defaultSortDir ?? null)
   const [filters, setFilters]   = useState<Record<string, string>>({})
   const [showAll, setShowAll]   = useState(false)
 

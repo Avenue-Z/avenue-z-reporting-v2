@@ -242,7 +242,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
   let coverage       = coverageResult.status === 'fulfilled'
     ? coverageResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }
+    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
   let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
 
@@ -255,7 +255,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     prData         = samplePRProofData()
     aiReferralRows = SAMPLE_GA4_AI_REFERRAL_ROWS
     compareAiRows  = SAMPLE_GA4_AI_REFERRAL_COMPARE_ROWS
-    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, tagNameById: {} }  // demo: matchback/§C/§D use demo fallbacks
+    coverage       = { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }  // demo: matchback/§C/§D use demo fallbacks
     urlCitations   = []  // demo: §D uses demo fallbacks
     urlCitationsPrior = []  // demo: no prior period
   }

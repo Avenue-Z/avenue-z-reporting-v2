@@ -16,6 +16,209 @@ _(none)_
 
 ## Closed
 
+### FB-039 - Fullsite Content Performance (Tina, 2026-06-25)
+
+- **Ask (verbatim):**
+  - Revised Columns:
+    - Page (combine page title and hyperlink it with the URL)
+    - Prompt Coverage (& Delta)
+    - Citation Share (& Delta)
+    - AI Referral Traffic (& Delta)
+    - Organic Sessions (& Delta)
+    - Engagement Rate (& Delta)
+  - New Title: What content across your domain is being cited by AI?
+  - New Subtitle: See every cited page across your site and measure its performance.
+- **Decisions made (Tina did not specify; documented for transparency):**
+  - Row universe: every UrlCitation whose host matches an owned domain AND has citationCount > 0. "Every cited page across your site" literal.
+  - Page label fallback chain: UrlCitation.title, then labelFromPath(url), then raw URL. Truth-grounded.
+  - Default sort: Citation Share descending. Matches §B Watched Pages.
+  - Pagination: 10 with expand. Matches §B.
+  - Inline deltas appear only when compareIso !== null. Matches §B and FB-034 hotfix #2 principle.
+  - Owned-domain detection: urlJoinKey match against filteredOwnDomains (Peec /reports/domains, already model-filtered).
+- **Files touched:**
+  - components/report-sections/peec-ai/content-impact-tables.tsx: dropped OwnedContentCitedTable + OwnedContentCitedRow. Added FullsiteContentPerformanceTable + FullsiteContentPerformanceRow (6 cols, mirrors §B's metric+delta shape). Lifted renderDelta helper to module scope so both §B and §F reuse it.
+  - components/report-sections/peec-ai/content-impact.tsx: rewrote §F orchestrator block. Drops demoTopics/demoClusters/demoEngines/demoPositions/demoAiSessions arrays and the enginesByDomain map (all unused after the column shape change). Builds per-URL row enrichment reusing FB-035 helpers (aiReferredForPath, organicForPath, engagementRateForPath, urlPromptIds, citeByKeyPrior, total*Citations, totalTrackedPrompts) with zero new fetches. Mounts the new table.
+- **Sheet row:** Content Impact | Fullsite Content Performance: new 6-col URL-row table (Page hyperlinked, Prompt Coverage, Citation Share, AI Referral Traffic, Organic Sessions, Engagement Rate, each with comparison delta) + verbatim new title/subtitle | Done. Replaced the legacy 9-col domain-row table. Row universe is every owned cited URL. Sort default Citation Share desc, paginate at 10. Deltas show when comparison period is on. Zero new fetches: reused FB-035's per-path helpers and per-URL Peec data.
+
+### FB-038 - Slope chart (Tina, 2026-06-25)
+
+- **Ask (verbatim):**
+  - ADD: Ranked Slope Chart of Top Site Pages With Toggle Buttons for AI Referral Traffic, Organic Search Traffic, Citation Share
+  - Title: Which pages are gaining momentum and which are losing it?
+  - Subtitle: Track the biggest movers over time to see which URLs are compounding, which are decaying, and where content performance is strengthening or slipping.
+  - Specific request: These toggles would change the metric of the Y-Axis.
+- **Decisions made (Tina did not specify; documented for transparency):**
+  - Position: new §E between §D Bot vs Human Scatter and §F Fullsite Content Performance. Matches Tina's screenshot ordering (scatter, then slope).
+  - Top-N cap: top 15 pages by absolute delta of the active metric (Tina's subtitle says "biggest movers"; 15 keeps the chart readable).
+  - Per-toggle re-ranking: switching the toggle re-runs computeSlopeChart for the new metric and re-derives the top 15. The chart's universe changes with the metric.
+  - Compare-period gating: chart renders only when compareIso !== null. Empty state otherwise asks the user to turn on a comparison period from the date picker. The slope chart inherently needs two periods; honoring Tina's FB-034 "when you have a comparison period turned on" principle.
+  - Line colors by direction: green for gainers, red for losers, gray for flat. 70% stroke opacity to keep 15 lines readable.
+  - Tooltip: hover shows topic + value + URL on the active line.
+  - Y-axis tick formatter: percentages for citation-share, plain integers for ai-referral / organic.
+  - Zero new fetches: all 6 source variables (3 metrics x 2 periods) already in scope at the §E mount point thanks to FB-035 Task 4.
+- **Files touched:**
+  - lib/peec/slope-chart.ts: pure helper computeSlopeChart + 5 exported types.
+  - lib/peec/slope-chart.test.ts: 7 assertion blocks covering empty input, metric routing, (0,0) drop, direction classification, top-15 ranking, absolute-delta ranking, labelFromPath topics.
+  - components/report-sections/peec-ai/slope-chart.tsx: client component (useState for active metric, 3 toggle buttons via ToggleRow, Recharts LineChart with one Line per top-15 page colored by direction, empty states for compare-off and zero-points).
+  - components/report-sections/peec-ai/content-impact.tsx: imports + 3 pre-aggregated maps (aiReferralByPath, organicByPath, citationShareByUrlKey) built from existing FB-035 vars + §E SectionCard mount between §D and §F.
+- **Sheet row:** Content Impact | ADD: Ranked Slope Chart of Top Site Pages With Toggle Buttons for AI Referral Traffic, Organic Search Traffic, Citation Share (toggles change Y-axis metric) | Done. New §E between §D Scatter and §F Fullsite. 3 toggle buttons swap Y-axis. Top 15 pages by absolute change of the active metric. Lines colored green (gainer) or red (loser). All data sourced from existing GA4 + Peec fetches (zero new round trips). Compare-period gated: renders only when comparison period is turned on, otherwise shows a "turn on comparison" empty state.
+
+### FB-037 - Bot vs Human scatter chart (Tina, 2026-06-25)
+
+- **Ask (verbatim):**
+  - ADD: Scatter Plot Chart of Site Pages by Bot Traffic vs. Human Traffic
+  - Title: AI Bot Traffic vs. Human Traffic
+  - Subtitle: See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate.
+  - 4 quadrants: High Bot/Low Human, High Bot/High Human, Low Bot/Low Human, Low Bot/High Human.
+- **Decisions made (Tina did not specify; documented for transparency):**
+  - Page universe: union of paths with > 0 bot visits OR > 0 human sessions in the period. (0, 0) pages dropped (literal site pages with no activity to display).
+  - High/Low threshold: median split on each axis. Adaptive, no magic numbers. Boundary ties go to "low" (strict > comparison).
+  - Window: hardcoded last 30 days, independent of the page date range, matching the Peec agent-analytics window which is already hardcoded last-30 at lib/peec/agent-analytics.ts:284. Mirrors the §C Speed Stats and YTD chart pattern. Subtitle explicitly calls this out to pre-empt the date-reactivity question (lesson from FB-036).
+  - Position: new §D between §C Speed Stats and §F Fullsite Content Performance. Both §C and §D are per-page snapshots; pair narratively.
+  - Quadrant colors (no legend, Tina did not specify): green = both high (winners), blue = low-bot/high-human (human-popular but AI-quiet), yellow = high-bot/low-human (AI crawling but humans not visiting), gray = both low (background).
+- **Files touched:**
+  - lib/peec/bot-vs-human-scatter.ts: pure helper computeBotVsHumanScatter + 4 exported types.
+  - lib/peec/bot-vs-human-scatter.test.ts: 6 assertions covering empty/median odd/median even/(0,0) drop/union/quadrant boundary.
+  - components/report-sections/peec-ai/bot-vs-human-scatter.tsx: Recharts ScatterChart + median ReferenceLines + 4 absolute-positioned corner labels + tooltip + per-quadrant fill colors + empty state.
+  - components/report-sections/peec-ai/content-impact.tsx: import helper + component + urlJoinKey, add 1 new GA4 query (hardcoded last-30, pagePath x sessionSource x sessions, limit 1000), build pathBots from agentData.byPath, build pathHumans from ga4ScatterRows excluding AI referrer sources, compute scatter, mount as §D between §C and §F.
+- **Sheet row:** Content Impact | ADD: Scatter Plot Chart of Site Pages by Bot Traffic vs. Human Traffic (verbatim title and subtitle, 4 quadrants high/low Bot x high/low Human) | Done. New §D between §C and §F. AI bot data from Peec /agent-analytics/visits (already last-30 by SDK). Human data from a new GA4 query (pagePath x sessionSource, hardcoded last-30, excludes AI referrer sources). Median split per axis with boundary ties going low. Always-on last-30 window called out in subtitle so the date-reactivity question doesn't recur.
+
+### FB-036 - Speed Stats validation (Tina, 2026-06-25)
+- **Ask (verbatim):** Questions about the §C "How quickly does new content earn traffic and AI citations?" chart:
+  - Is it real data or hallucinated? Has it been validated?
+  - Is it affected by the date range selector or is it showing a default timeframe average? (similar to the YTD chart)
+- **Direct answers (for the sheet):**
+  - **Real data, validated.** Pulled live from GA4 via Google's official `BetaAnalyticsDataClient.runReport()` (lib/ga4/client.ts:12, :185), same source every GA4 metric in the platform uses. Zero LLM in the path: §C is pure JavaScript math (min/max/median of `firstSessionDate - publishDate` per planned URL) via the unit-tested helper `computeUrlTiming` (lib/ga4/content-derive.ts:133, tests at content-derive.test.ts:69-97). Nothing can hallucinate because no model is involved.
+  - **Not affected by the date range selector, by design.** The query window is hardcoded `earliestPublishDate -> today` (content-impact.tsx:580 + :592), same always-on pattern as the YTD Visibility chart. This is intentional: "days to first" only makes sense from publish date forward through today; tying it to the picker would clip out anything published before the selected window and exclude anything published after.
+- **Sub-finding caught while validating (and shipped):** The §C subtitle previously read "first AI citation or bot crawl" but the code only measures first AI-referred GA4 session (no AI citations, no bot crawls). The helper's own docstring confirms this (content-derive.ts:128-131). Subtitle rewritten to: "For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range." Now matches reality + makes the always-on behavior explicit, pre-empting future "is this date-reactive?" questions.
+- **Files touched:** components/report-sections/peec-ai/content-impact.tsx:1063 (subtitle rewrite).
+- **Behavior change:** none. Copy only.
+- **Sheet row:** Content Impact | Speed Stats: (Q1) Is it real or hallucinated? (Q2) Is it affected by the date range selector? | Validated as real, live GA4 data via Google's official SDK; no LLM in the path (pure JavaScript math, unit-tested); not affected by the date range selector by design (always measures publish date through today, same pattern as YTD chart). Subtitle rewritten to accurately describe what's measured (was overclaiming "AI citation or bot crawl"; actually measures first AI-referred GA4 session) and to call out the always-on behavior so this question doesn't recur.
+
+### FB-035 — Watched Pages table overhaul (Tina, 2026-06-24)
+- **Ask:** Replace 16-column Planned Content Performance table with 9-column shape: Content Piece (topic + URL hyperlinked), Content Type, Publish Date, Last Updated, Prompt Coverage (+ delta), Citation Share (+ delta), AI Referral Traffic (+ delta), Organic Sessions (+ delta), Engagement Rate (+ delta). Only completed work (strict literal: status === "published" case-insensitive). Paginate at 10 with expand. Default sort Citation Share desc. New title and subtitle. Comparison-period deltas across all 5 metrics.
+- **Bug discovered en route:** compareRange was not wired to ContentImpactReport at app/dashboard/[clientSlug]/reports/page.tsx:71, silently killing FB-034 §A delta wiring. Fixed in Task 3.
+- **Files touched:**
+  - lib/peec/url-citations.ts: added promptIdsByUrlKey field + urlPromptIds helper + dateRange opt on getDomainCoverage; cache versions v3 to v4 (coverage) and v2 to v3 (citations).
+  - lib/peec/url-citations.test.ts: appended assertions locking promptIdsByUrlKey aggregation.
+  - components/report-sections/peec-ai/sortable-table.tsx: added defaultSortKey + defaultSortDir props.
+  - app/dashboard/[clientSlug]/reports/page.tsx:71: wired compareRange prop.
+  - components/report-sections/peec-ai/content-impact.tsx: 6 new fetches (4 GA4 + 2 Peec prior-period), per-row metric x period derivation, strict literal status filter.
+  - components/report-sections/peec-ai/content-impact-tables.tsx: PlannedContentRow redefined, columns rebuilt, new title and subtitle, pagination at 10, default sort Citation Share desc, inline delta renderer.
+- **Sheet row:** Content Impact | Watched Pages: 9-col overhaul + strict status==='published' filter + paginate at 10 + default sort by Citation Share + comparison-period deltas on all 5 metrics + new title/subtitle | Done
+- **Hotfix #1 (0485065):** Preview at 46cd794 surfaced every delta reading exactly 0.0% across §A KPIs AND Watched Pages rows. Root cause: content-impact.tsx:221 called parseDateRange(compareRange) directly, which does not understand the magic strings 'previous_period' / 'previous_year' that the date picker emits. The fallthrough returned the SAME window as the main range, so prior fetches received identical data to current fetches and every delta computed to 0. Bug originated in FB-034 Task 2 (10b88dc) and was amplified by FB-035 across 5 per-row deltas. Fix: import deriveCompareRange from lib/ga4/client and call deriveCompareRange(mainRangeStr, compareRange). This is the same helper every other report already uses (ga4, inbound-funnel, pr-influence, demand-overview, peec-ai overview). New regression test lib/ga4/client.test.ts pins (a) parseDateRange does NOT understand 'previous_period' / 'previous_year' (the canary), (b) deriveCompareRange shifts the window correctly for previous_period and previous_year, (c) custom: passthrough works, (d) unknown compare modes return null. Process lesson: before adding data plumbing to a file, grep sibling components for the same symbol; if the file you are editing handles it differently than its peers, that is a question not a feature.
+
+### FB-034 — Content Impact §A Snapshot KPIs: replace 8 cards with Tina's 4 + fix delta display
+
+- **Status:** done
+- **Source:** Tina's screenshot annotation on Content Impact §A (2026-06-24). FEEDBACK: "Change these KPIs to: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic." Plus ISSUE: "Right now, when you have a comparison period turned on, it doesn't display change."
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI replacement (8 cards → 4) + bug fix (delta wiring)
+- **Scope:** `components/report-sections/peec-ai/content-impact.tsx` (orchestrator + local KpiCard), `lib/peec/content-impact-synopsis.ts` (context schema + buildContext + cache bump), `lib/peec/content-impact-synopsis.test.ts` (fixture update)
+- **Branch:** `official-feedback-content-impact-tab-content-v1`
+- **Sheet rows:**
+  - `Content Impact | Change these KPIs to: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic. | Done. §A Snapshot KPIs strip now shows exactly 4 cards: Citation Share (% of total AI citations captured by owned domains), Prompt Coverage (% of tracked prompts citing any owned domain), AI Referral Traffic (GA4 sessions from AI sources), Organic Traffic (GA4 Organic Search channel sessions). Old 8-card grid removed.`
+  - `Content Impact | ISSUE: Right now, when you have a comparison period turned on, it doesn't display change. | Fixed. Root cause: page router was passing compareRange prop to ContentImpactReport but the component was ignoring it. Component now accepts compareRange, derives prior period via deriveCompareRange (defaults to previous_period when no explicit range passed), fetches prior-period GA4 sessions, and renders delta line on each KPI card (arrow + magnitude + "vs previous period"). Prompt Coverage shows no delta in v1 because getDomainCoverage does not accept a dateRange (limitation noted; future FB will add prior-period coverage fetch).`
+
+#### Problem
+
+Tina's screenshot on the Content Impact tab marks §A "Snapshot KPIs" with a swap-out for the 8 existing cards (Planned URLs, Live URLs, Total Sessions, AI Citations, AI-Referred Sessions, Owned URLs with AI Activity, % Null/Unmatched, Owned Domains Cited) plus a yellow-highlighted ISSUE: when a comparison period is selected from the date picker, the KPI cards do not display the change between periods.
+
+Root cause investigation: the page router (`app/portal/[clientSlug]/reports/[reportSlug]/page.tsx`) already passes a `compareRange` prop to `ContentImpactReport`, but the component signature did not accept it. The value was silently dropped. No prior-period data was being fetched, so there were no delta values to render even if the cards supported it (which they did not, the local `KpiCard` had no delta slot).
+
+#### Solution — 5 commits
+
+| Sub-item | Commit | What |
+|---|---|---|
+| **FB-034 (Task 1)** | `989e5d1` | Extend local `KpiCard` with `delta?: number` + `invertDelta?: boolean` props, rendering arrow `↑` green `#60FF80` (positive when not inverted) or `↓` red `#FF4444`, magnitude with 1 decimal, " vs previous period" copy. Mirrors Overview's KpiCard delta rendering exactly. When `delta` is undefined the line is omitted (no fake zero). |
+| **FB-034 (Task 2)** | `10b88dc` | Accept `compareRange?: string` on `ContentImpactReport`. Derive `mainIso` and `compareIso` via `parseDateRange` + `deriveCompareRange` (defaults to `'previous_period'`). Add 2 GA4 queries to the existing `Promise.allSettled`: `sessionSource × sessionDefaultChannelGroup × sessions`, one for main and one for prior. Single query shape feeds AI Referral Traffic and Organic Traffic for both periods (4 KPI values from 2 fetches). No JSX changes in this commit. |
+| **FB-034 (Task 3)** | `7845dbf` | Compute 4 new KPI values + deltas. Citation Share = `yourBrandCitations / totalCitations * 100`, prior from `peecData.yourBrandCitationsPrior` + `peecData.totalCitationsPrior`, delta in percentage points. Prompt Coverage = aggregate `(unique-prompt-IDs-across-owned-domains / totalTrackedPrompts) * 100` (no prior in v1). AI Referral Traffic = sum where `isAiSource(sessionSource)` from the new query, prior from prior query, delta = `((cur - prior) / prior) * 100`. Organic Traffic = sum where `sessionDefaultChannelGroup === 'Organic Search'`, same delta math. Truth-grounded: prior unavailable → delta stays null → card omits delta line. |
+| **FB-034 (Task 4)** | `16a117b` | Swap §A JSX: 8-card grid replaced by 4-card grid (Citation Share / Prompt Coverage / AI Referral Traffic / Organic Traffic). Section header copy is "Snapshot KPIs", Tina's section label from her v1 recommended-layout doc (previously deferred from FB-032). Demo-mode hardcoded values: 24.5% / 67% / 1,243 / 6,667 with sample deltas +2.3pp / -- / +18.4% / -4.2% so the delta line is visually testable in demo mode. |
+| **FB-034 (Task 5)** | `3e9a940` | Refactor `ContentImpactSynopsisContext`: drop 6 orphaned old-KPI fields (`plannedUrlsInScope`, `liveUrls`, `totalSessions`, `aiReferredSessions`, `ownedUrlsWithAiActivity`, `unmatchedPct`), keep `totalAiCitations` + `ownedDomainsCited` (validator Rules 2-3 still reference them), add new KPI fields. Update `buildContext()` Data section to reorganize into "Snapshot KPIs for the period" + "Owned-content AI footprint" + "Competitor and third-party AI footprint" with 3 `(USE THESE EXACT VALUES)` section labels. Cache version `v1-glean-ci → v2-glean-ci-kpi-swap` flushes FB-033's stale cached responses. Validator rules 1-3 unchanged. Test fixture `baseContext()` updated to new shape; all 10 assertions still pass. |
+
+#### Verification
+
+- `npx tsc --noEmit` zero output after every commit.
+- `npx tsx lib/peec/content-impact-synopsis.test.ts` both `passed.` lines (regression + 9 validator assertions).
+- `grep -nc "<KpiCard" content-impact.tsx` exactly 4.
+- `grep -n "v2-glean-ci-kpi-swap" content-impact-synopsis.ts` 2 hits (comment + version line).
+- `grep -n "Snapshot KPIs" content-impact.tsx` 1 hit (new §A header).
+- Vercel preview to be confirmed: §A renders exactly 4 cards in both demo and live modes; selecting a comparison period from the date picker causes the delta line to appear under Citation Share + AI Referral Traffic + Organic Traffic (Prompt Coverage stays delta-less by design).
+
+#### Known limitations
+
+- **Prompt Coverage delta deferred:** `getDomainCoverage(clientSlug)` in `lib/peec/url-citations.ts:286` does not accept a `dateRange` parameter, so there is no prior-period coverage data to subtract from. Card renders the current value alone with no delta line. Future FB can add prior-period coverage support (would require adding a `dateRange?: string` arg to `getDomainCoverage` + downstream Peec query).
+- **Comparison period defaults to "previous_period" when not explicitly selected**, same default Overview uses. If the user does not pick a comparison range from the date picker, the page still computes deltas vs. the immediately-prior matching window.
+
+#### Follow-up commits after preview verification
+
+| Commit | What |
+|---|---|
+| `e2997d0` (polish) | Scrubbed 2 em-dashes from source-code comments in Task 5 (no-em-dash rule applies to comments too). Functional change: zero. |
+| `741dc69` (revert) | Reverted 2 overreaches that exceeded Tina's literal ask: (a) §A header restored from "Snapshot KPIs" back to original "How is content performing at a glance?" (Tina's screenshot showed "Snapshot KPIs" as her own annotation label, not a header change request); (b) removed `deriveCompareRange('previous_period')` fallback so deltas render only when the user explicitly turns on a comparison period via the date picker. |
+| `b0c1afd` (hotfix #1) | Removed validator Rule 2 after Vercel logs showed the synopsis empty-state firing consistently with `totalAiCitations mismatch: prose claims "3,196 AI citations" but context.totalAiCitations = 105239`. Glean was correctly writing per-domain prose like "example.com earned 3,196 AI citations", but Rule 2's broad regex wrongly treated it as a total claim. Rules 1 + 3 kept. Cache bumped `v2-glean-ci-kpi-swap → v3-glean-ci-rule2-removed`. Regression test added locking the per-domain false positive. |
+| `a4a3d12` (hotfix #2) | Citation Share delta gate fix. Peec returns prior values unconditionally (independent of `compareRange`), so Citation Share's delta was leaking even when comparison period was OFF. Now ALL 3 deltable KPIs gate on `compareIso !== null`. Tina's literal "when you have a comparison period turned on" honored across the board. |
+
+#### Deferred for future FBs
+
+- Tina ADD: Scatter chart "AI Bot Traffic vs. Human Traffic" (next FB in this round).
+- Tina ADD: Slope chart "Which pages are gaining momentum and which are losing it?" (next FB in this round).
+- Tina section labels for §B (Watched Pages), §C (Speed Stats), §F (Fullsite Content Performance), §H (Competitor Analysis), Thomas to confirm next round whether on-page headers or doc labels.
+- Prompt Coverage delta wiring (requires getDomainCoverage refactor to accept dateRange).
+- Future-FB option: add a narrower Rule 2 to the validator that requires explicit "total" phrasing, IF a real total-misreporting bug appears.
+
+### FB-033 — Content Impact: AI-generated executive synopsis card at top
+
+- **Status:** done
+- **Source:** Tina's Google Doc "Content Impact Tab — Recommended layout" (ADD #1, 2026-06-24): "AI-generated synopsis of overall performance & recommended actions during the period, executive overview style."
+- **Author:** Thomas (called) / Claude (implementation)
+- **Type:** UI addition (new section at top of Content Impact tab)
+- **Scope:** `lib/peec/content-impact-synopsis.ts` (new), `lib/peec/content-impact-synopsis.test.ts` (new), `components/report-sections/peec-ai/content-impact-synopsis.tsx` (new), `components/report-sections/peec-ai/content-impact.tsx` (mount + synopsisContext build)
+- **Branch:** `official-feedback-content-impact-tab-content-v1`
+- **Sheet row:** `Content Impact | ADD: AI-generated synopsis of overall performance & recommended actions during the period, executive overview style. | Added. Sparkles-iconed Executive Synopsis card at top of the tab between the demo badge and the §A KPI strip. Glean-backed, FB-031 hardened (post-Glean validator with 3 numeric-claim patterns + retry-on-violation), FB-025 decimal cap (1 decimal max in prose). Cached 1h per (client, date range, context).`
+
+#### Problem
+
+Tina's v1 recommended layout has a green ADD block at the top of Content Impact for an AI-generated executive synopsis card mirroring the one PR Influence and Overview already ship. Tina did not write the prose herself, she described the brief: "AI-generated synopsis of overall performance & recommended actions during the period, executive overview style." Glean-backed card that summarizes the §A KPIs + the surviving §B/§C/§F/§H sections in 2 to 3 paragraphs followed by 2 to 4 recommended actions, hardened against every prior synopsis bug.
+
+#### Solution — 5 commits + 1 docs commit, FB-031 four-layer pattern from day one
+
+| Sub-item | Commit | What |
+|---|---|---|
+| **FB-033 (Task 1)** | `fc66a93` | Scaffold `lib/peec/content-impact-synopsis.ts` with `ContentImpactSynopsis` + `ContentImpactSynopsisContext` types + Rule 1 of the validator (brand-absent URL count). FIRST test assertion reproduces the FB-031 analog: context = 5, prose = "0 URLs where brand was absent", validator flags it. |
+| **FB-033 (Task 2)** | `054c718` | Round out validator with Rule 2 (total AI citations, thousands-separator aware) + Rule 3 (owned domains cited rounded-to-zero). Plus happy-path + "no" wording + empty-prose tests so accept-by-default behavior is locked. |
+| **FB-033 (Task 3)** | `30570d1` | `buildContext()` data section with `USE THESE EXACT VALUES` labels + Glean prompt (executive tone + 1-decimal rule + no-em-dash rule + data-integrity strict rule) + retry-on-violation loop (max 2 attempts; throws to graceful empty state on second failure) + `cached('glean', 'getContentImpactSynopsis', impl, { version: 'v1-glean-ci', ttlSeconds: 3600, tags by client + dateRange })`. |
+| **FB-033 (Task 4)** | `91e27f6` | `ContentImpactSynopsis` RSC mirroring the PR Influence shell exactly: Sparkles icon, "Executive Synopsis" eyebrow, paragraph prose, "Recommended actions" list, empty state on error ("Synopsis is temporarily unavailable. Other metrics on this page are unaffected."). |
+| **FB-033 (Task 5)** | `b34b3bd` | Mount in `content-impact.tsx`: build `synopsisContext` from the exact same expressions §A KPI cards use (so synopsis numbers can never disagree with KPI strip) + brand-absent count + top-3 brand-absent items mirror the §H.2 live derivation verbatim (`urlCitations.filter(c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)`) so the synopsis count cannot disagree with the §H.2 table. Insert `<Suspense fallback={skeleton}><ContentImpactSynopsis .../></Suspense>` between the demo badge and §A label. |
+
+#### Hardening pattern (FB-031 carried forward, all four layers)
+
+1. **Prompt labels** `(USE THESE EXACT VALUES)` on every section in the data block so Glean cannot reinterpret them. 4 section labels in the Data block + 1 explanatory comment.
+2. **Post-Glean validator** with 3 regex patterns: brand-absent URL count (FB-031 analog), total AI citations (with thousands separator support), owned domains cited (rounded-to-zero guard). Intentionally narrow.
+3. **Retry-on-violation** max 2 attempts. Second-attempt prompt includes the specific violations from attempt 1 with explicit instructions. Second failure throws to graceful empty state.
+4. **Cache version** `v1-glean-ci`, first cached version of this helper. Future prompt or schema changes must bump it to flush.
+
+Plus FB-025 numeric formatting carried forward: per-row counts rounded to 1 decimal in `buildContext()` before interpolation; "Number formatting (strict)" rule in the prompt.
+
+#### Field-name correction during implementation
+
+The plan's example for §H.2 brand-absent derivation assumed `urlCitations` rows had `brandCitations`/`competitorCitations` numeric fields. Actual `UrlCitation` type (verified in `lib/peec/url-citations.ts`) uses `mentionsYourBrand: boolean` + `competitorBrandNames: string[]`. Implementer (Task 5) adjusted to mirror §H.2's actual live filter verbatim: `urlCitations.filter(c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)`. This is the same filter §H.2 uses, so by construction the synopsis count + the §H.2 table cannot diverge. `host` populated from `c.domain` (already lowercased + www-stripped via `hostOf()`).
+
+#### Verification
+
+- `npx tsc --noEmit` — zero output, after every commit.
+- `npx tsx lib/peec/content-impact-synopsis.test.ts` — both `passed.` lines (regression assertion + 9 validator tests).
+- `grep -c "—" lib/peec/content-impact-synopsis.ts components/report-sections/peec-ai/content-impact-synopsis.tsx lib/peec/content-impact-synopsis.test.ts` — zero literal em-dashes in any new file.
+- `grep -n "USE THESE EXACT VALUES" lib/peec/content-impact-synopsis.ts` — 5 hits.
+- `grep -n "v1-glean-ci" lib/peec/content-impact-synopsis.ts` — 2 hits (1 in version field, 1 in comment).
+
+#### Deferred for later FBs
+
+- Tina ADD: Scatter chart "AI Bot Traffic vs. Human Traffic" (next FB).
+- Tina ADD: Slope chart "Which pages are gaining momentum and which are losing it?" (next FB).
+- Tina ADD: Section labels (Snapshot KPIs / Watched Pages / Speed Stats / Fullsite Content Performance / Competitor Analysis), Thomas to confirm whether on-page headers or doc labels.
+- Tina ISSUE: Snapshot KPIs don't show change when comparison period is on, KPI delta-wiring bug, separate FB.
+
 ### FB-032 — Content Impact (v1) layout: delete 7 sections + dead-code cleanup
 
 - **Status:** done
@@ -1885,3 +2088,45 @@ If any are missing, the synopsis card falls back to the temporarily-unavailable 
 2. **The Sparkles icon for Overview** was my pick. If Tina prefers a different icon (e.g., Eye, BarChart3, Compass), trivial to swap one prop.
 3. **The yellow-to-green color flip on Technical Performance** is the one place existing code was overwritten. If the yellow was a deliberate design decision, swap back by editing one constant in `section-header.tsx` (or pass color as a prop).
 4. **The Megaphone icon for PR Influence** was my pick. Trivial swap if Tina wants Newspaper, Radio, or something else.
+
+---
+
+## FB-040 — Content Impact §H Competitor Analysis sub-view 1
+
+**Tab:** Content Impact
+**Section:** §H Competitor Analysis (sub-view 1: top competitor domains)
+**Tina's ask:**
+- New section title: `Competitor Analysis`
+- New section subtitle: `See which competitor domains are gaining or losing ground across AI Visibility, Citation Share, and Prompt Coverage for your target prompts.`
+- New chart sub-header: `Which competitor domains are winning for our target prompts?`
+- New columns: AI Visibility (& Delta), Citation Share (& Delta), Prompt Coverage (& Delta)
+
+**Shipped:**
+- §H.1 `CompetitorDomainsCitedTable` rebuilt: 4 columns (Domain + 3 metric cols), each metric col renders value with a percentage-point delta when a compare period is active.
+- Column mappings: AI Visibility = `TopDomain.retrieved` (Peec `retrieved_percentage * 100`), Citation Share = `TopDomain.citationRate` (Peec `citation_rate * 100`), Prompt Coverage = existing `getPromptCoverage` helper. Deltas: `retrievedDelta` / `citationRateDelta` come pre-baked from `buildTopDomains`; Prompt Coverage delta computed inline against the already-fetched `coveragePrior` via a new `getPromptCoveragePrior` helper.
+- Zero new Peec or GA4 fetches; reused `peecData.topDomains` (current + prior), `coverage`, `coveragePrior`.
+- All deltas gate on `compareIso !== null` per FB-034 hotfix #2.
+- Theme Coverage column + `getThemeCoverage` helper + `TT.themeCoverage` tooltip + `domainTagIds` import deleted as dead code.
+- Demo fills for prompt/theme coverage removed (Tina's literal: live or `--`, no demo backfill).
+- §H.2 (`CompetitorUrlsBrandAbsentTable`) untouched per literal-interpretation rule.
+
+**Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
+
+## FB-041 — Content Impact §H Competitor Analysis sub-view 2
+
+**Tab:** Content Impact
+**Section:** §H Competitor Analysis (sub-view 2: brand-absent competitor URLs)
+**Tina's ask:**
+- New chart sub-header: `Where are we absent when competitors are cited or mentioned?`
+- New columns (4 total): Domain, Article (combine Title + hyperlink URL), Citation Share (& Delta), Competitors Mentioned
+
+**Shipped:**
+- §H.2 `CompetitorUrlsBrandAbsentTable` collapsed from 9 columns to 4. Domain unchanged. Article column merges the old `Article Title` + `URL` columns into a single hyperlinked cell (title text falls back to URL when null, opens in a new tab, mirrors the `<a>` pattern from §B Watched Pages Content Piece column). Citation Share is computed live as `(c.citationCount / totalCitationsCurrentRows) * 100` with a percentage-point delta against the prior period via `citeByKeyPrior`. Competitors Mentioned unchanged.
+- Dropped columns: Article Title (merged), URL (merged), Prompt Cluster, Citation Count (replaced by Citation Share), Brand Mentioned, Opportunity Priority, Suggested PR Angle.
+- Citation Share math also fixes a pre-existing display bug: the prior `Citation Count` column rendered raw Peec `citation_count` with a `%` suffix (e.g. "3445.0%" for a single URL). Citation Share is the correct share-of-period denominator and now displays sensible percentages.
+- Delta gates on `compareIso !== null` (FB-034 hotfix #2 pattern). When compare is off, no badge renders.
+- Dead code dropped: `TT.opportunityPriority`, `TT.suggestedPRAngle`, `editorialDomains` derivation, `filteredEditorialDomains` derivation, six §H.2 demo arrays (`demoArticleTitles2`, `demoSlugs2`, `demoClusters2`, `demoCompetitorsAbsent`, `demoBrandMentioned`, `demoH2Rows`).
+- §H.1 (Competitor Analysis ranking, shipped in FB-040) and the SectionCard wrapper title/subtitle are byte-identical to BASE.
+- Zero new Peec or GA4 fetches.
+
+**Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`

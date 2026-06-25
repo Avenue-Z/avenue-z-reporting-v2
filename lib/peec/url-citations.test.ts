@@ -9,6 +9,7 @@ import {
   domainTagIds,
   domainTagNames,
   urlTagNames,
+  urlPromptIds,
   avgCitationsByDomain,
   type ApiUrlRow,
 } from './url-citations'
@@ -126,5 +127,20 @@ assert.deepEqual(urlTagNames(covPerUrl, keyA).sort(), ['Comparison', 'Discovery'
 assert.deepEqual(urlTagNames(covPerUrl, keyB), ['Discovery'])
 assert.deepEqual(urlTagNames(covPerUrl, keyC), []) // tg_x has no display name
 assert.deepEqual(urlTagNames(covPerUrl, 'no/such/key'), []) // unknown url → []
+
+// aggregateDomainCoverage: per-URL prompt ids (promptIdsByUrlKey) + urlPromptIds helper.
+const covPromptPerUrl = aggregateDomainCoverage(
+  [
+    row('https://www.forbes.com/a', { prompt: { id: 'pr_1' } }),
+    row('https://www.forbes.com/a', { prompt: { id: 'pr_2' } }), // same URL, two prompts
+    row('https://forbes.com/b',     { prompt: { id: 'pr_1' } }),
+  ],
+  [],
+)
+const pKeyA = urlJoinKey('https://www.forbes.com/a')!
+const pKeyB = urlJoinKey('https://forbes.com/b')!
+assert.deepEqual(urlPromptIds(covPromptPerUrl, pKeyA).sort(), ['pr_1', 'pr_2'])
+assert.deepEqual(urlPromptIds(covPromptPerUrl, pKeyB), ['pr_1'])
+assert.deepEqual(urlPromptIds(covPromptPerUrl, 'no/such/key'), [])
 
 console.log('url-citations.test.ts: all assertions passed')
