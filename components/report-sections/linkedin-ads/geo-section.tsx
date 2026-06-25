@@ -24,7 +24,7 @@ export function LinkedInGeoSection({ rows }: { rows: LinkedInGeoRow[] }) {
           Top Regions by Spend
         </p>
         {top10.length > 0 ? (
-          <BarChart data={chartData} xKey="region" yKeys={yKeys} height={320} valueFormatter={usd} />
+          <BarChart data={chartData} xKey="region" yKeys={yKeys} height={320} valueFormat="currency" />
         ) : (
           <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-center text-sm text-text-muted">
             No geo data available for this period.

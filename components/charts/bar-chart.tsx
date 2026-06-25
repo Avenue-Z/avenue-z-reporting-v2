@@ -10,16 +10,19 @@ import {
   Tooltip,
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
+import { usd } from '@/lib/supermetrics/format'
 
 interface BarChartProps {
   data: Record<string, string | number>[]
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
   height?: number
-  valueFormatter?: (n: number) => string
+  // String descriptor (not a function) so this works when rendered from a Server Component.
+  valueFormat?: 'currency'
 }
 
-export function BarChart({ data, xKey, yKeys, height = 300, valueFormatter }: BarChartProps) {
+export function BarChart({ data, xKey, yKeys, height = 300, valueFormat }: BarChartProps) {
+  const fmt = valueFormat === 'currency' ? (n: number) => usd(n) : undefined
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>
@@ -35,10 +38,10 @@ export function BarChart({ data, xKey, yKeys, height = 300, valueFormatter }: Ba
             tick={{ fill: '#8A8A8A', fontSize: 12 }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={valueFormatter ? (v) => valueFormatter(Number(v)) : undefined}
+            tickFormatter={fmt ? (v) => fmt(Number(v)) : undefined}
           />
           <Tooltip
-            formatter={valueFormatter ? (v) => valueFormatter(Number(v)) : undefined}
+            formatter={fmt ? (v) => fmt(Number(v)) : undefined}
             contentStyle={{
               background: '#272727',
               border: '1px solid rgba(255,255,255,0.08)',
