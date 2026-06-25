@@ -1,6 +1,6 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, blockToManualDraft, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
 
 // leafToBinding: supermetrics + triplewhale
@@ -163,6 +163,145 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
     right: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } } })
   assert.equal(cfg.binding.source, 'aggregate')
   if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.left.source, 'calculated')
+}
+
+// barToBlockConfig: produces leaf binding with dimensions: [dim] and kind: 'bar'.
+{
+  const cfg = buildBlockConfig({
+    kind: 'bar', name: 'Spend by Channel', format: 'currency',
+    bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Network' },
+  })
+  assert.equal(cfg.kind, 'bar')
+  assert.equal(cfg.binding.source, 'supermetrics')
+  if (cfg.binding.source === 'supermetrics') assert.deepEqual(cfg.binding.dimensions, ['Network'])
+}
+
+// barToBlockConfig (TW leaf): dimension carried into TW binding.
+{
+  const cfg = buildBlockConfig({
+    kind: 'bar', name: 'Revenue by Country', format: 'currency',
+    bar: { source: 'bar', leaf: { source: 'triplewhale', metric: 'revenue' }, dimension: 'country' },
+  })
+  assert.equal(cfg.binding.source, 'triplewhale')
+  if (cfg.binding.source === 'triplewhale') assert.deepEqual(cfg.binding.dimensions, ['country'])
+}
+
+// lineToBlockConfig: produces leaf binding with granularity and kind: 'line'.
+{
+  const cfg = buildBlockConfig({
+    kind: 'line', name: 'Spend over time', format: 'currency',
+    line: { source: 'line', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, granularity: 'week' },
+  })
+  assert.equal(cfg.kind, 'line')
+  if (cfg.binding.source === 'supermetrics') assert.equal(cfg.binding.granularity, 'week')
+}
+
+// isDraftComplete: bar without dimension → false.
+assert.equal(isDraftComplete({
+  kind: 'bar', name: 'X', format: 'number',
+  bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' },
+}), false)
+
+// isDraftComplete: bar with complete leaf + dimension → true.
+assert.equal(isDraftComplete({
+  kind: 'bar', name: 'X', format: 'number',
+  bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' },
+}), true)
+
+// isDraftComplete: bar with incomplete leaf → false.
+assert.equal(isDraftComplete({
+  kind: 'bar', name: 'X', format: 'number',
+  bar: { source: 'bar', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' }, dimension: 'Channel' },
+}), false)
+
+// isDraftComplete: line without granularity → false (TS-wise impossible, but defensive).
+assert.equal(isDraftComplete({
+  kind: 'line', name: 'X', format: 'number',
+  line: { source: 'line', leaf: { source: 'triplewhale', metric: 'revenue' }, granularity: '' as unknown as 'day' },
+}), false)
+
+// isDraftComplete: line with complete leaf + valid granularity → true.
+assert.equal(isDraftComplete({
+  kind: 'line', name: 'X', format: 'number',
+  line: { source: 'line', leaf: { source: 'triplewhale', metric: 'revenue' }, granularity: 'day' },
+}), true)
+
+// header draft → header config (no binding semantics — synthesize a no-op leaf)
+{
+  const cfg = buildBlockConfig({ kind: 'header', name: 'Q3', format: 'number',
+    header: { source: 'header', level: 1 } })
+  assert.equal(cfg.kind, 'header')
+  assert.equal(cfg.headerLevel, 1)
+}
+
+// narrative draft → narrative config
+{
+  const cfg = buildBlockConfig({ kind: 'narrative', name: 'Notes', format: 'number',
+    narrative: { source: 'narrative', body: '## Hi' } })
+  assert.equal(cfg.kind, 'narrative')
+  assert.equal(cfg.narrativeBody, '## Hi')
+}
+
+// pills draft → pills config (kind='pills', leaf binding)
+{
+  const cfg = buildBlockConfig({ kind: 'pills', name: 'Sessions', format: 'count',
+    pills: { source: 'pills', leaf: { source: 'supermetrics', dsId: 'GAWA', metricField: 'sessions', account: '1' } } })
+  assert.equal(cfg.kind, 'pills')
+  assert.equal(cfg.binding.source, 'supermetrics')
+}
+
+// table draft → table config (kind='table', leaf binding with single dim)
+{
+  const cfg = buildBlockConfig({ kind: 'table', name: 'By channel', format: 'currency',
+    table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } })
+  assert.equal(cfg.kind, 'table')
+  if (cfg.binding.source === 'supermetrics') {
+    assert.deepEqual(cfg.binding.dimensions, ['Channel'])
+  } else {
+    throw new Error('expected supermetrics binding')
+  }
+}
+
+// isDraftComplete: empty narrative body still completes (name required, body optional in v1)
+assert.equal(isDraftComplete({ kind: 'narrative', name: 'X', format: 'number', narrative: { source: 'narrative', body: '' } }), true)
+// isDraftComplete: header always completes once name set
+assert.equal(isDraftComplete({ kind: 'header', name: 'X', format: 'number', header: { source: 'header', level: 2 } }), true)
+// isDraftComplete: pills requires a complete leaf
+assert.equal(isDraftComplete({ kind: 'pills', name: 'X', format: 'count', pills: { source: 'pills', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } } }), false)
+// isDraftComplete: table requires complete leaf + dimension
+assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' } }), false)
+assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } }), true)
+
+// blockToManualDraft: header round-trips through buildBlockConfig (name, kind, level)
+{
+  const headerBlock = { id: 'h', name: 'Section A', format: 'number' as const, range: null,
+    kind: 'header' as const, headerLevel: 1 as const,
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
+  const draft = blockToManualDraft(headerBlock)
+  assert.equal(draft.kind, 'header')
+  const cfg = buildBlockConfig(draft)
+  assert.equal(cfg.kind, 'header')
+  assert.equal(cfg.name, 'Section A')
+  assert.equal(cfg.headerLevel, 1)
+}
+// blockToManualDraft: narrative round-trips (name, kind, body)
+{
+  const narrativeBlock = { id: 'n', name: 'Notes', format: 'number' as const, range: null,
+    kind: 'narrative' as const, narrativeBody: '## Hi\n- a',
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
+  const draft = blockToManualDraft(narrativeBlock)
+  assert.equal(draft.kind, 'narrative')
+  const cfg = buildBlockConfig(draft)
+  assert.equal(cfg.kind, 'narrative')
+  assert.equal(cfg.name, 'Notes')
+  assert.equal(cfg.narrativeBody, '## Hi\n- a')
+}
+// blockToManualDraft: missing headerLevel defaults to 2
+{
+  const headerBlock = { id: 'h', name: 'X', format: 'number' as const, range: null, kind: 'header' as const,
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
+  const draft = blockToManualDraft(headerBlock)
+  if (draft.kind === 'header') assert.equal(draft.header.level, 2)
 }
 
 // leafToBinding: shopify carries the ShopifyQL query through

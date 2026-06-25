@@ -1,68 +1,98 @@
 'use client'
 
-import { useState, useTransition, type ReactNode } from 'react'
-import {
-  DndContext,
-  PointerSensor,
-  KeyboardSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react'
+import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout'
+import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
-import { reorderBlocks } from './config-mutations'
-import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+import { BlockSkeleton } from './blocks/block-skeleton'
+import { applyLayoutChange } from './config-mutations'
+import { DEFAULT_LAYOUT, GRID_COLS_LG } from './block-grid-defaults'
+import type { BlockKind, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+
+const ResponsiveGrid = WidthProvider(Responsive)
+
+const BREAKPOINTS = { lg: 1200, md: 768, sm: 0 }
+const COLS = { lg: GRID_COLS_LG, md: 8, sm: 4 }
+const ROW_HEIGHT = 60
+const SAVE_DEBOUNCE_MS = 300
 
 export interface BlockGridProps {
   blocks: PersistedBlock[]
   canEdit: boolean
   slug: string
   config: DashboardConfig
-  /** Rendered child per block (the <MetricBlockShell>). */
+  /** Rendered child per block (the <MetricBlockShell>, kind-dispatched at the page route). */
   renderBlock: (block: PersistedBlock) => ReactNode
+}
+
+/** Build the RGL Layout array for the lg breakpoint, auto-packing unplaced
+ *  blocks (no `layout`) at their per-kind default size, left-to-right then
+ *  top-to-bottom. Placed blocks keep their persisted `{x, y, w, h}`. */
+function buildLgLayout(blocks: PersistedBlock[]): Layout[] {
+  let cursorX = 0
+  let cursorY = 0
+  return blocks.map((b) => {
+    const kind: BlockKind = b.kind ?? 'kpi'
+    const def = DEFAULT_LAYOUT[kind]
+    if (b.layout) {
+      return { i: b.id, x: b.layout.x, y: b.layout.y, w: b.layout.w, h: b.layout.h, minW: def.minW, minH: def.minH }
+    }
+    if (cursorX + def.w > GRID_COLS_LG) { cursorX = 0; cursorY += def.h }
+    const item: Layout = { i: b.id, x: cursorX, y: cursorY, w: def.w, h: def.h, minW: def.minW, minH: def.minH }
+    cursorX += def.w
+    return item
+  })
 }
 
 export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockGridProps) {
   const [pending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasPersistedOnMount = useRef(false)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+  const lgLayout = useMemo(() => buildLgLayout(blocks), [blocks])
+  const layouts: Layouts = useMemo(() => ({ lg: lgLayout }), [lgLayout])
 
-  const ids = blocks.map((b) => b.id)
-
-  const handleDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    const from = ids.indexOf(String(active.id))
-    const to = ids.indexOf(String(over.id))
-    if (from < 0 || to < 0) return
-    const next = reorderBlocks(config, from, to)
-    startTransition(async () => {
-      const res = await saveDashboardConfig(slug, next)
-      if (!res.ok) setErrorMsg(res.error)
-    })
+  /** Debounced save: RGL fires onLayoutChange on every step of a drag/resize;
+   *  coalesce into a single saveDashboardConfig call. */
+  const scheduleSave = (nextLg: Layout[]) => {
+    if (!canEdit) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      // Scope the layout save to the currently-rendered (optimistic) block set, not
+      // the server `config` prop — otherwise a layout change triggered by an
+      // optimistic add/delete would re-persist the stale full block list and undo
+      // the mutation (e.g. resurrect a just-deleted block).
+      const next = applyLayoutChange({ ...config, blocks }, nextLg.map((l) => ({ i: l.i, x: l.x, y: l.y, w: l.w, h: l.h })))
+      startTransition(async () => {
+        const res = await saveDashboardConfig(slug, next)
+        if (!res.ok) setErrorMsg(res.error)
+      })
+    }, SAVE_DEBOUNCE_MS)
   }
 
-  // Non-editors: skip dnd entirely, plain grid.
-  if (!canEdit) {
-    return (
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-        {blocks.map((b) => (
-          <div key={b.id}>{renderBlock(b)}</div>
-        ))}
-      </div>
-    )
+  /** On mount, if there are any unplaced blocks (no persisted layout), the
+   *  packed layout we just computed is divergent from what's stored — write it
+   *  back exactly once so subsequent loads are stable. Editors only. */
+  useEffect(() => {
+    if (!canEdit || hasPersistedOnMount.current) return
+    const hasUnplaced = blocks.some((b) => !b.layout)
+    if (!hasUnplaced) return
+    hasPersistedOnMount.current = true
+    scheduleSave(lgLayout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [])
+
+  const handleLayoutChange = (_current: Layout[], all: Layouts) => {
+    if (!all.lg) return
+    scheduleSave(all.lg)
   }
 
   return (
@@ -72,31 +102,26 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
           Save failed: {errorMsg}
         </p>
       )}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={ids} strategy={rectSortingStrategy}>
-          <div className={`grid grid-cols-2 gap-5 lg:grid-cols-4 ${pending ? 'opacity-70' : ''}`}>
-            {blocks.map((b) => (
-              <SortableBlock key={b.id} id={b.id}>
-                {renderBlock(b)}
-              </SortableBlock>
-            ))}
+      <ResponsiveGrid
+        className={pending ? 'opacity-90' : undefined}
+        layouts={layouts}
+        breakpoints={BREAKPOINTS}
+        cols={COLS}
+        rowHeight={ROW_HEIGHT}
+        margin={[20, 20]}
+        isDraggable={canEdit}
+        isResizable={canEdit}
+        onLayoutChange={handleLayoutChange}
+        compactType="vertical"
+        preventCollision={false}
+        draggableHandle=".block-drag-handle"
+      >
+        {blocks.map((b) => (
+          <div key={b.id}>
+            <div className="h-full">{renderBlock(b) ?? <BlockSkeleton />}</div>
           </div>
-        </SortableContext>
-      </DndContext>
+        ))}
+      </ResponsiveGrid>
     </>
-  )
-}
-
-function SortableBlock({ id, children }: { id: string; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-  }
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="cursor-grab">
-      {children}
-    </div>
   )
 }

@@ -13,6 +13,8 @@ interface KpiCardProps {
   deltaLabel?: string
   /** Secondary line shown below the delta, e.g. "2,483 in 2025". */
   subValue?: string
+  /** Optional className applied to the main value text (e.g. for target/ceiling color). */
+  valueClassName?: string
 }
 
 export function KpiCard({
@@ -25,6 +27,7 @@ export function KpiCard({
   tooltip,
   deltaLabel = 'vs prior period',
   subValue,
+  valueClassName,
 }: KpiCardProps) {
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5">
@@ -46,7 +49,7 @@ export function KpiCard({
         )}
       </div>
 
-      <p className="mt-2 text-3xl font-extrabold text-white">
+      <p className={cn('mt-2 text-3xl font-extrabold text-white', valueClassName)}>
         {prefix}
         {typeof value === 'number' ? value.toLocaleString() : value}
         {suffix}

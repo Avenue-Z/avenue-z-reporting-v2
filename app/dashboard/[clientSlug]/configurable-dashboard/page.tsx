@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientBySlug, getDashboardConfig } from '@/lib/db/queries'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { resolveBlock } from '@/lib/dashboard/resolve'
+import { resolveBlock, resolveGroupedBlock, resolveSeriesBlock } from '@/lib/dashboard/resolve'
 import { resolveCompareIso } from '@/lib/paid-search/base'
 import { Header } from '@/components/layout/header'
 import { DashboardShell } from '@/components/dashboard/dashboard-shell'
@@ -12,7 +12,14 @@ import { MetricBlockShell } from '@/components/dashboard/metric-block'
 import { BlockValue } from '@/components/dashboard/block-value'
 import { BlockDelta } from '@/components/dashboard/block-delta'
 import { ValueSkeleton, DeltaSkeleton, EmptyDashboardState } from '@/components/dashboard/metric-block-states'
-import type { DashboardConfig } from '@/lib/dashboard/types'
+import { UnsupportedBlockState } from '@/components/dashboard/blocks/unsupported-block'
+import { BarBlock } from '@/components/dashboard/blocks/bar-block'
+import { LineBlock } from '@/components/dashboard/blocks/line-block'
+import { HeaderBlock } from '@/components/dashboard/blocks/header-block'
+import { NarrativeBlock } from '@/components/dashboard/blocks/narrative-block'
+import { PillsBlock } from '@/components/dashboard/blocks/pills-block'
+import { TableBlock } from '@/components/dashboard/blocks/table-block'
+import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 export default async function ConfigurableDashboardPage({
   params,
@@ -63,36 +70,7 @@ export default async function ConfigurableDashboardPage({
 
   const blockNodes: Record<string, ReactNode> = {}
   for (const block of config.blocks) {
-    const eff = block.range ?? activeDefault // effective range (per-block override or global)
-    const ctx = { slug: clientSlug }
-    // resolveBlock prefers config.range over the passed global, so null the clone's
-    // range and pass the effective range as global. compareRange:null ⇒ value only.
-    const blockNoRange = { ...block, range: null }
-    const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx)
-    const compareIso = resolveCompareIso(eff.dateRange, eff.compareRange)
-    const prevPromise = compareIso
-      ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx)
-      : null
-
-    blockNodes[block.id] = (
-      <MetricBlockShell
-        block={block}
-        canEdit={canEdit}
-        slug={clientSlug}
-        config={config}
-        activeDefault={activeDefault}
-        value={
-          <Suspense fallback={<ValueSkeleton />}>
-            <BlockValue valuePromise={valuePromise} slug={clientSlug} />
-          </Suspense>
-        }
-        delta={
-          <Suspense fallback={<DeltaSkeleton />}>
-            <BlockDelta valuePromise={valuePromise} prevPromise={prevPromise} compareRange={eff.compareRange} />
-          </Suspense>
-        }
-      />
-    )
+    blockNodes[block.id] = renderBlockNode(block, activeDefault, clientSlug, canEdit, config)
   }
 
   return (
@@ -110,3 +88,137 @@ export default async function ConfigurableDashboardPage({
   )
 }
 
+/** Per-block kind dispatcher. 'kpi' → progressive-streaming KPI tile via
+ *  MetricBlockShell + BlockValue + BlockDelta. 'bar'/'line' → BarBlock/LineBlock,
+ *  fed by resolveGroupedBlock/resolveSeriesBlock from sub-project #2. */
+function renderBlockNode(
+  block: PersistedBlock,
+  activeDefault: { dateRange: string; compareRange: string | null },
+  clientSlug: string,
+  canEdit: boolean,
+  config: DashboardConfig,
+): ReactNode {
+  const kind = block.kind ?? 'kpi'
+  switch (kind) {
+    case 'kpi': {
+      const eff = block.range ?? activeDefault
+      const ctx = { slug: clientSlug }
+      const blockNoRange = { ...block, range: null }
+      const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx)
+      const compareIso = resolveCompareIso(eff.dateRange, eff.compareRange)
+      const prevPromise = compareIso
+        ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx)
+        : null
+
+      return (
+        <MetricBlockShell
+          block={block}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+          value={
+            <Suspense fallback={<ValueSkeleton />}>
+              <BlockValue valuePromise={valuePromise} slug={clientSlug} target={block.target} ceiling={block.ceiling} />
+            </Suspense>
+          }
+          delta={
+            <Suspense fallback={<DeltaSkeleton />}>
+              <BlockDelta valuePromise={valuePromise} prevPromise={prevPromise} compareRange={eff.compareRange} />
+            </Suspense>
+          }
+          sub={block.subLabel}
+        />
+      )
+    }
+    case 'bar': {
+      const eff = block.range ?? activeDefault
+      const groupedPromise = resolveGroupedBlock(
+        block,
+        { dateRange: eff.dateRange, compareRange: eff.compareRange },
+        { slug: clientSlug },
+      )
+      return (
+        <BarBlock
+          block={block}
+          groupedPromise={groupedPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'line': {
+      const eff = block.range ?? activeDefault
+      const seriesPromise = resolveSeriesBlock(
+        block,
+        { dateRange: eff.dateRange, compareRange: eff.compareRange },
+        { slug: clientSlug },
+      )
+      return (
+        <LineBlock
+          block={block}
+          seriesPromise={seriesPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'pills': {
+      return (
+        <PillsBlock
+          block={block}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'table': {
+      const eff = block.range ?? activeDefault
+      const groupedPromise = resolveGroupedBlock(
+        block,
+        { dateRange: eff.dateRange, compareRange: eff.compareRange },
+        { slug: clientSlug },
+      )
+      return (
+        <TableBlock
+          block={block}
+          groupedPromise={groupedPromise}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'header': {
+      return (
+        <HeaderBlock
+          block={block}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    case 'narrative': {
+      return (
+        <NarrativeBlock
+          block={block}
+          canEdit={canEdit}
+          slug={clientSlug}
+          config={config}
+          activeDefault={activeDefault}
+        />
+      )
+    }
+    default:
+      return <UnsupportedBlockState kind={kind} name={block.name} />
+  }
+}

@@ -8,6 +8,8 @@ import {
   setBlockRange,
   resetBlockRange,
   addBlock,
+  applyLayoutChange,
+  updateBlock,
 } from './config-mutations'
 
 const block = (id: string, range: PersistedBlock['range'] = null): PersistedBlock => ({
@@ -75,6 +77,58 @@ const base: DashboardConfig = {
   assert.equal(next.blocks[0].id, 'n1')
   assert.notEqual(next.blocks, base.blocks, 'new array')
   assert.equal(base.blocks.length, 0, 'input unchanged')
+}
+
+// applyLayoutChange: writes {x,y,w,h} to matching blocks; unmatched blocks untouched.
+{
+  const next = applyLayoutChange(base, [
+    { i: 'a', x: 0, y: 0, w: 3, h: 2 },
+    { i: 'c', x: 6, y: 0, w: 6, h: 4 },
+  ])
+  assert.deepEqual(next.blocks[0].layout, { x: 0, y: 0, w: 3, h: 2 })
+  assert.equal(next.blocks[1].layout, undefined, "block 'b' had no layout entry — untouched")
+  assert.deepEqual(next.blocks[2].layout, { x: 6, y: 0, w: 6, h: 4 })
+}
+// applyLayoutChange: ignores layout entries with no matching block id.
+{
+  const next = applyLayoutChange(base, [
+    { i: 'a', x: 0, y: 0, w: 3, h: 2 },
+    { i: 'ghost', x: 0, y: 0, w: 3, h: 2 },
+  ])
+  assert.equal(next.blocks.length, 3)
+  assert.deepEqual(next.blocks[0].layout, { x: 0, y: 0, w: 3, h: 2 })
+}
+// applyLayoutChange: immutable — input config not mutated.
+{
+  const before = JSON.stringify(base)
+  applyLayoutChange(base, [{ i: 'a', x: 0, y: 0, w: 3, h: 2 }])
+  assert.equal(JSON.stringify(base), before, 'input must be unchanged')
+}
+
+// updateBlock: replaces editable fields; preserves id, range, layout; leaves others intact
+{
+  const cfg: DashboardConfig = {
+    defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
+    blocks: [
+      { id: 'h1', name: 'Old Title', format: 'number', range: { dateRange: 'last_7_days', compareRange: null },
+        layout: { x: 0, y: 0, w: 12, h: 1 }, kind: 'header', headerLevel: 2,
+        binding: { source: 'supermetrics', dsId: '__static__', metricField: '__static__', account: '__static__' } },
+      { id: 'k1', name: 'KPI', format: 'currency', range: null,
+        binding: { source: 'triplewhale', metric: 'revenue' } },
+    ],
+  }
+  const patch = {
+    name: 'New Title', format: 'number' as const, range: null, kind: 'header' as const, headerLevel: 1 as const,
+    binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' },
+  }
+  const next = updateBlock(cfg, 'h1', patch)
+  const h = next.blocks.find((b) => b.id === 'h1')!
+  assert.equal(h.name, 'New Title')
+  assert.equal(h.headerLevel, 1)
+  assert.equal(h.id, 'h1')
+  assert.deepEqual(h.range, { dateRange: 'last_7_days', compareRange: null })
+  assert.deepEqual(h.layout, { x: 0, y: 0, w: 12, h: 1 })
+  assert.equal(next.blocks.find((b) => b.id === 'k1')!.name, 'KPI')
 }
 
 console.log('ok')

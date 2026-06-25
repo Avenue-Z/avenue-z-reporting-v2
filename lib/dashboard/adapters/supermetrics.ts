@@ -2,8 +2,11 @@
 import { unstable_cache } from 'next/cache'
 import { createHash } from 'node:crypto'
 import { smQuery, parseSmRows } from '@/lib/supermetrics/client'
-import type { LeafValue, SupermetricsBinding } from '../types'
-import { DisconnectedError, NoDataError } from '../errors'
+import { SM_TIME_DIMENSION } from '@/lib/supermetrics/constants'
+import { normalizeSmBucket } from '@/lib/supermetrics/buckets'
+import type { Granularity, GroupedRow, LeafValue, SeriesPoint, SupermetricsBinding } from '../types'
+import { DisconnectedError, InvalidMetricError, NoDataError } from '../errors'
+import { joinGrouped, alignSeries } from '../group-join'
 
 // Key part derived from the API key — never put the raw key in a cache key.
 const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16)
@@ -109,4 +112,158 @@ export async function resolveSupermetricsLeaf(
   ])
 
   return { value, prevValue }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Grouped + series adapters
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Flatten SM rows into { dim, value } shape. Numeric coercion: blank → 0. */
+export function groupRowsFromSm(
+  rows: Record<string, string>[],
+  dim: string,
+  metricField: string,
+): { dim: string; value: number }[] {
+  return rows.map((r) => ({ dim: r[dim], value: Number(r[metricField] || 0) }))
+}
+
+/** Flatten SM rows into { bucket, value } shape; bucket normalized via normalizeSmBucket;
+ *  rows sorted ascending. */
+export function seriesPointsFromSm(
+  rows: Record<string, string>[],
+  timeDim: string,
+  metricField: string,
+  granularity: Granularity,
+): { bucket: string; value: number }[] {
+  return rows
+    .map((r) => ({ bucket: normalizeSmBucket(r[timeDim], granularity), value: Number(r[metricField] || 0) }))
+    .sort((a, b) => a.bucket.localeCompare(b.bucket))
+}
+
+/** Cache key for sm-grouped. Components match design §9. */
+export function buildSmGroupedKey(
+  b: SupermetricsBinding,
+  dim: string,
+  isoRange: string,
+  apiKey: string,
+): string[] {
+  return ['sm-grouped', b.dsId, b.account, b.metricField, dim, isoRange, buildSmFilter(b.filters) ?? '', keyHash(apiKey)]
+}
+
+/** Cache key for sm-series. Components match design §9. */
+export function buildSmSeriesKey(
+  b: SupermetricsBinding,
+  granularity: Granularity,
+  isoRange: string,
+  apiKey: string,
+): string[] {
+  return ['sm-series', b.dsId, b.account, b.metricField, granularity, isoRange, buildSmFilter(b.filters) ?? '', keyHash(apiKey)]
+}
+
+async function fetchGroupedForRange(
+  apiKey: string,
+  b: SupermetricsBinding,
+  dim: string,
+  isoRange: string,
+): Promise<{ dim: string; value: number }[]> {
+  return unstable_cache(
+    async () => {
+      const result = await smQuery({
+        apiKey, dsId: b.dsId, dsAccounts: b.account,
+        fields: [dim, b.metricField],
+        dateRange: isoRange,
+        filters: buildSmFilter(b.filters),
+      })
+      const rows = parseSmRows(result, [dim, b.metricField])
+      if (rows.length === 0) throw new NoDataError(`no rows for ${b.metricField} grouped by ${dim} in ${isoRange}`)
+      return groupRowsFromSm(rows, dim, b.metricField)
+    },
+    buildSmGroupedKey(b, dim, isoRange, apiKey),
+    { revalidate: 3600 },
+  )()
+}
+
+export async function resolveSupermetricsGrouped(
+  b: SupermetricsBinding,
+  ctx: { slug: string },
+  dateRange: string,
+  compareRange: string | null,
+): Promise<GroupedRow[]> {
+  if (!b.dimensions || b.dimensions.length !== 1) {
+    throw new InvalidMetricError('resolveSupermetricsGrouped requires a single dimension')
+  }
+  const dim = b.dimensions[0]
+  if (!SM_COLUMN_RE.test(dim)) throw new InvalidMetricError(`unsafe SM dimension: ${dim}`)
+
+  const { getClientBySlug } = await import('@/lib/db/queries')
+  const { parseDateRange } = await import('@/lib/ga4/client')
+  const { resolveCompareIso } = await import('@/lib/paid-search/base')
+
+  const client = await getClientBySlug(ctx.slug)
+  const apiKey = resolveSmApiKey(client?.smApiKeyEnvVar, process.env)
+  if (!apiKey) throw new DisconnectedError(`Supermetrics not connected for ${ctx.slug}`)
+
+  const { startDate, endDate } = parseDateRange(dateRange)
+  const compareIso = resolveCompareIso(dateRange, compareRange)
+
+  const [current, prior] = await Promise.all([
+    fetchGroupedForRange(apiKey, b, dim, `${startDate},${endDate}`),
+    compareIso ? fetchGroupedForRange(apiKey, b, dim, compareIso) : Promise.resolve(null),
+  ])
+
+  return joinGrouped(current, prior, dim)
+}
+
+async function fetchSeriesForRange(
+  apiKey: string,
+  b: SupermetricsBinding,
+  timeDim: string,
+  granularity: Granularity,
+  isoRange: string,
+): Promise<{ bucket: string; value: number }[]> {
+  return unstable_cache(
+    async () => {
+      const result = await smQuery({
+        apiKey, dsId: b.dsId, dsAccounts: b.account,
+        fields: [timeDim, b.metricField],
+        dateRange: isoRange,
+        filters: buildSmFilter(b.filters),
+      })
+      const rows = parseSmRows(result, [timeDim, b.metricField])
+      if (rows.length === 0) throw new NoDataError(`no series rows for ${b.metricField} in ${isoRange}`)
+      return seriesPointsFromSm(rows, timeDim, b.metricField, granularity)
+    },
+    buildSmSeriesKey(b, granularity, isoRange, apiKey),
+    { revalidate: 3600 },
+  )()
+}
+
+export async function resolveSupermetricsSeries(
+  b: SupermetricsBinding,
+  granularity: Granularity,
+  ctx: { slug: string },
+  dateRange: string,
+  compareRange: string | null,
+): Promise<SeriesPoint[]> {
+  const dimMap = SM_TIME_DIMENSION[b.dsId as keyof typeof SM_TIME_DIMENSION]
+  if (!dimMap) throw new InvalidMetricError(`no time dimension map for SM ds ${b.dsId}`)
+  const timeDim = dimMap[granularity]
+
+  const { getClientBySlug } = await import('@/lib/db/queries')
+  const { parseDateRange } = await import('@/lib/ga4/client')
+  const { resolveCompareIso } = await import('@/lib/paid-search/base')
+
+  const client = await getClientBySlug(ctx.slug)
+  const apiKey = resolveSmApiKey(client?.smApiKeyEnvVar, process.env)
+  if (!apiKey) throw new DisconnectedError(`Supermetrics not connected for ${ctx.slug}`)
+
+  const { startDate, endDate } = parseDateRange(dateRange)
+  const compareIso = resolveCompareIso(dateRange, compareRange)
+
+  const [current, prior] = await Promise.all([
+    fetchSeriesForRange(apiKey, b, timeDim, granularity, `${startDate},${endDate}`),
+    compareIso ? fetchSeriesForRange(apiKey, b, timeDim, granularity, compareIso) : Promise.resolve(null),
+  ])
+
+  return alignSeries(current, prior)
 }
