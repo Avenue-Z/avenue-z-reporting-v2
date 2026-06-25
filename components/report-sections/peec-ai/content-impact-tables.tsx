@@ -512,7 +512,7 @@ export function CompetitorUrlsBrandAbsentTable({
     },
     {
       key: 'citationShare', label: 'Citation Share', align: 'right',
-      tooltip: TT.aiCitations,
+      tooltip: "This URL's share of total citations across all cited URLs in the period. (Avenue Z internal, derived from Peec citation_count.)",
       accessor: (r) => r.citationShare ?? -1,
       render: (r) => (
         <span className="tabular-nums text-white">
