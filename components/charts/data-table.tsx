@@ -6,7 +6,30 @@ interface Column {
   label: string
   align?: 'left' | 'right'
   sortable?: boolean
+  /** Declarative, RSC-serializable sort: row field to sort by (defaults to `key`)
+   *  + comparison type. Preferred for columns built in Server Components. */
+  sortKey?: string
+  sortType?: 'number' | 'string'
+  /** Sort accessor function — only usable from Client Components (functions can't
+   *  cross the RSC boundary). Server callers should use sortKey/sortType instead. */
   sortValue?: (row: Record<string, React.ReactNode>) => number | string
+}
+
+/** Resolve a column's sort accessor: an explicit function, else the declarative
+ *  sortKey/sortType, else none (column not sortable). */
+export function columnSortAccessor(
+  col: Column,
+): ((row: Record<string, React.ReactNode>) => number | string) | undefined {
+  if (col.sortValue) return col.sortValue
+  if (col.sortType === 'number') {
+    const field = col.sortKey ?? col.key
+    return (row) => { const n = row[field]; return typeof n === 'number' ? n : -Infinity }
+  }
+  if (col.sortType === 'string') {
+    const field = col.sortKey ?? col.key
+    return (row) => String(row[field] ?? '')
+  }
+  return undefined
 }
 
 interface DataTableProps {
@@ -34,8 +57,9 @@ export function sortRows(
 export function DataTable({ columns, rows, defaultSort, totalsRow }: DataTableProps) {
   const [sort, setSort] = useState(defaultSort ?? null)
   const col = sort ? columns.find((c) => c.key === sort.key) : undefined
-  const display = sort && col?.sortValue ? sortRows(rows, sort.key, sort.dir, col.sortValue) : rows
-  const canSort = (c: Column) => Boolean(c.sortable && c.sortValue)
+  const accessor = col ? columnSortAccessor(col) : undefined
+  const display = sort && accessor ? sortRows(rows, sort.key, sort.dir, accessor) : rows
+  const canSort = (c: Column) => Boolean(c.sortable && columnSortAccessor(c))
 
   return (
     <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface">
