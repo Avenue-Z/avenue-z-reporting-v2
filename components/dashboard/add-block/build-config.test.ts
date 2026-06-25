@@ -165,4 +165,22 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.left.source, 'calculated')
 }
 
+// leafToBinding: shopify carries the ShopifyQL query through
+{
+  const b = leafToBinding({ source: 'shopify', query: "FROM sales SHOW orders_first_time WHERE subscription_or_one_time = 'subscription'" })
+  assert.equal(b.source, 'shopify')
+  if (b.source === 'shopify') assert.equal(b.query, "FROM sales SHOW orders_first_time WHERE subscription_or_one_time = 'subscription'")
+}
+// isDraftComplete: shopify leaf complete iff query non-blank
+assert.equal(isDraftComplete({ kind: 'leaf', name: 'Subs', format: 'count', leaf: { source: 'shopify', query: 'FROM sales SHOW orders_first_time' } }), true)
+assert.equal(isDraftComplete({ kind: 'leaf', name: 'Subs', format: 'count', leaf: { source: 'shopify', query: '   ' } }), false)
+// shopify as an aggregate operand (Subscription CAC = TW spend ÷ shopify subs)
+{
+  const cfg = buildBlockConfig({ kind: 'aggregate', name: 'Sub CAC', format: 'currency', op: '/',
+    left: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } },
+    right: { kind: 'leaf', leaf: { source: 'shopify', query: 'FROM sales SHOW orders_first_time' } } })
+  assert.equal(cfg.binding.source, 'aggregate')
+  if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.right.source, 'shopify')
+}
+
 console.log('ok')

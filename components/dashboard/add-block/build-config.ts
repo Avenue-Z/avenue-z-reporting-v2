@@ -20,6 +20,7 @@ export const COMMON_TW_METRICS: { value: string; label: string }[] = [
 export type LeafDraft =
   | { source: 'supermetrics'; dsId: string; metricField: string; account: string; filters?: { column: string; values: string[] }[] }
   | { source: 'triplewhale'; metric: string; filters?: { column: string; values: string[] }[] }
+  | { source: 'shopify'; query: string }
 
 /** Manual weighted-sum draft. `coefficient` is the raw input (parsed at build; blank → 1). */
 export type CalculatedDraft = {
@@ -39,6 +40,9 @@ export type ManualDraft =
   | { kind: 'aggregate'; name: string; format: MetricFormat; op: AggregateBinding['op']; left: OperandDraft; right: OperandDraft }
 
 export function leafToBinding(d: LeafDraft): LeafBinding {
+  if (d.source === 'shopify') {
+    return { source: 'shopify', query: d.query }
+  }
   if (d.source === 'supermetrics') {
     const filters = (d.filters ?? [])
       .map((f) => ({ column: f.column, values: f.values.filter((v) => v !== '') }))
@@ -90,6 +94,7 @@ export function formatFromDataType(dataType?: string): MetricFormat {
 }
 
 export function isLeafComplete(d: LeafDraft): boolean {
+  if (d.source === 'shopify') return d.query.trim() !== ''
   return d.source === 'supermetrics'
     ? d.dsId !== '' && d.metricField !== '' && d.account !== ''
     : d.metric !== ''
