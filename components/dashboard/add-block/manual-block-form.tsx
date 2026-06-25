@@ -6,7 +6,7 @@ import { FormulaBuilder } from './formula-builder'
 import { buildBlockConfig, isDraftComplete, type LeafDraft, type ManualDraft, type FormulaDraft } from './build-config'
 import type { BlockConfig, MetricFormat } from '@/lib/dashboard/types'
 
-const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
+const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number', 'multiple']
 const emptyLeaf = (source: 'supermetrics' | 'triplewhale'): LeafDraft =>
   source === 'supermetrics' ? { source, dsId: '', metricField: '', account: '' } : { source, metric: '' }
 

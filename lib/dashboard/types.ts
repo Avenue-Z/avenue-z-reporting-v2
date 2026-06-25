@@ -1,4 +1,4 @@
-export type MetricFormat = 'currency' | 'percent' | 'count' | 'number'
+export type MetricFormat = 'currency' | 'percent' | 'count' | 'number' | 'multiple'
 
 export interface SupermetricsBinding {
   source: 'supermetrics'

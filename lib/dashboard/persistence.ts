@@ -6,7 +6,7 @@ import { parse, operandKeys } from './formula/parse'
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
-const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
+const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number', 'multiple']
 const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
 
 function isObj(v: unknown): v is Record<string, unknown> {
