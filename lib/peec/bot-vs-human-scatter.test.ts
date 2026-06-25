@@ -1,7 +1,7 @@
 // lib/peec/bot-vs-human-scatter.test.ts
 // Run: npx tsx lib/peec/bot-vs-human-scatter.test.ts
 import { strict as assert } from 'node:assert'
-import { computeBotVsHumanScatter } from './bot-vs-human-scatter'
+import { computeBotVsHumanScatter, botVsHumanState } from './bot-vs-human-scatter'
 
 // ── Empty input ──
 {
@@ -101,6 +101,36 @@ import { computeBotVsHumanScatter } from './bot-vs-human-scatter'
   assert.equal(byPath['/hl'], 'high-bot-low-human')
   assert.equal(byPath['/lh'], 'low-bot-high-human')
   assert.equal(byPath['/hh'], 'high-bot-high-human')
+}
+
+// ── botVsHumanState: classify renderability so the chart can show an honest
+//    empty state instead of a degenerate strip when one axis has no data ──
+{
+  // No points at all → 'empty'.
+  assert.equal(botVsHumanState(computeBotVsHumanScatter({ pathBots: new Map(), pathHumans: new Map() })), 'empty')
+
+  // Humans only (the Renaissance case: GA4 pages exist, Peec bot data is 0) →
+  // 'no-bots'. Without this the chart plotted every point at x=0.
+  const humansOnly = computeBotVsHumanScatter({
+    pathBots: new Map(),
+    pathHumans: new Map([['/a', 10], ['/b', 20], ['/c', 30]]),
+  })
+  assert.equal(humansOnly.points.length, 3, 'points exist (so length-0 guard would miss it)')
+  assert.equal(botVsHumanState(humansOnly), 'no-bots')
+
+  // Bots only (no GA4 human sessions) → 'no-humans'.
+  const botsOnly = computeBotVsHumanScatter({
+    pathBots: new Map([['/a', 4], ['/b', 7]]),
+    pathHumans: new Map(),
+  })
+  assert.equal(botVsHumanState(botsOnly), 'no-humans')
+
+  // Both axes have data → 'ok'.
+  const both = computeBotVsHumanScatter({
+    pathBots: new Map([['/a', 1], ['/b', 5]]),
+    pathHumans: new Map([['/a', 10], ['/b', 50]]),
+  })
+  assert.equal(botVsHumanState(both), 'ok')
 }
 
 console.log('bot-vs-human-scatter.test.ts: all assertions passed')

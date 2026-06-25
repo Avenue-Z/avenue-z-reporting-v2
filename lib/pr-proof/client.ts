@@ -64,20 +64,50 @@ function getAuth(): GoogleAuth {
 // ── Sheets fetch ──────────────────────────────────────────────────────────────
 
 const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
+const DEFAULT_TAB = 'Master Library'
 
-async function fetchSheetValues(sheetId: string): Promise<string[][]> {
+/**
+ * Choose which worksheet tab to read by NAME, not position, so a tab inserted
+ * before the data tab can't hide it (the bug that hit the content calendar).
+ * Precedence: explicit per-client `override` → the default "Master Library" →
+ * the first tab (preserves legacy behavior for sheets that have neither).
+ */
+export function resolveTabName(titles: string[], override?: string): string {
+  for (const candidate of [override, DEFAULT_TAB]) {
+    if (candidate && titles.includes(candidate)) return candidate
+  }
+  return titles[0]
+}
+
+async function fetchSheetValues(sheetId: string, tabOverride?: string): Promise<string[][]> {
   const auth  = getAuth()
   const token = await auth.getAccessToken()
 
-  // Read A:Z of the first tab. The actual columns used depend on the per-
-  // client prProofColumnMap; reading a wide range avoids capping it at the
-  // default layout's width.
-  //
+  // Resolve the data tab by name (see resolveTabName). One metadata call lists
+  // the tab titles; we then read A:Z of the chosen tab. Reading a wide range
+  // avoids capping at the default layout's width — the actual columns used
+  // depend on the per-client prProofColumnMap.
+  const metaRes = await fetch(
+    `${SHEETS_BASE}/${sheetId}?fields=sheets.properties.title`,
+    { headers: { Authorization: `Bearer ${token}` }, next: { revalidate: 3600 } },
+  )
+  if (!metaRes.ok) {
+    const txt = await metaRes.text()
+    throw new Error(`Sheets API ${metaRes.status} (metadata) for PR Proof sheet ${sheetId}: ${txt.slice(0, 300)}`)
+  }
+  const meta = await metaRes.json() as { sheets?: { properties?: { title?: string } }[] }
+  const titles = (meta.sheets ?? [])
+    .map(s => s.properties?.title)
+    .filter((t): t is string => !!t)
+  if (titles.length === 0) return []
+  const tab = resolveTabName(titles, tabOverride)
+
   // valueRenderOption=FORMATTED_VALUE returns each cell as its display
   // string. UNFORMATTED_VALUE returns dates as Sheets serial numbers and
   // numerics as numbers — the parser below calls .trim() on each cell and
   // `new Date(publicationDate)` downstream, both of which assume strings.
-  const url = `${SHEETS_BASE}/${sheetId}/values/A:Z?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`
+  const range = encodeURIComponent(`'${tab}'!A:Z`)
+  const url = `${SHEETS_BASE}/${sheetId}/values/${range}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
@@ -177,8 +207,8 @@ async function getPRProofDataImpl(clientSlug: string): Promise<PRProofData> {
     }
   }
 
-  const rows = await fetchSheetValues(sheetId)
   const columnMap = client.prProofColumnMap ?? DEFAULT_COLUMN_MAP
+  const rows = await fetchSheetValues(sheetId, columnMap.tab)
   const placements = parseRows(rows, client.name, columnMap)
 
   const uniqueOutlets = new Set(placements.map((p) => p.outlet))

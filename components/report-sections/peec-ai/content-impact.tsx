@@ -8,7 +8,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePct, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
 import { urlJoinKey, labelFromPath } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -776,19 +776,21 @@ export async function ContentImpactReport({
       ? citationSharePct - citationSharePctPrior
       : null
 
-  // KPI 2: Prompt Coverage. Aggregate across all owned domains (union of
-  // prompt IDs cited). No prior-period value available in v1 because
-  // getDomainCoverage(clientSlug) does not accept a dateRange parameter
-  // (lib/peec/url-citations.ts:286). Card renders value with no delta line.
-  const ownedPromptIdSet = new Set<string>()
-  for (const d of ownDomains) {
-    for (const pid of domainPromptIds(coverage, d.domain)) {
-      ownedPromptIdSet.add(pid)
-    }
-  }
-  const promptCoveragePct = coverageAvailable && totalTrackedPrompts > 0
-    ? Math.round((ownedPromptIdSet.size / totalTrackedPrompts) * 100)
-    : null
+  // KPI 2: Prompt Coverage. Percent of tracked prompts citing any owned domain
+  // (union of prompt IDs across owned domains). Prior period uses the same
+  // definition over coveragePrior (FB-035 added the dateRange parameter to
+  // getDomainCoverage), enabling the period-over-period delta below.
+  const ownedDomainNames = ownDomains.map(d => d.domain)
+  const promptCoveragePct = ownedPromptCoveragePct(
+    coverage, ownedDomainNames, totalTrackedPrompts, coverageAvailable,
+  )
+  const promptCoveragePctPrior = ownedPromptCoveragePct(
+    coveragePrior, ownedDomainNames, totalTrackedPrompts, coveragePriorAvailable,
+  )
+  const promptCoveragePctDelta =
+    promptCoveragePct != null && promptCoveragePctPrior != null
+      ? promptCoveragePct - promptCoveragePctPrior
+      : null
 
   // KPI 3: AI Referral Traffic. Same definition as the current §A KPI #5
   // (ga4AiReferredSessions), sourced from the new sessionSource ×
@@ -822,7 +824,7 @@ export async function ContentImpactReport({
   const aiPriorAvailable = compareActive && aiReferralTrafficPrior !== null
   const organicPriorAvailable = compareActive && organicTrafficPrior !== null
   const citationSharePriorAvailable = compareActive && citationSharePctPrior !== null
-  // promptCoveragePriorAvailable intentionally absent, v1 limitation noted above.
+  const promptCoveragePriorAvailable = compareActive && promptCoveragePctPrior !== null
 
   // ── FB-035 · §B Watched Pages: per-row metrics × current/prior + deltas ─────
 
@@ -1032,7 +1034,7 @@ export async function ContentImpactReport({
                 : undefined
             }
           />
-          {/* KPI 2 · Prompt Coverage. No delta in v1 (no prior-period coverage data). */}
+          {/* KPI 2 · Prompt Coverage. Delta (pp) shows when a compare period is on. */}
           <KpiCard
             label="Prompt Coverage"
             hint="Tracked prompts citing owned domains"
@@ -1041,6 +1043,10 @@ export async function ContentImpactReport({
                 : 'None'
             }
             live={promptCoveragePct !== null}
+            delta={
+              promptCoveragePriorAvailable && promptCoveragePctDelta !== null ? promptCoveragePctDelta
+                : undefined
+            }
           />
           {/* KPI 3 · AI Referral Traffic */}
           <KpiCard
