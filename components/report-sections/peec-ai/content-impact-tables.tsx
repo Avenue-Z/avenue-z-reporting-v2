@@ -178,65 +178,65 @@ export function PlannedContentPerformanceTable({
       tooltip: 'Percentage of tracked prompts citing this specific URL. (Avenue Z internal - derived from Peec per-URL prompt_id dimension.)',
       accessor: (r) => r.promptCoverage ?? -1,
       render: (r) => r.promptCoverage !== null
-        ? (
-          <div>
-            <span className="tabular-nums text-white">{r.promptCoverage.toFixed(0)}%</span>
-            {renderDelta(r.promptCoverageDelta, 'pp')}
-          </div>
-        )
+        ? <span className="tabular-nums text-white">{r.promptCoverage.toFixed(0)}%</span>
         : <span className="text-white/20">--</span>,
+    },
+    {
+      key: 'promptCoverageDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.promptCoverageDelta ?? -Infinity,
+      render: (r) => renderDelta(r.promptCoverageDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'citationShare', label: 'Citation Share', align: 'right',
       tooltip: "This URL's share of total AI citations across all tracked URLs in the period. (Peec AI citation_count weighted by URL.)",
       accessor: (r) => r.citationShare ?? -1,
       render: (r) => r.citationShare !== null
-        ? (
-          <div>
-            <span className="tabular-nums text-white">{r.citationShare.toFixed(1)}%</span>
-            {renderDelta(r.citationShareDelta, 'pp')}
-          </div>
-        )
+        ? <span className="tabular-nums text-white">{r.citationShare.toFixed(1)}%</span>
         : <span className="text-white/20">--</span>,
+    },
+    {
+      key: 'citationShareDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.citationShareDelta ?? -Infinity,
+      render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'aiReferralTraffic', label: 'AI Referral Traffic', align: 'right',
       tooltip: TT.aiReferredSessions,
       accessor: (r) => r.aiReferralTraffic ?? -1,
       render: (r) => r.aiReferralTraffic !== null
-        ? (
-          <div>
-            <span className="tabular-nums text-white">{r.aiReferralTraffic.toLocaleString()}</span>
-            {renderDelta(r.aiReferralTrafficDelta, 'pct')}
-          </div>
-        )
+        ? <span className="tabular-nums text-white">{r.aiReferralTraffic.toLocaleString()}</span>
         : <span className="text-white/20">--</span>,
+    },
+    {
+      key: 'aiReferralTrafficDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.aiReferralTrafficDelta ?? -Infinity,
+      render: (r) => renderDelta(r.aiReferralTrafficDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'organicSessions', label: 'Organic Sessions', align: 'right',
       tooltip: 'GA4 sessions whose default channel group is Organic Search. (GA4 sessionDefaultChannelGroup dimension.)',
       accessor: (r) => r.organicSessions ?? -1,
       render: (r) => r.organicSessions !== null
-        ? (
-          <div>
-            <span className="tabular-nums text-white">{r.organicSessions.toLocaleString()}</span>
-            {renderDelta(r.organicSessionsDelta, 'pct')}
-          </div>
-        )
+        ? <span className="tabular-nums text-white">{r.organicSessions.toLocaleString()}</span>
         : <span className="text-white/20">--</span>,
+    },
+    {
+      key: 'organicSessionsDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.organicSessionsDelta ?? -Infinity,
+      render: (r) => renderDelta(r.organicSessionsDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'engagementRate', label: 'Engagement Rate', align: 'right',
       tooltip: TT.engagementRate,
       accessor: (r) => r.engagementRate ?? -1,
       render: (r) => r.engagementRate !== null
-        ? (
-          <div>
-            <span className="tabular-nums text-white">{(r.engagementRate * 100).toFixed(1)}%</span>
-            {renderDelta(r.engagementRateDelta, 'pp')}
-          </div>
-        )
+        ? <span className="tabular-nums text-white">{(r.engagementRate * 100).toFixed(1)}%</span>
         : <span className="text-white/20">--</span>,
+    },
+    {
+      key: 'engagementRateDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.engagementRateDelta ?? -Infinity,
+      render: (r) => renderDelta(r.engagementRateDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
   ]
 
@@ -315,55 +315,80 @@ export function FullsiteContentPerformanceTable({
       sortable: true,
       accessor: (r) => r.promptCoverage ?? -1,
       render: (r) => (
-        <div className="flex flex-col items-end">
-          <span>{r.promptCoverage !== null ? `${r.promptCoverage.toFixed(1)}%` : '--'}</span>
-          {renderDelta(r.promptCoverageDelta, 'pp')}
-        </div>
+        <span className="tabular-nums text-white">
+          {r.promptCoverage !== null ? `${r.promptCoverage.toFixed(1)}%` : '--'}
+        </span>
       ),
+    },
+    {
+      key: 'promptCoverageDelta', label: 'Δ', align: 'right',
+      sortable: true,
+      accessor: (r) => r.promptCoverageDelta ?? -Infinity,
+      render: (r) => renderDelta(r.promptCoverageDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'citationShare', label: 'Citation Share', align: 'right',
       sortable: true,
       accessor: (r) => r.citationShare ?? -1,
       render: (r) => (
-        <div className="flex flex-col items-end">
-          <span>{r.citationShare !== null ? `${r.citationShare.toFixed(1)}%` : '--'}</span>
-          {renderDelta(r.citationShareDelta, 'pp')}
-        </div>
+        <span className="tabular-nums text-white">
+          {r.citationShare !== null ? `${r.citationShare.toFixed(1)}%` : '--'}
+        </span>
       ),
+    },
+    {
+      key: 'citationShareDelta', label: 'Δ', align: 'right',
+      sortable: true,
+      accessor: (r) => r.citationShareDelta ?? -Infinity,
+      render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'aiReferralTraffic', label: 'AI Referral Traffic', align: 'right',
       sortable: true,
       accessor: (r) => r.aiReferralTraffic ?? -1,
       render: (r) => (
-        <div className="flex flex-col items-end">
-          <span>{r.aiReferralTraffic !== null ? r.aiReferralTraffic.toLocaleString() : '--'}</span>
-          {renderDelta(r.aiReferralTrafficDelta, 'pct')}
-        </div>
+        <span className="tabular-nums text-white">
+          {r.aiReferralTraffic !== null ? r.aiReferralTraffic.toLocaleString() : '--'}
+        </span>
       ),
+    },
+    {
+      key: 'aiReferralTrafficDelta', label: 'Δ', align: 'right',
+      sortable: true,
+      accessor: (r) => r.aiReferralTrafficDelta ?? -Infinity,
+      render: (r) => renderDelta(r.aiReferralTrafficDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'organicSessions', label: 'Organic Sessions', align: 'right',
       sortable: true,
       accessor: (r) => r.organicSessions ?? -1,
       render: (r) => (
-        <div className="flex flex-col items-end">
-          <span>{r.organicSessions !== null ? r.organicSessions.toLocaleString() : '--'}</span>
-          {renderDelta(r.organicSessionsDelta, 'pct')}
-        </div>
+        <span className="tabular-nums text-white">
+          {r.organicSessions !== null ? r.organicSessions.toLocaleString() : '--'}
+        </span>
       ),
+    },
+    {
+      key: 'organicSessionsDelta', label: 'Δ', align: 'right',
+      sortable: true,
+      accessor: (r) => r.organicSessionsDelta ?? -Infinity,
+      render: (r) => renderDelta(r.organicSessionsDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'engagementRate', label: 'Engagement Rate', align: 'right',
       sortable: true,
       accessor: (r) => r.engagementRate ?? -1,
       render: (r) => (
-        <div className="flex flex-col items-end">
-          <span>{r.engagementRate !== null ? `${(r.engagementRate * 100).toFixed(1)}%` : '--'}</span>
-          {renderDelta(r.engagementRateDelta, 'pp')}
-        </div>
+        <span className="tabular-nums text-white">
+          {r.engagementRate !== null ? `${(r.engagementRate * 100).toFixed(1)}%` : '--'}
+        </span>
       ),
+    },
+    {
+      key: 'engagementRateDelta', label: 'Δ', align: 'right',
+      sortable: true,
+      accessor: (r) => r.engagementRateDelta ?? -Infinity,
+      render: (r) => renderDelta(r.engagementRateDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
   ]
 
@@ -422,9 +447,13 @@ export function CompetitorDomainsCitedTable({
       render: (r) => (
         <span className="tabular-nums text-white">
           {r.aiVisibility.toFixed(1)}%
-          {renderDelta(r.aiVisibilityDelta, 'pp')}
         </span>
       ),
+    },
+    {
+      key: 'aiVisibilityDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.aiVisibilityDelta ?? -Infinity,
+      render: (r) => renderDelta(r.aiVisibilityDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'citationShare', label: 'Citation Share', align: 'right',
@@ -437,13 +466,15 @@ export function CompetitorDomainsCitedTable({
             <div className="h-3 w-20 overflow-hidden rounded bg-white/[0.04]">
               <div className="h-full rounded bg-[#FF4444]/40" style={{ width: `${barWidth}%` }} />
             </div>
-            <span className="tabular-nums text-white/60">
-              {r.citationShare.toFixed(1)}%
-              {renderDelta(r.citationShareDelta, 'pp')}
-            </span>
+            <span className="tabular-nums text-white/60">{r.citationShare.toFixed(1)}%</span>
           </div>
         )
       },
+    },
+    {
+      key: 'citationShareDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.citationShareDelta ?? -Infinity,
+      render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'promptCoverage', label: 'Prompt Coverage', align: 'right',
@@ -452,9 +483,13 @@ export function CompetitorDomainsCitedTable({
       render: (r) => (
         <span className="tabular-nums text-white">
           {r.promptCoverage !== null ? `${r.promptCoverage}%` : '--'}
-          {renderDelta(r.promptCoverageDelta, 'pp')}
         </span>
       ),
+    },
+    {
+      key: 'promptCoverageDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.promptCoverageDelta ?? -Infinity,
+      render: (r) => renderDelta(r.promptCoverageDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
   ]
 
