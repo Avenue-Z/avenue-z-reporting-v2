@@ -84,6 +84,7 @@ export type TopDomain = {
   retrievedDelta: number
   citationRate: number    // raw citation count
   citationRateDelta: number
+  citationCount: number   // raw citation count (mirrors Peec TopDomain.citationCount for cross-provider use)
   type: string
 }
 
@@ -351,6 +352,7 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
       retrievedDelta: citShare - (priorShareMap.get(domain) ?? citShare),
       citationRate: count,
       citationRateDelta: count - (priorCountMap.get(domain) ?? count),
+      citationCount: count,
       type,
     }))
     .sort((a, b) => b.retrieved - a.retrieved)

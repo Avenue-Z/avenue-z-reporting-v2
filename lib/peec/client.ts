@@ -138,6 +138,7 @@ export type TopDomain = {
   retrievedDelta: number
   citationRate: number
   citationRateDelta: number
+  citationCount: number  // Peec citation_count (raw integer), used for share-of-period math
   type: string
 }
 
@@ -470,6 +471,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
           retrievedDelta: prior ? (d.retrieved_percentage - prior.retrieved_percentage) * 100 : 0,
           citationRate: d.citation_rate * 100,
           citationRateDelta: prior ? (d.citation_rate - prior.citation_rate) * 100 : 0,
+          citationCount: d.citation_count ?? 0,
           type: normalizeClassification(d.classification),
         }
       })
@@ -825,14 +827,17 @@ export const getPeecOverview = cached(
     // v7 = overview now honors the page date range (dateRange arg); response shape
     //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
     //      records) and deltas compare vs the previous period, not prior year.
-    // v8 = FB-022: visibility trend chart now uses a separate YTD fetch
+    // v9 = FB-051: TopDomain now carries citationCount (raw Peec citation_count
+    //      integer). Required for §H.1 Citation Share share-of-period math.
+    //      v8 cached entries lack this field -- must invalidate.
+    //      v8 = FB-022: visibility trend chart now uses a separate YTD fetch
     //      (dailyVisibility/competitorDailyVisibility), while weeklyVisibility
     //      stays picker-range bound for the demand-overview consumer.
     //      FB-023: TrackedPrompt now carries per-model position maps for both
     //      current and prior periods, from a new model-dimensioned
     //      promptBrandsPriorRes fetch + an updated current promptBrandsRes
     //      with the same dimensions. Used by lib/peec/winners-losers.ts.
-    version: 'v8',
+    version: 'v9',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

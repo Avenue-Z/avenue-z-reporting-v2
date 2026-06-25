@@ -451,24 +451,23 @@ export async function ContentImpactReport({
     : allBots
 
   // ── Model-filtered domain lists ──────────────────────────────────────────────
-  // For Peec citation tables: recompute citationCount from per-model data when
-  // a filter is active. Falls back to unfiltered domain list when no filter.
-  // Note: `citationRate` (the citationCount field on TopDomain) is a percentage
-  // float. We treat it as citationCount for the filter helper since the shape matches.
+  // For Peec citation tables: when a model filter is active, recompute citationCount
+  // from per-model data and apply through filterDomainRowsByModel. Falls back to
+  // unfiltered domain list when no filter is set.
   const filteredOwnDomains: TopDomain[] = peecData?.domainCitationsByModel
     ? filterDomainRowsByModel(
-        ownDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        ownDomains,
         peecData.domainCitationsByModel,
         models ?? null,
-      ).map(d => ({ ...d, citationRate: d.citationCount }))
+      )
     : ownDomains
 
   const filteredCompetitorDomains: TopDomain[] = peecData?.domainCitationsByModel
     ? filterDomainRowsByModel(
-        competitorDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        competitorDomains,
         peecData.domainCitationsByModel,
         models ?? null,
-      ).map(d => ({ ...d, citationRate: d.citationCount }))
+      )
     : competitorDomains
 
   // Enrich content calendar rows with agent analytics data (path matching)
@@ -933,19 +932,19 @@ export async function ContentImpactReport({
   // && c.competitorBrandNames.length > 0)) so the count + items can never
   // disagree with the §H.2 table further down the page.
 
-  // Top 3 owned domains by AI citation count.
+  // Top 3 owned domains by AI citation count (real integer counts, FB-051).
   const topOwnedForSynopsis = filteredOwnDomains
     .slice()
-    .sort((a, b) => (b.citationRate ?? 0) - (a.citationRate ?? 0))
+    .sort((a, b) => (b.citationCount ?? 0) - (a.citationCount ?? 0))
     .slice(0, 3)
-    .map(d => ({ domain: d.domain, citationCount: d.citationRate ?? 0 }))
+    .map(d => ({ domain: d.domain, citationCount: d.citationCount ?? 0 }))
 
   // Top 3 competitor domains by AI citation count.
   const topCompetitorForSynopsis = filteredCompetitorDomains
     .slice()
-    .sort((a, b) => (b.citationRate ?? 0) - (a.citationRate ?? 0))
+    .sort((a, b) => (b.citationCount ?? 0) - (a.citationCount ?? 0))
     .slice(0, 3)
-    .map(d => ({ domain: d.domain, citationCount: d.citationRate ?? 0 }))
+    .map(d => ({ domain: d.domain, citationCount: d.citationCount ?? 0 }))
 
   // Brand-absent URLs, mirror §H.2 live filter exactly.
   const brandAbsentUrlsForSynopsis = urlCitations.filter(
@@ -1320,23 +1319,33 @@ export async function ContentImpactReport({
       >
         {/* Sub-view 1: Top Competitor Domains - AI Visibility / Citation Share / Prompt Coverage */}
         {(() => {
-          // filteredCompetitorDomains: model-filtered when models filter is active.
-          // v1 limitation: promptCoverage is not re-computed per selected model;
-          // it reflects all-model aggregates from Peec data.
-          // Deltas (aiVisibility, citationShare, promptCoverage) gate on
-          // compareIso !== null so they only appear when a compare period is on.
+          // FB-051: Citation Share = (domain.citationCount / sumOfAllCompetitorCitationCounts) * 100.
+          // Mirrors §B and §H.2 share-of-period math. Replaces the broken
+          // d.citationRate path that produced 199.9% values (citation_rate is
+          // an avg count, not a fraction).
+          //
+          // Prior-period denominator needs prior competitor list, which requires
+          // plumbing peecData.topDomainsPrior. v1 deferred: deltas use null when
+          // prior data is not on TopDomain. Adding a prior topDomains field is
+          // tracked in TODO file (post-PR) -- for now, citationShareDelta is null
+          // when we cannot compute it truthfully.
+          const totalCompetitorCitations = filteredCompetitorDomains
+            .reduce((s, d) => s + (d.citationCount ?? 0), 0)
           const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 10).map((d) => {
             const promptCovCurrent = getPromptCoverage(d.domain)
             const promptCovPrior   = compareIso ? getPromptCoveragePrior(d.domain) : null
             const promptCovDelta   = compareIso && promptCovCurrent !== null && promptCovPrior !== null
               ? promptCovCurrent - promptCovPrior
               : null
+            const citationShareValue = totalCompetitorCitations > 0
+              ? (d.citationCount / totalCompetitorCitations) * 100
+              : 0
             return {
               domain: d.domain,
               aiVisibility:        d.retrieved,
               aiVisibilityDelta:   compareIso ? d.retrievedDelta : null,
-              citationShare:       d.citationRate,
-              citationShareDelta:  compareIso ? d.citationRateDelta : null,
+              citationShare:       citationShareValue,
+              citationShareDelta:  null,  // FB-051: truthful null until prior topDomains is plumbed
               promptCoverage:      promptCovCurrent,
               promptCoverageDelta: promptCovDelta,
             }
