@@ -1,0 +1,23 @@
+name: Checks
+
+# Static guards that run on every PR. Currently the RSC boundary check, which
+# catches function props passed from a Server Component to a Client Component
+# (e.g. `<BarChart valueFormatter={usd} />`) — a render-time crash that tsc and
+# `next build` miss for dynamically-rendered routes.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  rsc-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: RSC boundary check
+        run: npm run check:rsc
