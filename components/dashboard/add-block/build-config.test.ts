@@ -322,4 +322,20 @@ assert.equal(isDraftComplete({ kind: 'leaf', name: 'Subs', format: 'count', leaf
   if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.right.source, 'shopify')
 }
 
+// bar with a Shopify leaf attaches the dimension to the shopify binding
+{
+  const cfg = buildBlockConfig({ kind: 'bar', name: 'Sales by Channel', format: 'currency',
+    bar: { source: 'bar', leaf: { source: 'shopify', query: 'FROM sales SHOW net_sales' }, dimension: 'sales_channel' } })
+  assert.equal(cfg.kind, 'bar')
+  assert.equal(cfg.binding.source, 'shopify')
+  if (cfg.binding.source === 'shopify') assert.deepEqual(cfg.binding.dimensions, ['sales_channel'])
+}
+// line with a Shopify leaf attaches the granularity
+{
+  const cfg = buildBlockConfig({ kind: 'line', name: 'Sales/day', format: 'currency',
+    line: { source: 'line', leaf: { source: 'shopify', query: 'FROM sales SHOW net_sales' }, granularity: 'day' } })
+  assert.equal(cfg.binding.source, 'shopify')
+  if (cfg.binding.source === 'shopify') assert.equal(cfg.binding.granularity, 'day')
+}
+
 console.log('ok')

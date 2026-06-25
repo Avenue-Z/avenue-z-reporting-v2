@@ -4,6 +4,9 @@ import { useEffect, useState, useTransition } from 'react'
 import { getSmFields } from '@/app/actions/dashboard'
 import { SearchCombobox, type ComboOption } from './search-combobox'
 import type { LeafDraft } from './build-config'
+import { SHOPIFY_DIMENSIONS } from '@/lib/shopify/catalog'
+
+const SHOPIFY_DIMENSION_OPTIONS: ComboOption[] = SHOPIFY_DIMENSIONS.map((d) => ({ value: d.id, label: d.label }))
 
 /** Hand-curated TW pixel-joined-tvf safe dimension allowlist. v1 list; review with Paul. */
 const TW_DIMENSION_OPTIONS: ComboOption[] = [
@@ -44,7 +47,10 @@ export function DimensionPicker({
     })
   }, [leaf.source, dsId, slug])
 
-  const options = leaf.source === 'triplewhale' ? TW_DIMENSION_OPTIONS : smDimOpts
+  const options =
+    leaf.source === 'shopify' ? SHOPIFY_DIMENSION_OPTIONS
+    : leaf.source === 'triplewhale' ? TW_DIMENSION_OPTIONS
+    : smDimOpts
   const disabled = leaf.source === 'supermetrics' && dsId === ''
 
   return (
