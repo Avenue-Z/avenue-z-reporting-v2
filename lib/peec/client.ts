@@ -2,6 +2,7 @@ import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { AEOModel } from './models'
 import type { ByModel } from './by-model'
+import { citationTotalsByModel } from './by-model'
 import type { DailyPoint, PeriodChange, TopicSource } from '@/lib/aeo/types'
 import { buildPeriodChange } from '@/lib/aeo/period-change'
 import { urlJoinKey } from '@/lib/url'
@@ -202,6 +203,11 @@ export type PeecOverview = {
   domainCitationsByModel: ByModel<string, number>
   /** Per-brand visibility scores broken out by AI model. */
   brandVisibilityByModel: ByModel<string, number>
+  /** Per-model citation totals across all tracked domains, and per-model
+   *  citations to the client's own domain. Used for model-filtered Citation
+   *  Share on the Overview. */
+  totalCitationsByModel: Partial<Record<AEOModel, number>>
+  yourBrandCitationsByModel: Partial<Record<AEOModel, number>>
   periodChange: PeriodChange
 }
 
@@ -746,6 +752,9 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     brandVisibilityByModel[brandName][modelName as AEOModel] = vis
   }
 
+  const { totalByModel: totalCitationsByModel, yourByModel: yourBrandCitationsByModel } =
+    citationTotalsByModel(domainCitationsByModel, (domain) => urlJoinKey(domain) === yourDomainKey)
+
   // --- Period change (selected range vs previous period) ---
   const brandsCurrentPts = Array.from(aggregateBrandRows(currentBrandsRes.data ?? []).entries()).map(([, a]) => ({
     name: a.name, visibility: aggToMetrics(a).visibility,
@@ -792,6 +801,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     llmBreakdown,
     domainCitationsByModel,
     brandVisibilityByModel,
+    totalCitationsByModel,
+    yourBrandCitationsByModel,
     periodChange,
   }
 }
