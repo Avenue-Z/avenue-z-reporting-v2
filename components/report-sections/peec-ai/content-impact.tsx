@@ -74,6 +74,7 @@ function KpiCard({
   live,
   delta,
   invertDelta,
+  deltaMode = 'pct',
 }: {
   label: string
   value: string
@@ -81,8 +82,11 @@ function KpiCard({
   live?: boolean
   delta?: number
   invertDelta?: boolean
+  /** 'pp' = percentage-point change (absolute); 'pct' = relative percent change. Default: 'pct'. */
+  deltaMode?: 'pp' | 'pct'
 }) {
   const positive = invertDelta ? (delta != null && delta <= 0) : (delta != null && delta >= 0)
+  const deltaSuffix = deltaMode === 'pp' ? 'pp' : '%'
   return (
     <div className="rounded-xl border border-white/[0.08] bg-bg-surface p-4">
       <p className="text-xs font-bold uppercase tracking-widest text-text-muted">{label}</p>
@@ -91,7 +95,7 @@ function KpiCard({
       </p>
       {delta !== undefined && (
         <p className={cn('mt-1 text-sm font-bold', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-          {positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs previous period
+          {positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}{deltaSuffix} vs previous period
         </p>
       )}
       <p className="mt-1 text-xs text-text-muted">{hint}</p>
@@ -1032,6 +1036,7 @@ export async function ContentImpactReport({
               citationSharePriorAvailable && citationSharePctDelta !== null ? citationSharePctDelta
                 : undefined
             }
+            deltaMode="pp"
           />
           {/* KPI 2 · Prompt Coverage. Delta (pp) shows when a compare period is on. */}
           <KpiCard
@@ -1046,6 +1051,7 @@ export async function ContentImpactReport({
               promptCoveragePriorAvailable && promptCoveragePctDelta !== null ? promptCoveragePctDelta
                 : undefined
             }
+            deltaMode="pp"
           />
           {/* KPI 3 · AI Referral Traffic */}
           <KpiCard
