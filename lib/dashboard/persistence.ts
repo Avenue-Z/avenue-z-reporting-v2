@@ -205,6 +205,11 @@ export function parseBlockConfig(
     }
     headerLevel = v.headerLevel
   }
+  let narrativeBody: string | undefined
+  if (v.narrativeBody !== undefined) {
+    if (!isStr(v.narrativeBody)) return { ok: false, error: `${path}.narrativeBody: expected string` }
+    narrativeBody = v.narrativeBody
+  }
 
   const binding = parseBinding(v.binding, `${path}.binding`)
   if (!binding.ok) return binding
@@ -216,6 +221,7 @@ export function parseBlockConfig(
   if (target !== undefined) block.target = target
   if (ceiling !== undefined) block.ceiling = ceiling
   if (headerLevel !== undefined) block.headerLevel = headerLevel
+  if (narrativeBody !== undefined) block.narrativeBody = narrativeBody
   return { ok: true, block }
 }
 
