@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // --- Domain types preserved from the deleted clients.config.ts ---
@@ -138,6 +138,8 @@ export const clients = pgTable('clients', {
   dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
+  sharedPasswordHash: text('shared_password_hash'),
+  maxSeats: integer('max_seats').notNull().default(5),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

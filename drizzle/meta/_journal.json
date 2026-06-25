@@ -78,6 +78,13 @@
       "when": 1782234019985,
       "tag": "0010_smart_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782426323039,
+      "tag": "0011_huge_cobalt_man",
+      "breakpoints": true
     }
   ]
 }
