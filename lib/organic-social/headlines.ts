@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
 import { CHANNELS, CHANNEL_LABEL, CHANNEL_METRICS } from './metrics'
 import type { TotalMetric } from '@/lib/dash-social/types'
@@ -18,11 +19,11 @@ function pruneDeltas(d: PlatformHeadline['deltas']): PlatformHeadline['deltas'] 
   return has ? d : undefined
 }
 
-export async function getPlatformHeadlines(
+export const getPlatformHeadlines = cache(async (
   slug: string,
   dateRange: string,
   compareRange: string | null,
-): Promise<PlatformHeadline[]> {
+): Promise<PlatformHeadline[]> => {
   const { client, brandId } = await dashClientFor(slug)
   const { start, end } = isoRangeTz(dateRange)
   const ctx = resolveCompareIso(dateRange, compareRange)
@@ -79,4 +80,4 @@ export async function getPlatformHeadlines(
   )
 
   return results.filter((r): r is PlatformHeadline => r !== null)
-}
+})

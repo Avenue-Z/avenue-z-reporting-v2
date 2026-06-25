@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNELS, CHANNEL_LABEL } from './metrics'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
@@ -60,10 +61,10 @@ export function groupByPlatform(rows: TopContentRow[], perPlatform?: number): Pl
     .map(([platform, rs]) => ({ platform, rows: perPlatform != null ? rs.slice(0, perPlatform) : rs }))
 }
 
-export async function getTopContent(slug: string, dateRange: string): Promise<PlatformTopContent[]> {
+export const getTopContent = cache(async (slug: string, dateRange: string): Promise<PlatformTopContent[]> => {
   const { client, brandId } = await dashClientFor(slug)
   const { start, end } = isoRange(dateRange)
   const res = await client.getMedia({ brandId, startDate: start, endDate: end, limit: 100 })
   // Cap at 25/platform to bound payload; the UI slices to top 5 by the active metric.
   return groupByPlatform(transformTopContent(res), 25)
-}
+})
