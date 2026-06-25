@@ -22,10 +22,23 @@ export function transformLinkedInKpis(
 ): Kpi[] {
   const d = (id: string) => delta(n(totals, id), compare ? n(compare, id) : undefined)
 
+  // LinkedIn only reports Reach (approximateUniqueImpressions) for date ranges up to
+  // ~90 days; beyond that it returns null. Show "—" rather than a misleading 0, and
+  // suppress the derived Frequency + deltas that depend on it.
+  const reachRaw = totals['approximateUniqueImpressions']
+  const reachAvailable = reachRaw != null && reachRaw !== ''
+  const reachNote = 'LinkedIn only reports Reach for date ranges up to ~90 days.'
+
   return [
     { key: 'spend', label: 'Spend', value: Math.round(n(totals, 'spend')), prefix: '$', delta: d('spend') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
-    { key: 'reach', label: 'Reach', value: n(totals, 'approximateUniqueImpressions'), delta: d('approximateUniqueImpressions') },
+    {
+      key: 'reach',
+      label: 'Reach',
+      value: reachAvailable ? n(totals, 'approximateUniqueImpressions') : '—',
+      delta: reachAvailable ? d('approximateUniqueImpressions') : undefined,
+      tooltip: reachAvailable ? undefined : reachNote,
+    },
     { key: 'clicks', label: 'Clicks', value: n(totals, 'clicks'), delta: d('clicks') },
     // LinkedIn returns ctr / leadFormCompletionRate as 0-1 fractions — scale to percent.
     { key: 'ctr', label: 'CTR', value: +(n(totals, 'ctr') * 100).toFixed(2), suffix: '%', delta: d('ctr') },
@@ -34,9 +47,10 @@ export function transformLinkedInKpis(
     {
       key: 'frequency',
       label: 'Frequency',
-      value: +frequency(totals).toFixed(1),
-      suffix: 'x',
-      delta: delta(frequency(totals), compare ? frequency(compare) : undefined),
+      value: reachAvailable ? +frequency(totals).toFixed(1) : '—',
+      suffix: reachAvailable ? 'x' : undefined,
+      delta: reachAvailable ? delta(frequency(totals), compare ? frequency(compare) : undefined) : undefined,
+      tooltip: reachAvailable ? undefined : reachNote,
     },
     { key: 'landingPageClicks', label: 'Landing Page Clicks', value: n(totals, 'landingPageClicks'), delta: d('landingPageClicks') },
     {
