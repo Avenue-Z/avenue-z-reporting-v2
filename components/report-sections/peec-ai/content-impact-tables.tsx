@@ -411,7 +411,7 @@ export function CompetitorDomainsCitedTable({
       ),
     },
     {
-      key: 'aiVisibility', label: 'AI Visibility', align: 'right',
+      key: 'aiVisibility', label: 'Source Visibility', align: 'right',
       tooltip: TT.aiVisibility,
       accessor: (r) => r.aiVisibility,
       render: (r) => (
