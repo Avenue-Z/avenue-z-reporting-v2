@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { getMainLabel } from '@/components/layout/date-range-picker'
 import { setBlockRange, resetBlockRange, removeBlock } from './config-mutations'
+import { AddBlockDialog } from './add-block/add-block-dialog'
 import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 const PRESETS = [
@@ -44,6 +45,8 @@ export interface BlockChromeProps {
 export function BlockChrome({ block, canEdit, slug, config, activeDefault, children }: BlockChromeProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'range' | 'confirm-delete' | 'confirm-reset'>('menu')
+  const [editOpen, setEditOpen] = useState(false)
+  const isStatic = block.kind === 'header' || block.kind === 'narrative'
   const [draftDate, setDraftDate] = useState<string>(block.range?.dateRange ?? activeDefault.dateRange)
   const [draftCompare, setDraftCompare] = useState<string | null>(block.range?.compareRange ?? activeDefault.compareRange)
   const [pending, startTransition] = useTransition()
@@ -66,6 +69,10 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
   return (
     <div className="relative">
       {children}
+
+      {canEdit && editOpen && (
+        <AddBlockDialog slug={slug} config={config} editing={block} onClose={() => setEditOpen(false)} />
+      )}
 
       {canEdit && (
         <div
@@ -90,9 +97,16 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
           <PopoverContent className="w-64 border-white/[0.08] bg-[#1a1a1a] p-2" align="end" sideOffset={4}>
             {view === 'menu' && (
               <div className="flex flex-col">
-                <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('range')}>Set range…</button>
-                {isOverridden && (
-                  <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('confirm-reset')}>Reset to inherit</button>
+                {isStatic ? (
+                  <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
+                    onClick={() => { setMenuOpen(false); setEditOpen(true) }}>Edit…</button>
+                ) : (
+                  <>
+                    <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('range')}>Set range…</button>
+                    {isOverridden && (
+                      <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('confirm-reset')}>Reset to inherit</button>
+                    )}
+                  </>
                 )}
                 <button className="px-3 py-2 text-left text-[13px] text-[#FF6666] hover:bg-white/[0.06]" onClick={() => setView('confirm-delete')}>Delete block</button>
               </div>
