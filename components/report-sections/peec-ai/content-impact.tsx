@@ -1314,7 +1314,7 @@ export async function ContentImpactReport({
             const er = engagementRateForPath(path)
             const erPrior = compareIso ? engagementRateForPathPrior(path) : null
             const engagementRateDelta = (er !== null && erPrior !== null)
-              ? er - erPrior
+              ? (er - erPrior) * 100
               : null
 
             const pageTitle = (c.title && c.title.trim() !== '')

@@ -357,7 +357,7 @@ export function FullsiteContentPerformanceTable({
       accessor: (r) => r.engagementRate ?? -1,
       render: (r) => (
         <div className="flex flex-col items-end">
-          <span>{r.engagementRate !== null ? `${r.engagementRate.toFixed(1)}%` : '--'}</span>
+          <span>{r.engagementRate !== null ? `${(r.engagementRate * 100).toFixed(1)}%` : '--'}</span>
           {renderDelta(r.engagementRateDelta, 'pp')}
         </div>
       ),
