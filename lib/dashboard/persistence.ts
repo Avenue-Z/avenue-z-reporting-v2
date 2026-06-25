@@ -198,6 +198,13 @@ export function parseBlockConfig(
     if (typeof v.ceiling !== 'number' || !Number.isFinite(v.ceiling)) return { ok: false, error: `${path}.ceiling: expected finite number` }
     ceiling = v.ceiling
   }
+  let headerLevel: 1 | 2 | 3 | undefined
+  if (v.headerLevel !== undefined) {
+    if (v.headerLevel !== 1 && v.headerLevel !== 2 && v.headerLevel !== 3) {
+      return { ok: false, error: `${path}.headerLevel: expected 1, 2, or 3` }
+    }
+    headerLevel = v.headerLevel
+  }
 
   const binding = parseBinding(v.binding, `${path}.binding`)
   if (!binding.ok) return binding
@@ -208,6 +215,7 @@ export function parseBlockConfig(
   if (subLabel !== undefined) block.subLabel = subLabel
   if (target !== undefined) block.target = target
   if (ceiling !== undefined) block.ceiling = ceiling
+  if (headerLevel !== undefined) block.headerLevel = headerLevel
   return { ok: true, block }
 }
 
