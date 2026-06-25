@@ -48,7 +48,10 @@ export async function twSql(args: TwSqlArgs, opts: TwSqlOpts = {}): Promise<Reco
     })
 
     if (res.status === 429) {
-      const retryAfter = Number(res.headers.get('Retry-After') ?? 10)
+      // Retry-After may be missing, non-numeric, or (observed from TW) negative;
+      // only trust a finite positive value, else fall back to exponential backoff.
+      const header = Number(res.headers.get('Retry-After'))
+      const retryAfter = Number.isFinite(header) && header > 0 ? header : 2 ** attempt
       if (attempt >= maxRetries) throw new TwRateLimitError(retryAfter)
       await sleep(opts.retryDelayMs ?? Math.min(retryAfter, 10) * 1000)
       continue
