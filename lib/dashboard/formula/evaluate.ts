@@ -13,6 +13,7 @@ export function evaluate(ast: Ast, resolve: (key: string) => number): number {
   switch (ast.n) {
     case 'num': return ast.v
     case 'ref': return resolve(ast.key)
+    case 'neg': return -evaluate(ast.operand, resolve)
     case 'bin': {
       const l = evaluate(ast.l, resolve)
       const r = evaluate(ast.r, resolve)

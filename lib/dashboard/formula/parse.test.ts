@@ -35,4 +35,21 @@ assert.throws(() => parse('(@a + @b'), (e: unknown) => e instanceof FormulaError
 assert.throws(() => parse('@a +'), (e: unknown) => e instanceof FormulaError)      // dangling op
 assert.throws(() => parse('@a @b'), (e: unknown) => e instanceof FormulaError)     // trailing
 assert.throws(() => parse('@'), (e: unknown) => e instanceof FormulaError)         // bad ref
+// unary minus
+assert.deepEqual(parse('-@a'), { n: 'neg', operand: { n: 'ref', key: 'a' } })
+assert.deepEqual(parse('-1 * @b'), { n: 'bin', op: '*', l: { n: 'neg', operand: { n: 'num', v: 1 } }, r: { n: 'ref', key: 'b' } })
+// negative term mid-expression parses (was previously a "+ -" error)
+{
+  const ast = parse('@a + -1 * @b') as Extract<Ast, { n: 'bin' }>
+  assert.equal(ast.op, '+')
+  assert.equal((ast.r as Extract<Ast, { n: 'bin' }>).op, '*')
+}
+// binary minus then unary minus: a - (-b)
+{
+  const ast = parse('@a - -@b') as Extract<Ast, { n: 'bin' }>
+  assert.equal(ast.op, '-')
+  assert.equal((ast.r as Extract<Ast, { n: 'neg' }>).n, 'neg')
+}
+// a lone '-' is still an error
+assert.throws(() => parse('-'), (e: unknown) => e instanceof FormulaError)
 console.log('ok')

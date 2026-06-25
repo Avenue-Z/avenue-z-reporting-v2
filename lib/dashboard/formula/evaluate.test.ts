@@ -16,4 +16,9 @@ assert.equal(evaluate(parse('0.8 * 10'), resolve), 8)
 assert.throws(() => evaluate(parse('@a / 0'), resolve), (e: unknown) => e instanceof DivByZeroError)
 // resolve callback errors propagate
 assert.throws(() => evaluate(parse('@missing'), () => { throw new Error('boom') }))
+// unary minus
+assert.equal(evaluate(parse('-@a'), () => 5), -5)
+assert.equal(evaluate(parse('@a + -1 * @b'), (k) => (k === 'a' ? 10 : 3)), 7) // 10 + (-1*3)
+assert.equal(evaluate(parse('-1 * 0.8'), () => 0), -0.8)
+assert.equal(evaluate(parse('@a - -@b'), (k) => (k === 'a' ? 5 : 2)), 7)      // 5 - (-2)
 console.log('ok')

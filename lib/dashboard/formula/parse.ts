@@ -3,6 +3,7 @@ export type Op = '+' | '-' | '*' | '/'
 export type Ast =
   | { n: 'num'; v: number }
   | { n: 'ref'; key: string }
+  | { n: 'neg'; operand: Ast }
   | { n: 'bin'; op: Op; l: Ast; r: Ast }
 
 export class FormulaError extends Error {
@@ -75,6 +76,7 @@ export function parse(expr: string): Ast {
   function parseFactor(): Ast {
     const t = peek()
     if (!t) throw new FormulaError('unexpected end of formula')
+    if (t.t === 'op' && t.v === '-') { pos++; return { n: 'neg', operand: parseFactor() } }
     if (t.t === 'num') { pos++; return { n: 'num', v: t.v } }
     if (t.t === 'ref') { pos++; return { n: 'ref', key: t.key } }
     if (t.t === 'lp') {
