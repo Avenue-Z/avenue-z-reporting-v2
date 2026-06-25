@@ -65,15 +65,13 @@ export function AddBlockDialog({ slug, config, onClose, onAdded, editing }: { sl
   function confirmManual(cfg: Omit<BlockConfig, 'id'>) {
     setError(null)
     startTransition(async () => {
+      const newBlock = { id: crypto.randomUUID(), ...cfg }
       const next = editing
         ? updateBlock(config ?? DEFAULT_CONFIG, editing.id, cfg)
-        : addBlock(config ?? DEFAULT_CONFIG, { id: crypto.randomUUID(), ...cfg })
+        : addBlock(config ?? DEFAULT_CONFIG, newBlock)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) { setError(res.error); return }
-      if (!editing) {
-        const added = next.blocks[next.blocks.length - 1]
-        onAdded?.({ id: added.id, name: added.name })
-      }
+      if (!editing) onAdded?.({ id: newBlock.id, name: newBlock.name })
       onClose(); router.refresh()
     })
   }
