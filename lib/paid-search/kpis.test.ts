@@ -25,4 +25,20 @@ const costCard = kpis2.find((k) => k.key === 'cost')!
 assert.ok(costCard.delta !== undefined, 'cost delta should be defined')
 assert.ok(costCard.delta > 0, `cost delta should be > 0, got ${costCard.delta}`)
 
+// Round 2: deltas present for all comparable metrics when a comparison period exists
+for (const key of ['impressions', 'ctr', 'cpc', 'cpl', 'convRate']) {
+  const card = kpis2.find((k) => k.key === key)!
+  assert.ok(card.delta !== undefined, `${key} delta should be defined with a comparison period`)
+}
+// Cost-efficiency metrics invert delta coloring (down = good)
+assert.equal(kpis2.find((k) => k.key === 'cpc')!.invertDelta, true)
+assert.equal(kpis2.find((k) => k.key === 'cpl')!.invertDelta, true)
+// Non-cost metrics do not invert
+assert.ok(!kpis2.find((k) => k.key === 'ctr')!.invertDelta)
+assert.ok(!kpis2.find((k) => k.key === 'impressions')!.invertDelta)
+// Without a comparison period, the new deltas stay undefined
+for (const key of ['impressions', 'ctr', 'cpc', 'cpl', 'convRate']) {
+  assert.equal(kpis.find((k) => k.key === key)!.delta, undefined, `${key} delta should be undefined without comparison`)
+}
+
 console.log('ok')

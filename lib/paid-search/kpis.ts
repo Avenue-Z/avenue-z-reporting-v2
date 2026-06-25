@@ -20,17 +20,31 @@ export function transformKpis(
 ): Kpi[] {
   const cost = Number(totals.Cost || 0), clicks = Number(totals.Clicks || 0), impressions = Number(totals.Impressions || 0)
   const leads = scopedLeads(actionRows, cfg)
+  const ctr = impressions ? +((clicks / impressions) * 100).toFixed(1) : 0
+  const cpc = clicks ? +(cost / clicks).toFixed(2) : 0
+  const cpl = leads ? Math.round(cost / leads) : 0
+  const convRate = clicks ? +((leads / clicks) * 100).toFixed(1) : 0
+
+  // Comparison-period values. Each derived value is undefined when there is no
+  // comparison period or its denominator is 0, so delta() then yields undefined.
   const cLeads = compareActionRows ? scopedLeads(compareActionRows, cfg) : undefined
   const cCost = compareTotals ? Number(compareTotals.Cost || 0) : undefined
+  const cClicks = compareTotals ? Number(compareTotals.Clicks || 0) : undefined
+  const cImpr = compareTotals ? Number(compareTotals.Impressions || 0) : undefined
+  const cCtr = cImpr ? (cClicks! / cImpr) * 100 : undefined
+  const cCpc = cClicks ? cCost! / cClicks : undefined
+  const cCpl = cLeads ? cCost! / cLeads : undefined
+  const cConvRate = cClicks && cLeads != null ? (cLeads / cClicks) * 100 : undefined
+
   return [
     { key: 'cost', label: 'Cost', value: Math.round(cost), prefix: '$', delta: delta(cost, cCost) },
-    { key: 'clicks', label: 'Clicks', value: clicks, delta: delta(clicks, compareTotals ? Number(compareTotals.Clicks || 0) : undefined) },
-    { key: 'impressions', label: 'Impressions', value: impressions },
-    { key: 'ctr', label: 'CTR', value: impressions ? +((clicks / impressions) * 100).toFixed(1) : 0, suffix: '%' },
-    { key: 'cpc', label: 'Avg. CPC', value: clicks ? +(cost / clicks).toFixed(2) : 0, prefix: '$' },
+    { key: 'clicks', label: 'Clicks', value: clicks, delta: delta(clicks, cClicks) },
+    { key: 'impressions', label: 'Impressions', value: impressions, delta: delta(impressions, cImpr) },
+    { key: 'ctr', label: 'CTR', value: ctr, suffix: '%', delta: delta(ctr, cCtr) },
+    { key: 'cpc', label: 'Avg. CPC', value: cpc, prefix: '$', delta: delta(cpc, cCpc), invertDelta: true },
     { key: 'leads', label: 'Leads', value: leads, delta: delta(leads, cLeads) },
-    { key: 'cpl', label: 'Cost / Lead', value: leads ? Math.round(cost / leads) : 0, prefix: '$' },
-    { key: 'convRate', label: 'Conversion Rate', value: clicks ? +((leads / clicks) * 100).toFixed(1) : 0, suffix: '%' },
+    { key: 'cpl', label: 'Cost / Lead', value: cpl, prefix: '$', delta: delta(cpl, cCpl), invertDelta: true },
+    { key: 'convRate', label: 'Conversion Rate', value: convRate, suffix: '%', delta: delta(convRate, cConvRate) },
   ]
 }
 
