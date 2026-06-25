@@ -2130,3 +2130,63 @@ If any are missing, the synopsis card falls back to the temporarily-unavailable 
 - Zero new Peec or GA4 fetches.
 
 **Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
+
+---
+
+## V2 Phase 1 — Content Impact (FB-042, FB-051, FB-051a, FB-051-audit, FB-053, FB-054, FB-055)
+
+**Tab:** Content Impact
+**Round:** V2 (Tina's post-V1 feedback on the new tab)
+**Sources:** column E of `Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`, rows 3, 9a, 9c, 9d, 10, plus meta-feedback about jumbled metrics.
+
+### FB-042 — §A Prompt Coverage delta (Row 3)
+
+**Tina's ask:** "The prompt coverage metric isn't showing a comparison change."
+
+**Shipped:** Equivalent fix shipped on `main` via PR #85 commit `afd9921` while this branch was being planned. Our redundant `e2f6fa0` commit was dropped during the rebase onto `c493b30`. The ask is satisfied in production: `content-impact.tsx:783-791` builds `promptCoveragePct` + `promptCoveragePctPrior` (via `ownedPromptCoveragePct()`), derives `promptCoveragePctDelta` (line 789-791), gates on `compareActive` (line 826), and renders the delta through the KPI card prop (line 1040-1048).
+
+### FB-051 — §H.1 Citation Share 199.9% bug + synopsis lying (Row 9a + silent bug)
+
+**Tina's ask:** "Citation Share has one of the competitors at 199.9% - something must be wrong here?"
+**Silent bug folded in:** synopsis Glean prompt was interpolating `${d.citationCount.toFixed(1)} AI citations` where `citationCount` was sourced from `d.citationRate ?? 0` (Peec's `citation_rate * 100`, an inflated avg, not a count). Glean prose was writing inflated "AI citations" claims.
+
+**Shipped:**
+- Added `citationCount: number` field to `TopDomain` (lib/peec/client.ts:141), populated from `d.citation_count ?? 0` (the raw Peec integer)
+- §H.1 IIFE now computes `citationShareValue = (d.citationCount / totalCompetitorCitations) * 100` (content-impact.tsx:1334-1360) — share-of-period math that mirrors §B and §H.2
+- `citationShareDelta` stays truthful `null` (prior topDomains not plumbed; faking zero would lie)
+- Synopsis context (content-impact.tsx:936-949) now sorts top owned + competitor domains by real `citationCount` instead of `citationRate`
+- Removed the sloppy "treat citationRate as citationCount" remap hack (content-impact.tsx:475-494)
+- Cache version bumped v8 → v9 with comment explaining the bump
+- Collateral: added `citationCount` to Profound's parallel `TopDomain` type and demo-data literals (tsc requirement)
+
+### FB-051a — §A KPI Citation Share + Prompt Coverage delta suffix (audit mismatch fix)
+
+**Found by:** Task 5.5 metric coherence audit.
+**Root cause:** `KpiCard` hardcoded `% vs previous period` for all four KPIs. Citation Share + Prompt Coverage deltas are percentage-point differences (current minus prior on already-percentage values), not relative percent changes. AI Referral + Organic Traffic deltas are true `((c-p)/p)*100` percent changes and were already correct.
+**Shipped:** Added optional `deltaMode?: 'pp' | 'pct'` prop to `KpiCard` (defaults to `'pct'` so all existing consumers are unchanged). Citation Share + Prompt Coverage cards pass `deltaMode="pp"`, rendering "pp vs previous period" instead of "% vs previous period".
+
+### FB-051-audit — Content Impact tab metric coherence audit (meta-feedback)
+
+**Tina's meta-feedback:** "Overall, I'm noticing that a lot of metrics seem like they are misnamed / misrepresented... titles, descriptions, and representation of values (count vs percentage) in the metrics are getting jumbled."
+
+**Shipped:** Full audit doc at `docs/official-feedback/content-impact-v2-metric-audit.md` reconciling title + tooltip + value source + units for all 22 metrics rendered on the Content Impact tab (§A KPIs, §B Watched Pages, §C Speed Stats, §F Fullsite Content, §H.1 Competitor Analysis, §H.2 Brand-Absent). 1 MISMATCH surfaced (shipped inline as FB-051a above). All other 21 metrics OK: §B + §F engagement rate confirmed `* 100` in both renderer AND delta math; §H.1 Source Visibility tooltip coherent with `retrieved_percentage`; §H.1 Citation Share delta truthfully null per FB-051.
+
+### FB-053 — §H.1 column "AI Visibility" → "Source Visibility" rename (Row 9c)
+
+**Tina's ask:** "AI visibility metric is wrong... tooltip says 'Percentage of chats where at least one URL from this domain appeared as a source.'"
+
+**Shipped:** Column label at content-impact-tables.tsx:414 renamed from "AI Visibility" to "Source Visibility". Title now matches Peec's actual `sourceVisibility` metric definition (domain-level source presence, not brand-level visibility). Tooltip kept (the tooltip text was correct; the column label was the mismatch). Zero logic change.
+
+### FB-054 — §H.1 Citation Share tooltip rewrite (Row 9d)
+
+**Tina's ask:** "Citation share metric is wrong... tooltip says 'Average number of times the domain was explicitly referenced in response text when used.' but it should be a percentage."
+
+**Shipped:** Tooltip at content-impact-tables.tsx:426 changed from `TT.aiCitations` to inline string: "This domain's share of total citations across all competitor domains in the period. (Avenue Z internal, derived from Peec citation_count.)". Now describes the share-of-period math shipped in FB-051.
+
+### FB-055 — §H.2 Citation Share tooltip rewrite (Row 10)
+
+**Tina's ask:** "this citation share metric is either wrong or the tooltip is wrong. It says 'Average number of times...' but it should be a percentage."
+
+**Shipped:** Tooltip at content-impact-tables.tsx:515 changed from `TT.aiCitations` to inline string: "This URL's share of total citations across all cited URLs in the period. (Avenue Z internal, derived from Peec citation_count.)". The math itself was correct since FB-041; only the tooltip text was stale.
+
+**Files touched (Phase 1):** `lib/peec/client.ts`, `lib/profound/client.ts`, `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/dashboard/kpi-card.tsx`, `docs/official-feedback/content-impact-v2-metric-audit.md`, `docs/official-feedback/content-impact-v2-plan-reverification.md`, `docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md`.
