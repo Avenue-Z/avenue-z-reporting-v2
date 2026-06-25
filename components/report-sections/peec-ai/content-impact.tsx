@@ -9,7 +9,7 @@ import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getDomainCoverage, domainPromptIds, domainTagIds, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
-import { urlJoinKey } from '@/lib/url'
+import { urlJoinKey, labelFromPath } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
@@ -28,11 +28,11 @@ import type { SlopeChartInput } from '@/lib/peec/slope-chart'
 import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
 import {
   PlannedContentPerformanceTable,
-  OwnedContentCitedTable,
+  FullsiteContentPerformanceTable,
   CompetitorDomainsCitedTable,
   CompetitorUrlsBrandAbsentTable,
   type PlannedContentRow,
-  type OwnedContentCitedRow,
+  type FullsiteContentPerformanceRow,
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
 } from './content-impact-tables'
@@ -913,6 +913,20 @@ export async function ContentImpactReport({
     return organicByPathPrior.get(np) ?? 0
   }
 
+  // Per-path engagement rate (current) lookup. Built from ga4Rows (same rows used by getGA4Metrics).
+  // Exists so §F can call engagementRateForPath(path) symmetrically with the prior helper.
+  const erByPath = new Map<string, number>()
+  if (ga4Rows) {
+    for (const r of ga4Rows) {
+      const p = normPath(String(r.pagePath ?? ''))
+      if (r.engagementRate !== null) erByPath.set(p, Number(r.engagementRate))
+    }
+  }
+  const engagementRateForPath = (path: string | null): number | null => {
+    if (!ga4Rows || !path) return null
+    return erByPath.get(normPath(path)) ?? null
+  }
+
   // Per-path engagement rate (prior) lookup. Mirror getGA4Metrics shape but for prior rows.
   const erByPathPrior = new Map<string, number>()
   if (ga4PerPathPriorRows) {
@@ -1237,54 +1251,97 @@ export async function ContentImpactReport({
         <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
 
-      {/* ── Section F: Owned Content Cited in AI (PRD: 9 columns) ─────────── */}
+      {/* ── Section F: Fullsite Content Performance (FB-039) ────────────────── */}
       {(() => {
-        const demoTopics    = ['AEO Strategy', 'AI Marketing Trends', 'Brand Visibility', 'Content Performance', 'Citation Patterns']
-        const demoClusters  = ['Discovery', 'Comparison', 'How-to', 'Research', 'Brand Authority']
-        const demoEngines   = ['ChatGPT, Claude', 'ChatGPT, Perplexity', 'Claude, Gemini', 'ChatGPT, Copilot', 'Perplexity, Claude']
-        const demoPositions = [1.8, 2.3, 1.5, 2.7, 2.1]
-        const demoAiSessions = [284, 197, 412, 156, 203]
-        // Engines citing each owned domain. Key on a normalized host so the
-        // raw Peec /reports/domains value (d.domain) joins to the host derived
-        // from /reports/urls. Do NOT filter on mentionsYourBrand: an engine can
-        // cite an owned-domain page in an answer that never names the brand —
-        // the owned-domain lookup below already scopes this to our pages.
-        const domainKey = (s: string) => s.toLowerCase().replace(/^www\./, '')
-        const enginesByDomain = new Map<string, Set<string>>()
-        for (const c of urlCitations) {
-          const k = domainKey(c.domain)
-          if (!enginesByDomain.has(k)) enginesByDomain.set(k, new Set())
-          for (const e of c.engines) enginesByDomain.get(k)!.add(e)
-        }
-        // filteredOwnDomains: model-filtered when models filter is active (uses
-        // per-model citation data from domainCitationsByModel). Unfiltered when
-        // no model filter or domainCitationsByModel is unavailable.
-        const ownedRows: OwnedContentCitedRow[] = filteredOwnDomains.map((d, i) => ({
-          urlOrDomain: d.domain,
-          topic: calendarIsDemo ? demoTopics[i % demoTopics.length] : null,
-          // Prompt Cluster = themes (tags) this owned domain is cited under, joined.
-          // "None" when coverage loaded but the domain has no theme; -- only when
-          // coverage is unavailable.
-          promptCluster: calendarIsDemo
-            ? demoClusters[i % demoClusters.length]
-            : coverageAvailable ? (domainTagNames(coverage, d.domain).join(', ') || 'None') : null,
-          aiCitationCount: d.citationRate,
-          aiEnginesCiting: calendarIsDemo ? demoEngines[i % demoEngines.length]
-            : (enginesByDomain.get(domainKey(d.domain))?.size ? Array.from(enginesByDomain.get(domainKey(d.domain))!).map((e) => MODEL_DISPLAY_LABELS[e as AEOModel] ?? e).join(', ') : null),
-          avgCitations: calendarIsDemo ? demoPositions[i % demoPositions.length] : (avgCitByDomain[hostKey(d.domain)] ?? null),
-          // AI-referred sessions for this owned domain, joined by host. A host
-          // GA4 tracks shows its real count (0 if none); a host GA4 doesn't
-          // cover stays -- (null) rather than a misleading 0.
-          aiReferredSessions: calendarIsDemo
-            ? demoAiSessions[i % demoAiSessions.length]
-            : ga4Hosts.has(hostKey(d.domain)) ? (aiRefByHost.get(hostKey(d.domain)) ?? 0) : null,
-          postLaunchAILift: d.retrievedDelta,
-          recommendedAction: 'Monitor and protect citation position',
-        }))
+        // FB-039: row universe = owned-domain cited URLs. Owned hosts derived from
+        // filteredOwnDomains (Peec /reports/domains, already model-filtered upstream).
+        const ownedHostKeys = new Set<string>(
+          filteredOwnDomains
+            .map((d) => urlJoinKey(d.domain))
+            .filter((k): k is string => k !== null),
+        )
+
+        const fullsiteRows: FullsiteContentPerformanceRow[] = urlCitations
+          .filter((c) => {
+            const hostKey = urlJoinKey(c.domain)
+            return hostKey !== null && ownedHostKeys.has(hostKey) && (c.citationCount ?? 0) > 0
+          })
+          .map((c) => {
+            const path = extractPath(c.url)
+            const urlKey = c.urlKey
+
+            // Prompt Coverage (current + prior, both gated on data presence).
+            const currentPromptIds = urlPromptIds(coverage, urlKey)
+            const priorPromptIds = compareIso ? urlPromptIds(coveragePrior, urlKey) : []
+            const promptCoverage = totalTrackedPrompts > 0
+              ? (currentPromptIds.length / totalTrackedPrompts) * 100
+              : null
+            const promptCoveragePrior = (compareIso && totalTrackedPrompts > 0 && Object.keys(coveragePrior.promptIdsByUrlKey).length > 0)
+              ? (priorPromptIds.length / totalTrackedPrompts) * 100
+              : null
+            const promptCoverageDelta = (promptCoverage !== null && promptCoveragePrior !== null)
+              ? promptCoverage - promptCoveragePrior
+              : null
+
+            // Citation Share (current + prior).
+            const cite = c.citationCount ?? null
+            const citePrior = citeByKeyPrior.get(urlKey)?.citationCount ?? null
+            const citationShare = (cite !== null && totalCitationsCurrentRows > 0)
+              ? (cite / totalCitationsCurrentRows) * 100
+              : null
+            const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
+              ? (citePrior / totalCitationsPriorRows) * 100
+              : null
+            const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
+              ? citationShare - citationSharePrior
+              : null
+
+            // AI Referral Traffic (current + prior).
+            const aiRef = aiReferredForPath(path)
+            const aiRefPrior = compareIso ? aiReferredForPathPrior(path) : null
+            const aiReferralTrafficDelta = (aiRef !== null && aiRefPrior !== null && aiRefPrior > 0)
+              ? ((aiRef - aiRefPrior) / aiRefPrior) * 100
+              : null
+
+            // Organic Sessions (current + prior).
+            const organic = organicForPath(path)
+            const organicPrior = compareIso ? organicForPathPrior(path) : null
+            const organicSessionsDelta = (organic !== null && organicPrior !== null && organicPrior > 0)
+              ? ((organic - organicPrior) / organicPrior) * 100
+              : null
+
+            // Engagement Rate (current + prior, percentage points).
+            const er = engagementRateForPath(path)
+            const erPrior = compareIso ? engagementRateForPathPrior(path) : null
+            const engagementRateDelta = (er !== null && erPrior !== null)
+              ? er - erPrior
+              : null
+
+            const pageTitle = (c.title && c.title.trim() !== '')
+              ? c.title
+              : (labelFromPath(c.url) || c.url)
+
+            return {
+              pageTitle,
+              url: c.url,
+              promptCoverage,
+              promptCoverageDelta,
+              citationShare,
+              citationShareDelta,
+              aiReferralTraffic: aiRef,
+              aiReferralTrafficDelta,
+              organicSessions: organic,
+              organicSessionsDelta,
+              engagementRate: er,
+              engagementRateDelta,
+              _key: c.urlKey || c.url,
+            }
+          })
+
         return (
-          <OwnedContentCitedTable
-            rows={ownedRows}
-            emptyMessage="No owned-domain citation data available from Peec AI"
+          <FullsiteContentPerformanceTable
+            rows={fullsiteRows}
+            ga4Connected={!!ga4Rows}
           />
         )
       })()}
