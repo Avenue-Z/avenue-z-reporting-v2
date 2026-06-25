@@ -2190,3 +2190,54 @@ If any are missing, the synopsis card falls back to the temporarily-unavailable 
 **Shipped:** Tooltip at content-impact-tables.tsx:515 changed from `TT.aiCitations` to inline string: "This URL's share of total citations across all cited URLs in the period. (Avenue Z internal, derived from Peec citation_count.)". The math itself was correct since FB-041; only the tooltip text was stale.
 
 **Files touched (Phase 1):** `lib/peec/client.ts`, `lib/profound/client.ts`, `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/dashboard/kpi-card.tsx`, `docs/official-feedback/content-impact-v2-metric-audit.md`, `docs/official-feedback/content-impact-v2-plan-reverification.md`, `docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md`.
+
+---
+
+## V2 Phase 2 — Content Impact (FB-043, FB-044, FB-045, FB-046, FB-047, FB-049)
+
+**Tab:** Content Impact
+**Round:** V2 Phase 2 (literal-Tina UI fixes)
+**Sources:** column E of `Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`, rows 4, 5, 6a, 6b, 7, 8a, 9e.
+
+### FB-043 — §B "--" footnote rewrite + unmatched-count stat (Row 4a)
+
+**Tina's ask:** "I'm confused why there would be any rows that don't have matches. I definitely see that happening here because there are several cells with '--'."
+
+**Shipped:** Extended `PlannedContentPerformanceTable` props to accept `unmatchedCount: number` and `totalPublishedCount: number`. New conditional footnote (only renders when `ga4Connected && unmatchedCount > 0`): "N of M published URLs have no GA4 sessions in this period. A row shows '--' when GA4 was queried successfully but recorded no traffic to that path. This usually means: the URL has not received visits yet, the live URL differs from the calendar entry, or GA4 is not configured to track that hostname." Orchestrator (`content-impact.tsx:1167`) computes `unmatchedCount` as rows where all 3 GA4 fields (aiReferralTraffic, organicSessions, engagementRate) are null.
+
+### FB-044 — Delta columns split across §B, §F, §H.1 (Rows 4b + 8a + 9e)
+
+**Tina's ask:** "Instead of the deltas being in the same column as the metric, can they have their own columns so we're able to sort by that change?"
+
+**Shipped:** Every metric column split into Value + Δ as two sortable columns. Result:
+- §B (`PlannedContentRow`): 9 → 14 columns
+- §F (`FullsiteContentPerformanceRow`): 6 → 11 columns
+- §H.1 (`CompetitorDomainsCitedRow`): 4 → 7 columns
+
+Each Δ column: `key: '<metric>Delta'`, `label: 'Δ'`, `align: 'right'`, `accessor: (r) => r.<metric>Delta ?? -Infinity` so null deltas sort to bottom on asc, top on desc; `render` uses the existing module-scope `renderDelta(delta, mode)` helper. Units: `pp` for citationShare, promptCoverage, engagementRate, aiVisibility; `pct` for aiReferralTraffic, organicSessions. §H.1 Citation Share red bar visual preserved on the value column. §H.2 (Brand-Absent) NOT touched per Tina's literal scope.
+
+### FB-045 — §C source URLs under Fastest + Slowest AI tiles (Row 5)
+
+**Tina's ask:** "Below the 'fastest ai indexed content' and 'slowest ai indexed content' can we add something that shows the specific URL it's referencing?"
+
+**Shipped:** Threaded `url` field through the `urlTimings` pipeline (the `computeUrlTiming` helper didn't return it; needed to extend the input map to carry `url: r.url ?? null` from `ContentCalendarRow`). Derived `fastestAiUrl` + `slowestAiUrl` via `urlTimings.find(t => t.daysToFirstAi === fastestAi)?.url ?? null`. Extended §C tile array with `sourceUrl: string | null` field. Fastest + Slowest tiles render a hyperlinked URL (target="_blank", text-[10px], text-white/40) beneath the value when present. Median tiles get `sourceUrl: null` and render no link.
+
+### FB-046 — §D scatter visible crosshair + quadrant labels (Row 6a)
+
+**Tina's ask:** "This scatter plot doesn't quite make sense - see example of how there should be 4 quadrants."
+
+**Shipped:** ReferenceLine strokes brightened from `#FFFFFF40` (25% opacity) to `#FFFFFF80` (50%), `strokeWidth={1.5}` added. Corner-anchored absolute-positioned overlay replaced with a 2×2 CSS grid (`grid grid-cols-2 grid-rows-2`); each label now sits in its true quadrant cell via `items-start/end justify-start/end p-4` flexbox anchoring. Labels: "Low Bot, High Human" / "High Bot, High Human" / "Low Bot, Low Human" / "High Bot, Low Human". `cornerLabel` className preserved. PR #85's empty-state handler left untouched.
+
+### FB-047 — §D scatter hover surfaces page URL (Row 6b)
+
+**Tina's ask:** "when you hover over the dots it should display the page URL or something to indicate what the dot represents."
+
+**Shipped:** Replaced the default Recharts Tooltip with custom `content` render function that shows a dark card with page path as bold header + "AI Bot Visits: N" + "Human Sessions: M" rows. Payload field names (`path`, `bots`, `humans`) confirmed against existing data shape. `Tooltip` import was already present. `cursor={{ strokeDasharray: '3 3' }}` preserved.
+
+### FB-049 — §E slope chart right-margin legend + hover muting (Row 7)
+
+**Tina's ask:** "When you hover over one dot, it shows you a tooltip with all the pages listed. Can we just add the list to the right margin in the order of 'Current'? And then when you hover over one of the dots/lines, it mutes the color of the others?"
+
+**Shipped:** Refactored `SlopeChart` component. Added `useState<string | null>('hoveredUrl')`. Layout now a flex row: chart on the left (its right-margin reduced from 80 → 16 since legend is no longer needed inside the chart pane), legend `<ul>` on the right (`w-56 shrink-0`). Legend items sorted by `p.current` desc; each `<li>` has a colored dot (`DIRECTION_COLOR[p.direction]`), the page label (`p.topic ?? p.url`), and the Current value via `yTickFormatter`. Hover on either a legend `<li>` or a chart line's `activeDot` sets `hoveredUrl`. `opacityFor(url)` drives line `strokeOpacity` + `fillOpacity` + legend row `opacity`: `null` → 0.7, hovered → 1.0 + strokeWidth 3, other → 0.15 (lines) / 0.4 (legend rows). Tooltip only renders when `hoveredUrl !== null` and filters via `(value, name) => String(name) !== hoveredUrl ? [null, null] : ...`. Toggle row, compare-period gating, empty states all unchanged. Pure helper at `lib/peec/slope-chart.ts` not touched (only the .tsx UI consumer).
+
+**Files touched (Phase 2):** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/report-sections/peec-ai/bot-vs-human-scatter.tsx`, `components/report-sections/peec-ai/slope-chart.tsx`.
