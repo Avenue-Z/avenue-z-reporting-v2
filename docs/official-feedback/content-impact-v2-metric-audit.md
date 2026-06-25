@@ -1,4 +1,4 @@
-# Content Impact Tab — Phase 1 Metric Coherence Audit
+# Content Impact Tab: Phase 1 Metric Coherence Audit
 
 **Context:** Tina's V2 meta-feedback was: "Overall, I'm noticing that a lot of metrics seem like they are
 misnamed / misrepresented... titles, descriptions, and representation of values (count vs percentage) in
