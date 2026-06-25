@@ -10,7 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { CHART_COLORS } from '@/lib/constants'
+import { CHART_COLORS, formatChartNumber } from '@/lib/constants'
 
 interface AreaChartProps {
   data: Record<string, string | number>[]
@@ -66,8 +66,9 @@ export function AreaChart({
           tickLine={false}
           tickFormatter={xTickFormatter}
         />
-        <YAxis tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatChartNumber(v)} />
         <Tooltip
+          formatter={(value) => formatChartNumber(value as number)}
           contentStyle={{
             background: '#272727',
             border: '1px solid rgba(255,255,255,0.08)',

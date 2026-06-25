@@ -23,6 +23,12 @@ export const CHART_COLORS = {
   neutral: '#8A8A8A', // grey
 } as const
 
+/** Format a chart axis/tooltip number: thousands-separated, capped at 2 decimals.
+ *  Non-numbers (category labels) pass through unchanged. */
+export function formatChartNumber(v: number | string): string {
+  return typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(v)
+}
+
 /** Known AI assistant referrer domains (matched against GA4 sessionSource) */
 export const AI_REFERRER_DOMAINS = [
   'chat.openai.com',

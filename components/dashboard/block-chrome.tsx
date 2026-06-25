@@ -69,7 +69,7 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
   function confirmDelete() { optimisticRemove(block.id); closeMenu() }
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {children}
 
       {canEdit && editOpen && (
