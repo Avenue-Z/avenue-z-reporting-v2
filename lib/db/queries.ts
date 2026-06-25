@@ -31,19 +31,16 @@ export const getClientBySlug = cache(
 )
 
 /**
- * Find one user by email. `demoMode` is the users.demoMode column —
- * when true, the auth callback bakes a `demoMode: true` claim into the
- * session JWT and the route handlers flip on the demo-fill behavior for
- * every page that user views.
+ * Find one user by email. Returns the user's role and their client slug.
  * Returns null if not found.
  */
-const getClientByEmailImpl = cache(async (email: string): Promise<{ email: string; role: ClientRole; slug: string; demoMode: boolean } | null> => {
+const getClientByEmailImpl = cache(async (email: string): Promise<{ email: string; role: ClientRole; slug: string } | null> => {
   const row = await db.query.users.findFirst({
     where: eq(users.email, email.toLowerCase()),
     with: { client: true },
   })
   if (!row) return null
-  return { email: row.email, role: row.role, slug: row.client.slug, demoMode: row.demoMode }
+  return { email: row.email, role: row.role, slug: row.client.slug }
 })
 
 export const getClientByEmail = timed('db', 'getClientByEmail', getClientByEmailImpl)

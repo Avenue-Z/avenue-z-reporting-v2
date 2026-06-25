@@ -135,6 +135,9 @@ export const clients = pgTable('clients', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// TODO(remove-demo-mode): the demo_mode column is intentionally left in the
+// database for now. Drop it via a Drizzle migration in a follow-up. See
+// MIGRATIONS-PENDING.md.
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
@@ -142,11 +145,6 @@ export const users = pgTable('users', {
   clientId: uuid('client_id')
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
-  // When true, the user gets demoMode on every page they view —
-  // empty/unconfigured sections fill with sample data and show a "Sample
-  // data" badge. Strictly gated to sales-demo accounts (e.g.
-  // demo@avenuez.com); non-demo users cannot bypass this flag.
-  demoMode: boolean('demo_mode').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   clientIdIdx: index('users_client_id_idx').on(table.clientId),

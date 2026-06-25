@@ -1,9 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
-import { resolveDemoMode } from '@/lib/demo-data/resolve'
 import { REPORT_NAMES } from '@/lib/constants'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -48,7 +46,6 @@ function getReportSection(
   dateRange: string,
   compareRange: string | null,
   submittedBy: string | undefined,
-  demoMode: boolean,
 ) {
   switch (reportSlug) {
     case 'exec-summary':
@@ -80,7 +77,7 @@ function getReportSection(
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'peec-ai':
-      return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
+      return <PeecAIReport clientSlug={clientSlug} />
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'request-a-report':
@@ -110,11 +107,6 @@ export default async function PortalReportPage({
 
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
-  const cookieStore = await cookies()
-  const demoMode = resolveDemoMode({
-    userDemoFlag: session?.user?.demoMode === true,
-    cookieValue:  cookieStore.get('demoMode')?.value,
-  })
 
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
@@ -140,7 +132,7 @@ export default async function PortalReportPage({
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy, demoMode)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy)}
         </Suspense>
       </ReportErrorBoundary>
     </div>
