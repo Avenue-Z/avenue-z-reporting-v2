@@ -73,6 +73,15 @@ export async function addClientUser(args: {
     if (e instanceof Error && /unique|duplicate key/i.test(e.message)) duplicate = true
     else throw e
   }
+  // When the client is AT its seat cap, the conditional INSERT inserts 0 rows
+  // without ever attempting the insert, so a unique violation never fires. A
+  // re-invite of an already-provisioned email would otherwise be misreported as
+  // 'seat_limit'. Disambiguate with an existence check before classifying.
+  if (insertedRows === 0 && !duplicate) {
+    const exists = await db.execute(sql`SELECT 1 FROM users WHERE email = ${email} LIMIT 1`)
+    const rows = (exists as { rows?: unknown[] }).rows ?? (exists as unknown as unknown[])
+    if (Array.isArray(rows) && rows.length > 0) duplicate = true
+  }
   if (insertedRows > 0) revalidateTag('db', 'max')
   return interpretAddResult({ insertedRows, duplicate })
 }
