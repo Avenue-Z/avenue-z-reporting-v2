@@ -48,6 +48,16 @@ export interface BlockConfig {
   binding: Binding
   format: MetricFormat
   range: { dateRange: string; compareRange: string | null } | null // null = inherit global
+  /** KPI-only annotations (ignored by other kinds). */
+  subLabel?: string
+  /** Green when value ≥ target and < ceiling. */
+  target?: number
+  /** Orange when value ≥ ceiling. */
+  ceiling?: number
+  /** Header-only: heading level (1 = largest). Default 2. */
+  headerLevel?: 1 | 2 | 3
+  /** Narrative-only: markdown body (rendered via react-markdown). */
+  narrativeBody?: string
 }
 
 export type BlockError = 'disconnected' | 'invalid-metric' | 'no-data' | 'rate-limited' | 'error'
