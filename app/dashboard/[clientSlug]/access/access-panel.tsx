@@ -18,9 +18,10 @@ export function AccessPanel({ slug, hasPassword, maxSeats, users }: Props) {
   const [password, setPassword] = useState('')
   const [seats, setSeats] = useState(maxSeats)
   const [adminEmail, setAdminEmail] = useState('')
+  const [link, setLink] = useState<string | null>(null)
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>, okMsg: string) {
-    setMsg(null)
+    setMsg(null); setLink(null)
     start(async () => {
       const r = await action()
       setMsg(r.ok ? okMsg : (r.error ?? 'Something went wrong.'))
@@ -29,11 +30,24 @@ export function AccessPanel({ slug, hasPassword, maxSeats, users }: Props) {
   }
 
   function savePassword() {
-    setMsg(null)
+    setMsg(null); setLink(null)
     start(async () => {
       const r = await setSharedPasswordAction(slug, password)
       if (r.ok) { setMsg('Shared password updated.'); setPassword(''); router.refresh() }
       else setMsg(r.error ?? 'Something went wrong.')
+    })
+  }
+
+  function assignAdmin() {
+    setMsg(null); setLink(null)
+    start(async () => {
+      const r = await assignClientAdminAction(slug, adminEmail)
+      if (r.ok) {
+        setMsg(`Assigned ${adminEmail.trim().toLowerCase()}. Send them this link and the shared password.`)
+        setLink(r.loginUrl ?? null)
+        setAdminEmail('')
+        router.refresh()
+      } else setMsg(r.error ?? 'Something went wrong.')
     })
   }
 
@@ -59,7 +73,13 @@ export function AccessPanel({ slug, hasPassword, maxSeats, users }: Props) {
       <section className="space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">Assign external admin</h3>
         <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="admin@clientcompany.com" className={inputCls} />
-        <button disabled={pending} className={btnCls} onClick={() => run(() => assignClientAdminAction(slug, adminEmail), 'External admin assigned.')}>Assign admin</button>
+        <button disabled={pending || !adminEmail} className={btnCls} onClick={assignAdmin}>Assign admin</button>
+        {link && (
+          <div className="flex items-center gap-2">
+            <input readOnly value={link} className={inputCls} onFocus={(e) => e.currentTarget.select()} />
+            <button className="shrink-0 rounded-full border border-white/15 px-4 py-2.5 text-sm font-semibold text-white" onClick={() => navigator.clipboard?.writeText(link)}>Copy link</button>
+          </div>
+        )}
       </section>
 
       <section>

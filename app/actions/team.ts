@@ -1,7 +1,7 @@
 'use server'
 
 import { auth } from '@/auth'
-import { normalizeEmail, isValidEmail } from '@/lib/admin/access'
+import { normalizeEmail, isValidEmail, loginUrl } from '@/lib/admin/access'
 import { getClientAccessOverview, addClientUser, removeClientUser } from '@/lib/db/admin-queries'
 
 /** Require a CLIENT_ADMIN acting on THEIR OWN client. Returns the clientId and caller's email. */
@@ -14,11 +14,6 @@ async function requireClientAdminOf(slug: string): Promise<{ clientId: string; e
   if (!overview) throw new Error('Unknown client')
   const email = (session.user.email ?? '').toLowerCase()
   return { clientId: overview.clientId, email }
-}
-
-function loginUrl(): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? ''
-  return `${base}/login`
 }
 
 export async function inviteTeammateAction(slug: string, rawEmail: string) {

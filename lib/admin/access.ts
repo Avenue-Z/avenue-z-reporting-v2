@@ -16,3 +16,10 @@ export function isClientRole(role: string): boolean {
 export function seatsRemaining(currentCount: number, maxSeats: number): number {
   return Math.max(0, maxSeats - currentCount)
 }
+
+/** The login URL to hand an invited client-side user (admin or viewer). They sign
+ *  in here with their email + their client's shared password. */
+export function loginUrl(): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  return `${base}/login`
+}

@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth'
 import { hashPassword } from '@/lib/auth/password'
-import { normalizeEmail, isValidEmail } from '@/lib/admin/access'
+import { normalizeEmail, isValidEmail, loginUrl } from '@/lib/admin/access'
 import {
   getClientAccessOverview,
   setClientSharedPassword,
@@ -48,5 +48,5 @@ export async function assignClientAdminAction(slug: string, rawEmail: string) {
   if (!res.ok) {
     return { ok: false, error: res.reason === 'duplicate' ? 'That email is already assigned to a client.' : 'Seat limit reached — raise it first.' }
   }
-  return { ok: true }
+  return { ok: true, loginUrl: loginUrl() }
 }
