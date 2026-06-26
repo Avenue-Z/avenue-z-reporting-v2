@@ -131,6 +131,16 @@ export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean
  *  legacy/empty slug). */
 export const NAV_SLUG_ORDER: string[] = NAV_GROUPS.flatMap((g) => g.slugs)
 
+/** Drop nav sub-tabs whose id is listed in a client's hiddenReports. The Overview
+ *  item (id null) is always kept. Used to disable individual subsections per client. */
+export function visibleSubsections<T extends { id: string | null }>(
+  subs: readonly T[],
+  hiddenReports?: readonly string[] | null,
+): T[] {
+  const hidden = new Set(hiddenReports ?? [])
+  return subs.filter((s) => s.id == null || !hidden.has(s.id))
+}
+
 /** Sub-items shown under the Answer Engine Optimization parent nav item */
 export const AEO_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
   { id: null,             label: 'Overview'            },

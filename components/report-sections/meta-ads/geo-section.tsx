@@ -1,6 +1,5 @@
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
-import { CHART_COLORS } from '@/lib/constants'
 import type { MetaGeoData } from '@/lib/meta/geo'
 import { usd } from '@/lib/supermetrics/format'
 
@@ -19,7 +18,7 @@ export function MetaGeoSection({ data }: { data: MetaGeoData }) {
   }))
 
   const yKeys = [
-    { key: 'spend', label: 'Spend', color: CHART_COLORS.metaAds },
+    { key: 'spend', label: 'Spend', color: '#60FF80' }, // brand green (Meta + LinkedIn unified)
   ]
 
   const topRegion = top10[0] ?? null
