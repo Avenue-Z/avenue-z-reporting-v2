@@ -12,7 +12,7 @@ export interface KpiBlockBodyProps {
  *  (typically Suspense-wrapped on the server). The chrome is supplied by <BlockChrome>. */
 export function KpiBlockBody({ name, value, delta, sub, badge }: KpiBlockBodyProps) {
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 min-h-[140px]">
+    <div className="h-full rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5">
       <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{name}</p>
       {badge && <div className="mt-2">{badge}</div>}
       <div className="mt-2">{value}</div>

@@ -14,7 +14,7 @@ const ResponsiveGrid = WidthProvider(Responsive)
 
 const BREAKPOINTS = { lg: 1200, md: 768, sm: 0 }
 const COLS = { lg: GRID_COLS_LG, md: 8, sm: 4 }
-const ROW_HEIGHT = 60
+const ROW_HEIGHT = 52 // KPI h:2 → 2*52 + 20 margin = 124px ≈ natural KpiCard pill height (kills the SSR→grid stretch)
 const SAVE_DEBOUNCE_MS = 300
 
 export interface BlockGridProps {
