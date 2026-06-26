@@ -1366,13 +1366,17 @@ export async function ContentImpactReport({
           // d.citationRate path that produced 199.9% values (citation_rate is
           // an avg count, not a fraction).
           //
-          // Prior-period denominator needs prior competitor list, which requires
-          // plumbing peecData.topDomainsPrior. v1 deferred: deltas use null when
-          // prior data is not on TopDomain. Adding a prior topDomains field is
-          // tracked in TODO file (post-PR) -- for now, citationShareDelta is null
-          // when we cannot compute it truthfully.
+          // FB-058: Citation Share delta is now computed truthfully. Each competitor
+          // domain carries priorCitationCount (from buildTopDomains' priorData), so we
+          // build a prior-period competitor denominator the same way as the current one
+          // and take currentShare - priorShare. Both periods use the competitor-only
+          // denominator so the math is consistent. Gated on compareIso, like every other
+          // delta. A competitor with zero prior citations yields priorShare 0, so its
+          // delta is the full current share (a clean period-over-period gain).
           const totalCompetitorCitations = filteredCompetitorDomains
             .reduce((s, d) => s + (d.citationCount ?? 0), 0)
+          const totalCompetitorCitationsPrior = filteredCompetitorDomains
+            .reduce((s, d) => s + (d.priorCitationCount ?? 0), 0)
           const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 25).map((d) => {
             const promptCovCurrent = getPromptCoverage(d.domain)
             const promptCovPrior   = compareIso ? getPromptCoveragePrior(d.domain) : null
@@ -1382,12 +1386,18 @@ export async function ContentImpactReport({
             const citationShareValue = totalCompetitorCitations > 0
               ? (d.citationCount / totalCompetitorCitations) * 100
               : 0
+            const citationSharePrior = compareIso && totalCompetitorCitationsPrior > 0
+              ? (d.priorCitationCount / totalCompetitorCitationsPrior) * 100
+              : null
+            const citationShareDelta = compareIso && citationSharePrior !== null
+              ? citationShareValue - citationSharePrior
+              : null
             return {
               domain: d.domain,
               aiVisibility:        d.retrieved,
               aiVisibilityDelta:   compareIso ? d.retrievedDelta : null,
               citationShare:       citationShareValue,
-              citationShareDelta:  null,  // FB-051: truthful null until prior topDomains is plumbed
+              citationShareDelta:  citationShareDelta,
               promptCoverage:      promptCovCurrent,
               promptCoverageDelta: promptCovDelta,
             }

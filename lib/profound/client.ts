@@ -85,6 +85,7 @@ export type TopDomain = {
   citationRate: number    // raw citation count
   citationRateDelta: number
   citationCount: number   // raw citation count (mirrors Peec TopDomain.citationCount for cross-provider use)
+  priorCitationCount: number  // FB-058: prior-period citation count (from priorCountMap), for §H.1 Citation Share delta; mirrors Peec TopDomain.priorCitationCount
   type: string
 }
 
@@ -353,6 +354,7 @@ function buildTopDomains(currentRows: ProfoundRow[], priorRows: ProfoundRow[]): 
       citationRate: count,
       citationRateDelta: count - (priorCountMap.get(domain) ?? count),
       citationCount: count,
+      priorCitationCount: priorCountMap.get(domain) ?? 0,
       type,
     }))
     .sort((a, b) => b.retrieved - a.retrieved)

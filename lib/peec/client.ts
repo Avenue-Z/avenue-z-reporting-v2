@@ -139,6 +139,7 @@ export type TopDomain = {
   citationRate: number
   citationRateDelta: number
   citationCount: number  // Peec citation_count (raw integer), used for share-of-period math
+  priorCitationCount: number  // FB-058: prior-period citation_count, for §H.1 Citation Share delta
   type: string
 }
 
@@ -472,6 +473,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
           citationRate: d.citation_rate * 100,
           citationRateDelta: prior ? (d.citation_rate - prior.citation_rate) * 100 : 0,
           citationCount: d.citation_count ?? 0,
+          priorCitationCount: prior?.citation_count ?? 0,
           type: normalizeClassification(d.classification),
         }
       })
@@ -837,7 +839,10 @@ export const getPeecOverview = cached(
     //      current and prior periods, from a new model-dimensioned
     //      promptBrandsPriorRes fetch + an updated current promptBrandsRes
     //      with the same dimensions. Used by lib/peec/winners-losers.ts.
-    version: 'v9',
+    // v10 = FB-058: TopDomain now carries priorCitationCount (prior-period Peec
+    //       citation_count). Required for the §H.1 Citation Share delta. v9 cached
+    //       entries lack this field, so invalidate to force a fresh fetch.
+    version: 'v10',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
