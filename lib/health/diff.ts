@@ -33,5 +33,9 @@ export function formatTransitions(transitions: Transition[]): string | null {
     const tail = t.to === 'down' ? ` — ${t.detail ?? 'failed'}` : ' — recovered'
     return `${icon} ${loc}${tail}`
   })
-  return ['*Health changes*', ...lines].join('\n')
+  // Ping active channel members (<!here> is the Slack API form of @here) only
+  // when something newly broke — recovery-only messages stay quiet.
+  const hasBreak = transitions.some((t) => t.to === 'down')
+  const header = hasBreak ? '<!here> *Health changes*' : '*Health changes*'
+  return [header, ...lines].join('\n')
 }

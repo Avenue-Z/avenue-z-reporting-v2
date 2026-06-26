@@ -50,6 +50,17 @@ assert.equal(formatTransitions([]), null)
   assert.match(msg, /globex · dashboard · meta-ads — recovered/)
   assert.match(msg, /🔴/)
   assert.match(msg, /✅/)
+  // A message containing a new break pings the channel.
+  assert.match(msg, /<!here>/)
+}
+
+// recovery-only message does NOT ping the channel
+{
+  const msg = formatTransitions([
+    { key: 'portal:acme:ga4', surface: 'portal', clientSlug: 'acme', section: 'ga4', from: 'down', to: 'ok' },
+  ])!
+  assert.match(msg, /recovered/)
+  assert.ok(!msg.includes('<!here>'), 'recovery-only message must not ping')
 }
 
 console.log('diff.test.ts: all assertions passed')
