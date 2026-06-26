@@ -3,6 +3,7 @@
 import { strict as assert } from 'node:assert'
 import { SmQueryError, SmTimeoutError } from '@/lib/supermetrics/types'
 import { TwQueryError, TwRateLimitError } from '@/lib/triplewhale/client'
+import { ShopifyQlError } from '@/lib/shopify/client'
 import { mapError, worseError, DisconnectedError, NoDataError, DriftError } from './errors'
 
 // mapError: each known cause → its BlockError
@@ -24,5 +25,8 @@ assert.equal(worseError('invalid-metric', 'rate-limited'), worseError('rate-limi
 // TripleWhale error mapping
 assert.equal(mapError(new TwRateLimitError(5)), 'rate-limited')
 assert.equal(mapError(new TwQueryError('bad')), 'invalid-metric')
+
+// Shopify error mapping
+assert.equal(mapError(new ShopifyQlError('bad ShopifyQL')), 'invalid-metric')
 
 console.log('ok')
