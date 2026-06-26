@@ -73,7 +73,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       </div>
 
       {/* Avenue Z employee Google sign-in footnote */}
-      <p className="text-center text-sm text-text-muted">
+      <div className="text-center text-sm text-text-muted">
         Avenue Z employee?{' '}
         <form action={signInWithGoogle} className="inline">
           <button
@@ -83,7 +83,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Sign in with Google
           </button>
         </form>
-      </p>
+      </div>
 
     </div>
   )
