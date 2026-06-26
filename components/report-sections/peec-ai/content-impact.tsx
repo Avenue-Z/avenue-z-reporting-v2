@@ -1357,9 +1357,9 @@ export async function ContentImpactReport({
       {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
       <SectionCard
         title="Competitor Analysis"
-        description="See which competitor domains are gaining or losing ground across AI Visibility, Citation Share, and Prompt Coverage for your target prompts."
+        description="See which competitor domains are gaining or losing ground across Source Visibility, Citation Share, and Prompt Coverage for your target prompts."
       >
-        {/* Sub-view 1: Top Competitor Domains - AI Visibility / Citation Share / Prompt Coverage */}
+        {/* Sub-view 1: Top Competitor Domains - Source Visibility / Citation Share / Prompt Coverage */}
         {(() => {
           // FB-051: Citation Share = (domain.citationCount / sumOfAllCompetitorCitationCounts) * 100.
           // Mirrors §B and §H.2 share-of-period math. Replaces the broken
