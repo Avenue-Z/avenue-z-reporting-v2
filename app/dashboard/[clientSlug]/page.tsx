@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
 import { Header } from '@/components/layout/header'
@@ -13,21 +14,28 @@ export default async function ClientOverviewPage({
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
+  const session = await auth()
+  const isAdmin = session?.user?.role === 'INTERNAL_ADMIN'
+
   return (
     <>
       <Header title={client.name} subtitle="Client Overview">
-        <Link
-          href={`/dashboard/${client.slug}/auth`}
-          className="rounded-[100px] bg-[#3a3a3a] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-bg-subtle"
-        >
-          Manage Connections
-        </Link>
-        <Link
-          href={`/dashboard/${client.slug}/access`}
-          className="rounded-[100px] bg-[#3a3a3a] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-bg-subtle"
-        >
-          Manage Access
-        </Link>
+        {isAdmin && (
+          <>
+            <Link
+              href={`/dashboard/${client.slug}/auth`}
+              className="rounded-[100px] bg-[#3a3a3a] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-bg-subtle"
+            >
+              Manage Connections
+            </Link>
+            <Link
+              href={`/dashboard/${client.slug}/access`}
+              className="rounded-[100px] bg-[#3a3a3a] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-bg-subtle"
+            >
+              Manage Access
+            </Link>
+          </>
+        )}
       </Header>
 
       <div className="mb-8">

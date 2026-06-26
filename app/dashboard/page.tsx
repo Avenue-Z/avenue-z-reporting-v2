@@ -38,7 +38,7 @@ export default async function DashboardPage() {
         {clients.map((client) => (
           <Link
             key={client.slug}
-            href={`/dashboard/${client.slug}/reports`}
+            href={`/dashboard/${client.slug}`}
             className="group relative flex items-center gap-4 rounded-lg border border-white/[0.06] bg-bg-surface p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.02]"
           >
             {/* Avatar / Logo */}
