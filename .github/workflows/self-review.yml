@@ -1,0 +1,20 @@
+name: Self-review gate
+
+# A deliberate review stage a solo author can clear: a PR into `main` may merge
+# only once a `self-reviewed` label is on it. GitHub never lets you approve your
+# own PR, so this replaces the "required approving review" with a check you
+# control. Make this a REQUIRED status check on main.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  require-self-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require 'self-reviewed' label
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'self-reviewed') }}
+        run: |
+          echo "::error::Review your own diff, then add the 'self-reviewed' label to this PR before merging into main."
+          exit 1
