@@ -1,14 +1,16 @@
 import type {
-  AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig, Granularity, LeafBinding,
-  MetricFormat, PersistedBlock, ShopifyBinding, SupermetricsBinding, TripleWhaleBinding,
+  AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig,
+  FormulaBinding, FormulaOperand, Granularity, LeafBinding, MetricFormat, PersistedBlock, ShopifyBinding,
+  SupermetricsBinding, TripleWhaleBinding,
 } from './types'
 import { SHOPIFY_DIM_RE } from '@/lib/shopify/catalog'
+import { parse, operandKeys } from './formula/parse'
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
-const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number']
+const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number', 'multiple']
 const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
-const BLOCK_KINDS: BlockKind[] = ['kpi', 'bar', 'line', 'table', 'narrative', 'header']
+const BLOCK_KINDS: BlockKind[] = ['kpi', 'pills', 'bar', 'line', 'table', 'narrative', 'header']
 const GRANULARITIES: Granularity[] = ['day', 'week', 'month']
 const SM_DIM_RE = /^[A-Za-z0-9_]+$/                     // mirrors SM_COLUMN_RE in lib/dashboard/adapters/supermetrics.ts
 const TW_DIM_RE = /^[a-z0-9_]+$/                        // mirrors isSafeColumn in lib/triplewhale/queries.ts
@@ -42,6 +44,24 @@ function parseRange(v: unknown, path: string): Parsed<{ dateRange: string; compa
   return { ok: true, value: { dateRange: v.dateRange, compareRange: v.compareRange } }
 }
 
+function parseGranularity(v: unknown, path: string): Parsed<Granularity> {
+  if (!GRANULARITIES.includes(v as Granularity)) {
+    return { ok: false, error: `${path}: expected one of ${GRANULARITIES.join(',')}` }
+  }
+  return { ok: true, value: v as Granularity }
+}
+
+function parseDimensions(v: unknown, path: string, re: RegExp): Parsed<string[]> {
+  if (!Array.isArray(v) || v.length !== 1) {
+    return { ok: false, error: `${path}: expected array of length 1 (v1)` }
+  }
+  const d = v[0]
+  if (!isNonEmptyStr(d) || !re.test(d)) {
+    return { ok: false, error: `${path}[0]: expected safe column (matching ${re.source})` }
+  }
+  return { ok: true, value: [d] }
+}
+
 function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
   if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
   if (v.source === 'supermetrics') {
@@ -58,20 +78,14 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
       b.filters = pf.value
     }
     if (v.dimensions !== undefined) {
-      if (!Array.isArray(v.dimensions) || v.dimensions.length !== 1) {
-        return { ok: false, error: `${path}.dimensions: expected array of length 1 (v1)` }
-      }
-      const d = v.dimensions[0]
-      if (!isNonEmptyStr(d) || !SM_DIM_RE.test(d)) {
-        return { ok: false, error: `${path}.dimensions[0]: expected safe SM column (matching ^[A-Za-z0-9_]+$)` }
-      }
-      b.dimensions = [d]
+      const pd = parseDimensions(v.dimensions, `${path}.dimensions`, SM_DIM_RE)
+      if (!pd.ok) return pd
+      b.dimensions = pd.value
     }
     if (v.granularity !== undefined) {
-      if (!GRANULARITIES.includes(v.granularity as Granularity)) {
-        return { ok: false, error: `${path}.granularity: expected one of ${GRANULARITIES.join(',')}` }
-      }
-      b.granularity = v.granularity as Granularity
+      const pg = parseGranularity(v.granularity, `${path}.granularity`)
+      if (!pg.ok) return pg
+      b.granularity = pg.value
     }
     return { ok: true, value: b }
   }
@@ -86,20 +100,14 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
       b.filters = pf.value
     }
     if (v.dimensions !== undefined) {
-      if (!Array.isArray(v.dimensions) || v.dimensions.length !== 1) {
-        return { ok: false, error: `${path}.dimensions: expected array of length 1 (v1)` }
-      }
-      const d = v.dimensions[0]
-      if (!isNonEmptyStr(d) || !TW_DIM_RE.test(d)) {
-        return { ok: false, error: `${path}.dimensions[0]: expected safe TW column (matching ^[a-z0-9_]+$)` }
-      }
-      b.dimensions = [d]
+      const pd = parseDimensions(v.dimensions, `${path}.dimensions`, TW_DIM_RE)
+      if (!pd.ok) return pd
+      b.dimensions = pd.value
     }
     if (v.granularity !== undefined) {
-      if (!GRANULARITIES.includes(v.granularity as Granularity)) {
-        return { ok: false, error: `${path}.granularity: expected one of ${GRANULARITIES.join(',')}` }
-      }
-      b.granularity = v.granularity as Granularity
+      const pg = parseGranularity(v.granularity, `${path}.granularity`)
+      if (!pg.ok) return pg
+      b.granularity = pg.value
     }
     return { ok: true, value: b }
   }
@@ -107,20 +115,14 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
     if (!isNonEmptyStr(v.query)) return { ok: false, error: `${path}.query: expected non-empty string` }
     const b: ShopifyBinding = { source: 'shopify', query: v.query }
     if (v.dimensions !== undefined) {
-      if (!Array.isArray(v.dimensions) || v.dimensions.length !== 1) {
-        return { ok: false, error: `${path}.dimensions: expected array of length 1 (v1)` }
-      }
-      const d = v.dimensions[0]
-      if (!isNonEmptyStr(d) || !SHOPIFY_DIM_RE.test(d)) {
-        return { ok: false, error: `${path}.dimensions[0]: expected safe Shopify column (matching ^[a-z0-9_]+$)` }
-      }
-      b.dimensions = [d]
+      const pd = parseDimensions(v.dimensions, `${path}.dimensions`, SHOPIFY_DIM_RE)
+      if (!pd.ok) return pd
+      b.dimensions = pd.value
     }
     if (v.granularity !== undefined) {
-      if (!GRANULARITIES.includes(v.granularity as Granularity)) {
-        return { ok: false, error: `${path}.granularity: expected one of ${GRANULARITIES.join(',')}` }
-      }
-      b.granularity = v.granularity as Granularity
+      const pg = parseGranularity(v.granularity, `${path}.granularity`)
+      if (!pg.ok) return pg
+      b.granularity = pg.value
     }
     return { ok: true, value: b }
   }
@@ -149,6 +151,44 @@ function parseOperand(v: unknown, path: string): Parsed<AggregateOperand> {
   return parseLeaf(v, path)
 }
 
+function parseFormulaOperand(v: unknown, path: string): Parsed<FormulaOperand> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (v.kind === 'ref') {
+    if (!isNonEmptyStr(v.blockId)) return { ok: false, error: `${path}.blockId: expected non-empty string` }
+    return { ok: true, value: { kind: 'ref', blockId: v.blockId } }
+  }
+  if (v.kind === 'metric') {
+    const leaf = parseLeaf(v.leaf, `${path}.leaf`)
+    if (!leaf.ok) return leaf
+    return { ok: true, value: { kind: 'metric', leaf: leaf.value } }
+  }
+  return { ok: false, error: `${path}.kind: expected 'ref' or 'metric'` }
+}
+
+function parseFormula(v: unknown, path: string): Parsed<FormulaBinding> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  if (!isNonEmptyStr(v.expr)) return { ok: false, error: `${path}.expr: expected non-empty string` }
+  let keys: string[]
+  try {
+    parse(v.expr)               // full structural validation (throws on malformed)
+    keys = operandKeys(v.expr)
+  } catch {
+    return { ok: false, error: `${path}.expr: not a valid formula` }
+  }
+  if (!isObj(v.operands)) return { ok: false, error: `${path}.operands: expected object` }
+  const operands: Record<string, FormulaOperand> = {}
+  for (const key of Object.keys(v.operands)) {
+    const op = parseFormulaOperand(v.operands[key], `${path}.operands.${key}`)
+    if (!op.ok) return op
+    operands[key] = op.value
+  }
+  // every @key used in expr must have an operand, and vice versa
+  const provided = new Set(Object.keys(operands))
+  for (const k of keys) if (!provided.has(k)) return { ok: false, error: `${path}.operands: missing operand for @${k}` }
+  for (const k of provided) if (!keys.includes(k)) return { ok: false, error: `${path}.operands: unused operand @${k}` }
+  return { ok: true, value: { source: 'formula', expr: v.expr, operands } }
+}
+
 function parseBinding(v: unknown, path: string): Parsed<Binding> {
   if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
   if (v.source === 'aggregate') {
@@ -161,6 +201,7 @@ function parseBinding(v: unknown, path: string): Parsed<Binding> {
     return { ok: true, value: b }
   }
   if (v.source === 'calculated') return parseCalculated(v, path)
+  if (v.source === 'formula') return parseFormula(v, path)
   return parseLeaf(v, path)
 }
 

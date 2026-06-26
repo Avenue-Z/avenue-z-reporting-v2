@@ -281,4 +281,48 @@ assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', dimensions:
 assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', dimensions: ['a', 'b'] })).ok, false)
 assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', granularity: 'minute' })).ok, false)
 
+// formula binding round-trips (ref + metric + constant)
+{
+  const r = parseBlockConfig({ id: 'b', name: 'ROAS', format: 'number', range: null,
+    binding: { source: 'formula', expr: '(@a - @b) / @c',
+      operands: {
+        a: { kind: 'metric', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+        b: { kind: 'metric', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+        c: { kind: 'ref', blockId: 'spend-block' },
+      } } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'formula') assert.equal(Object.keys(r.block.binding.operands).length, 3)
+}
+// unparseable expr rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '(@a + ', operands: { a: { kind: 'ref', blockId: 'x' } } } })
+  assert.equal(r.ok, false)
+}
+// operand/placeholder mismatch rejected (expr uses @a @b but operands miss @b)
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '@a + @b', operands: { a: { kind: 'ref', blockId: 'x' } } } })
+  assert.equal(r.ok, false)
+}
+// bad operand (ref without blockId) rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '@a', operands: { a: { kind: 'ref' } } } })
+  assert.equal(r.ok, false)
+}
+// constant-only formula (no operands) is valid
+{
+  const r = parseBlockConfig({ id: 'b', name: 'Const', format: 'number', range: null,
+    binding: { source: 'formula', expr: '1 + 2 * 3', operands: {} } })
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'formula') assert.equal(Object.keys(r.block.binding.operands).length, 0)
+}
+// metric operand with an invalid leaf is rejected
+{
+  const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
+    binding: { source: 'formula', expr: '@a', operands: { a: { kind: 'metric', leaf: { source: 'nonsense' } } } } })
+  assert.equal(r.ok, false)
+}
+
 console.log('ok')

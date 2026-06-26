@@ -1,7 +1,7 @@
 'use server'
 
 import { eq } from 'drizzle-orm'
-import { revalidatePath, unstable_cache } from 'next/cache'
+import { unstable_cache } from 'next/cache'
 import { createHash } from 'node:crypto'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
@@ -46,8 +46,10 @@ export async function saveDashboardConfig(
     .set({ dashboardConfig: parsed.config, updatedAt: new Date() })
     .where(eq(clients.slug, slug))
 
-  revalidatePath(`/dashboard/${slug}/configurable-dashboard`)
-  revalidatePath(`/portal/${slug}/configurable-dashboard`)
+  // No revalidatePath here: the config is read per-request (React cache) and the
+  // dashboard page is dynamic, so callers re-render via router.refresh(). A broad
+  // revalidatePath('/', 'layout') would purge the SM/TW query Data Cache on every
+  // edit, forcing a full cold re-resolution.
   return { ok: true }
 }
 
@@ -62,6 +64,12 @@ export async function proposeBlock(
   if (!session?.user) return { kind: 'error', error: 'unauthenticated' }
   if (!canEditDashboard(session.user.role, session.user.clientSlug, input.slug)) {
     return { kind: 'error', error: 'forbidden' }
+  }
+  // formula and shopify are manual-only: there is no NL/AI proposer path for
+  // either, so reject them server-side even if a caller force-casts the source.
+  const widenedSource: string = input.source
+  if (widenedSource === 'formula' || widenedSource === 'shopify') {
+    return { kind: 'error', error: 'unsupported-source' }
   }
   const actAsEmail = session.user.email ?? ''
   if (input.source === 'aggregate') {

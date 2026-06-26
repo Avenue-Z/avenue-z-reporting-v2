@@ -1,7 +1,8 @@
 // Run: npx tsx components/dashboard/add-block/build-config.test.ts
 import { strict as assert } from 'node:assert'
-import { buildBlockConfig, blockToManualDraft, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, COMMON_TW_METRICS, type ManualDraft } from './build-config'
+import { buildBlockConfig, blockToManualDraft, formatFromDataType, isDraftComplete, leafToBinding, calculatedToBinding, operandToBinding, isOperandComplete, formulaToBinding, leafToDraft, formulaToDraft, bindingToFormulaDraft, COMMON_TW_METRICS, type ManualDraft } from './build-config'
 import { isTwMetric } from '@/lib/triplewhale/queries'
+import { parse } from '@/lib/dashboard/formula/parse'
 
 // leafToBinding: supermetrics + triplewhale
 {
@@ -21,20 +22,6 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   if (cfg.binding.source === 'supermetrics') assert.equal(cfg.binding.metricField, 'SocialSpend')
 }
 
-// buildBlockConfig: aggregate (revenue / spend), leaf operands
-{
-  const d: ManualDraft = { kind: 'aggregate', name: 'Blended ROAS', format: 'number', op: '/',
-    left: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'revenue' } },
-    right: { kind: 'leaf', leaf: { source: 'supermetrics', dsId: 'FA', metricField: 'SocialSpend', account: 'act_1' } } }
-  const cfg = buildBlockConfig(d)
-  assert.equal(cfg.binding.source, 'aggregate')
-  if (cfg.binding.source === 'aggregate') {
-    assert.equal(cfg.binding.op, '/')
-    assert.equal(cfg.binding.left.source, 'triplewhale')
-    assert.equal(cfg.binding.right.source, 'supermetrics')
-  }
-}
-
 // formatFromDataType
 {
   assert.equal(formatFromDataType('float.currency.value'), 'currency')
@@ -44,12 +31,11 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(formatFromDataType(undefined), 'number')
 }
 
-// isDraftComplete: name required; leaf/aggregate completeness
+// isDraftComplete: name required; leaf completeness
 {
   assert.equal(isDraftComplete({ kind: 'leaf', name: '', format: 'number', leaf: { source: 'triplewhale', metric: 'revenue' } }), false)
   assert.equal(isDraftComplete({ kind: 'leaf', name: 'X', format: 'number', leaf: { source: 'supermetrics', dsId: 'FA', metricField: '', account: 'act_1' } }), false)
   assert.equal(isDraftComplete({ kind: 'leaf', name: 'X', format: 'number', leaf: { source: 'supermetrics', dsId: 'FA', metricField: 'SocialSpend', account: 'act_1' } }), true)
-  assert.equal(isDraftComplete({ kind: 'aggregate', name: 'X', format: 'number', op: '/', left: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'revenue' } }, right: { kind: 'leaf', leaf: { source: 'triplewhale', metric: '' } } }), false)
 }
 
 // leafToBinding: triplewhale carries non-empty filters as values arrays
@@ -100,6 +86,8 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
 }
 
 // calculatedToBinding: blank coeff → 1; incomplete term dropped; signs preserved
+// (calculated is no longer authored in the UI, but the converter is retained for
+//  reverse-mapping legacy persisted blocks into formula drafts.)
 {
   const b = calculatedToBinding({ source: 'calculated', terms: [
     { coefficient: '', leaf: { source: 'triplewhale', metric: 'revenue' } },
@@ -117,18 +105,6 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
     { coefficient: 'abc', leaf: { source: 'triplewhale', metric: 'revenue' } },
   ] })
   assert.deepEqual(bNaN.terms, [])
-}
-// buildBlockConfig: calculated kind
-{
-  const cfg = buildBlockConfig({ kind: 'calculated', name: 'Net', format: 'currency',
-    calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } })
-  assert.equal(cfg.binding.source, 'calculated')
-}
-// isDraftComplete: calculated needs name + ≥1 complete term
-{
-  assert.equal(isDraftComplete({ kind: 'calculated', name: '', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), false)
-  assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: '' } }] } }), false)
-  assert.equal(isDraftComplete({ kind: 'calculated', name: 'X', format: 'number', calc: { source: 'calculated', terms: [{ coefficient: '1', leaf: { source: 'triplewhale', metric: 'revenue' } }] } }), true)
 }
 
 // isOperandComplete: leaf complete/incomplete
@@ -153,17 +129,110 @@ import { isTwMetric } from '@/lib/triplewhale/queries'
   assert.equal(b.source, 'calculated')
   if (b.source === 'calculated') assert.equal(b.terms.length, 1)
 }
-// buildBlockConfig: aggregate with calculated left operand (ROAS = (rev - tax) / spend)
+
+// formulaToBinding: assembles expr + operands; drops operand keys not used in expr
 {
-  const cfg = buildBlockConfig({ kind: 'aggregate', name: 'ROAS', format: 'number', op: '/',
-    left: { kind: 'calculated', calc: { source: 'calculated', terms: [
-      { coefficient: '1', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
-      { coefficient: '-1', leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
-    ] } },
-    right: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } } })
-  assert.equal(cfg.binding.source, 'aggregate')
-  if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.left.source, 'calculated')
+  const b = formulaToBinding({ source: 'formula', expr: '@a / @b',
+    operands: {
+      a: { kind: 'ref', blockId: 'rev' },
+      b: { kind: 'metric', leaf: { source: 'triplewhale', metric: 'ad_spend' } },
+      z: { kind: 'ref', blockId: 'unused' }, // not in expr -> dropped
+    } })
+  assert.equal(b.source, 'formula')
+  assert.equal(b.expr, '@a / @b')
+  assert.deepEqual(Object.keys(b.operands).sort(), ['a', 'b'])
 }
+// buildBlockConfig: formula kind
+{
+  const cfg = buildBlockConfig({ kind: 'formula', name: 'ROAS', format: 'number',
+    formula: { source: 'formula', expr: '@a / @b', operands: { a: { kind: 'ref', blockId: 'rev' }, b: { kind: 'metric', leaf: { source: 'triplewhale', metric: 'ad_spend' } } } } })
+  assert.equal(cfg.binding.source, 'formula')
+}
+// isDraftComplete: needs name, a parseable expr, and every used operand complete
+{
+  const ok = { kind: 'formula' as const, name: 'X', format: 'number' as const,
+    formula: { source: 'formula' as const, expr: '@a + 1', operands: { a: { kind: 'metric' as const, leaf: { source: 'triplewhale' as const, metric: 'revenue' } } } } }
+  assert.equal(isDraftComplete(ok), true)
+  assert.equal(isDraftComplete({ ...ok, name: '' }), false)                                   // no name
+  assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a + ', operands: ok.formula.operands } }), false) // bad expr
+  assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a + @b', operands: ok.formula.operands } }), false) // @b unbound
+  assert.equal(isDraftComplete({ ...ok, formula: { source: 'formula', expr: '@a', operands: { a: { kind: 'metric', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } } } } }), false) // incomplete metric
+}
+
+// leafToDraft round-trips through leafToBinding (supermetrics with filters)
+{
+  const b = { source: 'supermetrics' as const, dsId: 'SHP', metricField: 'total_sales', account: 'a', filters: [{ column: 'order_shipping_country', values: ['United States', 'Canada'] }] }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// leafToDraft round-trips (triplewhale, no filters)
+{
+  const b = { source: 'triplewhale' as const, metric: 'ad_spend' }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// formulaToDraft round-trips through formulaToBinding
+{
+  const b = { source: 'formula' as const, expr: '@a / @b', operands: { a: { kind: 'ref' as const, blockId: 'rev' }, b: { kind: 'metric' as const, leaf: { source: 'triplewhale' as const, metric: 'ad_spend' } } } }
+  assert.deepEqual(formulaToBinding(formulaToDraft(b)), b)
+}
+// bindingToFormulaDraft: aggregate of two leaves -> "@m0 / @m1", parses
+{
+  const d = bindingToFormulaDraft({ source: 'aggregate', op: '/', left: { source: 'triplewhale', metric: 'revenue' }, right: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.doesNotThrow(() => parse(d.expr))
+  assert.equal(Object.keys(d.operands).length, 2)
+}
+// bindingToFormulaDraft: (rev - tax) / spend -> parses, 3 operands
+{
+  const d = bindingToFormulaDraft({ source: 'aggregate', op: '/',
+    left: { source: 'calculated', terms: [
+      { coefficient: 1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+      { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    ] },
+    right: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.doesNotThrow(() => parse(d.expr)) // negative coefficient must produce parser-valid expr
+  assert.equal(Object.keys(d.operands).length, 3)
+}
+// bindingToFormulaDraft: standalone calculated with a negative coefficient parses
+{
+  const d = bindingToFormulaDraft({ source: 'calculated', terms: [
+    { coefficient: 0.8, leaf: { source: 'triplewhale', metric: 'revenue' } },
+    { coefficient: -1, leaf: { source: 'triplewhale', metric: 'ad_spend' } },
+  ] })
+  assert.doesNotThrow(() => parse(d.expr))
+}
+// blockToManualDraft dispatch: leaf + legacy aggregate fold into a formula draft
+{
+  const leafBlock = { id: 'x', name: 'Spend', format: 'currency' as const, range: null, binding: { source: 'triplewhale' as const, metric: 'ad_spend' } }
+  assert.equal(blockToManualDraft(leafBlock).source, 'triplewhale')
+  const aggBlock = { id: 'y', name: 'ROAS', format: 'number' as const, range: null, binding: { source: 'aggregate' as const, op: '/' as const, left: { source: 'triplewhale' as const, metric: 'revenue' }, right: { source: 'triplewhale' as const, metric: 'ad_spend' } } }
+  const md = blockToManualDraft(aggBlock)
+  assert.equal(md.source, 'formula')
+  if (md.draft.kind === 'formula') { const d = md.draft; assert.doesNotThrow(() => parse(d.formula.expr)) }
+}
+
+// expectedAccounts round-trips through leafToDraft -> leafToBinding
+{
+  const b = { source: 'supermetrics' as const, dsId: 'SHP', metricField: 'total_sales', account: 'a', expectedAccounts: ['a', 'b'] }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// TW account round-trips through leafToDraft -> leafToBinding
+{
+  const b = { source: 'triplewhale' as const, metric: 'revenue', account: 'shop1' }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
+}
+// bindingToFormulaDraft: (rev - tax) / spend -> natural expr, parses
+{
+  const d = bindingToFormulaDraft({ source: 'aggregate', op: '/',
+    left: { source: 'calculated', terms: [
+      { coefficient: 1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'total_sales', account: 'a' } },
+      { coefficient: -1, leaf: { source: 'supermetrics', dsId: 'SHP', metricField: 'tax', account: 'a' } },
+    ] },
+    right: { source: 'triplewhale', metric: 'ad_spend' } })
+  assert.doesNotThrow(() => parse(d.expr))
+  // should not contain " + -" (naive join artifact)
+  assert.equal(d.expr.includes('+ -'), false, 'no "plus negative" in expr')
+}
+
+// ── Chart kinds (bar/line/pills/table) ─────────────────────────────────────────
 
 // barToBlockConfig: produces leaf binding with dimensions: [dim] and kind: 'bar'.
 {
@@ -272,37 +341,87 @@ assert.equal(isDraftComplete({ kind: 'pills', name: 'X', format: 'count', pills:
 assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' } }), false)
 assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } }), true)
 
-// blockToManualDraft: header round-trips through buildBlockConfig (name, kind, level)
+// ── blockToManualDraft: reverse every editable kind into { source, draft } ──────
+
+// header round-trips through buildBlockConfig (name, kind, level)
 {
   const headerBlock = { id: 'h', name: 'Section A', format: 'number' as const, range: null,
     kind: 'header' as const, headerLevel: 1 as const,
     binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
-  const draft = blockToManualDraft(headerBlock)
+  const { draft } = blockToManualDraft(headerBlock)
   assert.equal(draft.kind, 'header')
   const cfg = buildBlockConfig(draft)
   assert.equal(cfg.kind, 'header')
   assert.equal(cfg.name, 'Section A')
   assert.equal(cfg.headerLevel, 1)
 }
-// blockToManualDraft: narrative round-trips (name, kind, body)
+// narrative round-trips (name, kind, body)
 {
   const narrativeBlock = { id: 'n', name: 'Notes', format: 'number' as const, range: null,
     kind: 'narrative' as const, narrativeBody: '## Hi\n- a',
     binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
-  const draft = blockToManualDraft(narrativeBlock)
+  const { draft } = blockToManualDraft(narrativeBlock)
   assert.equal(draft.kind, 'narrative')
   const cfg = buildBlockConfig(draft)
   assert.equal(cfg.kind, 'narrative')
   assert.equal(cfg.name, 'Notes')
   assert.equal(cfg.narrativeBody, '## Hi\n- a')
 }
-// blockToManualDraft: missing headerLevel defaults to 2
+// missing headerLevel defaults to 2
 {
   const headerBlock = { id: 'h', name: 'X', format: 'number' as const, range: null, kind: 'header' as const,
     binding: { source: 'supermetrics' as const, dsId: '__static__', metricField: '__static__', account: '__static__' } }
-  const draft = blockToManualDraft(headerBlock)
+  const { draft } = blockToManualDraft(headerBlock)
   if (draft.kind === 'header') assert.equal(draft.header.level, 2)
 }
+// bar block round-trips: leaf + dimension recovered, source surfaced
+{
+  const barBlock = { id: 'b', name: 'Spend by Channel', format: 'currency' as const, range: null, kind: 'bar' as const,
+    binding: { source: 'supermetrics' as const, dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Network'] } }
+  const { source, draft } = blockToManualDraft(barBlock)
+  assert.equal(source, 'supermetrics')
+  assert.equal(draft.kind, 'bar')
+  if (draft.kind === 'bar') {
+    assert.equal(draft.bar.dimension, 'Network')
+    assert.equal(draft.bar.leaf.source, 'supermetrics')
+    const cfg = buildBlockConfig(draft)
+    if (cfg.binding.source === 'supermetrics') assert.deepEqual(cfg.binding.dimensions, ['Network'])
+  }
+}
+// line block round-trips: granularity recovered
+{
+  const lineBlock = { id: 'l', name: 'Sales/day', format: 'currency' as const, range: null, kind: 'line' as const,
+    binding: { source: 'shopify' as const, query: 'FROM sales SHOW net_sales', granularity: 'week' as const } }
+  const { source, draft } = blockToManualDraft(lineBlock)
+  assert.equal(source, 'shopify')
+  assert.equal(draft.kind, 'line')
+  if (draft.kind === 'line') assert.equal(draft.line.granularity, 'week')
+}
+// table block round-trips: dimension recovered
+{
+  const tableBlock = { id: 't', name: 'By channel', format: 'currency' as const, range: null, kind: 'table' as const,
+    binding: { source: 'supermetrics' as const, dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel'] } }
+  const { draft } = blockToManualDraft(tableBlock)
+  assert.equal(draft.kind, 'table')
+  if (draft.kind === 'table') assert.equal(draft.table.dimension, 'Channel')
+}
+// pills block round-trips
+{
+  const pillsBlock = { id: 'p', name: 'Sessions', format: 'count' as const, range: null, kind: 'pills' as const,
+    binding: { source: 'supermetrics' as const, dsId: 'GAWA', metricField: 'sessions', account: '1' } }
+  const { draft } = blockToManualDraft(pillsBlock)
+  assert.equal(draft.kind, 'pills')
+}
+// formula KPI round-trips
+{
+  const formulaBlock = { id: 'f', name: 'ROAS', format: 'number' as const, range: null,
+    binding: { source: 'formula' as const, expr: '@a / @b', operands: { a: { kind: 'ref' as const, blockId: 'rev' }, b: { kind: 'metric' as const, leaf: { source: 'triplewhale' as const, metric: 'ad_spend' } } } } }
+  const { source, draft } = blockToManualDraft(formulaBlock)
+  assert.equal(source, 'formula')
+  assert.equal(draft.kind, 'formula')
+}
+
+// ── Shopify leaf ───────────────────────────────────────────────────────────────
 
 // leafToBinding: shopify carries the ShopifyQL query through
 {
@@ -313,13 +432,10 @@ assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table:
 // isDraftComplete: shopify leaf complete iff query non-blank
 assert.equal(isDraftComplete({ kind: 'leaf', name: 'Subs', format: 'count', leaf: { source: 'shopify', query: 'FROM sales SHOW orders_first_time' } }), true)
 assert.equal(isDraftComplete({ kind: 'leaf', name: 'Subs', format: 'count', leaf: { source: 'shopify', query: '   ' } }), false)
-// shopify as an aggregate operand (Subscription CAC = TW spend ÷ shopify subs)
+// shopify leaf round-trips through leafToDraft -> leafToBinding
 {
-  const cfg = buildBlockConfig({ kind: 'aggregate', name: 'Sub CAC', format: 'currency', op: '/',
-    left: { kind: 'leaf', leaf: { source: 'triplewhale', metric: 'ad_spend' } },
-    right: { kind: 'leaf', leaf: { source: 'shopify', query: 'FROM sales SHOW orders_first_time' } } })
-  assert.equal(cfg.binding.source, 'aggregate')
-  if (cfg.binding.source === 'aggregate') assert.equal(cfg.binding.right.source, 'shopify')
+  const b = { source: 'shopify' as const, query: 'FROM sales SHOW net_sales' }
+  assert.deepEqual(leafToBinding(leafToDraft(b)), b)
 }
 
 // bar with a Shopify leaf attaches the dimension to the shopify binding

@@ -19,7 +19,7 @@ import { HeaderBlock } from '@/components/dashboard/blocks/header-block'
 import { NarrativeBlock } from '@/components/dashboard/blocks/narrative-block'
 import { PillsBlock } from '@/components/dashboard/blocks/pills-block'
 import { TableBlock } from '@/components/dashboard/blocks/table-block'
-import type { DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
+import type { BlockConfig, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
 export default async function ConfigurableDashboardPage({
   params,
@@ -68,9 +68,14 @@ export default async function ConfigurableDashboardPage({
           : compareRangeParam,
   }
 
+  // Lookup of every block by id — formula bindings resolve their live @ref
+  // operands against this map (see resolveBlock's `deps.blocksById`). Built once
+  // per request and threaded into the kpi resolve path below.
+  const blocksById = new Map<string, BlockConfig>(config.blocks.map((b) => [b.id, b]))
+
   const blockNodes: Record<string, ReactNode> = {}
   for (const block of config.blocks) {
-    blockNodes[block.id] = renderBlockNode(block, activeDefault, clientSlug, canEdit, config)
+    blockNodes[block.id] = renderBlockNode(block, activeDefault, clientSlug, canEdit, config, blocksById)
   }
 
   return (
@@ -90,24 +95,28 @@ export default async function ConfigurableDashboardPage({
 
 /** Per-block kind dispatcher. 'kpi' → progressive-streaming KPI tile via
  *  MetricBlockShell + BlockValue + BlockDelta. 'bar'/'line' → BarBlock/LineBlock,
- *  fed by resolveGroupedBlock/resolveSeriesBlock from sub-project #2. */
+ *  fed by resolveGroupedBlock/resolveSeriesBlock. The kpi path threads
+ *  `blocksById` into resolveBlock so formula @ref operands resolve to live blocks. */
 function renderBlockNode(
   block: PersistedBlock,
   activeDefault: { dateRange: string; compareRange: string | null },
   clientSlug: string,
   canEdit: boolean,
   config: DashboardConfig,
+  blocksById: Map<string, BlockConfig>,
 ): ReactNode {
   const kind = block.kind ?? 'kpi'
   switch (kind) {
     case 'kpi': {
-      const eff = block.range ?? activeDefault
+      const eff = block.range ?? activeDefault // effective range (per-block override or global)
       const ctx = { slug: clientSlug }
+      // resolveBlock prefers config.range over the passed global, so null the clone's
+      // range and pass the effective range as global. compareRange:null ⇒ value only.
       const blockNoRange = { ...block, range: null }
-      const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx)
+      const valuePromise = resolveBlock(blockNoRange, { dateRange: eff.dateRange, compareRange: null }, ctx, { blocksById })
       const compareIso = resolveCompareIso(eff.dateRange, eff.compareRange)
       const prevPromise = compareIso
-        ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx)
+        ? resolveBlock(blockNoRange, { dateRange: compareIso, compareRange: null }, ctx, { blocksById })
         : null
 
       return (
@@ -119,7 +128,7 @@ function renderBlockNode(
           activeDefault={activeDefault}
           value={
             <Suspense fallback={<ValueSkeleton />}>
-              <BlockValue valuePromise={valuePromise} slug={clientSlug} target={block.target} ceiling={block.ceiling} />
+              <BlockValue valuePromise={valuePromise} slug={clientSlug} />
             </Suspense>
           }
           delta={
@@ -127,7 +136,6 @@ function renderBlockNode(
               <BlockDelta valuePromise={valuePromise} prevPromise={prevPromise} compareRange={eff.compareRange} />
             </Suspense>
           }
-          sub={block.subLabel}
         />
       )
     }

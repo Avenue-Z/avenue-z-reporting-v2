@@ -1,5 +1,4 @@
-export type MetricFormat = 'currency' | 'percent' | 'count' | 'number'
-
+export type MetricFormat = 'currency' | 'percent' | 'count' | 'number' | 'multiple'
 export type Granularity = 'day' | 'week' | 'month'
 
 export interface SupermetricsBinding {
@@ -7,76 +6,44 @@ export interface SupermetricsBinding {
   dsId: string
   metricField: string
   account: string
-  expectedAccounts?: string[] // drift guard: returned accounts must be ⊆ this set
-  filters?: { column: string; values: string[] }[] // OR within a row (any value), AND across rows
-  /** v1: array length exactly 1. Used by resolveGroupedBlock and resolveSeriesBlock; ignored in scalar mode. */
-  dimensions?: string[]
-  /** Required when called via resolveSeriesBlock; ignored otherwise. */
-  granularity?: Granularity
+  expectedAccounts?: string[]
+  filters?: { column: string; values: string[] }[]
+  dimensions?: string[]       // grouped mode (bar/table): v1 length exactly 1
+  granularity?: Granularity   // series mode (line)
 }
-
 export interface TripleWhaleBinding {
   source: 'triplewhale'
   metric: string
   account?: string
   filters?: { column: string; values: string[] }[]
-  /** v1: array length exactly 1. */
   dimensions?: string[]
   granularity?: Granularity
 }
-
 export interface ShopifyBinding {
   source: 'shopify'
-  query: string // ShopifyQL body (FROM…SHOW…WHERE…) without a date or GROUP BY clause
-  dimensions?: string[]      // grouped mode (bar/table): single dim — GROUP BY <dim>
-  granularity?: Granularity  // series mode (line): GROUP BY day|week|month
+  query: string               // ShopifyQL body, no date/GROUP BY clause
+  dimensions?: string[]       // grouped: GROUP BY <dim>
+  granularity?: Granularity   // series: GROUP BY day|week|month
 }
-
 export type LeafBinding = SupermetricsBinding | TripleWhaleBinding | ShopifyBinding
 
-export interface CalculatedBinding {
-  source: 'calculated'
-  terms: { coefficient: number; leaf: LeafBinding }[] // value = Σ coefficientᵢ × leafᵢ
-}
-
-/** An operand of a binary aggregate: a single leaf or a weighted-sum calculation. */
+export interface CalculatedBinding { source: 'calculated'; terms: { coefficient: number; leaf: LeafBinding }[] }
 export type AggregateOperand = LeafBinding | CalculatedBinding
+export interface AggregateBinding { source: 'aggregate'; left: AggregateOperand; op: '+' | '-' | '*' | '/'; right: AggregateOperand }
 
-export interface AggregateBinding {
-  source: 'aggregate'
-  left: AggregateOperand
-  op: '+' | '-' | '*' | '/'
-  right: AggregateOperand
-}
+export type FormulaOperand =
+  | { kind: 'ref'; blockId: string }
+  | { kind: 'metric'; leaf: LeafBinding }
+export interface FormulaBinding { source: 'formula'; expr: string; operands: Record<string, FormulaOperand> }
 
-export type Binding = LeafBinding | CalculatedBinding | AggregateBinding
+export type Binding = LeafBinding | CalculatedBinding | AggregateBinding | FormulaBinding
 
-/**
- * Block kind discriminator. Default at parse/render time is 'kpi' for back-compat.
- *
- * Static-kind contract: 'header' and 'narrative' skip ALL resolvers (resolveBlock,
- * resolveGroupedBlock, resolveSeriesBlock). Their `binding` field is a documented
- * placeholder sentinel (see headerToBlockConfig / narrativeToBlockConfig in
- * components/dashboard/add-block/build-config.ts) and must NEVER be passed to a
- * resolver. The dispatcher in the configurable-dashboard page.tsx enforces this by
- * rendering static kinds before the resolver switch. resolveBlock additionally
- * defends against accidental calls by returning 'invalid-metric' if it detects the
- * __static__ sentinel (see lib/dashboard/resolve.ts).
- */
 export type BlockKind = 'kpi' | 'pills' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
-
-/** Full grid layout: required when present. Missing layout = "auto-pack on next save". */
-export interface BlockLayout {
-  x: number
-  y: number
-  w: number
-  h: number
-}
+export interface BlockLayout { x: number; y: number; w: number; h: number }
 
 export interface BlockConfig {
   id: string
   name: string
-  /** Renderer + resolver mode. Omitted = 'kpi' (back-compat). */
   kind?: BlockKind
   binding: Binding
   format: MetricFormat
@@ -100,6 +67,14 @@ export interface LeafValue {
   value: number
   prevValue?: number
 }
+
+/** Internal: outcome of attempting one leaf (success carries LeafValue, failure carries a BlockError). */
+export type LeafAttempt = ({ ok: true } & LeafValue) | { ok: false; error: BlockError }
+
+/** Public resolver output — drives the Metric Block UI states. */
+export type ResolveResult =
+  | { ok: true; value: number; prevValue?: number; delta?: number; format: MetricFormat; formatted: string }
+  | { ok: false; error: BlockError }
 
 /** One row per dimension value. `value` is undefined only when the dim only
  *  appears in the compare period; otherwise both `value` and (when comparison
@@ -126,15 +101,7 @@ export type SeriesResult =
   | { ok: true; points: SeriesPoint[]; format: MetricFormat; granularity: Granularity }
   | { ok: false; error: BlockError }
 
-/** Internal: outcome of attempting one leaf (success carries LeafValue, failure carries a BlockError). */
-export type LeafAttempt = ({ ok: true } & LeafValue) | { ok: false; error: BlockError }
-
-/** Public resolver output — drives the Metric Block UI states. */
-export type ResolveResult =
-  | { ok: true; value: number; prevValue?: number; delta?: number; format: MetricFormat; formatted: string }
-  | { ok: false; error: BlockError }
-
-/** A persisted block = a resolvable BlockConfig plus optional grid layout. */
+/** A persisted block = a resolvable BlockConfig plus optional grid layout (widened by #3). */
 export type PersistedBlock = BlockConfig & { layout?: BlockLayout }
 
 /** One per-client configurable dashboard. `blocks` array order is display order. */
