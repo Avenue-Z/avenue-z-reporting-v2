@@ -33,9 +33,25 @@ export function StickyReportHeader({
     }
     if (!scrollEl) return
 
-    const onScroll = () => setScrolled(scrollEl!.scrollTop > 10)
+    // This header shrinks on scroll, which changes its height. Browser scroll
+    // anchoring would then nudge scrollTop to keep the content below it stable,
+    // re-crossing the threshold and flip-flopping the header (the jitter). Turn
+    // anchoring off on the scroll container, and use hysteresis (collapse and
+    // expand at different thresholds) so a small shift near the edge can't
+    // oscillate the state.
+    const prevAnchor = scrollEl.style.overflowAnchor
+    scrollEl.style.overflowAnchor = 'none'
+
+    const onScroll = () => {
+      const y = scrollEl!.scrollTop
+      setScrolled((prev) => (prev ? y > 8 : y > 64))
+    }
+    onScroll()
     scrollEl.addEventListener('scroll', onScroll, { passive: true })
-    return () => scrollEl!.removeEventListener('scroll', onScroll)
+    return () => {
+      scrollEl!.removeEventListener('scroll', onScroll)
+      scrollEl!.style.overflowAnchor = prevAnchor
+    }
   }, [])
 
   const isWhiteLogo = logoUrl?.includes('AvenueZ_White')
