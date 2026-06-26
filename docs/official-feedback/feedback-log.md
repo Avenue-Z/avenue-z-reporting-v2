@@ -2271,3 +2271,44 @@ Each Δ column: `key: '<metric>Delta'`, `label: 'Δ'`, `align: 'right'`, `access
 **Shipped:** Two silent caps were limiting the surface area. (1) The two `peecPost('/reports/domains', ...)` calls in `lib/peec/client.ts:408-409` (current + prior) now both pass `limit: 500` instead of falling back to Peec's default 100. (2) §H.1 UI slice in `content-impact.tsx:1376` raised from `.slice(0, 10)` to `.slice(0, 25)`. Tina should now see up to 25 competitor rows (limited only by what Peec actually surfaces for that workspace).
 
 **Files touched (Phase 3):** `components/report-sections/peec-ai/content-impact.tsx`, `lib/peec/client.ts`.
+
+---
+
+## V2 Phase 4 — Fleet-found P1 hotfixes (FB-056, FB-057)
+
+**Tab:** Content Impact
+**Round:** V2 Phase 4 (hotfixes from 9-agent Opus verification fleet on HEAD `eb56c01`)
+**Source:** Multi-agent verification workflow run after Phase 3 close-out (5 parallel lens verifiers + 3 adversarial skeptics + final synthesizer, all on Opus). Fleet returned `PASS_WITH_NOTES`: 0 P0s, 2 P1s (merge-blockers), 10 P2s (deferred to V3).
+
+### FB-056 — §H Competitor Analysis description still said "AI Visibility"
+
+**Fleet finding (P1):** After FB-053 renamed the §H.1 column header to "Source Visibility", the parent SectionCard description copy at `content-impact.tsx:1360` and the inline code comment at `:1362` still read "AI Visibility". This is exactly the title-vs-description jumble pattern Tina flagged in V2 meta-feedback; the metric coherence audit (FB-051-audit) missed it because the audit scope was per-metric (title + tooltip + value), not SectionCard description copy.
+
+**Shipped:** One-line edits at `content-impact.tsx:1360` (description) and `:1362` (inline comment) to replace "AI Visibility" with "Source Visibility". Now consistent with the column header rendered 3 lines below. Commit `43f3a9f`.
+
+### FB-057 — SortableTable null-handling asymmetric; FB-044 Δ accessors used `-Infinity` instead of `null`
+
+**Fleet finding (P1):** All 13 of FB-044's Δ-column accessors short-circuited `r.<metric>Delta ?? -Infinity` (`content-impact-tables.tsx:186, 199, 212, 225, 238, 326, 342, 358, 374, 390, 455, 476, 491`). On ascending sort, `-Infinity` is the smallest number, so all `--` rows piled at the TOP — exactly when Tina would click Δ asc to find biggest losers. Forensic correction during fix: SortableTable's existing `compareValues` only sinks nulls correctly on asc (returns +1 → null after real); on desc the `-cmp` flip inverts it, so nulls float to the top. Asymmetric and buggy.
+
+**Shipped (two-part fix):**
+1. **`sortable-table.tsx`:** Moved the null-handling check OUT of `compareValues` and INTO the sort callback so it runs BEFORE the `sortDir === 'asc' ? cmp : -cmp` flip. Result: nulls sink to the bottom on BOTH asc and desc, on every consuming table across the platform (Overview, PR Influence, Technical Performance, Profound — all benefit; current behavior was a latent bug).
+2. **`content-impact-tables.tsx`:** Replaced all 13 `Delta ?? -Infinity` with `Delta ?? null` so the new null-sink path actually runs.
+
+Commit `78208d3`. tsc clean. All 6 tests pass. Verified `replaceAll` count: 13 swaps made, 0 `-Infinity` sentinels remain.
+
+## V3 backlog (fleet-found P2s, NOT shipping in this PR)
+
+The Opus fleet surfaced 10 additional findings rated P2 (do not block merge). Logging here so they don't get lost:
+
+1. **FB-044 §H.1 Citation Share Δ column is structurally present but always renders `--`** because `content-impact.tsx:1390` hardcodes `citationShareDelta: null` ("FB-051: truthful null until prior topDomains is plumbed"). CSV V2 column F overpromised — the column sorts but accomplishes nothing. V3: plumb `peecData.topDomainsPrior` to populate the delta truthfully.
+2. **FB-043 §B "--" footnote only fires when ALL 3 GA4 metrics null.** Rows with GA4 traffic but missing Peec data show `--` in Citation Share / Prompt Coverage with no footnote explanation. V3: broaden footnote scope or add separate Peec-side stat.
+3. **FB-053 §H.1 tooltip resolves to `PEEC.retrieved.text`** ("Percentage of chats where at least one URL from this domain appeared as a source.") which describes Peec's `retrieved` field. Underlying data IS `d.retrieved`, but the new column label "Source Visibility" implies Peec's distinct `sourceVisibility` metric. V3: either swap data field or reword tooltip to match the renamed column.
+4. **Whitney's two Content Impact asks silently untracked** in feedback-log/changelog/status/handoff: (a) AI-generated Challenge/Opportunity context for bottom tables with analyst-editable text, (b) break out Competitor Content Analysis into its own tab. V3: log as FBs with explicit deferred/out-of-scope rationale.
+5. **FB-046 quadrant labels at outer 2×2 grid, not at median-split cells.** Labels visually drift away from semantic quadrants on skewed distributions. V3: anchor labels via Recharts `<Label>` children on the median ReferenceLines instead of CSS grid overlay.
+6. **FB-045 Speed Stats V1 question "real or hallucinated?" answered only indirectly.** Clickable URLs satisfy verification by click-through; no provenance label on the tiles. V3: add small "GA4-derived" footnote on §C.
+7. **FB-052 §H.1 Citation Share denominator includes up to 500 competitors but only 25 render.** Visible rows may sum to a small share of total. V3: add tooltip note about dilution effect.
+8. **`renderDelta` treats `delta === 0` as positive (green up arrow).** Rare in practice. V3: render neutrally.
+9. **FB-045 source URLs bound to `<a href>` without scheme validation.** Sheet-bounded write access = low risk. V3: validate scheme.
+10. **Test harness gap (pre-existing, not V2-introduced):** no vitest config at repo root; `npx vitest run` cannot resolve `@/*` aliases. tsc remains the only live verification signal across the repo. V3 (or sooner): add vitest harness so the .test.ts files are run by CI, not just by hand.
+
+**Files touched (Phase 4):** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/report-sections/peec-ai/sortable-table.tsx`.

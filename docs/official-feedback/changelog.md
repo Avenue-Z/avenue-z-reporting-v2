@@ -24,6 +24,11 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 - All deltas gate on compare-period (FB-034 hotfix #2 pattern). Zero new data fetches.
 - §H.2 untouched.
 
+## V2 Phase 4 - Content Impact fleet-found P1 hotfixes (2026-06-25)
+
+FB-057 | 2026-06-25 | 78208d3 | a | SortableTable null-handling made symmetric on asc + desc + all 13 FB-044 Δ-column accessors swapped from `?? -Infinity` to `?? null`. Fleet-found P1: -Infinity sentinel made `--` rows pile at the TOP of every sortable Δ column on ascending sort (Tina would click asc to find biggest losers and see the unknowns first instead). Root cause was twofold: (a) accessor sentinel was the wrong polarity for asc; (b) SortableTable's compareValues sank nulls only on asc (the `-cmp` flip in sortDir handling inverted the +1/-1 null sentinels on desc, floating nulls to the top). Fix moves null-handling OUT of compareValues and INTO the sort callback so it runs BEFORE the direction flip; all SortableTable consumers across the platform now get symmetric null-sink behavior as a side benefit.
+FB-056 | 2026-06-25 | 43f3a9f | a | §H Competitor Analysis SectionCard description + inline code comment updated from "AI Visibility" to "Source Visibility" to match FB-053 column rename. Fleet-found P1: the description (rendered 3 lines above the column header) read "across AI Visibility, Citation Share, and Prompt Coverage" while the column itself said "Source Visibility" — exact title/description jumble pattern Tina flagged in V2 meta-feedback. FB-051-audit missed this because the audit scope was per-metric (title + tooltip + value source), not surrounding SectionCard description copy.
+
 ## V2 Phase 3 - Content Impact investigation-informed fixes (2026-06-25)
 
 FB-052 | 2026-06-25 | 172162f | a | §H.1 competitor cap raised. Both /reports/domains peecPost calls (current + prior) now pass limit: 500 instead of relying on Peec's default 100. §H.1 UI .slice(0, 10) raised to .slice(0, 25). Surfaces up to 25 competitor rows where the previous cap was 7-10. Tina v2 CSV row 9b.
