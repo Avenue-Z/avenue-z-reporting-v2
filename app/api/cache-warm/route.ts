@@ -20,8 +20,8 @@
  * under the Vercel Pro 60s function ceiling.
  */
 import { NextResponse } from 'next/server'
-import { encode } from '@auth/core/jwt'
 import { getAllClients } from '@/lib/db/queries'
+import { mintServiceCookie } from '@/lib/auth/service-cookie'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -39,26 +39,6 @@ interface WarmResult {
   ms:     number
   ok:     boolean
   error?: string
-}
-
-async function mintServiceCookie(secret: string, salt: string): Promise<string> {
-  const maxAge = 60 * 60
-  const now = Math.floor(Date.now() / 1000)
-  return encode({
-    secret,
-    salt,
-    maxAge,
-    token: {
-      sub:        'cache-warm@avenuez.com',
-      email:      'cache-warm@avenuez.com',
-      name:       'cache-warm',
-      role:       'INTERNAL_ADMIN',
-      clientSlug: 'avenue-z',
-      iat:        now,
-      exp:        now + maxAge,
-      jti:        crypto.randomUUID(),
-    },
-  })
 }
 
 async function warmOne(url: string, cookie: string): Promise<WarmResult> {
@@ -107,7 +87,7 @@ export async function GET(req: Request) {
 
   const isSecure = baseUrl.startsWith('https://')
   const cookieName = isSecure ? '__Secure-authjs.session-token' : 'authjs.session-token'
-  const token = await mintServiceCookie(authSecret, cookieName)
+  const token = await mintServiceCookie(authSecret, cookieName, { email: 'cache-warm@avenuez.com', name: 'cache-warm' })
   const cookieHeader = `${cookieName}=${token}`
 
   const clients = await getAllClients()
