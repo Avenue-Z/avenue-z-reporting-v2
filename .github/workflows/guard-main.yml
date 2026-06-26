@@ -1,0 +1,22 @@
+name: Guard main merges
+
+# Enforces the branch flow: feature -> dev -> main. Any pull request targeting
+# `main` must originate from `dev`. Make this a REQUIRED status check in main's
+# branch protection so a failing (or missing) run blocks the merge.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  only-from-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the PR to come from dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::PRs into 'main' must come from 'dev' (this PR is from '$HEAD_REF'). Merge your branch into 'dev' first, then open a dev -> main PR."
+            exit 1
+          fi
+          echo "OK — PR is from 'dev'."
