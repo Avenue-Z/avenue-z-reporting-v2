@@ -1,13 +1,29 @@
 # Admin Panel Launch Runbook
 
-## 1. Apply the migration (Thomas runs this — never run against prod blind)
-- Migration: `drizzle/0011_*.sql` — adds `clients.shared_password_hash` and
-  `clients.max_seats` only. Idempotent (`ADD COLUMN IF NOT EXISTS`).
-- Recommended: create a Neon branch, set `DATABASE_URL_UNPOOLED` to it, run
-  `npm run db:migrate`, verify, then run against prod.
-- Verify after: `select column_name from information_schema.columns where
-  table_name='clients' and column_name in ('shared_password_hash','max_seats');`
-  → two rows. Existing clients show `max_seats = 5`.
+## 1. Apply the migration to production
+Migration `drizzle/0011_huge_cobalt_man.sql` adds `clients.shared_password_hash`
+and `clients.max_seats` only — additive, idempotent (`ADD COLUMN IF NOT EXISTS`).
+
+**Verified on a Neon branch (2026-06-25):** `npm run db:migrate` applied it
+cleanly, all existing clients backfilled to `max_seats = 5` (zero nulls),
+`shared_password_hash` is null on every client (fail-closed), and `demo_mode`
+was preserved. The live admin-access integration suite passed 19/19.
+
+Apply to prod via the existing GitHub Action — the connection string stays in
+GitHub, never on a laptop:
+1. Merge this PR to `main`.
+2. GitHub → **Actions → "DB migrate (manual)" → Run workflow** (on `main`). It
+   runs `npm run db:migrate` against the `production` environment secret
+   `DATABASE_URL_UNPOOLED`. (Optionally add a required reviewer on the
+   `production` environment for an approval gate.)
+3. Verify: `select column_name from information_schema.columns where
+   table_name='clients' and column_name in ('shared_password_hash','max_seats');`
+   → two rows; existing clients show `max_seats = 5`.
+
+Note: prod should be at the standard `main` migration lineage (`0000`–`0010`)
+before this runs. The Neon `dev` database is ahead of `main` (extra in-flight
+migrations) — that's a dev-only artifact and does not affect this additive,
+idempotent migration, which is safe even if re-run.
 
 ## 2. Onboard the first client
 1. As an Avenue Z internal admin (Google sign-in), open
