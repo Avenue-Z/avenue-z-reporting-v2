@@ -65,6 +65,16 @@ export function BlockValueError({ error, slug }: { error: BlockError; slug: stri
   )
 }
 
+/** Card-sized error body for chart blocks (Bar/Line/Table). Reuses BlockValueError's copy table. */
+export function BlockBodyError({ name, error, slug }: { name: string; error: BlockError; slug: string }) {
+  return (
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5 h-full flex flex-col">
+      <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{name}</p>
+      <div className="mt-auto"><BlockValueError error={error} slug={slug} /></div>
+    </div>
+  )
+}
+
 /** Client-only placeholder for a just-added block (shown until the refreshed
  *  server config includes it). Reuses the section skeletons. */
 export function OptimisticBlockCard({ name }: { name: string }) {

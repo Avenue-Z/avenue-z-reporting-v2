@@ -65,6 +65,12 @@ export async function proposeBlock(
   if (!canEditDashboard(session.user.role, session.user.clientSlug, input.slug)) {
     return { kind: 'error', error: 'forbidden' }
   }
+  // formula and shopify are manual-only: there is no NL/AI proposer path for
+  // either, so reject them server-side even if a caller force-casts the source.
+  const widenedSource: string = input.source
+  if (widenedSource === 'formula' || widenedSource === 'shopify') {
+    return { kind: 'error', error: 'unsupported-source' }
+  }
   const actAsEmail = session.user.email ?? ''
   if (input.source === 'aggregate') {
     return resolveAggregateNL({ formula: input.prompt, actAsEmail })

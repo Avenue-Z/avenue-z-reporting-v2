@@ -110,6 +110,177 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   if (r.ok && r.block.binding.source === 'aggregate') assert.equal(r.block.binding.left.source, 'calculated')
 }
 
+// kind: omitted → parses (back-compat); the persisted block has no kind field.
+{
+  const r = parseBlockConfig(block(sm))
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.kind, undefined)
+}
+// kind: 'bar' parses (renderer not yet implemented; schema is forward-compatible).
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'bar' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.kind, 'bar')
+}
+// kind: 'wat' rejected with expected-one-of error.
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'wat' })
+  assert.equal(r.ok, false)
+  if (!r.ok) assert.equal(r.error.includes('kind'), true)
+}
+
+// layout: full {x,y,w,h} parses.
+{
+  const r = parseBlockConfig({ ...block(sm), layout: { x: 0, y: 0, w: 3, h: 2 } })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.deepEqual(r.block.layout, { x: 0, y: 0, w: 3, h: 2 })
+}
+// layout: partial {w,h} rejected (full layout required when present).
+{
+  const r = parseBlockConfig({ ...block(sm), layout: { w: 3, h: 2 } })
+  assert.equal(r.ok, false)
+}
+// layout: negative x rejected.
+{
+  const r = parseBlockConfig({ ...block(sm), layout: { x: -1, y: 0, w: 3, h: 2 } })
+  assert.equal(r.ok, false)
+}
+// layout: omitted parses to undefined (auto-pack target).
+{
+  const r = parseBlockConfig(block(sm))
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.layout, undefined)
+}
+
+// KPI annotations: subLabel / target / ceiling round-trip.
+{
+  const r = parseBlockConfig({ ...block(sm), subLabel: '13-wk avg kr251', target: 250, ceiling: 280 })
+  assert.equal(r.ok, true)
+  if (r.ok) {
+    assert.equal(r.block.subLabel, '13-wk avg kr251')
+    assert.equal(r.block.target, 250)
+    assert.equal(r.block.ceiling, 280)
+  }
+}
+// KPI annotations: non-finite target rejected.
+{
+  const r = parseBlockConfig({ ...block(sm), target: Number.NaN })
+  assert.equal(r.ok, false)
+}
+// KPI annotations: non-string subLabel rejected.
+{
+  const r = parseBlockConfig({ ...block(sm), subLabel: 42 })
+  assert.equal(r.ok, false)
+}
+
+// headerLevel: 1 / 2 / 3 round-trip (regression: was silently dropped on save).
+for (const lvl of [1, 2, 3] as const) {
+  const r = parseBlockConfig({ ...block(sm), kind: 'header', headerLevel: lvl })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.headerLevel, lvl)
+}
+// headerLevel: omitted → parses, no field.
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'header' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.headerLevel, undefined)
+}
+// headerLevel: out-of-range value rejected.
+assert.equal(parseBlockConfig({ ...block(sm), kind: 'header', headerLevel: 4 }).ok, false)
+
+// narrativeBody: markdown string round-trips (regression: was silently dropped on save).
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'narrative', narrativeBody: '## Highlights\n- Cost down 12%' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.narrativeBody, '## Highlights\n- Cost down 12%')
+}
+// narrativeBody: omitted → parses, no field.
+{
+  const r = parseBlockConfig({ ...block(sm), kind: 'narrative' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.narrativeBody, undefined)
+}
+// narrativeBody: non-string rejected.
+assert.equal(parseBlockConfig({ ...block(sm), kind: 'narrative', narrativeBody: 42 }).ok, false)
+
+// dimensions: SM length-1 valid string → round-trips.
+{
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel'] }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') {
+    assert.deepEqual(r.block.binding.dimensions, ['Channel'])
+  }
+}
+// dimensions: TW length-1 valid string → round-trips.
+{
+  const r = parseBlockConfig(block({ source: 'triplewhale', metric: 'ad_spend', dimensions: ['channel'] }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'triplewhale') {
+    assert.deepEqual(r.block.binding.dimensions, ['channel'])
+  }
+}
+// dimensions: length 0 rejected.
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: [] })).ok, false)
+// dimensions: length 2 rejected (v1 invariant).
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel', 'Country'] })).ok, false)
+// dimensions: SM unsafe column rejected.
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['bad col'] })).ok, false)
+// dimensions: TW unsafe column rejected (uppercase fails TW's lowercase column regex).
+assert.equal(parseBlockConfig(block({ source: 'triplewhale', metric: 'ad_spend', dimensions: ['BadCol'] })).ok, false)
+// dimensions: omitted → parses, no field.
+{
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.dimensions, undefined)
+}
+
+// granularity: 'day' / 'week' / 'month' round-trip.
+for (const g of ['day', 'week', 'month'] as const) {
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', granularity: g }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.granularity, g)
+}
+// granularity: 'minute' rejected.
+assert.equal(parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', granularity: 'minute' })).ok, false)
+// granularity: omitted → parses, no field.
+{
+  const r = parseBlockConfig(block({ source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'supermetrics') assert.equal(r.block.binding.granularity, undefined)
+}
+
+// shopify leaf binding — valid when query is a non-empty string
+{
+  const r = parseBlockConfig(block({ source: 'shopify', query: "FROM sales SHOW orders_first_time WHERE subscription_or_one_time = 'subscription'" }))
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.binding.source, 'shopify')
+}
+// shopify leaf binding — rejected when query missing/empty
+assert.equal(parseBlockConfig(block({ source: 'shopify' })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: '' })).ok, false)
+// shopify works as an aggregate operand (Subscription CAC = spend ÷ subs)
+{
+  const r = parseBlockConfig(block({ source: 'aggregate', op: '/', left: tw, right: { source: 'shopify', query: 'FROM sales SHOW orders_first_time' } }))
+  assert.equal(r.ok, true)
+}
+
+// shopify grouped binding: dimension round-trips (safe column)
+{
+  const r = parseBlockConfig(block({ source: 'shopify', query: 'FROM sales SHOW net_sales', dimensions: ['sales_channel'] }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'shopify') assert.deepEqual(r.block.binding.dimensions, ['sales_channel'])
+}
+// shopify series binding: granularity round-trips
+{
+  const r = parseBlockConfig(block({ source: 'shopify', query: 'FROM sales SHOW net_sales', granularity: 'week' }))
+  assert.equal(r.ok, true)
+  if (r.ok && r.block.binding.source === 'shopify') assert.equal(r.block.binding.granularity, 'week')
+}
+// shopify: unsafe dimension rejected; length-2 rejected; bad granularity rejected
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', dimensions: ['bad; drop'] })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', dimensions: ['a', 'b'] })).ok, false)
+assert.equal(parseBlockConfig(block({ source: 'shopify', query: 'q', granularity: 'minute' })).ok, false)
+
 // formula binding round-trips (ref + metric + constant)
 {
   const r = parseBlockConfig({ id: 'b', name: 'ROAS', format: 'number', range: null,

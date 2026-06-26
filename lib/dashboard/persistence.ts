@@ -1,13 +1,19 @@
 import type {
-  AggregateBinding, AggregateOperand, Binding, CalculatedBinding, DashboardConfig, FormulaBinding,
-  FormulaOperand, LeafBinding, MetricFormat, PersistedBlock, SupermetricsBinding, TripleWhaleBinding,
+  AggregateBinding, AggregateOperand, Binding, BlockKind, BlockLayout, CalculatedBinding, DashboardConfig,
+  FormulaBinding, FormulaOperand, Granularity, LeafBinding, MetricFormat, PersistedBlock, ShopifyBinding,
+  SupermetricsBinding, TripleWhaleBinding,
 } from './types'
+import { SHOPIFY_DIM_RE } from '@/lib/shopify/catalog'
 import { parse, operandKeys } from './formula/parse'
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
 const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number', 'multiple']
 const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
+const BLOCK_KINDS: BlockKind[] = ['kpi', 'pills', 'bar', 'line', 'table', 'narrative', 'header']
+const GRANULARITIES: Granularity[] = ['day', 'week', 'month']
+const SM_DIM_RE = /^[A-Za-z0-9_]+$/                     // mirrors SM_COLUMN_RE in lib/dashboard/adapters/supermetrics.ts
+const TW_DIM_RE = /^[a-z0-9_]+$/                        // mirrors isSafeColumn in lib/triplewhale/queries.ts
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -38,6 +44,24 @@ function parseRange(v: unknown, path: string): Parsed<{ dateRange: string; compa
   return { ok: true, value: { dateRange: v.dateRange, compareRange: v.compareRange } }
 }
 
+function parseGranularity(v: unknown, path: string): Parsed<Granularity> {
+  if (!GRANULARITIES.includes(v as Granularity)) {
+    return { ok: false, error: `${path}: expected one of ${GRANULARITIES.join(',')}` }
+  }
+  return { ok: true, value: v as Granularity }
+}
+
+function parseDimensions(v: unknown, path: string, re: RegExp): Parsed<string[]> {
+  if (!Array.isArray(v) || v.length !== 1) {
+    return { ok: false, error: `${path}: expected array of length 1 (v1)` }
+  }
+  const d = v[0]
+  if (!isNonEmptyStr(d) || !re.test(d)) {
+    return { ok: false, error: `${path}[0]: expected safe column (matching ${re.source})` }
+  }
+  return { ok: true, value: [d] }
+}
+
 function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
   if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
   if (v.source === 'supermetrics') {
@@ -53,6 +77,16 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
       if (!pf.ok) return pf
       b.filters = pf.value
     }
+    if (v.dimensions !== undefined) {
+      const pd = parseDimensions(v.dimensions, `${path}.dimensions`, SM_DIM_RE)
+      if (!pd.ok) return pd
+      b.dimensions = pd.value
+    }
+    if (v.granularity !== undefined) {
+      const pg = parseGranularity(v.granularity, `${path}.granularity`)
+      if (!pg.ok) return pg
+      b.granularity = pg.value
+    }
     return { ok: true, value: b }
   }
   if (v.source === 'triplewhale') {
@@ -65,9 +99,34 @@ function parseLeaf(v: unknown, path: string): Parsed<LeafBinding> {
       if (!pf.ok) return pf
       b.filters = pf.value
     }
+    if (v.dimensions !== undefined) {
+      const pd = parseDimensions(v.dimensions, `${path}.dimensions`, TW_DIM_RE)
+      if (!pd.ok) return pd
+      b.dimensions = pd.value
+    }
+    if (v.granularity !== undefined) {
+      const pg = parseGranularity(v.granularity, `${path}.granularity`)
+      if (!pg.ok) return pg
+      b.granularity = pg.value
+    }
     return { ok: true, value: b }
   }
-  return { ok: false, error: `${path}.source: expected 'supermetrics' or 'triplewhale'` }
+  if (v.source === 'shopify') {
+    if (!isNonEmptyStr(v.query)) return { ok: false, error: `${path}.query: expected non-empty string` }
+    const b: ShopifyBinding = { source: 'shopify', query: v.query }
+    if (v.dimensions !== undefined) {
+      const pd = parseDimensions(v.dimensions, `${path}.dimensions`, SHOPIFY_DIM_RE)
+      if (!pd.ok) return pd
+      b.dimensions = pd.value
+    }
+    if (v.granularity !== undefined) {
+      const pg = parseGranularity(v.granularity, `${path}.granularity`)
+      if (!pg.ok) return pg
+      b.granularity = pg.value
+    }
+    return { ok: true, value: b }
+  }
+  return { ok: false, error: `${path}.source: expected 'supermetrics', 'triplewhale', or 'shopify'` }
 }
 
 function parseCalculated(v: unknown, path: string): Parsed<CalculatedBinding> {
@@ -146,6 +205,16 @@ function parseBinding(v: unknown, path: string): Parsed<Binding> {
   return parseLeaf(v, path)
 }
 
+function parseLayout(v: unknown, path: string): Parsed<BlockLayout> {
+  if (!isObj(v)) return { ok: false, error: `${path}: expected object` }
+  const { x, y, w, h } = v
+  const okN = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0
+  if (!okN(x) || !okN(y) || !okN(w) || !okN(h)) {
+    return { ok: false, error: `${path}: expected { x, y, w, h } as non-negative finite numbers` }
+  }
+  return { ok: true, value: { x: x as number, y: y as number, w: w as number, h: h as number } }
+}
+
 export function parseBlockConfig(
   v: unknown,
   path = 'block',
@@ -155,6 +224,14 @@ export function parseBlockConfig(
   if (!isNonEmptyStr(v.name)) return { ok: false, error: `${path}.name: expected non-empty string` }
   if (!FORMATS.includes(v.format as MetricFormat)) return { ok: false, error: `${path}.format: expected one of ${FORMATS.join(',')}` }
 
+  let kind: BlockKind | undefined
+  if (v.kind !== undefined) {
+    if (!BLOCK_KINDS.includes(v.kind as BlockKind)) {
+      return { ok: false, error: `${path}.kind: expected one of ${BLOCK_KINDS.join(',')}` }
+    }
+    kind = v.kind as BlockKind
+  }
+
   let range: PersistedBlock['range'] = null
   if (v.range !== null) {
     const r = parseRange(v.range, `${path}.range`)
@@ -162,22 +239,52 @@ export function parseBlockConfig(
     range = r.value
   }
 
-  let layout: PersistedBlock['layout']
+  let layout: BlockLayout | undefined
   if (v.layout !== undefined) {
-    if (!isObj(v.layout)) return { ok: false, error: `${path}.layout: expected object` }
-    const w = v.layout.w, h = v.layout.h
-    if (w !== undefined && typeof w !== 'number') return { ok: false, error: `${path}.layout.w: expected number` }
-    if (h !== undefined && typeof h !== 'number') return { ok: false, error: `${path}.layout.h: expected number` }
-    layout = {}
-    if (w !== undefined) layout.w = w
-    if (h !== undefined) layout.h = h
+    const pl = parseLayout(v.layout, `${path}.layout`)
+    if (!pl.ok) return pl
+    layout = pl.value
+  }
+
+  let subLabel: string | undefined
+  if (v.subLabel !== undefined) {
+    if (!isStr(v.subLabel)) return { ok: false, error: `${path}.subLabel: expected string` }
+    subLabel = v.subLabel
+  }
+  let target: number | undefined
+  if (v.target !== undefined) {
+    if (typeof v.target !== 'number' || !Number.isFinite(v.target)) return { ok: false, error: `${path}.target: expected finite number` }
+    target = v.target
+  }
+  let ceiling: number | undefined
+  if (v.ceiling !== undefined) {
+    if (typeof v.ceiling !== 'number' || !Number.isFinite(v.ceiling)) return { ok: false, error: `${path}.ceiling: expected finite number` }
+    ceiling = v.ceiling
+  }
+  let headerLevel: 1 | 2 | 3 | undefined
+  if (v.headerLevel !== undefined) {
+    if (v.headerLevel !== 1 && v.headerLevel !== 2 && v.headerLevel !== 3) {
+      return { ok: false, error: `${path}.headerLevel: expected 1, 2, or 3` }
+    }
+    headerLevel = v.headerLevel
+  }
+  let narrativeBody: string | undefined
+  if (v.narrativeBody !== undefined) {
+    if (!isStr(v.narrativeBody)) return { ok: false, error: `${path}.narrativeBody: expected string` }
+    narrativeBody = v.narrativeBody
   }
 
   const binding = parseBinding(v.binding, `${path}.binding`)
   if (!binding.ok) return binding
 
   const block: PersistedBlock = { id: v.id, name: v.name, format: v.format as MetricFormat, binding: binding.value, range }
+  if (kind !== undefined) block.kind = kind
   if (layout !== undefined) block.layout = layout
+  if (subLabel !== undefined) block.subLabel = subLabel
+  if (target !== undefined) block.target = target
+  if (ceiling !== undefined) block.ceiling = ceiling
+  if (headerLevel !== undefined) block.headerLevel = headerLevel
+  if (narrativeBody !== undefined) block.narrativeBody = narrativeBody
   return { ok: true, block }
 }
 

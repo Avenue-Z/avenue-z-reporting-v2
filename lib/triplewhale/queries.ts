@@ -1,4 +1,5 @@
 import { TwQueryError } from './client'
+import type { Granularity } from '@/lib/dashboard/types'
 
 export type TwMetric =
   | 'ad_spend'
@@ -42,12 +43,33 @@ export function escapeSqlValue(v: string): string {
   return v.replace(/'/g, "''")
 }
 
+const PIXEL_TVF = `pixel_joined_tvf(
+  subscription_filter      = NULL,
+  include_custom_ad_spend  = true,
+  sales_platform_filter    = NULL,
+  use_click_date           = false
+)`
+const BASE_WHERE = `event_date BETWEEN @startDate AND @endDate
+  AND attribution_window = '7_days'
+  AND model = 'Triple Attribution'`
+
+export interface BuildOptions {
+  /** Single-column GROUP BY for grouped mode. v1 enforces single column. */
+  groupBy?: string
+  /** DATE_TRUNC bucket for series mode. */
+  bucket?: Granularity
+}
+
 /**
- * Single-row aggregate query for one metric, optionally filtered by dimensions.
- * `metric` is a curated alias (TW_METRIC_SQL) or a raw numeric column -> SUM(column).
- * `@startDate`/`@endDate` substitute server-side from `period`.
+ * Single-row aggregate query for one metric (scalar mode), OR a multi-row
+ * grouped/series query when opts is provided. Filters are AND-combined in all
+ * modes. `@startDate`/`@endDate` substitute server-side from `period`.
  */
-export function buildMetricSql(metric: string, filters: TwFilter[] = []): string {
+export function buildMetricSql(
+  metric: string,
+  filters: TwFilter[] = [],
+  opts: BuildOptions = {},
+): string {
   const expr = TW_METRIC_SQL[metric as TwMetric] ?? (isSafeColumn(metric) ? `SUM(${metric})` : null)
   if (expr === null) throw new TwQueryError(`unsafe TripleWhale metric: ${metric}`)
   const filterSql = filters
@@ -59,14 +81,28 @@ export function buildMetricSql(metric: string, filters: TwFilter[] = []): string
       return `\n  AND ${f.column} IN (${vals.map((v) => `'${escapeSqlValue(v)}'`).join(', ')})`
     })
     .join('')
+
+  // Grouped mode: SELECT dim, value FROM ... GROUP BY dim ORDER BY value DESC.
+  if (opts.groupBy) {
+    if (!isSafeColumn(opts.groupBy)) throw new TwQueryError(`unsafe TripleWhale dimension: ${opts.groupBy}`)
+    return `SELECT ${opts.groupBy} AS dim, ${expr} AS value
+FROM ${PIXEL_TVF}
+WHERE ${BASE_WHERE}${filterSql}
+GROUP BY ${opts.groupBy}
+ORDER BY value DESC`
+  }
+
+  // Series mode: SELECT DATE_TRUNC(bucket, event_date), value FROM ... GROUP BY bucket ORDER BY bucket ASC.
+  if (opts.bucket) {
+    return `SELECT DATE_TRUNC('${opts.bucket}', event_date) AS bucket, ${expr} AS value
+FROM ${PIXEL_TVF}
+WHERE ${BASE_WHERE}${filterSql}
+GROUP BY bucket
+ORDER BY bucket ASC`
+  }
+
+  // Scalar mode (existing behavior).
   return `SELECT ${expr} AS value
-FROM pixel_joined_tvf(
-  subscription_filter      = NULL,
-  include_custom_ad_spend  = true,
-  sales_platform_filter    = NULL,
-  use_click_date           = false
-)
-WHERE event_date BETWEEN @startDate AND @endDate
-  AND attribution_window = '7_days'
-  AND model = 'Triple Attribution'${filterSql}`
+FROM ${PIXEL_TVF}
+WHERE ${BASE_WHERE}${filterSql}`
 }

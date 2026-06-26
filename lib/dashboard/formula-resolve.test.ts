@@ -5,9 +5,9 @@ import type { AttemptLeaf } from './aggregate'
 import type { BlockConfig, FormulaBinding, LeafAttempt } from './types'
 
 const ctx = { slug: 'k' }
-// attemptLeaf keyed by leaf identity: triplewhale.metric or supermetrics.metricField
+// attemptLeaf keyed by leaf identity: triplewhale.metric, supermetrics.metricField, or shopify.query
 const attemptLeaf: AttemptLeaf = async (b) => {
-  const id = b.source === 'triplewhale' ? b.metric : b.metricField
+  const id = b.source === 'triplewhale' ? b.metric : b.source === 'shopify' ? b.query : b.metricField
   const map: Record<string, LeafAttempt> = {
     spend: { ok: true, value: 200, prevValue: 100 },
     sales: { ok: true, value: 1000, prevValue: 800 },

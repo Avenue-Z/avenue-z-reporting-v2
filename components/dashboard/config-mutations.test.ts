@@ -83,7 +83,7 @@ const base: DashboardConfig = {
   const cfg: DashboardConfig = {
     defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' },
     blocks: [
-      { id: 'a', name: 'Old', format: 'number', range: { dateRange: 'last_7_days', compareRange: null }, layout: { w: 2 },
+      { id: 'a', name: 'Old', format: 'number', range: { dateRange: 'last_7_days', compareRange: null }, layout: { x: 0, y: 0, w: 2, h: 1 },
         binding: { source: 'triplewhale', metric: 'ad_spend' } },
       { id: 'b', name: 'Other', format: 'currency', range: null, binding: { source: 'triplewhale', metric: 'revenue' } },
     ],
@@ -94,7 +94,7 @@ const base: DashboardConfig = {
   assert.equal(a.format, 'currency')
   assert.equal(a.binding.source === 'triplewhale' && a.binding.metric, 'revenue')
   assert.deepEqual(a.range, { dateRange: 'last_7_days', compareRange: null }) // preserved
-  assert.deepEqual(a.layout, { w: 2 })                                        // preserved
+  assert.deepEqual(a.layout, { x: 0, y: 0, w: 2, h: 1 })                       // preserved
   assert.equal(next.blocks.find((x) => x.id === 'b')!.name, 'Other')         // untouched
 }
 

@@ -52,3 +52,17 @@ export function updateBlock(
     ),
   }
 }
+
+/** Write back grid positions/sizes from react-grid-layout onto each block's layout. */
+export function applyLayoutChange(
+  config: DashboardConfig,
+  layout: { i: string; x: number; y: number; w: number; h: number }[],
+): DashboardConfig {
+  const byId = new Map(layout.map((l) => [l.i, l]))
+  const blocks = config.blocks.map((b) => {
+    const l = byId.get(b.id)
+    if (!l) return b
+    return { ...b, layout: { x: l.x, y: l.y, w: l.w, h: l.h } }
+  })
+  return { ...config, blocks }
+}
