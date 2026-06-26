@@ -1,6 +1,6 @@
 {
-  "id": "66f71b82-d4e2-4f25-8ab5-fcfc8308ed36",
-  "prevId": "2e94b306-28ba-4168-ab88-44e0ed5d16e0",
+  "id": "ecd338eb-8acb-436a-95bf-2aa73a826a96",
+  "prevId": "66f71b82-d4e2-4f25-8ab5-fcfc8308ed36",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -159,6 +159,19 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'"
+        },
+        "shared_password_hash": {
+          "name": "shared_password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_seats": {
+          "name": "max_seats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
         },
         "created_at": {
           "name": "created_at",

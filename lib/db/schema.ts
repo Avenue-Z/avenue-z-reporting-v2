@@ -159,6 +159,16 @@ export const users = pgTable('users', {
   clientIdIdx: index('users_client_id_idx').on(table.clientId),
 }))
 
+// Last-known health status per (surface:clientSlug:section). Written by the
+// health sweep; only status *changes* are announced to Slack.
+export const healthState = pgTable('health_state', {
+  key: text('key').primaryKey(),
+  status: text('status').notNull().$type<'ok' | 'down'>(),
+  detail: text('detail'),
+  since: timestamp('since', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // --- Relations (enables nested queries) ---
 
 export const clientsRelations = relations(clients, ({ many }) => ({
@@ -179,3 +189,4 @@ export type NewClient = typeof clients.$inferInsert
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type ClientRole = (typeof clientRoleEnum.enumValues)[number]
+export type HealthStateRow = typeof healthState.$inferSelect

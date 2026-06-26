@@ -1,7 +1,8 @@
 import { cache } from 'react'
 import { eq } from 'drizzle-orm'
 import { db } from './client'
-import { clients, users, type Client, type User, type ClientRole } from './schema'
+import { clients, users, healthState, type Client, type User, type ClientRole } from './schema'
+import type { HealthStatus, StoredHealth } from '@/lib/health/types'
 import { cached } from '@/lib/cache'
 import { timed } from '@/lib/perf'
 
@@ -85,3 +86,38 @@ const getAllClientsImpl = async (): Promise<(Client & { users: User[] })[]> => {
 export const getAllClients = cache(
   cached('db', 'getAllClients', getAllClientsImpl, { ttlSeconds: 300, tags: ['db'] }),
 )
+
+/**
+ * All stored health rows. NOT cached — the sweep needs the live table, and it
+ * writes to it in the same run.
+ */
+export async function getAllHealthState(): Promise<StoredHealth[]> {
+  const rows = await db
+    .select({ key: healthState.key, status: healthState.status, detail: healthState.detail })
+    .from(healthState)
+  return rows.map((r) => ({ key: r.key, status: r.status as HealthStatus, detail: r.detail }))
+}
+
+/**
+ * Upsert each observed unit's status. `since` is bumped only when the status
+ * actually changed (changed === true); unchanged rows keep their original
+ * `since` so it reflects when the current state began.
+ */
+export async function upsertHealthState(
+  rows: Array<{ key: string; status: HealthStatus; detail?: string; changed: boolean }>,
+): Promise<void> {
+  for (const r of rows) {
+    await db
+      .insert(healthState)
+      .values({ key: r.key, status: r.status, detail: r.detail ?? null })
+      .onConflictDoUpdate({
+        target: healthState.key,
+        set: {
+          status: r.status,
+          detail: r.detail ?? null,
+          updatedAt: new Date(),
+          ...(r.changed ? { since: new Date() } : {}),
+        },
+      })
+  }
+}

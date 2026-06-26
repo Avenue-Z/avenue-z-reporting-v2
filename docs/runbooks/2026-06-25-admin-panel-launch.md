@@ -1,8 +1,11 @@
 # Admin Panel Launch Runbook
 
 ## 1. Apply the migration to production
-Migration `drizzle/0011_huge_cobalt_man.sql` adds `clients.shared_password_hash`
+Migration `drizzle/0012_huge_cobalt_man.sql` adds `clients.shared_password_hash`
 and `clients.max_seats` only — additive, idempotent (`ADD COLUMN IF NOT EXISTS`).
+(Renumbered from 0011 to 0012 when merging `main`, which had its own 0011 —
+`0011_aberrant_revanche` (the `health_state` table). `db:migrate` applies pending
+migrations in journal order, so it runs 0011 then 0012; no manual ordering needed.)
 
 **Verified on a Neon branch (2026-06-25):** `npm run db:migrate` applied it
 cleanly, all existing clients backfilled to `max_seats = 5` (zero nulls),
@@ -20,10 +23,10 @@ GitHub, never on a laptop:
    table_name='clients' and column_name in ('shared_password_hash','max_seats');`
    → two rows; existing clients show `max_seats = 5`.
 
-Note: prod should be at the standard `main` migration lineage (`0000`–`0010`)
-before this runs. The Neon `dev` database is ahead of `main` (extra in-flight
-migrations) — that's a dev-only artifact and does not affect this additive,
-idempotent migration, which is safe even if re-run.
+Note: prod should be at the standard `main` migration lineage (`0000`–`0011`,
+including `0011_aberrant_revanche` / `health_state`) before/when this runs;
+`db:migrate` applies any pending ones (0011 health and/or 0012 admin) in order.
+This admin migration is additive and idempotent, safe even if re-run.
 
 ## 2. Onboard the first client
 1. As an Avenue Z internal admin (Google sign-in), open

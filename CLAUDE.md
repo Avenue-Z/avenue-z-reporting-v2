@@ -450,6 +450,10 @@ HUBSPOT_ACCESS_TOKEN_AVENUE_Z=
 
 # Shared service account for GA4 + GSC (property IDs and site URLs are now in the DB)
 GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON key for the Google service account
+
+# Health alerting (Slack Web API, bot token — same pattern as renaissance-ad-spend-pacing)
+SLACK_BOT_TOKEN=                      # xoxb-… bot token with chat:write scope
+SLACK_CHANNEL_ID=                     # internal health channel ID, e.g. C0123ABCD (not the #name)
 ```
 
 ---
