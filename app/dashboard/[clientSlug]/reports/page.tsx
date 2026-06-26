@@ -29,6 +29,7 @@ import type { ReportSlug } from '@/lib/db/schema'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam } from '@/lib/peec/models'
 import { SectionSkeleton } from './section-skeleton'
+import { HealthProbe } from '@/lib/health/probe'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -105,10 +106,10 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string }>
 }) {
   const { clientSlug } = await params
-  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -166,6 +167,21 @@ export default async function ReportPage({
     : (activeSection === 'paid-media')
       ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
     : (REPORT_NAMES[activeSection] ?? activeSection)
+
+  // Health mode is an internal-only probe surface (the cron sweep self-fetches
+  // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
+  // raw beacon JSON instead of their report.
+  if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
+    const element = getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, models)
+    return (
+      <HealthProbe
+        surface="dashboard"
+        clientSlug={clientSlug}
+        section={activeSection}
+        element={element ?? <></>}
+      />
+    )
+  }
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={50}>

@@ -23,6 +23,7 @@ import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { PortalReportDateRange } from './report-date-range'
+import { HealthProbe } from '@/lib/health/probe'
 
 function ReportSkeleton() {
   return (
@@ -94,10 +95,10 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; health?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, health: healthParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -111,6 +112,21 @@ export default async function PortalReportPage({
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
+
+  // Health mode is an internal-only probe surface (the cron sweep self-fetches
+  // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
+  // raw beacon JSON instead of their report.
+  if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
+    const element = getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy)
+    return (
+      <HealthProbe
+        surface="portal"
+        clientSlug={clientSlug}
+        section={reportSlug}
+        element={element ?? <></>}
+      />
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-12">

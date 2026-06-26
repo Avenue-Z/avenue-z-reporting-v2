@@ -4,6 +4,10 @@
     {
       "path": "/api/cache-warm",
       "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/health/sweep",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

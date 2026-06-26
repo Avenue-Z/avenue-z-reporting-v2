@@ -21,6 +21,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { unstable_cache } from 'next/cache'
 import { timed, type PerfExtractor } from '@/lib/perf'
+import { recordFetch } from '@/lib/health/collector'
 
 const CACHE_DISABLED = process.env.CACHE_DISABLE === '1'
 const PERF_LOG_ENABLED = process.env.PERF_LOG === '1'
@@ -84,6 +85,7 @@ export function cached<TArgs extends unknown[], TRet>(
       try {
         const result = await cachedFn(today, ...args)
         const ms = Math.round(performance.now() - start)
+        recordFetch({ vendor, fn, ok: true })
         if (PERF_LOG_ENABLED) {
           emit({ ts: new Date().toISOString(), vendor, fn, ms, ok: true, cached: !wasInvoked.current, ...tags })
         }
@@ -91,6 +93,7 @@ export function cached<TArgs extends unknown[], TRet>(
       } catch (err) {
         const ms = Math.round(performance.now() - start)
         const message = err instanceof Error ? err.message : String(err)
+        recordFetch({ vendor, fn, ok: false, error: message })
         if (PERF_LOG_ENABLED) {
           emit({ ts: new Date().toISOString(), vendor, fn, ms, ok: false, cached: false, ...tags, err: message })
         }
