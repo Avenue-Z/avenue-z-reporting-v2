@@ -8,6 +8,7 @@ import type { TwFields } from '@/lib/triplewhale/discovery'
 import { SearchCombobox, type ComboOption } from './search-combobox'
 import { MultiSelectCombobox } from './multi-select-combobox'
 import { formatFromDataType, COMMON_TW_METRICS, type LeafDraft } from './build-config'
+import { SHOPIFY_METRICS, findShopifyMetric } from '@/lib/shopify/catalog'
 import type { MetricFormat } from '@/lib/dashboard/types'
 
 const DS_OPTIONS: { value: string; label: string }[] = [
@@ -26,7 +27,7 @@ export function LeafBuilder({
   slug,
   onSuggestFormat,
 }: {
-  source: 'supermetrics' | 'triplewhale'
+  source: 'supermetrics' | 'triplewhale' | 'shopify'
   value: LeafDraft
   onChange: (v: LeafDraft) => void
   slug: string
@@ -74,6 +75,17 @@ export function LeafBuilder({
         filters={filters}
         slug={slug}
         onChange={(next) => onChange({ source: 'triplewhale', metric: next.metric, ...(next.filters.length ? { filters: next.filters } : {}) })}
+      />
+    )
+  }
+
+  if (source === 'shopify') {
+    const query = value.source === 'shopify' ? value.query : ''
+    return (
+      <ShopifyLeafFields
+        query={query}
+        onChange={(q) => onChange({ source: 'shopify', query: q })}
+        onSuggestFormat={onSuggestFormat}
       />
     )
   }
@@ -147,6 +159,52 @@ export function LeafBuilder({
             </>
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+function ShopifyLeafFields({
+  query,
+  onChange,
+  onSuggestFormat,
+}: {
+  query: string
+  onChange: (q: string) => void
+  onSuggestFormat?: (f: MetricFormat) => void
+}) {
+  const match = findShopifyMetric(query)
+  const [advanced, setAdvanced] = useState(query !== '' && !match)
+
+  const selectVal = advanced ? '__custom__' : (match?.id ?? '')
+  const onPick = (id: string) => {
+    if (id === '__custom__') { setAdvanced(true); return }
+    const m = SHOPIFY_METRICS.find((x) => x.id === id)
+    setAdvanced(false)
+    if (m) { onChange(m.query); onSuggestFormat?.(m.format) } else { onChange('') }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Field label="Metric">
+        <select className={ctrl} value={selectVal} onChange={(e) => onPick(e.target.value)}>
+          <option value="">Select a metric…</option>
+          {SHOPIFY_METRICS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          <option value="__custom__">Custom ShopifyQL…</option>
+        </select>
+      </Field>
+      {advanced && (
+        <Field label="ShopifyQL query">
+          <textarea
+            className={`${ctrl} min-h-[96px] resize-y font-mono`}
+            value={query}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={"FROM sales SHOW orders_first_time WHERE subscription_or_one_time = 'subscription'"}
+          />
+          <span className="mt-1 text-[10px] text-text-muted">
+            Omit the date clause — <code>SINCE</code>/<code>UNTIL</code> come from the block&apos;s range. The first column is summed.
+          </span>
+        </Field>
       )}
     </div>
   )
