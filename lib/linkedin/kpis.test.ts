@@ -31,6 +31,12 @@ assert.equal(k.find((c) => c.key === 'leads')!.value, 150)
 assert.equal(k.find((c) => c.key === 'ctr')!.value, 1.25)
 assert.equal(k.find((c) => c.key === 'leadFormCompletionRate')!.value, 30)
 
+// Cost-efficiency metrics invert delta coloring: a decrease is good (green), an
+// increase is bad (red). CPM, CPC and Cost/Visit (cost per landing-page view).
+for (const key of ['cpm', 'cpc', 'costPerVisit', 'costPerLead']) {
+  assert.equal(k.find((c) => c.key === key)!.invertDelta, true, `${key} should set invertDelta`)
+}
+
 // delta vs a prior period (spend 10000 → +20%)
 const k2 = transformLinkedInKpis(totals, { ...totals, spend: '10000' })
 assert.equal(k2.find((c) => c.key === 'spend')!.delta, 20)

@@ -14,7 +14,7 @@ import { OverviewSynopsis } from './overview-synopsis'
 import { SynopsisSkeleton } from './synopsis-skeleton'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
-import { isAiSource, aiSourceModel } from '@/lib/constants'
+import { isAiSource, aiSourceModel, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { sumModelMap } from '@/lib/peec/by-model'
 import type { AEOModel } from '@/lib/peec/models'
 import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
@@ -219,15 +219,17 @@ function ProviderSection({
         title="How visible is the brand across AI answer engines?"
       />
 
-      <Suspense fallback={<SynopsisSkeleton />}>
-        <OverviewSynopsis
-          clientSlug={clientSlug}
-          dateRange={dateRange}
-          provider={provider}
-          data={data}
-          aiSessions={aiTraffic.available ? aiTraffic.sessions : null}
-        />
-      </Suspense>
+      {SHOW_AI_NARRATIVE && (
+        <Suspense fallback={<SynopsisSkeleton />}>
+          <OverviewSynopsis
+            clientSlug={clientSlug}
+            dateRange={dateRange}
+            provider={provider}
+            data={data}
+            aiSessions={aiTraffic.available ? aiTraffic.sessions : null}
+          />
+        </Suspense>
+      )}
 
       {you && (
         <div>

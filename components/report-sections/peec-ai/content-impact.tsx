@@ -15,7 +15,7 @@ import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { isAiSource } from '@/lib/constants'
+import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
@@ -997,24 +997,26 @@ export async function ContentImpactReport({
       />
 
       {/* ── FB-033 · Executive Synopsis (AI-generated, Glean-backed) ────────── */}
-      <Suspense
-        fallback={
-          <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
-            <div className="mb-4 h-4 w-40 animate-pulse rounded bg-white/10" />
-            <div className="space-y-2">
-              <div className="h-3 w-full animate-pulse rounded bg-white/10" />
-              <div className="h-3 w-11/12 animate-pulse rounded bg-white/10" />
-              <div className="h-3 w-10/12 animate-pulse rounded bg-white/10" />
-            </div>
-          </section>
-        }
-      >
-        <ContentImpactSynopsis
-          clientSlug={clientSlug}
-          dateRange={dateRange}
-          context={synopsisContext}
-        />
-      </Suspense>
+      {SHOW_AI_NARRATIVE && (
+        <Suspense
+          fallback={
+            <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
+              <div className="mb-4 h-4 w-40 animate-pulse rounded bg-white/10" />
+              <div className="space-y-2">
+                <div className="h-3 w-full animate-pulse rounded bg-white/10" />
+                <div className="h-3 w-11/12 animate-pulse rounded bg-white/10" />
+                <div className="h-3 w-10/12 animate-pulse rounded bg-white/10" />
+              </div>
+            </section>
+          }
+        >
+          <ContentImpactSynopsis
+            clientSlug={clientSlug}
+            dateRange={dateRange}
+            context={synopsisContext}
+          />
+        </Suspense>
+      )}
 
       {/* ── Section A: KPI Strip (FB-034, Tina's 4 new metrics) ─────────── */}
       <div>
