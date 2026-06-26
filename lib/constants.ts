@@ -173,6 +173,14 @@ export const SOON_REPORT_SLUGS = new Set<string>([])
  */
 export const SHOW_LOCKED_REPORT_TEASERS = false
 
+/**
+ * Show AI-generated narrative across the site: the per-section synopsis blocks
+ * (AEO Overview / Content Impact / PR Influence / Organic Social), the AI
+ * Summaries section, and the conversational DataChat widget. Currently OFF.
+ * Flip to `true` to bring all of it back at once.
+ */
+export const SHOW_AI_NARRATIVE = false
+
 /** All report slugs shown in the portal sidebar (excludes Soon sub-items like google-search-console) */
 export const ALL_REPORT_SLUGS: string[] = [
   'demand-overview',
