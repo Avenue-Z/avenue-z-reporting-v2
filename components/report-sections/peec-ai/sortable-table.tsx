@@ -87,7 +87,16 @@ export function SortableTable<T>({
       if (col) {
         const accessor = col.accessor ?? ((r: T) => (r as Record<string, unknown>)[sortKey] as string | number)
         result = [...result].sort((a, b) => {
-          const cmp = compareValues(accessor(a), accessor(b))
+          const av = accessor(a)
+          const bv = accessor(b)
+          // Null-sink: missing values always go to the bottom on BOTH asc and desc,
+          // independent of the direction flip below. Without this, desc sort
+          // floats nulls to the top (compareValues returns +1 for null vs real,
+          // which the -cmp flip then inverts to -1, putting nulls before real).
+          if (av == null && bv == null) return 0
+          if (av == null) return 1
+          if (bv == null) return -1
+          const cmp = compareValues(av, bv)
           return sortDir === 'asc' ? cmp : -cmp
         })
       }

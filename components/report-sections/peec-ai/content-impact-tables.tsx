@@ -183,7 +183,7 @@ export function PlannedContentPerformanceTable({
     },
     {
       key: 'promptCoverageDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.promptCoverageDelta ?? -Infinity,
+      accessor: (r) => r.promptCoverageDelta ?? null,
       render: (r) => renderDelta(r.promptCoverageDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -196,7 +196,7 @@ export function PlannedContentPerformanceTable({
     },
     {
       key: 'citationShareDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.citationShareDelta ?? -Infinity,
+      accessor: (r) => r.citationShareDelta ?? null,
       render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -209,7 +209,7 @@ export function PlannedContentPerformanceTable({
     },
     {
       key: 'aiReferralTrafficDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.aiReferralTrafficDelta ?? -Infinity,
+      accessor: (r) => r.aiReferralTrafficDelta ?? null,
       render: (r) => renderDelta(r.aiReferralTrafficDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -222,7 +222,7 @@ export function PlannedContentPerformanceTable({
     },
     {
       key: 'organicSessionsDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.organicSessionsDelta ?? -Infinity,
+      accessor: (r) => r.organicSessionsDelta ?? null,
       render: (r) => renderDelta(r.organicSessionsDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -235,7 +235,7 @@ export function PlannedContentPerformanceTable({
     },
     {
       key: 'engagementRateDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.engagementRateDelta ?? -Infinity,
+      accessor: (r) => r.engagementRateDelta ?? null,
       render: (r) => renderDelta(r.engagementRateDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
   ]
@@ -323,7 +323,7 @@ export function FullsiteContentPerformanceTable({
     {
       key: 'promptCoverageDelta', label: 'Δ', align: 'right',
       sortable: true,
-      accessor: (r) => r.promptCoverageDelta ?? -Infinity,
+      accessor: (r) => r.promptCoverageDelta ?? null,
       render: (r) => renderDelta(r.promptCoverageDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -339,7 +339,7 @@ export function FullsiteContentPerformanceTable({
     {
       key: 'citationShareDelta', label: 'Δ', align: 'right',
       sortable: true,
-      accessor: (r) => r.citationShareDelta ?? -Infinity,
+      accessor: (r) => r.citationShareDelta ?? null,
       render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -355,7 +355,7 @@ export function FullsiteContentPerformanceTable({
     {
       key: 'aiReferralTrafficDelta', label: 'Δ', align: 'right',
       sortable: true,
-      accessor: (r) => r.aiReferralTrafficDelta ?? -Infinity,
+      accessor: (r) => r.aiReferralTrafficDelta ?? null,
       render: (r) => renderDelta(r.aiReferralTrafficDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -371,7 +371,7 @@ export function FullsiteContentPerformanceTable({
     {
       key: 'organicSessionsDelta', label: 'Δ', align: 'right',
       sortable: true,
-      accessor: (r) => r.organicSessionsDelta ?? -Infinity,
+      accessor: (r) => r.organicSessionsDelta ?? null,
       render: (r) => renderDelta(r.organicSessionsDelta, 'pct') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -387,7 +387,7 @@ export function FullsiteContentPerformanceTable({
     {
       key: 'engagementRateDelta', label: 'Δ', align: 'right',
       sortable: true,
-      accessor: (r) => r.engagementRateDelta ?? -Infinity,
+      accessor: (r) => r.engagementRateDelta ?? null,
       render: (r) => renderDelta(r.engagementRateDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
   ]
@@ -452,7 +452,7 @@ export function CompetitorDomainsCitedTable({
     },
     {
       key: 'aiVisibilityDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.aiVisibilityDelta ?? -Infinity,
+      accessor: (r) => r.aiVisibilityDelta ?? null,
       render: (r) => renderDelta(r.aiVisibilityDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -473,7 +473,7 @@ export function CompetitorDomainsCitedTable({
     },
     {
       key: 'citationShareDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.citationShareDelta ?? -Infinity,
+      accessor: (r) => r.citationShareDelta ?? null,
       render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
@@ -488,7 +488,7 @@ export function CompetitorDomainsCitedTable({
     },
     {
       key: 'promptCoverageDelta', label: 'Δ', align: 'right',
-      accessor: (r) => r.promptCoverageDelta ?? -Infinity,
+      accessor: (r) => r.promptCoverageDelta ?? null,
       render: (r) => renderDelta(r.promptCoverageDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
   ]
