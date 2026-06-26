@@ -38,7 +38,7 @@ export default async function ClientPortalPage({
         {client.enabledReports.map((reportSlug) => (
           <Link
             key={reportSlug}
-            href={`/portal/${client.slug}/reports/${reportSlug}`}
+            href={`/portal/${client.slug}/reports?section=${reportSlug}`}
             className="group relative overflow-hidden rounded-lg border border-white/[0.06] bg-bg-surface p-6 transition-colors hover:border-white/[0.12]"
           >
             <h3 className="text-lg font-bold text-white">

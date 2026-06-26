@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES } from '@/lib/constants'
+import { auth } from '@/auth'
+import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -24,10 +25,19 @@ import { PRPlacementsReport } from '@/components/report-sections/pr-placements'
 import { GoHighLevelReport } from '@/components/report-sections/gohighlevel'
 import { TicketSalesReport } from '@/components/report-sections/ticket-sales'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
+import { PeecAIReport } from '@/components/report-sections/peec-ai'
+import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
+import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
+import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
+import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
+import { parseModelsParam, type AEOModel } from '@/lib/peec/models'
 import { ExportPdfButton } from '@/components/export-pdf-button'
 import { DataChat } from '@/components/data-chat'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 import type { ReportSlug } from '@/lib/db/schema'
 
@@ -47,7 +57,13 @@ function SectionSkeleton() {
   )
 }
 
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string) {
+// TECH DEBT: this section switch + the report header controls in the return below
+// are duplicated in the internal dashboard route
+// (app/dashboard/[clientSlug]/reports/page.tsx). The two have drifted before — that
+// gap is exactly why AEO's date/model pickers were missing here until they were
+// hand-ported. TODO: extract a single shared report-render module that both the
+// dashboard and portal routes import, so they can't diverge again.
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string) {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -96,6 +112,15 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'demand-overview':
+      return <DemandOverviewReport clientSlug={clientSlug} />
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
+    case 'peec-ai':
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
+      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
+      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
   }
 }
 
@@ -113,17 +138,26 @@ const PAID_MEDIA_SUBSECTION_NAMES: Record<string, string> = {
   'linkedin': 'LinkedIn Advertising',
 }
 
+const AEO_SUBSECTION_NAMES: Record<string, string> = {
+  'pr-influence':    'PR Influence',
+  'content-impact':  'Content Impact',
+  'technical-audit': 'Technical Performance',
+}
+
 export default async function PortalReportPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string }>
 }) {
   const { clientSlug } = await params
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
+
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
 
   // A subsection the client has hidden (e.g. Technical Performance) is not reachable
   // via direct URL — fall back to the section overview.
@@ -133,13 +167,33 @@ export default async function PortalReportPage({
 
   const dateRange    = dateRangeParam  ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
+  const models       = parseModelsParam(modelsParam)
 
-  // Portal: default to first non-internal report (skip meeting-prep)
+  // Default landing: open the first enabled report in sidebar (NAV_GROUPS) order
+  // so it matches the first visible nav item — not enabledReports[0], which can
+  // lead with a granular/legacy slug the sidebar can't highlight.
+  const defaultSection =
+    NAV_SLUG_ORDER.find((s) => client.enabledReports.includes(s as ReportSlug)) ??
+    client.enabledReports[0]
+
+  // A bare /reports (no section) renders content but the sidebar — which reads the
+  // `section` param — highlights nothing. Redirect to the canonical URL so the page
+  // and sidebar share one source of truth.
+  if (!section && defaultSection) {
+    const sp = new URLSearchParams()
+    if (dateRangeParam)    sp.set('dateRange', dateRangeParam)
+    if (compareRangeParam) sp.set('compareRange', compareRangeParam)
+    if (subsectionParam)   sp.set('subsection', subsectionParam)
+    if (modelsParam)       sp.set('models', modelsParam)
+    sp.set('section', defaultSection)
+    redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
+  }
+
   const portalReports: ReportSlug[] = client.enabledReports
   const activeSection = (
     portalReports.includes(section as ReportSlug)
       ? section
-      : portalReports[0]
+      : defaultSection
   ) as ReportSlug
 
   const pageTitle =
@@ -149,10 +203,12 @@ export default async function PortalReportPage({
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
     : (activeSection === 'paid-media')
       ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
+    : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
+      ? AEO_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
-    <>
+    <TooltipProvider delayDuration={150} skipDelayDuration={50}>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
         {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && (
           <Suspense fallback={null}>
@@ -169,18 +225,30 @@ export default async function PortalReportPage({
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
         )}
+        {/* AEO honors the page date range; the model filter applies to Overview,
+            PR Influence and Content Impact (not Technical Performance). */}
+        {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
+        {activeSection === 'peec-ai' && (!subsection || subsection === 'pr-influence' || subsection === 'content-impact') && (
+          <Suspense fallback={null}>
+            <ModelFilter selected={models} />
+          </Suspense>
+        )}
         <ExportPdfButton />
       </StickyReportHeader>
 
       <div className="h-8" />
 
       <ReportErrorBoundary sectionName={pageTitle}>
-        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection)}
+        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy)}
         </Suspense>
       </ReportErrorBoundary>
 
       <DataChat clientName={client.name} />
-    </>
+    </TooltipProvider>
   )
 }

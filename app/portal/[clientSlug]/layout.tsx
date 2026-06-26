@@ -30,7 +30,7 @@ export default async function PortalLayout({
   return (
     <div className="flex h-screen bg-black" data-print-layout>
       <Suspense>
-        <PortalSidebar clients={clients} />
+        <PortalSidebar clients={clients} userRole={session.user.role} />
       </Suspense>
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-7xl px-8 py-8">{children}</div>
