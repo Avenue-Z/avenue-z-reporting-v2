@@ -450,6 +450,9 @@ HUBSPOT_ACCESS_TOKEN_AVENUE_Z=
 
 # Shared service account for GA4 + GSC (property IDs and site URLs are now in the DB)
 GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON key for the Google service account
+
+# Health alerting
+SLACK_HEALTH_WEBHOOK_URL=             # Slack incoming webhook for the internal #health channel
 ```
 
 ---
