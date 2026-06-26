@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
+import { auth } from '@/auth'
 import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -24,6 +25,8 @@ import { PRPlacementsReport } from '@/components/report-sections/pr-placements'
 import { GoHighLevelReport } from '@/components/report-sections/gohighlevel'
 import { TicketSalesReport } from '@/components/report-sections/ticket-sales'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
@@ -60,7 +63,7 @@ function SectionSkeleton() {
 // gap is exactly why AEO's date/model pickers were missing here until they were
 // hand-ported. TODO: extract a single shared report-render module that both the
 // dashboard and portal routes import, so they can't diverge again.
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string) {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -109,6 +112,10 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'demand-overview':
+      return <DemandOverviewReport clientSlug={clientSlug} />
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'peec-ai':
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
@@ -148,6 +155,9 @@ export default async function PortalReportPage({
   const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
+
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
 
   // A subsection the client has hidden (e.g. Technical Performance) is not reachable
   // via direct URL — fall back to the section overview.
@@ -234,7 +244,7 @@ export default async function PortalReportPage({
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy)}
         </Suspense>
       </ReportErrorBoundary>
 
