@@ -166,6 +166,13 @@ export const PAID_MEDIA_SUBSECTIONS: { id: string | null; label: string; comingS
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */
 export const SOON_REPORT_SLUGS = new Set<string>([])
 
+/**
+ * Show greyed, lock-icon "upsell" teasers in the portal sidebar for reports a
+ * client is NOT enabled for. Currently OFF — clients see only their enabled
+ * reports. Flip to `true` to bring the upsell teasers back; no other change needed.
+ */
+export const SHOW_LOCKED_REPORT_TEASERS = false
+
 /** All report slugs shown in the portal sidebar (excludes Soon sub-items like google-search-console) */
 export const ALL_REPORT_SLUGS: string[] = [
   'demand-overview',

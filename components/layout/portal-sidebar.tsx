@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
-import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, visibleSubsections } from '@/lib/constants'
+import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, SHOW_LOCKED_REPORT_TEASERS, visibleSubsections } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import { LogOut, Lock, Users } from 'lucide-react'
 
@@ -90,6 +90,9 @@ export function PortalSidebar({ clients, userRole }: PortalSidebarProps) {
             }
 
             if (!isEnabled) {
+              // Upsell teasers are hidden for now (see SHOW_LOCKED_REPORT_TEASERS).
+              // Flip the flag to `true` to show locked reports again.
+              if (!SHOW_LOCKED_REPORT_TEASERS) return null
               return (
                 <li key={slug}>
                   <span
