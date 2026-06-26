@@ -168,7 +168,10 @@ export default async function ReportPage({
       ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
-  if (healthParam === '1') {
+  // Health mode is an internal-only probe surface (the cron sweep self-fetches
+  // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
+  // raw beacon JSON instead of their report.
+  if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
     const element = getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, models)
     return (
       <HealthProbe
