@@ -1,8 +1,8 @@
 // lib/dashboard/resolve.test.ts
 // Run: npx tsx lib/dashboard/resolve.test.ts
 import { strict as assert } from 'node:assert'
-import { resolveBlock, type LeafResolver } from './resolve'
-import type { BlockConfig } from './types'
+import { resolveBlock, resolveGroupedBlock, resolveSeriesBlock, type LeafResolver, type GroupedResolver, type SeriesResolver } from './resolve'
+import type { BlockConfig, GroupedRow, SeriesPoint } from './types'
 import { NoDataError } from './errors'
 
 const GLOBAL = { dateRange: 'last_30_days', compareRange: 'previous_period' as string | null }
@@ -74,6 +74,121 @@ async function run() {
       ] } }
     const r = await resolveBlock(calc, GLOBAL, { slug: 'k' }, { resolveLeaf: fn })
     assert.equal(r.ok && r.value, 75)
+  }
+
+  // resolveGroupedBlock: aggregate binding → invalid-metric.
+  {
+    const agg: BlockConfig = {
+      id: 'ga', name: 'X', format: 'number', range: null,
+      binding: { source: 'aggregate', op: '/',
+        left:  { source: 'triplewhale', metric: 'revenue' },
+        right: { source: 'triplewhale', metric: 'ad_spend' } },
+    }
+    const r = await resolveGroupedBlock(agg, GLOBAL, { slug: 'k' })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.error, 'invalid-metric')
+  }
+
+  // resolveGroupedBlock: calculated binding → invalid-metric.
+  {
+    const calc: BlockConfig = {
+      id: 'gc', name: 'X', format: 'number', range: null,
+      binding: { source: 'calculated', terms: [{ coefficient: 1, leaf: { source: 'triplewhale', metric: 'revenue' } }] },
+    }
+    const r = await resolveGroupedBlock(calc, GLOBAL, { slug: 'k' })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.error, 'invalid-metric')
+  }
+
+  // resolveGroupedBlock: leaf binding + mock resolver → ok with rows + format.
+  {
+    const cfg: BlockConfig = {
+      id: 'g', name: 'Spend by Channel', format: 'currency', range: null,
+      binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', dimensions: ['Channel'] },
+    }
+    const mock: GroupedResolver = async () => [{ dim: { Channel: 'Google' }, value: 1000 } as GroupedRow]
+    const r = await resolveGroupedBlock(cfg, GLOBAL, { slug: 'k' }, { resolveGrouped: mock })
+    assert.equal(r.ok, true)
+    if (r.ok) {
+      assert.equal(r.rows.length, 1)
+      assert.equal(r.format, 'currency')
+    }
+  }
+
+  // resolveSeriesBlock: missing granularity → invalid-metric.
+  {
+    const cfg: BlockConfig = {
+      id: 's', name: 'X', format: 'number', range: null,
+      binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' },
+    }
+    const r = await resolveSeriesBlock(cfg, GLOBAL, { slug: 'k' })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.error, 'invalid-metric')
+  }
+
+  // resolveSeriesBlock: leaf binding + granularity + mock → ok with points + granularity + format.
+  {
+    const cfg: BlockConfig = {
+      id: 's2', name: 'Cost over time', format: 'currency', range: null,
+      binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', granularity: 'day' },
+    }
+    const mock: SeriesResolver = async () => [
+      { bucket: '2026-06-22', value: 10 } as SeriesPoint,
+      { bucket: '2026-06-23', value: 20 } as SeriesPoint,
+    ]
+    const r = await resolveSeriesBlock(cfg, GLOBAL, { slug: 'k' }, { resolveSeries: mock })
+    assert.equal(r.ok, true)
+    if (r.ok) {
+      assert.equal(r.points.length, 2)
+      assert.equal(r.granularity, 'day')
+      assert.equal(r.format, 'currency')
+    }
+  }
+
+  // resolveSeriesBlock: mock throws NoDataError → result-level error mapped.
+  {
+    const cfg: BlockConfig = {
+      id: 's3', name: 'X', format: 'number', range: null,
+      binding: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1', granularity: 'day' },
+    }
+    const mock: SeriesResolver = async () => { throw new NoDataError('empty') }
+    const r = await resolveSeriesBlock(cfg, GLOBAL, { slug: 'k' }, { resolveSeries: mock })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.error, 'no-data')
+  }
+
+  // resolveGroupedBlock: shopify leaf binding + mock resolver → ok (must NOT be short-circuited).
+  {
+    const cfg: BlockConfig = {
+      id: 'sg', name: 'Net Sales by Channel', format: 'currency', range: null,
+      binding: { source: 'shopify', query: 'FROM sales SHOW net_sales', dimensions: ['sales_channel'] },
+    }
+    const mock: GroupedResolver = async () => [{ dim: { sales_channel: 'Online Store' }, value: 5000 } as GroupedRow]
+    const r = await resolveGroupedBlock(cfg, GLOBAL, { slug: 'k' }, { resolveGrouped: mock })
+    assert.equal(r.ok, true)
+    if (r.ok) {
+      assert.equal(r.rows.length, 1)
+      assert.equal(r.format, 'currency')
+    }
+  }
+
+  // resolveSeriesBlock: shopify leaf binding + granularity + mock → ok (must NOT be short-circuited).
+  {
+    const cfg: BlockConfig = {
+      id: 'ss', name: 'Net Sales over time', format: 'currency', range: null,
+      binding: { source: 'shopify', query: 'FROM sales SHOW net_sales', granularity: 'day' },
+    }
+    const mock: SeriesResolver = async () => [
+      { bucket: '2026-06-22', value: 200 } as SeriesPoint,
+      { bucket: '2026-06-23', value: 300 } as SeriesPoint,
+    ]
+    const r = await resolveSeriesBlock(cfg, GLOBAL, { slug: 'k' }, { resolveSeries: mock })
+    assert.equal(r.ok, true)
+    if (r.ok) {
+      assert.equal(r.points.length, 2)
+      assert.equal(r.granularity, 'day')
+      assert.equal(r.format, 'currency')
+    }
   }
 
   // formula self-reference: resolveBlock seeds visited with config.id → cycle error
