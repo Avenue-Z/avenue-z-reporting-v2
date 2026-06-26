@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
-import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -248,7 +248,7 @@ export default async function PortalReportPage({
         </Suspense>
       </ReportErrorBoundary>
 
-      <DataChat clientName={client.name} />
+      {SHOW_AI_NARRATIVE && <DataChat clientName={client.name} />}
     </TooltipProvider>
   )
 }

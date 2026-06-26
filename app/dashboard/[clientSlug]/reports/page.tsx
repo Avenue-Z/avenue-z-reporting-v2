@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { GA4Report } from '@/components/report-sections/ga4'
@@ -45,7 +45,7 @@ function getReportComponent(
     case 'request-a-report':
       return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'ai-summaries':
-      return <AISummariesReport clientSlug={clientSlug} period={period} />
+      return SHOW_AI_NARRATIVE ? <AISummariesReport clientSlug={clientSlug} period={period} /> : null
     case 'report-generator':
       return <ReportGeneratorReport clientSlug={clientSlug} />
     case 'demand-overview':

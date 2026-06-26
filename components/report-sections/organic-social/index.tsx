@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { getPlatformHeadlines } from '@/lib/organic-social/headlines'
 import { getEngagementTrend } from '@/lib/organic-social/trends'
 import { getTopContent } from '@/lib/organic-social/top-content'
@@ -43,9 +44,11 @@ export function OrganicSocialReport({
 }: { clientSlug: string; dateRange?: string; compareRange?: string | null }) {
   return (
     <div className="space-y-8">
-      <Suspense fallback={<SynopsisSkeleton />}>
-        <OrganicSocialSynopsis clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-      </Suspense>
+      {SHOW_AI_NARRATIVE && (
+        <Suspense fallback={<SynopsisSkeleton />}>
+          <OrganicSocialSynopsis clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+        </Suspense>
+      )}
       <Suspense fallback={<HeadlinesSkeleton />}>
         <HeadlinesSection clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       </Suspense>
