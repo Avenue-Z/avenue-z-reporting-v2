@@ -2312,3 +2312,42 @@ The Opus fleet surfaced 10 additional findings rated P2 (do not block merge). Lo
 10. **Test harness gap (pre-existing, not V2-introduced):** no vitest config at repo root; `npx vitest run` cannot resolve `@/*` aliases. tsc remains the only live verification signal across the repo. V3 (or sooner): add vitest harness so the .test.ts files are run by CI, not just by hand.
 
 **Files touched (Phase 4):** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/report-sections/peec-ai/sortable-table.tsx`.
+
+---
+
+## V2 Phase 5 — Pre-merge QA fixes (FB-058)
+
+**Tab:** Content Impact
+**Round:** V2 Phase 5 (live-QA-driven fixes for Avenue Z, the only client in scope)
+**Source:** Live Vercel-preview QA of branch HEAD before merge. Of the 3 items flagged to pre-empt with Tina, a surgical source dive (3 parallel investigators) turned 2 into real fixes; the 3rd is genuinely data-bound.
+
+### FB-058a — §H.1 Citation Share delta now computed (was hardcoded "--")
+
+**Background:** §H.1 Citation Share is share-of-period math `(d.citationCount / totalCompetitorCitations) * 100` (FB-051). The Δ column was hardcoded `citationShareDelta: null` ("truthful null until prior topDomains is plumbed"), so it rendered "--" on every row. The most likely thing Tina would click, see all dashes, and question.
+
+**Investigation finding:** The prior-period competitor data was ALREADY fetched. `buildTopDomains(data, priorData)` receives `domainsPriorRes.data` and already computes `retrievedDelta` + `citationRateDelta` from it. The per-domain prior `citation_count` was simply being discarded. No new fetch needed.
+
+**Shipped:**
+- Added `priorCitationCount: number` to `TopDomain` (lib/peec/client.ts), populated `prior?.citation_count ?? 0` in `buildTopDomains`.
+- §H.1 builder (content-impact.tsx) now builds a prior-period competitor denominator the same way as the current one (`totalCompetitorCitationsPrior = sum of priorCitationCount across filteredCompetitorDomains`), computes `priorShare = (d.priorCitationCount / totalCompetitorCitationsPrior) * 100`, and sets `citationShareDelta = citationShareValue - priorShare`. Both periods use the competitor-only denominator, so the math is internally consistent. Gated on `compareIso` like every other delta.
+- A competitor absent in the prior period yields `priorShare = 0`, so its delta is the full current share (a truthful period-over-period gain). When `totalCompetitorCitationsPrior` is 0, the delta is null and renders "--".
+- Cache version bumped `v9 -> v10` (TopDomain shape changed).
+- Profound parity: `TopDomain.priorCitationCount` added and populated from Profound's existing `priorCountMap` (Profound clients now get a working delta too).
+
+**Verified live:** On the Avenue Z Vercel preview with comparison period on, the column shows real values: firstpagesage.com -11.0 pp, nogood.io +8.7 pp, beomniscient.com +6.8 pp, singlegrain.com +4.2 pp, directiveconsulting.com -2.5 pp, etc. No more "--".
+
+### FB-058b — §F base URL fetch limit raised 1000 -> 2000
+
+**Background:** Tina's "only 14 pages cited" complaint (Row 8b). FB-050 fixed the subdomain-drop bug. On the live preview §F still showed only 15 owned cited pages.
+
+**Investigation finding:** `lib/peec/url-citations.ts:190` fetched `/reports/urls` with `limit: 1000`. Peec returns the 1000 most-cited URLs across ALL domains (competitors dominate the top of that list), so owned cited pages ranked below the top 1000 were truncated before the §F owned-host filter ran.
+
+**Shipped:** Raised the base fetch to `limit: 2000` (matching the sibling engine fetch on the next line).
+
+**Verified live:** §F went from "See all 15 rows" to "See all 23 rows" on the Avenue Z preview — 8 previously-truncated owned cited pages now surface.
+
+### Not fixed (genuinely the data): §H.1 competitor count
+
+Tina's "only 7 competitors" (Row 9b) was addressed by FB-052 (API limit 100->500, UI slice 10->25). Live preview shows exactly 10 competitor rows for Avenue Z. The source dive confirmed this is genuine: `limit: 500` on both `/reports/domains` calls, zero truncation in `buildTopDomains`, no activity filter on the All-models path, case-insensitive classification. Peec returns exactly 10 competitor-classified domains for Avenue Z's project. This is a Peec project-configuration matter, not a code constraint.
+
+**Files touched (Phase 5):** `lib/peec/client.ts`, `lib/profound/client.ts`, `lib/peec/url-citations.ts`, `components/report-sections/peec-ai/content-impact.tsx`.

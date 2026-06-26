@@ -24,6 +24,10 @@ Verification codes: `a` = reasoning only, `b` = ran dev server + clicked through
 - All deltas gate on compare-period (FB-034 hotfix #2 pattern). Zero new data fetches.
 - §H.2 untouched.
 
+## V2 Phase 5 - Content Impact pre-merge QA fixes (2026-06-25)
+
+FB-058 | 2026-06-25 | fdf618b | c | Two live-QA-driven fixes, verified on the Avenue Z Vercel preview. (a) §H.1 Citation Share Δ now computed instead of hardcoded "--": added priorCitationCount to TopDomain (populated from buildTopDomains' existing priorData), built a prior-period competitor denominator the same way as current, and set citationShareDelta = currentShare - priorShare, gated on compareIso. Cache v9 -> v10. Profound TopDomain mirrored (populated from its existing priorCountMap, so Profound clients get the delta too). Verified live: firstpagesage -11.0pp, nogood.io +8.7pp, etc. (b) §F base /reports/urls fetch limit raised 1000 -> 2000: owned cited pages ranked below the top-1000 most-cited URLs were truncated before the §F owned-host filter ran. Verified live: §F went 15 -> 23 rows. The §H.1 competitor count (10) was confirmed genuinely data-bound (limit 500 on both calls, no truncation, no activity filter) - not a code constraint.
+
 ## V2 Phase 4 - Content Impact fleet-found P1 hotfixes (2026-06-25)
 
 FB-057 | 2026-06-25 | 78208d3 | a | SortableTable null-handling made symmetric on asc + desc + all 13 FB-044 Δ-column accessors swapped from `?? -Infinity` to `?? null`. Fleet-found P1: -Infinity sentinel made `--` rows pile at the TOP of every sortable Δ column on ascending sort (Tina would click asc to find biggest losers and see the unknowns first instead). Root cause was twofold: (a) accessor sentinel was the wrong polarity for asc; (b) SortableTable's compareValues sank nulls only on asc (the `-cmp` flip in sortDir handling inverted the +1/-1 null sentinels on desc, floating nulls to the top). Fix moves null-handling OUT of compareValues and INTO the sort callback so it runs BEFORE the direction flip; all SortableTable consumers across the platform now get symmetric null-sink behavior as a side benefit.
