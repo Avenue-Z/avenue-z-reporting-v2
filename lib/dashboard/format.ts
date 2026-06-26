@@ -10,5 +10,7 @@ export function formatMetric(value: number, format: MetricFormat): string {
       return Math.round(value).toLocaleString('en-US')
     case 'number':
       return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+    case 'multiple':
+      return value.toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'x'
   }
 }

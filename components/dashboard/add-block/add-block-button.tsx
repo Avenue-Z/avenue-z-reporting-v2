@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { AddBlockDialog } from './add-block-dialog'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 
-export function AddBlockButton({ slug, config }: { slug: string; config: DashboardConfig | null }) {
+export function AddBlockButton({ slug, config, onAdded }: { slug: string; config: DashboardConfig | null; onAdded?: (b: { id: string; name: string }) => void }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -14,7 +14,7 @@ export function AddBlockButton({ slug, config }: { slug: string; config: Dashboa
       >
         + Add block
       </button>
-      {open && <AddBlockDialog slug={slug} config={config} onClose={() => setOpen(false)} />}
+      {open && <AddBlockDialog slug={slug} config={config} onClose={() => setOpen(false)} onAdded={onAdded} />}
     </>
   )
 }

@@ -9,6 +9,7 @@ import {
   resolveSeries as defaultResolveSeries,
 } from './registry'
 import { resolveAggregate, resolveCalculated, type AttemptLeaf } from './aggregate'
+import { resolveFormula, type FormulaDeps, type ResolveBindingValue } from './formula-resolve'
 import { mapError } from './errors'
 import { computeDelta } from '@/lib/metrics'
 import { formatMetric } from './format'
@@ -35,11 +36,21 @@ export type SeriesResolver = (
   compareRange: string | null,
 ) => Promise<SeriesPoint[]>
 
+/** Resolve any binding to a LeafAttempt (value + optional prevValue) at one range. */
+const resolveBindingValue: ResolveBindingValue = async (binding, ctx, dateRange, compareRange, deps) => {
+  switch (binding.source) {
+    case 'aggregate': return resolveAggregate(binding, deps.attemptLeaf, ctx, dateRange, compareRange)
+    case 'calculated': return resolveCalculated(binding, deps.attemptLeaf, ctx, dateRange, compareRange)
+    case 'formula': return resolveFormula(binding, ctx, dateRange, compareRange, deps)
+    default: return deps.attemptLeaf(binding, ctx, dateRange, compareRange)
+  }
+}
+
 export async function resolveBlock(
   config: BlockConfig,
   global: { dateRange: string; compareRange: string | null },
   ctx: { slug: string },
-  deps: { resolveLeaf?: LeafResolver } = {},
+  deps: { resolveLeaf?: LeafResolver; blocksById?: Map<string, BlockConfig> } = {},
 ): Promise<ResolveResult> {
   // Defensive guard: static-kind blocks (header/narrative) carry a __static__ sentinel
   // binding that must never reach a real resolver (see BlockKind JSDoc in types.ts).
@@ -59,12 +70,14 @@ export async function resolveBlock(
     }
   }
 
-  const res: LeafAttempt =
-    config.binding.source === 'aggregate'
-      ? await resolveAggregate(config.binding, attemptLeaf, ctx, range.dateRange, range.compareRange)
-      : config.binding.source === 'calculated'
-        ? await resolveCalculated(config.binding, attemptLeaf, ctx, range.dateRange, range.compareRange)
-        : await attemptLeaf(config.binding, ctx, range.dateRange, range.compareRange)
+  const fdeps: FormulaDeps = {
+    attemptLeaf,
+    resolveBindingValue,
+    blocksById: deps.blocksById,
+    visited: new Set<string>([config.id]), // seed with this block so a ref back to it is a cycle
+  }
+
+  const res: LeafAttempt = await resolveBindingValue(config.binding, ctx, range.dateRange, range.compareRange, fdeps)
 
   if (!res.ok) return { ok: false, error: res.error }
 
@@ -79,8 +92,8 @@ export async function resolveBlock(
   }
 }
 
-/** Grouped resolution: dim breakdown per leaf binding. Aggregate and calculated
- *  bindings are rejected with invalid-metric (v1: leaf only). */
+/** Grouped resolution: dim breakdown per leaf binding. Aggregate, calculated, and
+ *  formula bindings are rejected with invalid-metric (v1: leaf only). */
 export async function resolveGroupedBlock(
   config: BlockConfig,
   global: { dateRange: string; compareRange: string | null },
@@ -101,7 +114,7 @@ export async function resolveGroupedBlock(
 }
 
 /** Time-series resolution: bucketed metric per leaf binding. Granularity required.
- *  Aggregate and calculated bindings are rejected with invalid-metric. */
+ *  Aggregate, calculated, and formula bindings are rejected with invalid-metric. */
 export async function resolveSeriesBlock(
   config: BlockConfig,
   global: { dateRange: string; compareRange: string | null },

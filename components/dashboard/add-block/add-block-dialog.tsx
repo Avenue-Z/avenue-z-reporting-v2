@@ -15,16 +15,16 @@ import type { BlockConfig, BlockKind, DashboardConfig, PersistedBlock } from '@/
 import type { BlockProposal } from '@/lib/dashboard/nl/types'
 import type { AggregateProposal } from '@/lib/dashboard/nl/aggregate-types'
 
-type Source = ProposeBlockInput['source'] | 'calculated' | 'shopify'
+type Source = ProposeBlockInput['source'] | 'formula' | 'shopify'
 
 const KIND_OPTIONS: { value: BlockKind; label: string; available: boolean; hint?: string }[] = [
-  { value: 'kpi',       label: 'KPI tile',         available: true  },
+  { value: 'kpi',       label: 'KPI tile',            available: true },
   { value: 'pills',     label: 'Pills (compact KPI)', available: true },
-  { value: 'bar',       label: 'Bar chart',        available: true  },
-  { value: 'line',      label: 'Line chart',       available: true  },
-  { value: 'table',     label: 'Table',            available: true  },
-  { value: 'narrative', label: 'Narrative panel',  available: true  },
-  { value: 'header',    label: 'Section header',   available: true  },
+  { value: 'bar',       label: 'Bar chart',           available: true },
+  { value: 'line',      label: 'Line chart',          available: true },
+  { value: 'table',     label: 'Table',               available: true },
+  { value: 'narrative', label: 'Narrative panel',     available: true },
+  { value: 'header',    label: 'Section header',      available: true },
 ]
 
 const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
@@ -32,8 +32,7 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
     { value: 'supermetrics', label: 'Supermetrics' },
     { value: 'triplewhale',  label: 'TripleWhale' },
     { value: 'shopify',      label: 'Shopify (ShopifyQL)' },
-    { value: 'aggregate',    label: 'Aggregate (formula)' },
-    { value: 'calculated',   label: 'Calculated (weighted sum)' },
+    { value: 'formula',      label: 'Formula' },
   ],
   pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
   bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
@@ -45,12 +44,12 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
 
 const DEFAULT_CONFIG: DashboardConfig = { defaultRange: { dateRange: 'last_30_days', compareRange: 'previous_period' }, blocks: [] }
 
-export function AddBlockDialog({ slug, config, onClose, editing }: { slug: string; config: DashboardConfig | null; onClose: () => void; editing?: PersistedBlock }) {
+export function AddBlockDialog({ slug, config, onClose, onAdded, editing }: { slug: string; config: DashboardConfig | null; onClose: () => void; onAdded?: (b: { id: string; name: string }) => void; editing?: PersistedBlock }) {
   const router = useRouter()
-  const initial = editing ? blockToManualDraft(editing) : undefined
+  const editSeed = editing ? blockToManualDraft(editing) : null
   const [step, setStep] = useState<'kind' | 'pick' | 'mode' | 'prompt' | 'preview' | 'build'>(editing ? 'build' : 'kind')
   const [kind, setKind] = useState<BlockKind>(editing?.kind ?? 'kpi')
-  const [source, setSource] = useState<Source>('supermetrics')
+  const [source, setSource] = useState<Source>(editSeed?.source ?? 'supermetrics')
   const [prompt, setPrompt] = useState('')
   const [clarify, setClarify] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,6 +64,8 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
   }, [onClose])
 
   function resolve() {
+    // formula and shopify are manual-only; they never go through the NL proposer.
+    if (source === 'formula' || source === 'shopify') return
     setClarify(null); setError(null)
     startTransition(async () => {
       const r = await proposeBlock({ source: source as ProposeBlockInput['source'], prompt, slug })
@@ -78,12 +79,12 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
     if (!proposal) return
     setError(null)
     const block = applySelections(proposal.config, sel, crypto.randomUUID())
-    if (mutations) { mutations.optimisticAdd(block); onClose(); return }
+    if (mutations) { mutations.optimisticAdd(block); onAdded?.({ id: block.id, name: block.name }); onClose(); return }
     startTransition(async () => {
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) setError(res.error)
-      else { onClose(); router.refresh() }
+      else { onAdded?.({ id: block.id, name: block.name }); onClose(); router.refresh() }
     })
   }
 
@@ -99,11 +100,12 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
       return
     }
     const block = { id: crypto.randomUUID(), ...cfg }
-    if (mutations) { mutations.optimisticAdd(block); onClose(); return }
+    if (mutations) { mutations.optimisticAdd(block); onAdded?.({ id: block.id, name: block.name }); onClose(); return }
     startTransition(async () => {
       const next = addBlock(config ?? DEFAULT_CONFIG, block)
       const res = await saveDashboardConfig(slug, next)
       if (!res.ok) { setError(res.error); return }
+      onAdded?.({ id: block.id, name: block.name })
       onClose(); router.refresh()
     })
   }
@@ -168,7 +170,7 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
         {step === 'mode' && (
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">How to build it · {source}</p>
-            {source !== 'calculated' && source !== 'shopify' && (
+            {source !== 'formula' && source !== 'shopify' && (
               <button onClick={() => setStep('prompt')}
                 className="rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/90 hover:border-white/25 hover:bg-white/[0.04]">
                 Describe with AI
@@ -186,10 +188,11 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
           <>
             <ManualBlockForm
               kind={kind}
-              source={source as 'supermetrics' | 'triplewhale' | 'shopify' | 'aggregate' | 'calculated'}
+              source={source as 'supermetrics' | 'triplewhale' | 'shopify' | 'formula'}
               slug={slug}
               pending={pending}
-              initial={initial}
+              existingBlocks={(config?.blocks ?? []).filter((b) => b.id !== editing?.id).map((b) => ({ id: b.id, name: b.name }))}
+              initial={editSeed?.draft}
               onConfirm={confirmManual}
               onBack={editing ? onClose : () => setStep(isStaticKind ? 'kind' : isDataChartKind ? 'pick' : 'mode')}
             />
@@ -200,10 +203,10 @@ export function AddBlockDialog({ slug, config, onClose, editing }: { slug: strin
         {step === 'prompt' && (
           <div className="flex flex-col gap-3">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">
-              {source === 'aggregate' ? 'Formula' : 'Describe the metric'} · {source}
+              Describe the metric · {source}
             </p>
             <textarea className={cn(input, 'min-h-[88px] resize-y')} value={prompt} onChange={(e) => setPrompt(e.target.value)}
-              placeholder={source === 'aggregate' ? 'blended ROAS = TripleWhale revenue ÷ Supermetrics ad spend' : 'Facebook ad spend last 30 days'} />
+              placeholder="Facebook ad spend last 30 days" />
             {clarify && <p className="text-xs text-brand-cyan">{clarify}</p>}
             {error && <p className="text-xs text-[#FF6666]">Error: {error}</p>}
             <div className="flex justify-between">

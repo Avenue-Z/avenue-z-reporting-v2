@@ -191,6 +191,18 @@ async function run() {
     }
   }
 
+  // formula self-reference: resolveBlock seeds visited with config.id → cycle error
+  {
+    const selfBlock: BlockConfig = {
+      id: 'self', name: 'Self', format: 'number', range: null,
+      binding: { source: 'formula', expr: '@me + 1', operands: { me: { kind: 'ref', blockId: 'self' } } },
+    }
+    const blocksById = new Map<string, BlockConfig>([['self', selfBlock]])
+    const r = await resolveBlock(selfBlock, GLOBAL, { slug: 'k' }, { resolveLeaf: async () => ({ value: 0 }), blocksById })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.error, 'error')
+  }
+
   console.log('ok')
 }
 

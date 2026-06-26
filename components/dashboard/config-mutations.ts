@@ -39,6 +39,21 @@ export function addBlock(config: DashboardConfig, block: PersistedBlock): Dashbo
   return { ...config, blocks: [...config.blocks, block] }
 }
 
+/** Replace a block's name/format/binding by id, preserving its id, range, and layout. */
+export function updateBlock(
+  config: DashboardConfig,
+  blockId: string,
+  patch: Omit<BlockConfig, 'id'>,
+): DashboardConfig {
+  return {
+    ...config,
+    blocks: config.blocks.map((b) =>
+      b.id === blockId ? { ...b, name: patch.name, format: patch.format, binding: patch.binding } : b,
+    ),
+  }
+}
+
+/** Write back grid positions/sizes from react-grid-layout onto each block's layout. */
 export function applyLayoutChange(
   config: DashboardConfig,
   layout: { i: string; x: number; y: number; w: number; h: number }[],
@@ -50,22 +65,4 @@ export function applyLayoutChange(
     return { ...b, layout: { x: l.x, y: l.y, w: l.w, h: l.h } }
   })
   return { ...config, blocks }
-}
-
-/** Replace a block's editable fields by id, preserving its id, range, and layout.
- *  The builder always emits range:null, so the existing range is kept explicitly
- *  (range stays owned by the "Set range" flow). */
-export function updateBlock(
-  config: DashboardConfig,
-  blockId: string,
-  patch: Omit<BlockConfig, 'id'>,
-): DashboardConfig {
-  return {
-    ...config,
-    blocks: config.blocks.map((b) =>
-      b.id === blockId
-        ? { ...patch, id: b.id, range: b.range, ...(b.layout ? { layout: b.layout } : {}) }
-        : b,
-    ),
-  }
 }

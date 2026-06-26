@@ -99,10 +99,12 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
           <PopoverContent className="w-64 border-white/[0.08] bg-[#1a1a1a] p-2" align="end" sideOffset={4}>
             {view === 'menu' && (
               <div className="flex flex-col">
-                {isStatic ? (
-                  <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
-                    onClick={() => { setMenuOpen(false); setEditOpen(true) }}>Edit…</button>
-                ) : (
+                {/* Edit is available for EVERY block kind — blockToManualDraft + the
+                    AddBlockDialog editing mode pre-fill the builder for KPI / chart /
+                    formula / static blocks alike. (Previously gated to static only.) */}
+                <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]"
+                  onClick={() => { setMenuOpen(false); setEditOpen(true) }}>Edit…</button>
+                {!isStatic && (
                   <>
                     <button className="px-3 py-2 text-left text-[13px] text-white/80 hover:bg-white/[0.06]" onClick={() => setView('range')}>Set range…</button>
                     {isOverridden && (
