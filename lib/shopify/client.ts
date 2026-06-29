@@ -45,32 +45,57 @@ export interface ShopifyQlArgs {
 export interface ShopifyQlOpts {
   apiVersion?: string
   fetchImpl?: typeof fetch
+  /** Max attempts on throttle (HTTP 429 / "rate limited" GraphQL error). Default 4. */
+  maxAttempts?: number
+  /** Base backoff in ms; doubles per retry. Default 500. */
+  retryDelayMs?: number
 }
+
+/** Shopify signals throttling via HTTP 429 or a GraphQL error message. */
+const THROTTLE_RE = /throttl|rate limit/i
 
 const GQL = `query($q: String!){ shopifyqlQuery(query:$q){ parseErrors tableData { columns { name dataType } rows } } }`
 
-/** Run one ShopifyQL query and return the raw TableData (columns + rows). */
+/** Run one ShopifyQL query and return the raw TableData (columns + rows).
+ *  Retries with exponential backoff when Shopify throttles (the Admin API is
+ *  rate-limited, and a dashboard render fans out into many concurrent queries). */
 export async function runShopifyQlTable(args: ShopifyQlArgs, opts: ShopifyQlOpts = {}): Promise<TableData> {
   const fetchImpl = opts.fetchImpl ?? fetch
   const apiVersion = opts.apiVersion ?? DEFAULT_API_VERSION
+  const maxAttempts = opts.maxAttempts ?? 4
+  const retryDelayMs = opts.retryDelayMs ?? 500
   const url = `https://${args.shop}/admin/api/${apiVersion}/graphql.json`
   const q = buildShopifyQl(args.query, args.startDate, args.endDate)
+  const body = JSON.stringify({ query: GQL, variables: { q } })
 
-  const res = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'X-Shopify-Access-Token': args.token, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query: GQL, variables: { q } }),
-  })
-  if (!res.ok) throw new ShopifyQlError(`Shopify Admin API ${res.status}: ${(await res.text()).slice(0, 300)}`)
-  const json = (await res.json()) as {
-    errors?: { message?: string }[]
-    data?: { shopifyqlQuery?: { parseErrors?: string[]; tableData?: TableData | null } }
+  let lastThrottle = ''
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      const delay = retryDelayMs * 2 ** (attempt - 1) * (0.5 + Math.random())
+      await new Promise((r) => setTimeout(r, delay))
+    }
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': args.token, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body,
+    })
+    if (res.status === 429) { lastThrottle = 'HTTP 429'; continue }
+    if (!res.ok) throw new ShopifyQlError(`Shopify Admin API ${res.status}: ${(await res.text()).slice(0, 300)}`)
+    const json = (await res.json()) as {
+      errors?: { message?: string }[]
+      data?: { shopifyqlQuery?: { parseErrors?: string[]; tableData?: TableData | null } }
+    }
+    if (json.errors?.length) {
+      const msg = json.errors.map((e) => e.message).join('; ')
+      if (THROTTLE_RE.test(msg)) { lastThrottle = msg; continue }
+      throw new ShopifyQlError(`ShopifyQL GraphQL error: ${msg}`)
+    }
+    const result = json.data?.shopifyqlQuery
+    if (!result) throw new ShopifyQlError('Empty shopifyqlQuery response')
+    if (result.parseErrors?.length) throw new ShopifyQlError(`ShopifyQL parse error(s): ${result.parseErrors.join('; ')}`)
+    return result.tableData ?? { columns: [], rows: [] }
   }
-  if (json.errors?.length) throw new ShopifyQlError(`ShopifyQL GraphQL error: ${json.errors.map((e) => e.message).join('; ')}`)
-  const result = json.data?.shopifyqlQuery
-  if (!result) throw new ShopifyQlError('Empty shopifyqlQuery response')
-  if (result.parseErrors?.length) throw new ShopifyQlError(`ShopifyQL parse error(s): ${result.parseErrors.join('; ')}`)
-  return result.tableData ?? { columns: [], rows: [] }
+  throw new ShopifyQlError(`Shopify Admin API throttled after ${maxAttempts} attempts: ${lastThrottle}`)
 }
 
 /** Run one ShopifyQL query and return the summed first column. */

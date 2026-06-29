@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createHash } from 'node:crypto'
 import { unstable_cache } from 'next/cache'
 import { runShopifyQl, runShopifyQlTable, type TableData } from '@/lib/shopify/client'
@@ -5,6 +6,24 @@ import { SHOPIFY_DIM_RE } from '@/lib/shopify/catalog'
 import type { Granularity, GroupedRow, LeafValue, SeriesPoint, ShopifyBinding } from '../types'
 import { DisconnectedError, InvalidMetricError } from '../errors'
 import { joinGrouped, alignSeries } from '../group-join'
+
+const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16)
+
+// Request-scoped dedupe (react cache) around cross-request persistence (unstable_cache),
+// keyed by the query identity. Mirrors the Supermetrics leaf (cachedSum): a formula's
+// ref-pull and the referenced block's own island share ONE in-flight Shopify fetch, so a
+// dashboard render hits the rate-limited Admin API a handful of times, not dozens.
+const cachedShopifyValue = cache(
+  (shop: string, token: string, query: string, isoRange: string): Promise<number> =>
+    unstable_cache(
+      async () => {
+        const [startDate, endDate] = isoRange.split(',')
+        return runShopifyQl({ shop, token, query, startDate, endDate })
+      },
+      ['shopify-data', shop, keyHash(query), isoRange],
+      { revalidate: 3600 },
+    )(),
+)
 
 /**
  * Per-client Shopify credentials by env-var convention:
@@ -39,10 +58,8 @@ export async function resolveShopifyLeaf(
   const { parseDateRange } = await import('@/lib/ga4/client')
   const { resolveCompareIso } = await import('@/lib/paid-search/base')
 
-  const fetchValue = (isoRange: string): Promise<number> => {
-    const [startDate, endDate] = isoRange.split(',')
-    return runShopifyQl({ shop: creds.shop, token: creds.token, query: b.query, startDate, endDate })
-  }
+  const fetchValue = (isoRange: string): Promise<number> =>
+    cachedShopifyValue(creds.shop, creds.token, b.query, isoRange)
 
   const { startDate, endDate } = parseDateRange(dateRange)
   const value = await fetchValue(`${startDate},${endDate}`)
@@ -75,8 +92,6 @@ export function seriesPointsFromShopify(td: TableData): { bucket: string; value:
     .map((r) => ({ bucket: String(r[bKey] ?? '').slice(0, 10), value: toNumber(r[valKey]) }))
     .sort((a, b) => a.bucket.localeCompare(b.bucket))
 }
-
-const keyHash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16)
 
 async function fetchShopifyTable(shop: string, token: string, query: string, isoRange: string, tag: string) {
   return unstable_cache(
