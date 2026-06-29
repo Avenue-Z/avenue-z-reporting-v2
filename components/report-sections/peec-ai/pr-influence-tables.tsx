@@ -119,13 +119,26 @@ export function TopEditorialDomainsTable({
         subtitle="These domains are the most likely to surface as cited sources in AI-generated results, so they should be prioritized on the media target list."
       />
       {rows.length > 0 ? (
-        <SortableTable
-          columns={columns}
-          rows={rows}
-          rowKey={(r) => r.domain}
-          initialPageSize={15}
-          emptyMessage="No editorial domains found in current Peec AI project"
-        />
+        // FB-060: cap the table area to ~320px with internal scroll. The
+        // sibling Prompt Cluster Opportunity card (right side of the same
+        // lg:grid-cols-2 wrapper) has a natural height driven by its chart
+        // (chartHeight = Math.max(200, len*24+36) ≈ 290px for ~11 clusters).
+        // The grid uses default items-stretch, so before this cap the
+        // taller editorial card forced the right card to stretch and show
+        // ~180px of empty dead space below its chart. Now both cards land
+        // at the same compact height; the editorial domains list scrolls
+        // internally instead of pushing the card open.
+        // initialPageSize bumped 15 -> 100 so pagination does not truncate
+        // inside the scroll viewport.
+        <div className="max-h-[320px] overflow-y-auto">
+          <SortableTable
+            columns={columns}
+            rows={rows}
+            rowKey={(r) => r.domain}
+            initialPageSize={100}
+            emptyMessage="No editorial domains found in current Peec AI project"
+          />
+        </div>
       ) : (
         <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">No editorial domains found in current Peec AI project</p>
