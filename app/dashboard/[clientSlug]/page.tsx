@@ -54,7 +54,7 @@ export default async function ClientOverviewPage({
         {client.enabledReports.map((reportSlug) => (
           <Link
             key={reportSlug}
-            href={`/dashboard/${client.slug}/reports/${reportSlug}`}
+            href={`/dashboard/${client.slug}/reports?section=${reportSlug}`}
             className="group relative overflow-hidden rounded-lg border border-white/[0.06] bg-bg-surface p-6 transition-colors hover:border-white/[0.12]"
           >
             <div className="card-metric-accent" />
