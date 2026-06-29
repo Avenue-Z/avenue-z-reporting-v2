@@ -1,106 +1,117 @@
-# Handoff — Content Impact v1 SHIPPED + MERGED, ready for next round
+# Handoff — Content Impact V2 (Avenue Z) — COMPLETE, ready to merge
 
-> Copy everything below the `---` line into the new Claude Code session. Persisted on `main` as the durable recovery path.
+> Copy everything below the `---` into a new Claude Code session (or continue in the current chat). The branch is fully pushed and synced. This doc is the durable recovery map.
 
 ---
 
-You are resuming work on the `avenue-z-reporting-v2` repo at `/Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback`.
+You are resuming work on the Avenue Z reporting platform at `/Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback`.
 
-## Current state (as of 2026-06-25)
+## TL;DR
 
-- **Branch:** `main` at `db92aaea` (local = remote, working tree clean)
-- **PR #77** (Content Impact tab v1) MERGED to `main` at `db92aaea`
-- **PR #81** (Paul's separate AEO tab iterations) also merged just before #77
-- **All FB-033 through FB-041 shipped** and live on production after merge
+**Content Impact V2 feedback for Avenue Z is COMPLETE and live-verified.** All 16 of Tina's column-E asks + her meta-feedback + 2 silent bugs are fixed, pushed to the branch, and confirmed on the Vercel preview. The branch is mergeable with zero conflicts. **Nothing more is required unless Tina sends new feedback.** Do NOT merge to main without Thomas's explicit go-ahead.
 
-## What Content Impact tab now looks like (top → bottom)
+## Current state (as of 2026-06-26)
 
-1. SectionHeader (FB-001)
-2. Executive Synopsis card (Glean, FB-033)
-3. **§A Snapshot KPIs** — 4 cards: Citation Share, Prompt Coverage, AI Referral Traffic, Organic Traffic (each with delta when compare is on) — FB-034
-4. **§B Watched Pages** — 9-col URL table, paginated to 10, default sort Citation Share desc, only `published` status, 5 metric deltas — FB-035
-5. **§C Speed Stats** — 4 tiles + plain-English subtitle clarifying days-from-publish window — FB-036
-6. **§D AI Bot Traffic vs. Human Traffic** — 4-quadrant scatter, always last-30 — FB-037
-7. **§E Slope chart** — top 15 pages by abs delta, 3-toggle (AI Referral / Organic / Citation Share) — FB-038
-8. **§F Fullsite Content Performance** — 6-col URL table, Page hyperlinked, 5 metric deltas — FB-039
-9. **§H Competitor Analysis** SectionCard with:
-   - **§H.1** ranking — Domain, AI Visibility, Citation Share, Prompt Coverage (each with delta) — FB-040
-   - **§H.2** brand-absent — Domain, Article (title hyperlinked), Citation Share + delta, Competitors Mentioned — FB-041
+- **Branch:** `official-feedback-content-impact-tab-content-v2`
+- **HEAD:** `8c5df35` (local == remote, working tree clean, everything pushed)
+- **PR:** #90 (https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/90) — OPEN, MERGEABLE
+- **Ahead of main:** 61 commits. **Behind main:** 63 commits, but **NONE of those 63 touch any file we changed** (verified) — so the merge is clean and our work lands exactly as QA'd.
+- **Type-check:** clean. **All 6 test files:** pass.
+- **Scope:** Avenue Z ONLY. This whole round is Avenue Z. Ignore Whitney's feedback and all other clients — Thomas confirmed that explicitly.
 
-## All 6 REMOVE items confirmed gone via grep (zero matches)
+## What shipped (FB-042 through FB-058)
 
-- "Which delivers more lift..."
-- "Which content is decaying vs. compounding..."
-- "Where is content disconnected from AI demand?"
-- "Which competitor pages repeat across our target themes?"
-- "Which AI systems are interacting with our content?"
-- "What should the content team do next?"
+Tina's 16 column-E asks, all fixed and live-verified on the Avenue Z preview:
 
-## Cross-checked against Tina's Google Doc HTML export
+| Row | Ask | FB | Status |
+|---|---|---|---|
+| 3 | Prompt Coverage delta | FB-042 (shipped on main via PR #85; our dup dropped in rebase) | live |
+| 4a | "--" rows confusing | FB-043 (footnote names 3 causes + "X of Y unmatched") | live |
+| 4b/8a/9e | Sortable delta columns | FB-044 (Value+delta split: B=14, F=11, H1=7 cols) + FB-057 (null-sink) | live |
+| 5 | URL under Speed Stats tiles | FB-045 | live |
+| 6a | Scatter quadrants | FB-046 (crosshair + 2x2 grid labels) | live |
+| 6b | Scatter hover URL | FB-047 | code-verified |
+| 6c | Scatter date range | FB-048 (subtitle explains Peec 30d retention) | live |
+| 7 | Slope legend + mute | FB-049 | live |
+| 8b | Only 14 pages | FB-050 (subdomain match) + FB-058b (limit 1000->2000) | live: 15 -> 23 rows |
+| 9a | 199.9% Citation Share | FB-051 (share-of-period math) | live: max ~33.5% |
+| 9b | Only 7 competitors | FB-052 (API 100->500, UI 10->25) + FB-059 (API 500->5000 after token-authenticated re-probe) | live: now 22 (all competitors Peec returns) |
+| 9c | "AI Visibility" name | FB-053 (renamed "Source Visibility") + FB-056 (description/comment match) | live |
+| 9d | H.1 Citation Share tooltip | FB-054 | live |
+| 10 | H.2 Citation Share tooltip | FB-055 | live |
+| meta | Misnamed/misrepresented metrics | FB-051-audit (all 22 tab metrics reconciled) | live |
+| (9e) | Citation Share delta actually works | FB-058a (was hardcoded "--", now computes real deltas) | live: real values |
 
-The full HTML at `/Users/thomaschangavenuez/Downloads/AEO Intelligence Platform Feedback/AEOIntelligencePlatformFeedback.html` was parsed; all 16 Tina side comments [aa] through [ap] on the Content Impact section map 1:1 to shipped FBs. Literal title/subtitle blocks ([ac], [al], [an], [ap]) were verbatim-verified in source. **For future feedback rounds: ask Thomas to send the Google Doc HTML export instead of screenshots — every comment is in clean extractable form.**
+Silent bugs folded in: synopsis was fed inflated counts (fixed in FB-051); F was dropping subdomain pages (FB-050); KPI delta suffix was "%" when it should be "pp" (FB-051a, found by the metric audit); sortable delta columns piled "--" at the top on asc sort (FB-057, found by the Opus fleet).
 
-## Closeout artifacts
+## Correction to the previous "honest caveat" (resolved by FB-059)
 
-- **Google Sheet:** populated columns A/B/C for 9 rows. CSV saved at `/Users/thomaschangavenuez/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`. Removed sections NOT included in the sheet (nothing to track for those).
-- **Slack to Tina:** sent confirming Content Impact done + sheet updated + awaiting her V2 review.
-- **Production preview:** `https://avenue-z-reporting-v2-ap93gpj01-avenue-z-technology.vercel.app` (last preview before merge). Production now serves merged content.
+Earlier handoff revisions said "H.1 shows 10 competitors because that is all Peec returns for Avenue Z's project." **That was wrong.** When Thomas pushed back, a fresh token-authenticated probe against Peec's API (see `scripts/peec-domain-count.mjs`) found the project actually has **22 domains classified `COMPETITOR`** among 4,202 total domains. Only 11 surfaced at the previous `limit: 500` because Peec sorts `/reports/domains` by `retrieved_percentage` descending and the long-tail competitors fell off the page below ~1,200 corporate/editorial rows.
 
-## Next FB ID: FB-042
+Peec does NOT support a classification filter (all variants probed -- `classification=`, `classifications=[]`, `filter.classification=`, `domain_type=`, `type=` -- return mixed sets within the limit), so the only way to surface every competitor is to pull the full ranked list and filter client-side. FB-059 raises the fetch limit accordingly:
+- `/reports/domains` current period: `limit: 500` -> `5000`
+- `/reports/domains` prior period: `limit: 500` -> `5000`
+- `/reports/domains` (model-dimensioned): `limit: 2000` -> `10000`
 
-## First moves after compaction
+All UI consumers of `topDomains` were already display-bounded (`.slice(0, 25)` on §H.1, `.slice(0, 15)` on PR Influence editorial, `initialPageSize=10` on Overview Top Domains), so the larger array only changes payload weight (~75KB extra per page load), not what the user sees in any list. **Side effect to verify on the Vercel preview before merge:** PR Influence's per-cluster `editorialCitationDensity` is computed over `topDomains` and will now iterate 4,202 rows instead of 500. The metric becomes more accurate but values shift -- eyeball PR Influence after preview deploys before claiming this round done.
 
-1. **Verify lockstep:**
-   ```
-   git branch --show-current && git fetch origin && \
-   echo "local  $(git rev-parse HEAD)" && \
-   echo "remote $(git rev-parse @{u})" && \
-   git status --short
-   ```
-   Expected: on `main`, local = remote = `db92aaea` or later, clean tree.
+No remaining "it's the data" caveats for the Tina conversation.
 
-2. **Run tsc + 6 tests:**
-   ```
-   npx tsc --noEmit
-   DATABASE_URL=postgres://test:test@localhost/test npx tsx lib/ga4/client.test.ts
-   npx tsx lib/peec/bot-vs-human-scatter.test.ts
-   npx tsx lib/peec/slope-chart.test.ts
-   npx tsx lib/peec/url-citations.test.ts
-   npx tsx lib/peec/content-impact-synopsis.test.ts
-   npx tsx lib/ga4/content-derive.test.ts
-   ```
-   Expected: tsc empty; every test prints `all assertions passed` (synopsis test prints 2 lines).
+## How this was verified
 
-3. **Reply to Thomas verbatim:**
-   > Synced. On `main` at `db92aaea`. Content Impact v1 (FB-033 through FB-041) merged via PR #77. Sheet updated, Tina notified. Next FB ID FB-042. Standing by. Literal interpretation only.
+- 9-agent Opus verification fleet (5 lens verifiers + 3 adversarial skeptics + synthesizer) against the source. Returned PASS_WITH_NOTES: 0 P0, 2 P1 (fixed as FB-056 + FB-057), 10 P2 (V3 backlog).
+- Live Vercel-preview QA on the Avenue Z dashboard via the Claude-in-Chrome extension (Thomas signed in; the assistant drove the page and read the DOM). Confirmed A deltas + pp/% suffixes, B footnote text, C source URLs, D quadrants + subtitle, E legend, F 23 rows, H.1 "Source Visibility" + bounded Citation Share + working delta, the FB-054 tooltip text, and sane synopsis numbers.
 
-4. **Wait for Thomas.** Do not scaffold proactively. If Thomas hands you HTML feedback file, parse it directly.
+## Durable artifacts on the branch (read these to get full context cold)
 
-## Working rules (non-negotiable, same as prior branch)
+- `docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md` — the implementation plan
+- `docs/official-feedback/feedback-log.md` — per-FB decision log (FB-042..FB-058 at the bottom)
+- `docs/official-feedback/changelog.md` — one-line-per-FB ship log
+- `docs/official-feedback/status.md` — current status; next FB ID = FB-059
+- `docs/official-feedback/content-impact-v2-metric-audit.md` — the 22-metric coherence audit
+- `docs/official-feedback/content-impact-v2-plan-reverification.md` — post-rebase line-number map
+- `docs/official-feedback/content-impact-v2-final-correctness-sweep.md` — 19/19 source checks
+- Tina's tracker CSV (external, not in repo): `~/Downloads/Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab (1).csv` — column E is the source of truth for Tina's asks; columns F/G/H are the V2 response
 
-1. **Literal interpretation only.** If Tina did not explicitly ask, do not change.
-2. **Glean Chat API for ALL LLM inference.** `gleanChat()` in `lib/glean.ts`. No `actAs`.
-3. **No em-dashes** in any new code, comment, copy, or docs. Commas, periods, or hyphens.
-4. **Truth-grounded.** Uncomputable metric → render `--`. Never fake zero.
-5. **Plan-first** via `superpowers:writing-plans` → `superpowers:subagent-driven-development`.
-6. **One user message = one FB.** Multi-part = `FB-NNN-a/b/c`. Hotfixes share parent FB ID.
-7. **Every FB:** feedback-log + changelog + status.md bump + sheet row + commit + push.
-8. **Never skip hooks. Never force-push. No Neon migrations without Paul approval.**
-9. **Before adding cross-cutting plumbing (compareRange, dateRange, units), grep siblings.** Lesson from FB-035 hotfix #1 (deriveCompareRange not parseDateRange) AND FB-039 hotfix (engagement rate `* 100` in BOTH renderer AND delta).
-10. **GA4 `engagementRate` is a fraction [0,1].** Any consumer must `* 100` in BOTH renderer AND delta.
-11. **Compare-period gating:** all deltas gate on `compareIso !== null` per FB-034 hotfix #2.
-12. **FB-031 hardening pattern** for any Glean-backed prose. Validator patterns SPECIFIC.
+## V3 backlog (NOT blocking this merge — for a future round only)
 
-## Tooling
+Logged in `feedback-log.md` under "V3 backlog". Highlights: B footnote only fires when all 3 GA4 metrics are null; FB-053 tooltip still uses Peec's `retrieved` definition while the column reads "Source Visibility"; D quadrant labels sit at the outer grid not the median-split; no vitest harness at repo root (tsc is the only live CI signal); a few cosmetic items (renderDelta(0) renders green, URL scheme validation).
 
-- `npx tsc --noEmit` (zero output = clean)
-- `npx tsx <file>.test.ts` (NOT vitest); `client.test.ts` needs `DATABASE_URL=postgres://test:test@localhost/test`
-- `vercel logs <preview-url> --since 1h --expand` (authed as `thomaschang-avez`)
-- `vercel ls avenue-z-reporting-v2 --yes` to list deployments
-- `gh pr view <N> --repo Avenue-Z/avenue-z-reporting-v2` for PR state
+## Verify-on-resume commands
+
+```
+cd /Users/thomaschangavenuez/Desktop/ave-z-reporting-official-feedback
+git branch --show-current && git fetch origin -q && echo "local $(git rev-parse HEAD)" && echo "remote $(git rev-parse @{u})" && git status --short
+npx tsc --noEmit
+DATABASE_URL=postgres://test:test@localhost/test npx tsx lib/ga4/client.test.ts
+npx tsx lib/peec/bot-vs-human-scatter.test.ts
+npx tsx lib/peec/slope-chart.test.ts
+npx tsx lib/peec/url-citations.test.ts
+npx tsx lib/peec/content-impact-synopsis.test.ts
+npx tsx lib/ga4/content-derive.test.ts
+```
+Expected: on `official-feedback-content-impact-tab-content-v2`, local == remote == `8c5df35`, clean tree, tsc empty, all 6 tests "all assertions passed".
+
+## When Thomas says merge (and only then)
+
+```
+gh pr merge 90 --squash --repo Avenue-Z/avenue-z-reporting-v2   # or --merge, per team convention
+```
+After merge: update `status.md` with the merge SHA, confirm Vercel production serves the merged branch, and (optional) Slack Tina the PR link + a 2-line summary. Next FB ID is FB-059.
+
+## Working rules (non-negotiable)
+
+1. Literal interpretation of Tina's asks. Avenue Z only. No Whitney, no other clients.
+2. Glean Chat API for ALL LLM inference. No Vertex/Gemini/OpenAI/Anthropic direct.
+3. No em-dashes anywhere (code, comments, copy, docs).
+4. Truth-grounded: uncomputable -> render `--`, never fake zero.
+5. All deltas gate on `compareIso !== null`.
+6. GA4 `engagementRate` is a fraction [0,1] -> `* 100` in BOTH renderer AND delta.
+7. Never skip hooks. Never force-push main. No Neon migrations without Paul's approval.
+8. Bump the Peec cache version when a response/type shape changes (currently `v10`).
+9. Every FB: feedback-log + changelog + status.md + sheet row + commit + push.
+10. Vercel preview is the truth; verify live before claiming done.
 
 ## Thomas's posture
 
-Correctness above all. QA sweeps. Receipts. No assumptions, no decisions beyond Tina's literal ask. If implied but not explicit, ASK before acting. Sheet Column F should answer Tina's question directly (paste-ready). All copy: no em-dashes, plain language.
-
-Content Impact v1 is closed. Awaiting Tina V2 review feedback or next tab feedback (likely Technical Performance or Overview iterations).
+Correctness above all; his standing with Tina depends on this round closing cleanly. Surface risk honestly, pre-empt anything she might click and question, never claim "done" without live verification. The prior round's "10 competitors is genuinely all Peec returns" caveat was withdrawn (FB-059 found the real count is 22 via a token-authenticated probe) -- so no remaining "it's the data" surprises for Tina.

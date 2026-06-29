@@ -85,7 +85,7 @@ export function presetToDateRange(value: string): DateRange | undefined {
   }
 }
 
-function getMainLabel(value: string): string {
+export function getMainLabel(value: string): string {
   const preset = PRESETS.find((p) => p.value === value)
   if (preset) return preset.label
   if (value.startsWith('custom:')) {
@@ -138,9 +138,15 @@ function initCompareMode(compareValue?: string | null): string {
 
 interface DateRangePickerProps {
   value: string
-  onChange: (value: string) => void
+  onChange?: (value: string) => void
   compareValue?: string | null
   onCompareChange?: (value: string | null) => void
+  /**
+   * Batched apply: fires ONCE on Apply with both final values. Prefer this over
+   * onChange/onCompareChange when range + comparison must update atomically
+   * (e.g. a single URL push) — using the two separate callbacks for that races.
+   */
+  onApply?: (value: string, compareValue: string | null) => void
 }
 
 export function DateRangePicker({
@@ -148,6 +154,7 @@ export function DateRangePicker({
   onChange,
   compareValue,
   onCompareChange,
+  onApply,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
 
@@ -206,7 +213,26 @@ export function DateRangePicker({
         ? `custom:${format(localCalendarRange.from, 'yyyy-MM-dd')},${format(localCalendarRange.to, 'yyyy-MM-dd')}`
         : localValue
 
-    onChange(finalValue)
+    // Batched path: compute both final values and fire once (atomic for the consumer).
+    if (onApply) {
+      let finalCompare: string | null = null
+      if (localCompareEnabled) {
+        if (localCompareMode === 'previous_period' || localCompareMode === 'previous_year') {
+          finalCompare = localCompareMode
+        } else if (
+          localCompareMode === 'custom' &&
+          localCompareCalendarRange?.from &&
+          localCompareCalendarRange?.to
+        ) {
+          finalCompare = `custom:${format(localCompareCalendarRange.from, 'yyyy-MM-dd')},${format(localCompareCalendarRange.to, 'yyyy-MM-dd')}`
+        }
+      }
+      onApply(finalValue, finalCompare)
+      setOpen(false)
+      return
+    }
+
+    onChange?.(finalValue)
 
     if (onCompareChange) {
       if (!localCompareEnabled) {
@@ -270,7 +296,7 @@ export function DateRangePicker({
               ))}
             </div>
 
-            {onCompareChange && (
+            {(onCompareChange || onApply) && (
               <div className="mt-2 border-t border-white/[0.06] pt-3">
                 <div className="mb-2 flex items-center justify-between px-3">
                   <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">

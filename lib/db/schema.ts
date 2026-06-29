@@ -1,5 +1,6 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+import type { DashboardConfig } from '@/lib/dashboard/types'
 
 // --- Domain types preserved from the deleted clients.config.ts ---
 
@@ -140,6 +141,8 @@ export const clients = pgTable('clients', {
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   sharedPasswordHash: text('shared_password_hash'),
   maxSeats: integer('max_seats').notNull().default(5),
+  triplewhaleShopId: text('triplewhale_shop_id'),
+  dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -183,6 +186,19 @@ export const usersRelations = relations(users, ({ one }) => ({
 }))
 
 // --- Inferred TS types for consumers ---
+
+// Cache of discovered Supermetrics dimension values (for the dashboard block builder).
+export const smDimensionValueCache = pgTable('sm_dimension_value_cache', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientSlug: text('client_slug').notNull(),
+  dsId: text('ds_id').notNull(),
+  account: text('account').notNull(),
+  column: text('column').notNull(),
+  values: jsonb('values').$type<string[]>().notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique('sm_dim_cache_key').on(t.clientSlug, t.dsId, t.account, t.column)])
+
+export type SmDimensionValueCacheRow = typeof smDimensionValueCache.$inferSelect
 
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert

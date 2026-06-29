@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { Sidebar } from '@/components/layout/sidebar'
-import { getAllClients } from '@/lib/db/queries'
+import { getVisibleClients } from '@/lib/db/queries'
 
 const INTERNAL_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
 
@@ -16,7 +16,7 @@ export default async function DashboardLayout({
   if (!session) redirect('/login')
   if (!INTERNAL_ROLES.has(session.user.role ?? '')) redirect('/unauthorized')
 
-  const clients = await getAllClients()
+  const clients = await getVisibleClients()
 
   return (
     <div className="flex h-screen bg-black" data-print-layout>

@@ -1,6 +1,12 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { TEAMS } from '@/lib/constants'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
+
+const cardCls =
+  'group relative flex items-center gap-4 rounded-lg border border-white/[0.06] bg-bg-surface p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.02]'
+
+const arrowCls = 'h-4 w-4 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100'
 
 export default async function TeamToolsPage({
   params,
@@ -21,26 +27,31 @@ export default async function TeamToolsPage({
         </p>
       </div>
 
-      {/* Tool cards (external links) */}
+      {/* Tool cards: internal routes (leading '/') open in-app; external launch in a new tab. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {team.tools.map((tool) => (
-          <a
-            key={tool.slug}
-            href={tool.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group relative flex items-center gap-4 rounded-lg border border-white/[0.06] bg-bg-surface p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.02]"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{tool.name}</p>
-              {tool.description && (
-                <p className="mt-0.5 text-xs text-text-muted">{tool.description}</p>
-              )}
-            </div>
-
-            <ArrowUpRight className="h-4 w-4 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />
-          </a>
-        ))}
+        {team.tools.map((tool) => {
+          const isInternal = tool.url.startsWith('/')
+          const body = (
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">{tool.name}</p>
+                {tool.description && (
+                  <p className="mt-0.5 text-xs text-text-muted">{tool.description}</p>
+                )}
+              </div>
+              {isInternal ? <ArrowRight className={arrowCls} /> : <ArrowUpRight className={arrowCls} />}
+            </>
+          )
+          return isInternal ? (
+            <Link key={tool.slug} href={tool.url} className={cardCls}>
+              {body}
+            </Link>
+          ) : (
+            <a key={tool.slug} href={tool.url} target="_blank" rel="noopener noreferrer" className={cardCls}>
+              {body}
+            </a>
+          )
+        })}
       </div>
     </>
   )

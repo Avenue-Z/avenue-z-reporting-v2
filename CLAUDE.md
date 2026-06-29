@@ -492,6 +492,41 @@ SLACK_CHANNEL_ID=                     # internal health channel ID, e.g. C0123AB
 
 ---
 
+## Code Review & Merge Process (required before anything merges to `main`)
+
+Every change that goes into `main` must pass a self-review first. This is not a
+line-by-line audit — it is a comprehension gate. The point is that whoever
+merged the code can explain *why it works* when a client or teammate asks,
+so we never end up in a "Tina asked how AIVX was ranked and we didn't know"
+situation again.
+
+**The process:**
+
+1. **Understand the implementation.** Read through the code/implementation on
+   the branch until you have a solid grasp of the general *why* — how the pieces
+   fit together and the logic behind them. You do NOT need to be able to say
+   "line 42 does X"; you DO need to explain how a metric is derived, where a
+   number comes from, and why the approach was chosen. If a client could
+   plausibly ask "how is this calculated / ranked / sourced?", you must be able
+   to answer it from this review.
+
+2. **Write a review comment on the PR** outlining that understanding — a short
+   plain-English summary of what the change does and the reasoning/data behind
+   any non-obvious metric or logic. This is the artifact that proves the
+   comprehension gate was met.
+
+3. **Apply the `self-reviewed` label** to the PR once the comment is posted.
+
+4. **Merge** — but only once the `self-reviewed` label is on AND all other
+   correctness checks (type-check, tests, any CI) pass. The label without green
+   checks is not enough; green checks without the label is not enough.
+
+**Never merge to `main` without an explicit go-ahead from Thomas**, even when
+the self-review and checks are green. The self-review is a prerequisite for
+merging, not a license to merge on your own.
+
+---
+
 ## Roles Reference
 
 ```
@@ -506,6 +541,36 @@ and baked into the JWT. Subsequent requests decode role from the token — no DB
 per request.
 
 ---
+
+## Known Follow-ups — Configurable Dashboard (from PR #108 review)
+
+Tracked tech-debt / latent bugs surfaced reviewing the configurable dashboard.
+Fixed in `fix/tw-cache-key-and-leaf-concurrency`: the Triple Whale grouped/series
+cross-client cache-key collision and the sequential leaf current/compare fetches.
+Still open:
+
+- [ ] **Shopify grouped/series `GROUP BY` clause order** — `resolveShopifyGrouped`/
+  `resolveShopifySeries` append `GROUP BY` to `b.query`, but catalog metrics like
+  New Customers / Returning Customers / New Subscriptions already contain a `WHERE`,
+  producing `…WHERE … GROUP BY …` which is invalid ShopifyQL. Any Shopify bar/line
+  block on a `WHERE`-bearing metric errors. Build the query with correct clause order
+  instead of string-appending. (`lib/dashboard/adapters/shopify.ts`)
+- [ ] **`alignSeries` joins prior values by array index, not date** — when current and
+  compare ranges have different bucket counts (e.g. 28- vs 31-day months, gap days),
+  every prior point after a gap maps to the wrong date. Join by bucket date / gap-fill.
+  (`lib/dashboard/group-join.ts`)
+- [ ] **Supermetrics 15s request timeout also caps large synchronous queries** — a wide
+  grouped/series query (`max_rows` 10000) that legitimately takes >15s now throws
+  `SmTimeoutError`. Consider a higher cap for the submit call or only bounding the poll
+  loop. (`lib/supermetrics/client.ts`, `REQUEST_TIMEOUT_MS`)
+- [ ] **Role-doc drift** — the Roles Reference below says `INTERNAL_ANALYST → Read-only`,
+  but `canEditDashboard` intentionally lets all internal Avenue Z staff (incl.
+  `INTERNAL_ANALYST`) edit dashboards. Reconcile the doc or the rule.
+- [ ] **`keyHash` duplicated in 4 files** (`adapters/{supermetrics,shopify,triplewhale}.ts`,
+  `app/actions/dashboard.ts`) — extract one shared helper to avoid divergence.
+- [ ] **`twSql` masks a malformed success payload as empty** — `{success:true, data:null}`
+  returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
+  (`lib/triplewhale/client.ts`)
 
 ## Roadmap / Future Considerations
 

@@ -138,6 +138,8 @@ export type TopDomain = {
   retrievedDelta: number
   citationRate: number
   citationRateDelta: number
+  citationCount: number  // Peec citation_count (raw integer), used for share-of-period math
+  priorCitationCount: number  // FB-058: prior-period citation_count, for §H.1 Citation Share delta
   type: string
 }
 
@@ -404,8 +406,18 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   const [currentBrandsRes, priorBrandsRes, domainsRes, domainsPriorRes, promptBrandsRes, queriesRes, llmBrandsRes, llmDomainsRes, tagsRes, promptsRes, promptBrandsPriorRes, trendRows, trendRowsYTD] = await Promise.all([
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current }, pid),
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior }, pid),
+    // FB-059: limit raised 500 -> 5000. A live probe against Peec for the
+    // Avenue Z project returned 4,202 unique domains, of which 22 are
+    // classified COMPETITOR. At limit=500 only 11 surfaced because Peec sorts
+    // by retrieved_percentage and long-tail competitors get buried below
+    // ~1200 corporate/editorial rows. Peec does not support a classification
+    // filter (probed; all variants return mixed sets), so we pull the full
+    // ranked list and filter client-side. Every UI consumer of topDomains
+    // is already display-bounded (.slice(0,15) editorial, .slice(0,25)
+    // competitor, initialPageSize=10 on Overview), so the larger array only
+    // costs payload weight (~75KB), not flooded UI.
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, limit: 5000 }, pid),
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...prior, limit: 5000 }, pid),
     // FB-023: prompt-level rows now ALSO dimensioned by model so the Winners/Losers
     // compute can filter by the active model selection. Limit bumped from 2000 to
     // 5000 because rows are now (prompt × model). Adjust upward if Peec returns
@@ -416,7 +428,13 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
     // the friendly scraper id (e.g. "gemini-scraper") instead of the channel id
     // (e.g. "google-2" which contains "google" and would otherwise be misbucketed).
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...current, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
-    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
+    // FB-059: limit raised 2000 -> 10000 to match the main /reports/domains
+    // bump above. Rows here are (domain × model_channel), so with ~5
+    // channels the full domain ranking expands to ~20k rows in the worst
+    // case. 10000 is enough to capture every competitor across all channels
+    // for the Avenue Z project (22 competitors × ~5 channels = ~110 rows
+    // for §H.1's filtered path; the rest of the headroom is the long tail).
+    peecPost<{ data: ApiDomainRow[]; totalCount: number }>('/reports/domains', { ...current, dimensions: ['model_channel_id', 'model_id'], limit: 10000 }, pid),
     // Real prompt taxonomy: tag id→name + each prompt's tags, for grouping by
     // the prompt's primary subject tag instead of keyword inference.
     peecGet<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
@@ -470,6 +488,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
           retrievedDelta: prior ? (d.retrieved_percentage - prior.retrieved_percentage) * 100 : 0,
           citationRate: d.citation_rate * 100,
           citationRateDelta: prior ? (d.citation_rate - prior.citation_rate) * 100 : 0,
+          citationCount: d.citation_count ?? 0,
+          priorCitationCount: prior?.citation_count ?? 0,
           type: normalizeClassification(d.classification),
         }
       })
@@ -825,14 +845,20 @@ export const getPeecOverview = cached(
     // v7 = overview now honors the page date range (dateRange arg); response shape
     //      flattened (brandRankings/topDomains/totalCitations replace the *ByRange
     //      records) and deltas compare vs the previous period, not prior year.
-    // v8 = FB-022: visibility trend chart now uses a separate YTD fetch
+    // v9 = FB-051: TopDomain now carries citationCount (raw Peec citation_count
+    //      integer). Required for §H.1 Citation Share share-of-period math.
+    //      v8 cached entries lack this field -- must invalidate.
+    //      v8 = FB-022: visibility trend chart now uses a separate YTD fetch
     //      (dailyVisibility/competitorDailyVisibility), while weeklyVisibility
     //      stays picker-range bound for the demand-overview consumer.
     //      FB-023: TrackedPrompt now carries per-model position maps for both
     //      current and prior periods, from a new model-dimensioned
     //      promptBrandsPriorRes fetch + an updated current promptBrandsRes
     //      with the same dimensions. Used by lib/peec/winners-losers.ts.
-    version: 'v8',
+    // v10 = FB-058: TopDomain now carries priorCitationCount (prior-period Peec
+    //       citation_count). Required for the §H.1 Citation Share delta. v9 cached
+    //       entries lack this field, so invalidate to force a fresh fetch.
+    version: 'v10',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

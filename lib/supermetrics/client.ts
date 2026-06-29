@@ -17,27 +17,52 @@ export * from './types'
 
 const BASE = 'https://api.supermetrics.com/enterprise/v2'
 
-async function call(url: string, init: RequestInit, fetchImpl: typeof fetch, attempt = 0): Promise<unknown> {
-  const res = await fetchImpl(url, init)
-  if (res.status === 429) {
-    if (attempt >= 3) {
-      throw new SmQueryError('Supermetrics rate limit: retries exhausted', 429)
+// Per-request hang guard. A healthy SM query responds in ~3s; a broken data
+// source (e.g. a disconnected Shopify connection) never responds at all, so a
+// request still pending well past the healthy window is hung, not slow. Aborting
+// surfaces an error instead of an indefinite spinner. The overall async-query
+// budget is bounded separately by maxPolls in smQuery (~60s).
+const REQUEST_TIMEOUT_MS = 15000
+
+async function call(
+  url: string,
+  init: RequestInit,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+  attempt = 0,
+): Promise<unknown> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetchImpl(url, { ...init, signal: controller.signal })
+    if (res.status === 429) {
+      if (attempt >= 3) {
+        throw new SmQueryError('Supermetrics rate limit: retries exhausted', 429)
+      }
+      const retry = Number(res.headers.get('Retry-After') ?? '2')
+      await new Promise((r) => setTimeout(r, Math.min(retry, 10) * 1000))
+      return call(url, init, fetchImpl, timeoutMs, attempt + 1)
     }
-    const retry = Number(res.headers.get('Retry-After') ?? '2')
-    await new Promise((r) => setTimeout(r, Math.min(retry, 10) * 1000))
-    return call(url, init, fetchImpl, attempt + 1)
+    if (!res.ok) throw new SmQueryError(`Supermetrics ${res.status}`, res.status)
+    return await res.json()
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new SmTimeoutError(`Supermetrics request timed out after ${timeoutMs}ms`)
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
   }
-  if (!res.ok) throw new SmQueryError(`Supermetrics ${res.status}`, res.status)
-  return res.json()
 }
 
 export async function smQuery(
   p: SmQueryParams,
-  opts: { pollMs?: number; maxPolls?: number; fetchImpl?: typeof fetch } = {},
+  opts: { pollMs?: number; maxPolls?: number; timeoutMs?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<SmResult> {
   const fetchImpl = opts.fetchImpl ?? fetch
   const pollMs = opts.pollMs ?? 1500
   const maxPolls = opts.maxPolls ?? 40 // ~60s ceiling
+  const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS
   const headers = { Authorization: `Bearer ${p.apiKey}`, 'Content-Type': 'application/json' }
 
   type SmField = { field_id: string; data_column: number }
@@ -69,7 +94,7 @@ export async function smQuery(
       ...(p.filters ? { filter: p.filters } : {}),
       ...(p.settings ? { settings: p.settings } : {}),
     }),
-  }, fetchImpl)) as SmResponse
+  }, fetchImpl, timeoutMs)) as SmResponse
 
   if (submit.meta?.status_code && submit.meta.status_code !== 'SUCCESS') {
     throw new SmQueryError(`Supermetrics status ${submit.meta.status_code}`)
@@ -85,7 +110,7 @@ export async function smQuery(
 
   for (let i = 0; i < maxPolls; i++) {
     await new Promise((r) => setTimeout(r, pollMs))
-    const out = (await call(`${BASE}/query/data/json/${scheduleId}`, { headers }, fetchImpl)) as SmResponse
+    const out = (await call(`${BASE}/query/data/json/${scheduleId}`, { headers }, fetchImpl, timeoutMs)) as SmResponse
     if (out.meta?.status_code === 'FAILURE') throw new SmQueryError('Supermetrics query failed')
     if (Array.isArray(out.data)) {
       return { header: fieldHeader(out) ?? out.data[0] ?? [], rows: out.data.slice(1) }
@@ -94,6 +119,9 @@ export async function smQuery(
   throw new SmTimeoutError()
 }
 
-export function parseSmRows(result: SmResult): Record<string, string>[] {
-  return result.rows.map((row) => Object.fromEntries(result.header.map((h, i) => [h, row[i]])))
+// fieldIds overrides the result header so callers can key rows by the field IDs
+// they requested (e.g. a [dim, metric] pair), independent of SM's header labels.
+export function parseSmRows(result: SmResult, fieldIds?: string[]): Record<string, string>[] {
+  const keys = fieldIds ?? result.header
+  return result.rows.map((row) => Object.fromEntries(keys.map((k, i) => [k, row[i] ?? ''])))
 }

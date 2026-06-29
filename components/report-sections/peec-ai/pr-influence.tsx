@@ -347,9 +347,33 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       hasPR,
     }
   })
-  const topEditorialRows: TopEditorialDomainRow[] = data?.domainCitationsByModel
-    ? filterDomainRowsByModel(rawTopEditorialRows, data.domainCitationsByModel, models)
-    : rawTopEditorialRows
+  // FB-062: when a model filter is on, filterDomainRowsByModel overwrites
+  // citationCount with the raw per-model citation count (e.g. 5590) but the
+  // renderer treats citationCount as a percentage (fmtPct -> "5590.0%").
+  // Live audit caught domains showing 5590.0% / 1588.0% etc under a
+  // ChatGPT-only filter -- same bug class as the V1 FB-051 199.9% issue.
+  // Fix: after the per-model filter, normalize each row's citationCount to
+  // a share-of-period (count / sum-of-counts * 100), so the column stays
+  // bounded 0-100% in both unfiltered (d.retrieved %) and filtered (share
+  // of model-scoped citations) modes. Mirrors the FB-051 pattern used by
+  // Content Impact §H.1 (content-impact.tsx:1386-1388).
+  const topEditorialRows: TopEditorialDomainRow[] = (() => {
+    if (!data?.domainCitationsByModel || !models || models.length === 0) {
+      return rawTopEditorialRows
+    }
+    const filtered = filterDomainRowsByModel(rawTopEditorialRows, data.domainCitationsByModel, models)
+    const total = filtered.reduce((s, r) => s + r.citationCount, 0)
+    // FB-063: when model filter is active, citationCountDelta is stale
+    // (d.retrievedDelta is the all-model period-over-period change; pairing
+    // it with a model-filtered current value produces a misleading arrow).
+    // Zero it out so the renderer's Δ arrow disappears -- "no delta" is
+    // honest; a wrong delta is not.
+    return filtered.map((r) => ({
+      ...r,
+      citationCount: total > 0 ? (r.citationCount / total) * 100 : 0,
+      citationCountDelta: null,
+    }))
+  })()
 
   // ── FB-028 · Top Editorial Opportunities (URL-level brand-absent, Tina R15+R16+R17) ──
   // Tina V1 R15 ✅: "5 columns (Publication / Article / Competitors Mentioned /

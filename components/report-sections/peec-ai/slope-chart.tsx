@@ -44,6 +44,7 @@ const DIRECTION_COLOR: Record<string, string> = {
 
 export default function SlopeChart({ input, compareActive }: Props) {
   const [metric, setMetric] = useState<SlopeMetric>('ai-referral')
+  const [hoveredUrl, setHoveredUrl] = useState<string | null>(null)
 
   if (!compareActive) {
     return (
@@ -62,9 +63,7 @@ export default function SlopeChart({ input, compareActive }: Props) {
       <div className="space-y-3">
         <ToggleRow active={metric} onChange={setMetric} />
         <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-          <p className="text-xs text-text-muted">
-            No movers in this metric for the selected periods.
-          </p>
+          <p className="text-xs text-text-muted">No movers in this metric for the selected periods.</p>
         </div>
       </div>
     )
@@ -81,38 +80,74 @@ export default function SlopeChart({ input, compareActive }: Props) {
     ? (v: number) => `${v.toFixed(1)}%`
     : (v: number) => `${v.toLocaleString()}`
 
+  // Right-margin legend: sort by Current value desc (Tina's literal ask).
+  const legendItems = [...result.points].sort((a, b) => b.current - a.current)
+
+  const opacityFor = (url: string) => {
+    if (hoveredUrl === null) return 0.7
+    return hoveredUrl === url ? 1.0 : 0.15
+  }
+
   return (
     <div className="space-y-3">
       <ToggleRow active={metric} onChange={setMetric} />
-      <ResponsiveContainer width="100%" height={420}>
-        <LineChart data={chartData} margin={{ top: 16, right: 80, bottom: 8, left: 0 }}>
-          <CartesianGrid stroke="#FFFFFF14" />
-          <XAxis dataKey="period" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-          <YAxis tickFormatter={yTickFormatter} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-          <Tooltip
-            contentStyle={{ background: '#272727', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6 }}
-            labelStyle={{ color: '#FFFFFF', fontWeight: 600 }}
-            itemStyle={{ color: '#FFFFFF' }}
-            formatter={(value: unknown, name: unknown) => {
-              const p = result.points.find((pt) => pt.url === String(name))
-              const label = p?.topic ?? String(name)
-              return [yTickFormatter(Number(value)), label]
-            }}
-          />
-          {result.points.map((p) => (
-            <Line
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <ResponsiveContainer width="100%" height={420}>
+            <LineChart data={chartData} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
+              <CartesianGrid stroke="#FFFFFF14" />
+              <XAxis dataKey="period" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+              <YAxis tickFormatter={yTickFormatter} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+              {hoveredUrl && (
+                <Tooltip
+                  contentStyle={{ background: '#272727', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6 }}
+                  labelStyle={{ color: '#FFFFFF', fontWeight: 600 }}
+                  itemStyle={{ color: '#FFFFFF' }}
+                  formatter={(value: unknown, name: unknown) => {
+                    if (String(name) !== hoveredUrl) return [null, null]
+                    const p = result.points.find((pt) => pt.url === String(name))
+                    const label = p?.topic ?? String(name)
+                    return [yTickFormatter(Number(value)), label]
+                  }}
+                />
+              )}
+              {result.points.map((p) => (
+                <Line
+                  key={p.url}
+                  type="linear"
+                  dataKey={p.url}
+                  stroke={DIRECTION_COLOR[p.direction]}
+                  strokeOpacity={opacityFor(p.url)}
+                  strokeWidth={hoveredUrl === p.url ? 3 : 2}
+                  dot={{ r: 3, fill: DIRECTION_COLOR[p.direction], fillOpacity: opacityFor(p.url) }}
+                  activeDot={{ r: 5, onMouseEnter: () => setHoveredUrl(p.url), onMouseLeave: () => setHoveredUrl(null) }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <ul className="flex w-56 shrink-0 flex-col gap-1 overflow-y-auto pr-1">
+          {legendItems.map((p) => (
+            <li
               key={p.url}
-              type="linear"
-              dataKey={p.url}
-              stroke={DIRECTION_COLOR[p.direction]}
-              strokeOpacity={0.7}
-              strokeWidth={2}
-              dot={{ r: 3, fill: DIRECTION_COLOR[p.direction] }}
-              activeDot={{ r: 5 }}
-            />
+              onMouseEnter={() => setHoveredUrl(p.url)}
+              onMouseLeave={() => setHoveredUrl(null)}
+              className={cn(
+                'flex items-center justify-between gap-2 rounded px-2 py-1 text-[10px] transition-colors',
+                hoveredUrl === p.url ? 'bg-white/[0.06] text-white' : 'text-text-muted hover:bg-white/[0.03]',
+              )}
+              style={{ opacity: hoveredUrl === null ? 1 : (hoveredUrl === p.url ? 1 : 0.4) }}
+            >
+              <span
+                className="block h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: DIRECTION_COLOR[p.direction] }}
+              />
+              <span className="flex-1 truncate" title={p.topic ?? p.url}>{p.topic ?? p.url}</span>
+              <span className="tabular-nums">{yTickFormatter(p.current)}</span>
+            </li>
           ))}
-        </LineChart>
-      </ResponsiveContainer>
+        </ul>
+      </div>
     </div>
   )
 }

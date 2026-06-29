@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { getAllClients } from '@/lib/db/queries'
+import { getVisibleClients } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { ArrowRight } from 'lucide-react'
 
@@ -21,7 +21,7 @@ function getAvatarColor(name: string) {
 }
 
 export default async function DashboardPage() {
-  const clients = await getAllClients()
+  const clients = await getVisibleClients()
 
   return (
     <>

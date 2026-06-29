@@ -1,10 +1,13 @@
 import { cache } from 'react'
-import { eq } from 'drizzle-orm'
+import { eq, and, lt } from 'drizzle-orm'
 import { db } from './client'
-import { clients, users, healthState, type Client, type User, type ClientRole } from './schema'
+import { clients, users, healthState, smDimensionValueCache, type Client, type User, type ClientRole } from './schema'
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
 import { cached } from '@/lib/cache'
 import { timed } from '@/lib/perf'
+import { HIDDEN_CLIENT_SLUGS } from '@/lib/constants'
+import type { DashboardConfig } from '@/lib/dashboard/types'
+import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 
 /**
  * Find one client by slug, including its users. Returns null if not found.
@@ -88,6 +91,17 @@ export const getAllClients = cache(
 )
 
 /**
+ * Clients shown in the /dashboard client lists. Excludes HIDDEN_CLIENT_SLUGS —
+ * dashboard-only hosts (e.g. kind-patches) that are surfaced via Tools → Reporting,
+ * not as real clients. Operational callers (cache-warm, health sweep) still use
+ * getAllClients so those hosts keep working.
+ */
+export const getVisibleClients = cache(async (): Promise<(Client & { users: User[] })[]> => {
+  const all = await getAllClients()
+  return all.filter((c) => !HIDDEN_CLIENT_SLUGS.has(c.slug))
+})
+
+/**
  * All stored health rows. NOT cached — the sweep needs the live table, and it
  * writes to it in the same run.
  */
@@ -120,4 +134,69 @@ export async function upsertHealthState(
         },
       })
   }
+}
+
+// --- Configurable dashboard ---
+
+/**
+ * Parsed dashboard config for a client, or null when the column is empty OR fails
+ * validation (a corrupt/legacy row degrades to "no dashboard" rather than crashing).
+ */
+const getDashboardConfigImpl = cache(async (slug: string): Promise<DashboardConfig | null> => {
+  const client = await getClientBySlug(slug)
+  if (!client?.dashboardConfig) return null
+  const parsed = parseDashboardConfig(client.dashboardConfig)
+  return parsed.ok ? parsed.config : null
+})
+
+export const getDashboardConfig = timed(
+  'db',
+  'getDashboardConfig',
+  getDashboardConfigImpl,
+  ([slug]) => ({ client: slug }),
+)
+
+/** Cached distinct values for one SM dimension (per client/dsId/account). null if not cached. */
+export async function getCachedSmDimensionValues(
+  slug: string, dsId: string, account: string, column: string,
+): Promise<{ values: string[]; fetchedAt: Date } | null> {
+  const row = await db
+    .select({ values: smDimensionValueCache.values, fetchedAt: smDimensionValueCache.fetchedAt })
+    .from(smDimensionValueCache)
+    .where(and(
+      eq(smDimensionValueCache.clientSlug, slug),
+      eq(smDimensionValueCache.dsId, dsId),
+      eq(smDimensionValueCache.account, account),
+      eq(smDimensionValueCache.column, column),
+    ))
+    .limit(1)
+  return row[0] ?? null
+}
+
+/** Insert-or-update the cached values, stamping fetchedAt = now. */
+export async function upsertSmDimensionValues(
+  slug: string, dsId: string, account: string, column: string, values: string[],
+): Promise<void> {
+  await db
+    .insert(smDimensionValueCache)
+    .values({ clientSlug: slug, dsId, account, column, values })
+    .onConflictDoUpdate({
+      target: [smDimensionValueCache.clientSlug, smDimensionValueCache.dsId, smDimensionValueCache.account, smDimensionValueCache.column],
+      set: { values, fetchedAt: new Date() },
+    })
+}
+
+/** Cache rows older than `olderThan` (the cron re-warm list). */
+export async function listStaleSmDimensionCacheRows(
+  olderThan: Date,
+): Promise<{ clientSlug: string; dsId: string; account: string; column: string }[]> {
+  return db
+    .select({
+      clientSlug: smDimensionValueCache.clientSlug,
+      dsId: smDimensionValueCache.dsId,
+      account: smDimensionValueCache.account,
+      column: smDimensionValueCache.column,
+    })
+    .from(smDimensionValueCache)
+    .where(lt(smDimensionValueCache.fetchedAt, olderThan))
 }

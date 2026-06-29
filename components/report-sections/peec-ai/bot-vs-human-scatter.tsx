@@ -56,15 +56,15 @@ export default function BotVsHumanScatter({ data }: Props) {
 
   const cornerLabel = 'text-[10px] font-semibold uppercase tracking-wide text-text-muted'
 
-  // Render four overlay tags (one per corner). The chart fills the parent
-  // container; the labels are absolutely positioned over the chart pane.
+  // Render four overlay labels in a 2x2 CSS grid so each label sits in its
+  // true quadrant cell (top-left = Low Bot/High Human, etc.).
   return (
     <div className="relative w-full">
-      <div className="pointer-events-none absolute inset-0 z-10">
-        <span className={`absolute left-4 top-4 ${cornerLabel}`}>Low Bot Traffic, High Human Traffic</span>
-        <span className={`absolute right-4 top-4 ${cornerLabel}`}>High Bot Traffic, High Human Traffic</span>
-        <span className={`absolute left-4 bottom-12 ${cornerLabel}`}>Low Bot Traffic, Low Human Traffic</span>
-        <span className={`absolute right-4 bottom-12 ${cornerLabel}`}>High Bot Traffic, Low Human Traffic</span>
+      <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-2 grid-rows-2">
+        <div className="flex items-start justify-start p-4"><span className={cornerLabel}>Low Bot, High Human</span></div>
+        <div className="flex items-start justify-end p-4"><span className={cornerLabel}>High Bot, High Human</span></div>
+        <div className="flex items-end justify-start p-4"><span className={cornerLabel}>Low Bot, Low Human</span></div>
+        <div className="flex items-end justify-end p-4"><span className={cornerLabel}>High Bot, Low Human</span></div>
       </div>
       <ResponsiveContainer width="100%" height={420}>
         <ScatterChart margin={{ top: 24, right: 24, bottom: 40, left: 24 }}>
@@ -85,17 +85,21 @@ export default function BotVsHumanScatter({ data }: Props) {
           />
           <Tooltip
             cursor={{ strokeDasharray: '3 3' }}
-            contentStyle={{ background: '#272727', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6 }}
-            labelStyle={{ color: '#FFFFFF', fontWeight: 600 }}
-            itemStyle={{ color: '#FFFFFF' }}
-            formatter={(value: unknown, name: unknown) => [String(value), String(name)]}
-            labelFormatter={(_label, payload) => {
-              const p = payload?.[0]?.payload as { path?: string } | undefined
-              return p?.path ?? ''
+            content={({ active, payload }) => {
+              if (!active || !payload || payload.length === 0) return null
+              const p = payload[0]?.payload as { path?: string; bots?: number; humans?: number } | undefined
+              if (!p) return null
+              return (
+                <div className="rounded-md border border-white/[0.08] bg-[#272727] p-3 text-xs">
+                  <div className="mb-2 font-semibold text-white">{p.path ?? '(unknown)'}</div>
+                  <div className="text-white/70">AI Bot Visits: <span className="tabular-nums text-white">{(p.bots ?? 0).toLocaleString()}</span></div>
+                  <div className="text-white/70">Human Sessions: <span className="tabular-nums text-white">{(p.humans ?? 0).toLocaleString()}</span></div>
+                </div>
+              )
             }}
           />
-          <ReferenceLine x={data.medianBot} stroke="#FFFFFF40" strokeDasharray="4 4" />
-          <ReferenceLine y={data.medianHuman} stroke="#FFFFFF40" strokeDasharray="4 4" />
+          <ReferenceLine x={data.medianBot} stroke="#FFFFFF80" strokeDasharray="4 4" strokeWidth={1.5} />
+          <ReferenceLine y={data.medianHuman} stroke="#FFFFFF80" strokeDasharray="4 4" strokeWidth={1.5} />
           <Scatter
             data={data.points.map((p) => ({
               ...p,
