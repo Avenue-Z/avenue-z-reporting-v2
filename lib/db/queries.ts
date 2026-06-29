@@ -5,6 +5,7 @@ import { clients, users, healthState, smDimensionValueCache, type Client, type U
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
 import { cached } from '@/lib/cache'
 import { timed } from '@/lib/perf'
+import { HIDDEN_CLIENT_SLUGS } from '@/lib/constants'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 
@@ -88,6 +89,17 @@ const getAllClientsImpl = async (): Promise<(Client & { users: User[] })[]> => {
 export const getAllClients = cache(
   cached('db', 'getAllClients', getAllClientsImpl, { ttlSeconds: 300, tags: ['db'] }),
 )
+
+/**
+ * Clients shown in the /dashboard client lists. Excludes HIDDEN_CLIENT_SLUGS —
+ * dashboard-only hosts (e.g. kind-patches) that are surfaced via Tools → Reporting,
+ * not as real clients. Operational callers (cache-warm, health sweep) still use
+ * getAllClients so those hosts keep working.
+ */
+export const getVisibleClients = cache(async (): Promise<(Client & { users: User[] })[]> => {
+  const all = await getAllClients()
+  return all.filter((c) => !HIDDEN_CLIENT_SLUGS.has(c.slug))
+})
 
 /**
  * All stored health rows. NOT cached — the sweep needs the live table, and it

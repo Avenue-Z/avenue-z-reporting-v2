@@ -32,6 +32,14 @@ export function formatChartNumber(v: number | string): string {
   return typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(v)
 }
 
+/**
+ * Client slugs that exist in the DB only to back a configurable dashboard (surfaced
+ * via Tools → Reporting), not as real clients — hidden from the /dashboard client
+ * lists by getVisibleClients(). Interim until configurable dashboards are decoupled
+ * from the clients table (the shareable-report work).
+ */
+export const HIDDEN_CLIENT_SLUGS = new Set<string>(['kind-patches'])
+
 /** Known AI assistant referrer domains (matched against GA4 sessionSource) */
 export const AI_REFERRER_DOMAINS = [
   'chat.openai.com',
