@@ -3,6 +3,7 @@ import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 import { getClientByEmail, getUserAuthRecord } from '@/lib/db/queries'
 import { evaluateCredentialLogin } from '@/lib/auth/credential-login'
+import { evaluateTestAdminLogin } from '@/lib/auth/test-admin'
 import { verifyPassword } from '@/lib/auth/password'
 
 const WORKSPACE_DOMAIN = 'avenuez.com'
@@ -28,6 +29,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = credentials?.email as string | undefined
         const password = credentials?.password as string | undefined
         if (!email || !password) return null
+        const testAdmin = evaluateTestAdminLogin(
+          { email, password },
+          {
+            email: process.env.TEST_ADMIN_EMAIL,
+            password: process.env.TEST_ADMIN_PASSWORD,
+            vercelEnv: process.env.VERCEL_ENV,
+          },
+        )
+        if (testAdmin) return testAdmin
         const record = await getUserAuthRecord(email)
         return evaluateCredentialLogin({ email, password, record, verify: verifyPassword })
       },
@@ -43,6 +53,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user }) {
       if (user?.email) {
+        // The preview-only test admin carries its own role/slug — trust it
+        // directly rather than looking it up in the DB.
+        const u = user as { email: string; role?: string; clientSlug?: string | null }
+        if (u.role) {
+          token.role = u.role
+          token.clientSlug = u.clientSlug ?? null
+          return token
+        }
         const clientConfig = await getClientByEmail(user.email)
         if (clientConfig) {
           token.role = clientConfig.role

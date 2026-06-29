@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
 import { Header } from '@/components/layout/header'
 
 export default async function ClientOverviewPage({
@@ -51,10 +51,12 @@ export default async function ClientOverviewPage({
         Individual Sections
       </h3>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {client.enabledReports.map((reportSlug) => (
+        {NAV_SLUG_ORDER.filter((slug) =>
+          client.enabledReports.includes(slug as (typeof client.enabledReports)[number]),
+        ).map((reportSlug) => (
           <Link
             key={reportSlug}
-            href={`/dashboard/${client.slug}/reports/${reportSlug}`}
+            href={`/dashboard/${client.slug}/reports?section=${reportSlug}`}
             className="group relative overflow-hidden rounded-lg border border-white/[0.06] bg-bg-surface p-6 transition-colors hover:border-white/[0.12]"
           >
             <div className="card-metric-accent" />
