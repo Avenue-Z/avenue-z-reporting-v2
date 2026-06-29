@@ -74,6 +74,7 @@ function KpiCard({
   live,
   delta,
   invertDelta,
+  deltaMode = 'pct',
 }: {
   label: string
   value: string
@@ -81,8 +82,11 @@ function KpiCard({
   live?: boolean
   delta?: number
   invertDelta?: boolean
+  /** 'pp' = percentage-point change (absolute); 'pct' = relative percent change. Default: 'pct'. */
+  deltaMode?: 'pp' | 'pct'
 }) {
   const positive = invertDelta ? (delta != null && delta <= 0) : (delta != null && delta >= 0)
+  const deltaSuffix = deltaMode === 'pp' ? 'pp' : '%'
   return (
     <div className="rounded-xl border border-white/[0.08] bg-bg-surface p-4">
       <p className="text-xs font-bold uppercase tracking-widest text-text-muted">{label}</p>
@@ -91,7 +95,7 @@ function KpiCard({
       </p>
       {delta !== undefined && (
         <p className={cn('mt-1 text-sm font-bold', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>
-          {positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}% vs previous period
+          {positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}{deltaSuffix} vs previous period
         </p>
       )}
       <p className="mt-1 text-xs text-text-muted">{hint}</p>
@@ -451,24 +455,23 @@ export async function ContentImpactReport({
     : allBots
 
   // ── Model-filtered domain lists ──────────────────────────────────────────────
-  // For Peec citation tables: recompute citationCount from per-model data when
-  // a filter is active. Falls back to unfiltered domain list when no filter.
-  // Note: `citationRate` (the citationCount field on TopDomain) is a percentage
-  // float. We treat it as citationCount for the filter helper since the shape matches.
+  // For Peec citation tables: when a model filter is active, recompute citationCount
+  // from per-model data and apply through filterDomainRowsByModel. Falls back to
+  // unfiltered domain list when no filter is set.
   const filteredOwnDomains: TopDomain[] = peecData?.domainCitationsByModel
     ? filterDomainRowsByModel(
-        ownDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        ownDomains,
         peecData.domainCitationsByModel,
         models ?? null,
-      ).map(d => ({ ...d, citationRate: d.citationCount }))
+      )
     : ownDomains
 
   const filteredCompetitorDomains: TopDomain[] = peecData?.domainCitationsByModel
     ? filterDomainRowsByModel(
-        competitorDomains.map(d => ({ ...d, citationCount: d.citationRate })),
+        competitorDomains,
         peecData.domainCitationsByModel,
         models ?? null,
-      ).map(d => ({ ...d, citationRate: d.citationCount }))
+      )
     : competitorDomains
 
   // Enrich content calendar rows with agent analytics data (path matching)
@@ -571,8 +574,8 @@ export async function ContentImpactReport({
   const isoDate = (s: string | null): string | null =>
     s && /^\d{4}-\d{2}-\d{2}/.test(s.trim()) ? s.trim().slice(0, 10) : null
   const plannedTiming = (calendarData?.rows ?? [])
-    .map(r => ({ path: extractPath(r.url), publishDate: isoDate(r.publishDate) }))
-    .filter((r): r is { path: string; publishDate: string } =>
+    .map(r => ({ path: extractPath(r.url), url: r.url ?? null, publishDate: isoDate(r.publishDate) }))
+    .filter((r): r is { path: string; url: string | null; publishDate: string } =>
       r.path !== null && r.publishDate !== null)
 
   const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
@@ -618,9 +621,10 @@ export async function ContentImpactReport({
   const daysFor = (path: string) =>
     [...(daysByPath.get(normPath(path))?.entries() ?? [])].map(([date, v]) => ({ date, ...v }))
 
-  const urlTimings = plannedTiming.map(r =>
-    computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
-  )
+  const urlTimings = plannedTiming.map(r => ({
+    url: r.url,
+    ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
+  }))
 
   // §C aggregates (median days-to-first; fastest/slowest AI-indexed).
   const firstTrafficDays = urlTimings.map(t => t.daysToFirstTraffic).filter((n): n is number => n !== null)
@@ -629,6 +633,12 @@ export async function ContentImpactReport({
   const medFirstAi = median(firstAiDays)
   const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
+  const fastestAiUrl = fastestAi !== null
+    ? urlTimings.find(t => t.daysToFirstAi === fastestAi)?.url ?? null
+    : null
+  const slowestAiUrl = slowestAi !== null
+    ? urlTimings.find(t => t.daysToFirstAi === slowestAi)?.url ?? null
+    : null
   const sectionCOk = timingOk
 
   // ── §D · Bot vs Human scatter (FB-037) ───────────────────────────────────────
@@ -933,19 +943,19 @@ export async function ContentImpactReport({
   // && c.competitorBrandNames.length > 0)) so the count + items can never
   // disagree with the §H.2 table further down the page.
 
-  // Top 3 owned domains by AI citation count.
+  // Top 3 owned domains by AI citation count (real integer counts, FB-051).
   const topOwnedForSynopsis = filteredOwnDomains
     .slice()
-    .sort((a, b) => (b.citationRate ?? 0) - (a.citationRate ?? 0))
+    .sort((a, b) => (b.citationCount ?? 0) - (a.citationCount ?? 0))
     .slice(0, 3)
-    .map(d => ({ domain: d.domain, citationCount: d.citationRate ?? 0 }))
+    .map(d => ({ domain: d.domain, citationCount: d.citationCount ?? 0 }))
 
   // Top 3 competitor domains by AI citation count.
   const topCompetitorForSynopsis = filteredCompetitorDomains
     .slice()
-    .sort((a, b) => (b.citationRate ?? 0) - (a.citationRate ?? 0))
+    .sort((a, b) => (b.citationCount ?? 0) - (a.citationCount ?? 0))
     .slice(0, 3)
-    .map(d => ({ domain: d.domain, citationCount: d.citationRate ?? 0 }))
+    .map(d => ({ domain: d.domain, citationCount: d.citationCount ?? 0 }))
 
   // Brand-absent URLs, mirror §H.2 live filter exactly.
   const brandAbsentUrlsForSynopsis = urlCitations.filter(
@@ -1035,6 +1045,7 @@ export async function ContentImpactReport({
               citationSharePriorAvailable && citationSharePctDelta !== null ? citationSharePctDelta
                 : undefined
             }
+            deltaMode="pp"
           />
           {/* KPI 2 · Prompt Coverage. Delta (pp) shows when a compare period is on. */}
           <KpiCard
@@ -1049,6 +1060,7 @@ export async function ContentImpactReport({
               promptCoveragePriorAvailable && promptCoveragePctDelta !== null ? promptCoveragePctDelta
                 : undefined
             }
+            deltaMode="pp"
           />
           {/* KPI 3 · AI Referral Traffic */}
           <KpiCard
@@ -1161,10 +1173,15 @@ export async function ContentImpactReport({
             _key: `${row.url ?? row.topic}-${i}`,
           }
         })
+        const unmatchedCount = sectionBRows.filter(r =>
+          r.aiReferralTraffic === null && r.organicSessions === null && r.engagementRate === null
+        ).length
         return (
           <PlannedContentPerformanceTable
             rows={sectionBRows}
             ga4Connected={!!ga4Rows}
+            unmatchedCount={unmatchedCount}
+            totalPublishedCount={sectionBRows.length}
             emptyMessage={calendarData
               ? 'No published content yet -- table populates once status flips to live/published/complete'
               : 'Connect content calendar (Google Sheet) + GA4 page-level data to populate'}
@@ -1179,17 +1196,28 @@ export async function ContentImpactReport({
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic },
-            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi },
-            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi },
-            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi },
-          ].map(({ icon: Icon, label, color, val }) => (
+            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
+            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
+            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
+            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
+          ].map(({ icon: Icon, label, color, val, sourceUrl }) => (
             <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
               <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
                 {val !== null ? `${Math.round(val)} days` : 'None'}
               </span>
+              {sourceUrl && (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block max-w-full truncate text-[10px] text-white/40 underline-offset-2 hover:text-white/70 hover:underline"
+                  title={sourceUrl}
+                >
+                  {sourceUrl}
+                </a>
+              )}
             </div>
           ))}
         </div>
@@ -1207,7 +1235,7 @@ export async function ContentImpactReport({
       {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
         title="AI Bot Traffic vs. Human Traffic"
-        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Measures the last 30 days, independent of the page date range."
+        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range."
       >
         <BotVsHumanScatter data={scatterData} />
       </SectionCard>
@@ -1230,10 +1258,23 @@ export async function ContentImpactReport({
             .filter((k): k is string => k !== null),
         )
 
+        // FB-050: parent-domain suffix match so blog.X.com counts as owned when X.com is Own.
+        // Exact equality handles the root domain; the endsWith check catches all subdomains.
+        // The dot-prefix prevents renaissance.com from matching notrenaissance.com.
+        const isOwnedHost = (citationHost: string | null): boolean => {
+          if (!citationHost) return false
+          for (const ownedKey of ownedHostKeys) {
+            if (citationHost === ownedKey || citationHost.endsWith(`.${ownedKey}`)) {
+              return true
+            }
+          }
+          return false
+        }
+
         const fullsiteRows: FullsiteContentPerformanceRow[] = urlCitations
           .filter((c) => {
             const hostKey = urlJoinKey(c.domain)
-            return hostKey !== null && ownedHostKeys.has(hostKey) && (c.citationCount ?? 0) > 0
+            return isOwnedHost(hostKey) && (c.citationCount ?? 0) > 0
           })
           .map((c) => {
             const path = extractPath(c.url)
@@ -1318,27 +1359,58 @@ export async function ContentImpactReport({
       {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
       <SectionCard
         title="Competitor Analysis"
-        description="See which competitor domains are gaining or losing ground across AI Visibility, Citation Share, and Prompt Coverage for your target prompts."
+        description="See which competitor domains are gaining or losing ground across Source Visibility, Citation Share, and Prompt Coverage for your target prompts."
       >
-        {/* Sub-view 1: Top Competitor Domains - AI Visibility / Citation Share / Prompt Coverage */}
+        {/* Sub-view 1: Top Competitor Domains - Source Visibility / Citation Share / Prompt Coverage */}
         {(() => {
-          // filteredCompetitorDomains: model-filtered when models filter is active.
-          // v1 limitation: promptCoverage is not re-computed per selected model;
-          // it reflects all-model aggregates from Peec data.
-          // Deltas (aiVisibility, citationShare, promptCoverage) gate on
-          // compareIso !== null so they only appear when a compare period is on.
-          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 10).map((d) => {
+          // FB-051: Citation Share = (domain.citationCount / sumOfAllCompetitorCitationCounts) * 100.
+          // Mirrors §B and §H.2 share-of-period math. Replaces the broken
+          // d.citationRate path that produced 199.9% values (citation_rate is
+          // an avg count, not a fraction).
+          //
+          // FB-058: Citation Share delta is now computed truthfully. Each competitor
+          // domain carries priorCitationCount (from buildTopDomains' priorData), so we
+          // build a prior-period competitor denominator the same way as the current one
+          // and take currentShare - priorShare. Both periods use the competitor-only
+          // denominator so the math is consistent. Gated on compareIso, like every other
+          // delta. A competitor with zero prior citations yields priorShare 0, so its
+          // delta is the full current share (a clean period-over-period gain).
+          // FB-063: when a model filter is active, prior-period values used
+          // by these deltas are stale. filterDomainRowsByModel only rewrites
+          // citationCount for the current period; priorCitationCount stays
+          // populated from all-model prior data (see by-model.ts:25-27).
+          // d.retrievedDelta and the per-domain prior coverage are likewise
+          // computed without model scoping. Mixing model-filtered current
+          // with all-model prior produces nonsense deltas (live audit:
+          // nogood.io showed ↑48.7 pp Citation Share Δ under ChatGPT-only).
+          // Fix: when models is set, render every Δ as -- (null) so the
+          // numbers shown are at least internally consistent.
+          const modelFilterActive = models != null && models.length > 0
+          const totalCompetitorCitations = filteredCompetitorDomains
+            .reduce((s, d) => s + (d.citationCount ?? 0), 0)
+          const totalCompetitorCitationsPrior = filteredCompetitorDomains
+            .reduce((s, d) => s + (d.priorCitationCount ?? 0), 0)
+          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 25).map((d) => {
             const promptCovCurrent = getPromptCoverage(d.domain)
-            const promptCovPrior   = compareIso ? getPromptCoveragePrior(d.domain) : null
-            const promptCovDelta   = compareIso && promptCovCurrent !== null && promptCovPrior !== null
+            const promptCovPrior   = compareIso && !modelFilterActive ? getPromptCoveragePrior(d.domain) : null
+            const promptCovDelta   = compareIso && !modelFilterActive && promptCovCurrent !== null && promptCovPrior !== null
               ? promptCovCurrent - promptCovPrior
+              : null
+            const citationShareValue = totalCompetitorCitations > 0
+              ? (d.citationCount / totalCompetitorCitations) * 100
+              : 0
+            const citationSharePrior = compareIso && !modelFilterActive && totalCompetitorCitationsPrior > 0
+              ? (d.priorCitationCount / totalCompetitorCitationsPrior) * 100
+              : null
+            const citationShareDelta = compareIso && !modelFilterActive && citationSharePrior !== null
+              ? citationShareValue - citationSharePrior
               : null
             return {
               domain: d.domain,
               aiVisibility:        d.retrieved,
-              aiVisibilityDelta:   compareIso ? d.retrievedDelta : null,
-              citationShare:       d.citationRate,
-              citationShareDelta:  compareIso ? d.citationRateDelta : null,
+              aiVisibilityDelta:   compareIso && !modelFilterActive ? d.retrievedDelta : null,
+              citationShare:       citationShareValue,
+              citationShareDelta:  citationShareDelta,
               promptCoverage:      promptCovCurrent,
               promptCoverageDelta: promptCovDelta,
             }

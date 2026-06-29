@@ -187,7 +187,10 @@ async function getUrlCitationsImpl(
   const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
 
   const [baseRes, engineRes, brandsRes] = await Promise.all([
-    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit: 1000 }, pid),
+    // FB-058: base URL fetch raised 1000 -> 2000 so owned cited pages ranked below
+    // the top 1000 most-cited URLs (across all domains) are not truncated before the
+    // §F owned-host filter runs. Matches the engine fetch limit below.
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit: 2000 }, pid),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
   ])

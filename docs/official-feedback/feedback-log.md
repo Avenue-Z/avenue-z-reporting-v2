@@ -2130,3 +2130,266 @@ If any are missing, the synopsis card falls back to the temporarily-unavailable 
 - Zero new Peec or GA4 fetches.
 
 **Files:** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`
+
+---
+
+## V2 Phase 1 — Content Impact (FB-042, FB-051, FB-051a, FB-051-audit, FB-053, FB-054, FB-055)
+
+**Tab:** Content Impact
+**Round:** V2 (Tina's post-V1 feedback on the new tab)
+**Sources:** column E of `Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`, rows 3, 9a, 9c, 9d, 10, plus meta-feedback about jumbled metrics.
+
+### FB-042 — §A Prompt Coverage delta (Row 3)
+
+**Tina's ask:** "The prompt coverage metric isn't showing a comparison change."
+
+**Shipped:** Equivalent fix shipped on `main` via PR #85 commit `afd9921` while this branch was being planned. Our redundant `e2f6fa0` commit was dropped during the rebase onto `c493b30`. The ask is satisfied in production: `content-impact.tsx:783-791` builds `promptCoveragePct` + `promptCoveragePctPrior` (via `ownedPromptCoveragePct()`), derives `promptCoveragePctDelta` (line 789-791), gates on `compareActive` (line 826), and renders the delta through the KPI card prop (line 1040-1048).
+
+### FB-051 — §H.1 Citation Share 199.9% bug + synopsis lying (Row 9a + silent bug)
+
+**Tina's ask:** "Citation Share has one of the competitors at 199.9% - something must be wrong here?"
+**Silent bug folded in:** synopsis Glean prompt was interpolating `${d.citationCount.toFixed(1)} AI citations` where `citationCount` was sourced from `d.citationRate ?? 0` (Peec's `citation_rate * 100`, an inflated avg, not a count). Glean prose was writing inflated "AI citations" claims.
+
+**Shipped:**
+- Added `citationCount: number` field to `TopDomain` (lib/peec/client.ts:141), populated from `d.citation_count ?? 0` (the raw Peec integer)
+- §H.1 IIFE now computes `citationShareValue = (d.citationCount / totalCompetitorCitations) * 100` (content-impact.tsx:1334-1360) — share-of-period math that mirrors §B and §H.2
+- `citationShareDelta` stays truthful `null` (prior topDomains not plumbed; faking zero would lie)
+- Synopsis context (content-impact.tsx:936-949) now sorts top owned + competitor domains by real `citationCount` instead of `citationRate`
+- Removed the sloppy "treat citationRate as citationCount" remap hack (content-impact.tsx:475-494)
+- Cache version bumped v8 → v9 with comment explaining the bump
+- Collateral: added `citationCount` to Profound's parallel `TopDomain` type and demo-data literals (tsc requirement)
+
+### FB-051a — §A KPI Citation Share + Prompt Coverage delta suffix (audit mismatch fix)
+
+**Found by:** Task 5.5 metric coherence audit.
+**Root cause:** `KpiCard` hardcoded `% vs previous period` for all four KPIs. Citation Share + Prompt Coverage deltas are percentage-point differences (current minus prior on already-percentage values), not relative percent changes. AI Referral + Organic Traffic deltas are true `((c-p)/p)*100` percent changes and were already correct.
+**Shipped:** Added optional `deltaMode?: 'pp' | 'pct'` prop to `KpiCard` (defaults to `'pct'` so all existing consumers are unchanged). Citation Share + Prompt Coverage cards pass `deltaMode="pp"`, rendering "pp vs previous period" instead of "% vs previous period".
+
+### FB-051-audit — Content Impact tab metric coherence audit (meta-feedback)
+
+**Tina's meta-feedback:** "Overall, I'm noticing that a lot of metrics seem like they are misnamed / misrepresented... titles, descriptions, and representation of values (count vs percentage) in the metrics are getting jumbled."
+
+**Shipped:** Full audit doc at `docs/official-feedback/content-impact-v2-metric-audit.md` reconciling title + tooltip + value source + units for all 22 metrics rendered on the Content Impact tab (§A KPIs, §B Watched Pages, §C Speed Stats, §F Fullsite Content, §H.1 Competitor Analysis, §H.2 Brand-Absent). 1 MISMATCH surfaced (shipped inline as FB-051a above). All other 21 metrics OK: §B + §F engagement rate confirmed `* 100` in both renderer AND delta math; §H.1 Source Visibility tooltip coherent with `retrieved_percentage`; §H.1 Citation Share delta truthfully null per FB-051.
+
+### FB-053 — §H.1 column "AI Visibility" → "Source Visibility" rename (Row 9c)
+
+**Tina's ask:** "AI visibility metric is wrong... tooltip says 'Percentage of chats where at least one URL from this domain appeared as a source.'"
+
+**Shipped:** Column label at content-impact-tables.tsx:414 renamed from "AI Visibility" to "Source Visibility". Title now matches Peec's actual `sourceVisibility` metric definition (domain-level source presence, not brand-level visibility). Tooltip kept (the tooltip text was correct; the column label was the mismatch). Zero logic change.
+
+### FB-054 — §H.1 Citation Share tooltip rewrite (Row 9d)
+
+**Tina's ask:** "Citation share metric is wrong... tooltip says 'Average number of times the domain was explicitly referenced in response text when used.' but it should be a percentage."
+
+**Shipped:** Tooltip at content-impact-tables.tsx:426 changed from `TT.aiCitations` to inline string: "This domain's share of total citations across all competitor domains in the period. (Avenue Z internal, derived from Peec citation_count.)". Now describes the share-of-period math shipped in FB-051.
+
+### FB-055 — §H.2 Citation Share tooltip rewrite (Row 10)
+
+**Tina's ask:** "this citation share metric is either wrong or the tooltip is wrong. It says 'Average number of times...' but it should be a percentage."
+
+**Shipped:** Tooltip at content-impact-tables.tsx:515 changed from `TT.aiCitations` to inline string: "This URL's share of total citations across all cited URLs in the period. (Avenue Z internal, derived from Peec citation_count.)". The math itself was correct since FB-041; only the tooltip text was stale.
+
+**Files touched (Phase 1):** `lib/peec/client.ts`, `lib/profound/client.ts`, `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/dashboard/kpi-card.tsx`, `docs/official-feedback/content-impact-v2-metric-audit.md`, `docs/official-feedback/content-impact-v2-plan-reverification.md`, `docs/superpowers/plans/2026-06-25-content-impact-v2-feedback.md`.
+
+---
+
+## V2 Phase 2 — Content Impact (FB-043, FB-044, FB-045, FB-046, FB-047, FB-049)
+
+**Tab:** Content Impact
+**Round:** V2 Phase 2 (literal-Tina UI fixes)
+**Sources:** column E of `Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`, rows 4, 5, 6a, 6b, 7, 8a, 9e.
+
+### FB-043 — §B "--" footnote rewrite + unmatched-count stat (Row 4a)
+
+**Tina's ask:** "I'm confused why there would be any rows that don't have matches. I definitely see that happening here because there are several cells with '--'."
+
+**Shipped:** Extended `PlannedContentPerformanceTable` props to accept `unmatchedCount: number` and `totalPublishedCount: number`. New conditional footnote (only renders when `ga4Connected && unmatchedCount > 0`): "N of M published URLs have no GA4 sessions in this period. A row shows '--' when GA4 was queried successfully but recorded no traffic to that path. This usually means: the URL has not received visits yet, the live URL differs from the calendar entry, or GA4 is not configured to track that hostname." Orchestrator (`content-impact.tsx:1167`) computes `unmatchedCount` as rows where all 3 GA4 fields (aiReferralTraffic, organicSessions, engagementRate) are null.
+
+### FB-044 — Delta columns split across §B, §F, §H.1 (Rows 4b + 8a + 9e)
+
+**Tina's ask:** "Instead of the deltas being in the same column as the metric, can they have their own columns so we're able to sort by that change?"
+
+**Shipped:** Every metric column split into Value + Δ as two sortable columns. Result:
+- §B (`PlannedContentRow`): 9 → 14 columns
+- §F (`FullsiteContentPerformanceRow`): 6 → 11 columns
+- §H.1 (`CompetitorDomainsCitedRow`): 4 → 7 columns
+
+Each Δ column: `key: '<metric>Delta'`, `label: 'Δ'`, `align: 'right'`, `accessor: (r) => r.<metric>Delta ?? -Infinity` so null deltas sort to bottom on asc, top on desc; `render` uses the existing module-scope `renderDelta(delta, mode)` helper. Units: `pp` for citationShare, promptCoverage, engagementRate, aiVisibility; `pct` for aiReferralTraffic, organicSessions. §H.1 Citation Share red bar visual preserved on the value column. §H.2 (Brand-Absent) NOT touched per Tina's literal scope.
+
+### FB-045 — §C source URLs under Fastest + Slowest AI tiles (Row 5)
+
+**Tina's ask:** "Below the 'fastest ai indexed content' and 'slowest ai indexed content' can we add something that shows the specific URL it's referencing?"
+
+**Shipped:** Threaded `url` field through the `urlTimings` pipeline (the `computeUrlTiming` helper didn't return it; needed to extend the input map to carry `url: r.url ?? null` from `ContentCalendarRow`). Derived `fastestAiUrl` + `slowestAiUrl` via `urlTimings.find(t => t.daysToFirstAi === fastestAi)?.url ?? null`. Extended §C tile array with `sourceUrl: string | null` field. Fastest + Slowest tiles render a hyperlinked URL (target="_blank", text-[10px], text-white/40) beneath the value when present. Median tiles get `sourceUrl: null` and render no link.
+
+### FB-046 — §D scatter visible crosshair + quadrant labels (Row 6a)
+
+**Tina's ask:** "This scatter plot doesn't quite make sense - see example of how there should be 4 quadrants."
+
+**Shipped:** ReferenceLine strokes brightened from `#FFFFFF40` (25% opacity) to `#FFFFFF80` (50%), `strokeWidth={1.5}` added. Corner-anchored absolute-positioned overlay replaced with a 2×2 CSS grid (`grid grid-cols-2 grid-rows-2`); each label now sits in its true quadrant cell via `items-start/end justify-start/end p-4` flexbox anchoring. Labels: "Low Bot, High Human" / "High Bot, High Human" / "Low Bot, Low Human" / "High Bot, Low Human". `cornerLabel` className preserved. PR #85's empty-state handler left untouched.
+
+### FB-047 — §D scatter hover surfaces page URL (Row 6b)
+
+**Tina's ask:** "when you hover over the dots it should display the page URL or something to indicate what the dot represents."
+
+**Shipped:** Replaced the default Recharts Tooltip with custom `content` render function that shows a dark card with page path as bold header + "AI Bot Visits: N" + "Human Sessions: M" rows. Payload field names (`path`, `bots`, `humans`) confirmed against existing data shape. `Tooltip` import was already present. `cursor={{ strokeDasharray: '3 3' }}` preserved.
+
+### FB-049 — §E slope chart right-margin legend + hover muting (Row 7)
+
+**Tina's ask:** "When you hover over one dot, it shows you a tooltip with all the pages listed. Can we just add the list to the right margin in the order of 'Current'? And then when you hover over one of the dots/lines, it mutes the color of the others?"
+
+**Shipped:** Refactored `SlopeChart` component. Added `useState<string | null>('hoveredUrl')`. Layout now a flex row: chart on the left (its right-margin reduced from 80 → 16 since legend is no longer needed inside the chart pane), legend `<ul>` on the right (`w-56 shrink-0`). Legend items sorted by `p.current` desc; each `<li>` has a colored dot (`DIRECTION_COLOR[p.direction]`), the page label (`p.topic ?? p.url`), and the Current value via `yTickFormatter`. Hover on either a legend `<li>` or a chart line's `activeDot` sets `hoveredUrl`. `opacityFor(url)` drives line `strokeOpacity` + `fillOpacity` + legend row `opacity`: `null` → 0.7, hovered → 1.0 + strokeWidth 3, other → 0.15 (lines) / 0.4 (legend rows). Tooltip only renders when `hoveredUrl !== null` and filters via `(value, name) => String(name) !== hoveredUrl ? [null, null] : ...`. Toggle row, compare-period gating, empty states all unchanged. Pure helper at `lib/peec/slope-chart.ts` not touched (only the .tsx UI consumer).
+
+**Files touched (Phase 2):** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/report-sections/peec-ai/bot-vs-human-scatter.tsx`, `components/report-sections/peec-ai/slope-chart.tsx`.
+
+---
+
+## V2 Phase 3 — Content Impact (FB-048, FB-050, FB-052) — V2 close-out
+
+**Tab:** Content Impact
+**Round:** V2 Phase 3 (investigation-informed fixes — final close-out)
+**Sources:** column E of `Reporting Dash Feedback (Thomas Score Card) - Content Impact Tab.csv`, rows 6c, 8b, 9b.
+
+### FB-048 — §D scatter date range (Row 6c) — Path B shipped
+
+**Tina's ask:** "What do you mean by data window for Peec? Why wouldn't this match the date range selector?"
+
+**Task 14 pre-flight outcome:** Could not run a live Peec API call from the local environment (no local credentials). Defaulted to the safer, truthful Path B so the answer to Tina's question is honest and visible in production. If we later confirm Peec retains > 30 days of agent-analytics data, we hotfix to Path A (wire the date picker through).
+
+**Shipped (Path B):** §D subtitle at `content-impact.tsx:1236` rewritten to: "See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range." Tina's question is now answered on the surface of the chart itself.
+
+### FB-050 — §F subdomain page match fix (Row 8b)
+
+**Tina's ask:** "are there really only 14 pages on the entire site that are being cited? I feel like it should be more than that."
+
+**Shipped:** The forensic-sweep root cause was confirmed: §F filter at `content-impact.tsx:1262` was using `ownedHostKeys.has(citationHost)` exact-match equality. Cited URLs on subdomains (e.g. `blog.renaissance.com`) were silently dropped when only the parent (`renaissance.com`) was marked as Own. New `isOwnedHost()` helper iterates `ownedHostKeys` and matches exact host OR `.endsWith(\`.${ownedKey}\`)` parent-domain suffix. The dot-prefix guard prevents accidental matches like `notrenaissance.com`. Empty `ownedHostKeys` still returns false (loop never runs). The §F page count should jump significantly for any client that has subdomain content.
+
+### FB-052 — §H.1 competitor cap bump (Row 9b)
+
+**Tina's ask:** "are there only 7 competitors on the list? There should be more than that."
+
+**Shipped:** Two silent caps were limiting the surface area. (1) The two `peecPost('/reports/domains', ...)` calls in `lib/peec/client.ts:408-409` (current + prior) now both pass `limit: 500` instead of falling back to Peec's default 100. (2) §H.1 UI slice in `content-impact.tsx:1376` raised from `.slice(0, 10)` to `.slice(0, 25)`. Tina should now see up to 25 competitor rows (limited only by what Peec actually surfaces for that workspace).
+
+**Files touched (Phase 3):** `components/report-sections/peec-ai/content-impact.tsx`, `lib/peec/client.ts`.
+
+---
+
+## V2 Phase 4 — Fleet-found P1 hotfixes (FB-056, FB-057)
+
+**Tab:** Content Impact
+**Round:** V2 Phase 4 (hotfixes from 9-agent Opus verification fleet on HEAD `eb56c01`)
+**Source:** Multi-agent verification workflow run after Phase 3 close-out (5 parallel lens verifiers + 3 adversarial skeptics + final synthesizer, all on Opus). Fleet returned `PASS_WITH_NOTES`: 0 P0s, 2 P1s (merge-blockers), 10 P2s (deferred to V3).
+
+### FB-056 — §H Competitor Analysis description still said "AI Visibility"
+
+**Fleet finding (P1):** After FB-053 renamed the §H.1 column header to "Source Visibility", the parent SectionCard description copy at `content-impact.tsx:1360` and the inline code comment at `:1362` still read "AI Visibility". This is exactly the title-vs-description jumble pattern Tina flagged in V2 meta-feedback; the metric coherence audit (FB-051-audit) missed it because the audit scope was per-metric (title + tooltip + value), not SectionCard description copy.
+
+**Shipped:** One-line edits at `content-impact.tsx:1360` (description) and `:1362` (inline comment) to replace "AI Visibility" with "Source Visibility". Now consistent with the column header rendered 3 lines below. Commit `43f3a9f`.
+
+### FB-057 — SortableTable null-handling asymmetric; FB-044 Δ accessors used `-Infinity` instead of `null`
+
+**Fleet finding (P1):** All 13 of FB-044's Δ-column accessors short-circuited `r.<metric>Delta ?? -Infinity` (`content-impact-tables.tsx:186, 199, 212, 225, 238, 326, 342, 358, 374, 390, 455, 476, 491`). On ascending sort, `-Infinity` is the smallest number, so all `--` rows piled at the TOP — exactly when Tina would click Δ asc to find biggest losers. Forensic correction during fix: SortableTable's existing `compareValues` only sinks nulls correctly on asc (returns +1 → null after real); on desc the `-cmp` flip inverts it, so nulls float to the top. Asymmetric and buggy.
+
+**Shipped (two-part fix):**
+1. **`sortable-table.tsx`:** Moved the null-handling check OUT of `compareValues` and INTO the sort callback so it runs BEFORE the `sortDir === 'asc' ? cmp : -cmp` flip. Result: nulls sink to the bottom on BOTH asc and desc, on every consuming table across the platform (Overview, PR Influence, Technical Performance, Profound — all benefit; current behavior was a latent bug).
+2. **`content-impact-tables.tsx`:** Replaced all 13 `Delta ?? -Infinity` with `Delta ?? null` so the new null-sink path actually runs.
+
+Commit `78208d3`. tsc clean. All 6 tests pass. Verified `replaceAll` count: 13 swaps made, 0 `-Infinity` sentinels remain.
+
+## V3 backlog (fleet-found P2s, NOT shipping in this PR)
+
+The Opus fleet surfaced 10 additional findings rated P2 (do not block merge). Logging here so they don't get lost:
+
+1. **FB-044 §H.1 Citation Share Δ column is structurally present but always renders `--`** because `content-impact.tsx:1390` hardcodes `citationShareDelta: null` ("FB-051: truthful null until prior topDomains is plumbed"). CSV V2 column F overpromised — the column sorts but accomplishes nothing. V3: plumb `peecData.topDomainsPrior` to populate the delta truthfully.
+2. **FB-043 §B "--" footnote only fires when ALL 3 GA4 metrics null.** Rows with GA4 traffic but missing Peec data show `--` in Citation Share / Prompt Coverage with no footnote explanation. V3: broaden footnote scope or add separate Peec-side stat.
+3. **FB-053 §H.1 tooltip resolves to `PEEC.retrieved.text`** ("Percentage of chats where at least one URL from this domain appeared as a source.") which describes Peec's `retrieved` field. Underlying data IS `d.retrieved`, but the new column label "Source Visibility" implies Peec's distinct `sourceVisibility` metric. V3: either swap data field or reword tooltip to match the renamed column.
+4. **Whitney's two Content Impact asks silently untracked** in feedback-log/changelog/status/handoff: (a) AI-generated Challenge/Opportunity context for bottom tables with analyst-editable text, (b) break out Competitor Content Analysis into its own tab. V3: log as FBs with explicit deferred/out-of-scope rationale.
+5. **FB-046 quadrant labels at outer 2×2 grid, not at median-split cells.** Labels visually drift away from semantic quadrants on skewed distributions. V3: anchor labels via Recharts `<Label>` children on the median ReferenceLines instead of CSS grid overlay.
+6. **FB-045 Speed Stats V1 question "real or hallucinated?" answered only indirectly.** Clickable URLs satisfy verification by click-through; no provenance label on the tiles. V3: add small "GA4-derived" footnote on §C.
+7. **FB-052 §H.1 Citation Share denominator includes up to 500 competitors but only 25 render.** Visible rows may sum to a small share of total. V3: add tooltip note about dilution effect.
+8. **`renderDelta` treats `delta === 0` as positive (green up arrow).** Rare in practice. V3: render neutrally.
+9. **FB-045 source URLs bound to `<a href>` without scheme validation.** Sheet-bounded write access = low risk. V3: validate scheme.
+10. **Test harness gap (pre-existing, not V2-introduced):** no vitest config at repo root; `npx vitest run` cannot resolve `@/*` aliases. tsc remains the only live verification signal across the repo. V3 (or sooner): add vitest harness so the .test.ts files are run by CI, not just by hand.
+
+**Files touched (Phase 4):** `components/report-sections/peec-ai/content-impact.tsx`, `components/report-sections/peec-ai/content-impact-tables.tsx`, `components/report-sections/peec-ai/sortable-table.tsx`.
+
+---
+
+## V2 Phase 5 — Pre-merge QA fixes (FB-058)
+
+**Tab:** Content Impact
+**Round:** V2 Phase 5 (live-QA-driven fixes for Avenue Z, the only client in scope)
+**Source:** Live Vercel-preview QA of branch HEAD before merge. Of the 3 items flagged to pre-empt with Tina, a surgical source dive (3 parallel investigators) turned 2 into real fixes; the 3rd is genuinely data-bound.
+
+### FB-058a — §H.1 Citation Share delta now computed (was hardcoded "--")
+
+**Background:** §H.1 Citation Share is share-of-period math `(d.citationCount / totalCompetitorCitations) * 100` (FB-051). The Δ column was hardcoded `citationShareDelta: null` ("truthful null until prior topDomains is plumbed"), so it rendered "--" on every row. The most likely thing Tina would click, see all dashes, and question.
+
+**Investigation finding:** The prior-period competitor data was ALREADY fetched. `buildTopDomains(data, priorData)` receives `domainsPriorRes.data` and already computes `retrievedDelta` + `citationRateDelta` from it. The per-domain prior `citation_count` was simply being discarded. No new fetch needed.
+
+**Shipped:**
+- Added `priorCitationCount: number` to `TopDomain` (lib/peec/client.ts), populated `prior?.citation_count ?? 0` in `buildTopDomains`.
+- §H.1 builder (content-impact.tsx) now builds a prior-period competitor denominator the same way as the current one (`totalCompetitorCitationsPrior = sum of priorCitationCount across filteredCompetitorDomains`), computes `priorShare = (d.priorCitationCount / totalCompetitorCitationsPrior) * 100`, and sets `citationShareDelta = citationShareValue - priorShare`. Both periods use the competitor-only denominator, so the math is internally consistent. Gated on `compareIso` like every other delta.
+- A competitor absent in the prior period yields `priorShare = 0`, so its delta is the full current share (a truthful period-over-period gain). When `totalCompetitorCitationsPrior` is 0, the delta is null and renders "--".
+- Cache version bumped `v9 -> v10` (TopDomain shape changed).
+- Profound parity: `TopDomain.priorCitationCount` added and populated from Profound's existing `priorCountMap` (Profound clients now get a working delta too).
+
+**Verified live:** On the Avenue Z Vercel preview with comparison period on, the column shows real values: firstpagesage.com -11.0 pp, nogood.io +8.7 pp, beomniscient.com +6.8 pp, singlegrain.com +4.2 pp, directiveconsulting.com -2.5 pp, etc. No more "--".
+
+### FB-058b — §F base URL fetch limit raised 1000 -> 2000
+
+**Background:** Tina's "only 14 pages cited" complaint (Row 8b). FB-050 fixed the subdomain-drop bug. On the live preview §F still showed only 15 owned cited pages.
+
+**Investigation finding:** `lib/peec/url-citations.ts:190` fetched `/reports/urls` with `limit: 1000`. Peec returns the 1000 most-cited URLs across ALL domains (competitors dominate the top of that list), so owned cited pages ranked below the top 1000 were truncated before the §F owned-host filter ran.
+
+**Shipped:** Raised the base fetch to `limit: 2000` (matching the sibling engine fetch on the next line).
+
+**Verified live:** §F went from "See all 15 rows" to "See all 23 rows" on the Avenue Z preview — 8 previously-truncated owned cited pages now surface.
+
+### Not fixed (genuinely the data): §H.1 competitor count
+
+Tina's "only 7 competitors" (Row 9b) was addressed by FB-052 (API limit 100->500, UI slice 10->25). Live preview shows exactly 10 competitor rows for Avenue Z. The source dive confirmed this is genuine: `limit: 500` on both `/reports/domains` calls, zero truncation in `buildTopDomains`, no activity filter on the All-models path, case-insensitive classification. Peec returns exactly 10 competitor-classified domains for Avenue Z's project. This is a Peec project-configuration matter, not a code constraint.
+
+**Files touched (Phase 5):** `lib/peec/client.ts`, `lib/profound/client.ts`, `lib/peec/url-citations.ts`, `components/report-sections/peec-ai/content-impact.tsx`.
+
+---
+
+## V2 Phase 6 - FB-059: token-authenticated re-probe withdraws the §H.1 caveat
+
+**Tab:** Content Impact
+**Round:** V2 Phase 6 (post-Phase 5 verification; Thomas pushed back on the "10 is all Peec returns" claim before authorizing the merge)
+**Source:** Live Peec API probe with a freshly-generated `skp-` project token, mirroring the deployed app's exact request shape.
+
+### FB-059 - /reports/domains limit 500 -> 5000 to surface all 22 Avenue Z competitors
+
+**The mistake we corrected:** Phase 5 above said "Peec returns exactly 10 competitor-classified domains for Avenue Z's project" and labeled it "a Peec project-configuration matter, not a code constraint." A 3-agent code audit reached that conclusion without ever calling the Peec API. **It was wrong.**
+
+**The probe (see `scripts/peec-domain-count.mjs`):**
+| Limit sent | Rows Peec returned | Classified `COMPETITOR` |
+|---|---|---|
+| 500 (previous default) | 500 | 11 |
+| 1,000 | 1,000 | 13 |
+| 2,000 | 2,000 | 18 |
+| 3,000 | 3,000 | 19 |
+| 5,000 | **4,202** | **22** |
+
+Peec sorts `/reports/domains` by `retrieved_percentage` descending. The Avenue Z project has 4,202 unique domains in its citation set, of which 3,356 are corporate, 282 editorial, etc. -- the 22 competitor-classified domains are scattered across the full ranking, and 11 of them get buried below the top 500 because their retrieval percentages are low.
+
+**Tested whether Peec supports a classification filter (would have made this trivial):** No. Probed `classification=COMPETITOR`, `classifications=['COMPETITOR']`, `filter.classification=`, `filters.classifications=[]`, `domain_type=`, `type=` -- every variant either returned mixed sets (the field was ignored) or 400'd. The only way to surface every competitor is to pull the full ranked list and filter client-side.
+
+**Shipped (lib/peec/client.ts):**
+- L409 `/reports/domains` current period: `limit: 500` -> `5000`
+- L410 `/reports/domains` prior period: `limit: 500` -> `5000`
+- L421 `/reports/domains` (model-dimensioned, rows are `domain × model_channel`): `limit: 2000` -> `10000`
+
+**UI flood check (no displays expand):**
+- Content Impact §H.1 already `.slice(0, 25)` on `filteredCompetitorDomains` -> shows 22 of 22, not flooded
+- PR Influence Top Editorial Domains already `.slice(0, 15)` -> still 15 rows
+- Overview Top Domains table already `initialPageSize=10` -> still paginated 10/page
+- Server-side calcs that already iterated the raw `domainsRes.data` (`totalCitations`, `domainTypes` breakdown, `yourBrandCitations`) become more accurate because the denominator is the full Peec set rather than a top-500 slice
+
+**Honest side effect to live-verify on Vercel preview before merge:** PR Influence's per-cluster `editorialCitationDensity` (the FB-013 fix) iterates `topDomains` to compute editorial retrieval as a share of total cluster retrieval. Today: 500 rows. After this change: 4,202 rows. The numerator and denominator both grow; the ratio is more accurate but the absolute values will shift. Eyeball PR Influence's Prompt Cluster Opportunity chart after the preview redeploys; if any cluster bar moves implausibly, flag before merging PR #90.
+
+**Payload weight:** ~75KB extra per Peec-AI page load (one `topDomains` array of 4,202 small objects, gzipped before transport). Acceptable.
+
+**Files touched (Phase 6):** `lib/peec/client.ts` (3 limit constants), `scripts/peec-domain-count.mjs` (new probe utility, kept in the repo for future debugging).
