@@ -25,16 +25,27 @@ function hostOf(url: string): string {
   }
 }
 
-function pctLabel(p: number): string {
+// FB-061: pill label/tint now require actual negative themes to surface
+// "Negative". Before this fix, sentimentPct < 45 always labeled "Negative",
+// which contradicted the body when Glean classified URLs as mostly NEUTRAL
+// (e.g. 33.3% positive + 0 negative themes = 66.7% neutral, pill said
+// "NEGATIVE 33.3%" while body said "No negative themes detected").
+// New rule:
+//   >= 75% positive                        -> Positive (green)
+//   < 45% positive AND negative themes > 0 -> Negative (red)
+//   otherwise                              -> Mixed (yellow)
+// "Mixed" now covers the 45-74% band AND the <45%-but-no-negative-themes
+// (mostly-neutral) case, eliminating the body-vs-pill contradiction.
+function pctLabel(p: number, negativeThemeCount: number): string {
   if (p >= 75) return 'Positive'
-  if (p >= 45) return 'Mixed'
-  return 'Negative'
+  if (p < 45 && negativeThemeCount > 0) return 'Negative'
+  return 'Mixed'
 }
 
-function pctTint(p: number): { ring: string; bg: string; text: string } {
+function pctTint(p: number, negativeThemeCount: number): { ring: string; bg: string; text: string } {
   if (p >= 75) return { ring: 'border-[#60FF80]/30', bg: 'bg-[#60FF80]/10', text: 'text-[#60FF80]' }
-  if (p >= 45) return { ring: 'border-[#FFD700]/30', bg: 'bg-[#FFD700]/10', text: 'text-[#FFD700]' }
-  return { ring: 'border-[#FF4444]/30', bg: 'bg-[#FF4444]/10', text: 'text-[#FF4444]' }
+  if (p < 45 && negativeThemeCount > 0) return { ring: 'border-[#FF4444]/30', bg: 'bg-[#FF4444]/10', text: 'text-[#FF4444]' }
+  return { ring: 'border-[#FFD700]/30', bg: 'bg-[#FFD700]/10', text: 'text-[#FFD700]' }
 }
 
 function ThemeAccordion({
@@ -101,13 +112,14 @@ export function SentimentInsights({ data }: { data: SentimentInsightsData | null
         <h3 className="text-sm font-bold uppercase tracking-widest text-text-muted">Sentiment Insights</h3>
         <InfoTooltip text={HEADLINE_TOOLTIP} />
         {!noData && (() => {
-          const tint = pctTint(data!.sentimentPct)
+          const negativeCount = data!.negativeThemes.length
+          const tint = pctTint(data!.sentimentPct, negativeCount)
           return (
             <span
               className={`ml-auto inline-flex items-center gap-2 rounded-full border ${tint.ring} ${tint.bg} px-3 py-1 text-xs font-bold uppercase tracking-widest ${tint.text}`}
               title="Sentiment headline for the selected date range and model"
             >
-              {pctLabel(data!.sentimentPct)}
+              {pctLabel(data!.sentimentPct, negativeCount)}
               <span className="tabular-nums">{data!.sentimentPct.toFixed(1)}%</span>
             </span>
           )
