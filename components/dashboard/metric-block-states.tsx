@@ -5,6 +5,7 @@ import { AddBlockButton } from './add-block/add-block-button'
 const ERROR_TITLE: Record<BlockError, string> = {
   disconnected: 'Not connected',
   'invalid-metric': 'Metric configuration invalid',
+  unavailable: 'Not available for this account',
   'no-data': 'No data for this range',
   'rate-limited': 'Temporarily unavailable',
   error: 'Something went wrong',
@@ -24,6 +25,8 @@ function errorBody(error: BlockError, slug: string): React.ReactNode {
       )
     case 'invalid-metric':
       return 'Re-author this block to pick a valid metric.'
+    case 'unavailable':
+      return "This metric isn't available for this account's connected data source."
     case 'no-data':
       return 'Try a wider range or a different comparison.'
     case 'rate-limited':

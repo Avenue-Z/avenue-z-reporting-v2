@@ -60,7 +60,7 @@ export interface BlockConfig {
   narrativeBody?: string
 }
 
-export type BlockError = 'disconnected' | 'invalid-metric' | 'no-data' | 'rate-limited' | 'error'
+export type BlockError = 'disconnected' | 'invalid-metric' | 'unavailable' | 'no-data' | 'rate-limited' | 'error'
 
 /** Raw output of a single leaf resolution. prevValue present iff a comparison is active. */
 export interface LeafValue {
