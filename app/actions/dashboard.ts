@@ -1,7 +1,7 @@
 'use server'
 
 import { eq } from 'drizzle-orm'
-import { unstable_cache } from 'next/cache'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { createHash } from 'node:crypto'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
@@ -47,10 +47,12 @@ export async function saveDashboardConfig(
     .set({ dashboardConfig: parsed.config, updatedAt: new Date() })
     .where(eq(clients.slug, slug))
 
-  // No revalidatePath here: the config is read per-request (React cache) and the
-  // dashboard page is dynamic, so callers re-render via router.refresh(). A broad
-  // revalidatePath('/', 'layout') would purge the SM/TW query Data Cache on every
-  // edit, forcing a full cold re-resolution.
+  // Bust the 'db'-tagged cache: getClientBySlug/getDashboardConfig persist for ~5 min
+  // via cached(), so without this the next render (router.refresh()) re-reads the STALE
+  // config and the edit appears to revert — a deleted block reappears, an added block
+  // vanishes — until the TTL expires. Targeted by tag: the SM/TW query Data Cache is
+  // untagged, so this does not purge it (no cold re-resolution of chart data).
+  revalidateTag('db', 'max')
   return { ok: true }
 }
 
