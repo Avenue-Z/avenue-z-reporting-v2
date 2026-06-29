@@ -61,10 +61,13 @@ export async function resolveShopifyLeaf(
   const fetchValue = (isoRange: string): Promise<number> =>
     cachedShopifyValue(creds.shop, creds.token, b.query, isoRange)
 
+  // Current and compare ranges are independent — run them concurrently (matches the SM leaf).
   const { startDate, endDate } = parseDateRange(dateRange)
-  const value = await fetchValue(`${startDate},${endDate}`)
   const compareIso = resolveCompareIso(dateRange, compareRange)
-  const prevValue = compareIso ? await fetchValue(compareIso) : undefined
+  const [value, prevValue] = await Promise.all([
+    fetchValue(`${startDate},${endDate}`),
+    compareIso ? fetchValue(compareIso) : Promise.resolve(undefined),
+  ])
 
   return { value, prevValue }
 }
