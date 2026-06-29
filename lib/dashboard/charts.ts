@@ -3,6 +3,41 @@ import type { Granularity, GroupedResult, SeriesResult, LabelOverrides } from '.
 import type { LineChartInput, CapsuleBarInput } from '@/components/dashboard/blocks/chart-types'
 import { resolveValueLabel } from './labels'
 
+/**
+ * Robust upper bound for a bar-chart value scale — ignores extreme outliers so one
+ * freak value (e.g. a ratio metric with a near-zero denominator: tiktok conv_rate of
+ * 337,650%) doesn't squash every other bar to an invisible sliver. Returns the highest
+ * value that ISN'T a far-out outlier; callers clip anything above it.
+ *
+ * Method: over the positive values (zeros are "no data", excluded), flag outliers past
+ * the Tukey "far out" fence (Q3 + 3·IQR). With no outliers it returns the true max, so
+ * normal charts are unchanged — this only engages when the data is genuinely skewed.
+ * For tiny N (<4, too few for stable quartiles) a value ≥ 5× the next-largest is treated
+ * as the outlier. Returns 0 when there are no positive values.
+ */
+export function robustMax(values: number[]): number {
+  const v = values.filter((x) => Number.isFinite(x) && x > 0).sort((a, b) => a - b)
+  const n = v.length
+  if (n === 0) return 0
+  const trueMax = v[n - 1]
+  if (n < 2) return trueMax
+  if (n >= 4) {
+    const q = (p: number) => {
+      const i = (n - 1) * p, lo = Math.floor(i), hi = Math.ceil(i)
+      return v[lo] + (v[hi] - v[lo]) * (i - lo)
+    }
+    const fence = q(0.75) + 3 * (q(0.75) - q(0.25))
+    if (trueMax > fence) {
+      const within = v.filter((x) => x <= fence)
+      return within.length ? within[within.length - 1] : fence
+    }
+    return trueMax
+  }
+  // Small N: a lone value ≥ 5× the next-largest is the outlier; scale to the rest.
+  const second = v[n - 2]
+  return second > 0 && trueMax >= 5 * second ? second : trueMax
+}
+
 /** Granularity-aware x-axis tick format string. Consumed by AreaChart xTickFormatter. */
 export function bucketLabelPattern(g: Granularity): string {
   if (g === 'day') return 'MMM d'         // Jun 24
