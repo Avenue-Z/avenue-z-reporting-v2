@@ -45,25 +45,30 @@ import { groupRowsFromTw, seriesPointsFromTw, buildTwGroupedKey, buildTwSeriesKe
   assert.deepEqual(seriesPointsFromTw(rows), [{ bucket: '2026-06-22', value: 100 }])
 }
 
-// buildTwGroupedKey shape.
+// buildTwGroupedKey shape — shopId-scoped, raw apiKey hashed (never embedded).
 {
   const b = { source: 'triplewhale' as const, metric: 'ad_spend' }
-  const k = buildTwGroupedKey(b, 'channel', '2026-06-01,2026-06-30')
+  const k = buildTwGroupedKey(b, 'channel', '2026-06-01,2026-06-30', 'shop1', 'SECRET')
   assert.equal(k[0], 'tw-grouped')
-  assert.equal(k[1], 'ad_spend')
-  assert.equal(k[2], 'channel')
-  assert.equal(k[3], '2026-06-01,2026-06-30')
-  assert.equal(k[4], '')                  // no filters → empty
+  assert.equal(k[1], 'shop1')             // shop scoping prevents cross-client collisions
+  assert.equal(k[2], 'ad_spend')
+  assert.equal(k[3], 'channel')
+  assert.equal(k[4], '2026-06-01,2026-06-30')
+  assert.equal(k[5], '')                  // no filters → empty
+  assert.equal(k.length, 7)               // + keyHash
+  assert.ok(!k.includes('SECRET'))
 }
 // buildTwSeriesKey shape.
 {
   const b = { source: 'triplewhale' as const, metric: 'revenue', filters: [{ column: 'country', values: ['US'] }] }
-  const k = buildTwSeriesKey(b, 'week', '2026-06-01,2026-06-30')
+  const k = buildTwSeriesKey(b, 'week', '2026-06-01,2026-06-30', 'shop1', 'SECRET')
   assert.equal(k[0], 'tw-series')
-  assert.equal(k[1], 'revenue')
-  assert.equal(k[2], 'week')
-  assert.equal(k[3], '2026-06-01,2026-06-30')
-  assert.match(k[4], /country = 'US'/)    // filter string serialized
+  assert.equal(k[1], 'shop1')
+  assert.equal(k[2], 'revenue')
+  assert.equal(k[3], 'week')
+  assert.equal(k[4], '2026-06-01,2026-06-30')
+  assert.match(k[5], /country = 'US'/)    // filter string serialized
+  assert.ok(!k.includes('SECRET'))
 }
 
 console.log('ok')

@@ -53,10 +53,13 @@ export async function resolveTripleWhaleLeaf(
   const query = buildMetricSql(b.metric, b.filters)
   const fetchValue = (isoRange: string): Promise<number> => cachedTwValue(apiKey, shopId, query, isoRange)
 
+  // Current and compare ranges are independent — run them concurrently (matches the SM leaf).
   const { startDate, endDate } = parseDateRange(dateRange)
-  const value = await fetchValue(`${startDate},${endDate}`)
   const compareIso = resolveCompareIso(dateRange, compareRange)
-  const prevValue = compareIso ? await fetchValue(compareIso) : undefined
+  const [value, prevValue] = await Promise.all([
+    fetchValue(`${startDate},${endDate}`),
+    compareIso ? fetchValue(compareIso) : Promise.resolve(undefined),
+  ])
 
   return { value, prevValue }
 }
@@ -99,12 +102,15 @@ function twFilterKey(b: TripleWhaleBinding): string {
     .join(' AND ')
 }
 
-export function buildTwGroupedKey(b: TripleWhaleBinding, dim: string, isoRange: string): string[] {
-  return ['tw-grouped', b.metric, dim, isoRange, twFilterKey(b)]
+// shopId scopes the key per-client: TRIPLE_WHALE_API_KEY is a single global key
+// while shopId is per-client, so without it two clients sharing metric/dim/range
+// would collide in unstable_cache and see each other's data. (Matches twDataKey.)
+export function buildTwGroupedKey(b: TripleWhaleBinding, dim: string, isoRange: string, shopId: string, apiKey: string): string[] {
+  return ['tw-grouped', shopId, b.metric, dim, isoRange, twFilterKey(b), keyHash(apiKey)]
 }
 
-export function buildTwSeriesKey(b: TripleWhaleBinding, granularity: Granularity, isoRange: string): string[] {
-  return ['tw-series', b.metric, granularity, isoRange, twFilterKey(b)]
+export function buildTwSeriesKey(b: TripleWhaleBinding, granularity: Granularity, isoRange: string, shopId: string, apiKey: string): string[] {
+  return ['tw-series', shopId, b.metric, granularity, isoRange, twFilterKey(b), keyHash(apiKey)]
 }
 
 async function fetchTwGroupedForRange(
@@ -122,7 +128,7 @@ async function fetchTwGroupedForRange(
       if (rows.length === 0) throw new NoDataError(`no TW grouped rows for ${b.metric} by ${dim} in ${isoRange}`)
       return groupRowsFromTw(rows as { dim: unknown; value: unknown }[])
     },
-    buildTwGroupedKey(b, dim, isoRange),
+    buildTwGroupedKey(b, dim, isoRange, shopId, apiKey),
     { revalidate: 3600 },
   )()
 }
@@ -172,7 +178,7 @@ async function fetchTwSeriesForRange(
       if (rows.length === 0) throw new NoDataError(`no TW series rows for ${b.metric} in ${isoRange}`)
       return seriesPointsFromTw(rows as { bucket: unknown; value: unknown }[])
     },
-    buildTwSeriesKey(b, granularity, isoRange),
+    buildTwSeriesKey(b, granularity, isoRange, shopId, apiKey),
     { revalidate: 3600 },
   )()
 }
