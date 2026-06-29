@@ -26,6 +26,20 @@ export const CHART_COLORS = {
   neutral: '#8A8A8A', // grey
 } as const
 
+/** Format a chart axis/tooltip number: thousands-separated, capped at 2 decimals.
+ *  Non-numbers (category labels) pass through unchanged. */
+export function formatChartNumber(v: number | string): string {
+  return typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(v)
+}
+
+/**
+ * Client slugs that exist in the DB only to back a configurable dashboard (surfaced
+ * via Tools → Reporting), not as real clients — hidden from the /dashboard client
+ * lists by getVisibleClients(). Interim until configurable dashboards are decoupled
+ * from the clients table (the shareable-report work).
+ */
+export const HIDDEN_CLIENT_SLUGS = new Set<string>(['kind-patches'])
+
 /** Known AI assistant referrer domains (matched against GA4 sessionSource) */
 export const AI_REFERRER_DOMAINS = [
   'chat.openai.com',
@@ -227,6 +241,20 @@ export const TEAMS: TeamDef[] = [
         slug: 'prompt-demand-navigator',
         name: 'Prompt Demand Navigator',
         url: 'https://prompt-demand-navigator.vercel.app/',
+      },
+    ],
+  },
+  {
+    slug: 'reporting',
+    name: 'Reporting',
+    tools: [
+      {
+        // Internal route (leading '/') — rendered as an in-app link, not an
+        // external launch. Pilot: the Kind Patches configurable dashboard.
+        slug: 'kind-patches-paid-media',
+        name: 'Kind Patches — Paid Media',
+        url: '/dashboard/kind-patches/configurable-dashboard',
+        description: 'Paid media mix overview',
       },
     ],
   },

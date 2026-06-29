@@ -1,4 +1,4 @@
-import { getAllClients } from '@/lib/db/queries'
+import { getVisibleClients } from '@/lib/db/queries'
 import { Header } from '@/components/layout/header'
 import { PLATFORM_IDS } from '@/lib/platforms/constants'
 import type { PlatformId } from '@/lib/platforms/constants'
@@ -14,7 +14,7 @@ const ACTIVE_PLATFORMS: PlatformId[] = [
 ]
 
 export default async function ConnectionsPage() {
-  const clients = await getAllClients()
+  const clients = await getVisibleClients()
 
   return (
     <>

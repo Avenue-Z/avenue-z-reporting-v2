@@ -17,6 +17,19 @@ function fakeFetch(seq: Array<{ status: number; body: unknown }>): typeof fetch 
   }) as unknown as typeof fetch
 }
 
+// A fetch that never resolves on its own but rejects with an AbortError when the
+// caller's AbortController fires — simulates a hung Supermetrics data source.
+function hangingFetch(): typeof fetch {
+  return ((_url: string, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        const err = new Error('aborted')
+        err.name = 'AbortError'
+        reject(err)
+      })
+    })) as unknown as typeof fetch
+}
+
 async function main() {
   // Happy path: synchronous response. The data[0] header uses DISPLAY names, but
   // meta.query.fields gives canonical field_ids — rows must be keyed by field_id.
@@ -46,6 +59,13 @@ async function main() {
   ])
   await assert.rejects(
     smQuery({ apiKey: 'k', dsId: 'AW', dsAccounts: '1', fields: ['Date'], dateRange: 'x' }, { pollMs: 1, maxPolls: 2, fetchImpl: slow }),
+    (e: unknown) => e instanceof SmTimeoutError,
+  )
+
+  // Request-level timeout: a hung connection is aborted and surfaces SmTimeoutError
+  // rather than spinning forever.
+  await assert.rejects(
+    smQuery({ apiKey: 'k', dsId: 'SHP', dsAccounts: '1', fields: ['total_sales'], dateRange: 'x' }, { timeoutMs: 20, fetchImpl: hangingFetch() }),
     (e: unknown) => e instanceof SmTimeoutError,
   )
 
