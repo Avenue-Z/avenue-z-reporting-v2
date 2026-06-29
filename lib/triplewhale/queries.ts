@@ -21,9 +21,13 @@ export const TW_METRIC_SQL: Record<TwMetric, string> = {
   // revenue source. Revisit if pixel revenue becomes available per-shop.
   revenue: 'SUM(channel_reported_conversion_value)',
   blended_roas: 'SUM(channel_reported_conversion_value) / NULLIF(SUM(spend), 0)',
-  purchases: 'SUM(orders_quantity)',
-  cpa: 'SUM(spend) / NULLIF(SUM(orders_quantity), 0)',
-  conv_rate: 'SUM(orders_quantity) / NULLIF(SUM(sessions), 0) * 100',
+  // Conversion COUNT, parallel to channel_reported_conversion_value (revenue):
+  // the pixel order columns (orders_quantity, click/view_orders, website_purchases)
+  // are not populated for some shops in pixel_joined_tvf, so they returned 0 here.
+  // channel_reported_conversions is the reliable, attribution-consistent count.
+  purchases: 'SUM(channel_reported_conversions)',
+  cpa: 'SUM(spend) / NULLIF(SUM(channel_reported_conversions), 0)',
+  conv_rate: 'SUM(channel_reported_conversions) / NULLIF(SUM(sessions), 0) * 100',
   sessions: 'SUM(sessions)',
   clicks: 'SUM(clicks)',
   impressions: 'SUM(impressions)',
