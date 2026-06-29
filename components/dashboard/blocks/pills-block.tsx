@@ -29,7 +29,7 @@ export function PillsBlock({
     : null
 
   const label = detachBadgeLabel(block)
-  const badge = label !== null ? <DetachBadge label={label} canEdit={false} onReset={() => {}} /> : null
+  const badge = label !== null ? <DetachBadge label={label} canEdit={false} /> : null
 
   return (
     <BlockChrome block={block} canEdit={canEdit} slug={slug} config={config} activeDefault={activeDefault}>

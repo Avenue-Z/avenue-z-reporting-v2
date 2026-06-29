@@ -161,7 +161,9 @@ export function BlockChrome({ block, canEdit, slug, config, activeDefault, child
 }
 
 /** Inline detached-range badge. Public so KPI body can render it inside its card. */
-export function DetachBadge({ label, canEdit, onReset }: { label: string; canEdit: boolean; onReset: () => void }) {
+// onReset is only invoked in the editable (canEdit) branch, which is reached from
+// client components. Read-only callers (incl. Server Components) omit it.
+export function DetachBadge({ label, canEdit, onReset }: { label: string; canEdit: boolean; onReset?: () => void }) {
   const cls = 'inline-flex w-fit rounded-full border border-brand-cyan/40 bg-brand-cyan/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brand-cyan'
   if (canEdit) return <button onClick={onReset} className={`${cls} hover:bg-brand-cyan/20`}>Detached · {label}</button>
   return <span className={cls}>Detached · {label}</span>
