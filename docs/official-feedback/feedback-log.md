@@ -2351,3 +2351,45 @@ The Opus fleet surfaced 10 additional findings rated P2 (do not block merge). Lo
 Tina's "only 7 competitors" (Row 9b) was addressed by FB-052 (API limit 100->500, UI slice 10->25). Live preview shows exactly 10 competitor rows for Avenue Z. The source dive confirmed this is genuine: `limit: 500` on both `/reports/domains` calls, zero truncation in `buildTopDomains`, no activity filter on the All-models path, case-insensitive classification. Peec returns exactly 10 competitor-classified domains for Avenue Z's project. This is a Peec project-configuration matter, not a code constraint.
 
 **Files touched (Phase 5):** `lib/peec/client.ts`, `lib/profound/client.ts`, `lib/peec/url-citations.ts`, `components/report-sections/peec-ai/content-impact.tsx`.
+
+---
+
+## V2 Phase 6 - FB-059: token-authenticated re-probe withdraws the §H.1 caveat
+
+**Tab:** Content Impact
+**Round:** V2 Phase 6 (post-Phase 5 verification; Thomas pushed back on the "10 is all Peec returns" claim before authorizing the merge)
+**Source:** Live Peec API probe with a freshly-generated `skp-` project token, mirroring the deployed app's exact request shape.
+
+### FB-059 - /reports/domains limit 500 -> 5000 to surface all 22 Avenue Z competitors
+
+**The mistake we corrected:** Phase 5 above said "Peec returns exactly 10 competitor-classified domains for Avenue Z's project" and labeled it "a Peec project-configuration matter, not a code constraint." A 3-agent code audit reached that conclusion without ever calling the Peec API. **It was wrong.**
+
+**The probe (see `scripts/peec-domain-count.mjs`):**
+| Limit sent | Rows Peec returned | Classified `COMPETITOR` |
+|---|---|---|
+| 500 (previous default) | 500 | 11 |
+| 1,000 | 1,000 | 13 |
+| 2,000 | 2,000 | 18 |
+| 3,000 | 3,000 | 19 |
+| 5,000 | **4,202** | **22** |
+
+Peec sorts `/reports/domains` by `retrieved_percentage` descending. The Avenue Z project has 4,202 unique domains in its citation set, of which 3,356 are corporate, 282 editorial, etc. -- the 22 competitor-classified domains are scattered across the full ranking, and 11 of them get buried below the top 500 because their retrieval percentages are low.
+
+**Tested whether Peec supports a classification filter (would have made this trivial):** No. Probed `classification=COMPETITOR`, `classifications=['COMPETITOR']`, `filter.classification=`, `filters.classifications=[]`, `domain_type=`, `type=` -- every variant either returned mixed sets (the field was ignored) or 400'd. The only way to surface every competitor is to pull the full ranked list and filter client-side.
+
+**Shipped (lib/peec/client.ts):**
+- L409 `/reports/domains` current period: `limit: 500` -> `5000`
+- L410 `/reports/domains` prior period: `limit: 500` -> `5000`
+- L421 `/reports/domains` (model-dimensioned, rows are `domain × model_channel`): `limit: 2000` -> `10000`
+
+**UI flood check (no displays expand):**
+- Content Impact §H.1 already `.slice(0, 25)` on `filteredCompetitorDomains` -> shows 22 of 22, not flooded
+- PR Influence Top Editorial Domains already `.slice(0, 15)` -> still 15 rows
+- Overview Top Domains table already `initialPageSize=10` -> still paginated 10/page
+- Server-side calcs that already iterated the raw `domainsRes.data` (`totalCitations`, `domainTypes` breakdown, `yourBrandCitations`) become more accurate because the denominator is the full Peec set rather than a top-500 slice
+
+**Honest side effect to live-verify on Vercel preview before merge:** PR Influence's per-cluster `editorialCitationDensity` (the FB-013 fix) iterates `topDomains` to compute editorial retrieval as a share of total cluster retrieval. Today: 500 rows. After this change: 4,202 rows. The numerator and denominator both grow; the ratio is more accurate but the absolute values will shift. Eyeball PR Influence's Prompt Cluster Opportunity chart after the preview redeploys; if any cluster bar moves implausibly, flag before merging PR #90.
+
+**Payload weight:** ~75KB extra per Peec-AI page load (one `topDomains` array of 4,202 small objects, gzipped before transport). Acceptable.
+
+**Files touched (Phase 6):** `lib/peec/client.ts` (3 limit constants), `scripts/peec-domain-count.mjs` (new probe utility, kept in the repo for future debugging).

@@ -35,7 +35,7 @@ Tina's 16 column-E asks, all fixed and live-verified on the Avenue Z preview:
 | 7 | Slope legend + mute | FB-049 | live |
 | 8b | Only 14 pages | FB-050 (subdomain match) + FB-058b (limit 1000->2000) | live: 15 -> 23 rows |
 | 9a | 199.9% Citation Share | FB-051 (share-of-period math) | live: max ~33.5% |
-| 9b | Only 7 competitors | FB-052 (API 100->500, UI 10->25) | live: 10 (SEE CAVEAT) |
+| 9b | Only 7 competitors | FB-052 (API 100->500, UI 10->25) + FB-059 (API 500->5000 after token-authenticated re-probe) | live: now 22 (all competitors Peec returns) |
 | 9c | "AI Visibility" name | FB-053 (renamed "Source Visibility") + FB-056 (description/comment match) | live |
 | 9d | H.1 Citation Share tooltip | FB-054 | live |
 | 10 | H.2 Citation Share tooltip | FB-055 | live |
@@ -44,9 +44,18 @@ Tina's 16 column-E asks, all fixed and live-verified on the Avenue Z preview:
 
 Silent bugs folded in: synopsis was fed inflated counts (fixed in FB-051); F was dropping subdomain pages (FB-050); KPI delta suffix was "%" when it should be "pp" (FB-051a, found by the metric audit); sortable delta columns piled "--" at the top on asc sort (FB-057, found by the Opus fleet).
 
-## THE ONE HONEST CAVEAT for the Tina conversation
+## Correction to the previous "honest caveat" (resolved by FB-059)
 
-**H.1 shows 10 competitor domains, not more.** A source audit (3 parallel investigators) confirmed this is genuinely all Peec returns for Avenue Z's project: `limit: 500` on both `/reports/domains` calls, zero truncation in `buildTopDomains`, no activity filter on the All-models path, case-insensitive classification. This is a Peec project-configuration matter, NOT a code constraint. If Tina wants more competitors, that is a Peec setup change. This is the only "it's the data" item left — and it is provably the data.
+Earlier handoff revisions said "H.1 shows 10 competitors because that is all Peec returns for Avenue Z's project." **That was wrong.** When Thomas pushed back, a fresh token-authenticated probe against Peec's API (see `scripts/peec-domain-count.mjs`) found the project actually has **22 domains classified `COMPETITOR`** among 4,202 total domains. Only 11 surfaced at the previous `limit: 500` because Peec sorts `/reports/domains` by `retrieved_percentage` descending and the long-tail competitors fell off the page below ~1,200 corporate/editorial rows.
+
+Peec does NOT support a classification filter (all variants probed -- `classification=`, `classifications=[]`, `filter.classification=`, `domain_type=`, `type=` -- return mixed sets within the limit), so the only way to surface every competitor is to pull the full ranked list and filter client-side. FB-059 raises the fetch limit accordingly:
+- `/reports/domains` current period: `limit: 500` -> `5000`
+- `/reports/domains` prior period: `limit: 500` -> `5000`
+- `/reports/domains` (model-dimensioned): `limit: 2000` -> `10000`
+
+All UI consumers of `topDomains` were already display-bounded (`.slice(0, 25)` on §H.1, `.slice(0, 15)` on PR Influence editorial, `initialPageSize=10` on Overview Top Domains), so the larger array only changes payload weight (~75KB extra per page load), not what the user sees in any list. **Side effect to verify on the Vercel preview before merge:** PR Influence's per-cluster `editorialCitationDensity` is computed over `topDomains` and will now iterate 4,202 rows instead of 500. The metric becomes more accurate but values shift -- eyeball PR Influence after preview deploys before claiming this round done.
+
+No remaining "it's the data" caveats for the Tina conversation.
 
 ## How this was verified
 
@@ -105,4 +114,4 @@ After merge: update `status.md` with the merge SHA, confirm Vercel production se
 
 ## Thomas's posture
 
-Correctness above all; his standing with Tina depends on this round closing cleanly. Surface risk honestly, pre-empt anything she might click and question, never claim "done" without live verification. Going into a meeting with Tina about this — give him the honest caveat (the H.1 10-competitor count) up front so nothing surprises him.
+Correctness above all; his standing with Tina depends on this round closing cleanly. Surface risk honestly, pre-empt anything she might click and question, never claim "done" without live verification. The prior round's "10 competitors is genuinely all Peec returns" caveat was withdrawn (FB-059 found the real count is 22 via a token-authenticated probe) -- so no remaining "it's the data" surprises for Tina.

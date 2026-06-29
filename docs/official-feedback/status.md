@@ -72,7 +72,9 @@ One branch + one PR per round of feedback per AEO sub-tab.
 | Content Impact (v2) | (future) | (future) | not started — section labels confirmation + Snapshot KPIs delta-wiring ISSUE |
 | Technical Performance | `official-feedback-technical-performance-tab` | (future) | not started |
 
-FB IDs continue sequentially across all branches. **Next ID after FB-058 is FB-059.**
+**FB-059 shipped (2026-06-29, `500baa4`):** Phase-5 correction. A token-authenticated re-probe of Peec's API (after Thomas pushed back on the "10 is all Peec returns" claim before authorizing merge) found the actual Avenue Z competitor count is 22, not 10. Peec's /reports/domains sorts by retrieved_percentage and buried 11 of the 22 competitors below the prior limit=500 fetch. Bumped /reports/domains limits 500 -> 5000 (current + prior periods) and 2000 -> 10000 (model-dimensioned). UI displays already bounded by .slice() / pagination, so no flood. Real side effect: PR Influence's per-cluster editorialCitationDensity now iterates 4,202 rows; values will shift, needs eyeball on the preview. Also added scripts/peec-domain-count.mjs as a permanent probe utility. Withdraws the "honest caveat" the prior handoff carried.
+
+FB IDs continue sequentially across all branches. **Next ID after FB-059 is FB-060.**
 
 ---
 
