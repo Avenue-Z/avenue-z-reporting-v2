@@ -1373,29 +1373,40 @@ export async function ContentImpactReport({
           // denominator so the math is consistent. Gated on compareIso, like every other
           // delta. A competitor with zero prior citations yields priorShare 0, so its
           // delta is the full current share (a clean period-over-period gain).
+          // FB-063: when a model filter is active, prior-period values used
+          // by these deltas are stale. filterDomainRowsByModel only rewrites
+          // citationCount for the current period; priorCitationCount stays
+          // populated from all-model prior data (see by-model.ts:25-27).
+          // d.retrievedDelta and the per-domain prior coverage are likewise
+          // computed without model scoping. Mixing model-filtered current
+          // with all-model prior produces nonsense deltas (live audit:
+          // nogood.io showed ↑48.7 pp Citation Share Δ under ChatGPT-only).
+          // Fix: when models is set, render every Δ as -- (null) so the
+          // numbers shown are at least internally consistent.
+          const modelFilterActive = models != null && models.length > 0
           const totalCompetitorCitations = filteredCompetitorDomains
             .reduce((s, d) => s + (d.citationCount ?? 0), 0)
           const totalCompetitorCitationsPrior = filteredCompetitorDomains
             .reduce((s, d) => s + (d.priorCitationCount ?? 0), 0)
           const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 25).map((d) => {
             const promptCovCurrent = getPromptCoverage(d.domain)
-            const promptCovPrior   = compareIso ? getPromptCoveragePrior(d.domain) : null
-            const promptCovDelta   = compareIso && promptCovCurrent !== null && promptCovPrior !== null
+            const promptCovPrior   = compareIso && !modelFilterActive ? getPromptCoveragePrior(d.domain) : null
+            const promptCovDelta   = compareIso && !modelFilterActive && promptCovCurrent !== null && promptCovPrior !== null
               ? promptCovCurrent - promptCovPrior
               : null
             const citationShareValue = totalCompetitorCitations > 0
               ? (d.citationCount / totalCompetitorCitations) * 100
               : 0
-            const citationSharePrior = compareIso && totalCompetitorCitationsPrior > 0
+            const citationSharePrior = compareIso && !modelFilterActive && totalCompetitorCitationsPrior > 0
               ? (d.priorCitationCount / totalCompetitorCitationsPrior) * 100
               : null
-            const citationShareDelta = compareIso && citationSharePrior !== null
+            const citationShareDelta = compareIso && !modelFilterActive && citationSharePrior !== null
               ? citationShareValue - citationSharePrior
               : null
             return {
               domain: d.domain,
               aiVisibility:        d.retrieved,
-              aiVisibilityDelta:   compareIso ? d.retrievedDelta : null,
+              aiVisibilityDelta:   compareIso && !modelFilterActive ? d.retrievedDelta : null,
               citationShare:       citationShareValue,
               citationShareDelta:  citationShareDelta,
               promptCoverage:      promptCovCurrent,

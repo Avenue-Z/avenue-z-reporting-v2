@@ -39,14 +39,20 @@ function SectionHeading({ title, tooltip, subtitle }: { title: string; tooltip: 
 
 export interface TopEditorialDomainRow {
   domain: string
-  citationCount: number      // d.retrieved (%)
-  citationCountDelta: number // d.retrievedDelta
+  citationCount: number              // d.retrieved (%) or model-scoped share %
+  citationCountDelta: number | null  // null = no delta (e.g. model filter active; FB-063)
   promptCoverage: number | null
   avgCitations: number | null
   hasPR: boolean
 }
 
-function CitationDelta({ value }: { value: number }) {
+function CitationDelta({ value }: { value: number | null }) {
+  // FB-063: null means the delta is not meaningful in the current filter state
+  // (e.g. model filter active with stale prior-period data). Render "--" rather
+  // than a fake "↑0.0%" which would imply a real measured change of zero.
+  if (value === null) {
+    return <span className="text-xs text-white/30">--</span>
+  }
   const positive = value >= 0
   return (
     <span className={cn('text-xs font-semibold tabular-nums', positive ? 'text-[#60FF80]' : 'text-[#FF4444]')}>

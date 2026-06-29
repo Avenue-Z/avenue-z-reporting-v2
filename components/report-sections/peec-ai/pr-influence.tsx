@@ -363,9 +363,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     }
     const filtered = filterDomainRowsByModel(rawTopEditorialRows, data.domainCitationsByModel, models)
     const total = filtered.reduce((s, r) => s + r.citationCount, 0)
+    // FB-063: when model filter is active, citationCountDelta is stale
+    // (d.retrievedDelta is the all-model period-over-period change; pairing
+    // it with a model-filtered current value produces a misleading arrow).
+    // Zero it out so the renderer's Δ arrow disappears -- "no delta" is
+    // honest; a wrong delta is not.
     return filtered.map((r) => ({
       ...r,
       citationCount: total > 0 ? (r.citationCount / total) * 100 : 0,
+      citationCountDelta: null,
     }))
   })()
 
