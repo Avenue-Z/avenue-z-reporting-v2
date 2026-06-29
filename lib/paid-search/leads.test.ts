@@ -21,10 +21,10 @@ const weeklyRows = [
   { Yearweekiso: '2026|01', ConversionTypeName: 'contact_individual_lead', Conversions: '2' },
   { Yearweekiso: '2026|01', ConversionTypeName: 'Calls from ads', Conversions: '5' }, // excluded
 ]
-const b = transformLeads(actionRows, weeklyRows, cfg)
+const b = transformLeads(actionRows, weeklyRows, cfg, 'Yearweekiso')
 assert.equal(b.totalLeads, 20)                 // 14+3+3, calls excluded
 assert.equal(b.categoryTotals.employer, 3)     // dental 3 + vision 0
 assert.equal(b.categoryTotals.contact, 14)
 assert.equal(b.byAction.find((a) => a.name === 'employer_vision_lead')!.count, 0) // absent → 0
-assert.equal(b.weekly[0].leads, 2)             // calls excluded from weekly
+assert.equal(b.trend[0].leads, 2)              // calls excluded from trend
 console.log('ok')

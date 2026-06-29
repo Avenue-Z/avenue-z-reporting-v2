@@ -44,7 +44,7 @@ export async function PaidSearchReport({
   const effectiveCompare = compareRange ?? 'previous_period'
   const [kpis, hero, campaigns, leads, geo, keywords] = await Promise.all([
     safe(getPaidSearchKpis(clientSlug, dateRange, effectiveCompare)),
-    // Hero follows the page date range (weekly buckets within the selected window).
+    // Hero follows the page date range (daily buckets for short ranges, weekly for long).
     safe(getHeroSeries(clientSlug, dateRange)),
     safe(getCampaignRows(clientSlug, dateRange)),
     safe(getLeadBreakdown(clientSlug, dateRange)),

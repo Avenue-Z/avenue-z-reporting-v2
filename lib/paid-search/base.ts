@@ -23,6 +23,17 @@ export async function awQuery(
   return parseSmRows(result)
 }
 
+/**
+ * Time-bucket field for trend charts. Short ranges bucket by day so a 7- or
+ * 14-day view shows one bar per day instead of one or two ISO-week bars; longer
+ * ranges keep ISO weeks to stay readable. Returns the Supermetrics AW field id.
+ */
+export function pickTimeField(dateRange: string): 'Date' | 'Yearweekiso' {
+  const { startDate, endDate } = parseDateRange(dateRange)
+  const days = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000) + 1
+  return days <= 31 ? 'Date' : 'Yearweekiso'
+}
+
 export function resolveCompareIso(dateRange: string, compareRange: string | null): string | null {
   const r = deriveCompareRange(dateRange, compareRange)
   return r ? `${r.startDate},${r.endDate}` : null
