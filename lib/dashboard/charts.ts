@@ -38,10 +38,15 @@ export function toLineChartInput(r: Extract<SeriesResult, { ok: true }>): LineCh
 export function toCapsuleBarInput(
   r: Extract<GroupedResult, { ok: true }>,
   overrides?: LabelOverrides,
+  topN?: number,
 ): CapsuleBarInput {
   const total = r.rows.reduce((s, row) => s + (row.value ?? 0), 0)
   const dimKey = r.rows.length > 0 ? Object.keys(r.rows[0].dim)[0] ?? 'dim' : 'dim'
-  const rows = r.rows.map((row) => {
+  // Highest value first so top-N keeps the largest categories (TW already sorts;
+  // SM/Shopify grouped results may not).
+  const sorted = [...r.rows].sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+
+  const toRow = (row: (typeof sorted)[number]) => {
     const key = row.dim[Object.keys(row.dim)[0] ?? 'dim'] ?? ''
     const value = row.value ?? 0
     const pct = total > 0 ? Math.round((value / total) * 100) : 0
@@ -50,7 +55,29 @@ export function toCapsuleBarInput(
     }
     if (row.prevValue !== undefined) out.prior = row.prevValue
     return out
-  })
+  }
+
+  let rows: ReturnType<typeof toRow>[]
+  if (topN !== undefined && topN > 0 && sorted.length > topN) {
+    // Top N as real bars; roll the long tail into one "Other" bar so high-cardinality
+    // groupings (e.g. clicks by country) stay readable instead of 200 invisible slivers.
+    rows = sorted.slice(0, topN).map(toRow)
+    const tail = sorted.slice(topN)
+    const otherValue = tail.reduce((s, row) => s + (row.value ?? 0), 0)
+    const other: { name: string; key: string; value: number; pct: number; prior?: number } = {
+      name: 'Other',
+      key: '__other__',
+      value: otherValue,
+      pct: total > 0 ? Math.round((otherValue / total) * 100) : 0,
+    }
+    if (tail.some((row) => row.prevValue !== undefined)) {
+      other.prior = tail.reduce((s, row) => s + (row.prevValue ?? 0), 0)
+    }
+    rows.push(other)
+  } else {
+    rows = sorted.map(toRow)
+  }
+
   const hasCompare = r.rows.some((row) => row.prevValue !== undefined)
   return { rows, hasCompare, dimKey }
 }

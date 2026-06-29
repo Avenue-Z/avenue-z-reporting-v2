@@ -48,7 +48,7 @@ export function updateBlock(
   return {
     ...config,
     blocks: config.blocks.map((b) =>
-      b.id === blockId ? { ...b, name: patch.name, format: patch.format, binding: patch.binding } : b,
+      b.id === blockId ? { ...b, name: patch.name, format: patch.format, binding: patch.binding, topN: patch.topN } : b,
     ),
   }
 }

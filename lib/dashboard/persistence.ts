@@ -291,6 +291,11 @@ export function parseBlockConfig(
     if (typeof v.ceiling !== 'number' || !Number.isFinite(v.ceiling)) return { ok: false, error: `${path}.ceiling: expected finite number` }
     ceiling = v.ceiling
   }
+  let topN: number | undefined
+  if (v.topN !== undefined) {
+    if (typeof v.topN !== 'number' || !Number.isInteger(v.topN) || v.topN < 1) return { ok: false, error: `${path}.topN: expected positive integer` }
+    topN = v.topN
+  }
   let headerLevel: 1 | 2 | 3 | undefined
   if (v.headerLevel !== undefined) {
     if (v.headerLevel !== 1 && v.headerLevel !== 2 && v.headerLevel !== 3) {
@@ -313,6 +318,7 @@ export function parseBlockConfig(
   if (subLabel !== undefined) block.subLabel = subLabel
   if (target !== undefined) block.target = target
   if (ceiling !== undefined) block.ceiling = ceiling
+  if (topN !== undefined) block.topN = topN
   if (headerLevel !== undefined) block.headerLevel = headerLevel
   if (narrativeBody !== undefined) block.narrativeBody = narrativeBody
   return { ok: true, block }
