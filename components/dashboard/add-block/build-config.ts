@@ -46,11 +46,13 @@ export type FormulaDraft = {
   operands: Record<string, FormulaOperandDraft>
 }
 
-/** Bar block draft: a leaf + a single dimension column. */
+/** Bar block draft: a leaf + a single dimension column, optional top-N cap. */
 export type BarDraft = {
   source: 'bar'
   leaf: LeafDraft
   dimension: string
+  /** Cap to the top N categories (+ "Other"); undefined = show all. */
+  topN?: number
 }
 
 /** Line block draft: a leaf + a granularity. */
@@ -158,7 +160,7 @@ export function formulaToBinding(d: FormulaDraft): FormulaBinding {
 export function barToBlockConfig(d: BarDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
   const base = leafToBinding(d.leaf)
   const binding: LeafBinding = { ...base, dimensions: [d.dimension] }
-  return { name, format, range: null, binding, kind: 'bar' }
+  return { name, format, range: null, binding, kind: 'bar', ...(d.topN !== undefined ? { topN: d.topN } : {}) }
 }
 
 /** Convert a line draft into a Line block config (kind: 'line', leaf binding with granularity).
@@ -279,7 +281,7 @@ export function blockToManualDraft(block: PersistedBlock): { source: 'supermetri
     const dimension = (binding as LeafBinding).dimensions?.[0] ?? ''
     const source = leaf.source
     return kind === 'bar'
-      ? { source, draft: { kind: 'bar', name, format, bar: { source: 'bar', leaf, dimension } } }
+      ? { source, draft: { kind: 'bar', name, format, bar: { source: 'bar', leaf, dimension, ...(block.topN !== undefined ? { topN: block.topN } : {}) } } }
       : { source, draft: { kind: 'table', name, format, table: { source: 'table', leaf, dimension } } }
   }
   if (kind === 'line') {

@@ -54,6 +54,9 @@ export interface BlockConfig {
   target?: number
   /** Orange when value ≥ ceiling. */
   ceiling?: number
+  /** Bar-only: cap the chart to the top N categories by value; the remainder is
+   *  rolled into a single "Other" bar. Undefined = show all categories. */
+  topN?: number
   /** Header-only: heading level (1 = largest). Default 2. */
   headerLevel?: 1 | 2 | 3
   /** Narrative-only: markdown body (rendered via react-markdown). */

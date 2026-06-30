@@ -72,6 +72,30 @@ assert.equal(bucketLabelPattern('month'), 'MMM yy')
   assert.equal(out.hasCompare, true)
 }
 
+// toCapsuleBarInput: topN caps to the top N by value + a summed "Other" bar.
+{
+  const r: Extract<GroupedResult, { ok: true }> = {
+    ok: true, format: 'number',
+    rows: [
+      { dim: { C: 'a' }, value: 10, prevValue: 5 },
+      { dim: { C: 'b' }, value: 100, prevValue: 40 },
+      { dim: { C: 'c' }, value: 30 },
+      { dim: { C: 'd' }, value: 20, prevValue: 8 },
+      { dim: { C: 'e' }, value: 40 },
+    ],
+  }
+  const out = toCapsuleBarInput(r, undefined, 2) // total 200; sorted: b,e,c,d,a
+  assert.deepEqual(out.rows.map((x) => x.key), ['b', 'e', '__other__'])
+  assert.equal(out.rows[0].value, 100) // b
+  assert.equal(out.rows[0].pct, 50)
+  assert.equal(out.rows[2].name, 'Other')
+  assert.equal(out.rows[2].value, 60) // c30 + d20 + a10
+  assert.equal(out.rows[2].pct, 30) // 60/200
+  assert.equal(out.rows[2].prior, 13) // d8 + a5 (c has none)
+  // topN >= row count → no "Other", just sorted desc
+  assert.deepEqual(toCapsuleBarInput(r, undefined, 5).rows.map((x) => x.key), ['b', 'e', 'c', 'd', 'a'])
+}
+
 // toCapsuleBarInput: zero total → pct 0, no divide-by-zero; undefined value → 0.
 {
   const r: Extract<GroupedResult, { ok: true }> = {

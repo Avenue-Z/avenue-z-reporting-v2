@@ -57,7 +57,7 @@ export function ManualBlockForm({
   const [formula, setFormula] = useState<FormulaDraft>(() =>
     initial?.kind === 'formula' ? initial.formula : { source: 'formula', expr: '', operands: {} })
   const [bar, setBar] = useState<BarDraft>(() =>
-    initial?.kind === 'bar' ? initial.bar : { source: 'bar', leaf: seedLeaf, dimension: '' })
+    initial?.kind === 'bar' ? initial.bar : { source: 'bar', leaf: seedLeaf, dimension: '', topN: 12 })
   const [line, setLine] = useState<LineDraft>(() =>
     initial?.kind === 'line' ? initial.line : { source: 'line', leaf: seedLeaf, granularity: 'day' as Granularity })
   const [header, setHeader] = useState<HeaderDraft>(() =>
