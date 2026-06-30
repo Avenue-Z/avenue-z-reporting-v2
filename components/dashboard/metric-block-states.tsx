@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { BlockError } from '@/lib/dashboard/types'
 import { AddBlockButton } from './add-block/add-block-button'
+import { RateLimitedRetry } from './rate-limited-retry'
 
 const ERROR_TITLE: Record<BlockError, string> = {
   disconnected: 'Not connected',
@@ -30,7 +31,12 @@ function errorBody(error: BlockError, slug: string): React.ReactNode {
     case 'no-data':
       return 'Try a wider range or a different comparison.'
     case 'rate-limited':
-      return 'Data source is rate-limited. It should recover shortly.'
+      return (
+        <>
+          Data source is rate-limited. It should recover shortly.
+          <RateLimitedRetry />
+        </>
+      )
     case 'error':
       return 'Refresh to try again.'
   }
