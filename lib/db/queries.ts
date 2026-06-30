@@ -91,6 +91,26 @@ export const getAllClients = cache(
 )
 
 /**
+ * Clients that have a configurable dashboard, for the Tools → Reporting hub.
+ * Unlike getVisibleClients this does NOT drop HIDDEN_CLIENT_SLUGS — dashboard-only
+ * hosts (kind-patches) are exactly what Reporting surfaces. Persistently cached
+ * (5-min TTL), db-tagged so a new report busts it via revalidateTag('db').
+ */
+const getClientsWithDashboardsImpl = async (): Promise<{ slug: string; name: string; logoUrl: string | null }[]> => {
+  const rows = await db
+    .select({ slug: clients.slug, name: clients.name, logoUrl: clients.logoUrl, dashboardConfig: clients.dashboardConfig })
+    .from(clients)
+  return rows
+    .filter((r) => r.dashboardConfig != null)
+    .map(({ slug, name, logoUrl }) => ({ slug, name, logoUrl }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export const getClientsWithDashboards = cache(
+  cached('db', 'getClientsWithDashboards', getClientsWithDashboardsImpl, { ttlSeconds: 300, tags: ['db'] }),
+)
+
+/**
  * Clients shown in the /dashboard client lists. Excludes HIDDEN_CLIENT_SLUGS —
  * dashboard-only hosts (e.g. kind-patches) that are surfaced via Tools → Reporting,
  * not as real clients. Operational callers (cache-warm, health sweep) still use
