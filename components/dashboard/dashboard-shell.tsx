@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { GlobalTimeControl } from './global-time-control'
 import { AddBlockButton } from './add-block/add-block-button'
+import { ShareButton } from './share/share-button'
 import { BlockGrid } from './block-grid'
 import { EmptyDashboardState } from './metric-block-states'
 import { DashboardMutationsProvider, useDashboardMutations } from './dashboard-mutations'
@@ -36,7 +37,12 @@ function DashboardShellInner({ config, canEdit, activeDefault, slug, blockNodes 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        {canEdit ? <AddBlockButton slug={slug} config={config} /> : <span />}
+        {canEdit ? (
+          <div className="flex items-center gap-2">
+            <AddBlockButton slug={slug} config={config} />
+            <ShareButton slug={slug} blocks={optimisticBlocks} />
+          </div>
+        ) : <span />}
         <GlobalTimeControl activeDefault={activeDefault} />
       </div>
       {error && <p className="text-xs text-[#FF6666]" role="alert">Save failed: {error}</p>}
