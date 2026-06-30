@@ -6,10 +6,18 @@
 
 ## What This Is
 
-A white-labeled, multi-client marketing reporting platform built on the
-**Supermetrics "Build on Supermetrics" API suite**. Supermetrics handles all
-data, connection state, workspace permissions, and OAuth flows. This app is
-primarily a **presentation and routing layer** on top of those APIs.
+A white-labeled, multi-client marketing reporting platform. It is primarily a
+**presentation and routing layer** over multiple marketing data sources.
+
+> **Reality note:** much of this doc was written when Supermetrics was intended
+> as the single data layer. In practice the platform is multi-source: GA4,
+> Google Search Console, HubSpot, Peec AI, and Profound AI are queried via their
+> **native APIs** (`lib/ga4`, `lib/gsc`, `lib/hubspot`, `lib/peec`, `lib/profound`),
+> while the **Supermetrics "Build on Supermetrics" API suite** (Data API only)
+> backs the paid/social ad sections — Paid Search (`lib/paid-search`), Meta
+> (`lib/meta`), and LinkedIn (`lib/linkedin`). Supermetrics Branded
+> Authentication has been removed; platform connections are now configured via
+> environment variables.
 
 **No external auth service fees.**
 
@@ -20,7 +28,7 @@ Two audiences:
 
 Two product areas:
 
-- **Authentication Hub** — clients connect marketing platforms via Supermetrics Branded Authentication
+- **Authentication Hub** — shows per-platform connection status (`CONNECTED` / `NOT_CONFIGURED`) driven by environment variables
 - **Reports** — multi-section per-client dashboards (Exec Summary, GA4, Meta Ads, Email Marketing, Blended Performance, etc.)
 
 ---
@@ -29,7 +37,7 @@ Two product areas:
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Framework | **Next.js 15 (App Router)** | RSC, API routes, middleware |
+| Framework | **Next.js 16 (App Router)** | RSC, API routes, proxy.ts |
 | Language | **TypeScript** | Strict mode |
 | Auth | **Auth.js v5 (NextAuth)** | Free, no vendor, credentials + Google provider |
 | UI | **shadcn/ui** | Copy-paste, Tailwind-native |
@@ -111,7 +119,12 @@ data entry itself.
 
 ---
 
-## Supermetrics API Integration
+## Supermetrics Integration
+
+Supermetrics provides data for the **paid/social ad channels only** — Paid
+Search (Google Ads), Meta, and LinkedIn (plus Shopify at the data layer).
+Everything else (GA4, GSC, HubSpot, Peec, Profound, News API) uses native APIs.
+Only the **Data API** is used.
 
 ### Base URL
 
@@ -119,153 +132,93 @@ data entry itself.
 https://api.supermetrics.com/enterprise/v2
 ```
 
-### Auth Pattern
+### Data API — `smQuery()`
 
-All Supermetrics calls are **server-side only**. Use the `Authorization` header.
-Never expose any API key to the browser.
+`lib/supermetrics/client.ts` exposes one server-side helper, `smQuery()`. The
+caller passes the per-client API key in — read from the env var named in the
+client's `sm_api_key_env_var` column. `smQuery()` does **not** look the client
+up itself.
 
 ```typescript
-// lib/supermetrics/client.ts
-import { getClientBySlug } from '@/lib/clients.config'
-
-export async function smQuery(params: {
-  clientSlug: string
-  dsId: string
+// lib/supermetrics/types.ts
+export interface SmQueryParams {
+  apiKey: string
+  dsId: string               // a DS_IDS value
+  dsAccounts: string         // the Supermetrics account id for this client
   fields: string[]
-  dateRange: string      // e.g. "last_30_days" or "2025-01-01,2025-01-31"
-  filters?: string[]
+  dateRange: string          // 'YYYY-MM-DD,YYYY-MM-DD'
+  filters?: string
+  settings?: Record<string, unknown>
   maxRows?: number
-}) {
-  const client = getClientBySlug(params.clientSlug)
-  if (!client) throw new Error(`Unknown client: ${params.clientSlug}`)
-
-  const apiKey = process.env[client.smApiKey]
-  if (!apiKey) throw new Error(`Missing env var: ${client.smApiKey}`)
-
-  const queryJson = {
-    ds_id: params.dsId,
-    fields: params.fields,
-    date_range_type: params.dateRange,
-    max_rows: params.maxRows ?? 1000,
-    ...(params.filters ? { filter_by: params.filters } : {}),
-  }
-
-  const res = await fetch(
-    `https://api.supermetrics.com/enterprise/v2/query/data/json` +
-    `?json=${encodeURIComponent(JSON.stringify(queryJson))}`,
-    {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      next: { revalidate: 3600 }, // 1-hour cache
-    }
-  )
-
-  if (!res.ok) throw new Error(`Supermetrics query failed: ${res.status}`)
-  return res.json()
 }
+export interface SmResult { header: string[]; rows: string[][] }
 ```
 
-For large date ranges or high row counts, use the Supermetrics **async query**
-pattern: submit the query, receive a job ID, poll until complete.
-See: https://docs.supermetrics.com/apidocs/async-queries
+`smQuery()` POSTs to `/query/data/json`. Normal queries respond synchronously
+with the data array; large/queued queries return a `schedule_id` without data,
+and the helper polls `/query/data/json/{schedule_id}` until the data appears
+(~60s ceiling via `maxPolls`) or throws `SmTimeoutError`. Each request has a
+15s hang guard (`REQUEST_TIMEOUT_MS`, via `AbortController`) and retries HTTP
+429 honoring `Retry-After`. Rows are keyed by canonical `field_id` (from
+`meta.query.fields`), not the display-name header row; `parseSmRows(result)`
+turns the `{ header, rows }` shape into objects.
 
-### Three Supermetrics API Surfaces
-
-#### 1. Data API
-
-Pull metrics and dimensions from connected data sources.
-
-- **Endpoint:** `GET /query/data/json`
-- **Key params:** `ds_id`, `fields`, `date_range_type`, `start_date`, `end_date`, `filter_by`, `max_rows`
-- **Features:** async queries, date range comparison, pivoting, relative dates, pagination
-
-#### 2. Management API
-
-Programmatic control of workspaces, users, data sources, API keys, saved
-queries, and team lists. Requires elevated permissions — contact your
-Supermetrics representative to get access.
-
-**Supported features:**
-- API keys — issue and rotate per-client keys
-- Saved queries — store and retrieve report queries
-- Team settings — configure workspace-level settings
-- Data source logins — read connection state (replaces need for a local DB)
-- Data source login links — generate single-use branded auth links
-- Table groups — manage team table groups
-- Team lists — manage centralized query lists
-
-#### 3. Branded Authentication (Login Links)
-
-Clients connect their ad/analytics accounts inside our app, under Avenue Z
-branding. Supermetrics handles the OAuth consent, connection state, and
-token renewal in the background.
+Each channel wraps `smQuery()` in its own `base.ts` (which resolves the key +
+account from the DB and applies field mapping); report sections call those
+wrappers, never `smQuery()` directly. The real pattern:
 
 ```typescript
-// lib/supermetrics/auth.ts
-import { getClientBySlug } from '@/lib/clients.config'
+// lib/paid-search/base.ts
+import { smQuery, parseSmRows, DS_IDS } from '@/lib/supermetrics/client'
+import { getClientBySlug } from '@/lib/db/queries'
 
-export async function createLoginLink(params: {
-  clientSlug: string
-  dsId: string
-  description: string
-}) {
-  const client = getClientBySlug(params.clientSlug)
-  const apiKey = process.env[client!.smApiKey]
+export async function awQuery(slug: string, fields: string[], dateRange: string) {
+  const client = await getClientBySlug(slug)
+  const cfg = client?.paidSearchConfig
+  const envVar = client?.smApiKeyEnvVar
+  if (!cfg || !envVar) throw new Error(`paid_search_config / sm_api_key_env_var missing for ${slug}`)
+  const apiKey = process.env[envVar]
+  if (!apiKey) throw new Error(`Missing env var ${envVar}`)
 
-  const res = await fetch(
-    'https://api.supermetrics.com/enterprise/v2/ds/login/link',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ds_id: params.dsId,
-        description: params.description,
-        expiry_time: '48 hours',
-        redirect_url: `${process.env.APP_URL}/api/auth/supermetrics-callback`,
-      }),
-    }
-  )
-
-  // Returns { data: { login_url: string, link_id: string, status_code: string } }
-  return res.json()
-}
-
-export async function getConnectionStatus(clientSlug: string) {
-  const client = getClientBySlug(clientSlug)
-  const apiKey = process.env[client!.smApiKey]
-
-  const res = await fetch(
-    'https://api.supermetrics.com/enterprise/v2/ds/login',
-    { headers: { Authorization: `Bearer ${apiKey}` } }
-  )
-  return res.json()
+  const result = await smQuery({
+    apiKey,
+    dsId: DS_IDS.GOOGLE_ADS,
+    dsAccounts: cfg.googleAdsAccountId,
+    fields,
+    dateRange, // 'YYYY-MM-DD,YYYY-MM-DD'
+  })
+  return parseSmRows(result)
 }
 ```
-
-Login link lifecycle: `OPEN` → *(client completes OAuth)* → `CLOSED`
 
 ### Data Source IDs (`ds_id`)
 
-All values live in `lib/supermetrics/constants.ts`. Never hardcode strings
-in components.
+Live values in `lib/supermetrics/constants.ts` — only the channels in use.
+Never hardcode the raw strings in components. (`constants.ts` also exports
+`SM_TIME_DIMENSION`, the per-DS day/week/month field-id map.)
 
 ```typescript
 // lib/supermetrics/constants.ts
 export const DS_IDS = {
   GA4:         'GAWA',
-  META:        'FA',
   GOOGLE_ADS:  'AW',
-  MAILCHIMP:   'MC',
-  KLAVIYO:     'KLAVIYO',
-  LINKEDIN:    'LI',
-  TIKTOK:      'TIKTOK',
-  HUBSPOT:     'HS',
+  META:        'FA',
+  LINKEDIN:    'LIA',
+  SHOPIFY:     'SHP',
 } as const
 ```
 
-Verify exact values against the Supermetrics data sources reference before use.
+### Branded Authentication — removed
+
+Earlier versions used Supermetrics Branded Authentication (login links) so
+clients could connect ad accounts under Avenue Z branding. **This has been
+removed:** `lib/supermetrics/auth.ts` is now an empty deprecated stub, and the
+`createLoginLink()` / `getConnectionStatus()` helpers no longer exist. Platform
+connections are configured via **environment variables** — the Connections page
+(`app/dashboard/connections`) and the per-client Auth Hub show a `CONNECTED` /
+`NOT_CONFIGURED` status based on whether the relevant env var is set. The
+`app/api/auth/supermetrics-callback` route remains but is vestigial. The
+Supermetrics Management API is not used.
 
 ---
 
@@ -303,10 +256,10 @@ Verify exact values against the Supermetrics data sources reference before use.
     schema.ts                                   # Table definitions + inferred TS types
     queries.ts                                  # Async helpers: getClientBySlug, getClientByEmail, getAllClients
   /supermetrics/
-    client.ts                                   # smQuery() helper
-    auth.ts                                     # Login link + connection status helpers
-    constants.ts                                # DS_IDS and other constants
-    types.ts                                    # Typed response interfaces
+    client.ts                                   # smQuery() Data API helper + parseSmRows
+    auth.ts                                     # deprecated empty stub (Branded Auth removed)
+    constants.ts                                # DS_IDS (GA4, GOOGLE_ADS, META, LINKEDIN, SHOPIFY)
+    types.ts                                    # SmQueryParams, SmResult, error classes
 
 /drizzle/                                       # Auto-generated SQL migrations (committed to git)
 /scripts/
@@ -487,8 +440,9 @@ SLACK_CHANNEL_ID=                     # internal health channel ID, e.g. C0123AB
 8. **Build one section at a time.** Scaffold the shell first (layout,
    nav, date picker), then wire in real data section by section.
 
-9. **Connection state comes from Supermetrics**, not local storage. Use
-   `getConnectionStatus()` to show whether a platform is connected.
+9. **Connection state is derived from environment variables**, not Supermetrics
+   Branded Auth (removed). A platform shows `CONNECTED` when its configuring env
+   var is set, otherwise `NOT_CONFIGURED`.
 
 ---
 
