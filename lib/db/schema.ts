@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 
@@ -142,6 +142,10 @@ export const clients = pgTable('clients', {
   sharedPasswordHash: text('shared_password_hash'),
   maxSeats: integer('max_seats').notNull().default(5),
   triplewhaleShopId: text('triplewhale_shop_id'),
+  // A reporting-only host (created via self-service "Add new report") — has a
+  // configurable dashboard but is not a real client, so it's hidden from the
+  // /dashboard client lists (see getVisibleClients). Real clients stay false.
+  dashboardOnly: boolean('dashboard_only').notNull().default(false),
   dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
