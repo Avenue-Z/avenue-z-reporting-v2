@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CHART_COLORS } from '@/lib/constants'
+import { robustMax } from '@/lib/dashboard/charts'
 import { EditableText } from '@/components/dashboard/editable-text'
 
 export interface CapsuleColumnRow {
@@ -58,10 +59,12 @@ export function CapsuleColumnChart({
   dimKey,
 }: CapsuleColumnChartProps) {
   const [hovered, setHovered] = useState<number | null>(null)
-  // Scale to current values + any target/ceiling. Prior is shown only in the
-  // hover tooltip (no on-chart marker), so it does not affect the scale.
+  // Scale to a robust max so one extreme outlier (e.g. a ratio metric with a near-zero
+  // denominator) doesn't squash every other bar. Bars above `max` clip at 100% and show
+  // a marker; their true value is still in the hover tooltip. target/ceiling still count.
+  // Prior is shown only in the tooltip, so it does not affect the scale.
   const max = Math.max(
-    ...rows.map((r) => r.value),
+    robustMax(rows.map((r) => r.value)),
     target ?? 0,
     ceiling ?? 0,
     1,
@@ -108,6 +111,7 @@ export function CapsuleColumnChart({
         <div className="relative flex h-full gap-1">
           {rows.map((row, i) => {
             const hPct = (row.value / max) * 100
+            const clipped = row.value > max // outlier beyond the robust scale
             const isHovered = hovered === i
             const isDimmed = hovered !== null && !isHovered
             const d = row.prior !== undefined ? deltaPct(row.value, row.prior) : null
@@ -122,6 +126,7 @@ export function CapsuleColumnChart({
                 {isHovered && (
                   <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs shadow-xl">
                     <p className="font-bold text-white">{row.label}</p>
+                    {clipped && <p className="text-[10px] text-text-muted">exceeds chart scale</p>}
                     {row.priorLabel !== undefined && (
                       <p className="text-text-muted">
                         {compareLabel}: {row.priorLabel}
@@ -138,15 +143,24 @@ export function CapsuleColumnChart({
                   </div>
                 )}
 
-                {/* Current-period bar — fills cell width */}
+                {/* Current-period bar — fills cell width. Clipped bars cap at 100% with a
+                    hatched top to signal the value runs past the (robust) scale. */}
                 <div
                   className="absolute bottom-0 left-0 right-0 rounded-sm transition-colors duration-150"
                   style={{
-                    height: `${Math.max(hPct, 1)}%`,
+                    height: `${Math.min(Math.max(hPct, 1), 100)}%`,
                     backgroundColor: isHovered ? BAR_COLOR_HOVER : BAR_COLOR,
                     opacity: isDimmed ? 0.35 : 1,
                   }}
-                />
+                >
+                  {clipped && (
+                    <div
+                      className="absolute inset-x-0 top-0 h-1.5 rounded-t-sm"
+                      style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.5) 0 3px, transparent 3px 6px)' }}
+                      aria-hidden
+                    />
+                  )}
+                </div>
               </div>
             )
           })}

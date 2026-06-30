@@ -11,7 +11,6 @@ import { BarBlock } from './blocks/bar-block'
 import { LineBlock } from './blocks/line-block'
 import { HeaderBlock } from './blocks/header-block'
 import { NarrativeBlock } from './blocks/narrative-block'
-import { PillsBlock } from './blocks/pills-block'
 import { TableBlock } from './blocks/table-block'
 import type { BlockConfig, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
@@ -68,8 +67,6 @@ export function renderBlockNode(
       const seriesPromise = resolveSeriesBlock(block, { dateRange: eff.dateRange, compareRange: eff.compareRange }, { slug: clientSlug })
       return <LineBlock block={block} seriesPromise={seriesPromise} canEdit={canEdit} slug={clientSlug} config={config} activeDefault={activeDefault} />
     }
-    case 'pills':
-      return <PillsBlock block={block} canEdit={canEdit} slug={clientSlug} config={config} activeDefault={activeDefault} />
     case 'table': {
       const eff = block.range ?? activeDefault
       const groupedPromise = resolveGroupedBlock(block, { dateRange: eff.dateRange, compareRange: eff.compareRange }, { slug: clientSlug })

@@ -1,13 +1,21 @@
 // lib/dashboard/charts.test.ts
 // Run: npx tsx lib/dashboard/charts.test.ts
 import { strict as assert } from 'node:assert'
-import { toLineChartInput, bucketLabelPattern, toCapsuleBarInput } from './charts'
+import { toLineChartInput, bucketLabelPattern, toCapsuleBarInput, robustMax } from './charts'
 import type { GroupedResult, SeriesResult } from './types'
 
 // bucketLabelPattern: documented format strings.
 assert.equal(bucketLabelPattern('day'), 'MMM d')
 assert.equal(bucketLabelPattern('week'), "'Wk' w")
 assert.equal(bucketLabelPattern('month'), 'MMM yy')
+
+// robustMax: far-out outliers don't set the scale; clean data is unchanged.
+assert.equal(robustMax([10, 20, 30, 40]), 40)                                  // no outlier → true max
+assert.equal(robustMax([0.86, 3.38, 3.65, 8.98, 25.87, 337650]), 25.87)        // conv_rate: drop the 337650% freak
+assert.equal(robustMax([]), 0)                                                 // empty
+assert.equal(robustMax([0, 0, 0]), 0)                                          // zeros excluded → 0
+assert.equal(robustMax([3, 5, 100]), 5)                                        // small-N: 100 ≥ 5×5 → outlier
+assert.equal(robustMax([5, 20]), 20)                                           // small-N: 20 < 5×5 → not an outlier
 
 // toLineChartInput: bucketLabel produced via date-fns format(bucketLabelPattern(g)).
 {
@@ -70,6 +78,30 @@ assert.equal(bucketLabelPattern('month'), 'MMM yy')
     { name: 'B', key: 'B', value: 25, pct: 25 },
   ])
   assert.equal(out.hasCompare, true)
+}
+
+// toCapsuleBarInput: topN caps to the top N by value + a summed "Other" bar.
+{
+  const r: Extract<GroupedResult, { ok: true }> = {
+    ok: true, format: 'number',
+    rows: [
+      { dim: { C: 'a' }, value: 10, prevValue: 5 },
+      { dim: { C: 'b' }, value: 100, prevValue: 40 },
+      { dim: { C: 'c' }, value: 30 },
+      { dim: { C: 'd' }, value: 20, prevValue: 8 },
+      { dim: { C: 'e' }, value: 40 },
+    ],
+  }
+  const out = toCapsuleBarInput(r, undefined, 2) // total 200; sorted: b,e,c,d,a
+  assert.deepEqual(out.rows.map((x) => x.key), ['b', 'e', '__other__'])
+  assert.equal(out.rows[0].value, 100) // b
+  assert.equal(out.rows[0].pct, 50)
+  assert.equal(out.rows[2].name, 'Other')
+  assert.equal(out.rows[2].value, 60) // c30 + d20 + a10
+  assert.equal(out.rows[2].pct, 30) // 60/200
+  assert.equal(out.rows[2].prior, 13) // d8 + a5 (c has none)
+  // topN >= row count → no "Other", just sorted desc
+  assert.deepEqual(toCapsuleBarInput(r, undefined, 5).rows.map((x) => x.key), ['b', 'e', 'c', 'd', 'a'])
 }
 
 // toCapsuleBarInput: zero total → pct 0, no divide-by-zero; undefined value → 0.

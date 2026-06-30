@@ -10,7 +10,7 @@ type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
 const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number', 'multiple']
 const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
-const BLOCK_KINDS: BlockKind[] = ['kpi', 'pills', 'bar', 'line', 'table', 'narrative', 'header']
+const BLOCK_KINDS: BlockKind[] = ['kpi', 'bar', 'line', 'table', 'narrative', 'header']
 const GRANULARITIES: Granularity[] = ['day', 'week', 'month']
 const SM_DIM_RE = /^[A-Za-z0-9_]+$/                     // mirrors SM_COLUMN_RE in lib/dashboard/adapters/supermetrics.ts
 const TW_DIM_RE = /^[a-z0-9_]+$/                        // mirrors isSafeColumn in lib/triplewhale/queries.ts
@@ -256,10 +256,14 @@ export function parseBlockConfig(
 
   let kind: BlockKind | undefined
   if (v.kind !== undefined) {
-    if (!BLOCK_KINDS.includes(v.kind as BlockKind)) {
+    // Legacy 'pills' was a compact-display variant of 'kpi'; the kind was removed
+    // and folded back into 'kpi'. Normalize on read so existing configs keep loading
+    // (and persist as 'kpi' on the next save).
+    const rawKind = v.kind === 'pills' ? 'kpi' : v.kind
+    if (!BLOCK_KINDS.includes(rawKind as BlockKind)) {
       return { ok: false, error: `${path}.kind: expected one of ${BLOCK_KINDS.join(',')}` }
     }
-    kind = v.kind as BlockKind
+    kind = rawKind as BlockKind
   }
 
   let range: PersistedBlock['range'] = null
@@ -291,6 +295,11 @@ export function parseBlockConfig(
     if (typeof v.ceiling !== 'number' || !Number.isFinite(v.ceiling)) return { ok: false, error: `${path}.ceiling: expected finite number` }
     ceiling = v.ceiling
   }
+  let topN: number | undefined
+  if (v.topN !== undefined) {
+    if (typeof v.topN !== 'number' || !Number.isInteger(v.topN) || v.topN < 1) return { ok: false, error: `${path}.topN: expected positive integer` }
+    topN = v.topN
+  }
   let headerLevel: 1 | 2 | 3 | undefined
   if (v.headerLevel !== undefined) {
     if (v.headerLevel !== 1 && v.headerLevel !== 2 && v.headerLevel !== 3) {
@@ -313,6 +322,7 @@ export function parseBlockConfig(
   if (subLabel !== undefined) block.subLabel = subLabel
   if (target !== undefined) block.target = target
   if (ceiling !== undefined) block.ceiling = ceiling
+  if (topN !== undefined) block.topN = topN
   if (headerLevel !== undefined) block.headerLevel = headerLevel
   if (narrativeBody !== undefined) block.narrativeBody = narrativeBody
   return { ok: true, block }

@@ -38,7 +38,7 @@ export interface FormulaBinding { source: 'formula'; expr: string; operands: Rec
 
 export type Binding = LeafBinding | CalculatedBinding | AggregateBinding | FormulaBinding
 
-export type BlockKind = 'kpi' | 'pills' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
+export type BlockKind = 'kpi' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
 export interface BlockLayout { x: number; y: number; w: number; h: number }
 
 export interface BlockConfig {
@@ -54,13 +54,16 @@ export interface BlockConfig {
   target?: number
   /** Orange when value ≥ ceiling. */
   ceiling?: number
+  /** Bar-only: cap the chart to the top N categories by value; the remainder is
+   *  rolled into a single "Other" bar. Undefined = show all categories. */
+  topN?: number
   /** Header-only: heading level (1 = largest). Default 2. */
   headerLevel?: 1 | 2 | 3
   /** Narrative-only: markdown body (rendered via react-markdown). */
   narrativeBody?: string
 }
 
-export type BlockError = 'disconnected' | 'invalid-metric' | 'no-data' | 'rate-limited' | 'error'
+export type BlockError = 'disconnected' | 'invalid-metric' | 'unavailable' | 'no-data' | 'rate-limited' | 'error'
 
 /** Raw output of a single leaf resolution. prevValue present iff a comparison is active. */
 export interface LeafValue {

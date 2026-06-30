@@ -7,12 +7,11 @@ import { BarBuilder } from './bar-builder'
 import { LineBuilder } from './line-builder'
 import { HeaderBuilder } from './header-builder'
 import { NarrativeBuilder } from './narrative-builder'
-import { PillsBuilder } from './pills-builder'
 import { TableBuilder } from './table-builder'
 import {
   buildBlockConfig, isDraftComplete,
   type LeafDraft, type ManualDraft, type FormulaDraft,
-  type BarDraft, type LineDraft, type HeaderDraft, type NarrativeDraft, type PillsDraft, type TableDraft,
+  type BarDraft, type LineDraft, type HeaderDraft, type NarrativeDraft, type TableDraft,
 } from './build-config'
 import type { BlockConfig, BlockKind, Granularity, MetricFormat } from '@/lib/dashboard/types'
 
@@ -57,15 +56,13 @@ export function ManualBlockForm({
   const [formula, setFormula] = useState<FormulaDraft>(() =>
     initial?.kind === 'formula' ? initial.formula : { source: 'formula', expr: '', operands: {} })
   const [bar, setBar] = useState<BarDraft>(() =>
-    initial?.kind === 'bar' ? initial.bar : { source: 'bar', leaf: seedLeaf, dimension: '' })
+    initial?.kind === 'bar' ? initial.bar : { source: 'bar', leaf: seedLeaf, dimension: '', topN: 12 })
   const [line, setLine] = useState<LineDraft>(() =>
     initial?.kind === 'line' ? initial.line : { source: 'line', leaf: seedLeaf, granularity: 'day' as Granularity })
   const [header, setHeader] = useState<HeaderDraft>(() =>
     initial?.kind === 'header' ? initial.header : { source: 'header', level: 2 })
   const [narrative, setNarrative] = useState<NarrativeDraft>(() =>
     initial?.kind === 'narrative' ? initial.narrative : { source: 'narrative', body: '' })
-  const [pills, setPills] = useState<PillsDraft>(() =>
-    initial?.kind === 'pills' ? initial.pills : { source: 'pills', leaf: seedLeaf })
   const [table, setTable] = useState<TableDraft>(() =>
     initial?.kind === 'table' ? initial.table : { source: 'table', leaf: seedLeaf, dimension: '' })
 
@@ -74,17 +71,15 @@ export function ManualBlockForm({
       ? { kind: 'bar', name, format, bar }
       : kind === 'line'
         ? { kind: 'line', name, format, line }
-        : kind === 'pills'
-          ? { kind: 'pills', name, format, pills }
-          : kind === 'table'
-            ? { kind: 'table', name, format, table }
-            : kind === 'header'
-              ? { kind: 'header', name, format, header }
-              : kind === 'narrative'
-                ? { kind: 'narrative', name, format, narrative }
-                : source === 'formula'
-                  ? { kind: 'formula', name, format, formula }
-                  : { kind: 'leaf', name, format, leaf }
+        : kind === 'table'
+          ? { kind: 'table', name, format, table }
+          : kind === 'header'
+            ? { kind: 'header', name, format, header }
+            : kind === 'narrative'
+              ? { kind: 'narrative', name, format, narrative }
+              : source === 'formula'
+                ? { kind: 'formula', name, format, formula }
+                : { kind: 'leaf', name, format, leaf }
 
   return (
     <div className="flex flex-col gap-3">
@@ -105,7 +100,6 @@ export function ManualBlockForm({
 
       {kind === 'bar' && <BarBuilder value={bar} onChange={setBar} slug={slug} />}
       {kind === 'line' && <LineBuilder value={line} onChange={setLine} slug={slug} />}
-      {kind === 'pills' && <PillsBuilder value={pills} onChange={setPills} slug={slug} />}
       {kind === 'table' && <TableBuilder value={table} onChange={setTable} slug={slug} />}
       {kind === 'header' && <HeaderBuilder value={header} onChange={setHeader} />}
       {kind === 'narrative' && <NarrativeBuilder value={narrative} onChange={setNarrative} />}
