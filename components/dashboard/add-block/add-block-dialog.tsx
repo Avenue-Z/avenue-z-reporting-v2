@@ -169,9 +169,10 @@ export function AddBlockDialog({ slug, config, onClose, onAdded, editing }: { sl
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">How to build it · {source}</p>
             {source !== 'formula' && source !== 'shopify' && (
-              <button onClick={() => setStep('prompt')}
-                className="rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/90 hover:border-white/25 hover:bg-white/[0.04]">
+              <button disabled aria-disabled="true"
+                className="flex cursor-not-allowed items-center justify-between rounded-md border border-white/10 px-3 py-2 text-left text-sm text-white/40">
                 Describe with AI
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Coming soon</span>
               </button>
             )}
             <button onClick={() => setStep('build')}
