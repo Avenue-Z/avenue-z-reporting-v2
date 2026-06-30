@@ -232,7 +232,7 @@ import { parse } from '@/lib/dashboard/formula/parse'
   assert.equal(d.expr.includes('+ -'), false, 'no "plus negative" in expr')
 }
 
-// ── Chart kinds (bar/line/pills/table) ─────────────────────────────────────────
+// ── Chart kinds (bar/line/table) ─────────────────────────────────────────
 
 // barToBlockConfig: produces leaf binding with dimensions: [dim] and kind: 'bar'.
 {
@@ -311,14 +311,6 @@ assert.equal(isDraftComplete({
   assert.equal(cfg.narrativeBody, '## Hi')
 }
 
-// pills draft → pills config (kind='pills', leaf binding)
-{
-  const cfg = buildBlockConfig({ kind: 'pills', name: 'Sessions', format: 'count',
-    pills: { source: 'pills', leaf: { source: 'supermetrics', dsId: 'GAWA', metricField: 'sessions', account: '1' } } })
-  assert.equal(cfg.kind, 'pills')
-  assert.equal(cfg.binding.source, 'supermetrics')
-}
-
 // table draft → table config (kind='table', leaf binding with single dim)
 {
   const cfg = buildBlockConfig({ kind: 'table', name: 'By channel', format: 'currency',
@@ -335,8 +327,6 @@ assert.equal(isDraftComplete({
 assert.equal(isDraftComplete({ kind: 'narrative', name: 'X', format: 'number', narrative: { source: 'narrative', body: '' } }), true)
 // isDraftComplete: header always completes once name set
 assert.equal(isDraftComplete({ kind: 'header', name: 'X', format: 'number', header: { source: 'header', level: 2 } }), true)
-// isDraftComplete: pills requires a complete leaf
-assert.equal(isDraftComplete({ kind: 'pills', name: 'X', format: 'count', pills: { source: 'pills', leaf: { source: 'supermetrics', dsId: '', metricField: '', account: '' } } }), false)
 // isDraftComplete: table requires complete leaf + dimension
 assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: '' } }), false)
 assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table: { source: 'table', leaf: { source: 'supermetrics', dsId: 'AW', metricField: 'Cost', account: '1' }, dimension: 'Channel' } }), true)
@@ -404,13 +394,6 @@ assert.equal(isDraftComplete({ kind: 'table', name: 'X', format: 'count', table:
   const { draft } = blockToManualDraft(tableBlock)
   assert.equal(draft.kind, 'table')
   if (draft.kind === 'table') assert.equal(draft.table.dimension, 'Channel')
-}
-// pills block round-trips
-{
-  const pillsBlock = { id: 'p', name: 'Sessions', format: 'count' as const, range: null, kind: 'pills' as const,
-    binding: { source: 'supermetrics' as const, dsId: 'GAWA', metricField: 'sessions', account: '1' } }
-  const { draft } = blockToManualDraft(pillsBlock)
-  assert.equal(draft.kind, 'pills')
 }
 // formula KPI round-trips
 {
