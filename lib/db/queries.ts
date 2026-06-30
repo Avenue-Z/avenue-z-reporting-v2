@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { eq, and, lt } from 'drizzle-orm'
 import { db } from './client'
-import { clients, users, healthState, smDimensionValueCache, type Client, type User, type ClientRole } from './schema'
+import { clients, users, healthState, smDimensionValueCache, dashboardShares, type Client, type User, type ClientRole } from './schema'
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
 import { cached } from '@/lib/cache'
 import { timed } from '@/lib/perf'
@@ -199,4 +199,25 @@ export async function listStaleSmDimensionCacheRows(
     })
     .from(smDimensionValueCache)
     .where(lt(smDimensionValueCache.fetchedAt, olderThan))
+}
+
+// --- Public dashboard sharing ---
+
+/** Resolve a public share token → the client + selected blocks. Returns null when the
+ *  token is unknown or expired. React.cache for per-request dedup on the public page. */
+export const getDashboardShareByToken = cache(
+  async (token: string): Promise<{ clientSlug: string; title: string; blockIds: string[] } | null> => {
+    const r = (await db.select().from(dashboardShares).where(eq(dashboardShares.token, token)).limit(1))[0]
+    if (!r) return null
+    if (r.expiresAt && r.expiresAt.getTime() <= Date.now()) return null
+    return { clientSlug: r.clientSlug, title: r.title, blockIds: r.blockIds }
+  },
+)
+
+/** The existing share for a client (to prefill the Share dialog), or null. */
+export async function getDashboardShareForClient(
+  slug: string,
+): Promise<{ token: string; title: string; blockIds: string[]; expiresAt: Date | null } | null> {
+  const r = (await db.select().from(dashboardShares).where(eq(dashboardShares.clientSlug, slug)).limit(1))[0]
+  return r ? { token: r.token, title: r.title, blockIds: r.blockIds, expiresAt: r.expiresAt } : null
 }

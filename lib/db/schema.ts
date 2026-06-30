@@ -200,6 +200,24 @@ export const smDimensionValueCache = pgTable('sm_dimension_value_cache', {
 
 export type SmDimensionValueCacheRow = typeof smDimensionValueCache.$inferSelect
 
+// Public, tokened read-only share of a client's configurable dashboard. One row per
+// client (clientSlug unique) — a single shareable link per client for now. The token
+// is the bearer credential for the public /share/[token] view; block_ids is the subset
+// of blocks the sharer chose to expose; expires_at null = never.
+export const dashboardShares = pgTable('dashboard_shares', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  token: text('token').notNull().unique(),
+  clientSlug: text('client_slug').notNull().unique(),
+  title: text('title').notNull(),
+  blockIds: jsonb('block_ids').$type<string[]>().notNull(),
+  access: text('access').notNull().default('link'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type DashboardShareRow = typeof dashboardShares.$inferSelect
+
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert
 export type User = typeof users.$inferSelect
