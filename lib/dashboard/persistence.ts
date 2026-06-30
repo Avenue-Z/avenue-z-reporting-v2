@@ -10,7 +10,7 @@ type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
 const FORMATS: MetricFormat[] = ['currency', 'percent', 'count', 'number', 'multiple']
 const OPS: AggregateBinding['op'][] = ['+', '-', '*', '/']
-const BLOCK_KINDS: BlockKind[] = ['kpi', 'pills', 'bar', 'line', 'table', 'narrative', 'header']
+const BLOCK_KINDS: BlockKind[] = ['kpi', 'bar', 'line', 'table', 'narrative', 'header']
 const GRANULARITIES: Granularity[] = ['day', 'week', 'month']
 const SM_DIM_RE = /^[A-Za-z0-9_]+$/                     // mirrors SM_COLUMN_RE in lib/dashboard/adapters/supermetrics.ts
 const TW_DIM_RE = /^[a-z0-9_]+$/                        // mirrors isSafeColumn in lib/triplewhale/queries.ts
@@ -256,10 +256,14 @@ export function parseBlockConfig(
 
   let kind: BlockKind | undefined
   if (v.kind !== undefined) {
-    if (!BLOCK_KINDS.includes(v.kind as BlockKind)) {
+    // Legacy 'pills' was a compact-display variant of 'kpi'; the kind was removed
+    // and folded back into 'kpi'. Normalize on read so existing configs keep loading
+    // (and persist as 'kpi' on the next save).
+    const rawKind = v.kind === 'pills' ? 'kpi' : v.kind
+    if (!BLOCK_KINDS.includes(rawKind as BlockKind)) {
       return { ok: false, error: `${path}.kind: expected one of ${BLOCK_KINDS.join(',')}` }
     }
-    kind = v.kind as BlockKind
+    kind = rawKind as BlockKind
   }
 
   let range: PersistedBlock['range'] = null

@@ -17,7 +17,6 @@ import { BarBlock } from '@/components/dashboard/blocks/bar-block'
 import { LineBlock } from '@/components/dashboard/blocks/line-block'
 import { HeaderBlock } from '@/components/dashboard/blocks/header-block'
 import { NarrativeBlock } from '@/components/dashboard/blocks/narrative-block'
-import { PillsBlock } from '@/components/dashboard/blocks/pills-block'
 import { TableBlock } from '@/components/dashboard/blocks/table-block'
 import type { BlockConfig, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
 
@@ -105,6 +104,7 @@ function renderBlockNode(
   config: DashboardConfig,
   blocksById: Map<string, BlockConfig>,
 ): ReactNode {
+  // Legacy 'pills' blocks are normalized to 'kpi' at parse time (see parseBlockConfig).
   const kind = block.kind ?? 'kpi'
   switch (kind) {
     case 'kpi': {
@@ -168,17 +168,6 @@ function renderBlockNode(
         <LineBlock
           block={block}
           seriesPromise={seriesPromise}
-          canEdit={canEdit}
-          slug={clientSlug}
-          config={config}
-          activeDefault={activeDefault}
-        />
-      )
-    }
-    case 'pills': {
-      return (
-        <PillsBlock
-          block={block}
           canEdit={canEdit}
           slug={clientSlug}
           config={config}

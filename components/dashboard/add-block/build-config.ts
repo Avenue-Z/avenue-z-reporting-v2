@@ -74,12 +74,6 @@ export type NarrativeDraft = {
   body: string
 }
 
-/** Pills block draft: a single leaf (v1 — no aggregate/calculated). */
-export type PillsDraft = {
-  source: 'pills'
-  leaf: LeafDraft
-}
-
 /** Table block draft: a leaf + a single dimension column (v1 single-dim, single-metric). */
 export type TableDraft = {
   source: 'table'
@@ -94,7 +88,6 @@ export type ManualDraft =
   | { kind: 'formula'; name: string; format: MetricFormat; formula: FormulaDraft }
   | { kind: 'bar'; name: string; format: MetricFormat; bar: BarDraft }
   | { kind: 'line'; name: string; format: MetricFormat; line: LineDraft }
-  | { kind: 'pills'; name: string; format: MetricFormat; pills: PillsDraft }
   | { kind: 'table'; name: string; format: MetricFormat; table: TableDraft }
   | { kind: 'header'; name: string; format: MetricFormat; header: HeaderDraft }
   | { kind: 'narrative'; name: string; format: MetricFormat; narrative: NarrativeDraft }
@@ -169,11 +162,6 @@ export function lineToBlockConfig(d: LineDraft, name: string, format: MetricForm
   const base = leafToBinding(d.leaf)
   const binding: LeafBinding = { ...base, granularity: d.granularity }
   return { name, format, range: null, binding, kind: 'line' }
-}
-
-/** Convert a pills draft into a Pills block config (kind: 'pills', scalar leaf binding). */
-export function pillsToBlockConfig(d: PillsDraft, name: string, format: MetricFormat): Omit<BlockConfig, 'id'> {
-  return { name, format, range: null, binding: leafToBinding(d.leaf), kind: 'pills' }
 }
 
 /** Convert a table draft into a Table block config (kind: 'table', leaf binding with one dim). */
@@ -263,7 +251,7 @@ export function bindingToFormulaDraft(b: AggregateBinding | CalculatedBinding): 
 
 /** Reverse a persisted block into a builder draft + its source so Edit opens pre-filled.
  *  Covers every editable kind: kpi (leaf/formula, legacy aggregate/calculated folded into
- *  a formula draft), bar/line/pills/table charts, and header/narrative static kinds. */
+ *  a formula draft), bar/line/table charts, and header/narrative static kinds. */
 export function blockToManualDraft(block: PersistedBlock): { source: 'supermetrics' | 'triplewhale' | 'shopify' | 'formula'; draft: ManualDraft } {
   const { name, format, binding } = block
   const kind = block.kind ?? 'kpi'
@@ -288,10 +276,6 @@ export function blockToManualDraft(block: PersistedBlock): { source: 'supermetri
     const leaf = leafToDraft(binding as LeafBinding)
     const granularity = (binding as LeafBinding).granularity ?? 'day'
     return { source: leaf.source, draft: { kind: 'line', name, format, line: { source: 'line', leaf, granularity } } }
-  }
-  if (kind === 'pills') {
-    const leaf = leafToDraft(binding as LeafBinding)
-    return { source: leaf.source, draft: { kind: 'pills', name, format, pills: { source: 'pills', leaf } } }
   }
 
   // KPI: scalar leaf, formula, or a legacy aggregate/calculated folded into a formula draft.
@@ -321,7 +305,6 @@ export function buildBlockConfig(d: ManualDraft): Omit<BlockConfig, 'id'> {
   if (d.kind === 'formula')   return { name: d.name, format: d.format, range: null, binding: formulaToBinding(d.formula) }
   if (d.kind === 'bar')       return barToBlockConfig(d.bar, d.name, d.format)
   if (d.kind === 'line')      return lineToBlockConfig(d.line, d.name, d.format)
-  if (d.kind === 'pills')     return pillsToBlockConfig(d.pills, d.name, d.format)
   if (d.kind === 'table')     return tableToBlockConfig(d.table, d.name, d.format)
   if (d.kind === 'header')    return headerToBlockConfig(d.header, d.name, d.format)
   return narrativeToBlockConfig(d.narrative, d.name, d.format)
@@ -355,7 +338,6 @@ export function isDraftComplete(d: ManualDraft): boolean {
   if (d.kind === 'formula') return isFormulaComplete(d.formula)
   if (d.kind === 'bar')     return isLeafComplete(d.bar.leaf) && d.bar.dimension.trim() !== ''
   if (d.kind === 'line')    return isLeafComplete(d.line.leaf) && (GRANULARITIES as string[]).includes(d.line.granularity)
-  if (d.kind === 'pills')   return isLeafComplete(d.pills.leaf)
   if (d.kind === 'table')   return isLeafComplete(d.table.leaf) && d.table.dimension.trim() !== ''
   if (d.kind === 'header')  return true
   return true // narrative — name is required (checked above); body is optional in v1

@@ -38,7 +38,7 @@ export interface FormulaBinding { source: 'formula'; expr: string; operands: Rec
 
 export type Binding = LeafBinding | CalculatedBinding | AggregateBinding | FormulaBinding
 
-export type BlockKind = 'kpi' | 'pills' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
+export type BlockKind = 'kpi' | 'bar' | 'line' | 'table' | 'narrative' | 'header'
 export interface BlockLayout { x: number; y: number; w: number; h: number }
 
 export interface BlockConfig {

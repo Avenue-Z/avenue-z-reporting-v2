@@ -19,7 +19,6 @@ type Source = ProposeBlockInput['source'] | 'formula' | 'shopify'
 
 const KIND_OPTIONS: { value: BlockKind; label: string; available: boolean; hint?: string }[] = [
   { value: 'kpi',       label: 'KPI tile',            available: true },
-  { value: 'pills',     label: 'Pills (compact KPI)', available: true },
   { value: 'bar',       label: 'Bar chart',           available: true },
   { value: 'line',      label: 'Line chart',          available: true },
   { value: 'table',     label: 'Table',               available: true },
@@ -34,7 +33,6 @@ const SOURCES_BY_KIND: Record<BlockKind, { value: Source; label: string }[]> = {
     { value: 'shopify',      label: 'Shopify (ShopifyQL)' },
     { value: 'formula',      label: 'Formula' },
   ],
-  pills:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
   bar:       [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
   line:      [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
   table:     [{ value: 'supermetrics', label: 'Supermetrics' }, { value: 'triplewhale', label: 'TripleWhale' }, { value: 'shopify', label: 'Shopify (ShopifyQL)' }],
@@ -111,9 +109,9 @@ export function AddBlockDialog({ slug, config, onClose, onAdded, editing }: { sl
   }
 
   const input = 'block w-full rounded-md border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
-  // Bar/Line/Pills/Table are leaf-only — skip the AI/manual mode step and go directly to 'build'.
+  // Bar/Line/Table are leaf-only — skip the AI/manual mode step and go directly to 'build'.
   // KPI keeps the full prompt/mode flow.
-  const isDataChartKind = kind === 'bar' || kind === 'line' || kind === 'pills' || kind === 'table'
+  const isDataChartKind = kind === 'bar' || kind === 'line' || kind === 'table'
   // Static kinds need no data source — skip 'pick' entirely and jump from 'kind' → 'build'.
   const isStaticKind = kind === 'header' || kind === 'narrative'
 

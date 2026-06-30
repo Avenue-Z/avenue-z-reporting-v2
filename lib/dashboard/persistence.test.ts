@@ -72,6 +72,12 @@ assert.equal(parseBlockConfig({ ...block(sm), range: { compareRange: null } }).o
   assert.equal(r.ok, true)
   if (r.ok && r.block.binding.source === 'supermetrics') assert.deepEqual(r.block.binding.filters, [{ column: 'order_shipping_country', values: ['United States'] }])
 }
+// legacy kind 'pills' (removed) normalizes to 'kpi' so existing configs keep loading
+{
+  const r = parseBlockConfig({ ...block(tw), kind: 'pills' })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.block.kind, 'kpi')
+}
 // malformed filter rejected (no column)
 {
   const r = parseBlockConfig({ id: 'b', name: 'n', format: 'number', range: null,
