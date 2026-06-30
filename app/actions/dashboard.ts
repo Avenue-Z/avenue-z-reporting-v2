@@ -2,11 +2,11 @@
 
 import { eq } from 'drizzle-orm'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
-import { clients } from '@/lib/db/schema'
-import { getClientBySlug, getCachedSmDimensionValues, getDashboardConfig } from '@/lib/db/queries'
+import { clients, dashboardShares } from '@/lib/db/schema'
+import { getClientBySlug, getCachedSmDimensionValues, getDashboardConfig, getDashboardShareForClient } from '@/lib/db/queries'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { setBlockText, setLabelOverride } from '@/components/dashboard/config-mutations'
@@ -230,4 +230,52 @@ export async function updateLabelOverride(
   const config = await getDashboardConfig(slug)
   if (!config) return { ok: false, error: 'no-config' }
   return saveDashboardConfig(slug, setLabelOverride(config, target, value))
+}
+
+/**
+ * Create or update the single public share link for a client's dashboard. One row per
+ * client (clientSlug unique): the token is minted once and kept stable across re-saves
+ * so an already-distributed link keeps working. Edit-gated. expiryDays 0 = never expires.
+ */
+export async function saveDashboardShare(
+  slug: string,
+  input: { title: string; expiryDays: number; blockIds: string[] },
+): Promise<{ ok: true; token: string; url: string } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
+
+  const title = input.title.trim()
+  if (!title) return { ok: false, error: 'A dashboard title is required.' }
+  if (!Array.isArray(input.blockIds) || input.blockIds.length === 0) {
+    return { ok: false, error: 'Select at least one block to share.' }
+  }
+  const days = Number.isFinite(input.expiryDays) && input.expiryDays > 0 ? Math.floor(input.expiryDays) : 0
+  const expiresAt = days > 0 ? new Date(Date.now() + days * 86_400_000) : null
+
+  // Reuse the existing token (stable link) or mint a new URL-safe one.
+  const existing = (await db.select({ token: dashboardShares.token }).from(dashboardShares).where(eq(dashboardShares.clientSlug, slug)).limit(1))[0]
+  const token = existing?.token ?? randomBytes(18).toString('base64url')
+
+  await db
+    .insert(dashboardShares)
+    .values({ token, clientSlug: slug, title, blockIds: input.blockIds, expiresAt })
+    .onConflictDoUpdate({
+      target: dashboardShares.clientSlug,
+      set: { token, title, blockIds: input.blockIds, expiresAt, updatedAt: new Date() },
+    })
+
+  const base = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '').replace(/\/$/, '')
+  return { ok: true, token, url: `${base}/share/${token}` }
+}
+
+/** Load the existing share for a client (to prefill the Share dialog). Edit-gated. */
+export async function loadDashboardShare(
+  slug: string,
+): Promise<{ ok: true; share: { token: string; title: string; blockIds: string[] } | null } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (!canEditDashboard(session.user.role, session.user.clientSlug, slug)) return { ok: false, error: 'forbidden' }
+  const s = await getDashboardShareForClient(slug)
+  return { ok: true, share: s ? { token: s.token, title: s.title, blockIds: s.blockIds } : null }
 }
