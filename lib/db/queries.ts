@@ -1,5 +1,5 @@
 import { cache } from 'react'
-import { eq, and, lt } from 'drizzle-orm'
+import { eq, and, lt, isNotNull } from 'drizzle-orm'
 import { db } from './client'
 import { clients, users, healthState, smDimensionValueCache, dashboardShares, type Client, type User, type ClientRole } from './schema'
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
@@ -98,12 +98,10 @@ export const getAllClients = cache(
  */
 const getClientsWithDashboardsImpl = async (): Promise<{ slug: string; name: string; logoUrl: string | null }[]> => {
   const rows = await db
-    .select({ slug: clients.slug, name: clients.name, logoUrl: clients.logoUrl, dashboardConfig: clients.dashboardConfig })
+    .select({ slug: clients.slug, name: clients.name, logoUrl: clients.logoUrl })
     .from(clients)
-  return rows
-    .filter((r) => r.dashboardConfig != null)
-    .map(({ slug, name, logoUrl }) => ({ slug, name, logoUrl }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .where(isNotNull(clients.dashboardConfig))
+  return rows.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export const getClientsWithDashboards = cache(

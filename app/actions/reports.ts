@@ -10,7 +10,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { isInternalStaff } from '@/lib/dashboard/permissions'
 import { isValidShop } from '@/lib/shopify/oauth'
 import { buildMetricSql } from '@/lib/triplewhale/queries'
-import { twSql } from '@/lib/triplewhale/client'
+import { twSql, twValue } from '@/lib/triplewhale/client'
 import { parseDateRange } from '@/lib/ga4/client'
 import { slugify } from '@/lib/dashboard/slugify'
 import { buildStarterTemplate } from '@/lib/dashboard/starter-template'
@@ -51,10 +51,15 @@ export async function createClientReport(input: {
   const apiKey = process.env.TRIPLE_WHALE_API_KEY
   if (!apiKey) return { ok: false, error: 'TripleWhale is not configured on the server.' }
   const { startDate, endDate } = parseDateRange('last_30_days')
+  const noData = { ok: false as const, error: 'No TripleWhale data for that shop ID. Check the shop and try again.' }
   try {
-    await twSql({ apiKey, shopId, query: buildMetricSql('ad_spend'), startDate, endDate })
+    // twSql returns [] (no throw) on an accepted-but-empty response, so a wrong/unknown
+    // shop would otherwise pass. twValue(rows) is null when there's no data (≥ 0 passes,
+    // so a valid shop with genuinely zero recent spend still provisions).
+    const rows = await twSql({ apiKey, shopId, query: buildMetricSql('ad_spend'), startDate, endDate })
+    if (twValue(rows) === null) return noData
   } catch {
-    return { ok: false, error: 'No TripleWhale data for that shop ID. Check the shop and try again.' }
+    return noData
   }
 
   // 4. Resolve slug + 5. upsert guardrail.
