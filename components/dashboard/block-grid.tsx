@@ -6,6 +6,7 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { saveDashboardConfig } from '@/app/actions/dashboard'
 import { BlockSkeleton } from './blocks/block-skeleton'
+import { BlockErrorBoundary } from './block-error-boundary'
 import { applyLayoutChange } from './config-mutations'
 import { DEFAULT_LAYOUT, GRID_COLS_LG } from './block-grid-defaults'
 import type { BlockKind, DashboardConfig, PersistedBlock } from '@/lib/dashboard/types'
@@ -118,7 +119,11 @@ export function BlockGrid({ blocks, canEdit, slug, config, renderBlock }: BlockG
       >
         {blocks.map((b) => (
           <div key={b.id}>
-            <div className="h-full">{renderBlock(b) ?? <BlockSkeleton />}</div>
+            <div className="h-full">
+              <BlockErrorBoundary name={b.name}>
+                {renderBlock(b) ?? <BlockSkeleton />}
+              </BlockErrorBoundary>
+            </div>
           </div>
         ))}
       </ResponsiveGrid>
