@@ -1,5 +1,5 @@
 import { cache } from 'react'
-import { eq, and, lt } from 'drizzle-orm'
+import { eq, and, lt, isNotNull } from 'drizzle-orm'
 import { db } from './client'
 import { clients, users, healthState, smDimensionValueCache, dashboardShares, type Client, type User, type ClientRole } from './schema'
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
@@ -91,14 +91,34 @@ export const getAllClients = cache(
 )
 
 /**
+ * Clients that have a configurable dashboard, for the Tools → Reporting hub.
+ * Unlike getVisibleClients this does NOT drop HIDDEN_CLIENT_SLUGS — dashboard-only
+ * hosts (kind-patches) are exactly what Reporting surfaces. Persistently cached
+ * (5-min TTL), db-tagged so a new report busts it via revalidateTag('db').
+ */
+const getClientsWithDashboardsImpl = async (): Promise<{ slug: string; name: string; logoUrl: string | null }[]> => {
+  const rows = await db
+    .select({ slug: clients.slug, name: clients.name, logoUrl: clients.logoUrl })
+    .from(clients)
+    .where(isNotNull(clients.dashboardConfig))
+  return rows.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export const getClientsWithDashboards = cache(
+  cached('db', 'getClientsWithDashboards', getClientsWithDashboardsImpl, { ttlSeconds: 300, tags: ['db'] }),
+)
+
+/**
  * Clients shown in the /dashboard client lists. Excludes HIDDEN_CLIENT_SLUGS —
- * dashboard-only hosts (e.g. kind-patches) that are surfaced via Tools → Reporting,
- * not as real clients. Operational callers (cache-warm, health sweep) still use
- * getAllClients so those hosts keep working.
+ * dashboard-only hosts that are surfaced via Tools → Reporting, not as real
+ * clients: the legacy hardcoded HIDDEN_CLIENT_SLUGS (e.g. kind-patches) plus any
+ * client flagged dashboardOnly (created via self-service "Add new report").
+ * Operational callers (cache-warm, health sweep) still use getAllClients so those
+ * hosts keep working.
  */
 export const getVisibleClients = cache(async (): Promise<(Client & { users: User[] })[]> => {
   const all = await getAllClients()
-  return all.filter((c) => !HIDDEN_CLIENT_SLUGS.has(c.slug))
+  return all.filter((c) => !c.dashboardOnly && !HIDDEN_CLIENT_SLUGS.has(c.slug))
 })
 
 /**
