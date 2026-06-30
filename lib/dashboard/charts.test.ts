@@ -1,13 +1,21 @@
 // lib/dashboard/charts.test.ts
 // Run: npx tsx lib/dashboard/charts.test.ts
 import { strict as assert } from 'node:assert'
-import { toLineChartInput, bucketLabelPattern, toCapsuleBarInput } from './charts'
+import { toLineChartInput, bucketLabelPattern, toCapsuleBarInput, robustMax } from './charts'
 import type { GroupedResult, SeriesResult } from './types'
 
 // bucketLabelPattern: documented format strings.
 assert.equal(bucketLabelPattern('day'), 'MMM d')
 assert.equal(bucketLabelPattern('week'), "'Wk' w")
 assert.equal(bucketLabelPattern('month'), 'MMM yy')
+
+// robustMax: far-out outliers don't set the scale; clean data is unchanged.
+assert.equal(robustMax([10, 20, 30, 40]), 40)                                  // no outlier → true max
+assert.equal(robustMax([0.86, 3.38, 3.65, 8.98, 25.87, 337650]), 25.87)        // conv_rate: drop the 337650% freak
+assert.equal(robustMax([]), 0)                                                 // empty
+assert.equal(robustMax([0, 0, 0]), 0)                                          // zeros excluded → 0
+assert.equal(robustMax([3, 5, 100]), 5)                                        // small-N: 100 ≥ 5×5 → outlier
+assert.equal(robustMax([5, 20]), 20)                                           // small-N: 20 < 5×5 → not an outlier
 
 // toLineChartInput: bucketLabel produced via date-fns format(bucketLabelPattern(g)).
 {
