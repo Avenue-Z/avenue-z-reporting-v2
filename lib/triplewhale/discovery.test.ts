@@ -1,6 +1,6 @@
 // Run: npx tsx lib/triplewhale/discovery.test.ts
 import { strict as assert } from 'node:assert'
-import { isNumericType, parseColumns, twFields, twDistinctValues } from './discovery'
+import { isNumericType, parseColumns, twFields, twDistinctValues, onlyPopulatedMetrics } from './discovery'
 
 // numeric ClickHouse types (Nullable unwrapped); strings/dates are not numeric
 assert.equal(isNumericType('Nullable(Float64)'), true)
@@ -42,6 +42,23 @@ async function main() {
 
   // unsafe column rejected
   await assert.rejects(twDistinctValues('k', 'shop', 'bad; DROP', range, { fetchImpl: fake([]) }))
+
+  // onlyPopulatedMetrics drops columns that sum to 0/null for this shop
+  const metrics = [
+    { value: 'spend', label: 'Spend' },
+    { value: 'gross_sales', label: 'Gross Sales' }, // unpopulated → 0
+    { value: 'sessions', label: 'Sessions' },
+  ]
+  const kept = await onlyPopulatedMetrics('k', 'shop', metrics, range, {
+    fetchImpl: fake([{ v0: 2017499, v1: 0, v2: 2855400 }]),
+  })
+  assert.deepEqual(kept.map((m) => m.value), ['spend', 'sessions']) // gross_sales dropped
+
+  // degrades to the full list if the probe query fails (never breaks the picker)
+  const failFetch = (async () => ({ ok: false, status: 400, headers: { get: () => null } }) as unknown as Response) as unknown as typeof fetch
+  const onErr = await onlyPopulatedMetrics('k', 'shop', metrics, range, { fetchImpl: failFetch })
+  assert.deepEqual(onErr.map((m) => m.value), ['spend', 'gross_sales', 'sessions'])
+
   console.log('ok')
 }
 main()
