@@ -110,13 +110,15 @@ export const getClientsWithDashboards = cache(
 
 /**
  * Clients shown in the /dashboard client lists. Excludes HIDDEN_CLIENT_SLUGS —
- * dashboard-only hosts (e.g. kind-patches) that are surfaced via Tools → Reporting,
- * not as real clients. Operational callers (cache-warm, health sweep) still use
- * getAllClients so those hosts keep working.
+ * dashboard-only hosts that are surfaced via Tools → Reporting, not as real
+ * clients: the legacy hardcoded HIDDEN_CLIENT_SLUGS (e.g. kind-patches) plus any
+ * client flagged dashboardOnly (created via self-service "Add new report").
+ * Operational callers (cache-warm, health sweep) still use getAllClients so those
+ * hosts keep working.
  */
 export const getVisibleClients = cache(async (): Promise<(Client & { users: User[] })[]> => {
   const all = await getAllClients()
-  return all.filter((c) => !HIDDEN_CLIENT_SLUGS.has(c.slug))
+  return all.filter((c) => !c.dashboardOnly && !HIDDEN_CLIENT_SLUGS.has(c.slug))
 })
 
 /**

@@ -81,10 +81,14 @@ export async function createClientReport(input: {
       .set({ triplewhaleShopId: shopId, dashboardConfig: parsed.config, updatedAt: new Date() })
       .where(eq(clients.slug, slug))
   } else {
+    // Brand-new row created purely to host a report → mark dashboardOnly so it stays
+    // out of the /dashboard client lists (getVisibleClients). Filling an existing
+    // (real) client's empty dashboard above must NOT set this — it stays a real client.
     await db.insert(clients).values({
       slug,
       name,
       triplewhaleShopId: shopId,
+      dashboardOnly: true,
       dashboardConfig: parsed.config,
       enabledReports: [],
     })
