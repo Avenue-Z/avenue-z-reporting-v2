@@ -1,3 +1,5 @@
+// DO NOT import from ./bespoke — the ESLint boundary enforces this.
+// Bespoke parts are merged at render time via mergeRegistries(PEEC_PARTS, BESPOKE_PARTS).
 import type { PartRegistry } from '@/lib/report-sections/types'
 import type { PeecCtx } from '../ctx'
 import { overviewSynopsisV1 } from './overview-synopsis'
