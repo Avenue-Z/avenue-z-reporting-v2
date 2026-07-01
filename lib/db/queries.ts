@@ -1,7 +1,8 @@
 import { cache } from 'react'
 import { eq, and, lt } from 'drizzle-orm'
 import { db } from './client'
-import { clients, users, healthState, smDimensionValueCache, dashboardShares, type Client, type User, type ClientRole } from './schema'
+import { clients, users, healthState, smDimensionValueCache, dashboardShares, sectionTemplates, type Client, type User, type ClientRole } from './schema'
+import type { SectionTemplate } from '@/lib/report-sections/types'
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
 import { cached } from '@/lib/cache'
 import { timed } from '@/lib/perf'
@@ -221,3 +222,15 @@ export async function getDashboardShareForClient(
   const r = (await db.select().from(dashboardShares).where(eq(dashboardShares.clientSlug, slug)).limit(1))[0]
   return r ? { token: r.token, title: r.title, blockIds: r.blockIds, expiresAt: r.expiresAt } : null
 }
+
+// --- Section templates ---
+
+/**
+ * Look up the stored composition for a report section by its slug.
+ * Returns null when no row exists (caller should fall back to the code default).
+ * React.cache-wrapped for per-render dedup.
+ */
+export const getSectionTemplate = cache(async (section: string): Promise<SectionTemplate | null> => {
+  const rows = await db.select().from(sectionTemplates).where(eq(sectionTemplates.sectionSlug, section)).limit(1)
+  return rows[0]?.composition ?? null
+})

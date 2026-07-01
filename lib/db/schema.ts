@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
+import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
 
 // --- Domain types preserved from the deleted clients.config.ts ---
 
@@ -143,6 +144,7 @@ export const clients = pgTable('clients', {
   maxSeats: integer('max_seats').notNull().default(5),
   triplewhaleShopId: text('triplewhale_shop_id'),
   dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
+  reportSectionConfig: jsonb('report_section_config').$type<ReportSectionConfig>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -217,6 +219,19 @@ export const dashboardShares = pgTable('dashboard_shares', {
 })
 
 export type DashboardShareRow = typeof dashboardShares.$inferSelect
+
+// Per-section canonical composition: the ordered list of parts + labels + thresholds
+// that define a section's default layout. The seed inserts one row per section slug;
+// consumers fall back to the hardcoded code default when no row exists.
+export const sectionTemplates = pgTable('section_templates', {
+  sectionSlug: text('section_slug').primaryKey(),
+  composition: jsonb('composition').$type<SectionTemplate>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text('updated_by'),
+  promotedFrom: text('promoted_from'),
+})
+
+export type SectionTemplateRow = typeof sectionTemplates.$inferSelect
 
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert
