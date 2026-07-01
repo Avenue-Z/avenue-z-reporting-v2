@@ -4,7 +4,8 @@
 **Status:** Design approved (versioned/promotable model, DB-backed template, true visual
 freeze); revised per second review — explicit `published` state + per-version golden-test
 enforcement, version-only promote by default, `extraParts`-vs-base rule, idempotent seed.
-Ready for implementation planning.
+Enforcement tooling: **adopt Vitest** for `.snap` per-version goldens (repo currently has no
+test framework). Ready for implementation planning.
 **Author:** Paul Ramirez (with Claude Code)
 
 ---
@@ -331,10 +332,14 @@ extending the shared section's fetch. Out of scope.
   integer — closing the "edited while being frozen" race that an emergent
   "published == referenced" rule would create.
 - **Output immutability (the real guarantee):** every **published** version has a **golden
-  render test** with fixed fixture data. Any change to its rendered output — whether from
-  editing the version or from editing a shared leaf component it renders — fails CI and
-  forces a new version. Source hashing is insufficient (it misses transitive leaf changes);
-  the golden test is what actually holds appearance still for frozen clients.
+  snapshot test** (Vitest `toMatchSnapshot`, see Tooling) that renders it with fixed fixture
+  data. Any change to its rendered output — whether from editing the version or from editing
+  a shared leaf component it renders — fails CI and forces a new version. Source hashing is
+  insufficient (it misses transitive leaf changes); the snapshot is what actually holds
+  appearance still for frozen clients. The committed `.snap` file is the frozen-appearance
+  artifact; its git history is the audit trail. **Updating a published version's existing
+  snapshot in place is forbidden** (it would defeat the guarantee) — a legitimate visual
+  change is a *new* version with its own snapshot.
 - **Existence guard (CI/test):** a check that every `{id, version}` referenced by any
   `section_templates` row or any client `frozen` snapshot **exists and is `published`** in
   the registry. This guard is an ordinary test script — it **imports both the core and the
@@ -396,7 +401,27 @@ is not mistaken for an oversight.
 
 ## Testing
 
-**TDD, resolver first** (pure function, no React). Base cases:
+### Tooling — adopt Vitest
+
+The repo currently has **no test framework**: tests are plain `node:assert` files run via
+`tsx` (e.g. `lib/date-range.test.ts`), and there is no `test` npm script. This feature's
+correctness surface (resolver, four actions) and — critically — the per-version snapshot
+tests need real snapshot ergonomics, so **this work adds Vitest** (+ a DOM environment for
+rendering: `jsdom` or `happy-dom`), a `test` script, and CI wiring.
+
+- **`.snap` storage:** Vitest writes committed snapshots next to each test, e.g.
+  `components/report-sections/peec-ai/parts/__snapshots__/visibility-chart.v1.golden.test.tsx.snap`.
+  Created on first run, diffed after, regenerated with `-u` (allowed only when authoring a
+  *new* version — never to update a published one).
+- **RSC rendering in tests:** parts are async Server Components that fetch data. The
+  registry design passes already-fetched data in via `ctx`, so a golden test constructs a
+  **fixture `ctx`** and renders the part synchronously; Suspense-wrapped async sub-parts
+  (e.g. `OverviewSynopsis`) are **stubbed/mocked** to a fixed output. Building these
+  fixtures + stubs is part of the AEO step's cost.
+- Existing `node:assert` tests keep working (Vitest can run them, or they stay as-is); no
+  migration of old tests is in scope.
+
+**TDD, resolver first** (pure function, no React — plain Vitest unit tests). Base cases:
 
 - inherit: no override → resolved order+versions === template pins; template labels applied.
 - version pin: `override.versions[id]=2` swaps that part's version; others keep template's.
@@ -448,6 +473,8 @@ each produce the expected DB state.
 
 ## Incremental rollout
 
+0. **Test tooling.** Add Vitest (+ `jsdom`/`happy-dom`), a `test` script, and CI wiring
+   before anything else — the rest is built on it.
 1. **Framework, correctness surface test-first.** The `resolveSection` resolver and the four
    state-changing actions (`pinVersion`, `freezeSection`, `unfreezeSection`,
    `promoteToTemplate`) are the *entire* correctness surface — build them TDD with the
