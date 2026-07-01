@@ -120,6 +120,8 @@ export const sectionTemplates = pgTable('section_templates', {
   sectionSlug: text('section_slug').primaryKey(),   // 'peec-ai', 'ga4', …
   composition: jsonb('composition').$type<SectionTemplate>().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text('updated_by'),                    // actor email of the last promote (cheap audit)
+  promotedFrom: text('promoted_from'),              // source client slug of the last promote
 })
 ```
 
@@ -242,6 +244,9 @@ All permission-gated (reuse `canEditDashboard` / existing role checks), all vali
   `old→new` per part so an accidental regression is visible. Effect: non-frozen,
   non-overriding clients render the promoted versions; frozen clients are untouched; clients
   with their own `versions`/`order`/`hidden` overrides keep them (overrides layer on top).
+  Stamps `updatedBy` (actor email) and `promotedFrom` (source slug) on the template row for
+  a cheap last-promote audit; a full append-only promotions **history** log is a deliberate
+  defer (see Out of scope), not an omission.
 - **`saveReportSectionConfig(slug, config)`** — general write for the other override fields
   (hide/order/relabel/extraParts). The future editing UI writes through here.
 
@@ -281,6 +286,10 @@ defines its own `Ctx` type.
      version: number
      published: boolean        // explicit state; promote/freeze may only reference published versions
      defaultLabel: string
+     // MUST be a pure SYNCHRONOUS presentational function — no awaits, no data fetching.
+     // All async fetching happens in the section wrapper that assembles `ctx`. This is what
+     // makes a version golden-testable (see Testing). Async children (e.g. a Suspense'd
+     // synopsis) are separate components rendered inside, and are stubbed in goldens.
      render: (ctx: Ctx, resolved: ResolvedPart) => React.ReactNode  // resolved.label/threshold
    }
    const PEEC_PARTS: Record<string, Record<number, PartImpl<PeecCtx>>> = {
@@ -349,6 +358,11 @@ extending the shared section's fetch. Out of scope.
   core and bespoke parts alike.
 - **Version GC is manual** in v1: a version referenced by no template row and no snapshot
   may be deleted; the guard's inverse identifies candidates.
+- **Unpublishing a referenced version is intentionally blocked.** Because the guard requires
+  every template/snapshot reference to be `published`, you cannot flip a live version (e.g.
+  the seeded template's `@1`) back to `published: false` without first repointing every
+  template row and snapshot off it. This is by design — a referenced version is load-bearing
+  and must stay published until nothing depends on it.
 
 ## Validation
 
@@ -413,11 +427,20 @@ rendering: `jsdom` or `happy-dom`), a `test` script, and CI wiring.
   `components/report-sections/peec-ai/parts/__snapshots__/visibility-chart.v1.golden.test.tsx.snap`.
   Created on first run, diffed after, regenerated with `-u` (allowed only when authoring a
   *new* version — never to update a published one).
-- **RSC rendering in tests:** parts are async Server Components that fetch data. The
-  registry design passes already-fetched data in via `ctx`, so a golden test constructs a
-  **fixture `ctx`** and renders the part synchronously; Suspense-wrapped async sub-parts
-  (e.g. `OverviewSynopsis`) are **stubbed/mocked** to a fixed output. Building these
-  fixtures + stubs is part of the AEO step's cost.
+- **RSC rendering in tests:** parts' `render` is a pure synchronous presentational function
+  of `ctx` (see the Part contract), so a golden test constructs a **fixture `ctx`** and
+  renders the part directly; Suspense-wrapped async sub-parts (e.g. `OverviewSynopsis`) are
+  **stubbed/mocked** to fixed output. Building these fixtures + stubs is part of the AEO
+  step's cost. **De-risk first:** the RSC-snapshot spike (rollout step 0) proves this is
+  ergonomic on the installed React/Next version *before* the AEO suite is written — if the
+  stub-the-async-child seam leaves a golden covering a wrapper instead of real output, the
+  fix (pure presentational split) is already the Part contract, so the spike mainly
+  validates the render harness.
+- **Fixture coverage is part of the guarantee.** A golden proves only "given *this* fixture,
+  output is unchanged." A published version's fixture **must exercise its meaningful
+  branches** (empty-array, null, edge conditions), or "appearance is frozen" quietly means
+  "frozen on the fixture path." **Adding a branch to a published version is itself a
+  new-version event** — you do not extend a published version to handle a new case.
 - Existing `node:assert` tests keep working (Vitest can run them, or they stay as-is); no
   migration of old tests is in scope.
 
@@ -473,8 +496,12 @@ each produce the expected DB state.
 
 ## Incremental rollout
 
-0. **Test tooling.** Add Vitest (+ `jsdom`/`happy-dom`), a `test` script, and CI wiring
-   before anything else — the rest is built on it.
+0. **Test tooling + RSC-snapshot spike.** Add Vitest (+ `jsdom`/`happy-dom`), a `test`
+   script, and CI wiring. **First concrete task: a spike** that golden-renders one real AEO
+   sub-block (e.g. `visibility-chart`) from a fixture `ctx` with its async child stubbed, and
+   confirms the `.snap` captures real rendered output on the installed React/Next version.
+   This is the one genuine unknown; if it's painful, the pure-presentational Part contract
+   (already specified) is the fix — cheaper to confirm here than to discover in step 2.
 1. **Framework, correctness surface test-first.** The `resolveSection` resolver and the four
    state-changing actions (`pinVersion`, `freezeSection`, `unfreezeSection`,
    `promoteToTemplate`) are the *entire* correctness surface — build them TDD with the
@@ -502,6 +529,8 @@ editing only.
 - Splitting the `domains-row` grid pair into independent parts.
 - Bespoke parts fetching data outside the shared section `ctx`.
 - Automatic garbage-collection of unreferenced part versions (manual for now).
+- A full append-only **promotions history** log (v1 keeps only last-promote `updatedBy` /
+  `promotedFrom` on the template row; the action also logs `old→new` at call time).
 
 ## Known limitations / risks
 
