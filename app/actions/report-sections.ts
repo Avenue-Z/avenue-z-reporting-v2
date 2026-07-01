@@ -7,8 +7,9 @@ import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import { REGISTRIES } from '@/lib/report-sections/registries'
+import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
 import type { ReportSectionConfig } from '@/lib/report-sections/types'
 
@@ -47,6 +48,9 @@ export async function pinVersion(
 ): Promise<Result> {
   const a = await authorize(slug)
   if (!a.ok) return a
+  if (!lookup(REGISTRIES[section], partId, version)) {
+    return { ok: false, error: `unknown part ${partId}@${version}` }
+  }
   return persist(slug, applyPinVersion(a.cfg!, section, partId, version))
 }
 
@@ -55,6 +59,10 @@ export async function freezeSection(slug: string, section: string): Promise<Resu
   if (!a.ok) return a
   const template = await getSectionTemplate(section)
   if (!template) return { ok: false, error: `no template for ${section}` }
+  const violations = freezeViolations(template, a.cfg![section], REGISTRIES[section])
+  if (violations.length > 0) {
+    return { ok: false, error: 'cannot freeze: unpublished version(s): ' + violations.join(', ') }
+  }
   const snapshot = computeFreeze(template, a.cfg![section])
   return persist(slug, applyFreeze(a.cfg!, section, snapshot))
 }
@@ -65,16 +73,7 @@ export async function unfreezeSection(slug: string, section: string): Promise<Re
   return persist(slug, applyUnfreeze(a.cfg!, section))
 }
 
-/**
- * Promotes one or more part version pins from a source client's resolved section
- * into the canonical section template. Restricted to INTERNAL_ADMIN.
- *
- * By default only the version pin is moved. Pass opts.labels/opts.thresholds to
- * also lift those fields from the source resolution.
- *
- * Logs old→new per part, then upserts the sectionTemplates row and busts the
- * 'db' cache tag.
- */
+/** Validates and persists a raw section-override payload for a client. */
 export async function saveReportSectionConfig(slug: string, section: string, raw: unknown): Promise<Result> {
   const a = await authorize(slug)
   if (!a.ok) return a
@@ -89,6 +88,16 @@ export async function saveReportSectionConfig(slug: string, section: string, raw
   return persist(slug, { ...a.cfg!, [section]: parsedSection })
 }
 
+/**
+ * Promotes one or more part version pins from a source client's resolved section
+ * into the canonical section template. Restricted to INTERNAL_ADMIN.
+ *
+ * By default only the version pin is moved. Pass opts.labels/opts.thresholds to
+ * also lift those fields from the source resolution.
+ *
+ * Logs old→new per part, then upserts the sectionTemplates row and busts the
+ * 'db' cache tag.
+ */
 export async function promoteToTemplate(
   section: string,
   fromSlug: string,
@@ -107,6 +116,11 @@ export async function promoteToTemplate(
 
   const sourceResolved = resolveSection(template, source.reportSectionConfig?.[section])
   const next = computePromotion(template, sourceResolved, partIds, opts)
+
+  const violations = promotionViolations(next, REGISTRIES[section])
+  if (violations.length > 0) {
+    return { ok: false, error: 'cannot promote: unpublished version(s): ' + violations.join(', ') }
+  }
 
   for (const id of partIds) {
     const before = template.order.find((p) => p.id === id)?.version

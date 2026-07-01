@@ -63,12 +63,57 @@ describe('computePromotion', () => {
   })
 })
 
-import { validateSectionOverride } from '@/lib/report-sections/mutations'
+import { freezeViolations, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import type { PartRegistry } from '@/lib/report-sections/types'
 
 const reg: PartRegistry<unknown> = {
   a: { 1: { id: 'a', version: 1, published: true, defaultLabel: 'A', render: () => null } },
 }
+
+const pubReg: PartRegistry<unknown> = {
+  a: { 1: { id: 'a', version: 1, published: true, defaultLabel: 'A', render: () => null } },
+  b: {
+    1: { id: 'b', version: 1, published: true, defaultLabel: 'B', render: () => null },
+    2: { id: 'b', version: 2, published: false, defaultLabel: 'B-dev', render: () => null },
+  },
+}
+
+describe('freezeViolations', () => {
+  test('returns non-empty when override pins to an unpublished version', () => {
+    // T has a@v1 (published) and b@v1 (published); override bumps b to v2 (unpublished)
+    const vs = freezeViolations(T, { versions: { b: 2 } }, pubReg)
+    expect(vs.length).toBeGreaterThan(0)
+    expect(vs[0]).toMatch(/b@2/)
+  })
+  test('returns [] when all resolved versions are published', () => {
+    const vs = freezeViolations(T, { versions: { b: 1 } }, pubReg)
+    expect(vs).toEqual([])
+  })
+  test('returns [] with no override (template defaults are published)', () => {
+    expect(freezeViolations(T, undefined, pubReg)).toEqual([])
+  })
+})
+
+describe('promotionViolations', () => {
+  test('returns non-empty when the computed template contains an unpublished pin', () => {
+    const unpubTemplate: SectionTemplate = {
+      order: [{ id: 'a', version: 1 }, { id: 'b', version: 2 }],
+      labels: {},
+      thresholds: {},
+    }
+    const vs = promotionViolations(unpubTemplate, pubReg)
+    expect(vs.length).toBeGreaterThan(0)
+    expect(vs[0]).toMatch(/b@2/)
+  })
+  test('returns [] when all pins in the computed template are published', () => {
+    const pubTemplate: SectionTemplate = {
+      order: [{ id: 'a', version: 1 }, { id: 'b', version: 1 }],
+      labels: {},
+      thresholds: {},
+    }
+    expect(promotionViolations(pubTemplate, pubReg)).toEqual([])
+  })
+})
 
 describe('validateSectionOverride', () => {
   test('rejects an override that re-adds a template id via extraParts', () => {

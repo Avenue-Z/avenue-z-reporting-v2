@@ -5,6 +5,7 @@
 // async functions. Mirrors the config-mutations.ts / dashboard.ts split.
 import { parseReportSectionConfig } from './validate'
 import { resolveSection } from './resolve'
+import { assertReferencedPinsPublished } from './registry'
 import type { PartRegistry, ReportSectionConfig, ResolvedPart, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
 
 export function applyPinVersion(
@@ -44,6 +45,27 @@ export function applyUnfreeze(cfg: ReportSectionConfig, section: string): Report
   const prev = cfg[section] ?? {}
   const { frozen: _drop, ...rest } = prev
   return { ...cfg, [section]: rest }
+}
+
+/**
+ * Returns violation strings if any pin in computeFreeze(template, override).order
+ * references an unpublished version. Empty array means safe to freeze.
+ */
+export function freezeViolations(
+  template: SectionTemplate,
+  override: SectionOverride | undefined,
+  registry: PartRegistry<unknown>,
+): string[] {
+  const snapshot = computeFreeze(template, override)
+  return assertReferencedPinsPublished(registry, snapshot.order)
+}
+
+/**
+ * Returns violation strings if any pin in the computed next template references
+ * an unpublished version. Empty array means safe to promote.
+ */
+export function promotionViolations(next: SectionTemplate, registry: PartRegistry<unknown>): string[] {
+  return assertReferencedPinsPublished(registry, next.order)
 }
 
 /**
