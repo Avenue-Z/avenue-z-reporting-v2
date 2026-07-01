@@ -1,13 +1,9 @@
 import { Suspense } from 'react'
 import { getPeecOverview } from '@/lib/peec/client'
-import type { PeecOverview, TrackedPrompt } from '@/lib/peec/client'
-import { applyModelFilter, computeWinnersLosers } from '@/lib/peec/winners-losers'
+import type { PeecOverview } from '@/lib/peec/client'
 import { getProfoundOverview } from '@/lib/profound/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
-import { BrandRankingsTable } from './brand-rankings-table'
-import { TopDomainsTable } from './top-domains-table'
 import { VisibilityChart } from './visibility-chart'
-import { LLMBreakdownTable } from './llm-breakdown-table'
 import { WinnersLosersCards } from './winners-losers-cards'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { OverviewSynopsis } from './overview-synopsis'
@@ -15,17 +11,14 @@ import { SynopsisSkeleton } from './synopsis-skeleton'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
 import { isAiSource, aiSourceModel, SHOW_AI_NARRATIVE } from '@/lib/constants'
-import { sumModelMap } from '@/lib/peec/by-model'
 import type { AEOModel } from '@/lib/peec/models'
-import { BrandRankingsTable as ProfoundBrandRankingsTable } from '../profound-ai/brand-rankings-table'
-import { TopDomainsTable as ProfoundTopDomainsTable } from '../profound-ai/top-domains-table'
-import { LLMBreakdownTable as ProfoundLLMBreakdownTable } from '../profound-ai/llm-breakdown-table'
-import { PEEC, AVENUE_Z, PROFOUND } from '@/lib/peec/metric-definitions'
+import { AVENUE_Z } from '@/lib/peec/metric-definitions'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 import { Sparkles } from 'lucide-react'
 import { SectionHeader } from './section-header'
+import { buildPeecCtx } from './ctx'
 
 // --- Helpers ---
 
@@ -155,62 +148,8 @@ function ProviderSection({
   clientSlug?: string
   dateRange?: string
 }) {
-  const isPeec = provider === 'peec'
-  const you = data.brandRankings.find((b) => b.isYou)
-
-  // Model filter: when active, recompute the headline KPIs and the LLM table from
-  // the per-model breakdown restricted to the selected models. Deltas are hidden
-  // while filtered (no per-model prior-period data is fetched) — same fidelity as
-  // the PR Influence / Content Impact pages.
-  const modelActive = models != null
-  const llmFiltered = modelActive
-    ? data.llmBreakdown.filter((r) => models!.includes(r.model as AEOModel))
-    : data.llmBreakdown
-  const avgFiltered = (sel: (r: (typeof llmFiltered)[number]) => number): number | null =>
-    llmFiltered.length > 0 ? llmFiltered.reduce((s, r) => s + sel(r), 0) / llmFiltered.length : null
-  const visFiltered = avgFiltered((r) => r.visibility)
-  const brandName = you?.name ?? (isPeec ? process.env.PEEC_AI_YOUR_BRAND : process.env.PROFOUND_AI_YOUR_BRAND)
-  const Rankings = isPeec ? BrandRankingsTable : ProfoundBrandRankingsTable
-  const Domains  = isPeec ? TopDomainsTable : ProfoundTopDomainsTable
-  const LLM      = isPeec ? LLMBreakdownTable : ProfoundLLMBreakdownTable
-  const DEF      = isPeec ? PEEC : PROFOUND
-  const label    = isPeec ? 'Peec AI' : 'Profound'
-
-  // Citation Share %: share of total tracked-domain citations attributed to
-  // the client's own domain. Truth-grounded across both providers — for Peec,
-  // sum of citation_count where domain matches client.domain; for Profound,
-  // same math against Profound's per-hostname rows. See lib/peec/client.ts
-  // and lib/profound/client.ts.
-  const citationShareNow   = data.totalCitations      > 0 ? (data.yourBrandCitations      / data.totalCitations)      * 100 : null
-  const citationSharePrior = data.totalCitationsPrior > 0 ? (data.yourBrandCitationsPrior / data.totalCitationsPrior) * 100 : null
-  const citationShareDelta = citationShareNow != null && citationSharePrior != null ? citationShareNow - citationSharePrior : undefined
-
-  // Model-filtered Citation Share: recompute from per-model citation totals when
-  // a model is selected. Profound's maps are empty → denom 0 → null → '--'.
-  // Delta hidden while filtered (no per-model prior-period data).
-  const citShareNumer = sumModelMap(data.yourBrandCitationsByModel, models)
-  const citShareDenom = sumModelMap(data.totalCitationsByModel, models)
-  const citationShareValue = modelActive
-    ? (citShareDenom > 0 ? (citShareNumer / citShareDenom) * 100 : null)
-    : citationShareNow
-  const citationShareDeltaShown = modelActive ? undefined : citationShareDelta
-
-  // AI Referral Traffic % delta: undefined when the prior period had zero
-  // sessions (no meaningful baseline). Value shown as raw session count.
-  const aiTrafficDelta =
-    aiTraffic.available && aiTraffic.sessionsPrior != null && aiTraffic.sessionsPrior > 0
-      ? ((aiTraffic.sessions - aiTraffic.sessionsPrior) / aiTraffic.sessionsPrior) * 100
-      : undefined
-
-  // FB-023: Biggest Winners / Biggest Losers — live per-period compute, reactive
-  // to BOTH date range (because trackedPrompts is fetched per-range) AND model
-  // filter (because applyModelFilter restricts the per-model maps to the active
-  // selection). Sandbox gate is lifted — every client sees their own real cards.
-  // Profound provider variant: trackedPrompts have empty positionByModel +
-  // priorPositionByModel maps (parity defer), so applyModelFilter drops them all
-  // and the cards render the empty state.
-  const flat = applyModelFilter(data.trackedPrompts as TrackedPrompt[], models)
-  const { winners, losers } = computeWinnersLosers(flat)
+  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange })
+  const { isPeec, you, modelActive, llmFiltered, visFiltered, brandName, Rankings, Domains, LLM, DEF, label, citationShareValue, citationShareDeltaShown, citShareNumer, citShareDenom, aiTrafficDelta, winners, losers } = ctx
 
   return (
     <div className="space-y-8">
