@@ -9,9 +9,9 @@
 
 A **white-labeled, multi-client marketing intelligence platform** for Avenue Z and its clients. Avenue Z team members see a full internal dashboard with access to all clients and all reports. Clients log in to a scoped portal showing only their own data.
 
-**No database. No external auth service. No per-user cost.**
+**No external auth service. No per-user cost.**
 
-The only "database" is `lib/clients.config.ts` — a flat config file that drives all routing, permissions, and available reports. Add an object to that array to onboard a new client.
+Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM (`lib/db/`). The database drives all routing, permissions, and available reports. To onboard a new client, insert rows into the `clients` and `users` tables — see "Client Configuration" below. (Earlier versions used a flat `lib/clients.config.ts` file; it has been removed.)
 
 ---
 
@@ -65,16 +65,25 @@ The only "database" is `lib/clients.config.ts` — a flat config file that drive
           page.tsx
           report-date-range.tsx
 
+  tools/                                     # Internal tools area (per-team utilities)
+    page.tsx
+    [teamSlug]/page.tsx
+
   actions/
     auth.ts                                  # signInWithGoogle, signInWithCredentials, signOutAction
-    demo-auth.ts                             # Temporary demo helper
+    client-access.ts                         # Admin: grant/revoke client access for users
+    report-request.ts                        # "Request a report" submissions
     supermetrics.ts                          # Server actions for Supermetrics queries
+    team.ts                                  # Tools-area / team server actions
 
   api/
     auth/[...nextauth]/route.ts              # Auth.js handler
     auth/supermetrics-callback/route.ts      # Post-OAuth redirect from Supermetrics
     pr-placements/route.ts                   # News API proxy (CORS-safe)
     glean/meeting-brief/route.ts             # Glean AI meeting brief proxy
+    cache-warm/route.ts                      # Pre-warm vendor caches
+    health/route.ts                          # Health-check / alerting endpoint
+    perf/route.ts                            # Report-loading perf telemetry
 
 /components
   layout/
@@ -111,14 +120,19 @@ The only "database" is `lib/clients.config.ts` — a flat config file that drive
     profound-ai/                             # Profound AI brand visibility in LLMs
     pr-placements/                           # News API earned media coverage
     ffci/                                    # Full-funnel cost intelligence
-    blended-performance/                     # Cross-channel blended ROAS/CPA (placeholder)
+    paid-search/                             # Google paid search (Supermetrics)
+    meta-ads/                                # Meta Ads (Supermetrics)
+    linkedin-ads/                            # LinkedIn Ads (Supermetrics)
+    organic-social/                          # Organic social (Dash Social)
+    ai-summaries/                            # AI-generated per-channel narrative summaries
+    conversational-summary/                  # AI chat-style summary (BigQuery + Gemini)
+    request-a-report/                        # Client-facing "request a report" form
+    report-generator/                        # Report assembly / export building blocks
 
-    # --- Scaffold / placeholder sections ---
-    exec-summary/
-    meta-ads/
-    google-ads/
+    # --- Scaffold / placeholder sections (static or awaiting data wiring) ---
+    exec-summary/                            # GA4 + HubSpot KPIs (partial)
     email-marketing/
-    linkedin-ads/
+    blended-performance/
     tiktok-ads/
     tiktok-shop/
     snapchat-ads/
@@ -133,10 +147,17 @@ The only "database" is `lib/clients.config.ts` — a flat config file that drive
   export-pdf-button.tsx                      # PDF export trigger
 
 /lib
-  clients.config.ts                          # THE config file — all clients, users, reports
-  constants.ts                               # Shared constants (chart colors, etc.)
+  db/
+    client.ts                                # Drizzle client singleton (Neon serverless)
+    schema.ts                                # Table definitions + inferred TS types
+    queries.ts                               # getClientBySlug, getClientByEmail, getAllClients
+    admin-queries.ts                         # Admin-panel reads/writes
+  auth/
+    password.ts                              # Password hashing + verifyPassword
+    credential-login.ts                      # Credential-login policy evaluation
+    test-admin.ts                            # Env-gated, preview-only admin login
+  constants.ts                               # Shared constants (chart colors, feature flags)
   utils.ts                                   # Utility helpers (cn, formatters)
-  demo-auth.ts                               # Demo-mode helpers
 
   ga4/
     client.ts                                # ga4Query() — Google Analytics Data API wrapper
@@ -156,10 +177,34 @@ The only "database" is `lib/clients.config.ts` — a flat config file that drive
     client.ts                                # Profound AI API client
 
   supermetrics/
-    client.ts                                # smQuery() — Supermetrics Data API wrapper
-    auth.ts                                  # createLoginLink(), getConnectionStatus()
-    constants.ts                             # DS_IDS (data source identifiers)
-    types.ts                                 # Supermetrics response types
+    client.ts                                # smQuery() — Supermetrics Data API wrapper + parseSmRows
+    auth.ts                                  # deprecated empty stub (Branded Auth removed)
+    constants.ts                             # DS_IDS (GA4, GOOGLE_ADS, META, LINKEDIN)
+    types.ts                                 # SmQueryParams, SmResult, error classes
+
+  # Supermetrics-backed paid/social report data (each builds queries via lib/supermetrics)
+  paid-search/                               # Google paid search KPIs, campaigns, keywords, geo
+  meta/                                      # Meta Ads KPIs, creative tree, geo
+  linkedin/                                  # LinkedIn Ads KPIs, creative, geo
+  organic-social/                            # Organic social headlines, trends, top content
+  dash-social/                               # Dash Social API client (organic social source)
+
+  # Other data-source clients
+  shopify/                                   # Shopify client (catalog + OAuth); section not yet wired
+  triplewhale/                               # Triple Whale client (used by the configurable dashboard)
+
+  # AEO / AI-visibility + content + SEO crawls
+  aeo/                                       # Answer-engine optimization helpers
+  content-calendar/                          # Content calendar sync
+  pr-proof/                                  # PR proof-point data
+  screaming-frog/                            # Screaming Frog crawl ingestion
+  sitebulb/                                  # Sitebulb crawl ingestion
+
+  # Platform internals
+  admin/                                     # Admin-panel domain logic
+  dashboard/                                 # Configurable dashboard engine (adapters: supermetrics/shopify/triplewhale)
+  health/                                    # Health alerting (Slack)
+  report-generator/                          # Report data snapshot + assembly
 
   bigquery/
     client.ts                                # BigQuery client (used by data-chat)
@@ -184,12 +229,12 @@ proxy.ts                                     # Next.js 16 route protection (repl
 
 Auth.js v5 with two providers:
 
-1. **Google OAuth** — intended for Avenue Z employees (`@avenuez.com`). Currently non-functional — `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are blank in `.env.local`. See "Immediate Fixes" below.
-2. **Credentials** — email + password for clients. Currently validates only that the email exists in `clients.config.ts`. There is no password check — any password works. See "Security Gaps" below.
+1. **Google OAuth** — for Avenue Z employees. Wired up and functional: the provider sends `hd=avenuez.com`, and a server-side `signIn` callback rejects any non-`@avenuez.com` or unverified account as defense-in-depth. `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` are set in Vercel. Unlisted `@avenuez.com` staff are auto-provisioned as `INTERNAL_ANALYST` on the `avenue-z` client.
+2. **Credentials** — email + password for clients. The password is verified against the client's `shared_password_hash` column (`lib/auth/password.ts` → `verifyPassword`; policy in `lib/auth/credential-login.ts`). A separate env-gated, **preview-only** test admin (`lib/auth/test-admin.ts`) is active only when the `TEST_ADMIN_*` vars are set in a Preview deploy.
 
 ### Session Shape
 
-After login, the JWT callback in `auth.ts` looks up the user's email in `clients.config.ts` and attaches:
+After login, the JWT callback in `auth.ts` looks up the user's email in the database (`getClientByEmail` in `lib/db/queries.ts`) and attaches:
 
 - `session.user.role` — one of `INTERNAL_ADMIN`, `INTERNAL_ANALYST`, `CLIENT_ADMIN`, `CLIENT_VIEWER`
 - `session.user.clientSlug` — the client slug this user belongs to (null for internal users)
@@ -198,7 +243,7 @@ After login, the JWT callback in `auth.ts` looks up the user's email in `clients
 
 ```
 Layer 1: proxy.ts (Next.js 16 proxy)
-  - Unauthenticated requests to /dashboard/* or /portal/* → redirect /login
+  - Unauthenticated requests to /dashboard/*, /portal/*, or /tools/* → redirect /login
   - Runs on every matched request before any page loads
 
 Layer 2: app/dashboard/layout.tsx
@@ -211,11 +256,10 @@ Layer 3: app/portal/[clientSlug]/layout.tsx
 
 ### Login Page
 
-`app/login/page.tsx` is a server component that reads `?error=` from search params and maps Auth.js error codes to human-readable messages. It has three auth paths:
+`app/login/page.tsx` is a server component that reads `?error=` from search params and maps Auth.js error codes to human-readable messages. It has two auth paths:
 
 1. Email/password form → `signInWithCredentials` server action
-2. "Preview Access" button → pre-filled hidden form with `demo@avenuez.com` credentials
-3. "Avenue Z employee?" footnote → `signInWithGoogle` server action
+2. "Avenue Z employee?" footnote → `signInWithGoogle` server action
 
 ### Post-Login Routing
 
@@ -284,9 +328,12 @@ The split:
 - PR placements data; proxied through `app/api/pr-placements/route.ts` to keep the API key server-side
 
 ### Supermetrics (`lib/supermetrics/`)
-- Partially scaffolded — `smQuery()` and `createLoginLink()` are implemented
-- **Not yet connected to any live report section.** Several report sections (Meta Ads, Google Ads, Email Marketing, etc.) are currently placeholder scaffolds waiting for Supermetrics wiring
-- See `CLAUDE.md` for full Supermetrics API documentation
+- Only the **Data API** is live: `smQuery()` in `client.ts` (synchronous POST to `/query/data/json`, with `schedule_id` polling fallback for queued queries). The caller passes the API key in `SmQueryParams.apiKey`, read from the env var named in the client's `sm_api_key_env_var` column.
+- **Powers live report sections:** Paid Search (`lib/paid-search/`), Meta Ads (`lib/meta/`), and LinkedIn Ads (`lib/linkedin/`) all build their queries through `smQuery()` (via each lib's `base.ts`). Each surfaces `SmTimeoutError` from `lib/supermetrics/client` for graceful timeout handling.
+- `DS_IDS` (`constants.ts`) is `GA4`, `GOOGLE_ADS`, `META`, `LINKEDIN`, `SHOPIFY` (plus a `SM_TIME_DIMENSION` map for granularity field IDs).
+- **Branded Authentication (login links) has been removed** — `lib/supermetrics/auth.ts` is a deprecated empty stub; `createLoginLink()` / `getConnectionStatus()` no longer exist. Platform connections are configured via env vars (see Auth Hub below), not Supermetrics OAuth links.
+- Remaining ad-platform sections (Email Marketing, TikTok, Snapchat, Reddit, Bing, etc.) are still placeholder scaffolds awaiting wiring.
+- See `CLAUDE.md` for the Supermetrics API reference.
 
 ### BigQuery + Gemini (`lib/bigquery/`)
 - Powers the AI data-chat overlay (`components/data-chat/`)
@@ -311,12 +358,16 @@ The split:
 | `profound-ai` | ✅ Built | Profound AI |
 | `pr-placements` | ✅ Built | News API |
 | `ffci` | ✅ Built | Static/placeholder data |
+| `paid-search` | ✅ Built | Supermetrics (Google Ads) |
+| `meta-ads` | ✅ Built | Supermetrics (Meta) |
+| `linkedin-ads` | ✅ Built | Supermetrics (LinkedIn) |
+| `organic-social` | ✅ Built | Dash Social |
+| `ai-summaries` | ✅ Built | Report-generator snapshot + LLM |
+| `conversational-summary` | ✅ Built | BigQuery + Gemini |
+| `request-a-report` | ✅ Built | Form → report-request action |
+| `exec-summary` | 🟡 Partial | GA4 + HubSpot |
 | `blended-performance` | 🟡 Scaffold | Awaiting Supermetrics |
-| `exec-summary` | 🟡 Scaffold | Awaiting all data sources |
-| `meta-ads` | 🟡 Scaffold | Awaiting Supermetrics |
-| `google-ads` | 🟡 Scaffold | Awaiting Supermetrics |
 | `email-marketing` | 🟡 Scaffold | Awaiting Supermetrics |
-| `linkedin-ads` | 🟡 Scaffold | Awaiting Supermetrics |
 | `tiktok-ads` | 🟡 Scaffold | Awaiting Supermetrics |
 | `tiktok-shop` | 🟡 Scaffold | Awaiting Supermetrics |
 | `snapchat-ads` | 🟡 Scaffold | Awaiting Supermetrics |
@@ -384,21 +435,17 @@ Most env vars are shared across Production + Preview with the same value. Two ex
 
 ## Open Issues / Tech Debt
 
-### 🔴 Security: No Password Validation
+### 🟢 Security: Password Validation — Implemented
 
-`auth.ts` `authorize()` function currently accepts **any password** as long as the email exists in the `users` table. This is fine for internal-only preview but must be fixed before any external client has login credentials.
-
-**Fix:** Add a `password_hash` column to the `users` table (new migration) and validate with `bcrypt.compare()` in the `authorize()` callback. Or rely on Google OAuth for staff (already wired up — `@avenuez.com` domain-gated) and reserve credentials-only for specific external client accounts when those land.
+Credential logins are verified against the client's `shared_password_hash` column. `auth.ts` `authorize()` calls `evaluateCredentialLogin()` (`lib/auth/credential-login.ts`), which checks the supplied password via `verifyPassword()` (`lib/auth/password.ts`). The earlier "any password works" behavior is gone. The preview-only test admin (`lib/auth/test-admin.ts`) bypasses this, but only when the `TEST_ADMIN_*` env vars are set in a Preview deploy — it is inert in Production.
 
 ### 🟢 Google OAuth — Configured
 
 GWS-only OAuth is wired up: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` set in Vercel, `hd=avenuez.com` parameter on the provider, server-side `signIn` callback rejects non-`@avenuez.com` accounts as defense-in-depth, and the Google Cloud OAuth client's consent screen is set to Internal. Unlisted `@avenuez.com` staff are auto-provisioned as `INTERNAL_ANALYST` on `avenue-z` client.
 
-### 🟡 `CLAUDE.md` mostly current
+### 🟡 `CLAUDE.md` — data-source framing
 
-The Postgres + Drizzle architecture is now reflected in `CLAUDE.md`. The Supermetrics section still describes the original aspirational architecture (Supermetrics as the data layer) — in practice, live report sections (GA4, HubSpot, GSC, Peec, Profound) all hit native APIs directly. Supermetrics scaffolding exists but isn't wired to any live section. Worth a future cleanup.
-
-**Fix:** Update `CLAUDE.md` to accurately reflect current vs. planned data sources. This avoids confusing new engineers about what's actually running.
+`CLAUDE.md` leads with Supermetrics as *the* data layer. In reality the platform is multi-source: GA4, GSC, HubSpot, Peec, and Profound hit native APIs directly, while Supermetrics now backs the paid/social ad sections (Paid Search, Meta, LinkedIn). The CLAUDE.md intro carries a note to this effect, but the bulk of its Supermetrics section still reads as the primary integration — keep that in mind when using it as a reference.
 
 ### 🟡 Debug Logs in Production Code
 
@@ -412,11 +459,9 @@ There is a `.env.local` with real values but no `.env.example` checked into the 
 
 **Fix:** Create `.env.example` with all keys present but values blank. This is the standard pattern for onboarding new developers without exposing secrets.
 
-### 🟡 `proxy.ts` Note in `CLAUDE.md`
+### 🟢 `proxy.ts` / `lib/db` References in `CLAUDE.md` — Fixed
 
-`CLAUDE.md` references `middleware.ts` throughout. The file was renamed to `proxy.ts` (Next.js 16 convention). New engineers following the docs will look for the wrong file.
-
-**Fix:** Update all `middleware.ts` references in `CLAUDE.md` to `proxy.ts`.
+`CLAUDE.md` previously referenced the old `middleware.ts` and the deleted `lib/clients.config.ts` in its prose and code examples. These have been corrected to `proxy.ts` and `lib/db/queries.ts` (async helpers).
 
 ---
 
@@ -438,10 +483,16 @@ In the Inbound Funnel → Forms tab, the `customers` column reads 0 despite conf
 ```bash
 cd /path/to/avenue-z-reporting
 npm install
-# Copy .env.local values (get from Nick or Vercel dashboard)
+
+# Create .env.local (no .env.example yet — get values from Nick or the Vercel dashboard)
+
+# Set up the database (DATABASE_URL_UNPOOLED should point at the dev Neon project)
+npm run db:migrate     # apply Drizzle migrations
+npm run db:seed        # seed the avenue-z + renaissance clients and users
+
 npm run dev
 # Open http://localhost:3000
-# Login: demo@avenuez.com / any password (or nick@avenuez.com)
+# Log in with Google (@avenuez.com) or a seeded client credential.
 ```
 
 ---
@@ -449,11 +500,11 @@ npm run dev
 ## Key Conventions
 
 1. **All data fetching is server-side.** No API keys ever reach the browser. Use Server Components, Server Actions, or API routes.
-2. **Client config is the source of truth.** Never hardcode client names, slugs, or API key values outside `clients.config.ts`.
+2. **The database is the source of truth.** Never hardcode client names, slugs, or identifiers; read them via `lib/db/queries.ts` (always `await`).
 3. **Every report section is wrapped in `<ErrorBoundary>`** (see `components/report-sections/error-boundary.tsx`). A failed data fetch must never crash the full report page.
 4. **HubSpot CRM Search calls must be sequential**, not parallel — the API rate-limits to ~4 req/s and will 429 under concurrent load.
 5. **`react cache()`** is used in HubSpot and GA4 clients to deduplicate identical calls within a single server render pass.
-6. **`enabledReports` in `clients.config.ts`** controls which tabs appear in both the dashboard and portal. Never render a section for a report not in that array.
+6. **`enabledReports` on the client row** (DB) controls which tabs appear in both the dashboard and portal. Never render a section for a report not in that array.
 
 ---
 
@@ -466,4 +517,4 @@ CLIENT_ADMIN      → Own client only: auth hub + all enabled reports
 CLIENT_VIEWER     → Own client only: enabled reports, read-only
 ```
 
-Role is derived at session-creation time from `clients.config.ts`. No database query required.
+Role is derived at sign-in from a DB lookup (`getClientByEmail` in `lib/db/queries.ts`) and baked into the JWT. Subsequent requests decode the role from the token — no per-request DB hit.

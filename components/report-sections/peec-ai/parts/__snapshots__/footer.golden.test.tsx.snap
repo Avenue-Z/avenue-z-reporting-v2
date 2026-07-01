@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`footer@1 golden 1`] = `
+<p
+  class="text-xs text-text-muted"
+>
+  Live data from Peec AI
+</p>
+`;
