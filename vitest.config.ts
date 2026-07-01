@@ -10,7 +10,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
-    include: ['lib/report-sections/**/*.test.{ts,tsx}'],
+    include: [
+      'lib/report-sections/**/*.test.{ts,tsx}',
+      'app/actions/**/*.test.{ts,tsx}',
+      'components/report-sections/**/*.test.{ts,tsx}',
+    ],
     exclude: ['node_modules', '.next', 'scripts/**', '.claude/**'],
     globals: true,
   },
