@@ -1,0 +1,209 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`visibility-chart@1 golden 1`] = `
+<div
+  class="rounded-lg border border-white/[0.06] bg-bg-surface p-5"
+>
+  <div
+    class="mb-4 flex items-start justify-between gap-4"
+  >
+    <div>
+      <div
+        class="flex items-center gap-1.5"
+      >
+        <p
+          class="text-xs font-bold uppercase tracking-widest text-text-muted"
+        >
+          How has AI visibility grown this year?
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <p
+        class="mt-0.5 text-xs text-text-muted"
+      >
+        Acme Corp
+         · 
+        weekly
+      </p>
+    </div>
+    <div
+      class="flex flex-col items-end gap-2"
+    >
+      <div
+        class="flex gap-1 rounded-lg bg-white/[0.04] p-0.5"
+      >
+        <button
+          class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+        >
+          Daily
+        </button>
+        <button
+          class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all bg-white text-black shadow-sm"
+        >
+          Weekly
+        </button>
+        <button
+          class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+        >
+          Monthly
+        </button>
+        <button
+          class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+        >
+          Quarterly
+        </button>
+      </div>
+      <div
+        class="flex items-center gap-4 text-[10px] text-text-muted"
+      >
+        <span
+          class="flex items-center gap-1.5"
+        >
+          <span
+            class="inline-block h-2 w-2 rounded-sm bg-[#60FDFF]"
+          />
+          Acme Corp
+        </span>
+        <span
+          class="flex items-center gap-1.5"
+        >
+          <span
+            class="inline-block w-4 border-t border-dashed border-[#8A8A8A]"
+          />
+          Competitor avg
+        </span>
+      </div>
+    </div>
+  </div>
+  <div
+    class="flex gap-2"
+  >
+    <div
+      class="flex h-40 w-9 shrink-0 flex-col justify-between text-right"
+    >
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        45
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        33
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        22
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        11
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        0
+        %
+      </span>
+    </div>
+    <div
+      class="relative h-40 flex-1"
+    >
+      <div
+        class="pointer-events-none absolute inset-0 flex flex-col justify-between"
+      >
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+      </div>
+      <div
+        class="relative flex h-full gap-1"
+      >
+        <div
+          class="group relative h-full flex-1 cursor-default"
+        >
+          <div
+            class="absolute bottom-0 left-0 right-0 rounded-sm transition-colors duration-150"
+            style="height: 89.8876404494382%; background-color: rgb(96, 253, 255); opacity: 1;"
+          />
+        </div>
+        <div
+          class="group relative h-full flex-1 cursor-default"
+        >
+          <div
+            class="absolute bottom-0 left-0 right-0 rounded-sm transition-colors duration-150"
+            style="height: 100%; background-color: rgb(96, 253, 255); opacity: 1;"
+          />
+        </div>
+      </div>
+      <svg
+        class="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+        preserveAspectRatio="none"
+        viewBox="0 0 100 100"
+      >
+        <polyline
+          fill="none"
+          points="25.00,34.83 75.00,29.21"
+          stroke="#8A8A8A"
+          stroke-dasharray="3 3"
+          stroke-width="1.5"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
+    </div>
+  </div>
+  <div
+    class="mt-2 flex gap-2"
+  >
+    <div
+      class="w-9 shrink-0"
+    />
+    <div
+      class="flex flex-1 gap-1"
+    >
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          May 26
+        </span>
+      </div>
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          Jun 2
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+`;

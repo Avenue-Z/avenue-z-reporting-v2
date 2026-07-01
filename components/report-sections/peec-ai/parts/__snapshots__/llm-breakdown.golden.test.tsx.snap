@@ -1,0 +1,631 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`llm-breakdown@1 golden 1`] = `
+<div
+  class="rounded-lg border border-white/[0.06] bg-bg-surface"
+>
+  <div
+    class="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4"
+  >
+    <p
+      class="text-xs font-bold uppercase tracking-widest text-text-muted"
+    >
+      How does brand performance vary across AI models?
+    </p>
+    <span
+      class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+      data-slot="tooltip-trigger"
+      data-state="closed"
+    >
+      ?
+    </span>
+  </div>
+  <div
+    class="overflow-hidden"
+  >
+    <div
+      class="overflow-x-auto"
+    >
+      <table
+        class="w-full text-sm"
+      >
+        <thead>
+          <tr
+            class="border-b border-white/[0.04]"
+          >
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by AI Model"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  AI Model
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-controls="radix-_r_1_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter AI Model"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Visibility"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Visibility
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_3_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Visibility"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by SOV"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  SOV
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_5_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter SOV"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Position"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Position
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_7_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Position"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Domain Retrieved"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Domain Retrieved
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_9_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Domain Retrieved"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]"
+          >
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <span
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="h-2 w-2 flex-shrink-0 rounded-full"
+                  style="background-color: rgb(16, 163, 127);"
+                />
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  ChatGPT
+                </span>
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <div
+                class="flex items-center gap-2.5"
+              >
+                <div
+                  class="relative h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.06]"
+                >
+                  <div
+                    class="h-full rounded-full"
+                    style="width: 60.099999999999994%; background-color: rgb(16, 163, 127);"
+                  />
+                </div>
+                <span
+                  class="tabular-nums text-sm text-white"
+                >
+                  60.1
+                  %
+                </span>
+              </div>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                25.3
+                %
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                #
+                2.4
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                70.5
+                %
+              </span>
+            </td>
+          </tr>
+          <tr
+            class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]"
+          >
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <span
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="h-2 w-2 flex-shrink-0 rounded-full"
+                  style="background-color: rgb(38, 199, 200);"
+                />
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  Perplexity
+                </span>
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <div
+                class="flex items-center gap-2.5"
+              >
+                <div
+                  class="relative h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.06]"
+                >
+                  <div
+                    class="h-full rounded-full"
+                    style="width: 52.7%; background-color: rgb(38, 199, 200);"
+                  />
+                </div>
+                <span
+                  class="tabular-nums text-sm text-white"
+                >
+                  52.7
+                  %
+                </span>
+              </div>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                20.1
+                %
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                #
+                3.1
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                65.2
+                %
+              </span>
+            </td>
+          </tr>
+          <tr
+            class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]"
+          >
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <span
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="h-2 w-2 flex-shrink-0 rounded-full"
+                  style="background-color: rgb(66, 133, 244);"
+                />
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  Gemini
+                </span>
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <div
+                class="flex items-center gap-2.5"
+              >
+                <div
+                  class="relative h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.06]"
+                >
+                  <div
+                    class="h-full rounded-full"
+                    style="width: 44.3%; background-color: rgb(66, 133, 244);"
+                  />
+                </div>
+                <span
+                  class="tabular-nums text-sm text-white"
+                >
+                  44.3
+                  %
+                </span>
+              </div>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                17.8
+                %
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                #
+                3.8
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                58.9
+                %
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
