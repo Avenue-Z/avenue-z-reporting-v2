@@ -7,8 +7,8 @@
  * limit passes. This module holds the pure decision so it can be unit-tested
  * without React/timers.
  */
-export const RL_MAX_ATTEMPTS = 3
-export const RL_BASE_DELAY_MS = 4000 // first wait; doubles each attempt (4s, 8s, 16s)
+export const RL_MAX_ATTEMPTS = 5 // 5 tries over ~2 min (TripleWhale limits can outlast a few seconds)
+export const RL_BASE_DELAY_MS = 4000 // first wait; doubles each attempt (4s, 8s, 16s, 32s, 64s)
 export const RL_RESET_AFTER_MS = 120_000 // a gap this long means a new rate-limit episode
 
 export type RetryPlan =

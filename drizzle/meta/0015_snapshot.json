@@ -1,5 +1,5 @@
 {
-  "id": "80fa7786-f2f5-45f2-a80b-9f808b85cbbf",
+  "id": "e9b5025f-2081-4b6d-918a-2f818ec3ee8d",
   "prevId": "29755216-7c85-49ce-8cff-90f45d450c39",
   "version": "7",
   "dialect": "postgresql",
@@ -179,14 +179,15 @@
           "primaryKey": false,
           "notNull": false
         },
+        "dashboard_only": {
+          "name": "dashboard_only",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "dashboard_config": {
           "name": "dashboard_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "report_section_config": {
-          "name": "report_section_config",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -343,50 +344,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.section_templates": {
-      "name": "section_templates",
-      "schema": "",
-      "columns": {
-        "section_slug": {
-          "name": "section_slug",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "composition": {
-          "name": "composition",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "promoted_from": {
-          "name": "promoted_from",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},

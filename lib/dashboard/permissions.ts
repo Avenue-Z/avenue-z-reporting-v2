@@ -12,3 +12,8 @@ export function canEditDashboard(role: string, clientSlug: string | null, target
   if (role === 'CLIENT_ADMIN') return clientSlug === targetSlug
   return false
 }
+
+/** True for internal Avenue Z staff (INTERNAL_ADMIN / INTERNAL_ANALYST). */
+export function isInternalStaff(role: string): boolean {
+  return INTERNAL_ROLES.has(role)
+}
