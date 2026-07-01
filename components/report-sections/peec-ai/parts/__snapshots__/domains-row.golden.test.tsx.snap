@@ -1,0 +1,1057 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`domains-row@1 golden 1`] = `
+<div
+  class="grid gap-5 lg:grid-cols-[1fr_280px]"
+>
+  <div
+    class="rounded-lg border border-white/[0.06] bg-bg-surface"
+  >
+    <div
+      class="flex items-center justify-between border-b border-white/[0.06] px-5 py-4"
+    >
+      <div
+        class="flex items-center gap-1.5"
+      >
+        <p
+          class="text-xs font-bold uppercase tracking-widest text-text-muted"
+        >
+          Which domains do AI engines cite most?
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <p
+        class="flex items-center gap-1 text-xs text-text-muted"
+      >
+        Total citations: 
+        <span
+          class="font-semibold text-white"
+        >
+          943
+        </span>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </p>
+    </div>
+    <div
+      class="overflow-hidden"
+    >
+      <div
+        class="overflow-x-auto"
+      >
+        <table
+          class="w-full text-sm"
+        >
+          <thead>
+            <tr
+              class="border-b border-white/[0.04]"
+            >
+              <th
+                class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-center"
+                style="width: 3rem;"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 justify-center"
+                >
+                  <span>
+                    #
+                  </span>
+                </span>
+              </th>
+              <th
+                class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 justify-start"
+                >
+                  <button
+                    aria-label="Sort by Domain"
+                    class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                  >
+                    Domain
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="m21 16-4 4-4-4"
+                      />
+                      <path
+                        d="M17 20V4"
+                      />
+                      <path
+                        d="m3 8 4-4 4 4"
+                      />
+                      <path
+                        d="M7 4v16"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    aria-controls="radix-_r_2_"
+                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-label="Filter Domain"
+                    class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                    data-slot="popover-trigger"
+                    data-state="closed"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-funnel h-2.5 w-2.5"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              </th>
+              <th
+                class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 justify-end"
+                >
+                  <button
+                    aria-label="Sort by Retrieved"
+                    class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                  >
+                    Retrieved
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="m21 16-4 4-4-4"
+                      />
+                      <path
+                        d="M17 20V4"
+                      />
+                      <path
+                        d="m3 8 4-4 4 4"
+                      />
+                      <path
+                        d="M7 4v16"
+                      />
+                    </svg>
+                  </button>
+                  <span
+                    class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                    data-slot="tooltip-trigger"
+                    data-state="closed"
+                  >
+                    ?
+                  </span>
+                  <button
+                    aria-controls="radix-_r_4_"
+                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-label="Filter Retrieved"
+                    class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                    data-slot="popover-trigger"
+                    data-state="closed"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-funnel h-2.5 w-2.5"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              </th>
+              <th
+                class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 justify-end"
+                >
+                  <button
+                    aria-label="Sort by Citation Rate"
+                    class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                  >
+                    Citation Rate
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="m21 16-4 4-4-4"
+                      />
+                      <path
+                        d="M17 20V4"
+                      />
+                      <path
+                        d="m3 8 4-4 4 4"
+                      />
+                      <path
+                        d="M7 4v16"
+                      />
+                    </svg>
+                  </button>
+                  <span
+                    class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                    data-slot="tooltip-trigger"
+                    data-state="closed"
+                  >
+                    ?
+                  </span>
+                  <button
+                    aria-controls="radix-_r_6_"
+                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-label="Filter Citation Rate"
+                    class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                    data-slot="popover-trigger"
+                    data-state="closed"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-funnel h-2.5 w-2.5"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              </th>
+              <th
+                class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 justify-end"
+                >
+                  <button
+                    aria-label="Sort by Type"
+                    class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                  >
+                    Type
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="m21 16-4 4-4-4"
+                      />
+                      <path
+                        d="M17 20V4"
+                      />
+                      <path
+                        d="m3 8 4-4 4 4"
+                      />
+                      <path
+                        d="M7 4v16"
+                      />
+                    </svg>
+                  </button>
+                  <span
+                    class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                    data-slot="tooltip-trigger"
+                    data-state="closed"
+                  >
+                    ?
+                  </span>
+                  <button
+                    aria-controls="radix-_r_8_"
+                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-label="Filter Type"
+                    class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                    data-slot="popover-trigger"
+                    data-state="closed"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="lucide lucide-funnel h-2.5 w-2.5"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] cursor-pointer bg-white/[0.03]"
+            >
+              <td
+                class="px-4 py-3 text-center"
+              >
+                <span
+                  class="text-xs text-text-muted"
+                >
+                  1
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-left"
+              >
+                <span
+                  class="text-sm font-semibold text-[#60FDFF]"
+                >
+                  acme.com
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  72.4
+                  %
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    4.2
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  18.5
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    1.1
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="inline-block rounded px-2 py-0.5 text-[11px] font-semibold"
+                  style="color: rgb(138, 138, 138); background-color: rgba(138, 138, 138, 0.133);"
+                >
+                  Own
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] cursor-pointer"
+            >
+              <td
+                class="px-4 py-3 text-center"
+              >
+                <span
+                  class="text-xs text-text-muted"
+                >
+                  2
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-left"
+              >
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  techcrunch.com
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  61.0
+                  %
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    2.8
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  12.0
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    0.5
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="inline-block rounded px-2 py-0.5 text-[11px] font-semibold"
+                  style="color: rgb(57, 160, 255); background-color: rgba(57, 160, 255, 0.133);"
+                >
+                  Editorial
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] cursor-pointer"
+            >
+              <td
+                class="px-4 py-3 text-center"
+              >
+                <span
+                  class="text-xs text-text-muted"
+                >
+                  3
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-left"
+              >
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  reddit.com
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  55.3
+                  %
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#FF4444]"
+                  >
+                    -1.2
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  8.4
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#FF4444]"
+                  >
+                    -0.3
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="inline-block rounded px-2 py-0.5 text-[11px] font-semibold"
+                  style="color: rgb(96, 255, 128); background-color: rgba(96, 255, 128, 0.133);"
+                >
+                  UGC
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] cursor-pointer"
+            >
+              <td
+                class="px-4 py-3 text-center"
+              >
+                <span
+                  class="text-xs text-text-muted"
+                >
+                  4
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-left"
+              >
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  rival.com
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  48.9
+                  %
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    0.6
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  7.0
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    0.2
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="inline-block rounded px-2 py-0.5 text-[11px] font-semibold"
+                  style="color: rgb(138, 138, 138); background-color: rgba(138, 138, 138, 0.133);"
+                >
+                  Competitor
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] cursor-pointer"
+            >
+              <td
+                class="px-4 py-3 text-center"
+              >
+                <span
+                  class="text-xs text-text-muted"
+                >
+                  5
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-left"
+              >
+                <span
+                  class="text-sm font-semibold text-white"
+                >
+                  wikipedia.org
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  44.2
+                  %
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    1.0
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="tabular-nums text-white"
+                >
+                  5.5
+                  <span
+                    class="ml-1 text-xs font-semibold tabular-nums text-[#60FF80]"
+                  >
+                    +
+                    0.1
+                  </span>
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right"
+              >
+                <span
+                  class="inline-block rounded px-2 py-0.5 text-[11px] font-semibold"
+                  style="color: rgb(138, 138, 138); background-color: rgba(138, 138, 138, 0.133);"
+                >
+                  Reference
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div
+    class="flex flex-col gap-5"
+  >
+    <div
+      class="rounded-lg border border-white/[0.06] bg-bg-surface p-5"
+    >
+      <div
+        class="flex items-center gap-1.5 mb-4"
+      >
+        <p
+          class="text-xs font-bold uppercase tracking-widest text-text-muted"
+        >
+          What kinds of sources do AI models cite?
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <div
+        class="space-y-2.5"
+      >
+        <div
+          class="flex items-center gap-3"
+        >
+          <div
+            class="w-24 shrink-0 text-right text-xs text-text-muted"
+          >
+            Editorial
+          </div>
+          <div
+            class="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]"
+          >
+            <div
+              class="h-full rounded-sm"
+              style="width: 38%; background-color: rgb(57, 160, 255);"
+            />
+          </div>
+          <div
+            class="w-8 shrink-0 text-right text-xs tabular-nums text-white"
+          >
+            38
+            %
+          </div>
+        </div>
+        <div
+          class="flex items-center gap-3"
+        >
+          <div
+            class="w-24 shrink-0 text-right text-xs text-text-muted"
+          >
+            Corporate
+          </div>
+          <div
+            class="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]"
+          >
+            <div
+              class="h-full rounded-sm"
+              style="width: 22%; background-color: rgb(255, 252, 96);"
+            />
+          </div>
+          <div
+            class="w-8 shrink-0 text-right text-xs tabular-nums text-white"
+          >
+            22
+            %
+          </div>
+        </div>
+        <div
+          class="flex items-center gap-3"
+        >
+          <div
+            class="w-24 shrink-0 text-right text-xs text-text-muted"
+          >
+            UGC
+          </div>
+          <div
+            class="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]"
+          >
+            <div
+              class="h-full rounded-sm"
+              style="width: 18%; background-color: rgb(96, 255, 128);"
+            />
+          </div>
+          <div
+            class="w-8 shrink-0 text-right text-xs tabular-nums text-white"
+          >
+            18
+            %
+          </div>
+        </div>
+        <div
+          class="flex items-center gap-3"
+        >
+          <div
+            class="w-24 shrink-0 text-right text-xs text-text-muted"
+          >
+            Competitor
+          </div>
+          <div
+            class="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]"
+          >
+            <div
+              class="h-full rounded-sm"
+              style="width: 12%; background-color: rgb(96, 52, 255);"
+            />
+          </div>
+          <div
+            class="w-8 shrink-0 text-right text-xs tabular-nums text-white"
+          >
+            12
+            %
+          </div>
+        </div>
+        <div
+          class="flex items-center gap-3"
+        >
+          <div
+            class="w-24 shrink-0 text-right text-xs text-text-muted"
+          >
+            Own
+          </div>
+          <div
+            class="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]"
+          >
+            <div
+              class="h-full rounded-sm"
+              style="width: 7%; background-color: rgb(96, 253, 255);"
+            />
+          </div>
+          <div
+            class="w-8 shrink-0 text-right text-xs tabular-nums text-white"
+          >
+            7
+            %
+          </div>
+        </div>
+        <div
+          class="flex items-center gap-3"
+        >
+          <div
+            class="w-24 shrink-0 text-right text-xs text-text-muted"
+          >
+            Reference
+          </div>
+          <div
+            class="relative h-5 flex-1 overflow-hidden rounded-sm bg-white/[0.04]"
+          >
+            <div
+              class="h-full rounded-sm"
+              style="width: 3%; background-color: rgba(57, 160, 255, 0.6);"
+            />
+          </div>
+          <div
+            class="w-8 shrink-0 text-right text-xs tabular-nums text-white"
+          >
+            3
+            %
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.06] bg-bg-surface p-5 space-y-2.5"
+    >
+      <div
+        class="flex items-center gap-1.5 mb-3"
+      >
+        <p
+          class="text-xs font-bold uppercase tracking-widest text-text-muted"
+        >
+          What do these domain types mean?
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(96, 253, 255);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Own
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            Your own owned domains.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(255, 252, 96);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Corporate
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            Brand and company websites.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(96, 52, 255);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Competitor
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            Competing brand domains.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(96, 255, 128);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            UGC
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            User-generated content. Reddit, Quora, forums, etc.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(57, 160, 255);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Editorial
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            News outlets and editorial publications.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgba(57, 160, 255, 0.6);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Reference
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            Wikipedia, databases, and directories.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgba(96, 52, 255, 0.6);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Institutional
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            Academic, government, and non-profit sources.
+          </span>
+        </p>
+      </div>
+      <div
+        class="flex gap-2"
+      >
+        <span
+          class="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgba(255, 255, 255, 0.2);"
+        />
+        <p
+          class="text-[11px] leading-snug"
+        >
+          <span
+            class="font-semibold text-white"
+          >
+            Other
+             
+          </span>
+          <span
+            class="text-text-muted"
+          >
+            Unclassified or miscellaneous domains.
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+`;

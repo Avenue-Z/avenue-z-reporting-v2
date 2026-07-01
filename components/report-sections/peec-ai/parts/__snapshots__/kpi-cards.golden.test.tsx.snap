@@ -1,0 +1,129 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`kpi-cards@1 golden 1`] = `
+<div>
+  <h3
+    class="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted"
+  >
+    Snapshot KPIs
+  </h3>
+  <div
+    class="grid grid-cols-1 gap-5 sm:grid-cols-3"
+  >
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+    >
+      <div
+        class="flex items-center gap-1.5"
+      >
+        <p
+          class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          Visibility
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        55.2%
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        ↑
+         
+        3.1
+        % vs previous period
+      </p>
+      <p
+        class="mt-1.5 text-xs text-text-muted"
+      >
+        Competitor avg · 32.5%
+      </p>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+    >
+      <div
+        class="flex items-center gap-1.5"
+      >
+        <p
+          class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          Citation Share
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        36.1%
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        ↑
+         
+        2.4
+        % vs previous period
+      </p>
+      <p
+        class="mt-1.5 text-xs text-text-muted"
+      >
+        340 of 943 citations
+      </p>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+    >
+      <div
+        class="flex items-center gap-1.5"
+      >
+        <p
+          class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          AI Referral Traffic
+        </p>
+        <span
+          class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+          data-slot="tooltip-trigger"
+          data-state="closed"
+        >
+          ?
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        1,240
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        ↑
+         
+        26.5
+        % vs previous period
+      </p>
+      <p
+        class="mt-1.5 text-xs text-text-muted"
+      >
+        GA4 sessions from AI sources
+      </p>
+    </div>
+  </div>
+</div>
+`;
