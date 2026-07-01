@@ -16,6 +16,11 @@ import type { AIReferralKPI } from './index'
 type Overview = PeecOverview | ProfoundOverview
 
 export type PeecCtx = {
+  data: Overview
+  provider: AeoProvider
+  aiTraffic: AIReferralKPI
+  clientSlug: string | undefined
+  dateRange: string | undefined
   isPeec: boolean
   you: Overview['brandRankings'][number] | undefined
   modelActive: boolean
@@ -83,6 +88,11 @@ export function buildPeecCtx(args: {
   const { winners, losers } = computeWinnersLosers(flat)
 
   return {
+    data,
+    provider,
+    aiTraffic,
+    clientSlug: args.clientSlug,
+    dateRange: args.dateRange,
     isPeec,
     you,
     modelActive,
