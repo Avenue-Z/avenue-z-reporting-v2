@@ -3,11 +3,12 @@
 import { revalidateTag } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
-import { clients } from '@/lib/db/schema'
+import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze } from '@/lib/report-sections/mutations'
+import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion } from '@/lib/report-sections/mutations'
+import { resolveSection } from '@/lib/report-sections/resolve'
 import type { ReportSectionConfig } from '@/lib/report-sections/types'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -61,4 +62,62 @@ export async function unfreezeSection(slug: string, section: string): Promise<Re
   const a = await authorize(slug)
   if (!a.ok) return a
   return persist(slug, applyUnfreeze(a.cfg!, section))
+}
+
+/**
+ * Promotes one or more part version pins from a source client's resolved section
+ * into the canonical section template. Restricted to INTERNAL_ADMIN.
+ *
+ * By default only the version pin is moved. Pass opts.labels/opts.thresholds to
+ * also lift those fields from the source resolution.
+ *
+ * Logs old→new per part, then upserts the sectionTemplates row and busts the
+ * 'db' cache tag.
+ */
+export async function promoteToTemplate(
+  section: string,
+  fromSlug: string,
+  partIds: string[],
+  opts: { labels?: boolean; thresholds?: boolean } = {},
+): Promise<Result> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (session.user.role !== 'INTERNAL_ADMIN') return { ok: false, error: 'unauthorized' }
+
+  const source = await getClientBySlug(fromSlug)
+  if (!source) return { ok: false, error: 'source client not found' }
+
+  const template = await getSectionTemplate(section)
+  if (!template) return { ok: false, error: `no template for ${section}` }
+
+  const sourceResolved = resolveSection(template, source.reportSectionConfig?.[section])
+  const next = computePromotion(template, sourceResolved, partIds, opts)
+
+  for (const id of partIds) {
+    const before = template.order.find((p) => p.id === id)?.version
+    const after = next.order.find((p) => p.id === id)?.version
+    console.log(`[promote] ${section}/${id}: v${before ?? '?'} -> v${after ?? '?'} (from ${fromSlug})`)
+  }
+
+  await db
+    .insert(sectionTemplates)
+    .values({
+      sectionSlug: section,
+      composition: next,
+      updatedBy: session.user.email ?? null,
+      promotedFrom: fromSlug,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: sectionTemplates.sectionSlug,
+      set: {
+        composition: next,
+        updatedBy: session.user.email ?? null,
+        promotedFrom: fromSlug,
+        updatedAt: new Date(),
+      },
+    })
+
+  revalidateTag('db', 'max')
+  return { ok: true }
 }

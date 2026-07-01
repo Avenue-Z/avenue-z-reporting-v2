@@ -3,8 +3,9 @@ import { describe, expect, test } from 'vitest'
 // `'use server'` action file report-sections.ts. Testing them there keeps this
 // unit test free of the DB client / Next.js runtime (a `'use server'` module may
 // only export async functions, so the cores can't live in the action file).
-import { applyPinVersion, applyUnfreeze, computeFreeze } from '@/lib/report-sections/mutations'
+import { applyPinVersion, applyUnfreeze, computeFreeze, computePromotion } from '@/lib/report-sections/mutations'
 import type { SectionTemplate } from '@/lib/report-sections/types'
+import type { ResolvedPart } from '@/lib/report-sections/types'
 
 const T: SectionTemplate = {
   order: [{ id: 'a', version: 1 }, { id: 'b', version: 1 }],
@@ -33,5 +34,31 @@ describe('applyUnfreeze', () => {
     const c = applyUnfreeze({ 'peec-ai': { frozen: { order: [], labels: {}, thresholds: {} }, hidden: ['a'] } }, 'peec-ai')
     expect(c['peec-ai'].frozen).toBeUndefined()
     expect(c['peec-ai'].hidden).toEqual(['a'])
+  })
+})
+
+const sourceResolved: ResolvedPart[] = [
+  { id: 'a', version: 1, label: 'A' },
+  { id: 'b', version: 2, label: 'B-experimental' },
+]
+
+describe('computePromotion', () => {
+  test('promotes version pin only by default (labels untouched)', () => {
+    const next = computePromotion(T, sourceResolved, ['b'], {})
+    expect(next.order.find((p) => p.id === 'b')!.version).toBe(2)
+    expect(next.labels.b).toBe('B') // NOT 'B-experimental'
+  })
+  test('opts.labels lifts the source label too', () => {
+    const next = computePromotion(T, sourceResolved, ['b'], { labels: true })
+    expect(next.labels.b).toBe('B-experimental')
+  })
+  test('allows a backward move', () => {
+    const src: ResolvedPart[] = [{ id: 'b', version: 1, label: 'B' }]
+    const from: SectionTemplate = { order: [{ id: 'b', version: 3 }], labels: {}, thresholds: {} }
+    expect(computePromotion(from, src, ['b'], {}).order[0].version).toBe(1)
+  })
+  test('ignores partIds not present in the source resolution', () => {
+    const next = computePromotion(T, sourceResolved, ['zzz'], {})
+    expect(next).toEqual(T)
   })
 })

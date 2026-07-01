@@ -4,7 +4,7 @@
 // (b) they don't violate Next.js's rule that Server Action modules export only
 // async functions. Mirrors the config-mutations.ts / dashboard.ts split.
 import { resolveSection } from './resolve'
-import type { ReportSectionConfig, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
+import type { ReportSectionConfig, ResolvedPart, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
 
 export function applyPinVersion(
   cfg: ReportSectionConfig,
@@ -43,4 +43,32 @@ export function applyUnfreeze(cfg: ReportSectionConfig, section: string): Report
   const prev = cfg[section] ?? {}
   const { frozen: _drop, ...rest } = prev
   return { ...cfg, [section]: rest }
+}
+
+/**
+ * Returns a new SectionTemplate with version pins moved for each partId present
+ * in sourceResolved. Labels/thresholds are lifted only when opts.labels/opts.thresholds
+ * are set. Does not mutate inputs. Backward moves are allowed. PartIds not present
+ * in sourceResolved are ignored (template unchanged for those parts).
+ */
+export function computePromotion(
+  template: SectionTemplate,
+  sourceResolved: ResolvedPart[],
+  partIds: string[],
+  opts: { labels?: boolean; thresholds?: boolean },
+): SectionTemplate {
+  const bySource = new Map(sourceResolved.map((r) => [r.id, r]))
+  const order = template.order.map((pin) => {
+    const src = partIds.includes(pin.id) ? bySource.get(pin.id) : undefined
+    return src ? { id: pin.id, version: src.version } : pin
+  })
+  const labels = { ...template.labels }
+  const thresholds = { ...template.thresholds }
+  for (const id of partIds) {
+    const src = bySource.get(id)
+    if (!src) continue
+    if (opts.labels) labels[id] = src.label
+    if (opts.thresholds && src.threshold !== undefined) thresholds[id] = src.threshold
+  }
+  return { order, labels, thresholds }
 }
