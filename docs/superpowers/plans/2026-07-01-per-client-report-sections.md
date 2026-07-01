@@ -61,6 +61,70 @@
 
 ---
 
+## Dependency Graph & Parallelization (read before dispatching a fleet)
+
+This plan is **not** fully serial. The dependency DAG below lets a parallel agent fleet
+run independent tasks concurrently. Two rules govern safe parallelism:
+
+1. **Honor `depends on`** — a task may start only once every task it depends on is merged.
+2. **Never run two tasks that write the same file concurrently** — see "Shared-file
+   serial chains" below. This is the constraint a naive fleet gets wrong.
+
+### Per-task dependencies
+
+| Task | Depends on | Writes (primary files) |
+|---|---|---|
+| 1 Vitest tooling | — | `vitest.config.ts`, `vitest.setup.ts`, `package.json`, `checks.yml` |
+| 2 RSC spike (GATE) | 1 | `peec-ai/spike.golden.test.tsx` |
+| 3 Types + resolver | 1 | `lib/report-sections/{types,resolve,resolve.test}.ts` |
+| 4 Resolver edge cases | 3 | `lib/report-sections/resolve.test.ts` |
+| 5 Template table/query/seed | 3 | `lib/db/{schema,queries}.ts`, `drizzle/*`, `peec-ai/template.ts`, seed script |
+| 6 Registry + guard helpers | 3 | `lib/report-sections/{registry,guard.test}.ts` |
+| 7 Validation | 3 | `lib/report-sections/{validate,validate.test}.ts` |
+| 8 pinVersion/freeze/unfreeze | 3, 5 | `app/actions/report-sections.ts` (+ test) |
+| 9 promoteToTemplate | 8 | `app/actions/report-sections.ts` (+ test) |
+| 10 saveReportSectionConfig | 7, 8, 13 | `app/actions/report-sections.ts` (+ test) |
+| 11 PeecCtx extraction | — (existing code); 1 for build check | `peec-ai/ctx.ts`, `peec-ai/index.tsx` |
+| 12 Split parts | 3, 11 | `peec-ai/parts/*.tsx`, `peec-ai/parts/registry.ts` |
+| 13 Resolve-render + parity | 3, 5, 6, 12, **14a** (bespoke stub), 2-passed | `peec-ai/index.tsx`, parity test, fixtures, `lib/report-sections/registries.ts` |
+| 14 Bespoke scaffold + real guard | 6, 11, 12, 5 | `peec-ai/parts/bespoke/*`, `peec-ai/guard.test.ts`, eslint config |
+| 15 Per-version goldens | 12, 13, 2-passed | `peec-ai/parts/*.golden.test.tsx` |
+| 16 E2E smoke (manual) | 8, 9, 13, 14, 15 | none |
+
+### Ordering hazard fix — split out Task 14a
+
+Task 13 imports `BESPOKE_PARTS`, but that module is created in Task 14. **Do Task 14 Step 1
+(the empty `parts/bespoke/registry.ts` stub + README) as a standalone prerequisite —
+"Task 14a" — before Task 13.** The rest of Task 14 (the real guard test + eslint boundary,
+"Task 14b") depends on Task 12 and can run in parallel with Task 13. This removes the
+forward reference.
+
+### Shared-file serial chains (must run in order, never concurrently)
+
+- `app/actions/report-sections.ts` (+ its test): **8 → 9 → 10** — same file, append-only.
+- `lib/report-sections/resolve.test.ts`: **3 → 4** — Task 4 appends to Task 3's test file.
+- `components/report-sections/peec-ai/index.tsx`: **11 → 13** — both edit the section entry.
+- `lib/db/schema.ts`: only Task 5 writes it (two edits within the one task) — no chain.
+
+### Execution waves (maximally parallel)
+
+- **Wave 0:** Task 1.
+- **Wave 1** (parallel): Task 2 *(gate — must PASS before Tasks 13 & 15)*, Task 3, Task 11.
+- **Wave 2** (parallel, after 3): Task 4, Task 5, Task 6, Task 7; and Task 12 (after 3 **and** 11).
+- **Wave 3** (parallel): Task 8 (after 3, 5); Task 14a stub (after 12); Task 14b (after 6, 12, 5).
+- **Wave 4** (parallel): Task 9 (after 8); Task 13 (after 3, 5, 6, 12, 14a, gate); .
+- **Wave 5** (parallel): Task 10 (after 7, 8, 13); Task 15 (after 12, 13, gate).
+- **Wave 6:** Task 16 (manual, after everything).
+
+**Critical path:** 1 → 3 → 5 → 8 → 9 → (13) → 10, and the AEO branch 11 → 12 → 13 → 15.
+Tasks 4, 6, 7 and the spike are off the critical path and "free" to parallelize.
+
+**Gate reminder:** the AEO golden-bearing tasks (13, 15) must not start until Task 2's spike
+has PASSED its decision gate. Tasks 11 and 12 (pure refactor, no golden) may proceed
+regardless, so the AEO branch isn't fully blocked by the spike.
+
+---
+
 ## Task 1: Vitest tooling + sanity test
 
 **Files:**
@@ -1448,7 +1512,7 @@ Replace the hardcoded `return (<div className="space-y-8">…</div>)` with:
 import { resolveSection } from '@/lib/report-sections/resolve'
 import { lookup } from '@/lib/report-sections/registry'
 import { PEEC_PARTS } from './parts/registry'
-import { BESPOKE_PARTS } from './parts/bespoke/registry' // Task 14 (empty for now — create a stub first if needed)
+import { BESPOKE_PARTS } from './parts/bespoke/registry' // from Task 14a stub (prerequisite — see Dependency Graph)
 import { mergeRegistries } from '@/lib/report-sections/registry'
 
 // template + override are fetched by the async PeecAIReport wrapper and passed down.
@@ -1477,7 +1541,7 @@ export const REGISTRIES: Record<string, PartRegistry<unknown>> = {
   'peec-ai': mergeRegistries(PEEC_PARTS, BESPOKE_PARTS) as unknown as PartRegistry<unknown>,
 }
 ```
-(If `BESPOKE_PARTS` doesn't exist yet, create the stub from Task 14 Step 1 first.)
+(Requires the Task 14a bespoke stub — a prerequisite per the Dependency Graph.)
 
 - [ ] **Step 4: Write the parity golden test**
 
@@ -1537,7 +1601,7 @@ git commit -m "feat(peec): render AEO via resolveSection; parity golden pins dom
 **Interfaces:**
 - Produces: `BESPOKE_PARTS: PartRegistry<PeecCtx>` (empty to start), and a CI guard test importing the REAL merged registry + template.
 
-- [ ] **Step 1: Create the empty bespoke registry + convention doc**
+- [ ] **Step 1 (Task 14a — prerequisite for Task 13): Create the empty bespoke registry + convention doc**
 
 ```ts
 // components/report-sections/peec-ai/parts/bespoke/registry.ts
