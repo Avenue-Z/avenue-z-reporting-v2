@@ -62,3 +62,23 @@ describe('computePromotion', () => {
     expect(next).toEqual(T)
   })
 })
+
+import { validateSectionOverride } from '@/lib/report-sections/mutations'
+import type { PartRegistry } from '@/lib/report-sections/types'
+
+const reg: PartRegistry<unknown> = {
+  a: { 1: { id: 'a', version: 1, published: true, defaultLabel: 'A', render: () => null } },
+}
+
+describe('validateSectionOverride', () => {
+  test('rejects an override that re-adds a template id via extraParts', () => {
+    expect(() =>
+      validateSectionOverride('peec-ai', { extraParts: [{ id: 'a', version: 1 }] }, { 'peec-ai': reg }, ['a']),
+    ).toThrow(/extraParts/)
+  })
+  test('accepts a clean hide/order override', () => {
+    expect(validateSectionOverride('peec-ai', { hidden: ['a'] }, { 'peec-ai': reg }, ['a'])['peec-ai'].hidden).toEqual(
+      ['a'],
+    )
+  })
+})

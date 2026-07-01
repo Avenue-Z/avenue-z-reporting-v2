@@ -7,7 +7,8 @@ import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion } from '@/lib/report-sections/mutations'
+import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { REGISTRIES } from '@/lib/report-sections/registries'
 import { resolveSection } from '@/lib/report-sections/resolve'
 import type { ReportSectionConfig } from '@/lib/report-sections/types'
 
@@ -74,6 +75,20 @@ export async function unfreezeSection(slug: string, section: string): Promise<Re
  * Logs old→new per part, then upserts the sectionTemplates row and busts the
  * 'db' cache tag.
  */
+export async function saveReportSectionConfig(slug: string, section: string, raw: unknown): Promise<Result> {
+  const a = await authorize(slug)
+  if (!a.ok) return a
+  const template = await getSectionTemplate(section)
+  const templateIds = (template?.order ?? []).map((p) => p.id)
+  let parsedSection: ReportSectionConfig[string]
+  try {
+    parsedSection = validateSectionOverride(section, raw, REGISTRIES, templateIds)[section]
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  return persist(slug, { ...a.cfg!, [section]: parsedSection })
+}
+
 export async function promoteToTemplate(
   section: string,
   fromSlug: string,

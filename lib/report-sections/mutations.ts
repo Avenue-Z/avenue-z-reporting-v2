@@ -3,8 +3,9 @@
 // the `'use server'` action file so (a) they can be unit-tested without a DB and
 // (b) they don't violate Next.js's rule that Server Action modules export only
 // async functions. Mirrors the config-mutations.ts / dashboard.ts split.
+import { parseReportSectionConfig } from './validate'
 import { resolveSection } from './resolve'
-import type { ReportSectionConfig, ResolvedPart, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
+import type { PartRegistry, ReportSectionConfig, ResolvedPart, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
 
 export function applyPinVersion(
   cfg: ReportSectionConfig,
@@ -43,6 +44,23 @@ export function applyUnfreeze(cfg: ReportSectionConfig, section: string): Report
   const prev = cfg[section] ?? {}
   const { frozen: _drop, ...rest } = prev
   return { ...cfg, [section]: rest }
+}
+
+/**
+ * Validates a single section's raw override against its registry + template ids.
+ * Returns a full ReportSectionConfig keyed on the section slug so callers can
+ * extract parsedConfig[section] for the single section's SectionOverride.
+ *
+ * Accepts a per-section templateIds: string[] for ergonomics and internally
+ * calls parseReportSectionConfig with the per-section Record shape it expects.
+ */
+export function validateSectionOverride(
+  section: string,
+  raw: unknown,
+  registries: Record<string, PartRegistry<unknown>>,
+  templateIds: string[],
+): ReportSectionConfig {
+  return parseReportSectionConfig({ [section]: raw }, registries, { [section]: templateIds })
 }
 
 /**
