@@ -1,11 +1,12 @@
 # Per-Client Report Sections — Versioned Parts, Promotable Template, Per-Client Freeze
 
-**Date:** 2026-06-30 (revised 2026-07-01)
-**Status:** Design approved (versioned/promotable model, DB-backed template, true visual
-freeze); revised per second review — explicit `published` state + per-version golden-test
-enforcement, version-only promote by default, `extraParts`-vs-base rule, idempotent seed.
-Enforcement tooling: **adopt Vitest** for `.snap` per-version goldens (repo currently has no
-test framework). Ready for implementation planning.
+**Date:** 2026-06-30 (revised 2026-07-01; **posture A** adopted 2026-07-01)
+**Status:** Implemented. Versioned/promotable model with DB-backed template and per-client
+config overrides. **Posture A (composition freeze):** freeze pins *which parts/versions/labels*
+a client sees; golden snapshots are **updatable regression checks**, not a pixel-immutability
+lock, so ordinary bug fixes edit parts in place and reach all clients. New versions are only
+for durable coexisting looks (guinea-pig → promote), and unreferenced versions get deleted —
+steady state ~one version per part. Vitest is the test runner.
 **Author:** Paul Ramirez (with Claude Code)
 
 ---
@@ -47,27 +48,43 @@ stay coded; we add a versioning + config layer on top.
 
 ---
 
-## Core idea: versioned, immutable parts
+## Core idea: versioned parts (posture A — composition freeze)
 
 **A part is versioned.** A part **id + version** maps to a specific component
 implementation. `visibility-chart@1` and `visibility-chart@2` are different code, and
-**all live versions coexist in the codebase.**
+**all live versions coexist in the codebase.** A version is a **stable composition identity**
+— a slot a client's config can pin to — not a promise of pixel-identical output forever.
 
-**Published is an explicit state, and published versions are immutable.** Each version
-carries an explicit `published: boolean` in the code manifest. `promoteToTemplate` and
-`freezeSection` may only reference **published** versions; marking a version published is a
-deliberate, reviewed commit — not something that happens implicitly the first time a client
-references it. Once published, a version's rendered output is **never changed** — changes
-go to a new version (`v+1`). This immutability is *what makes freeze real*: a client pinned
-to `visibility-chart@1` renders identical output forever.
+**Freeze pins composition, not pixels (posture A).** `freezeSection` snapshots *which* parts,
+in what order, at which versions, with which labels a client sees. A frozen client keeps that
+composition even as the template changes. It does **not** freeze the underlying component
+code: ordinary fixes to the shared components a part renders (bug fixes, data corrections,
+a11y, formatting) reach every client — frozen or not — like a normal codebase. You almost
+never want to keep shipping a client a known-buggy render, so this is the intended default.
 
-**Immutability is enforced by a golden render test per published version, not by
-convention.** A part renders shared leaf components (`<VisibilityChart>`, `<KpiCard>`);
-editing *those* would change a published version's appearance even if the part's own source
-is untouched — silently un-freezing every frozen client. Source hashing cannot catch this;
-a **golden snapshot test per published version** (fixed fixture data) can: any change to a
-published version's output — including via a shared leaf it renders — fails CI and forces a
-new version. This is the load-bearing guarantee of the whole model.
+**Published is an explicit state (a small safety gate).** Each version carries
+`published: boolean`. `promoteToTemplate` and `freezeSection` may only reference **published**
+versions, so an in-flight guinea-pig version you're still building can't be captured into a
+template or a freeze snapshot. Marking a version published is a deliberate, reviewed commit.
+This gate is about *readiness to be referenced*, not output immutability.
+
+**When you make a new version vs. edit in place.** You create a **new version** only when you
+want *two coexisting renderings* of the same part pinned to different clients durably
+(e.g. a guinea-pig tries a redesign while others keep the old look). For everything else —
+bug fixes, a global restyle everyone should get — you **edit the existing part in place** and
+update its golden. Bug fixes do not spawn versions. This is what keeps version count low.
+
+**Golden tests are updatable regression checks, not an immutability lock.** Every published
+version has a golden snapshot (fixed fixture data). A failing golden means "this part's output
+changed — did you mean it?" For an intentional change you review the snapshot diff and update
+it (`-u`); for an unintended one you fix the code. The goldens give you regression *awareness*
+across the shared leaves a part renders — they are not a hard "never change" law.
+
+**Keep the version count bounded (delete dead versions).** A version only needs to exist while
+some template row or client config references it. Once nothing does, delete it. The existence
+guard reports what *is* referenced; the inverse identifies safe-to-delete versions. The
+pipeline's intent is guinea-pig → promote → **everyone converges**, after which the old version
+is removed — so the steady state is ~one version per part.
 
 **Authoring a new version is the one irreducible code + deploy step.** Everything else —
 which version is published, which client is pinned/frozen, promotion — is data.
@@ -256,13 +273,14 @@ All permission-gated (reuse `canEditDashboard` / existing role checks), all vali
    pins `@1`; nobody sees `@2`.
 2. `pinVersion('acme','peec-ai','visibility-chart',2)` → **only** Acme (guinea pig) renders
    `@2`. (Pinning an unpublished version is allowed; freeze/promote is not.)
-3. Iterate on `@2` freely — it is unpublished, so editing it in place is fine.
-4. When happy, flip `@2` to `published: true` (a deliberate, reviewed commit). From that
-   commit its golden test guards its output; further changes go to `@3`.
-5. Optionally `freezeSection` any client you want to hold back on `@1`.
+3. Iterate on `@2` freely (add/update its golden as you go).
+4. When happy, flip `@2` to `published: true` (a deliberate, reviewed commit) so it may be
+   promoted/frozen onto.
+5. Optionally `freezeSection` any client you want to hold on its current composition.
 6. `promoteToTemplate('peec-ai','acme',['visibility-chart'])` → template pins `@2`.
-   Non-frozen clients now render `@2`; frozen clients stay `@1`; Acme's explicit pin is now
-   redundant (equals template) and may be cleared.
+   Non-frozen clients now render `@2`; frozen clients keep their pinned composition; Acme's
+   explicit pin is now redundant (equals template) and may be cleared.
+7. Once no client/template still pins `@1`, **delete `@1`** — back to one version for the part.
 
 ---
 
@@ -333,22 +351,19 @@ extending the shared section's fetch. Out of scope.
 
 ---
 
-## Immutability: state, enforcement, and guards
+## Versions, goldens, and guards (posture A)
 
-- **Explicit state:** each version's `published` flag is the source of truth, set by a
-  deliberate commit. `promoteToTemplate` / `freezeSection` reject unpublished versions, so a
-  published/immutable version and the in-flight guinea-pig version are never the same
-  integer — closing the "edited while being frozen" race that an emergent
-  "published == referenced" rule would create.
-- **Output immutability (the real guarantee):** every **published** version has a **golden
-  snapshot test** (Vitest `toMatchSnapshot`, see Tooling) that renders it with fixed fixture
-  data. Any change to its rendered output — whether from editing the version or from editing
-  a shared leaf component it renders — fails CI and forces a new version. Source hashing is
-  insufficient (it misses transitive leaf changes); the snapshot is what actually holds
-  appearance still for frozen clients. The committed `.snap` file is the frozen-appearance
-  artifact; its git history is the audit trail. **Updating a published version's existing
-  snapshot in place is forbidden** (it would defeat the guarantee) — a legitimate visual
-  change is a *new* version with its own snapshot.
+- **Explicit `published` state:** each version's `published` flag is set by a deliberate
+  commit. `promoteToTemplate` / `freezeSection` reject **un**published versions, so an
+  in-flight guinea-pig version you're still building can't be promoted or frozen onto. This
+  is a *readiness* gate (is this version safe to reference), not a claim about pixel stability.
+- **Golden snapshots are updatable regression checks.** Every published version has a golden
+  snapshot (Vitest `toMatchSnapshot`, see Tooling) rendered with fixed fixture data. A failing
+  golden means "this part's output changed — intended or not?" It catches drift across the
+  shared leaf components a part renders. For an **intentional** change (bug fix, tweak) you
+  review the snapshot diff and update it (`-u`); for an **unintended** one you fix the code.
+  The goldens are awareness, **not** an immutability lock. A *new version* is only for
+  durable coexisting looks (see "Core idea"), not for bug fixes or global restyles.
 - **Existence guard (CI/test):** a check that every `{id, version}` referenced by any
   `section_templates` row or any client `frozen` snapshot **exists and is `published`** in
   the registry. This guard is an ordinary test script — it **imports both the core and the
@@ -425,8 +440,9 @@ rendering: `jsdom` or `happy-dom`), a `test` script, and CI wiring.
 
 - **`.snap` storage:** Vitest writes committed snapshots next to each test, e.g.
   `components/report-sections/peec-ai/parts/__snapshots__/visibility-chart.v1.golden.test.tsx.snap`.
-  Created on first run, diffed after, regenerated with `-u` (allowed only when authoring a
-  *new* version — never to update a published one).
+  Created on first run, diffed after. Regenerate with `-u` when a change to the part's output
+  is **intentional** (a bug fix or tweak), after reviewing the snapshot diff; the failing
+  golden is a "did you mean this?" gate, not a lock (posture A).
 - **RSC rendering in tests:** parts' `render` is a pure synchronous presentational function
   of `ctx` (see the Part contract), so a golden test constructs a **fixture `ctx`** and
   renders the part directly; Suspense-wrapped async sub-parts (e.g. `OverviewSynopsis`) are
@@ -544,9 +560,11 @@ editing only.
 - **Label/threshold coverage is per-part.** Only parts that read `resolved.label` /
   `resolved.threshold` honor overrides; the AEO refactor must thread `resolved.label` into
   parts that currently hardcode a title.
-- **Editing an unpublished version in place** is allowed and expected (the guinea-pig
-  version). Flipping `published: true` is the deliberate transition to immutability; from
-  that commit the version's golden test enforces its output. There is still a human step —
-  a dev could flip `published` while mid-edit — but the golden test added in the same commit
-  makes any *later* drift fail CI, so the residual risk is a single reviewed commit, not an
-  open-ended race.
+- **Editing a part in place is normal (posture A).** Bug fixes, data corrections, and global
+  restyles edit the existing part/leaf and update its golden — no new version, and the change
+  reaches every client. A **new version** is reserved for durable coexisting looks pinned per
+  client. Flipping `published: true` only gates whether `promoteToTemplate`/`freezeSection`
+  may reference the version; it is not a pixel-immutability boundary.
+- **Version sprawl** is bounded by convergence + GC: after a guinea-pig change is promoted,
+  migrate remaining clients and **delete the now-unreferenced old version** (the existence
+  guard's inverse lists candidates). Steady state is ~one version per part.
