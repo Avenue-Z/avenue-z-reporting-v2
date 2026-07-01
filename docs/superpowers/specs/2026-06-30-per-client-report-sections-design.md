@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-30 (revised 2026-07-01)
 **Status:** Design approved (versioned/promotable model, DB-backed template, true visual
-freeze). Ready for implementation planning.
+freeze); revised per second review — explicit `published` state + per-version golden-test
+enforcement, version-only promote by default, `extraParts`-vs-base rule, idempotent seed.
+Ready for implementation planning.
 **Author:** Paul Ramirez (with Claude Code)
 
 ---
@@ -50,11 +52,21 @@ stay coded; we add a versioning + config layer on top.
 implementation. `visibility-chart@1` and `visibility-chart@2` are different code, and
 **all live versions coexist in the codebase.**
 
-**Published versions are immutable.** Once a version is referenced by the template or by
-any frozen client snapshot ("published"), its code is **never edited** — changes go to a
-new version (`v+1`). This immutability is *what makes freeze real*: a client pinned to
-`visibility-chart@1` renders byte-identical output forever, because that code never
-changes.
+**Published is an explicit state, and published versions are immutable.** Each version
+carries an explicit `published: boolean` in the code manifest. `promoteToTemplate` and
+`freezeSection` may only reference **published** versions; marking a version published is a
+deliberate, reviewed commit — not something that happens implicitly the first time a client
+references it. Once published, a version's rendered output is **never changed** — changes
+go to a new version (`v+1`). This immutability is *what makes freeze real*: a client pinned
+to `visibility-chart@1` renders identical output forever.
+
+**Immutability is enforced by a golden render test per published version, not by
+convention.** A part renders shared leaf components (`<VisibilityChart>`, `<KpiCard>`);
+editing *those* would change a published version's appearance even if the part's own source
+is untouched — silently un-freezing every frozen client. Source hashing cannot catch this;
+a **golden snapshot test per published version** (fixed fixture data) can: any change to a
+published version's output — including via a shared leaf it renders — fails CI and forces a
+new version. This is the load-bearing guarantee of the whole model.
 
 **Authoring a new version is the one irreducible code + deploy step.** Everything else —
 which version is published, which client is pinned/frozen, promotion — is data.
@@ -91,7 +103,9 @@ user *operation*, and freeze/pin/promote are all data operations on client rows 
 template makes promotion symmetric with them and lets a future UI promote without a
 deploy. Authoring a new part *version* still needs a deploy (it's code); flipping which
 version is published does not. Templates are **seeded** from the code defaults (all
-current AEO parts at `v1`) on first migration.
+current AEO parts at `v1`) as **insert-if-absent** (`ON CONFLICT (section_slug) DO
+NOTHING`) — a re-run of the seed, or a fresh deploy against an existing DB, must never
+reset an already-promoted template back to `v1`.
 
 ---
 
@@ -182,11 +196,15 @@ resolveSection(
 
 Given the base's pinned `order` and an `override`:
 
-1. **Working set** = `dedupeById([...basePins, ...(override.extraParts ?? [])])` minus
-   `override.hidden`. Dedupe by `id` (first occurrence's version wins unless overridden by
-   `override.versions`). An id in both `extraParts` and `hidden` ends up hidden.
-2. **Version resolution** per surviving id: `override.versions?.[id] ?? basePinVersion`.
-   (Frozen base is not subject to `override.versions` — its versions are fixed.)
+1. **Working set** = base ids plus `override.extraParts` ids, minus `override.hidden`.
+   `extraParts` is **only** for ids *not* already in the base — changing an existing part's
+   version is `override.versions`' job, and write-time validation rejects an `extraParts` id
+   that duplicates a base id. As a render-time safety net, if a duplicate slips through,
+   dedupe by `id` keeps the base occurrence/position and drops the `extraParts` one. An id
+   in both `extraParts` and `hidden` ends up hidden.
+2. **Version resolution** per surviving id: `override.versions?.[id] ?? basePinVersion`
+   (extras use their own pin's version). The **frozen** base is not subject to
+   `override.versions` — its versions are fixed at freeze time.
 3. **Priority pass** — walk `override.order`; emit each id present in the working set
    (first occurrence only). Ids in `override.order` not in the working set (hidden,
    unknown, absent) are **ignored**, not errors.
@@ -209,24 +227,34 @@ All permission-gated (reuse `canEditDashboard` / existing role checks), all vali
   guinea-pig step: point one client at a new version while the template stays put.
 - **`freezeSection(slug, section)`** — run the resolver in non-frozen mode, materialize the
   fully-resolved `{ order (id+version), labels, thresholds }` into `override.frozen`.
+  **Rejects if any resolved version is unpublished** (you cannot freeze onto an in-flight
+  guinea-pig version).
 - **`unfreezeSection(slug, section)`** — clear `override.frozen`. Returns to live template +
   `override.versions` inheritance, retaining other diffs.
-- **`promoteToTemplate(section, fromSlug, partIds[])`** — for each `partId`, read the
-  source client's *resolved* pin (id+version) and label/threshold and write them into the
-  `section_templates` row's `order`/`labels`/`thresholds`. Non-frozen, non-overriding
-  clients then render the promoted versions; frozen clients are untouched; clients with
-  their own `versions`/`order`/`hidden` overrides keep them (overrides still layer on top).
+- **`promoteToTemplate(section, fromSlug, partIds[], opts?)`** — for each `partId`, read the
+  source client's *resolved* **version pin** and write it into the `section_templates` row's
+  `order`. **Version only by default;** `opts.labels` / `opts.thresholds` must be explicitly
+  set to also lift the source client's label/threshold overrides — otherwise the guinea
+  pig's experimental copy is *not* pushed to other clients. **Rejects if the source's
+  resolved version is unpublished.** Promotion is **not** required to move versions forward:
+  a backward move (`@3 → @2`) is allowed (deliberate rollback), and the action logs
+  `old→new` per part so an accidental regression is visible. Effect: non-frozen,
+  non-overriding clients render the promoted versions; frozen clients are untouched; clients
+  with their own `versions`/`order`/`hidden` overrides keep them (overrides layer on top).
 - **`saveReportSectionConfig(slug, config)`** — general write for the other override fields
   (hide/order/relabel/extraParts). The future editing UI writes through here.
 
 ### The guinea-pig flow, end to end
 
-1. Dev authors `visibility-chart@2` (code + deploy). Template still pins `@1`; nobody sees it.
-2. `pinVersion('acme','peec-ai','visibility-chart',2)` → **only** Acme (guinea pig) renders `@2`.
-3. Iterate. A version is editable until it is promoted or captured in any freeze snapshot;
-   after that it is immutable and further work goes to `@3`.
-4. Optionally `freezeSection` any client you want to hold back on `@1`.
-5. `promoteToTemplate('peec-ai','acme',['visibility-chart'])` → template pins `@2`.
+1. Dev authors `visibility-chart@2` with `published: false` (code + deploy). Template still
+   pins `@1`; nobody sees `@2`.
+2. `pinVersion('acme','peec-ai','visibility-chart',2)` → **only** Acme (guinea pig) renders
+   `@2`. (Pinning an unpublished version is allowed; freeze/promote is not.)
+3. Iterate on `@2` freely — it is unpublished, so editing it in place is fine.
+4. When happy, flip `@2` to `published: true` (a deliberate, reviewed commit). From that
+   commit its golden test guards its output; further changes go to `@3`.
+5. Optionally `freezeSection` any client you want to hold back on `@1`.
+6. `promoteToTemplate('peec-ai','acme',['visibility-chart'])` → template pins `@2`.
    Non-frozen clients now render `@2`; frozen clients stay `@1`; Acme's explicit pin is now
    redundant (equals template) and may be cleared.
 
@@ -250,6 +278,7 @@ defines its own `Ctx` type.
    type PartImpl<Ctx> = {
      id: string
      version: number
+     published: boolean        // explicit state; promote/freeze may only reference published versions
      defaultLabel: string
      render: (ctx: Ctx, resolved: ResolvedPart) => React.ReactNode  // resolved.label/threshold
    }
@@ -294,26 +323,44 @@ extending the shared section's fetch. Out of scope.
 
 ---
 
-## Immutability discipline & guard
+## Immutability: state, enforcement, and guards
 
-- **Rule:** a part version that is referenced by any `section_templates` row or any client
-  `frozen` snapshot is **published** and must not be edited or deleted; changes go to a new
-  version.
-- **Guard (CI/test):** a check that every `{id, version}` referenced by the template or any
-  frozen snapshot exists in the registry. This catches an accidental deletion of a
-  still-referenced version before it reaches production. (Editing in place can't be fully
-  linted; it's a review-enforced convention plus the parity/golden tests for `v1`.)
+- **Explicit state:** each version's `published` flag is the source of truth, set by a
+  deliberate commit. `promoteToTemplate` / `freezeSection` reject unpublished versions, so a
+  published/immutable version and the in-flight guinea-pig version are never the same
+  integer — closing the "edited while being frozen" race that an emergent
+  "published == referenced" rule would create.
+- **Output immutability (the real guarantee):** every **published** version has a **golden
+  render test** with fixed fixture data. Any change to its rendered output — whether from
+  editing the version or from editing a shared leaf component it renders — fails CI and
+  forces a new version. Source hashing is insufficient (it misses transitive leaf changes);
+  the golden test is what actually holds appearance still for frozen clients.
+- **Existence guard (CI/test):** a check that every `{id, version}` referenced by any
+  `section_templates` row or any client `frozen` snapshot **exists and is `published`** in
+  the registry. This guard is an ordinary test script — it **imports both the core and the
+  bespoke registries directly** (it is outside the render path, so the import-graph boundary
+  that keeps bespoke parts out of the shared bundle does not apply to it). It catches
+  accidental deletion/unpublishing of a still-referenced version before production, for
+  core and bespoke parts alike.
+- **Version GC is manual** in v1: a version referenced by no template row and no snapshot
+  may be deleted; the guard's inverse identifies candidates.
 
 ## Validation
 
 `parseReportSectionConfig` and `parseSectionTemplate` (mirroring `parseDashboardConfig`)
-reject at **write time** (not just render-time skip): unknown section slugs; non-string
-part ids; non-integer versions; malformed snapshot; and any `{id, version}` in `order` /
-`versions` / `extraParts` / template `order` that is **unknown to that section's
-(core + bespoke) registry**. Because v1 editing is DB-level with no UI, a typo'd id or a
-bad version must fail loudly at write time — a silent render-time drop would surface as a
-mysteriously missing chart. Render-time skip remains only as defense against a version
-deleted from code while still referenced by a stored snapshot.
+reject at **write time** (not just render-time skip):
+
+- unknown section slugs; non-string part ids; non-integer versions; malformed snapshot;
+- any `{id, version}` in `order` / `versions` / `extraParts` / template `order` that is
+  **unknown to that section's (core + bespoke) registry**;
+- an `extraParts` id that **duplicates a base/template id** (use `override.versions` to
+  re-version an existing part; `extraParts` is only for new ids);
+- (template writes and freeze/promote only) a version that is **not `published`**.
+
+Because v1 editing is DB-level with no UI, a typo'd id or a bad/unpublished version must
+fail loudly at write time — a silent render-time drop would surface as a mysteriously
+missing chart. Render-time skip remains only as defense against a version deleted from code
+while still referenced by a stored snapshot.
 
 ## Cache
 
@@ -362,6 +409,9 @@ is not mistaken for an oversight.
 - `order` references a `hidden` id → ignored (not in working set).
 - `order` references an id absent from template/extras/registry → ignored, no throw.
 - id in **both** `extraParts` and `hidden` → hidden wins.
+- id in **both** base and `extraParts` at different versions → base position/version kept,
+  extra dropped (and write-time validation rejects the config); re-versioning uses
+  `override.versions`.
 - id twice in `order` → emitted once (first occurrence).
 - partial `order` → listed ids first (given order), remainder base-relative.
 
@@ -369,12 +419,20 @@ is not mistaken for an oversight.
 
 - freeze pins version: after `freezeSection`, a later `promoteToTemplate` to a new version
   does **not** change the frozen client's resolved output.
-- promote: `promoteToTemplate` updates the template pins; a non-frozen, non-overriding
-  client inherits the new version; a client with its own `versions`/`hidden`/`order`
-  override keeps its override; a frozen client is unaffected.
+- freeze rejects unpublished: `freezeSection` throws if a resolved version is unpublished.
+- promote version-only default: `promoteToTemplate` moves the version pin but does **not**
+  alter template labels/thresholds unless `opts.labels`/`opts.thresholds` are set.
+- promote effect: a non-frozen, non-overriding client inherits the new version; a client
+  with its own `versions`/`hidden`/`order` override keeps it; a frozen client is unaffected.
+- promote rejects unpublished source version; allows a backward (rollback) move.
 - unfreeze: returns to live template + version-override inheritance, retaining other diffs.
-- immutability guard: a `{id,version}` referenced by template/snapshot but missing from the
-  registry fails the guard.
+
+**Guard tests:**
+
+- existence guard: a `{id,version}` referenced by template/snapshot but missing (or
+  unpublished) in the **core or bespoke** registry fails the guard.
+- per-published-version golden test: changing a published version's output (directly or via
+  a shared leaf) fails its golden test.
 
 **Parity test for AEO:** with no override and the seeded `v1` template, the refactored
 `ProviderSection` renders the same parts in the same order as the pre-refactor component.
@@ -390,13 +448,16 @@ each produce the expected DB state.
 
 ## Incremental rollout
 
-1. **Framework** — types; versioned registry helper; `resolveSection`; `section_templates`
-   table + migration + `getSectionTemplate` query; `parseReportSectionConfig` /
-   `parseSectionTemplate`; server actions (`pinVersion`, `freezeSection`,
-   `unfreezeSection`, `promoteToTemplate`, `saveReportSectionConfig`); immutability guard.
-   Fully unit-tested. No section component touched yet.
-2. **AEO (peec-ai)** — refactor to the versioned registry; seed its `section_templates` row
-   at `v1`; parity test green. First section on the pipeline.
+1. **Framework, correctness surface test-first.** The `resolveSection` resolver and the four
+   state-changing actions (`pinVersion`, `freezeSection`, `unfreezeSection`,
+   `promoteToTemplate`) are the *entire* correctness surface — build them TDD with the
+   combinatorial + freeze/promote suites **before** any component work. Also: types;
+   versioned registry helper; `section_templates` table + idempotent seed +
+   `getSectionTemplate` query; `parseReportSectionConfig` / `parseSectionTemplate`;
+   `saveReportSectionConfig`; existence guard. No section component touched yet.
+2. **AEO (peec-ai)** — refactor to the versioned registry; idempotently seed its
+   `section_templates` row at `v1`; parity + per-version golden tests green. The refactor is
+   mechanical once the resolver is proven. First section on the pipeline.
 3. **Migrate other sections opportunistically** — GA4, demand-overview, etc., one at a
    time, each behind its own parity test and seeded template row. Un-migrated sections keep
    working unchanged.
@@ -427,6 +488,9 @@ editing only.
 - **Label/threshold coverage is per-part.** Only parts that read `resolved.label` /
   `resolved.threshold` honor overrides; the AEO refactor must thread `resolved.label` into
   parts that currently hardcode a title.
-- **Editing a not-yet-published version in place** is allowed (a version only the guinea
-  pig runs). The moment it is promoted or frozen it becomes immutable — this transition is
-  a discipline/review point, not a hard lock.
+- **Editing an unpublished version in place** is allowed and expected (the guinea-pig
+  version). Flipping `published: true` is the deliberate transition to immutability; from
+  that commit the version's golden test enforces its output. There is still a human step —
+  a dev could flip `published` while mid-edit — but the golden test added in the same commit
+  makes any *later* drift fail CI, so the residual risk is a single reviewed commit, not an
+  open-ended race.
