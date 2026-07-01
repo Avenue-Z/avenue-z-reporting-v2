@@ -84,14 +84,14 @@ function parseOverride(raw: unknown, reg: PartRegistry<unknown>, templateIds: st
 export function parseReportSectionConfig(
   raw: unknown,
   registries: Record<string, PartRegistry<unknown>>,
-  templateIds: string[] = [],
+  templateIds: Record<string, string[]> = {},
 ): ReportSectionConfig {
   if (!isObj(raw)) throw new Error('invalid reportSectionConfig')
   const out: ReportSectionConfig = {}
   for (const [section, override] of Object.entries(raw)) {
     const reg = registries[section]
     if (!reg) throw new Error(`unknown section "${section}"`)
-    out[section] = parseOverride(override, reg, templateIds)
+    out[section] = parseOverride(override, reg, templateIds[section] ?? [])
   }
   return out
 }

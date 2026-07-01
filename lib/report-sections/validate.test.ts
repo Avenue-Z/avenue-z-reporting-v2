@@ -35,7 +35,10 @@ describe('parseReportSectionConfig', () => {
   })
   test('rejects extraParts id duplicating a template id (use versions)', () => {
     // 'a' is a valid registry id; adding it via extraParts is the disallowed case.
-    expect(() => parseReportSectionConfig({ 'peec-ai': { extraParts: [{ id: 'a', version: 1 }] } }, registries, ['a'])).toThrow(/extraParts/)
+    expect(() => parseReportSectionConfig({ 'peec-ai': { extraParts: [{ id: 'a', version: 1 }] } }, registries, { 'peec-ai': ['a'] })).toThrow(/extraParts/)
+  })
+  test('rejects a versions pin referencing an unknown id', () => {
+    expect(() => parseReportSectionConfig({ 'peec-ai': { versions: { ghost: 9 } } }, registries)).toThrow(/unknown/)
   })
   test('rejects an unknown extraParts pin', () => {
     expect(() => parseReportSectionConfig({ 'peec-ai': { extraParts: [{ id: 'ghost', version: 9 }] } }, registries)).toThrow(/unknown/)
