@@ -17,7 +17,7 @@ import {
   subYears,
   differenceInDays,
 } from 'date-fns'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -147,6 +147,8 @@ interface DateRangePickerProps {
    * (e.g. a single URL push) — using the two separate callbacks for that races.
    */
   onApply?: (value: string, compareValue: string | null) => void
+  /** When true, the trigger shows a spinner — data is refetching for the applied range. */
+  pending?: boolean
 }
 
 export function DateRangePicker({
@@ -155,6 +157,7 @@ export function DateRangePicker({
   compareValue,
   onCompareChange,
   onApply,
+  pending = false,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
 
@@ -259,7 +262,11 @@ export function DateRangePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className="flex items-center gap-2 rounded-md border border-white/10 bg-bg-surface px-4 py-2 text-sm text-white transition-colors hover:border-white/20">
-          <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-cyan" />
+          ) : (
+            <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+          )}
           <span>{getMainLabel(value)}</span>
           {compareValue && compareValue !== 'custom:' && (
             <>
