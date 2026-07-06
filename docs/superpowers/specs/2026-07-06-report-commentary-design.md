@@ -46,31 +46,62 @@ clients only ever see **approved** entries.
   existing four route files as-is (see Context). The known dashboard/portal
   render duplication is pre-existing tech debt, not addressed here.
 
-## In-scope views
+## In-scope views & the view-key resolver
 
-The PRD's seven "service tabs" do not map 1:1 to top-level report slugs — the three
-AEO tabs share the `peec-ai` slug and are distinguished by a `subsection` param.
-Commentary is therefore keyed by a **view key** (slug, optionally `:subsection`):
+The PRD's seven "service tabs" do **not** map 1:1 to route coordinates, and — this
+is the critical constraint — **the same logical report renders under different
+`(slug, subsection)` coordinates depending on which of the four route files serves
+it** (verified in code):
 
-| PRD tab | view key | Owner |
-|---|---|---|
-| AEO Overview | `peec-ai` | Melena |
-| AEO PR Influence | `peec-ai:pr-influence` | Alyssa |
-| AEO Content Impact | `peec-ai:content-impact` | Danielle |
-| Paid Search | `paid-search` | Amir |
-| Meta Advertising | `meta-ads` | Greg |
-| LinkedIn Advertising | `linkedin-ads` | Greg |
-| Organic Social | `organic-social` | Jasmine / Kyleah |
+| Logical view | Canonical `view_key` | Owner | Route coordinates that resolve to it |
+|---|---|---|---|
+| AEO Overview | `peec-ai` | Melena | `peec-ai` (no subsection) — all routes |
+| AEO PR Influence | `peec-ai:pr-influence` | Alyssa | `peec-ai` + `pr-influence` (SPA routes only) |
+| AEO Content Impact | `peec-ai:content-impact` | Danielle | `peec-ai` + `content-impact` (SPA routes only) |
+| Paid Search | `paid-search` | Amir | `google-ads` (deep-link) · `paid-media` no-subsection (SPA) |
+| Meta Advertising | `meta-ads` | Greg | `meta-ads` (deep-link, portal SPA) · `paid-media` + `meta` (dashboard SPA, portal SPA) |
+| LinkedIn Advertising | `linkedin-ads` | Greg | `linkedin-ads` (deep-link, portal SPA) · `paid-media` + `linkedin` (dashboard SPA, portal SPA) |
+| Organic Social | `organic-social` | Jasmine / Kyleah | `organic-social` — all routes |
 
-`lib/commentary/views.ts` exports a `COMMENTARY_VIEWS` registry (view key → label +
-`{ reportSlug, subsection? }`). The block only renders when the current view's key
-is in this registry, so all other report tabs (exec-summary, ga4, etc.) are
-untouched.
+Because the raw coordinates are unstable, the **canonical `view_key` must be
+produced by a single resolver**, not read from the URL. Keying commentary on raw
+coordinates would fragment one report's commentary across two keys (e.g. Meta as
+both `paid-media:meta` and `meta-ads`).
 
-> Note: `paid-search` is the section-component slug; the nav/`REPORT_NAMES` label
-> for it is "Paid Search" (also surfaced under the `paid-media` nav group). The
-> view key uses the component slug. Confirm the exact slug the route passes when
-> wiring (`paid-search` vs `google-ads`/`paid-media`) during implementation.
+`lib/commentary/views.ts` exports `resolveCommentaryView(slug, subsection?)`, called
+by all four route files. It returns the canonical key or `null` (→ no commentary
+block). The block renders **iff** the resolver returns non-null, so every other tab
+(exec-summary, ga4, etc.) is untouched.
+
+```ts
+export type CommentaryViewKey =
+  | 'peec-ai' | 'peec-ai:pr-influence' | 'peec-ai:content-impact'
+  | 'paid-search' | 'meta-ads' | 'linkedin-ads' | 'organic-social'
+
+export function resolveCommentaryView(slug: string, subsection?: string | null): CommentaryViewKey | null {
+  switch (slug) {
+    case 'peec-ai':
+      if (!subsection) return 'peec-ai'
+      if (subsection === 'pr-influence') return 'peec-ai:pr-influence'
+      if (subsection === 'content-impact') return 'peec-ai:content-impact'
+      return null                                    // technical-audit: out of scope
+    case 'organic-social': return 'organic-social'
+    case 'meta-ads': return 'meta-ads'
+    case 'linkedin-ads': return 'linkedin-ads'
+    case 'google-ads': return 'paid-search'
+    case 'paid-media':
+      if (!subsection) return 'paid-search'
+      if (subsection === 'meta') return 'meta-ads'
+      if (subsection === 'linkedin') return 'linkedin-ads'
+      return null
+    default: return null
+  }
+}
+```
+
+`COMMENTARY_VIEWS: Record<CommentaryViewKey, { label; owner }>` provides display
+labels/owners. **`peec-ai:technical-audit` is deliberately excluded** — the PRD's
+AEO scope is Overview / PR Influence / Content Impact only.
 
 ## Context (current state)
 
@@ -186,7 +217,8 @@ behavior: always show the most recent, with its own range clearly labeled).
 ## Rendering — one shared, section-agnostic block
 
 A single component tree, dropped in at the **top** of each in-scope view in all
-four route files (guarded by `COMMENTARY_VIEWS`):
+four route files. Each route computes `viewKey = resolveCommentaryView(slug, subsection)`
+and renders the block only when `viewKey` is non-null:
 
 - **`CommentarySection`** (RSC) — resolves the viewer's capabilities from `auth()`,
   loads entries via `getCommentaryForView(clientId, viewKey)`, computes the default
@@ -225,7 +257,8 @@ Pure, unit-tested modules in `lib/commentary/`:
   boundary** — sanitize on write; stored HTML is already safe to render via
   `dangerouslySetInnerHTML`.
 - `select.ts` — `pickDefaultEntry`, status filtering.
-- `views.ts` — `COMMENTARY_VIEWS` registry, `parseViewKey`, `isCommentaryView`.
+- `views.ts` — `resolveCommentaryView(slug, subsection)`, `COMMENTARY_VIEWS`
+  registry (labels/owners), `CommentaryViewKey` type.
 - `permissions.ts` — `isAvenueZEmail`, `canEditCommentary`, `canApproveCommentary`,
   `getApprovers` (parse env).
 
@@ -233,12 +266,17 @@ Read helper in `lib/db/queries.ts`:
 `getCommentaryForView(clientId, viewKey)` → `React.cache()`-wrapped
 `db.select().from(reportCommentary).where(and(eq(clientId), eq(viewKey))).orderBy(...)`.
 
-## Dependencies
+## Dependencies (verified against `package.json`)
 
-- **Tiptap**: `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`
-  (confirm none already present before adding).
-- **HTML sanitizer**: `sanitize-html` (server-side) or `isomorphic-dompurify` —
-  pick whichever is already in the tree if present; otherwise `sanitize-html`.
+- **Tiptap** — `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`.
+  Confirmed **not present**; must be added. (No existing editor: no tiptap/
+  prosemirror/slate/lexical/quill/draft-js in the tree.)
+- **HTML sanitizer** — `sanitize-html` + `@types/sanitize-html` (server-side, the
+  write boundary). Confirmed **not present**; must be added.
+- **FYI:** `react-markdown@^10.1.0` **is** already present, but it is a Markdown
+  *renderer*, not a WYSIWYG editor, and we chose rich-text/Tiptap (HTML) over
+  Markdown. It is not used by this feature; stored HTML is sanitized on write and
+  rendered directly.
 
 ## Environment variables
 
@@ -257,16 +295,22 @@ Write tests first, per repo norm:
    updatedAt; client viewer never sees drafts; empty → null.
 3. **`permissions.test.ts`** — `isAvenueZEmail` edge cases (subdomains,
    case); approver allowlist parsing + membership.
-4. **`views.test.ts`** — registry membership, `parseViewKey` round-trips.
+4. **`views.test.ts`** — `resolveCommentaryView` maps every route alias to the
+   right canonical key (`paid-media`+`meta` → `meta-ads`, `google-ads` → `paid-search`,
+   etc.) and returns `null` for out-of-scope tabs (`peec-ai:technical-audit`, `ga4`).
 5. **`commentary.action.test.ts`** — mirrors `report-sections.test.ts`: edit-draft
    → UPDATE; edit-approved → new draft INSERT (approved row untouched);
    non-Avenue-Z rejected; approve requires allowlist.
 6. Manual/e2e wire-up verification of the block on one AEO view and one paid view.
 
-## Open items to confirm during implementation
+## Resolved decisions (formerly open items)
 
-- Exact slug the paid-search route passes (`paid-search` vs `google-ads`/`paid-media`).
-- Whether an equivalent rich-text editor or sanitizer already exists in the tree
-  before adding Tiptap/`sanitize-html`.
-- Collapsible default state (start expanded; PRD "nice to have" collapsible — ship
-  collapsible, default open).
+- **Paid/AEO view keys** — resolved: routes use inconsistent coordinates
+  (`google-ads`/`paid-media` for Paid Search; `meta-ads`/`paid-media:meta` for
+  Meta; etc.). Normalized via `resolveCommentaryView` to seven canonical keys (see
+  In-scope views). `peec-ai:technical-audit` excluded.
+- **Editor / sanitizer** — resolved: neither exists in the tree; add Tiptap +
+  `sanitize-html`. `react-markdown` is present but not applicable (renderer, not a
+  WYSIWYG editor).
+- **Collapsible default state** — resolved: the block is collapsible and **defaults
+  to expanded/open**, so commentary is visible at the top of the view on load.
