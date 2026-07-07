@@ -1,14 +1,18 @@
 'use client'
 
+import type { TransitionStartFunction } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { DateRangePicker } from '@/components/layout/date-range-picker'
 
 export interface GlobalTimeControlProps {
   /** Active default — already merged from URL searchParams + persisted config.defaultRange. */
   activeDefault: { dateRange: string; compareRange: string | null }
+  /** Owned by the shell so the same transition dims the grid while it refetches. */
+  isPending: boolean
+  startTransition: TransitionStartFunction
 }
 
-export function GlobalTimeControl({ activeDefault }: GlobalTimeControlProps) {
+export function GlobalTimeControl({ activeDefault, isPending, startTransition }: GlobalTimeControlProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -25,7 +29,11 @@ export function GlobalTimeControl({ activeDefault }: GlobalTimeControlProps) {
     const params = new URLSearchParams(searchParams.toString())
     params.set('dateRange', nextDate)
     params.set('compareRange', nextCompare ?? '') // explicit empty = "no comparison"
-    router.push(`${pathname}?${params.toString()}`)
+    // Wrap the push so isPending stays true until the server re-render (block
+    // refetch) commits — that's the window we surface as loading feedback.
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   return (
@@ -33,6 +41,7 @@ export function GlobalTimeControl({ activeDefault }: GlobalTimeControlProps) {
       value={dateRange}
       compareValue={compareRange}
       onApply={handleApply}
+      pending={isPending}
     />
   )
 }

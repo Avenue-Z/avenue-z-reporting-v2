@@ -1,6 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useTransition, type ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 import { GlobalTimeControl } from './global-time-control'
 import { AddBlockButton } from './add-block/add-block-button'
 import { ShareButton } from './share/share-button'
@@ -31,6 +32,7 @@ export function DashboardShell({ config, canEdit, activeDefault, slug, blockNode
 
 function DashboardShellInner({ config, canEdit, activeDefault, slug, blockNodes }: DashboardShellProps) {
   const { optimisticBlocks, error } = useDashboardMutations()
+  const [isPending, startTransition] = useTransition()
   if (optimisticBlocks.length === 0) {
     return <EmptyDashboardState canEdit={canEdit} slug={slug} />
   }
@@ -43,16 +45,28 @@ function DashboardShellInner({ config, canEdit, activeDefault, slug, blockNodes 
             <ShareButton slug={slug} blocks={optimisticBlocks} />
           </div>
         ) : <span />}
-        <GlobalTimeControl activeDefault={activeDefault} />
+        <GlobalTimeControl
+          activeDefault={activeDefault}
+          isPending={isPending}
+          startTransition={startTransition}
+        />
       </div>
       {error && <p className="text-xs text-[#FF6666]" role="alert">Save failed: {error}</p>}
-      <BlockGrid
-        blocks={optimisticBlocks}
-        canEdit={canEdit}
-        slug={slug}
-        config={config}
-        renderBlock={(b: PersistedBlock) => blockNodes[b.id]}
-      />
+      <div
+        aria-busy={isPending}
+        className={cn(
+          'transition-opacity duration-200',
+          isPending && 'pointer-events-none opacity-50'
+        )}
+      >
+        <BlockGrid
+          blocks={optimisticBlocks}
+          canEdit={canEdit}
+          slug={slug}
+          config={config}
+          renderBlock={(b: PersistedBlock) => blockNodes[b.id]}
+        />
+      </div>
     </div>
   )
 }

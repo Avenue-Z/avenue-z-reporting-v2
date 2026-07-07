@@ -50,6 +50,7 @@ export function transformLinkedInKpis(
       value: reachAvailable ? +frequency(totals).toFixed(1) : '—',
       suffix: reachAvailable ? 'x' : undefined,
       delta: reachAvailable ? delta(frequency(totals), compare ? frequency(compare) : undefined) : undefined,
+      invertDelta: true,
       tooltip: reachAvailable ? undefined : reachNote,
     },
     { key: 'landingPageClicks', label: 'Landing Page Clicks', value: n(totals, 'landingPageClicks'), delta: d('landingPageClicks') },
