@@ -61,7 +61,9 @@ function parseStrArray(raw: unknown, kind: string): string[] {
   return raw as string[]
 }
 
-function parseOverride(raw: unknown, reg: PartRegistry<unknown>, templateIds: string[]): SectionOverride {
+function parseOverride(
+  raw: unknown, reg: PartRegistry<unknown>, sharedReg: PartRegistry<unknown>, templateIds: string[],
+): SectionOverride {
   if (!isObj(raw)) throw new Error('invalid section override')
   const out: SectionOverride = {}
   if (raw.frozen !== undefined) out.frozen = parseSnapshot(raw.frozen, reg)
@@ -78,6 +80,10 @@ function parseOverride(raw: unknown, reg: PartRegistry<unknown>, templateIds: st
       return pin
     })
   }
+  if (raw.sharedParts !== undefined) {
+    if (!Array.isArray(raw.sharedParts)) throw new Error('invalid sharedParts')
+    out.sharedParts = raw.sharedParts.map((p) => parsePin(p, sharedReg, true)) // shared parts must be published
+  }
   return out
 }
 
@@ -85,13 +91,15 @@ export function parseReportSectionConfig(
   raw: unknown,
   registries: Record<string, PartRegistry<unknown>>,
   templateIds: Record<string, string[]> = {},
+  sharedReg: PartRegistry<unknown> = {},
 ): ReportSectionConfig {
   if (!isObj(raw)) throw new Error('invalid reportSectionConfig')
   const out: ReportSectionConfig = {}
-  for (const [section, override] of Object.entries(raw)) {
-    const reg = registries[section]
-    if (!reg) throw new Error(`unknown section "${section}"`)
-    out[section] = parseOverride(override, reg, templateIds[section] ?? [])
+  for (const [key, override] of Object.entries(raw)) {
+    // A viewKey-only key (shared-parts opt-in) has no body registry: use an empty
+    // one so any body field errors, while sharedParts still validates against sharedReg.
+    const reg = registries[key] ?? {}
+    out[key] = parseOverride(override, reg, sharedReg, templateIds[key] ?? [])
   }
   return out
 }

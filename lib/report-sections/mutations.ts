@@ -81,8 +81,9 @@ export function validateSectionOverride(
   raw: unknown,
   registries: Record<string, PartRegistry<unknown>>,
   templateIds: string[],
+  sharedReg: PartRegistry<unknown> = {},
 ): ReportSectionConfig {
-  return parseReportSectionConfig({ [section]: raw }, registries, { [section]: templateIds })
+  return parseReportSectionConfig({ [section]: raw }, registries, { [section]: templateIds }, sharedReg)
 }
 
 /**
