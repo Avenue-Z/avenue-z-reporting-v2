@@ -27,6 +27,9 @@ describe('getApprovers / canApproveCommentary', () => {
     expect(canApproveCommentary('paul.ramirez@avenuez.com', env)).toBe(false) // AZ but not approver
     expect(canApproveCommentary('dianna@client.com', env)).toBe(false)  // not AZ
   })
+  test('denies a non-Avenue-Z email even when present in the allowlist string', () => {
+    expect(canApproveCommentary('attacker@evil.com', 'attacker@evil.com,maddie@avenuez.com')).toBe(false)
+  })
 })
 
 describe('canEditCommentary', () => {
