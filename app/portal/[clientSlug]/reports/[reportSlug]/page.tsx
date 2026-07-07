@@ -24,6 +24,8 @@ import { RequestAReportReport } from '@/components/report-sections/request-a-rep
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { PortalReportDateRange } from './report-date-range'
 import { HealthProbe } from '@/lib/health/probe'
+import { resolveCommentaryView } from '@/lib/commentary/views'
+import { CommentarySection } from '@/components/report-sections/commentary'
 
 function ReportSkeleton() {
   return (
@@ -112,6 +114,7 @@ export default async function PortalReportPage({
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
+  const commentaryView = resolveCommentaryView(reportSlug)
 
   // Health mode is an internal-only probe surface (the cron sweep self-fetches
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
@@ -145,6 +148,14 @@ export default async function PortalReportPage({
       </div>
 
       <div className="divider-full mb-8" />
+
+      {commentaryView && (
+        <ReportErrorBoundary sectionName="Commentary">
+          <Suspense fallback={null}>
+            <CommentarySection clientSlug={clientSlug} viewKey={commentaryView} />
+          </Suspense>
+        </ReportErrorBoundary>
+      )}
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
