@@ -155,16 +155,29 @@ Pass bar: the pre-change JSON is stored somewhere outside the DB.
 
 ## Gate 3 — Apply the fix (Avenue Z only) — REQUIRES THOMAS GO + PAUL LOOPED
 
-- [ ] **Step 3.1 — apply** the Gate 1 mechanism. Change ONLY `avenue-z`'s
-  `report_section_config['peec-ai']`:
-  - Case A: remove `visibility-chart` and `winners-losers` from `hidden` (if `hidden`
-    becomes empty and the override carries nothing else meaningful, clearing the
-    `peec-ai` key entirely is equivalent and cleaner).
-  - Case B: unfreeze the `peec-ai` section so it follows the live template again.
-- [ ] **Step 3.2 — confirm scope**: the write targeted `where slug = 'avenue-z'` and
-  no other row was touched.
+**Surgical rule (mandatory):** change ONLY the two ids. **Preserve every other key**
+in `report_section_config['peec-ai']` (`order`, `labels`, `thresholds`, any other
+`hidden` ids, `frozen`) and every other section key in `report_section_config`
+(e.g. `content-impact`, `pr-influence`). Never overwrite the whole override or the
+whole column blind. Read the current object, mutate only the two ids, write it back.
 
-Pass bar: exactly one row updated; `updatedAt` bumped to now.
+- [ ] **Step 3.1 — apply** the Gate 1 mechanism to ONLY `avenue-z`'s
+  `report_section_config['peec-ai']`:
+  - Case A (`hidden`): drop exactly `visibility-chart` and `winners-losers` from the
+    `hidden` array; keep the rest of the override object intact. Only if `hidden` was
+    the sole content of the `peec-ai` override may you delete the `peec-ai` key (it
+    then falls back to `PEEC_TEMPLATE`, which lists all 8 parts in order).
+  - Case B (`frozen`): `unfreezeSection('avenue-z','peec-ai')` so it follows the live
+    template. If the frozen snapshot pinned non-default versions of other parts that
+    must be preserved, instead re-freeze a snapshot that includes all 8 parts rather
+    than blanket-unfreezing.
+- [ ] **Step 3.2 — confirm scope**: the write targeted `where slug = 'avenue-z'`,
+  exactly one row, and only the two ids changed (diff the before/after JSON from the
+  Gate 2 backup).
+
+Pass bar: exactly one row updated; only `visibility-chart` + `winners-losers` newly
+appear; every other key byte-identical to the backup except the two ids; `updatedAt`
+bumped.
 
 ---
 
@@ -206,17 +219,33 @@ Re-apply the backed-up JSON (Gate 2) via the same mechanism used in Gate 3
 
 ## Approvals required before Gate 3
 
-- Thomas: explicit go to mutate the prod `avenue-z` row.
-- Paul: looped as owner of the configurable-dashboard feature + prod DB (required if
-  the fix falls to raw SQL).
+- Paul: **APPROVED** bringing `visibility-chart` + `winners-losers` back for Avenue Z.
+- Thomas: explicit go to mutate the prod `avenue-z` row (pending).
+- Paul (again) only if the fix falls to raw SQL rather than the vetted server actions.
+
+## Why this can't break anything else (independence proof)
+
+- **Other clients:** the override is a per-client row value; render is
+  `resolveSection(PEEC_TEMPLATE, thatClientsOverride)`. We edit only the `avenue-z`
+  row. The shared `PEEC_TEMPLATE` (code) is untouched. So renaissance and every other
+  client are read-path identical before and after. Impossible to affect them.
+- **Avenue Z's other sections:** the surgical rule mutates only the two ids and
+  preserves the rest of the override, so the synopsis, KPIs, LLM breakdown, leaderboard,
+  domains, footer, labels, and order are unchanged. The two restored parts slot into
+  their template positions (visibility-chart after KPIs, winners-losers after LLM
+  breakdown) via `resolveSection`'s base-order remainder pass.
+- **The AI synopsis:** unaffected. It is gated by `showAeoSynopsis` / `SHOW_AI_NARRATIVE`
+  (a separate mechanism), not by this override. Nothing here touches that gate.
+- **No code, no schema, no branch:** zero source files change; the `tina-post-split-qa`
+  branch is not involved.
 
 ## Gate log
 
 | Gate | State | Evidence |
 |------|-------|----------|
-| 0 Read-only diagnosis | NOT STARTED | needs Thomas go for read-only DB SELECT |
+| 0 Read-only diagnosis | NOT STARTED | Paul approved restore; still read exact override (hidden vs frozen) before editing |
 | 1 Mechanism choice | BLOCKED on Gate 0 | |
 | 2 Backup | BLOCKED on Gate 0 | |
-| 3 Apply | BLOCKED on approvals | Thomas + Paul |
+| 3 Apply | Paul ✅; awaiting Thomas go | Avenue Z row only, surgical two-id change |
 | 4 Verify render | NOT STARTED | |
 | 5 Prevention | NOT STARTED | |
