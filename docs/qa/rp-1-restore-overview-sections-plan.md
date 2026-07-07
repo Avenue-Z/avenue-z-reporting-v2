@@ -20,6 +20,56 @@ removes that removal for `avenue-z` only.
 **Tech:** Neon Postgres (jsonb column), Drizzle, the vetted server actions in
 `app/actions/report-sections.ts`. No schema migration.
 
+---
+
+## Exact breakdown & fix location (pinpoint)
+
+The whole issue lives in **one jsonb value on one DB row**. Nothing in source is
+wrong. Here is the precise chain, end to end.
+
+**1. Where it broke down (the write that caused it):**
+- A dashboard-editor save wrote an override for Avenue Z through
+  `app/actions/report-sections.ts` — either `saveReportSectionConfig('avenue-z', 'peec-ai', …)`
+  (line 77) or `freezeSection('avenue-z', 'peec-ai')` (line 57).
+- That call persisted to `clients.report_section_config` and stamped
+  `updatedAt: new Date()` (`app/actions/report-sections.ts:36`).
+- **Result on the row:** `clients.report_section_config['peec-ai']` for the
+  `avenue-z` row now carries either `hidden: [… 'visibility-chart', 'winners-losers' …]`
+  or a `frozen` snapshot whose `order` omits those two ids.
+- **When:** after **2026-07-01** (feature ship, migration 0016). The exact instant is
+  `clients.updated_at` for `avenue-z`.
+
+**2. Where it takes effect (the read that drops the sections):**
+- `components/report-sections/peec-ai/index.tsx:129`
+  `const override = config?.reportSectionConfig?.['peec-ai']`
+- passed to `resolveSection(PEEC_TEMPLATE, override)`
+  (`components/report-sections/peec-ai/index.tsx:47`).
+- `lib/report-sections/resolve.ts`: `const hidden = new Set(o.hidden ?? [])`, then
+  `inWorkingSet(id) = (base/extra has id) && !hidden.has(id)`. The two ids fail
+  `inWorkingSet`, so they are never emitted. (For the `frozen` case, `selectBase`
+  swaps the template order for the snapshot order, which already lacks them.)
+
+**3. Where the fix is applied (the exact target):**
+- **Target:** the `avenue-z` row → `report_section_config` jsonb → key `'peec-ai'`.
+- **Change:** remove `'visibility-chart'` and `'winners-losers'` from `hidden`
+  (Case A), or unfreeze the section (Case B). If `hidden` was the only content,
+  deleting the `'peec-ai'` key entirely is equivalent (the section then falls back
+  to `PEEC_TEMPLATE`, which already lists all 8 parts in the correct order).
+- **Via:** `saveReportSectionConfig('avenue-z', 'peec-ai', <cleaned override>)` or
+  `unfreezeSection('avenue-z', 'peec-ai')` — same vetted actions, so validation runs
+  and `updatedAt` is re-stamped.
+
+**One-line summary:** it broke at a dashboard-editor save that hid two sections on
+Avenue Z; it lives at `clients.report_section_config['peec-ai'].hidden` (or `.frozen`)
+on the `avenue-z` row; the fix removes those two ids there. No code, no other client,
+no schema.
+
+**Note on access:** there is **no local `.env`** in this repo, so `DATABASE_URL` is not
+reachable from this machine and the read-only `SELECT` cannot run here. The exact
+current value is read via one of: the dashboard editor UI (shows hidden/frozen
+state), `vercel env pull` then a read-only `SELECT` (fetches the secret to a
+gitignored file), or Paul running the `SELECT`.
+
 ## Global Constraints
 
 - **Read-only until Gate 3.** No DB writes, no UI saves, until diagnosis is done
@@ -41,17 +91,16 @@ removes that removal for `avenue-z` only.
 ## Gate 0 — Read-only diagnosis (get the exact override + timestamp)
 
 Determines whether the cause is `hidden` or `frozen`, and exactly when it was
-saved. Requires Thomas's go to connect read-only to the prod Neon DB.
+saved. **Local `.env` is absent, so the SELECT cannot run from this machine.** Pick
+one read-only access path (all require Thomas's go):
+- (a) **Dashboard editor UI** — already logged in; shows the hidden/frozen state per section. No secret handling.
+- (b) **`vercel env pull .env.local`** then a read-only `tsx`/`SELECT` — fetches `DATABASE_URL` into a gitignored file (matches the "keep a local gitignored copy" rule).
+- (c) **Paul runs the `SELECT`** — he has DB access.
 
-- [ ] **Step 0.1 — confirm `.env` has a DB URL (do not print the value)**
+- [ ] **Step 0.1 — establish read-only access** via (a), (b), or (c) above. If (b),
+  confirm `.env.local` is gitignored (`git check-ignore .env.local`) and never echo values.
 
-Run: `git check-ignore .env && grep -q '^DATABASE_URL' .env && echo "DATABASE_URL present"`
-Expected: `.env` is gitignored and the key exists. Never echo the value.
-
-- [ ] **Step 0.2 — read-only SELECT of the avenue-z override + timestamps**
-
-Read-only, single row, no mutation. Reuse the app's own read path via a throwaway
-`tsx` script (no raw SQL), or a `SELECT` if psql is available:
+- [ ] **Step 0.2 — read the avenue-z override + timestamps** (read-only, single row):
 
 ```sql
 SELECT slug, report_section_config -> 'peec-ai' AS peec_override,
