@@ -3,7 +3,7 @@ import type { PartImpl } from '@/lib/report-sections/types'
 import type { PeecCtx } from '../ctx'
 import { OverviewSynopsis } from '../overview-synopsis'
 import { SynopsisSkeleton } from '../synopsis-skeleton'
-import { SHOW_AI_NARRATIVE } from '@/lib/constants'
+import { showAeoSynopsis } from '@/lib/constants'
 
 export const overviewSynopsisV1: PartImpl<PeecCtx> = {
   id: 'overview-synopsis',
@@ -12,7 +12,7 @@ export const overviewSynopsisV1: PartImpl<PeecCtx> = {
   defaultLabel: 'AI Narrative',
   render: (ctx) => {
     const { clientSlug, dateRange, provider, data, aiTraffic } = ctx
-    if (!SHOW_AI_NARRATIVE) return null
+    if (!showAeoSynopsis(clientSlug)) return null
     return (
       <Suspense fallback={<SynopsisSkeleton />}>
         <OverviewSynopsis
