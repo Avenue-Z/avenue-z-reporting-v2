@@ -29,6 +29,7 @@ export function transformMetaKpis(
       value: +n(totals, 'Frequency').toFixed(1),
       suffix: 'x',
       delta: d('Frequency'),
+      invertDelta: true,
     },
     {
       key: 'linkClicks',
@@ -38,8 +39,8 @@ export function transformMetaKpis(
     },
     // Meta returns CTR as a 0-1 fraction — scale to percent.
     { key: 'ctr', label: 'CTR', value: +(n(totals, 'CTR') * 100).toFixed(1), suffix: '%', delta: d('CTR') },
-    { key: 'cpm', label: 'CPM', value: +n(totals, 'CPM').toFixed(2), prefix: '$', delta: d('CPM') },
-    { key: 'cpc', label: 'CPC', value: +n(totals, 'CPC').toFixed(2), prefix: '$', delta: d('CPC') },
+    { key: 'cpm', label: 'CPM', value: +n(totals, 'CPM').toFixed(2), prefix: '$', delta: d('CPM'), invertDelta: true },
+    { key: 'cpc', label: 'CPC', value: +n(totals, 'CPC').toFixed(2), prefix: '$', delta: d('CPC'), invertDelta: true },
     {
       key: 'lpv',
       label: 'Landing Page Views',
@@ -52,6 +53,7 @@ export function transformMetaKpis(
       value: Math.round(n(totals, 'cost_per_landing_page_view')),
       prefix: '$',
       delta: d('cost_per_landing_page_view'),
+      invertDelta: true,
     },
     {
       key: 'postEng',
