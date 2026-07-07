@@ -11,6 +11,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     include: [
+      'lib/commentary/**/*.test.{ts,tsx}',
       'lib/report-sections/**/*.test.{ts,tsx}',
       'app/actions/**/*.test.{ts,tsx}',
       'components/report-sections/**/*.test.{ts,tsx}',
