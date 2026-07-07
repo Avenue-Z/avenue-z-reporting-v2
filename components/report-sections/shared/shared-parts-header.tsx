@@ -3,6 +3,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { lookup } from '@/lib/report-sections/registry'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
+import type { PartRegistry } from '@/lib/report-sections/types'
 import { resolveSharedParts } from './parts/resolve'
 import { SHARED_PARTS, type SharedCtx } from './parts/registry'
 
@@ -13,7 +14,7 @@ export async function SharedPartsHeader({
   viewKey, clientSlug,
 }: { viewKey: CommentaryViewKey; clientSlug: string }) {
   const client = await getClientBySlug(clientSlug) // React.cache-memoized: N headers → 1 fetch/render
-  const resolved = resolveSharedParts(client?.reportSectionConfig?.[viewKey]?.sharedParts, SHARED_PARTS as any)
+  const resolved = resolveSharedParts(client?.reportSectionConfig?.[viewKey]?.sharedParts, SHARED_PARTS as unknown as PartRegistry<unknown>)
   if (resolved.length === 0) return null
   const ctx: SharedCtx = { slug: clientSlug, viewKey }
   return (
