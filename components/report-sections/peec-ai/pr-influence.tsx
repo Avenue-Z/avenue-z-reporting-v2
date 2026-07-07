@@ -5,7 +5,7 @@ import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, av
 import { getPRProofData } from '@/lib/pr-proof/client'
 import type { PRPlacement } from '@/lib/pr-proof/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { isAiSource, showAeoSynopsis } from '@/lib/constants'
+import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
 import { PRInfluenceSynopsis } from './pr-influence-synopsis'
@@ -500,7 +500,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       />
 
       {/* ── FB-009-a · Executive Synopsis (replaces the prior Section A KPI Strip per Tina's FB-009-b ask) ── */}
-      {showAeoSynopsis(clientSlug) && (
+      {SHOW_AI_NARRATIVE && (
         <Suspense fallback={<SynopsisSkeleton />}>
           <PRInfluenceSynopsis
             clientSlug={clientSlug}

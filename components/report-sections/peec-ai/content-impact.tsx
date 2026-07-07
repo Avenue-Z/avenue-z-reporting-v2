@@ -15,7 +15,7 @@ import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { isAiSource, showAeoSynopsis } from '@/lib/constants'
+import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
@@ -1007,7 +1007,7 @@ export async function ContentImpactReport({
       />
 
       {/* ── FB-033 · Executive Synopsis (AI-generated, Glean-backed) ────────── */}
-      {showAeoSynopsis(clientSlug) && (
+      {SHOW_AI_NARRATIVE && (
         <Suspense
           fallback={
             <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
