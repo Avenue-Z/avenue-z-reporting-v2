@@ -181,6 +181,12 @@ review flagged: body resolution reads `extraParts`, shared resolution reads `sha
 and they never cross. It is also not part of freeze/snapshot semantics (snapshots capture
 body composition only).
 
+**Keyspace doc comment (review #1).** Because a `reportSectionConfig` key may now be a
+section slug (body config), a viewKey (shared parts), or both, add a doc comment on the
+`ReportSectionConfig` type stating this, so a future engineer doesn't treat a viewKey-only
+key like `peec-ai:pr-influence` as an orphan and "clean it up." `REGISTRIES[key]` returning
+nothing for such a key is expected — the body system only looks up section slugs.
+
 ### Shared-parts resolution (pure) + the runner
 
 Pure helper in `components/report-sections/shared/parts/registry.ts` — no `resolveSection`
@@ -198,6 +204,15 @@ export function resolveSharedParts(sharedParts: PartPin[] | undefined): Resolved
     .filter((r): r is ResolvedPart => r !== null)
 }
 ```
+
+- **`ResolvedPart` shape (review #4).** `ResolvedPart` is `{ id; version; label; threshold? }`
+  — `threshold` is optional. The shared path builds `{ id, version, label }`, which is a
+  complete, honest value: a shared part like commentary genuinely has no threshold, so the
+  field is *absent*, not stubbed. No partial-that-happens-to-typecheck.
+- **Stale pins (review #2).** A pin whose id/version is no longer in `SHARED_PARTS` (e.g. a
+  shared part retired while a client's jsonb still pins it) is silently dropped at render —
+  intended runtime behavior. There is no stale-pin warning anywhere and none is expected;
+  the write-path validation is where bad pins are surfaced.
 
 `components/report-sections/shared/shared-parts-header.tsx` (new) — async RSC, thin
 wrapper; keyed by `viewKey`:
@@ -267,6 +282,12 @@ merging shared ids into body known-ids), so a typo'd body-part id still fails as
 and a `sharedParts` id is validated only against `SHARED_PARTS`. This keeps the existing
 `saveReportSectionConfig` action able to accept a commentary opt-in.
 
+**viewKey-only keys are legal (review #1).** `validateSectionOverride` must NOT reject a
+`reportSectionConfig` entry whose key has no matching body registry (e.g.
+`peec-ai:pr-influence`) — such entries are viewKey-only shared-part opt-ins. Body-part
+validation for a key only applies when that key is a known section slug; the `sharedParts`
+check applies to every key regardless.
+
 ## Per-client rollout (renaissance)
 
 A data change, keyed by **viewKey** (per-sub-tab). Renaissance's `reportSectionConfig`
@@ -287,6 +308,11 @@ so re-runs are safe), with the equivalent raw SQL in the script's header comment
 manual/console use. This keeps the feature gate version-controlled and reproducible
 across environments, rather than a one-off SQL. Every other client (no such entry) shows
 no commentary.
+
+**All-or-nothing write + logging (review #3).** Per-sub-tab keying means 7 entries, so the
+script writes **all 7 viewKeys in a single read-modify-write** (not 7 separate updates) to
+avoid a half-applied state, and **logs the viewKeys it touched** (and the resulting set) so
+a partial rollout is visible. A re-run is a no-op that logs the already-present set.
 
 ## Files
 
