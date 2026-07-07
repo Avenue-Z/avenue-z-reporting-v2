@@ -195,24 +195,6 @@ export const SHOW_LOCKED_REPORT_TEASERS = false
  */
 export const SHOW_AI_NARRATIVE = false
 
-/**
- * AEO synopsis gate — Avenue Z template only.
- *
- * The three AEO tab synopses (Overview, Content Impact, PR Influence) are the
- * only narrative surfaces Tina asked to keep on the Avenue Z template after the
- * split. This returns true for `avenue-z` regardless of the global flag, and
- * false for every other client while `SHOW_AI_NARRATIVE` stays false. The three
- * non-AEO surfaces (Organic Social synopsis, AI Summaries report, DataChat
- * widget) keep gating on `SHOW_AI_NARRATIVE` alone, so they stay off for
- * everyone including Avenue Z.
- *
- * Strict `=== 'avenue-z'` (not a truthy/prefix check) on the DB-unique `slug`,
- * so no other client can ever match. `undefined` → false.
- */
-export function showAeoSynopsis(clientSlug?: string): boolean {
-  return SHOW_AI_NARRATIVE || clientSlug === 'avenue-z'
-}
-
 /** All report slugs shown in the portal sidebar (excludes Soon sub-items like google-search-console) */
 export const ALL_REPORT_SLUGS: string[] = [
   'demand-overview',
