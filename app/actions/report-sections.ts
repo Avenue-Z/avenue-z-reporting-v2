@@ -11,7 +11,8 @@ import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computeProm
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
-import type { ReportSectionConfig } from '@/lib/report-sections/types'
+import type { PartRegistry, ReportSectionConfig } from '@/lib/report-sections/types'
+import { SHARED_PARTS } from '@/components/report-sections/shared/parts/registry'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -81,7 +82,7 @@ export async function saveReportSectionConfig(slug: string, section: string, raw
   const templateIds = (template?.order ?? []).map((p) => p.id)
   let parsedSection: ReportSectionConfig[string]
   try {
-    parsedSection = validateSectionOverride(section, raw, REGISTRIES, templateIds)[section]
+    parsedSection = validateSectionOverride(section, raw, REGISTRIES, templateIds, SHARED_PARTS as unknown as PartRegistry<unknown>)[section]
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }

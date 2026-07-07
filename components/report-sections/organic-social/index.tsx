@@ -9,6 +9,7 @@ import { TopContent } from './top-content'
 import { OrganicSocialSynopsis } from './synopsis'
 import { SynopsisSkeleton, HeadlinesSkeleton, TrendSkeleton, TopContentSkeleton } from './skeletons'
 import { DashTimeoutError } from '@/lib/dash-social/client'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try { return { data: await p } }
@@ -44,6 +45,7 @@ export function OrganicSocialReport({
 }: { clientSlug: string; dateRange?: string; compareRange?: string | null }) {
   return (
     <div className="space-y-8">
+      <SharedPartsHeader viewKey="organic-social" clientSlug={clientSlug} />
       {SHOW_AI_NARRATIVE && (
         <Suspense fallback={<SynopsisSkeleton />}>
           <OrganicSocialSynopsis clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />

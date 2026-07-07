@@ -5,6 +5,7 @@ import { KpiGrid } from '@/components/report-sections/paid-search/kpi-grid'
 import { LinkedInCreativeTable } from './creative-table'
 import { LinkedInGeoSection } from './geo-section'
 import { SmTimeoutError } from '@/lib/supermetrics/client'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try {
@@ -42,6 +43,7 @@ export async function LinkedInAdsReport({
 
   return (
     <div className="space-y-8">
+      <SharedPartsHeader viewKey="linkedin-ads" clientSlug={clientSlug} />
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <Fallback kind={kpis.error!} />}
       {creative.data ? <LinkedInCreativeTable groups={creative.data} /> : <Fallback kind={creative.error!} />}
       {geo.data ? <LinkedInGeoSection rows={geo.data} /> : <Fallback kind={geo.error!} />}
