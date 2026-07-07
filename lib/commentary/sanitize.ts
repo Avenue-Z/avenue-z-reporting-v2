@@ -1,4 +1,4 @@
-import sanitizeHtml, { type Attributes } from 'sanitize-html'
+import sanitizeHtml from 'sanitize-html'
 
 // The client-facing XSS boundary. Allow only the formatting Tiptap can emit
 // (bold/italic/underline, lists, a single heading level, links). Everything else
@@ -9,21 +9,7 @@ const OPTIONS: sanitizeHtml.IOptions = {
   allowedSchemes: ['http', 'https', 'mailto'],
   disallowedTagsMode: 'discard',
   transformTags: {
-    a: ((tagName: string, attribs: Attributes) => {
-      const href = attribs.href || ''
-      // Drop the link if it has a javascript: scheme (text content is preserved)
-      if (href.toLowerCase().startsWith('javascript:')) {
-        return false
-      }
-      return {
-        tagName: 'a',
-        attribs: {
-          href,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        },
-      }
-    }) as unknown as sanitizeHtml.Transformer,
+    a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
   },
 }
 
