@@ -407,6 +407,11 @@ GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON key for the Google service account
 # Health alerting (Slack Web API, bot token — same pattern as renaissance-ad-spend-pacing)
 SLACK_BOT_TOKEN=                      # xoxb-… bot token with chat:write scope
 SLACK_CHANNEL_ID=                     # internal health channel ID, e.g. C0123ABCD (not the #name)
+
+# Report commentary approvers — comma-separated emails allowed to approve
+# commentary for client visibility (Maddie/Dianna). All @avenuez.com users can
+# write/edit; only these can approve.
+COMMENTARY_APPROVERS=maddie@avenuez.com,dianna@avenuez.com
 ```
 
 ---
