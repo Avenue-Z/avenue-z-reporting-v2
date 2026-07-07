@@ -114,8 +114,8 @@ export function CommentaryEditor({
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <Button onClick={handleSave} disabled={isPending}>{isPending ? 'Saving…' : 'Save draft'}</Button>
-        <Button variant="ghost" onClick={onDone} disabled={isPending}>Cancel</Button>
+        <Button type="button" onClick={handleSave} disabled={isPending}>{isPending ? 'Saving…' : 'Save draft'}</Button>
+        <Button type="button" variant="ghost" onClick={onDone} disabled={isPending}>Cancel</Button>
       </div>
       {entry?.status === 'approved' && (
         <p className="text-xs text-text-muted">Editing an approved entry creates a new draft; the approved version stays visible to the client until the new draft is approved.</p>
