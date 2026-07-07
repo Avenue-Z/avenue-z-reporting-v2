@@ -13,7 +13,7 @@ Establish **shared parts** — parts any report section can render, controlled
 per-client through the *existing* `reportSectionConfig` override system — and make
 **commentary the first shared part**. Each in-scope report section renders a
 `SharedPartsHeader` at the top; a client sees commentary on a view only where its
-`reportSectionConfig` opts in via `extraParts`. This makes commentary a per-client
+`reportSectionConfig` opts in via a new `sharedParts` field (keyed by view). This makes commentary a per-client
 add/remove/version-able part (renaissance-only to start) and gives the platform a
 generalizable mechanism: any future cross-cutting block becomes a shared part with
 no schema change.
@@ -75,24 +75,65 @@ commentary part is simply `render: (ctx) => <CommentarySection clientSlug={ctx.s
 with no change to the pure-sync contract. The async `auth()` + DB fetch lives inside
 the returned RSC, wrapped in `Suspense` by the runner.
 
-## In-scope views → (sectionSlug, viewKey)
+## Verification (pre-implementation, done during design)
 
-The header keys the per-client override by **section slug** but renders commentary for
-the specific **view key**. The 3 AEO views share one section slug:
+**Async-child-in-RSC assumption — audited across all 7 host components.** All are
+server components (none `'use client'`), so a part returning an async server-component
+element renders correctly:
 
-| View | Section component | `sectionSlug` (override key) | `viewKey` (commentary data) |
+| Host component | `'use client'`? | Kind |
+|---|---|---|
+| `peec-ai/index.tsx` | no | async RSC |
+| `peec-ai/pr-influence.tsx` | no | async RSC |
+| `peec-ai/content-impact.tsx` | no | async RSC |
+| `paid-search/index.tsx` | no | async RSC |
+| `meta-ads/index.tsx` | no | async RSC |
+| `linkedin-ads/index.tsx` | no | async RSC |
+| `organic-social/index.tsx` | no | **sync** RSC (hosts an async child fine) |
+
+Several sections have `'use client'` **children** (e.g. `paid-search/hero.tsx`,
+`meta-ads/creative-table-client.tsx`, `organic-social/trends.tsx`). The header must be
+placed in the section's **RSC parent** (the files above), above any client children —
+never inside a client child.
+
+**Old → new coverage — mapped, no regression.** Every one of the 7 section components
+is rendered **only** from the 4 report routes (verified: no other import/render site —
+no dashboard blocks, PDF export, or embeds). So part-level rendering covers exactly the
+same surfaces page-level did. One case improves: page-level `resolveCommentaryView('peec-ai')`
+returns non-null even on the dashboard deep-link route, which has **no** `peec-ai` case,
+so today commentary could render above a 404'd section; part-level renders commentary
+only where the section actually renders.
+
+| View | Rendered on routes | Page-level today | Part-level (new) |
 |---|---|---|---|
-| AEO Overview | `peec-ai/index.tsx` | `peec-ai` | `peec-ai` |
-| AEO PR Influence | `peec-ai/pr-influence.tsx` | `peec-ai` | `peec-ai:pr-influence` |
-| AEO Content Impact | `peec-ai/content-impact.tsx` | `peec-ai` | `peec-ai:content-impact` |
-| Paid Search | `paid-search/index.tsx` | `paid-search` | `paid-search` |
-| Meta | `meta-ads/index.tsx` | `meta-ads` | `meta-ads` |
-| LinkedIn | `linkedin-ads/index.tsx` | `linkedin-ads` | `linkedin-ads` |
-| Organic Social | `organic-social/index.tsx` | `organic-social` | `organic-social` |
+| AEO Overview | dashboard SPA, portal SPA, portal deep-link | ✅ (+ vacuous on dashboard deep-link) | ✅ same 3, no vacuous case |
+| PR Influence / Content Impact | SPA routes only | ✅ | ✅ same |
+| Paid Search / Meta / LinkedIn / Organic Social | all 4 routes | ✅ | ✅ same |
 
-So one `reportSectionConfig['peec-ai'].extraParts=[commentary]` opts in **all three**
-AEO views together (each rendering its own view's commentary), and the 4 paid/social
-slugs opt in individually — 5 section-slug entries cover all 7 views.
+## In-scope views — shared parts keyed by `viewKey`
+
+Per the per-sub-tab decision, shared-parts opt-in is keyed by **`viewKey`** (not section
+slug), so the 3 AEO sub-tabs are independent. The `SharedPartsHeader` needs only
+`{ viewKey, clientSlug }` and looks up `client.reportSectionConfig[viewKey]?.sharedParts`.
+
+| View | Section component | `viewKey` (config key + commentary data key) |
+|---|---|---|
+| AEO Overview | `peec-ai/index.tsx` | `peec-ai` |
+| AEO PR Influence | `peec-ai/pr-influence.tsx` | `peec-ai:pr-influence` |
+| AEO Content Impact | `peec-ai/content-impact.tsx` | `peec-ai:content-impact` |
+| Paid Search | `paid-search/index.tsx` | `paid-search` |
+| Meta | `meta-ads/index.tsx` | `meta-ads` |
+| LinkedIn | `linkedin-ads/index.tsx` | `linkedin-ads` |
+| Organic Social | `organic-social/index.tsx` | `organic-social` |
+
+**Keyspace note:** `reportSectionConfig` is `Record<string, SectionOverride>`. Body
+composition entries are keyed by **section slug** (e.g. `peec-ai`); shared-parts opt-in
+is keyed by **viewKey**. For single-view sections and AEO Overview, `viewKey == sectionSlug`,
+so one entry may carry *both* body config (in its own fields) and `sharedParts` — they
+never collide because they live in different fields. The AEO sub-tab keys
+(`peec-ai:pr-influence`, `peec-ai:content-impact`) are viewKey-only entries that the body
+system never reads (it only looks up section slug `peec-ai`). This is documented as an
+intentional, additive expansion of the `reportSectionConfig` keyspace.
 
 ## Architecture
 
@@ -116,42 +157,66 @@ export const SHARED_PARTS: PartRegistry<SharedCtx> = {
 }
 ```
 
-### Shared-parts resolution (pure) + the runner
+### The distinct `sharedParts` field
 
-Split the logic so the resolution is unit-testable without a DB. Pure helper in
-`components/report-sections/shared/parts/registry.ts` (or a sibling `resolve.ts`):
+Add one optional field to `SectionOverride` (`lib/report-sections/types.ts`) — additive,
+jsonb, no migration:
 
 ```ts
-const EMPTY_TEMPLATE = { order: [], labels: {}, thresholds: {} } as const
+export type SectionOverride = {
+  frozen?: SectionSnapshot
+  versions?: Record<string, number>
+  order?: string[]
+  hidden?: string[]
+  extraParts?: PartPin[]     // section BODY parts (existing)
+  sharedParts?: PartPin[]    // NEW — cross-section shared parts (commentary, …)
+  labels?: Record<string, string>
+  thresholds?: Record<string, number>
+}
+```
 
-/** Which shared parts render for a client's section override. Pure — no I/O.
- *  EMPTY_TEMPLATE means nothing by default; override.extraParts opts in; and
- *  order/hidden/versions apply via resolveSection. Filtered to SHARED_PARTS so a
- *  section's own body parts never appear here. */
-export function resolveSharedParts(override: SectionOverride | undefined): ResolvedPart[] {
-  return resolveSection(EMPTY_TEMPLATE, override).filter(
-    (r) => !!lookup(SHARED_PARTS, r.id, r.version),
-  )
+Keeping shared parts in their **own field** (not overloading `extraParts`) removes the
+fragile "two consumers of one array, disambiguated by registry filtering" coupling the
+review flagged: body resolution reads `extraParts`, shared resolution reads `sharedParts`,
+and they never cross. It is also not part of freeze/snapshot semantics (snapshots capture
+body composition only).
+
+### Shared-parts resolution (pure) + the runner
+
+Pure helper in `components/report-sections/shared/parts/registry.ts` — no `resolveSection`
+needed, just filter the `sharedParts` pins to those that exist in `SHARED_PARTS`:
+
+```ts
+/** Which shared parts render for a client's view. Pure — no I/O. Array order is
+ *  render order; an id/version not in SHARED_PARTS is dropped. */
+export function resolveSharedParts(sharedParts: PartPin[] | undefined): ResolvedPart[] {
+  return (sharedParts ?? [])
+    .map((pin) => {
+      const impl = lookup(SHARED_PARTS, pin.id, pin.version)
+      return impl ? { id: pin.id, version: pin.version, label: impl.defaultLabel } : null
+    })
+    .filter((r): r is ResolvedPart => r !== null)
 }
 ```
 
 `components/report-sections/shared/shared-parts-header.tsx` (new) — async RSC, thin
-wrapper over the pure helper:
+wrapper; keyed by `viewKey`:
 
 ```tsx
 export async function SharedPartsHeader({
-  sectionSlug, viewKey, clientSlug,
-}: { sectionSlug: string; viewKey: CommentaryViewKey; clientSlug: string }) {
-  const client = await getClientBySlug(clientSlug)
-  const resolved = resolveSharedParts(client?.reportSectionConfig?.[sectionSlug])
+  viewKey, clientSlug,
+}: { viewKey: CommentaryViewKey; clientSlug: string }) {
+  const client = await getClientBySlug(clientSlug)               // React.cache-memoized (see below)
+  const resolved = resolveSharedParts(client?.reportSectionConfig?.[viewKey]?.sharedParts)
   if (resolved.length === 0) return null
   const ctx: SharedCtx = { slug: clientSlug, viewKey }
   return (
     <>
       {resolved.map((r) => {
-        const impl = lookup(SHARED_PARTS, r.id, r.version)!   // guaranteed by resolveSharedParts
+        const impl = lookup(SHARED_PARTS, r.id, r.version)
+        if (!impl) return null                                   // defensive skip, not a crash
         return (
-          <ReportErrorBoundary key={`${r.id}@${r.version}`} sectionName="Commentary">
+          <ReportErrorBoundary key={`${r.id}@${r.version}`} sectionName={`Commentary (${r.id})`}>
             <Suspense fallback={null}>{impl.render(ctx, r)}</Suspense>
           </ReportErrorBoundary>
         )
@@ -161,25 +226,29 @@ export async function SharedPartsHeader({
 }
 ```
 
-- `EMPTY_TEMPLATE` → nothing by default; the client's `override.extraParts` adds
-  commentary. Reusing `resolveSection` gives shared parts order/`hidden`/version handling
-  for free (`hidden:['commentary']` removes it; future shared parts, versioning).
-- Filtered to `SHARED_PARTS`, so a section's body parts (in its own registry) are never
-  rendered here; commentary lives *only* in `SHARED_PARTS`, so there is no double-render
-  even for AEO — its body loop already skips unknown ids via `lookup ?? null`.
-- Own error boundary + `Suspense` so a commentary failure can't crash the section.
+- Opt-in only: a client with no `sharedParts` under that `viewKey` renders nothing.
+- `getClientBySlug` is `React.cache`-wrapped in `lib/db/queries.ts` (and persistently
+  `cached('db', …)`), so N headers across one report render dedupe to a single client
+  fetch — no added query cost.
+- Defensive `if (!impl) return null` rather than a `!` assertion — the resolve invariant
+  lives in another file, so the runner degrades gracefully if it ever breaks.
+- Error-boundary name is keyed off the part id, so a second shared part won't mislabel
+  failures.
+- Body parts are wholly unaffected: they live in each section's own registry and read
+  `extraParts`, never `sharedParts`.
 
 ### Wiring into the 7 sections
 
-Each in-scope section component renders the header at the very top of its output:
+Each in-scope section component renders the header at the very top of its **RSC parent**
+(above any `'use client'` children — see Verification):
 
 ```tsx
-<SharedPartsHeader sectionSlug="meta-ads" viewKey="meta-ads" clientSlug={clientSlug} />
+<SharedPartsHeader viewKey="meta-ads" clientSlug={clientSlug} />
 ```
 
-`sectionSlug`/`viewKey` are the component's own identity (a constant per component,
-not a client identifier — allowed). For the 3 AEO views, `sectionSlug="peec-ai"` with
-distinct `viewKey`s.
+`viewKey` is the component's own identity (a constant per component — not a client
+identifier, so it doesn't violate the no-hardcoded-client rule). The 3 AEO components
+pass their distinct viewKeys (`peec-ai`, `peec-ai:pr-influence`, `peec-ai:content-impact`).
 
 ### Remove page-level rendering
 
@@ -191,42 +260,51 @@ layer.
 
 ### Validation
 
-Extend the write-path so `extraParts: [{ id: 'commentary', version: 1 }]` on any
-section's override validates. `validateSectionOverride` currently checks extra/pinned
-ids against the section's registry (`REGISTRIES[section]` / `templateIds`). Include
-`SHARED_PARTS` ids in the set it validates against (merge shared ids into the known-id
-set for every section). This keeps the existing `saveReportSectionConfig` action able
-to accept commentary opt-in without rejecting it as an unknown part.
+Extend `validateSectionOverride` to validate the **new `sharedParts` field** against the
+`SHARED_PARTS` registry — a separate check from the existing `extraParts`/version-pin
+validation against the section's body registry. The two id-spaces stay distinct (no
+merging shared ids into body known-ids), so a typo'd body-part id still fails as unknown
+and a `sharedParts` id is validated only against `SHARED_PARTS`. This keeps the existing
+`saveReportSectionConfig` action able to accept a commentary opt-in.
 
 ## Per-client rollout (renaissance)
 
-A data change only. For each of the 5 in-scope section slugs, add to renaissance's
-`reportSectionConfig`:
+A data change, keyed by **viewKey** (per-sub-tab). Renaissance's `reportSectionConfig`
+gets, under each of the **7 in-scope view keys**, `{ "sharedParts": [{ "id": "commentary", "version": 1 }] }`:
 
-```json
-{ "extraParts": [{ "id": "commentary", "version": 1 }] }
+```
+peec-ai · peec-ai:pr-influence · peec-ai:content-impact ·
+paid-search · meta-ads · linkedin-ads · organic-social
 ```
 
-Delivered as SQL (a `jsonb_set`/update on the renaissance `clients` row), handed to the
-user to run — no code, no migration, no redeploy. Any other client without this entry
-shows no commentary.
+Any of the 7 can be omitted to leave that sub-tab without commentary (per-sub-tab control).
+
+**Reproducible, not a hand-off.** Committed as a tracked data-migration artifact — an
+idempotent script `scripts/enable-commentary-renaissance.ts` (following the existing
+`scripts/seed-section-templates.ts` pattern: reads `.env.local`, merges the `sharedParts`
+entries into renaissance's `reportSectionConfig` via Drizzle, `onConflict`/read-modify-write
+so re-runs are safe), with the equivalent raw SQL in the script's header comment for
+manual/console use. This keeps the feature gate version-controlled and reproducible
+across environments, rather than a one-off SQL. Every other client (no such entry) shows
+no commentary.
 
 ## Files
 
 **Created**
 - `components/report-sections/shared/parts/registry.ts` — `SharedCtx`, `commentaryPart`, `SHARED_PARTS`, `resolveSharedParts`
-- `components/report-sections/shared/parts/registry.test.ts` — `resolveSharedParts` opt-in present/absent/`hidden`/unknown-id
+- `components/report-sections/shared/parts/registry.test.ts` — `resolveSharedParts` opt-in present/absent/unknown-id/order; body–shared isolation
 - `components/report-sections/shared/shared-parts-header.tsx` — `SharedPartsHeader` runner (async RSC)
-- (SQL snippet for renaissance opt-in — delivered to user, not committed as code)
+- `scripts/enable-commentary-renaissance.ts` — idempotent, tracked data-migration for the renaissance opt-in
 
 **Modified**
+- `lib/report-sections/types.ts` — add `sharedParts?: PartPin[]` to `SectionOverride`
 - `components/report-sections/peec-ai/index.tsx`, `peec-ai/pr-influence.tsx`,
   `peec-ai/content-impact.tsx`, `paid-search/index.tsx`, `meta-ads/index.tsx`,
-  `linkedin-ads/index.tsx`, `organic-social/index.tsx` — render `<SharedPartsHeader>` at top
+  `linkedin-ads/index.tsx`, `organic-social/index.tsx` — render `<SharedPartsHeader viewKey=… clientSlug=…>` at the top of the RSC parent
 - `app/dashboard/[clientSlug]/reports/page.tsx`, `.../reports/[reportSlug]/page.tsx`,
   `app/portal/[clientSlug]/reports/page.tsx`, `.../reports/[reportSlug]/page.tsx` — revert
   the page-level commentary block
-- `lib/report-sections/mutations.ts` (`validateSectionOverride`) — accept `SHARED_PARTS` ids
+- `lib/report-sections/mutations.ts` (`validateSectionOverride`) — validate `sharedParts` against `SHARED_PARTS`
 
 **Reused unchanged**
 - `report_commentary` table + migration 0017; all `lib/commentary/*`; `app/actions/commentary.ts`;
@@ -234,11 +312,15 @@ shows no commentary.
 
 ## Testing
 
-- **`resolveSharedParts`** (pure/unit): override with `extraParts:[commentary]` → resolves
-  the commentary part; no override / empty override → `[]`; `hidden:['commentary']` → `[]`;
-  an unknown shared id in `extraParts` → skipped (not in `SHARED_PARTS`).
-- **Validation**: `validateSectionOverride` accepts `extraParts:[{id:'commentary',version:1}]`
-  for every in-scope section; still rejects genuinely unknown ids.
+- **`resolveSharedParts`** (pure/unit): `sharedParts:[{commentary,1}]` → resolves the
+  commentary part; `undefined`/`[]` → `[]`; an unknown id/version → dropped; array order
+  is preserved as render order.
+- **Body–shared isolation** (pure/unit): an override with body `extraParts:[someBodyPart]`
+  and no `sharedParts` → `resolveSharedParts` returns `[]` (body parts never leak into the
+  shared header); and vice-versa.
+- **Validation**: `validateSectionOverride` accepts `sharedParts:[{id:'commentary',version:1}]`;
+  rejects a `sharedParts` id not in `SHARED_PARTS`; still validates body `extraParts` against
+  the body registry independently.
 - Existing commentary data-layer tests stay green (unchanged).
 - Manual (env-permitting): renaissance shows commentary on all 7 views via the part;
   a client without the opt-in shows none; commentary still renders at the top.
