@@ -30,8 +30,6 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam } from '@/lib/peec/models'
 import { SectionSkeleton } from './section-skeleton'
 import { HealthProbe } from '@/lib/health/probe'
-import { resolveCommentaryView } from '@/lib/commentary/views'
-import { CommentarySection } from '@/components/report-sections/commentary'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -170,8 +168,6 @@ export default async function ReportPage({
       ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
-  const commentaryView = resolveCommentaryView(activeSection, subsection)
-
   // Health mode is an internal-only probe surface (the cron sweep self-fetches
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
@@ -221,14 +217,6 @@ export default async function ReportPage({
       </StickyReportHeader>
 
       <div className="h-8" />
-
-      {commentaryView && (
-        <ReportErrorBoundary sectionName="Commentary">
-          <Suspense fallback={null}>
-            <CommentarySection clientSlug={clientSlug} viewKey={commentaryView} />
-          </Suspense>
-        </ReportErrorBoundary>
-      )}
 
       <ReportErrorBoundary sectionName={pageTitle}>
         {/* Key on section+subsection so switching reports in the sidebar (a

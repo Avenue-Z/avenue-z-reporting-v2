@@ -38,8 +38,6 @@ import { parseModelsParam, type AEOModel } from '@/lib/peec/models'
 import { ExportPdfButton } from '@/components/export-pdf-button'
 import { DataChat } from '@/components/data-chat'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { resolveCommentaryView } from '@/lib/commentary/views'
-import { CommentarySection } from '@/components/report-sections/commentary'
 
 import type { ReportSlug } from '@/lib/db/schema'
 
@@ -209,8 +207,6 @@ export default async function PortalReportPage({
       ? AEO_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
-  const commentaryView = resolveCommentaryView(activeSection, subsection)
-
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={50}>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
@@ -245,14 +241,6 @@ export default async function PortalReportPage({
       </StickyReportHeader>
 
       <div className="h-8" />
-
-      {commentaryView && (
-        <ReportErrorBoundary sectionName="Commentary">
-          <Suspense fallback={null}>
-            <CommentarySection clientSlug={clientSlug} viewKey={commentaryView} />
-          </Suspense>
-        </ReportErrorBoundary>
-      )}
 
       <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>

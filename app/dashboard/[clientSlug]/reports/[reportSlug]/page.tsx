@@ -20,8 +20,6 @@ import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { ReportDateRange } from './report-date-range'
-import { resolveCommentaryView } from '@/lib/commentary/views'
-import { CommentarySection } from '@/components/report-sections/commentary'
 
 function ReportSkeleton() {
   return (
@@ -95,7 +93,6 @@ export default async function ReportPage({
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
-  const commentaryView = resolveCommentaryView(reportSlug)
 
   return (
     <>
@@ -106,14 +103,6 @@ export default async function ReportPage({
       </Header>
 
       <div className="divider-full mb-8" />
-
-      {commentaryView && (
-        <ReportErrorBoundary sectionName="Commentary">
-          <Suspense fallback={null}>
-            <CommentarySection clientSlug={clientSlug} viewKey={commentaryView} />
-          </Suspense>
-        </ReportErrorBoundary>
-      )}
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
