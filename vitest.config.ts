@@ -12,6 +12,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: [
       'lib/report-sections/**/*.test.{ts,tsx}',
+      'lib/profound/**/*.test.{ts,tsx}',
       'app/actions/**/*.test.{ts,tsx}',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
