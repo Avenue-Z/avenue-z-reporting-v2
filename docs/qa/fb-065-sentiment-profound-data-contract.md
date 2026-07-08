@@ -37,10 +37,15 @@ From Tina's message (Jun 17) plus her Profound example export:
   1. `dimensions:['model']` -> per-model positive/negative (drives the pill).
   2. `dimensions:['model','theme']` -> per-(model,theme) counts (drives themes).
   3. A prior-period `dimensions:['model']` call when a comparison period is on (drives the delta).
-  4. `POST /v1/prompts/answers` with `pagination.limit: 2000` -> a bounded sample
-     of the period's answers, each tagged with `themes` + `citations` + `model`
-     (drives the per-theme sources accordion). The endpoint ignores top-level
-     `limit`; only `pagination.limit` bounds it (full set is ~40MB, so we sample).
+  4. `POST /v1/prompts/answers`, paged through ALL of the period's answers
+     (`pagination.limit: 5000`, `offset` stepping, up to `ANSWERS_MAX_PAGES: 8`
+     => 40k-answer ceiling), each answer tagged with `themes` + `citations` +
+     `model` (drives the per-theme sources accordion). The endpoint ignores
+     top-level `limit`; only `pagination.limit`/`offset` bound it. We fold each
+     page into the theme->sources accumulator and drop the heavy response text
+     as we go, so memory stays bounded. Current periods run ~10k answers, well
+     under the 40k ceiling; a period exceeding 40k would drop tail sources for
+     the rarest themes only (documented bound, not currently reachable).
 - Response rows carry `metrics[]` aligned to `info.query.metrics` (returned
   alphabetical). We resolve every metric **by name**, never by position.
 
@@ -53,7 +58,8 @@ From Tina's message (Jun 17) plus her Profound example export:
 | **Positive Themes** (R2) | `['model','theme']` | folded per theme over selected models; keep themes where `positive > negative`; sort by positive count desc; case-fold duplicate labels; top 8 |
 | **Negative Themes** (R2) | `['model','theme']` | same fold; keep themes where `negative > positive`; sort by negative count desc; top 8 |
 | **Delta** | prior `['model']` counts | `current pill - prior pill` (pp); computed only when a comparison period is passed. The card currently passes none, so no delta line renders (matches Tina's pill-only example). |
-| **Sources per theme** (R3) | `/v1/prompts/answers` `themes`+`citations`+`model` | for each theme, the de-duplicated citations of the sampled answers tagged with that theme, filtered to the selected models, capped at 12. **Answer-level attribution** (see note). |
+| **Sources per theme** (R3) | `/v1/prompts/answers` `themes`+`citations`+`model` | for each theme, the de-duplicated citations of the answers tagged with that theme, filtered to the selected models, capped at 12. **Answer-level attribution** (see note). |
+| **Theme badge count** | `['model','theme']` counts | the number is the theme's **occurrence count in its dominant polarity**, NOT the number of cited sources. A theme can read 18 with 12 sources (source cap), or 18 with 0 sources (uncited answers, §8a). Count and source-list length are independent by design. |
 
 ## 5. Reactivity guarantees (the v1 fix)
 
@@ -97,14 +103,40 @@ From Tina's message (Jun 17) plus her Profound example export:
 The accordion sources are **answer-level, not claim-level.** Each Profound
 answer is tagged with the themes it expresses and the citations it drew from,
 but not which citation backs which theme *within* that answer. So a theme's
-sources = every citation from sampled answers that expressed that theme. Those
-URLs genuinely appeared in AI answers discussing the theme (true and
-defensible), but it is not the surgical "this exact URL -> this exact claim"
-mapping Profound's own UI may show. Profound does not expose claim-level
-citation attribution via the API. Sources are also a **bounded sample** (up to
-2000 of the period's answers); if a period has more answers, rarer themes may
-show fewer sources. The fetch is best-effort: a failure leaves the themes
-rendering with counts and no sources, never a broken card.
+sources = every citation from answers that expressed that theme. Those URLs
+genuinely appeared in AI answers discussing the theme (true and defensible),
+but it is not the surgical "this exact URL -> this exact claim" mapping
+Profound's own UI may show. Profound does not expose claim-level citation
+attribution via the API. The fetch pages through ALL of the period's answers
+(`pagination.limit`=5000, up to `ANSWERS_MAX_PAGES`=8 => 40k answer ceiling,
+current periods run ~10k so we have headroom). The fetch is best-effort: any
+failure leaves the themes rendering with counts and no sources, never a
+broken card.
+
+### 8a. Themes with counts but zero sources (data reality, not a bug)
+
+Profound's sentiment analysis and its answer feed are two different endpoints
+and don't always align: **a theme can have a real positive/negative count from
+`/v1/reports/sentiment` while every answer that carries it in
+`/v1/prompts/answers` has no citations.** This is common with Perplexity, which
+sometimes returns AI answers without citation URLs. Local sweep confirmed the
+condition on last-30d 2026-06-08..2026-07-07, Perplexity-only view: themes
+"Clear Value Proposition" (pos 5), "Resource Intensity" (neg 3), "Traffic
+Congestion" (neg 2) each had 0 URLs because their 5/3/2 backing Perplexity
+answers all had empty `citations`. The card handles this with an honest empty
+state (see `SourceList` in `sentiment-insights.tsx`): "Profound tagged this
+theme in AI answers that did not include citation URLs." Not a code bug. Do
+not hide these themes; suppressing them would misrepresent Profound's counts.
+
+### 8b. Cache versioning discipline
+
+`getProfoundSentiment` is `cached(..., { version })`. The cache key is
+(vendor, fn, `version`, today, ...args). **Bump `version` any time anything
+downstream of the cache changes** (fetch params, filter logic, response
+mapping). Missing a bump serves the prior deploy's serialized result under
+the same key -- 1h TTL means an incorrect result survives across builds until
+the key changes. The v1 -> v2 bump landed with the paginated answers fetch;
+future fetch-shape changes need the same discipline.
 
 ## 9. Containment (blast radius)
 
@@ -121,3 +153,23 @@ rendering with counts and no sources, never a broken card.
   **deleted**; no remaining importers.
 - CI gates green: RSC-boundary check, `tsc`, and the vitest suite (incl. the
   new `lib/profound` unit tests).
+
+## 10. Degradation / error edge cases (every failure lands soft)
+
+The card never crashes the PR Influence page and never shows a fabricated
+number. Enumerated:
+
+| Condition | Behavior |
+|---|---|
+| **Single-day range** (`start_date == end_date`) | Profound returns 422. `SentimentInsightsSection` try/catches the whole fetch -> `data = null` -> no-data card ("No classified sentiment... Try a wider date range or the all-models view."). Standard presets (7/30/90d, YTD) never produce a single-day range. |
+| **Any sentiment fetch fails** (network, 5xx, timeout) | Same try/catch -> `data = null` -> no-data card. Logged to server console, never surfaced as an error UI. |
+| **Answers (sources) fetch fails** | Isolated try/catch inside `buildSourcesMap`; the pill + theme lists still render, themes just show the honest "no citation URLs" empty state. A sources failure never takes down the counts. |
+| **Empty model selection** (only untracked Claude/Copilot) | `selectedProfoundModels` returns an empty Set -> `sumModelRows` returns `{0,0}` -> `positiveShare` returns `null` -> `occurrences === 0` -> no-data card. Never widens to all models. |
+| **Theme polarity tie** (`positive === negative`) | Theme dropped as ambiguous (neither list). |
+| **Case-variant duplicate theme labels** | Folded case-insensitively; display keeps the highest-occurrence casing; counts summed. |
+| **Profound reorders response metrics** | Metrics resolved by name from `info.query.metrics`, so column reordering cannot mislabel a value. |
+| **Pill positive share** | `null` (not `0%`) when nothing is classified, so the card shows no-data rather than a misleading 0%. |
+
+`noData` in `sentiment-insights.tsx` is the single gate:
+`!data || data.occurrences === 0 || data.positivePct === null`. Every path
+above resolves to one of those three.

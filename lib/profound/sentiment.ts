@@ -186,13 +186,19 @@ async function getProfoundSentimentImpl(
  * key, so the pill and themes are cached per (period, model selection) exactly
  * like the rest of the AEO tab. Profound sentiment is a single-account (Avenue
  * Z) feed today, so the account is fixed by env. One-hour TTL.
+ *
+ * IMPORTANT: bump `version` whenever anything downstream of the cache changes
+ * shape or logic (fetch params, filter rules, response mapping). The cache
+ * key is (vendor, fn, version, today, ...args); missing a bump serves stale
+ * results across deploys under the same key. v1 -> v2 landed alongside the
+ * paginated /v1/prompts/answers fetch that replaced the bounded 2000-sample.
  */
 export const getProfoundSentiment = cached(
   'profound',
   'getProfoundSentiment',
   getProfoundSentimentImpl,
   {
-    version: 'v1-profound-sentiment',
+    version: 'v2-profound-sentiment-paged',
     ttlSeconds: 3600,
     extractTags: ([dateRange, compareRange, models]) => ({
       dateRange,

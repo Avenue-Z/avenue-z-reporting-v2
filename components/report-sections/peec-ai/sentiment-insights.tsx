@@ -77,7 +77,15 @@ function ThemeAccordion({
 
 function SourceList({ urls, accent }: { urls: string[]; accent: string }) {
   if (urls.length === 0) {
-    return <p className="text-xs text-text-muted">No cited sources for this theme in the sampled answers.</p>
+    // Profound tagged the theme on real AI answers, but those specific answers
+    // did not include citation URLs (some models, e.g. Perplexity, sometimes
+    // return uncited answers). We surface this honestly rather than hiding the
+    // theme or inventing sources.
+    return (
+      <p className="text-xs text-text-muted">
+        Profound tagged this theme in AI answers that did not include citation URLs.
+      </p>
+    )
   }
   return (
     <ul className="space-y-1.5">

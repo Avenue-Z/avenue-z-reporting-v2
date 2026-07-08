@@ -6,8 +6,8 @@ import { SentimentInsights } from './sentiment-insights'
 /**
  * Loading placeholder mirroring the Sentiment Insights card shell so the
  * PR Influence body can paint while this section streams in behind its own
- * Suspense boundary (the bounded answers fetch for per-theme sources is the
- * slow part) -- no layout shift.
+ * Suspense boundary (paging all answers for per-theme sources is the slow
+ * part) -- no layout shift.
  */
 export function SentimentSkeleton() {
   return (
