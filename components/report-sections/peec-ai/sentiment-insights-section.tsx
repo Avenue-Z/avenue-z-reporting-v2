@@ -1,11 +1,13 @@
 import { Sparkles } from 'lucide-react'
-import { getSentimentInsights } from '@/lib/peec/sentiment-insights'
+import { getProfoundSentiment } from '@/lib/profound/sentiment'
+import type { AEOModel } from '@/lib/peec/models'
 import { SentimentInsights } from './sentiment-insights'
 
 /**
  * Loading placeholder mirroring the Sentiment Insights card shell so the
- * PR Influence body can paint while this (Glean-backed, slow-cold) section
- * streams in behind its own Suspense boundary — no layout shift.
+ * PR Influence body can paint while this section streams in behind its own
+ * Suspense boundary (the bounded answers fetch for per-theme sources is the
+ * slow part) -- no layout shift.
  */
 export function SentimentSkeleton() {
   return (
@@ -26,27 +28,24 @@ export function SentimentSkeleton() {
 }
 
 /**
- * Server wrapper that fetches the sentiment insights and renders the client
- * card. Rendered inside its own <Suspense> by PR Influence so the slow Glean
- * call streams independently instead of blocking the rest of the tab.
+ * Server wrapper that fetches Profound sentiment and renders the client card.
+ * Rendered inside its own <Suspense> by PR Influence so the answers fetch
+ * streams independently. Gated to Profound-configured clients by the caller
+ * (PR Influence renders this only for Avenue Z); Profound is a single-account
+ * feed, so it must never render for a client without a Profound account.
  */
 export async function SentimentInsightsSection({
-  clientSlug,
   dateRange,
-  modelKey,
-  citations,
+  models,
 }: {
-  clientSlug: string
   dateRange: string
-  modelKey: string
-  citations: Parameters<typeof getSentimentInsights>[3]['citations']
+  models: AEOModel[] | null
 }) {
-
-  let data: Awaited<ReturnType<typeof getSentimentInsights>> | null = null
+  let data: Awaited<ReturnType<typeof getProfoundSentiment>> | null = null
   try {
-    data = await getSentimentInsights(clientSlug, dateRange, modelKey, { citations })
+    data = await getProfoundSentiment(dateRange, null, models)
   } catch (e) {
-    console.error('[pr-influence] sentiment insights generation failed:', e)
+    console.error('[pr-influence] Profound sentiment fetch failed:', e)
   }
   return <SentimentInsights data={data} />
 }
