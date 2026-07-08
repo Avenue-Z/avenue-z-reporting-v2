@@ -27,7 +27,7 @@ type ProfoundResponse = {
 
 // --- HTTP helpers ---
 
-async function profoundPost(path: string, body: Record<string, unknown>): Promise<ProfoundResponse> {
+export async function profoundPost(path: string, body: Record<string, unknown>): Promise<ProfoundResponse> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'X-API-Key': getKey(), 'Content-Type': 'application/json' },
@@ -42,7 +42,7 @@ async function profoundPost(path: string, body: Record<string, unknown>): Promis
   return res.json()
 }
 
-async function getCategoryId(): Promise<string> {
+export async function getCategoryId(): Promise<string> {
   const envId = process.env.PROFOUND_CATEGORY_ID
   if (envId) return envId
   const res = await fetch(`${BASE_URL}/v1/org/categories`, {
