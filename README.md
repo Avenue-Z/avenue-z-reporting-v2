@@ -96,6 +96,31 @@ PROFOUND_AI_ACCESS_TOKEN=
 
 ## Architecture
 
+At a glance — two products over one shared spine:
+
+```
+                 Auth.js v5 (Google + Credentials)  →  role + clientSlug in JWT
+                                  │
+              proxy.ts  →  /dashboard (internal)   /portal/[slug] (client)
+                                  │
+        ┌─────────────────────────┴─────────────────────────┐
+        │                                                    │
+   REPORTS product                              CONFIGURABLE DASHBOARD product
+   components/report-sections/<slug>            clients.dashboard_config (JSON)
+   one RSC per section, gated by                blocks → bindings → resolvers
+   enabledReports                               rendered by renderBlockNode
+        │                                                    │
+        └─────────────────────────┬─────────────────────────┘
+                                  │
+     Data sources: GA4 · GSC · HubSpot · Peec · Profound  (native APIs)
+                   Paid Search · Meta · LinkedIn · Shopify · Triple Whale (Supermetrics / TW)
+                                  │
+                   Neon Postgres + Drizzle  (clients, users, dashboard config, shares)
+```
+
+- **Reports** is code — a section is an RSC (see [`ENGINEERS.md`](./ENGINEERS.md) § Adding a Report Section).
+- **Configurable dashboard** is data — blocks authored in the browser (see [`lib/dashboard/ENGINEERS.md`](./lib/dashboard/ENGINEERS.md)).
+
 ### Two Audiences
 
 - **Internal (Avenue Z team)** — `/dashboard` — full access to all clients and reports
@@ -160,8 +185,15 @@ proxy.ts                     # Next.js 16 route protection
 npm run dev          # Start dev server
 npm run build        # Production build
 npm run lint         # ESLint
+npm test             # Vitest (report-sections, app/actions — see ENGINEERS.md § Testing)
 npm run db:studio    # Drizzle Studio
 ```
+
+> **Two test conventions.** `npm test` (Vitest) covers only `lib/report-sections`,
+> `app/actions`, and `components/report-sections`. The dashboard engine and most of
+> `lib` use standalone `node:assert` scripts run individually
+> (`npx tsx <file>.test.ts`). See [`ENGINEERS.md`](./ENGINEERS.md#testing) for the
+> full story.
 
 ## Deployment
 

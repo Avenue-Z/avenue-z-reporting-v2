@@ -1,6 +1,6 @@
 # Avenue Z Reporting Platform — Engineering Handoff
 
-> Last updated: May 2026. Written for engineers joining this project.
+> Last updated: July 2026. Written for engineers joining this project.
 > Read this before writing any code. `CLAUDE.md` is the canonical AI-context file — this document is the human-readable complement to it.
 
 ---
@@ -376,6 +376,78 @@ The split:
 | `shopify-performance` | 🟡 Scaffold | Awaiting Supermetrics/Shopify |
 | `gohighlevel` | 🟡 Scaffold | Awaiting GoHighLevel API |
 | `ticket-sales` | 🟡 Scaffold | Awaiting ticketing platform |
+
+---
+
+## Adding a Report Section
+
+A report section is a self-contained React Server Component fed a `clientSlug`
+(and, if it's date-aware, `dateRange` / `compareRange`). Wiring a new one up is
+six edits — five in code, one in data:
+
+1. **Add the slug to the `ReportSlug` union** in `lib/db/schema.ts`. This is the
+   source-of-truth list; TypeScript keys `enabledReports` off it.
+2. **Build the component** at `components/report-sections/<slug>/index.tsx`. It's
+   an `async` RSC that fetches its own data server-side (never from the browser —
+   see Key Conventions). Handle the three states: a skeleton while loading, an
+   empty/`<EmptyState>` when the platform isn't connected, and let thrown fetch
+   errors bubble to the section error boundary (don't swallow them). Follow an
+   existing built section (`ga4/`, `hubspot-performance/`) as the template.
+3. **Add a display name** to `REPORT_NAMES` in `lib/constants.ts` (`slug → "Human
+   Name"`) — this titles the page header and the nav tab.
+4. **Register it in the dispatcher** — the `getReportSection` switch. **There are
+   two, and both must be updated**:
+   `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx` (internal) and
+   `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx` (client-facing). A
+   slug missing from a switch renders nothing on that surface.
+5. **Enable it per client** by adding the slug to that client's `enabled_reports`
+   array (DB — Drizzle Studio / seed). Both report pages **404 on a slug not in
+   `enabledReports`**, and the nav only renders tabs from that array, so this is
+   what actually makes the section appear. No code deploy for the enable itself.
+
+That's the whole loop: union → component → name → both dispatchers → enable. The
+error boundary and `<Suspense>` skeleton are already provided by the shared page
+shell, so a section never needs its own.
+
+> **Note — the configurable dashboard is a different mechanism.** Report sections
+> are code (the steps above). The configurable dashboard builds blocks from
+> JSON config with no deploy — see [`lib/dashboard/ENGINEERS.md`](./lib/dashboard/ENGINEERS.md).
+> Don't confuse the two products.
+
+---
+
+## Testing
+
+The repo runs **two test conventions** — know which applies before you write a test:
+
+**1. Vitest** (`npm test` / `npm run test:watch`) — jsdom + Testing Library. The
+config (`vitest.config.ts`) **only picks up** these paths:
+
+```
+lib/report-sections/**/*.test.{ts,tsx}
+app/actions/**/*.test.{ts,tsx}
+components/report-sections/**/*.test.{ts,tsx}
+```
+
+This is where report-section logic lives, including the peec-ai `*.golden.test.tsx`
+snapshot-parity tests. **A test outside these globs is invisible to `npm test`.**
+
+**2. Standalone `tsx` scripts** — most of `lib/` (including the entire
+`lib/dashboard/**` engine and `components/dashboard/**`) is tested with plain
+`node:assert` files run **individually**:
+
+```bash
+npx tsx lib/dashboard/group-join.test.ts     # the header comment names the exact command
+```
+
+Each such file carries a `// Run: npx tsx <path>` header and asserts in bare
+blocks. They are **not** wired into `npm test` and there is currently no aggregate
+runner for them — you run the ones relevant to your change (CI / a pre-merge sweep
+is a known gap). When you touch engine code, run its sibling `.test.ts` by hand.
+
+**Other checks:** `npm run lint` (ESLint — ~38 pre-existing errors, see Tech Debt)
+and `npm run check:rsc` (`scripts/check-rsc-props.ts`, guards RSC prop
+serializability).
 
 ---
 
