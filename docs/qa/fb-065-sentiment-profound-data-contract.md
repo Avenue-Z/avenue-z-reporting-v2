@@ -37,6 +37,10 @@ From Tina's message (Jun 17) plus her Profound example export:
   1. `dimensions:['model']` -> per-model positive/negative (drives the pill).
   2. `dimensions:['model','theme']` -> per-(model,theme) counts (drives themes).
   3. A prior-period `dimensions:['model']` call when a comparison period is on (drives the delta).
+  4. `POST /v1/prompts/answers` with `pagination.limit: 2000` -> a bounded sample
+     of the period's answers, each tagged with `themes` + `citations` + `model`
+     (drives the per-theme sources accordion). The endpoint ignores top-level
+     `limit`; only `pagination.limit` bounds it (full set is ~40MB, so we sample).
 - Response rows carry `metrics[]` aligned to `info.query.metrics` (returned
   alphabetical). We resolve every metric **by name**, never by position.
 
@@ -48,8 +52,8 @@ From Tina's message (Jun 17) plus her Profound example export:
 | **Pill label** (R1) | pill % + negative-theme count | existing `pctLabel`: Positive >=75, Negative <45 with negative themes, else Mixed |
 | **Positive Themes** (R2) | `['model','theme']` | folded per theme over selected models; keep themes where `positive > negative`; sort by positive count desc; case-fold duplicate labels; top 8 |
 | **Negative Themes** (R2) | `['model','theme']` | same fold; keep themes where `negative > positive`; sort by negative count desc; top 8 |
-| **Delta** | prior `['model']` counts | `current pill - prior pill` (percentage points); only when a comparison period is on |
-| **Sources per theme** (R3) | — | **NOT returned by this endpoint** (see Open Items) |
+| **Delta** | prior `['model']` counts | `current pill - prior pill` (pp); computed only when a comparison period is passed. The card currently passes none, so no delta line renders (matches Tina's pill-only example). |
+| **Sources per theme** (R3) | `/v1/prompts/answers` `themes`+`citations`+`model` | for each theme, the de-duplicated citations of the sampled answers tagged with that theme, filtered to the selected models, capped at 12. **Answer-level attribution** (see note). |
 
 ## 5. Reactivity guarantees (the v1 fix)
 
@@ -88,20 +92,32 @@ From Tina's message (Jun 17) plus her Profound example export:
   publicly rebuilt Sentiment since then. **Source of truth going forward is the
   live Profound API; QA the numbers against Profound's current UI, not the PDF.**
 
-## 8. Open items
+## 8. Attribution note (per-theme sources)
 
-- **Per-theme source URLs (R3 accordion).** `/v1/reports/sentiment` does not
-  return citations per theme (`claim` is not a valid dimension; `include_cited_websites`
-  does not attach to theme rows). Citations live in `/v1/prompts/answers`, keyed
-  by `topic`, not `theme`, so there is no clean theme->URL join. Decision pending:
-  (a) ship themes without per-theme sources, or (b) reconstruct via a
-  theme->topic->citations join. Does not block the pill + themes.
+The accordion sources are **answer-level, not claim-level.** Each Profound
+answer is tagged with the themes it expresses and the citations it drew from,
+but not which citation backs which theme *within* that answer. So a theme's
+sources = every citation from sampled answers that expressed that theme. Those
+URLs genuinely appeared in AI answers discussing the theme (true and
+defensible), but it is not the surgical "this exact URL -> this exact claim"
+mapping Profound's own UI may show. Profound does not expose claim-level
+citation attribution via the API. Sources are also a **bounded sample** (up to
+2000 of the period's answers); if a period has more answers, rarer themes may
+show fewer sources. The fetch is best-effort: a failure leaves the themes
+rendering with counts and no sources, never a broken card.
 
 ## 9. Containment (blast radius)
 
-- New files: `lib/profound/sentiment.ts`, `lib/profound/sentiment-normalize.ts`,
-  `lib/profound/sentiment.test.ts`. Imported by nothing yet (inert).
-- Only existing-code changes: two `export` keywords in `lib/profound/client.ts`
-  (behavior-neutral) and one `include` line in `vitest.config.ts`.
-- Not wired into any render. Blast radius is zero until the card is wired
-  (next step), and even then scoped to the PR Influence Sentiment card only.
+- **Avenue Z only.** The card renders solely when `clientSlug === 'avenue-z'`
+  (`pr-influence.tsx`). Profound is a single-account, env-fixed feed
+  (`PROFOUND_AI_YOUR_BRAND` = Avenue Z), so any other client would otherwise see
+  Avenue Z's data. Renaissance shares the base template, has no Profound account,
+  and has this section hidden -- it never calls Profound.
+- New modules: `lib/profound/sentiment.ts`, `sentiment-normalize.ts`,
+  `sentiment.test.ts`. Existing-code changes: two `export` keywords in
+  `lib/profound/client.ts`, one `include` line in `vitest.config.ts`, and the
+  Sentiment card files.
+- The in-house Glean sentiment path (`lib/peec/sentiment-insights.ts`) is
+  **deleted**; no remaining importers.
+- CI gates green: RSC-boundary check, `tsc`, and the vitest suite (incl. the
+  new `lib/profound` unit tests).
