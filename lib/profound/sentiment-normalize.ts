@@ -141,7 +141,20 @@ export function collapseModelThemeRows(
   return { info: resp.info, data }
 }
 
-/** Build a theme -> cited-source-URLs map from the answers response.
+/** Accumulator for the theme -> cited-source-URLs map. Kept separate from the
+ *  URL de-dup set so pages of answers can be folded in incrementally (the
+ *  answers dataset is large, so lib/profound/sentiment.ts paginates and calls
+ *  accumulateThemeSources per page, never holding the whole set in memory). */
+export type ThemeSourceState = {
+  byKey: Map<string, string[]>
+  seen: Map<string, Set<string>>
+}
+
+export function newThemeSourceState(): ThemeSourceState {
+  return { byKey: new Map(), seen: new Map() }
+}
+
+/** Fold one page of answers into the theme -> sources accumulator.
  *
  *  Each Profound answer is tagged with the themes it expresses and the
  *  citations it drew from (plus its model). For every answer within the
@@ -149,14 +162,14 @@ export function collapseModelThemeRows(
  *  ANSWER-LEVEL attribution (an answer's citations apply to all themes that
  *  answer expresses), not surgical claim-level attribution, which Profound does
  *  not expose. Keys are lowercased theme labels so they line up with
- *  normalizeThemes' case-folding. URLs are de-duplicated and capped per theme. */
-export function buildThemeSources(
+ *  normalizeThemes' case-folding. URLs are de-duplicated (across all pages) and
+ *  capped per theme. */
+export function accumulateThemeSources(
+  state: ThemeSourceState,
   resp: AnswersResp,
   selected: Set<string> | null,
   maxPerTheme = 12,
-): Map<string, string[]> {
-  const byKey = new Map<string, string[]>()
-  const seen = new Map<string, Set<string>>()
+): void {
   for (const a of resp.data) {
     const model = (a.model ?? '').trim()
     if (selected && !selected.has(model)) continue
@@ -167,10 +180,10 @@ export function buildThemeSources(
       const title = (t ?? '').trim()
       if (!title) continue
       const key = title.toLowerCase()
-      let arr = byKey.get(key)
-      if (!arr) { arr = []; byKey.set(key, arr) }
-      let s = seen.get(key)
-      if (!s) { s = new Set(); seen.set(key, s) }
+      let arr = state.byKey.get(key)
+      if (!arr) { arr = []; state.byKey.set(key, arr) }
+      let s = state.seen.get(key)
+      if (!s) { s = new Set(); state.seen.set(key, s) }
       for (const c of cites) {
         if (arr.length >= maxPerTheme) break
         if (s.has(c)) continue
@@ -179,7 +192,18 @@ export function buildThemeSources(
       }
     }
   }
-  return byKey
+}
+
+/** Single-shot theme -> sources map (one answers response). Thin wrapper over
+ *  the accumulator, used where the whole set fits in one response / in tests. */
+export function buildThemeSources(
+  resp: AnswersResp,
+  selected: Set<string> | null,
+  maxPerTheme = 12,
+): Map<string, string[]> {
+  const state = newThemeSourceState()
+  accumulateThemeSources(state, resp, selected, maxPerTheme)
+  return state.byKey
 }
 
 /** Collapse per-theme rows into normalized Positive and Negative theme lists.

@@ -7,6 +7,8 @@ import {
   sumModelRows,
   collapseModelThemeRows,
   buildThemeSources,
+  newThemeSourceState,
+  accumulateThemeSources,
 } from './sentiment-normalize'
 
 // Profound echoes the resolved metric order in info.query.metrics; rows align
@@ -190,6 +192,15 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
   it('caps URLs per theme', () => {
     const many = { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['u1', 'u2', 'u3', 'u4'] }] }
     expect(buildThemeSources(many, null, 2).get('t')).toEqual(['u1', 'u2'])
+  })
+
+  it('accumulates across pages, de-duping and capping across page boundaries', () => {
+    // simulates the paginated fetch: two pages folded into one accumulator
+    const state = newThemeSourceState()
+    accumulateThemeSources(state, { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['a', 'b'] }] }, null, 3)
+    accumulateThemeSources(state, { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['b', 'c', 'd'] }] }, null, 3)
+    // b de-duped across pages; capped at 3 total -> a, b, c
+    expect(state.byKey.get('t')).toEqual(['a', 'b', 'c'])
   })
 
   it('attaches sources onto the normalized themes by title', () => {

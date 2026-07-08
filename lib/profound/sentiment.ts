@@ -30,19 +30,24 @@ import {
   sumModelRows,
   collapseModelThemeRows,
   normalizeThemes,
-  buildThemeSources,
+  newThemeSourceState,
+  accumulateThemeSources,
   selectedProfoundModels,
   type SentimentResp,
   type AnswersResp,
   type ProfoundSentimentTheme,
 } from './sentiment-normalize'
 
-// Bounded sample of the period's AI answers used to attach cited sources to
-// each theme. The answers endpoint ignores `limit` but honors
-// `pagination.limit`; the full set is ~40MB, so we sample. A 1000-answer sample
-// already covers 6000+ distinct themes, so the displayed top themes get sources
-// while the payload stays a few MB.
-const SOURCES_ANSWER_SAMPLE = 2000
+// The answers endpoint (which carries per-theme citations) ignores top-level
+// `limit` but honors `pagination.limit`/`offset`. The full set for a period is
+// ~40MB, so instead of one giant parse we page through it, folding each page
+// into the theme->sources accumulator and discarding the heavy `response` text
+// as we go. This keeps memory bounded while giving COMPLETE per-theme source
+// coverage (a bounded sample missed sources for lower-volume themes, especially
+// under a model filter). PAGE is the per-request row count; MAX_PAGES caps the
+// worst case so a runaway dataset can never loop forever.
+const ANSWERS_PAGE = 5000
+const ANSWERS_MAX_PAGES = 8
 
 export type { ProfoundSentimentTheme } from './sentiment-normalize'
 
@@ -90,30 +95,37 @@ async function fetchByModel(
   })) as SentimentResp
 }
 
-/** Bounded sample of the period's answers (theme + citation + model tags) for
- *  the per-theme sources accordion. Best-effort: on any failure we return an
- *  empty set so the pill + themes still render (sources just come up empty)
- *  rather than breaking the card. */
-async function fetchAnswers(
+/** Build the theme -> cited-sources map for a period by paging through ALL of
+ *  the period's answers (each tagged with themes + citations + model), folding
+ *  each page into the accumulator filtered to the selected models. Best-effort:
+ *  on any failure we return whatever was accumulated so far (possibly empty) so
+ *  the pill + themes still render rather than breaking the card. */
+async function buildSourcesMap(
   categoryId: string,
   asset: string,
   startDate: string,
   endDate: string,
-): Promise<AnswersResp> {
+  selected: Set<string> | null,
+): Promise<Map<string, string[]>> {
+  const state = newThemeSourceState()
   try {
-    const resp = (await profoundPost('/v1/prompts/answers', {
-      category_id: categoryId,
-      asset,
-      start_date: startDate,
-      end_date: endDate,
-      include: { sentiment_claims: true },
-      pagination: { limit: SOURCES_ANSWER_SAMPLE },
-    })) as unknown as AnswersResp
-    return resp?.data ? resp : { data: [] }
+    for (let page = 0; page < ANSWERS_MAX_PAGES; page++) {
+      const resp = (await profoundPost('/v1/prompts/answers', {
+        category_id: categoryId,
+        asset,
+        start_date: startDate,
+        end_date: endDate,
+        include: { sentiment_claims: true },
+        pagination: { limit: ANSWERS_PAGE, offset: page * ANSWERS_PAGE },
+      })) as unknown as AnswersResp
+      const rows = resp?.data ?? []
+      accumulateThemeSources(state, { data: rows }, selected)
+      if (rows.length < ANSWERS_PAGE) break // last page reached
+    }
   } catch (e) {
-    console.error('[profound] sentiment answers fetch failed (themes render without sources):', e)
-    return { data: [] }
+    console.error('[profound] sentiment answers paging failed (themes render with partial/no sources):', e)
   }
+  return state.byKey
 }
 
 async function getProfoundSentimentImpl(
@@ -128,7 +140,7 @@ async function getProfoundSentimentImpl(
   const main = parseDateRange(dateRange)
   const compare = compareRange ? deriveCompareRange(dateRange, compareRange) : null
 
-  const [pillMainResp, themeResp, pillPriorResp, answersResp] = await Promise.all([
+  const [pillMainResp, themeResp, pillPriorResp, themeSources] = await Promise.all([
     fetchByModel(categoryId, asset, main.startDate, main.endDate),
     profoundPost('/v1/reports/sentiment', {
       category_id: categoryId,
@@ -142,7 +154,8 @@ async function getProfoundSentimentImpl(
     compare
       ? fetchByModel(categoryId, asset, compare.startDate, compare.endDate)
       : Promise.resolve(null),
-    fetchAnswers(categoryId, asset, main.startDate, main.endDate),
+    // Theme -> cited sources, model-filtered to match the pill/themes selection.
+    buildSourcesMap(categoryId, asset, main.startDate, main.endDate, selected),
   ])
 
   const mainCounts = sumModelRows(pillMainResp, selected)
@@ -153,8 +166,6 @@ async function getProfoundSentimentImpl(
   const positivePctDelta =
     positivePct !== null && priorPct !== null ? positivePct - priorPct : null
 
-  // Theme -> cited sources, model-filtered to match the pill/themes selection.
-  const themeSources = buildThemeSources(answersResp, selected)
   const { positiveThemes, negativeThemes } = normalizeThemes(
     collapseModelThemeRows(themeResp, selected),
     8,
