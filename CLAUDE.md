@@ -6,18 +6,33 @@
 
 ## What This Is
 
-A white-labeled, multi-client marketing reporting platform. It is primarily a
-**presentation and routing layer** over multiple marketing data sources.
+A white-labeled, multi-client marketing reporting platform. It is a
+**presentation and routing layer** over multiple marketing data sources, and it
+hosts **two products** that share one spine (Neon Postgres + Drizzle, Auth.js v5,
+and the per-client `clients` row):
 
-> **Reality note:** much of this doc was written when Supermetrics was intended
-> as the single data layer. In practice the platform is multi-source: GA4,
-> Google Search Console, HubSpot, Peec AI, and Profound AI are queried via their
-> **native APIs** (`lib/ga4`, `lib/gsc`, `lib/hubspot`, `lib/peec`, `lib/profound`),
-> while the **Supermetrics "Build on Supermetrics" API suite** (Data API only)
-> backs the paid/social ad sections — Paid Search (`lib/paid-search`), Meta
-> (`lib/meta`), and LinkedIn (`lib/linkedin`). Supermetrics Branded
-> Authentication has been removed; platform connections are now configured via
-> environment variables.
+1. **Reports** (client-facing) — per-client, multi-section report pages
+   (`components/report-sections/`) shown to the Avenue Z team at `/dashboard`
+   and to clients at `/portal/[clientSlug]`, gated by the client's
+   `enabledReports`. Onboarding guide: [`ENGINEERS.md`](./ENGINEERS.md).
+2. **Configurable dashboard** (internal) — a JSON-configured, drag-and-arrange
+   grid of data blocks stored in `clients.dashboard_config`, authored in the
+   browser with no deploy. Architecture: [`lib/dashboard/ENGINEERS.md`](./lib/dashboard/ENGINEERS.md).
+
+> **Which docs are canonical?** [`README.md`](./README.md) has the full
+> Documentation Map. In short: this file, `README.md`, `ENGINEERS.md`, and
+> everything under `lib/dashboard/` are **current**; `Guides/claude.md` and
+> `Guides/progress.md` are **archived** and describe a superseded architecture —
+> do not follow them.
+
+**Data sources.** GA4, Google Search Console, HubSpot, Peec AI, and Profound AI
+are queried via their **native APIs** (`lib/ga4`, `lib/gsc`, `lib/hubspot`,
+`lib/peec`, `lib/profound`). The **Supermetrics Data API** (`lib/supermetrics`)
+backs **only** the paid/social ad sections — Paid Search (`lib/paid-search`),
+Meta (`lib/meta`), and LinkedIn (`lib/linkedin`) — plus the configurable
+dashboard's Supermetrics adapter. Supermetrics is **not** the single data layer,
+does **not** handle auth, and its Branded Authentication has been removed;
+platform connection state is derived from environment variables.
 
 **No external auth service fees.**
 
@@ -26,10 +41,8 @@ Two audiences:
 1. **Internal (Avenue Z team)** — full access to all clients, all reports
 2. **Clients** — permissioned, scoped view of their own data only
 
-Two product areas:
-
-- **Authentication Hub** — shows per-platform connection status (`CONNECTED` / `NOT_CONFIGURED`) driven by environment variables
-- **Reports** — multi-section per-client dashboards (Exec Summary, GA4, Meta Ads, Email Marketing, Blended Performance, etc.)
+The **Authentication Hub** (a feature of the Reports product) shows per-platform
+connection status (`CONNECTED` / `NOT_CONFIGURED`) driven by environment variables.
 
 ---
 
@@ -383,31 +396,15 @@ share by channel, Conversion attribution by channel
 
 ## Environment Variables
 
-```env
-# Auth.js
-AUTH_SECRET=                         # Generate: openssl rand -base64 32
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
+The complete, annotated list is **[`.env.example`](./.env.example)** (the single
+source of truth — `cp .env.example .env.local`). Per-integration notes and Vercel
+Production/Preview scoping live in [`ENGINEERS.md`](./ENGINEERS.md#environment-variables).
+Do not re-list env vars here — add new ones to `.env.example` so they aren't
+documented in three places and left to diverge.
 
-# App
-NEXT_PUBLIC_APP_URL=                  # e.g. https://reports.avenuez.com
-APP_URL=
-
-# Database (Neon Postgres)
-DATABASE_URL=                         # Pooled connection string (app runtime)
-DATABASE_URL_UNPOOLED=                # Direct connection string (Drizzle migrations only)
-
-# Secrets for client integrations — env var NAME is stored in DB; value stays here
-# HubSpot access tokens (one per client that uses HubSpot):
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=
-
-# Shared service account for GA4 + GSC (property IDs and site URLs are now in the DB)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON key for the Google service account
-
-# Health alerting (Slack Web API, bot token — same pattern as renaissance-ad-spend-pacing)
-SLACK_BOT_TOKEN=                      # xoxb-… bot token with chat:write scope
-SLACK_CHANNEL_ID=                     # internal health channel ID, e.g. C0123ABCD (not the #name)
-```
+Key principle (see **Client Configuration** above): per-client **identifiers**
+(GA4 property IDs, GSC site URLs) live in DB columns; per-client **secrets**
+(HubSpot tokens) stay in env, and the DB stores only the env-var *name* pointer.
 
 ---
 
@@ -485,7 +482,9 @@ merging, not a license to merge on your own.
 
 ```
 INTERNAL_ADMIN    → Full access: all clients, auth hub, all reports
-INTERNAL_ANALYST  → Read-only: all clients, all reports, no admin actions
+INTERNAL_ANALYST  → All clients + all reports; read-only on the Reports product & admin actions.
+                    Exception: MAY edit configurable dashboards (all internal staff can —
+                    see canEditDashboard in lib/dashboard/permissions.ts).
 CLIENT_ADMIN      → Full access to own client: auth hub + all enabled reports
 CLIENT_VIEWER     → Read-only: own client's enabled reports only
 ```
@@ -497,6 +496,11 @@ per request.
 ---
 
 ## Known Follow-ups — Configurable Dashboard (from PR #108 review)
+
+> **Feature overview:** for how the configurable dashboard actually works
+> (blocks → bindings → resolvers → adapters → UI, caching, sharing), see
+> [`lib/dashboard/ENGINEERS.md`](lib/dashboard/ENGINEERS.md). This section is
+> only the open bug/tech-debt list.
 
 Tracked tech-debt / latent bugs surfaced reviewing the configurable dashboard.
 Fixed in `fix/tw-cache-key-and-leaf-concurrency`: the Triple Whale grouped/series
@@ -517,9 +521,11 @@ Still open:
   grouped/series query (`max_rows` 10000) that legitimately takes >15s now throws
   `SmTimeoutError`. Consider a higher cap for the submit call or only bounding the poll
   loop. (`lib/supermetrics/client.ts`, `REQUEST_TIMEOUT_MS`)
-- [ ] **Role-doc drift** — the Roles Reference below says `INTERNAL_ANALYST → Read-only`,
-  but `canEditDashboard` intentionally lets all internal Avenue Z staff (incl.
-  `INTERNAL_ANALYST`) edit dashboards. Reconcile the doc or the rule.
+- [x] **Role-doc drift — RESOLVED.** The Roles Reference now states `INTERNAL_ANALYST`
+  is read-only on the Reports product + admin actions but MAY edit configurable
+  dashboards, matching `canEditDashboard` in `lib/dashboard/permissions.ts`. The
+  wording in `README.md`, `ENGINEERS.md`, and `lib/dashboard/ENGINEERS.md` was
+  reconciled to match.
 - [ ] **`keyHash` duplicated in 4 files** (`adapters/{supermetrics,shopify,triplewhale}.ts`,
   `app/actions/dashboard.ts`) — extract one shared helper to avoid divergence.
 - [ ] **`twSql` masks a malformed success payload as empty** — `{success:true, data:null}`
