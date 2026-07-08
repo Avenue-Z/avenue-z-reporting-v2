@@ -396,31 +396,15 @@ share by channel, Conversion attribution by channel
 
 ## Environment Variables
 
-```env
-# Auth.js
-AUTH_SECRET=                         # Generate: openssl rand -base64 32
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
+The complete, annotated list is **[`.env.example`](./.env.example)** (the single
+source of truth — `cp .env.example .env.local`). Per-integration notes and Vercel
+Production/Preview scoping live in [`ENGINEERS.md`](./ENGINEERS.md#environment-variables).
+Do not re-list env vars here — add new ones to `.env.example` so they aren't
+documented in three places and left to diverge.
 
-# App
-NEXT_PUBLIC_APP_URL=                  # e.g. https://reports.avenuez.com
-APP_URL=
-
-# Database (Neon Postgres)
-DATABASE_URL=                         # Pooled connection string (app runtime)
-DATABASE_URL_UNPOOLED=                # Direct connection string (Drizzle migrations only)
-
-# Secrets for client integrations — env var NAME is stored in DB; value stays here
-# HubSpot access tokens (one per client that uses HubSpot):
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=
-
-# Shared service account for GA4 + GSC (property IDs and site URLs are now in the DB)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # JSON key for the Google service account
-
-# Health alerting (Slack Web API, bot token — same pattern as renaissance-ad-spend-pacing)
-SLACK_BOT_TOKEN=                      # xoxb-… bot token with chat:write scope
-SLACK_CHANNEL_ID=                     # internal health channel ID, e.g. C0123ABCD (not the #name)
-```
+Key principle (see **Client Configuration** above): per-client **identifiers**
+(GA4 property IDs, GSC site URLs) live in DB columns; per-client **secrets**
+(HubSpot tokens) stay in env, and the DB stores only the env-var *name* pointer.
 
 ---
 

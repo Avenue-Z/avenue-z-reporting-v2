@@ -453,49 +453,20 @@ serializability).
 
 ## Environment Variables
 
-**`.env.example` in the repo root is the complete, authoritative list** (`cp .env.example .env.local`). The annotated subset below covers the essentials. All production values live in Vercel (with separate Production and Preview scopes — see below). Per-client identifiers (GA4 property IDs, GSC site URLs, etc.) now live in the database, not env vars.
+**[`.env.example`](./.env.example) in the repo root is the complete, authoritative,
+annotated list** — every key, grouped and commented (`cp .env.example .env.local`,
+then fill from the team or Vercel). It is the **single source of truth**; this doc
+does not re-list the vars (that only invites drift). What lives here instead is the
+engineering context that a flat template can't carry: the identifiers-vs-secrets
+split (see [Client Configuration](#client-configuration) and [Data Clients](#data-clients)
+above for which integration reads what) and the Vercel scoping rules below.
 
-```env
-# Auth.js
-AUTH_SECRET=                          # openssl rand -base64 32
-AUTH_GOOGLE_ID=                       # Google Cloud Console → OAuth 2.0 client
-AUTH_GOOGLE_SECRET=                   # Same credential
-AUTH_TRUST_HOST=true                  # required in non-dev (NextAuth v5)
+A couple of easy-to-trip gotchas, called out because they've bitten before:
 
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-APP_URL=http://localhost:3000
-
-# Database (Neon Postgres)
-DATABASE_URL=                         # pooled connection (app runtime)
-DATABASE_URL_UNPOOLED=                # direct connection (drizzle-kit migrations only)
-
-# Google service account (shared across GA4 + GSC + Drive/Sheets for all clients)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # base64-encoded JSON
-GSC_IMPERSONATE_EMAIL=                # user that the SA impersonates for GSC (domain-wide delegation)
-
-# HubSpot — per-client secret, name pointer stored in clients.hubspot_token_env_var
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=        # "pat-na1-..."
-
-# Peec AI (multi-tenant; project IDs come from DB)
-PEEC_AI_CUSTOMER_TOKEN=               # "skc-..." multi-tenant key
-PEEC_AI_PROJECT_ID=                   # legacy fallback for callers without clientSlug
-PEEC_AI_YOUR_BRAND=                   # legacy fallback for clients.peec_your_brand
-
-# Profound AI
-PROFOUND_AI_ACCESS_TOKEN=
-PROFOUND_AI_YOUR_BRAND=
-PROFOUND_CATEGORY_ID=
-
-# Other third-party
-NEWSAPI_AI_KEY=                       # newsapi.ai (PR placements) — the var is NEWSAPI_AI_KEY, not NEWS_API_KEY
-GLEAN_API_TOKEN=
-GLEAN_INSTANCE=
-
-# BigQuery
-BQ_PROJECT_ID=
-BQ_DATASET=
-```
+- The PR-placements key is **`NEWSAPI_AI_KEY`**, not `NEWS_API_KEY`.
+- Per-client identifiers (GA4 property IDs, GSC site URLs) are **not** env vars —
+  they're DB columns. Only per-client *secrets* (HubSpot tokens) are env vars, and
+  the DB stores just the var-*name* pointer.
 
 ### Vercel scoping
 
@@ -516,26 +487,11 @@ Credential logins are verified against the client's `shared_password_hash` colum
 
 GWS-only OAuth is wired up: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` set in Vercel, `hd=avenuez.com` parameter on the provider, server-side `signIn` callback rejects non-`@avenuez.com` accounts as defense-in-depth, and the Google Cloud OAuth client's consent screen is set to Internal. Unlisted `@avenuez.com` staff are auto-provisioned as `INTERNAL_ANALYST` on `avenue-z` client.
 
-### 🟡 `CLAUDE.md` — data-source framing
-
-`CLAUDE.md` leads with Supermetrics as *the* data layer. In reality the platform is multi-source: GA4, GSC, HubSpot, Peec, and Profound hit native APIs directly, while Supermetrics now backs the paid/social ad sections (Paid Search, Meta, LinkedIn). The CLAUDE.md intro carries a note to this effect, but the bulk of its Supermetrics section still reads as the primary integration — keep that in mind when using it as a reference.
-
 ### 🟡 Debug Logs in Production Code
 
 `lib/hubspot/client.ts` has numerous `[forms-debug]` console.log statements added during active debugging of the "customers showing 0" issue in the Forms tab. These will spam production logs.
 
 **Fix:** Once the customer-column issue is confirmed resolved, remove all `[forms-debug]` lines from `getFormSubmissionCounts`.
-
-### 🟢 `.env.example` — Added
-
-A complete `.env.example` now lives in the repo root — all keys present, values
-blank, annotated by `[required]` / `[per-client]` / `[optional]`. Onboard with
-`cp .env.example .env.local` and fill in values from the team or Vercel. (The
-`.gitignore` `.env*` rule has a `!.env.example` exception so the template is tracked.)
-
-### 🟢 `proxy.ts` / `lib/db` References in `CLAUDE.md` — Fixed
-
-`CLAUDE.md` previously referenced the old `middleware.ts` and the deleted `lib/clients.config.ts` in its prose and code examples. These have been corrected to `proxy.ts` and `lib/db/queries.ts` (async helpers).
 
 ---
 

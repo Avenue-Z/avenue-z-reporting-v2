@@ -67,32 +67,10 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with Google
 
 ### Environment Variables
 
-`.env.example` in the repo root is the complete, annotated list — copy it with
-`cp .env.example .env.local`. A subset is shown below; see [`ENGINEERS.md`](./ENGINEERS.md)
-for per-integration notes and Vercel scoping.
-
-```env
-# Auth.js
-AUTH_SECRET=                          # openssl rand -base64 32
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
-AUTH_TRUST_HOST=true
-
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-APP_URL=http://localhost:3000
-
-# Database (Neon Postgres)
-DATABASE_URL=                         # pooled (app runtime)
-DATABASE_URL_UNPOOLED=                # direct (drizzle-kit migrations)
-
-# Data sources (examples — see ENGINEERS.md for the rest)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # shared SA for GA4 + GSC
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=        # per-client HubSpot token
-PEEC_AI_CUSTOMER_TOKEN=
-PROFOUND_AI_ACCESS_TOKEN=
-# Supermetrics: per-client key, env-var name stored in clients.sm_api_key_env_var
-```
+**[`.env.example`](./.env.example)** is the complete, annotated list and the single
+source of truth — `cp .env.example .env.local` and fill in values from the team or
+Vercel. For per-integration notes and Vercel Production/Preview scoping, see
+[`ENGINEERS.md`](./ENGINEERS.md#environment-variables).
 
 ## Architecture
 
