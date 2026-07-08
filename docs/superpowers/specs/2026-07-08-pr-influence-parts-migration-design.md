@@ -51,7 +51,8 @@ described in §Parity.
    `buildPrInfluenceCtx` derivation snapshot test, and the CI registry guard for the new registry
    all pass.
 4. No other client's PR Influence output changes (confirmed by the default-composition golden test
-   plus a pre/post `/verify` on a non-renaissance client).
+   plus a pre/post `/verify` on a non-renaissance client run **after** the template row is seeded,
+   so the production "DB row + no override" path is exercised directly).
 
 ---
 
@@ -188,10 +189,21 @@ model-reactive derivation stays server-side and out of the parts.
 
 - **`lib/report-sections/registries.ts`** — add `'peec-ai:pr-influence': PR_INFLUENCE_PARTS` to
   `REGISTRIES`. The viewKey already exists as a commentary `sharedParts` key; it now *also* gains a
-  body registry. A single `SectionOverride` on that key legitimately carries both `sharedParts`
-  (validated against `SHARED_PARTS`) and body fields `hidden`/`order`/`versions`/`extraParts`
-  (validated against `PR_INFLUENCE_PARTS`). `validate.ts` already splits these, so no framework
-  change is needed beyond the registry entry.
+  body registry, making this the **first `SectionOverride` in the codebase to carry `sharedParts`
+  and body fields (`hidden`/`order`/`versions`/`extraParts`) together**. This is safe, and verified
+  against the code rather than assumed:
+  - `resolveSection(template, override)` ([resolve.ts:16-73](../../lib/report-sections/resolve.ts))
+    reads only the body fields; it never references `override.sharedParts`. A combined override
+    resolves the body parts unchanged and leaves `sharedParts` alone for `SharedPartsHeader`.
+  - `parseOverride` ([validate.ts:64-88](../../lib/report-sections/validate.ts)) validates body
+    fields against the body registry and `sharedParts` against `sharedReg`; `parseReportSectionConfig`
+    resolves `registries[key]` for the body registry (now `PR_INFLUENCE_PARTS` for this key).
+
+    Because this combined path is novel, it gets **explicit regression tests** (not just the two-file
+    read above): a `validate.ts` unit test for one override carrying both `hidden` and `sharedParts`
+    (asserting each validates against the right registry), and a `resolveSection` unit test asserting
+    that override returns the body parts unchanged while ignoring `sharedParts`. No framework change
+    is needed beyond the registry entry.
 - **Template seed & source of truth** — a tracked idempotent script inserts a `section_templates`
   row keyed `peec-ai:pr-influence` matching `PR_INFLUENCE_TEMPLATE`. The view falls back to the code
   constant when the row is absent, so behavior is correct before/after seeding.
@@ -200,7 +212,9 @@ model-reactive derivation stays server-side and out of the parts.
   is edited in exactly one direction: change `PR_INFLUENCE_TEMPLATE`, then re-run the idempotent seed
   script (which overwrites the row to match the constant). The constant is thus both seed source and
   fallback, and the DB never diverges from it after a seed. Editing the constant *without* re-seeding
-  is a known no-op, called out in the rollout steps.
+  is a known no-op, called out in the rollout steps. **The seed script asserts the row it writes
+  round-trips equal to `PR_INFLUENCE_TEMPLATE`** (parse the persisted row via `parseSectionTemplate`
+  and deep-equal it to the constant), so a malformed seed fails loudly instead of silently diverging.
 - **Registry guard (CI-enforced)** — extend the existing
   `components/report-sections/peec-ai/guard.test.ts` pattern to the new registry: every pin the
   template/frozen/shared config references must exist and be `published`; no dangling refs. This test
@@ -263,21 +277,33 @@ distinction the first draft of this spec elided:
 - **Per-part golden tests** — one per part (matching the Overview `parts/*.golden.test.tsx`
   convention), each rendering `PR_INFLUENCE_PARTS[id][version].render(FIXTURE, resolved)`.
 
+**Combined-config tests (novel path — `sharedParts` + body fields on one key):**
+
+- **`validate.ts` unit test** — parse one override carrying both `hidden: ['sentiment-insights']`
+  and `sharedParts: [{ id: 'commentary', version: 1 }]`; assert `hidden` validates against the body
+  registry and `sharedParts` against `sharedReg`, with no cross-contamination.
+- **`resolveSection` unit test** — call `resolveSection(PR_INFLUENCE_TEMPLATE, override)` with that
+  combined override; assert the resolved body parts are correct (Sentiment dropped, order intact)
+  and that `sharedParts` is untouched/ignored by the resolver.
+
 **Derivation test (surface B):**
 
-- **`buildPrInfluenceCtx` snapshot test** — mock the data-source layer (`getPeecOverview`,
-  `getPRProofData`, `ga4Query`, `getDomainCoverage`, `getUrlCitations`) with recorded fixtures,
-  call `buildPrInfluenceCtx`, and snapshot the returned ctx — run with `models = null` and with an
-  active model filter. This pins the derivation going forward.
-- **Honest limit on the extraction itself:** the *pre-refactor* derivation lives inline in the RSC
-  and is not independently callable, so there is no automated old-vs-new diff of the move. Its
-  correctness rests on the extraction being a **mechanical, logic-free move** plus the mandatory
-  `/verify` step below. (Overview was migrated the same way — it never had a `buildPeecCtx`
-  derivation test either.) This is stated as a residual risk, not hidden behind a test that doesn't
-  actually cover it.
+- **`buildPrInfluenceCtx` snapshot test, added on the extraction commit** — mock the data-source
+  layer (`getPeecOverview`, `getPRProofData`, `ga4Query`, `getDomainCoverage`, `getUrlCitations`)
+  with recorded fixtures, call `buildPrInfluenceCtx`, and snapshot the returned ctx — run with
+  `models = null` and with an active model filter. Because the extraction is a standalone first
+  commit (see rollout step 1), this snapshot captures the derivation output *before* any parts work,
+  so every subsequent step has a real pre/post regression guard on the derivation.
+- **Honest limit — the extraction commit itself:** the guard above protects everything *after* the
+  extraction, but not the extraction move itself: the *pre-refactor* derivation lives inline in the
+  RSC and is not independently callable, so there is no automated diff between "inline in the old
+  RSC" and "first `buildPrInfluenceCtx`." That single move's correctness rests on it being a
+  **mechanical, logic-free move** plus the mandatory `/verify` on the extraction commit. (Overview
+  was migrated the same way — it never had a `buildPeecCtx` derivation test at all.) This residual
+  risk is stated, not hidden behind a test that doesn't cover it.
 - **`/verify` is required, not optional** (see rollout): drive the running PR Influence tab for a
-  real client before and after, confirming identical content, precisely because surface B has no
-  full automated guard.
+  real client before and after the extraction commit, confirming identical content, precisely
+  because that one commit has no automated diff.
 
 **Accepted structural delta:** the parts convention wraps each *rendered* part in a keyed `<div>`
 (`<div key={id@version}>…</div>`), which today's inline body does not. Under the section's
@@ -303,11 +329,22 @@ async children is not part of this migration (their components are unchanged) an
 - New branch `feat/report-parts-pr-influence` off `dev`. Created at implementation start, not now.
 - The current `feat/report-commentary` working tree has unrelated uncommitted `visibility-chart.v2`
   changes; those are left untouched.
-- Rollout order at implementation time: (1) extract `buildPrInfluenceCtx` as a mechanical move +
-  add the derivation snapshot test; (2) build parts + composition golden tests green; (3) `/verify`
-  the tab for a real client against pre-refactor output; (4) seed the template row (re-run whenever
-  `PR_INFLUENCE_TEMPLATE` changes); (5) run the renaissance hide script; (6) `/verify` renaissance
-  shows Sentiment gone, rest intact.
+- Rollout order at implementation time:
+  1. **Extract `buildPrInfluenceCtx` as a standalone mechanical move first** (its own commit, before
+     any parts work), and add the derivation snapshot test **on that commit** — so the snapshot
+     captures the derivation output *before* the parts refactor. Every later step then has a true
+     pre/post regression guard on the derivation, converting the un-diffable move into an
+     automated guard for everything after the extraction. (`/verify` still covers the extraction
+     commit itself, which has no pre-refactor callable to diff against.)
+  2. Build the parts + composition golden tests green; the derivation snapshot from step 1 must
+     stay unchanged.
+  3. Seed the template row (re-run whenever `PR_INFLUENCE_TEMPLATE` changes); the seed script's
+     round-trip assertion must pass.
+  4. **`/verify` a non-renaissance client _after_ seeding** — this is the only step that exercises
+     the "DB row present, no override, all five parts" path every other client runs in production;
+     confirm it matches pre-refactor output.
+  5. Run the renaissance hide script.
+  6. `/verify` renaissance shows Sentiment gone, the rest intact.
 
 ## Risks & mitigations
 
@@ -320,6 +357,10 @@ async children is not part of this migration (their components are unchanged) an
 - **Model-filter behavior.** `models` must thread into `buildPrInfluenceCtx` so per-section tables
   stay model-reactive exactly as today; the synopsis stays model-filter-agnostic (matches current
   behavior, lines 462-467). Covered by fixtures exercising an active model filter.
-- **Config-key collision with commentary.** Both body config and the commentary opt-in live on the
-  same `peec-ai:pr-influence` key; the hide script must merge, not overwrite. Covered by the
-  idempotency requirement and a preservation assertion.
+- **Config-key collision with commentary (novel combined-config path).** Both body config and the
+  commentary opt-in live on the same `peec-ai:pr-influence` key — the first override to carry
+  `sharedParts` and body fields together. Verified safe against the code (`resolveSection` ignores
+  `sharedParts`; `validate.ts` validates each field against its own registry) and pinned by explicit
+  `validate.ts` + `resolveSection` regression tests (see §Parity). The hide script must merge, not
+  overwrite (set-union on both `hidden` and `sharedParts`); covered by the idempotency + preservation
+  assertions.
