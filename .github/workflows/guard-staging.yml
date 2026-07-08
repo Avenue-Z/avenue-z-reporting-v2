@@ -1,0 +1,22 @@
+name: Guard staging merges
+
+# Enforces the promotion flow: dev -> staging -> main. Any pull request targeting
+# `staging` must originate from `dev`. Make this a REQUIRED status check in staging's
+# ruleset so a failing (or missing) run blocks the merge.
+on:
+  pull_request:
+    branches: [staging]
+
+jobs:
+  require-from-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the PR to come from dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::PRs into 'staging' must come from 'dev' (this PR is from '$HEAD_REF'). Merge your feature into 'dev' first, then open a dev -> staging PR."
+            exit 1
+          fi
+          echo "OK — PR is from 'dev'."
