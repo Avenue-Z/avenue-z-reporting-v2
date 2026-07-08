@@ -9,6 +9,7 @@ import {
   buildThemeSources,
   newThemeSourceState,
   accumulateThemeSources,
+  finalizeThemeSources,
 } from './sentiment-normalize'
 
 // Profound echoes the resolved metric order in info.query.metrics; rows align
@@ -175,11 +176,12 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
     ],
   }
 
-  it('attributes an answer\'s citations to each of its themes, deduped', () => {
+  it('attributes an answer\'s citations to each of its themes, ranked by frequency', () => {
     const map = buildThemeSources(answers, null)
-    // Thought Leadership seen in answers 1 (a,b) + 2 (c,a-dupe) => a,b,c
+    // Thought Leadership: a cited by answers 1 + 2 (count 2), b + c once each.
+    // Ranked most-cited first, ties by first-seen => a, b, c.
     expect(map.get('thought leadership')).toEqual(['https://a.com', 'https://b.com', 'https://c.com'])
-    // Premium Pricing seen in answers 1 (a,b) + 3 (d) => a,b,d
+    // Premium Pricing: a, b, d each cited once (tie) => first-seen order a, b, d.
     expect(map.get('premium pricing')).toEqual(['https://a.com', 'https://b.com', 'https://d.com'])
   })
 
@@ -189,18 +191,57 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
     expect(map.get('thought leadership')).toEqual(['https://a.com', 'https://b.com'])
   })
 
-  it('caps URLs per theme', () => {
+  it('ranks by citation frequency, NOT first-seen order', () => {
+    // x is seen first (answer 1) but cited once; y is seen second but cited
+    // twice. Frequency must win: y before x.
+    const freqAnswers = {
+      data: [
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://x.com'] },
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://y.com'] },
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://y.com'] },
+      ],
+    }
+    expect(buildThemeSources(freqAnswers, null).get('t')).toEqual(['https://y.com', 'https://x.com'])
+  })
+
+  it('breaks frequency ties by first-seen order (deterministic)', () => {
+    // All cited once; order must be the order first encountered, every time.
+    const tie = {
+      data: [
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://p.com'] },
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://q.com'] },
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://r.com'] },
+      ],
+    }
+    expect(buildThemeSources(tie, null).get('t')).toEqual(['https://p.com', 'https://q.com', 'https://r.com'])
+  })
+
+  it('counts a URL at most once per answer (per-answer dedupe)', () => {
+    // x listed twice in ONE answer must count as 1, not 2. y is cited by two
+    // separate answers (count 2), so y must outrank x.
+    const dupeInAnswer = {
+      data: [
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://x.com', 'https://x.com'] },
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://y.com'] },
+        { model: 'ChatGPT', themes: ['T'], citations: ['https://y.com'] },
+      ],
+    }
+    expect(buildThemeSources(dupeInAnswer, null).get('t')).toEqual(['https://y.com', 'https://x.com'])
+  })
+
+  it('caps URLs per theme after ranking', () => {
     const many = { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['u1', 'u2', 'u3', 'u4'] }] }
+    // all count 1 (one answer), tie -> first-seen, cap 2 => u1, u2
     expect(buildThemeSources(many, null, 2).get('t')).toEqual(['u1', 'u2'])
   })
 
-  it('accumulates across pages, de-duping and capping across page boundaries', () => {
-    // simulates the paginated fetch: two pages folded into one accumulator
+  it('ranks by frequency across page boundaries (paginated fetch)', () => {
+    // simulates the paginated fetch: two pages folded, then finalized.
     const state = newThemeSourceState()
-    accumulateThemeSources(state, { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['a', 'b'] }] }, null, 3)
-    accumulateThemeSources(state, { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['b', 'c', 'd'] }] }, null, 3)
-    // b de-duped across pages; capped at 3 total -> a, b, c
-    expect(state.byKey.get('t')).toEqual(['a', 'b', 'c'])
+    accumulateThemeSources(state, { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['a', 'b'] }] }, null)
+    accumulateThemeSources(state, { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['b', 'c', 'd'] }] }, null)
+    // counts across pages: b=2, a=1, c=1, d=1. Ranked (ties first-seen), cap 3 => b, a, c
+    expect(finalizeThemeSources(state, 3).get('t')).toEqual(['b', 'a', 'c'])
   })
 
   it('attaches sources onto the normalized themes by title', () => {

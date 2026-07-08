@@ -141,20 +141,24 @@ export function collapseModelThemeRows(
   return { info: resp.info, data }
 }
 
-/** Accumulator for the theme -> cited-source-URLs map. Kept separate from the
- *  URL de-dup set so pages of answers can be folded in incrementally (the
- *  answers dataset is large, so lib/profound/sentiment.ts paginates and calls
- *  accumulateThemeSources per page, never holding the whole set in memory). */
+/** Accumulator for per-theme cited-source frequencies. Holds a count of how
+ *  many answers cite each URL, per theme, so lib/profound/sentiment.ts can fold
+ *  answer pages in incrementally (the dataset is large) and then rank by
+ *  citation frequency at the end via finalizeThemeSources. We keep ALL distinct
+ *  URLs per theme until finalize (the cap can only be applied once every page
+ *  is counted, otherwise a heavily-cited URL that first appears late would be
+ *  dropped). The full set is small (low thousands of entries), so this is
+ *  memory-safe. Nested Map insertion order preserves first-seen order, which
+ *  finalizeThemeSources uses as the deterministic tie-break. */
 export type ThemeSourceState = {
-  byKey: Map<string, string[]>
-  seen: Map<string, Set<string>>
+  counts: Map<string, Map<string, number>>
 }
 
 export function newThemeSourceState(): ThemeSourceState {
-  return { byKey: new Map(), seen: new Map() }
+  return { counts: new Map() }
 }
 
-/** Fold one page of answers into the theme -> sources accumulator.
+/** Fold one page of answers into the theme -> (url -> citation count) tally.
  *
  *  Each Profound answer is tagged with the themes it expresses and the
  *  citations it drew from (plus its model). For every answer within the
@@ -162,48 +166,68 @@ export function newThemeSourceState(): ThemeSourceState {
  *  ANSWER-LEVEL attribution (an answer's citations apply to all themes that
  *  answer expresses), not surgical claim-level attribution, which Profound does
  *  not expose. Keys are lowercased theme labels so they line up with
- *  normalizeThemes' case-folding. URLs are de-duplicated (across all pages) and
- *  capped per theme. */
+ *  normalizeThemes' case-folding. A URL is counted at most ONCE per answer
+ *  (de-duped within the answer), so the tally is "how many answers cite this
+ *  page for this theme", the basis for the most-cited ranking. */
 export function accumulateThemeSources(
   state: ThemeSourceState,
   resp: AnswersResp,
   selected: Set<string> | null,
-  maxPerTheme = 12,
 ): void {
   for (const a of resp.data) {
     const model = (a.model ?? '').trim()
     if (selected && !selected.has(model)) continue
     const themes = a.themes ?? []
-    const cites = (a.citations ?? []).filter((c): c is string => typeof c === 'string' && c.length > 0)
-    if (themes.length === 0 || cites.length === 0) continue
+    // Distinct URLs within this one answer (a page cited twice in the same
+    // answer still counts as one answer citing it).
+    const cites = new Set(
+      (a.citations ?? []).filter((c): c is string => typeof c === 'string' && c.length > 0),
+    )
+    if (themes.length === 0 || cites.size === 0) continue
     for (const t of themes) {
       const title = (t ?? '').trim()
       if (!title) continue
       const key = title.toLowerCase()
-      let arr = state.byKey.get(key)
-      if (!arr) { arr = []; state.byKey.set(key, arr) }
-      let s = state.seen.get(key)
-      if (!s) { s = new Set(); state.seen.set(key, s) }
+      let urlCounts = state.counts.get(key)
+      if (!urlCounts) { urlCounts = new Map(); state.counts.set(key, urlCounts) }
       for (const c of cites) {
-        if (arr.length >= maxPerTheme) break
-        if (s.has(c)) continue
-        s.add(c)
-        arr.push(c)
+        urlCounts.set(c, (urlCounts.get(c) ?? 0) + 1)
       }
     }
   }
 }
 
-/** Single-shot theme -> sources map (one answers response). Thin wrapper over
- *  the accumulator, used where the whole set fits in one response / in tests. */
+/** Collapse the accumulated tally into a theme -> ranked-URLs map: for each
+ *  theme, the URLs sorted by citation count descending, capped at maxPerTheme.
+ *  Ties (equal counts) break by first-seen order: Array.prototype.sort is
+ *  stable and the entries come out in Map insertion order, so the same
+ *  selection always yields the same, deterministic list (no randomness). */
+export function finalizeThemeSources(
+  state: ThemeSourceState,
+  maxPerTheme = 12,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  for (const [key, urlCounts] of state.counts.entries()) {
+    const ranked = [...urlCounts.entries()]
+      .sort((a, b) => b[1] - a[1]) // stable: equal counts keep insertion (first-seen) order
+      .slice(0, maxPerTheme)
+      .map(([url]) => url)
+    out.set(key, ranked)
+  }
+  return out
+}
+
+/** Single-shot theme -> most-cited-sources map (one answers response). Thin
+ *  wrapper: accumulate then finalize. Used where the whole set fits in one
+ *  response / in tests. */
 export function buildThemeSources(
   resp: AnswersResp,
   selected: Set<string> | null,
   maxPerTheme = 12,
 ): Map<string, string[]> {
   const state = newThemeSourceState()
-  accumulateThemeSources(state, resp, selected, maxPerTheme)
-  return state.byKey
+  accumulateThemeSources(state, resp, selected)
+  return finalizeThemeSources(state, maxPerTheme)
 }
 
 /** Collapse per-theme rows into normalized Positive and Negative theme lists.

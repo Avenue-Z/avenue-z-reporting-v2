@@ -58,8 +58,9 @@ From Tina's message (Jun 17) plus her Profound example export:
 | **Positive Themes** (R2) | `['model','theme']` | folded per theme over selected models; keep themes where `positive > negative`; sort by positive count desc; case-fold duplicate labels; top 8 |
 | **Negative Themes** (R2) | `['model','theme']` | same fold; keep themes where `negative > positive`; sort by negative count desc; top 8 |
 | **Delta** | prior `['model']` counts | `current pill - prior pill` (pp); computed only when a comparison period is passed. The card currently passes none, so no delta line renders (matches Tina's pill-only example). |
-| **Sources per theme** (R3) | `/v1/prompts/answers` `themes`+`citations`+`model` | for each theme, the de-duplicated citations of the answers tagged with that theme, filtered to the selected models, capped at 12. **Answer-level attribution** (see note). |
-| **Theme badge count** | `['model','theme']` counts | the number is the theme's **occurrence count in its dominant polarity**, NOT the number of cited sources. A theme can read 18 with 12 sources (source cap), or 18 with 0 sources (uncited answers, §8a). Count and source-list length are independent by design. |
+| **Sources per theme** (R3) | `/v1/prompts/answers` `themes`+`citations`+`model` | for each theme, its cited URLs **ranked by citation frequency** (how many of the theme's answers cite each URL, counted once per answer), most-cited first, capped at the **top 12**; ties break by first-seen order (deterministic). Filtered to the selected models. **Answer-level attribution** (see note). |
+| **Theme badge label** | `['model','theme']` counts | rendered as "**N mentions**". N is the theme's **occurrence count in its dominant polarity** (how many AI answers raised it), NOT the number of cited sources. A theme can read "81 mentions" but show 12 sources (top-12 cap) or 0 sources (uncited answers, §8a). Count and source-list length are independent by design; the card footer explains this in plain language. |
+| **Card footer** | n/a (static explainer) | one plain-language note under both columns: what "mentions" means, that the sources are the most-linked pages (top 12), and that one answer can cite many pages so the mention count is usually higher than the links shown. Renders only when there is data. |
 
 ## 5. Reactivity guarantees (the v1 fix)
 
@@ -103,11 +104,24 @@ From Tina's message (Jun 17) plus her Profound example export:
 The accordion sources are **answer-level, not claim-level.** Each Profound
 answer is tagged with the themes it expresses and the citations it drew from,
 but not which citation backs which theme *within* that answer. So a theme's
-sources = every citation from answers that expressed that theme. Those URLs
-genuinely appeared in AI answers discussing the theme (true and defensible),
-but it is not the surgical "this exact URL -> this exact claim" mapping
-Profound's own UI may show. Profound does not expose claim-level citation
-attribution via the API. The fetch pages through ALL of the period's answers
+candidate sources = every citation from answers that expressed that theme.
+Those URLs genuinely appeared in AI answers discussing the theme (true and
+defensible), but it is not the surgical "this exact URL -> this exact claim"
+mapping Profound's own UI may show. Profound does not expose claim-level
+citation attribution via the API.
+
+**Ranking (most-cited, the shown order).** The candidate URLs are ranked by
+**citation frequency**: how many of the theme's answers cite each URL, counted
+once per answer. Most-cited first, top 12. Ties break by first-seen order, so
+the list is deterministic for a given selection. This is meaningful because the
+distribution is skewed (e.g. Premium Pricing, all-models last-30d: the top
+sources are cited 9-11x each while ~296 of 394 distinct URLs are cited once).
+The ranking is computed only over answers in the selected date range and
+selected models, so it re-ranks per selection exactly like the counts (§5).
+Implemented in `finalizeThemeSources` (pure, unit-tested); `accumulateThemeSources`
+tallies per-answer-deduped counts across pages, `finalize` sorts + caps.
+
+The fetch pages through ALL of the period's answers
 (`pagination.limit`=5000, up to `ANSWERS_MAX_PAGES`=8 => 40k answer ceiling,
 current periods run ~10k so we have headroom). The fetch is best-effort: any
 failure leaves the themes rendering with counts and no sources, never a

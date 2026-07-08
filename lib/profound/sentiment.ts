@@ -32,6 +32,7 @@ import {
   normalizeThemes,
   newThemeSourceState,
   accumulateThemeSources,
+  finalizeThemeSources,
   selectedProfoundModels,
   type SentimentResp,
   type AnswersResp,
@@ -125,7 +126,10 @@ async function buildSourcesMap(
   } catch (e) {
     console.error('[profound] sentiment answers paging failed (themes render with partial/no sources):', e)
   }
-  return state.byKey
+  // Rank each theme's URLs by citation frequency and cap to the top 12. Runs
+  // over whatever was accumulated, so a mid-paging failure still yields the
+  // best-ranked sources from the pages that succeeded.
+  return finalizeThemeSources(state)
 }
 
 async function getProfoundSentimentImpl(

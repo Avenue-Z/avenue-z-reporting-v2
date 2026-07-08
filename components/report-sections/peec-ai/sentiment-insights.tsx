@@ -66,8 +66,8 @@ function ThemeAccordion({
           className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-90' : ''}`}
         />
         <span className="flex-1 text-sm font-semibold text-white">{title}</span>
-        <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold tabular-nums text-text-muted">
-          {count}
+        <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-text-muted">
+          <span className="tabular-nums">{count}</span> mentions
         </span>
       </button>
       {expanded && <div className="border-t border-white/[0.06] px-3 py-3">{children}</div>}
@@ -199,6 +199,15 @@ export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) 
             accent="#FF4444"
           />
         </div>
+      )}
+
+      {!noData && (
+        <p className="mt-5 border-t border-white/[0.08] pt-4 text-xs leading-relaxed text-text-muted">
+          <span className="font-semibold text-white/80">Mentions</span> is how many AI answers brought up a
+          theme for the dates and models you&rsquo;ve selected. Open a theme to see the web pages those answers
+          linked to most often (top 12). A single answer can link to many pages, so a theme&rsquo;s mention count
+          is usually higher than the number of links shown. Everything here comes straight from Profound.
+        </p>
       )}
     </section>
   )
