@@ -15,12 +15,21 @@ import type { AEOModel } from '@/lib/peec/models'
 export type ProfoundSentimentTheme = {
   title: string       // display label (original casing of the most-cited variant)
   count: number       // occurrences backing this theme in its dominant polarity
+  urls: string[]      // sources cited for this theme (from answer-level tags)
 }
 
 /** Subset of the Profound /v1/reports/sentiment response we rely on. */
 export type SentimentResp = {
   info: { query?: { metrics?: string[] } }
   data: { metrics: number[]; dimensions: (string | null)[] }[]
+}
+
+/** Subset of the Profound /v1/prompts/answers response we rely on. Each answer
+ *  is tagged by Profound with the themes it expresses, the citations it drew
+ *  from, and the model that produced it. We join theme -> citations off this;
+ *  no AI on our side. */
+export type AnswersResp = {
+  data: { themes?: (string | null)[] | null; citations?: (string | null)[] | null; model?: string | null }[]
 }
 
 /** Our AEOModel -> Profound's model display name. Profound only tracks these
@@ -132,6 +141,47 @@ export function collapseModelThemeRows(
   return { info: resp.info, data }
 }
 
+/** Build a theme -> cited-source-URLs map from the answers response.
+ *
+ *  Each Profound answer is tagged with the themes it expresses and the
+ *  citations it drew from (plus its model). For every answer within the
+ *  selected models, we attribute its citations to each of its themes. This is
+ *  ANSWER-LEVEL attribution (an answer's citations apply to all themes that
+ *  answer expresses), not surgical claim-level attribution, which Profound does
+ *  not expose. Keys are lowercased theme labels so they line up with
+ *  normalizeThemes' case-folding. URLs are de-duplicated and capped per theme. */
+export function buildThemeSources(
+  resp: AnswersResp,
+  selected: Set<string> | null,
+  maxPerTheme = 12,
+): Map<string, string[]> {
+  const byKey = new Map<string, string[]>()
+  const seen = new Map<string, Set<string>>()
+  for (const a of resp.data) {
+    const model = (a.model ?? '').trim()
+    if (selected && !selected.has(model)) continue
+    const themes = a.themes ?? []
+    const cites = (a.citations ?? []).filter((c): c is string => typeof c === 'string' && c.length > 0)
+    if (themes.length === 0 || cites.length === 0) continue
+    for (const t of themes) {
+      const title = (t ?? '').trim()
+      if (!title) continue
+      const key = title.toLowerCase()
+      let arr = byKey.get(key)
+      if (!arr) { arr = []; byKey.set(key, arr) }
+      let s = seen.get(key)
+      if (!s) { s = new Set(); seen.set(key, s) }
+      for (const c of cites) {
+        if (arr.length >= maxPerTheme) break
+        if (s.has(c)) continue
+        s.add(c)
+        arr.push(c)
+      }
+    }
+  }
+  return byKey
+}
+
 /** Collapse per-theme rows into normalized Positive and Negative theme lists.
  *
  *  Profound returns thousands of theme rows, including case-variant duplicates
@@ -141,11 +191,13 @@ export function collapseModelThemeRows(
  *    2. classify each folded theme by dominant polarity (positive > negative
  *       -> positive list; negative > positive -> negative list; ties dropped as
  *       ambiguous),
- *    3. sort each list by its dominant-polarity count descending and cap to topN.
+ *    3. sort each list by its dominant-polarity count descending and cap to topN,
+ *    4. attach cited-source URLs from `sourcesByKey` (keyed by lowercased title).
  */
 export function normalizeThemes(
   resp: SentimentResp,
   topN = 8,
+  sourcesByKey?: Map<string, string[]>,
 ): { positiveThemes: ProfoundSentimentTheme[]; negativeThemes: ProfoundSentimentTheme[] } {
   type Acc = { label: string; labelCount: number; positive: number; negative: number }
   const byKey = new Map<string, Acc>()
@@ -173,11 +225,12 @@ export function normalizeThemes(
 
   const positiveThemes: ProfoundSentimentTheme[] = []
   const negativeThemes: ProfoundSentimentTheme[] = []
-  for (const acc of byKey.values()) {
+  for (const [key, acc] of byKey.entries()) {
+    const urls = sourcesByKey?.get(key) ?? []
     if (acc.positive > acc.negative) {
-      positiveThemes.push({ title: acc.label, count: acc.positive })
+      positiveThemes.push({ title: acc.label, count: acc.positive, urls })
     } else if (acc.negative > acc.positive) {
-      negativeThemes.push({ title: acc.label, count: acc.negative })
+      negativeThemes.push({ title: acc.label, count: acc.negative, urls })
     }
     // exact ties (equal positive/negative) are ambiguous -> dropped
   }

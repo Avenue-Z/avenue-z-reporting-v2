@@ -6,6 +6,7 @@ import {
   selectedProfoundModels,
   sumModelRows,
   collapseModelThemeRows,
+  buildThemeSources,
 } from './sentiment-normalize'
 
 // Profound echoes the resolved metric order in info.query.metrics; rows align
@@ -62,8 +63,8 @@ describe('normalizeThemes', () => {
     const { positiveThemes, negativeThemes } = normalizeThemes(resp)
     // the two "premium pricing" rows fold into one negative theme, count 64+17=81,
     // displayed with the casing of the higher-occurrence variant ("Premium Pricing")
-    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 81 }])
-    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 24 }])
+    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 81, urls: [] }])
+    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 24, urls: [] }])
   })
 
   it('classifies by dominant polarity and drops exact ties as ambiguous', () => {
@@ -76,8 +77,8 @@ describe('normalizeThemes', () => {
       ],
     }
     const { positiveThemes, negativeThemes } = normalizeThemes(resp)
-    expect(positiveThemes).toEqual([{ title: 'Mostly Positive', count: 9 }])
-    expect(negativeThemes).toEqual([{ title: 'Mostly Negative', count: 9 }])
+    expect(positiveThemes).toEqual([{ title: 'Mostly Positive', count: 9, urls: [] }])
+    expect(negativeThemes).toEqual([{ title: 'Mostly Negative', count: 9, urls: [] }])
   })
 
   it('sorts each polarity by count desc and caps to topN', () => {
@@ -97,7 +98,7 @@ describe('normalizeThemes', () => {
     const resp = { info: INFO, data: [row('', 5, 0), row('Real', 0, 5)] }
     const { positiveThemes, negativeThemes } = normalizeThemes(resp)
     expect(negativeThemes).toEqual([])
-    expect(positiveThemes).toEqual([{ title: 'Real', count: 5 }])
+    expect(positiveThemes).toEqual([{ title: 'Real', count: 5, urls: [] }])
   })
 })
 
@@ -150,15 +151,59 @@ describe('collapseModelThemeRows + normalizeThemes (model reactivity)', () => {
   }
   it('all models: sums a theme across every model', () => {
     const { positiveThemes, negativeThemes } = normalizeThemes(collapseModelThemeRows(resp, null))
-    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 15 }])
-    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8 }])
+    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 15, urls: [] }])
+    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
   })
   it('single model: counts reflect only that model (the Tina flag)', () => {
     const { positiveThemes, negativeThemes } = normalizeThemes(
       collapseModelThemeRows(resp, new Set(['ChatGPT'])),
     )
     // ChatGPT-only Thought Leadership is 10, not 15
-    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 10 }])
-    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8 }])
+    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 10, urls: [] }])
+    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
+  })
+})
+
+describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
+  const answers = {
+    data: [
+      { model: 'ChatGPT', themes: ['Thought Leadership', 'Premium Pricing'], citations: ['https://a.com', 'https://b.com'] },
+      { model: 'Perplexity', themes: ['Thought Leadership'], citations: ['https://c.com', 'https://a.com'] },
+      { model: 'ChatGPT', themes: ['Premium Pricing'], citations: ['https://d.com'] },
+    ],
+  }
+
+  it('attributes an answer\'s citations to each of its themes, deduped', () => {
+    const map = buildThemeSources(answers, null)
+    // Thought Leadership seen in answers 1 (a,b) + 2 (c,a-dupe) => a,b,c
+    expect(map.get('thought leadership')).toEqual(['https://a.com', 'https://b.com', 'https://c.com'])
+    // Premium Pricing seen in answers 1 (a,b) + 3 (d) => a,b,d
+    expect(map.get('premium pricing')).toEqual(['https://a.com', 'https://b.com', 'https://d.com'])
+  })
+
+  it('filters sources by the selected model', () => {
+    const map = buildThemeSources(answers, new Set(['ChatGPT']))
+    // Perplexity answer excluded; Thought Leadership only from answer 1 => a,b
+    expect(map.get('thought leadership')).toEqual(['https://a.com', 'https://b.com'])
+  })
+
+  it('caps URLs per theme', () => {
+    const many = { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['u1', 'u2', 'u3', 'u4'] }] }
+    expect(buildThemeSources(many, null, 2).get('t')).toEqual(['u1', 'u2'])
+  })
+
+  it('attaches sources onto the normalized themes by title', () => {
+    const sources = buildThemeSources(answers, null)
+    const { positiveThemes, negativeThemes } = normalizeThemes(
+      { info: INFO, data: [row('Thought Leadership', 0, 20), row('Premium Pricing', 12, 0)] },
+      8,
+      sources,
+    )
+    expect(positiveThemes[0]).toEqual({
+      title: 'Thought Leadership',
+      count: 20,
+      urls: ['https://a.com', 'https://b.com', 'https://c.com'],
+    })
+    expect(negativeThemes[0].urls).toEqual(['https://a.com', 'https://b.com', 'https://d.com'])
   })
 })

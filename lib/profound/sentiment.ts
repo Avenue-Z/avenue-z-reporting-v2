@@ -30,10 +30,19 @@ import {
   sumModelRows,
   collapseModelThemeRows,
   normalizeThemes,
+  buildThemeSources,
   selectedProfoundModels,
   type SentimentResp,
+  type AnswersResp,
   type ProfoundSentimentTheme,
 } from './sentiment-normalize'
+
+// Bounded sample of the period's AI answers used to attach cited sources to
+// each theme. The answers endpoint ignores `limit` but honors
+// `pagination.limit`; the full set is ~40MB, so we sample. A 1000-answer sample
+// already covers 6000+ distinct themes, so the displayed top themes get sources
+// while the payload stays a few MB.
+const SOURCES_ANSWER_SAMPLE = 2000
 
 export type { ProfoundSentimentTheme } from './sentiment-normalize'
 
@@ -81,6 +90,32 @@ async function fetchByModel(
   })) as SentimentResp
 }
 
+/** Bounded sample of the period's answers (theme + citation + model tags) for
+ *  the per-theme sources accordion. Best-effort: on any failure we return an
+ *  empty set so the pill + themes still render (sources just come up empty)
+ *  rather than breaking the card. */
+async function fetchAnswers(
+  categoryId: string,
+  asset: string,
+  startDate: string,
+  endDate: string,
+): Promise<AnswersResp> {
+  try {
+    const resp = (await profoundPost('/v1/prompts/answers', {
+      category_id: categoryId,
+      asset,
+      start_date: startDate,
+      end_date: endDate,
+      include: { sentiment_claims: true },
+      pagination: { limit: SOURCES_ANSWER_SAMPLE },
+    })) as unknown as AnswersResp
+    return resp?.data ? resp : { data: [] }
+  } catch (e) {
+    console.error('[profound] sentiment answers fetch failed (themes render without sources):', e)
+    return { data: [] }
+  }
+}
+
 async function getProfoundSentimentImpl(
   dateRange: string,
   compareRange: string | null,
@@ -93,7 +128,7 @@ async function getProfoundSentimentImpl(
   const main = parseDateRange(dateRange)
   const compare = compareRange ? deriveCompareRange(dateRange, compareRange) : null
 
-  const [pillMainResp, themeResp, pillPriorResp] = await Promise.all([
+  const [pillMainResp, themeResp, pillPriorResp, answersResp] = await Promise.all([
     fetchByModel(categoryId, asset, main.startDate, main.endDate),
     profoundPost('/v1/reports/sentiment', {
       category_id: categoryId,
@@ -107,6 +142,7 @@ async function getProfoundSentimentImpl(
     compare
       ? fetchByModel(categoryId, asset, compare.startDate, compare.endDate)
       : Promise.resolve(null),
+    fetchAnswers(categoryId, asset, main.startDate, main.endDate),
   ])
 
   const mainCounts = sumModelRows(pillMainResp, selected)
@@ -117,8 +153,12 @@ async function getProfoundSentimentImpl(
   const positivePctDelta =
     positivePct !== null && priorPct !== null ? positivePct - priorPct : null
 
+  // Theme -> cited sources, model-filtered to match the pill/themes selection.
+  const themeSources = buildThemeSources(answersResp, selected)
   const { positiveThemes, negativeThemes } = normalizeThemes(
     collapseModelThemeRows(themeResp, selected),
+    8,
+    themeSources,
   )
 
   return {
