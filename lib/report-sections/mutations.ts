@@ -8,6 +8,17 @@ import { resolveSection } from './resolve'
 import { assertReferencedPinsPublished } from './registry'
 import type { PartRegistry, ReportSectionConfig, ResolvedPart, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
 
+/** When re-saving a section override, preserve a prior sharedParts opt-in if the new
+ *  payload doesn't set one. An explicit sharedParts in `next` wins. Keeps a body-only
+ *  edit from dropping a client's commentary (shared-part) opt-in. */
+export function mergePreservingSharedParts(
+  prev: SectionOverride | undefined,
+  next: SectionOverride,
+): SectionOverride {
+  const sharedParts = next.sharedParts ?? prev?.sharedParts
+  return sharedParts === undefined ? next : { ...next, sharedParts }
+}
+
 export function applyPinVersion(
   cfg: ReportSectionConfig,
   section: string,

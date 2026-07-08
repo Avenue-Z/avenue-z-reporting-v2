@@ -358,3 +358,16 @@ This is spec 1 of the larger "parts for all reports" initiative and deliberately
 views. Deep decomposition of each section's body into parts is out of scope and becomes
 its own per-section spec later, prioritized on demand (Content Impact / PR Influence
 first only if there's a concrete reason).
+
+## Known tradeoffs (final review)
+
+- **Staff visibility:** with page-level rendering removed, `SharedPartsHeader` returns
+  null unless the client has a `sharedParts` opt-in, so Avenue Z staff no longer see the
+  commentary editor on a *non-opted-in* client. Onboarding a client to commentary requires
+  running the opt-in write first. (The spec's coverage-equivalence claim holds for
+  opted-in clients.)
+- **Validation permissiveness:** `parseReportSectionConfig` now accepts any key
+  (viewKey-only keys use an empty body registry), so a typo'd key carrying only
+  `sharedParts` validates as a silent no-op that never renders. Intentional tradeoff for
+  the viewKey-only design; a future hardening could validate keys against
+  `CommentaryViewKey ∪ known section slugs`.

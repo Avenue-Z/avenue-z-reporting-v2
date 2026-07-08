@@ -7,7 +7,7 @@ import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
@@ -86,7 +86,7 @@ export async function saveReportSectionConfig(slug: string, section: string, raw
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
-  return persist(slug, { ...a.cfg!, [section]: parsedSection })
+  return persist(slug, { ...a.cfg!, [section]: mergePreservingSharedParts(a.cfg![section], parsedSection) })
 }
 
 /**
