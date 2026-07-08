@@ -49,10 +49,22 @@ When users click **Cancel** on Google's OAuth consent screen, Auth.js v5 returns
 Today, onboarding a new client requires either SQL or Drizzle Studio. A small admin-only page in `/dashboard/admin/clients` would let internal users add/edit clients, manage user/role assignments, and update per-client config without touching the DB directly.
 
 ### Refresh token storage (Supermetrics branded auth)
-For client-OAuthing into their own platforms via Supermetrics branded login links, we need a place to persist refresh tokens. A new `oauth_tokens` table keyed by `(client_id, platform)` with encrypted-at-rest tokens. Pairs with finishing the Supermetrics integration (see CLAUDE.md cleanup item below).
+> **Note (2026):** Supermetrics Branded Authentication has been **removed** —
+> platform connection state is now derived from environment variables, not OAuth
+> login links. This item is only relevant if branded/OAuth client-connection flows
+> are ever reintroduced.
 
-### Password hash storage for external client credential login
-`auth.ts:authorize()` currently accepts any password — fine for internal preview, must be fixed before external client accounts ship. Add a `users.password_hash` column, hash on insert with bcrypt/argon2, compare in the callback. New migration.
+For client-OAuthing into their own platforms via Supermetrics branded login links, we would
+need a place to persist refresh tokens. A new `oauth_tokens` table keyed by
+`(client_id, platform)` with encrypted-at-rest tokens.
+
+### ~~Password hash storage for external client credential login~~ — DONE
+**Implemented — this item is stale.** Credential logins are verified against the
+client's `shared_password_hash` column: `auth.ts` `authorize()` →
+`evaluateCredentialLogin` (`lib/auth/credential-login.ts`) → `verifyPassword`
+(`lib/auth/password.ts`, bcrypt). The earlier "accepts any password" behavior is
+gone. The preview-only test admin (`lib/auth/test-admin.ts`) bypasses this but is
+inert in Production (gated on `VERCEL_ENV`).
 
 ### Audit log table
 Track sign-ins, role changes, config edits for compliance. Probably an `audit_events` table with `(actor_email, action, target_type, target_id, payload jsonb, created_at)`.
@@ -66,8 +78,15 @@ Most report sections (GA4 main, HubSpot, GSC, etc.) hit live vendor APIs on ever
 ### Sidebar Client/Server component split
 `components/layout/sidebar.tsx` and `portal-sidebar.tsx` are `'use client'` components that receive `clients: Client[]` as a prop from their async Server Component parent layouts (the "parent-prop" pattern we chose for the DB migration). A future refactor can split each sidebar into a thin Server Component wrapper + a Client Component child — the Next.js App Router-idiomatic pattern. Documented in `docs/superpowers/specs/2026-05-19-postgres-config-store-design.md` § "Open / future work".
 
-### Supermetrics scaffolding decision
-`lib/supermetrics/` exists but isn't wired to any live section. Two paths: (a) finish the Supermetrics integration to power the placeholder report sections (Meta Ads, Google Ads, Email Marketing, etc.), or (b) delete the scaffolding and update `CLAUDE.md` so it stops describing a Supermetrics-first architecture in the present tense. Pick a direction.
+### ~~Supermetrics scaffolding decision~~ — RESOLVED (it's wired)
+**Stale.** `lib/supermetrics/` is live: `smQuery()` powers the Paid Search
+(`lib/paid-search`), Meta (`lib/meta`), and LinkedIn (`lib/linkedin`) report
+sections, plus the configurable dashboard's Supermetrics adapter. It is scoped to
+the paid/social channels only — GA4, GSC, HubSpot, Peec, and Profound use native
+APIs. `CLAUDE.md` has been corrected to describe this multi-source reality. The
+remaining ad-channel sections (Email Marketing, TikTok, Snapchat, Reddit, Bing)
+are still placeholder scaffolds awaiting wiring — that is section work, not a
+Supermetrics decision.
 
 ---
 

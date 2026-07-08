@@ -12,7 +12,6 @@ import { PRInfluenceSynopsis } from './pr-influence-synopsis'
 import { SynopsisSkeleton } from './synopsis-skeleton'
 import type { PRInfluenceSynopsisContext } from '@/lib/peec/pr-influence-synopsis'
 import { SentimentInsightsSection, SentimentSkeleton } from './sentiment-insights-section'
-import { applyEnginesFilter, modelKeyOf } from '@/lib/peec/sentiment-insights'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
 import {
@@ -309,15 +308,6 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     aiEnginesCiting: r.aiEnginesCiting,
   }))
 
-  // ── FB-026 · Sentiment Insights (live, date + model reactive) ─────────────
-  // Filter per-URL citations to the active model selection (same engines-rule
-  // as filteredMatchbackRows above: URLs with no engines at all are dropped
-  // when a filter is active). The Glean-backed fetch happens inside
-  // SentimentInsightsSection behind its own Suspense boundary, so this slow
-  // call streams independently instead of blocking the rest of the tab.
-  const sentimentCitations = applyEnginesFilter(urlCitations, models)
-  const sentimentModelKey  = modelKeyOf(models)
-
   // Build opportunity rows (Section E)
   const opportunityRows = data
     ? computeOpportunityRows(data.trackedPrompts, editorialDomains, data.topDomains ?? [], coverage)
@@ -416,8 +406,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   // (c) Build the row set — URL-level, brand-absent + editorial, one per host.
   // FB-028 follow-up: also apply the active model filter via c.engines so this
-  // table reacts to model selection (same rule as filteredMatchbackRows above
-  // and applyEnginesFilter in lib/peec/sentiment-insights.ts).
+  // table reacts to model selection (same rule as filteredMatchbackRows above).
   const isModelMatch = (c: typeof urlCitations[number]): boolean => {
     if (!models || models.length === 0) return true
     if (c.engines.length === 0) return false  // no model-specific signal — drop
@@ -520,15 +509,15 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         placementsCitedByAI={placementsCitedByAI}
       />
 
-      {/* ── FB-026 · Sentiment Insights (live, Glean-backed, date + model reactive) ── */}
-      <Suspense fallback={<SentimentSkeleton />}>
-        <SentimentInsightsSection
-          clientSlug={clientSlug}
-          dateRange={dateRange}
-          modelKey={sentimentModelKey}
-          citations={sentimentCitations}
-        />
-      </Suspense>
+      {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
+          Avenue Z only: Profound is a single-account feed, so this must never
+          render for a client without a Profound account (e.g. Renaissance, which
+          also has this section hidden). Gated on the slug for defense in depth. */}
+      {clientSlug === 'avenue-z' && (
+        <Suspense fallback={<SentimentSkeleton />}>
+          <SentimentInsightsSection dateRange={dateRange} models={models} />
+        </Suspense>
+      )}
 
       {/* ── FB-012 · Top Editorial Domains + Prompt Cluster Opportunity, side-by-side ──
           Tina's recommended layout: Synopsis -> Sentiment -> Top Editorial -> Prompt Clusters,

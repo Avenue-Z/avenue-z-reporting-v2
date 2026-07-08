@@ -1,6 +1,6 @@
 # Avenue Z Reporting Platform — Engineering Handoff
 
-> Last updated: May 2026. Written for engineers joining this project.
+> Last updated: July 2026. Written for engineers joining this project.
 > Read this before writing any code. `CLAUDE.md` is the canonical AI-context file — this document is the human-readable complement to it.
 
 ---
@@ -379,50 +379,94 @@ The split:
 
 ---
 
+## Adding a Report Section
+
+A report section is a self-contained React Server Component fed a `clientSlug`
+(and, if it's date-aware, `dateRange` / `compareRange`). Wiring a new one up is
+six edits — five in code, one in data:
+
+1. **Add the slug to the `ReportSlug` union** in `lib/db/schema.ts`. This is the
+   source-of-truth list; TypeScript keys `enabledReports` off it.
+2. **Build the component** at `components/report-sections/<slug>/index.tsx`. It's
+   an `async` RSC that fetches its own data server-side (never from the browser —
+   see Key Conventions). Handle the three states: a skeleton while loading, an
+   empty/`<EmptyState>` when the platform isn't connected, and let thrown fetch
+   errors bubble to the section error boundary (don't swallow them). Follow an
+   existing built section (`ga4/`, `hubspot-performance/`) as the template.
+3. **Add a display name** to `REPORT_NAMES` in `lib/constants.ts` (`slug → "Human
+   Name"`) — this titles the page header and the nav tab.
+4. **Register it in the dispatcher** — the `getReportSection` switch. **There are
+   two, and both must be updated**:
+   `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx` (internal) and
+   `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx` (client-facing). A
+   slug missing from a switch renders nothing on that surface.
+5. **Enable it per client** by adding the slug to that client's `enabled_reports`
+   array (DB — Drizzle Studio / seed). Both report pages **404 on a slug not in
+   `enabledReports`**, and the nav only renders tabs from that array, so this is
+   what actually makes the section appear. No code deploy for the enable itself.
+
+That's the whole loop: union → component → name → both dispatchers → enable. The
+error boundary and `<Suspense>` skeleton are already provided by the shared page
+shell, so a section never needs its own.
+
+> **Note — the configurable dashboard is a different mechanism.** Report sections
+> are code (the steps above). The configurable dashboard builds blocks from
+> JSON config with no deploy — see [`lib/dashboard/ENGINEERS.md`](./lib/dashboard/ENGINEERS.md).
+> Don't confuse the two products.
+
+---
+
+## Testing
+
+The repo runs **two test conventions** — know which applies before you write a test:
+
+**1. Vitest** (`npm test` / `npm run test:watch`) — jsdom + Testing Library. The
+config (`vitest.config.ts`) **only picks up** these paths:
+
+```
+lib/report-sections/**/*.test.{ts,tsx}
+app/actions/**/*.test.{ts,tsx}
+components/report-sections/**/*.test.{ts,tsx}
+```
+
+This is where report-section logic lives, including the peec-ai `*.golden.test.tsx`
+snapshot-parity tests. **A test outside these globs is invisible to `npm test`.**
+
+**2. Standalone `tsx` scripts** — most of `lib/` (including the entire
+`lib/dashboard/**` engine and `components/dashboard/**`) is tested with plain
+`node:assert` files run **individually**:
+
+```bash
+npx tsx lib/dashboard/group-join.test.ts     # the header comment names the exact command
+```
+
+Each such file carries a `// Run: npx tsx <path>` header and asserts in bare
+blocks. They are **not** wired into `npm test` and there is currently no aggregate
+runner for them — you run the ones relevant to your change (CI / a pre-merge sweep
+is a known gap). When you touch engine code, run its sibling `.test.ts` by hand.
+
+**Other checks:** `npm run lint` (ESLint — ~38 pre-existing errors, see Tech Debt)
+and `npm run check:rsc` (`scripts/check-rsc-props.ts`, guards RSC prop
+serializability).
+
+---
+
 ## Environment Variables
 
-Copy this to `.env.local` for local development. All production values live in Vercel (with separate Production and Preview scopes — see below). Per-client identifiers (GA4 property IDs, GSC site URLs, etc.) now live in the database, not env vars.
+**[`.env.example`](./.env.example) in the repo root is the complete, authoritative,
+annotated list** — every key, grouped and commented (`cp .env.example .env.local`,
+then fill from the team or Vercel). It is the **single source of truth**; this doc
+does not re-list the vars (that only invites drift). What lives here instead is the
+engineering context that a flat template can't carry: the identifiers-vs-secrets
+split (see [Client Configuration](#client-configuration) and [Data Clients](#data-clients)
+above for which integration reads what) and the Vercel scoping rules below.
 
-```env
-# Auth.js
-AUTH_SECRET=                          # openssl rand -base64 32
-AUTH_GOOGLE_ID=                       # Google Cloud Console → OAuth 2.0 client
-AUTH_GOOGLE_SECRET=                   # Same credential
-AUTH_TRUST_HOST=true                  # required in non-dev (NextAuth v5)
+A couple of easy-to-trip gotchas, called out because they've bitten before:
 
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-APP_URL=http://localhost:3000
-
-# Database (Neon Postgres)
-DATABASE_URL=                         # pooled connection (app runtime)
-DATABASE_URL_UNPOOLED=                # direct connection (drizzle-kit migrations only)
-
-# Google service account (shared across GA4 + GSC + Drive/Sheets for all clients)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # base64-encoded JSON
-GSC_IMPERSONATE_EMAIL=                # user that the SA impersonates for GSC (domain-wide delegation)
-
-# HubSpot — per-client secret, name pointer stored in clients.hubspot_token_env_var
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=        # "pat-na1-..."
-
-# Peec AI (multi-tenant; project IDs come from DB)
-PEEC_AI_CUSTOMER_TOKEN=               # "skc-..." multi-tenant key
-PEEC_AI_PROJECT_ID=                   # legacy fallback for callers without clientSlug
-PEEC_AI_YOUR_BRAND=                   # legacy fallback for clients.peec_your_brand
-
-# Profound AI
-PROFOUND_AI_ACCESS_TOKEN=
-PROFOUND_AI_YOUR_BRAND=
-PROFOUND_CATEGORY_ID=
-
-# Other third-party
-NEWS_API_KEY=                         # newsapi.org
-GLEAN_API_TOKEN=
-
-# BigQuery
-BQ_PROJECT_ID=
-BQ_DATASET=
-```
+- The PR-placements key is **`NEWSAPI_AI_KEY`**, not `NEWS_API_KEY`.
+- Per-client identifiers (GA4 property IDs, GSC site URLs) are **not** env vars —
+  they're DB columns. Only per-client *secrets* (HubSpot tokens) are env vars, and
+  the DB stores just the var-*name* pointer.
 
 ### Vercel scoping
 
@@ -443,25 +487,11 @@ Credential logins are verified against the client's `shared_password_hash` colum
 
 GWS-only OAuth is wired up: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` set in Vercel, `hd=avenuez.com` parameter on the provider, server-side `signIn` callback rejects non-`@avenuez.com` accounts as defense-in-depth, and the Google Cloud OAuth client's consent screen is set to Internal. Unlisted `@avenuez.com` staff are auto-provisioned as `INTERNAL_ANALYST` on `avenue-z` client.
 
-### 🟡 `CLAUDE.md` — data-source framing
-
-`CLAUDE.md` leads with Supermetrics as *the* data layer. In reality the platform is multi-source: GA4, GSC, HubSpot, Peec, and Profound hit native APIs directly, while Supermetrics now backs the paid/social ad sections (Paid Search, Meta, LinkedIn). The CLAUDE.md intro carries a note to this effect, but the bulk of its Supermetrics section still reads as the primary integration — keep that in mind when using it as a reference.
-
 ### 🟡 Debug Logs in Production Code
 
 `lib/hubspot/client.ts` has numerous `[forms-debug]` console.log statements added during active debugging of the "customers showing 0" issue in the Forms tab. These will spam production logs.
 
 **Fix:** Once the customer-column issue is confirmed resolved, remove all `[forms-debug]` lines from `getFormSubmissionCounts`.
-
-### 🟡 No `.env.example`
-
-There is a `.env.local` with real values but no `.env.example` checked into the repo.
-
-**Fix:** Create `.env.example` with all keys present but values blank. This is the standard pattern for onboarding new developers without exposing secrets.
-
-### 🟢 `proxy.ts` / `lib/db` References in `CLAUDE.md` — Fixed
-
-`CLAUDE.md` previously referenced the old `middleware.ts` and the deleted `lib/clients.config.ts` in its prose and code examples. These have been corrected to `proxy.ts` and `lib/db/queries.ts` (async helpers).
 
 ---
 
@@ -484,7 +514,7 @@ In the Inbound Funnel → Forms tab, the `customers` column reads 0 despite conf
 cd /path/to/avenue-z-reporting
 npm install
 
-# Create .env.local (no .env.example yet — get values from Nick or the Vercel dashboard)
+cp .env.example .env.local   # then fill in values from the team or the Vercel dashboard
 
 # Set up the database (DATABASE_URL_UNPOOLED should point at the dev Neon project)
 npm run db:migrate     # apply Drizzle migrations
@@ -512,7 +542,8 @@ npm run dev
 
 ```
 INTERNAL_ADMIN    → All clients, all reports, admin actions (e.g. manage connections)
-INTERNAL_ANALYST  → All clients, all reports, read-only
+INTERNAL_ANALYST  → All clients, all reports; read-only on the Reports product + admin actions
+                    (MAY still edit configurable dashboards — see lib/dashboard/permissions.ts)
 CLIENT_ADMIN      → Own client only: auth hub + all enabled reports
 CLIENT_VIEWER     → Own client only: enabled reports, read-only
 ```
