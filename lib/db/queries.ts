@@ -1,7 +1,7 @@
 import { cache } from 'react'
-import { eq, and, lt, isNotNull } from 'drizzle-orm'
+import { eq, and, lt, isNotNull, desc } from 'drizzle-orm'
 import { db } from './client'
-import { clients, users, healthState, smDimensionValueCache, dashboardShares, sectionTemplates, type Client, type User, type ClientRole } from './schema'
+import { clients, users, healthState, smDimensionValueCache, dashboardShares, sectionTemplates, reportCommentary, type Client, type User, type ClientRole, type ReportCommentary } from './schema'
 import type { SectionTemplate } from '@/lib/report-sections/types'
 import type { HealthStatus, StoredHealth } from '@/lib/health/types'
 import { cached } from '@/lib/cache'
@@ -9,6 +9,8 @@ import { timed } from '@/lib/perf'
 import { HIDDEN_CLIENT_SLUGS } from '@/lib/constants'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import { parseDashboardConfig } from '@/lib/dashboard/persistence'
+import type { CommentaryEntry } from '@/lib/commentary/types'
+import type { CommentaryViewKey } from '@/lib/commentary/views'
 
 /**
  * Find one client by slug, including its users. Returns null if not found.
@@ -254,3 +256,35 @@ export const getSectionTemplate = cache(async (section: string): Promise<Section
   const rows = await db.select().from(sectionTemplates).where(eq(sectionTemplates.sectionSlug, section)).limit(1)
   return rows[0]?.composition ?? null
 })
+
+// --- Report commentary ---
+
+/** Map a DB row to the serializable DTO sent to client components. neon-http
+ *  returns `date` columns as 'YYYY-MM-DD' strings and `timestamp` as Date. */
+export function toCommentaryEntry(row: ReportCommentary): CommentaryEntry {
+  return {
+    id: row.id,
+    viewKey: row.viewKey as CommentaryViewKey,
+    bodyHtml: row.bodyHtml,
+    periodStart: row.periodStart,
+    periodEnd: row.periodEnd,
+    status: row.status,
+    updatedBy: row.updatedBy,
+    updatedAt: row.updatedAt.toISOString(),
+    approvedBy: row.approvedBy,
+    approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
+  }
+}
+
+/** All commentary entries for a (client, view), newest first. React.cache-wrapped
+ *  for per-render dedup; freshness after writes comes from revalidateTag('db'). */
+export const getCommentaryForView = cache(
+  async (clientId: string, viewKey: string): Promise<CommentaryEntry[]> => {
+    const rows = await db
+      .select()
+      .from(reportCommentary)
+      .where(and(eq(reportCommentary.clientId, clientId), eq(reportCommentary.viewKey, viewKey)))
+      .orderBy(desc(reportCommentary.periodStart), desc(reportCommentary.updatedAt))
+    return rows.map(toCommentaryEntry)
+  },
+)

@@ -24,6 +24,7 @@ import {
   type PromptClusterOpportunityRow,
   type PRPlacementMatchbackRow,
 } from './pr-influence-tables'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 // ---------------------------------------------------------------------------
 // PR Influence on AI Visibility
@@ -481,6 +482,8 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   return (
     <div className="space-y-8">
+
+      <SharedPartsHeader viewKey="peec-ai:pr-influence" clientSlug={clientSlug} />
 
       <SectionHeader
         icon={Megaphone}

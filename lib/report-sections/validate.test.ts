@@ -27,8 +27,9 @@ describe('parseReportSectionConfig', () => {
     const c = parseReportSectionConfig({ 'peec-ai': { versions: { a: 1 }, hidden: ['a'], order: ['a'], labels: { a: 'A2' } } }, registries)
     expect(c['peec-ai'].versions).toEqual({ a: 1 })
   })
-  test('rejects an unknown section slug', () => {
-    expect(() => parseReportSectionConfig({ 'not-a-section': {} }, registries)).toThrow(/unknown section/)
+  test('allows an unknown section slug (viewKey-only key) with empty override', () => {
+    const out = parseReportSectionConfig({ 'not-a-section': {} }, registries)
+    expect(out['not-a-section']).toBeDefined()
   })
   test('rejects a non-integer version', () => {
     expect(() => parseReportSectionConfig({ 'peec-ai': { versions: { a: 1.5 } } }, registries)).toThrow(/version/)
@@ -50,5 +51,44 @@ describe('parseReportSectionConfig', () => {
         registries,
       ),
     ).toThrow(/not published/)
+  })
+})
+
+// Fake registries (no component imports — pure validation test).
+const impl = (id: string, version: number, published = true) => ({
+  id, version, published, defaultLabel: id, render: () => null,
+})
+const BODY: Record<string, PartRegistry<unknown>> = {
+  'meta-ads': {},                                   // meta-ads has no body parts (thin)
+  'peec-ai': { x: { 2: impl('x', 2) } },            // peec-ai body has part x@2
+}
+const SHARED: PartRegistry<unknown> = { commentary: { 1: impl('commentary', 1) } }
+
+describe('sharedParts validation', () => {
+  test('accepts a sharedParts opt-in on a section-slug key', () => {
+    const out = parseReportSectionConfig(
+      { 'meta-ads': { sharedParts: [{ id: 'commentary', version: 1 }] } }, BODY, {}, SHARED)
+    expect(out['meta-ads'].sharedParts).toEqual([{ id: 'commentary', version: 1 }])
+  })
+  test('accepts a viewKey-only key with no body registry (shared-parts only)', () => {
+    const out = parseReportSectionConfig(
+      { 'peec-ai:pr-influence': { sharedParts: [{ id: 'commentary', version: 1 }] } }, BODY, {}, SHARED)
+    expect(out['peec-ai:pr-influence'].sharedParts).toEqual([{ id: 'commentary', version: 1 }])
+  })
+  test('rejects a sharedParts id not in the shared registry', () => {
+    expect(() => parseReportSectionConfig(
+      { 'meta-ads': { sharedParts: [{ id: 'nope', version: 1 }] } }, BODY, {}, SHARED))
+      .toThrow(/unknown part nope@1/)
+  })
+  test('rejects body content on a key with no body registry', () => {
+    expect(() => parseReportSectionConfig(
+      { 'peec-ai:pr-influence': { versions: { x: 2 } } }, BODY, {}, SHARED))
+      .toThrow(/unknown part x@2/)
+  })
+  test('preserves sharedParts alongside a body edit (does not drop the opt-in)', () => {
+    const out = parseReportSectionConfig(
+      { 'peec-ai': { versions: { x: 2 }, sharedParts: [{ id: 'commentary', version: 1 }] } }, BODY, {}, SHARED)
+    expect(out['peec-ai'].versions).toEqual({ x: 2 })
+    expect(out['peec-ai'].sharedParts).toEqual([{ id: 'commentary', version: 1 }])
   })
 })

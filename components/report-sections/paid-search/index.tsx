@@ -11,6 +11,7 @@ import { LeadsSection } from './leads-section'
 import { GeoSection } from './geo-section'
 import { KeywordsTable } from './keywords'
 import { SmTimeoutError } from '@/lib/supermetrics/client'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try {
@@ -54,6 +55,7 @@ export async function PaidSearchReport({
 
   return (
     <div className="space-y-8">
+      <SharedPartsHeader viewKey="paid-search" clientSlug={clientSlug} />
       {hero.data ? <Hero points={hero.data} /> : <Fallback kind={hero.error!} />}
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <Fallback kind={kpis.error!} />}
       {campaigns.data ? <CampaignTable rows={campaigns.data} /> : <Fallback kind={campaigns.error!} />}

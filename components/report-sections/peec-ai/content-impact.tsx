@@ -31,6 +31,7 @@ import {
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
 } from './content-impact-tables'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -999,6 +1000,8 @@ export async function ContentImpactReport({
 
   return (
     <div className="flex flex-col gap-6">
+
+      <SharedPartsHeader viewKey="peec-ai:content-impact" clientSlug={clientSlug} />
 
       <SectionHeader
         icon={FileText}
