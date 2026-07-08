@@ -1,22 +1,22 @@
 name: Guard main merges
 
-# Enforces the branch flow: feature -> dev -> main. Any pull request targeting
-# `main` must originate from `dev`. Make this a REQUIRED status check in main's
-# branch protection so a failing (or missing) run blocks the merge.
+# Enforces the promotion flow: dev -> staging -> main. Any pull request targeting
+# `main` must originate from `staging`. Make this a REQUIRED status check in main's
+# ruleset so a failing (or missing) run blocks the merge.
 on:
   pull_request:
     branches: [main]
 
 jobs:
-  only-from-dev:
+  require-from-staging:
     runs-on: ubuntu-latest
     steps:
-      - name: Require the PR to come from dev
+      - name: Require the PR to come from staging
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [ "$HEAD_REF" != "dev" ]; then
-            echo "::error::PRs into 'main' must come from 'dev' (this PR is from '$HEAD_REF'). Merge your branch into 'dev' first, then open a dev -> main PR."
+          if [ "$HEAD_REF" != "staging" ]; then
+            echo "::error::PRs into 'main' must come from 'staging' (this PR is from '$HEAD_REF'). Promote your work dev -> staging first, then open a staging -> main PR."
             exit 1
           fi
-          echo "OK — PR is from 'dev'."
+          echo "OK — PR is from 'staging'."
