@@ -381,7 +381,7 @@ The split:
 
 ## Environment Variables
 
-Copy this to `.env.local` for local development. All production values live in Vercel (with separate Production and Preview scopes — see below). Per-client identifiers (GA4 property IDs, GSC site URLs, etc.) now live in the database, not env vars.
+**`.env.example` in the repo root is the complete, authoritative list** (`cp .env.example .env.local`). The annotated subset below covers the essentials. All production values live in Vercel (with separate Production and Preview scopes — see below). Per-client identifiers (GA4 property IDs, GSC site URLs, etc.) now live in the database, not env vars.
 
 ```env
 # Auth.js
@@ -416,8 +416,9 @@ PROFOUND_AI_YOUR_BRAND=
 PROFOUND_CATEGORY_ID=
 
 # Other third-party
-NEWS_API_KEY=                         # newsapi.org
+NEWSAPI_AI_KEY=                       # newsapi.ai (PR placements) — the var is NEWSAPI_AI_KEY, not NEWS_API_KEY
 GLEAN_API_TOKEN=
+GLEAN_INSTANCE=
 
 # BigQuery
 BQ_PROJECT_ID=
@@ -453,11 +454,12 @@ GWS-only OAuth is wired up: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` set in Verce
 
 **Fix:** Once the customer-column issue is confirmed resolved, remove all `[forms-debug]` lines from `getFormSubmissionCounts`.
 
-### 🟡 No `.env.example`
+### 🟢 `.env.example` — Added
 
-There is a `.env.local` with real values but no `.env.example` checked into the repo.
-
-**Fix:** Create `.env.example` with all keys present but values blank. This is the standard pattern for onboarding new developers without exposing secrets.
+A complete `.env.example` now lives in the repo root — all keys present, values
+blank, annotated by `[required]` / `[per-client]` / `[optional]`. Onboard with
+`cp .env.example .env.local` and fill in values from the team or Vercel. (The
+`.gitignore` `.env*` rule has a `!.env.example` exception so the template is tracked.)
 
 ### 🟢 `proxy.ts` / `lib/db` References in `CLAUDE.md` — Fixed
 
@@ -484,7 +486,7 @@ In the Inbound Funnel → Forms tab, the `customers` column reads 0 despite conf
 cd /path/to/avenue-z-reporting
 npm install
 
-# Create .env.local (no .env.example yet — get values from Nick or the Vercel dashboard)
+cp .env.example .env.local   # then fill in values from the team or the Vercel dashboard
 
 # Set up the database (DATABASE_URL_UNPOOLED should point at the dev Neon project)
 npm run db:migrate     # apply Drizzle migrations
@@ -512,7 +514,8 @@ npm run dev
 
 ```
 INTERNAL_ADMIN    → All clients, all reports, admin actions (e.g. manage connections)
-INTERNAL_ANALYST  → All clients, all reports, read-only
+INTERNAL_ANALYST  → All clients, all reports; read-only on the Reports product + admin actions
+                    (MAY still edit configurable dashboards — see lib/dashboard/permissions.ts)
 CLIENT_ADMIN      → Own client only: auth hub + all enabled reports
 CLIENT_VIEWER     → Own client only: enabled reports, read-only
 ```

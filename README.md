@@ -9,9 +9,34 @@ sources**: GA4, Google Search Console, HubSpot, Peec AI, and Profound AI via
 their native APIs, plus the **Supermetrics Data API** for the paid/social ad
 channels (Paid Search, Meta, LinkedIn).
 
-> **New here?** Read [`ENGINEERS.md`](./ENGINEERS.md) (human onboarding guide)
-> and [`CLAUDE.md`](./CLAUDE.md) (architecture reference). This README is just
-> the quick start.
+> **New here? Read in this order:** [`ENGINEERS.md`](./ENGINEERS.md)
+> (Reports-product onboarding) then [`CLAUDE.md`](./CLAUDE.md) (platform
+> architecture). This README is the quick start; the full map is below.
+
+## Documentation Map
+
+This repo hosts **two products** over one shared spine. The docs below are
+**current** — read these and ignore anything not listed as current.
+
+| Doc | Covers | Status |
+|---|---|---|
+| `README.md` (this file) | Quick start + orientation | ✅ current |
+| `ENGINEERS.md` | **Reports** product: auth, data clients, report-section build status, env vars, conventions | ✅ current |
+| `CLAUDE.md` | Platform architecture / shared spine + Supermetrics reference | ✅ current |
+| `lib/dashboard/ENGINEERS.md` | **Configurable dashboard** product: blocks → bindings → resolvers → adapters, caching, sharing | ✅ current |
+| `lib/dashboard/CLAUDE.md` · `components/dashboard/CLAUDE.md` | Terse working rules for the dashboard engine + its UI | ✅ current |
+| `TODO.md` | Standing task list | ✅ current |
+| `Guides/brand.md` · `Guides/prplacements.md` | Topic guides (brand tokens, PR placements) | ✅ current |
+| `Guides/gleansdk.md` | Glean meeting-prep feature guide — SDK usage is current; **ignore its "Existing Platform Context"** (stale Next 15 / `clients.config.ts`) | 🟡 mostly current |
+| `docs/superpowers/{plans,specs}/**` | **Dated, point-in-time** design/plan docs for specific past PRs. Useful history, but **not** current architecture — where they differ, trust `CLAUDE.md` / `ENGINEERS.md` | 🟡 historical context |
+| `Guides/claude.md` · `Guides/progress.md` | **ARCHIVED** — describe a superseded architecture (flat `clients.config.ts`, `middleware.ts`, Next 15, demo data). **Do not follow.** | ⛔ historical |
+
+**The two products, one line each:**
+
+- **Reports** (client-facing) — per-client report sections in `components/report-sections/`, shown to staff at `/dashboard` and to clients at `/portal/[clientSlug]`, gated by the client's `enabledReports`.
+- **Configurable dashboard** (internal) — a JSON-configured, drag-and-arrange block grid stored in `clients.dashboard_config`, authored in the browser with no deploy.
+
+Both share **Neon Postgres + Drizzle** (`lib/db/`), **Auth.js v5** (`auth.ts` + `proxy.ts`), and the per-client `clients` row.
 
 ## Tech Stack
 
@@ -27,8 +52,8 @@ channels (Paid Search, Meta, LinkedIn).
 ```bash
 npm install
 
-# Create .env.local (there is no .env.example yet — get values from the
-# team or the Vercel project settings). See "Environment Variables" below.
+# Copy the env template and fill in values (secrets from the team or Vercel):
+cp .env.example .env.local
 
 # Set up the database (DATABASE_URL_UNPOOLED → dev Neon project)
 npm run db:migrate     # apply Drizzle migrations
@@ -42,8 +67,9 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with Google
 
 ### Environment Variables
 
-A subset to get running locally — see [`ENGINEERS.md`](./ENGINEERS.md) for the
-full annotated list and Vercel scoping notes.
+`.env.example` in the repo root is the complete, annotated list — copy it with
+`cp .env.example .env.local`. A subset is shown below; see [`ENGINEERS.md`](./ENGINEERS.md)
+for per-integration notes and Vercel scoping.
 
 ```env
 # Auth.js
@@ -89,7 +115,7 @@ deploy required for routine data entry.
 | Role | Access |
 |------|--------|
 | `INTERNAL_ADMIN` | All clients, all reports, admin actions |
-| `INTERNAL_ANALYST` | All clients, all reports (read-only) |
+| `INTERNAL_ANALYST` | All clients, all reports; read-only on Reports + admin actions (but **may edit configurable dashboards**) |
 | `CLIENT_ADMIN` | Own client: auth hub + enabled reports |
 | `CLIENT_VIEWER` | Own client: enabled reports (read-only) |
 

@@ -2,6 +2,14 @@
 ## Feature: "Prepare for Meeting" — Glean Knowledge Integration
 ### Avenue Z Internal Dashboard · Claude Code Context Document
 
+> ⚠️ **Partial staleness note.** The **Glean SDK usage** in this guide (Chat API,
+> `gleanChat()` in `lib/glean.ts`, the `GLEAN_INSTANCE` / `GLEAN_API_TOKEN` env
+> vars) is still accurate. The **"Existing Platform Context"** below is not: the
+> framework is **Next.js 16** (not 15), and the client registry is **Neon Postgres
+> + Drizzle** (`lib/db/`), **not** a `clients.config.ts` flat file (that file was
+> deleted). For current platform architecture see [`/README.md`](../README.md) and
+> [`/CLAUDE.md`](../CLAUDE.md).
+
 ---
 
 ## 1. Feature Overview
