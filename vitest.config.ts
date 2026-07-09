@@ -17,6 +17,7 @@ export default defineConfig({
       'lib/pr-proof/matchback.test.ts',
       'lib/peec/citation-dates.test.ts',
       'lib/peec/models.test.ts',
+      'lib/ga4/format-speed.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],

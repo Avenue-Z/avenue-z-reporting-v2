@@ -17,6 +17,7 @@ import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
+import { formatDaysToFirst } from '@/lib/ga4/format-speed'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
 import type { SlopeChartInput } from '@/lib/peec/slope-chart'
@@ -1208,7 +1209,7 @@ export async function ContentImpactReport({
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
               <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
-                {val !== null ? `${Math.round(val)} days` : 'None'}
+                {formatDaysToFirst(val)}
               </span>
               {sourceUrl && (
                 <a
