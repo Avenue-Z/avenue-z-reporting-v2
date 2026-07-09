@@ -1241,7 +1241,7 @@ export async function ContentImpactReport({
         title="AI Bot Traffic vs. Human Traffic"
         description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range."
       >
-        <BotVsHumanScatter data={scatterData} />
+        <BotVsHumanScatter data={scatterData} clientDomain={ownedDomainNames[0] ?? ''} />
       </SectionCard>
 
       {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}

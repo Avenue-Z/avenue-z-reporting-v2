@@ -21,6 +21,7 @@ import { type BotVsHumanScatterResult, type BotVsHumanState, botVsHumanState } f
 
 interface Props {
   data: BotVsHumanScatterResult
+  clientDomain: string
 }
 
 // Message per non-renderable state. Distinguishes "no bot data" (the common
@@ -45,21 +46,21 @@ const QUADRANT_FILL: Record<string, string> = {
 // CI-3b: resolve a scatter point's URL for click-to-open. `p.path` here is a
 // urlJoinKey() output (lib/url.ts): lowercased, protocol/host/www stripped,
 // trailing slash trimmed. For a GA4 pagePath (the common case, e.g.
-// "/blog/post-1") that leaves a bare path with no host. This component's
-// BotVsHumanScatterResult (lib/peec/bot-vs-human-scatter.ts) carries only
-// path/bots/humans/quadrant, no client domain, so there is no origin
-// available here to turn a bare path into an absolute URL without guessing
-// wrong (the reporting app's own origin is not the client's site). Handle
-// the case where the path is already absolute; otherwise return null so the
-// click is a no-op rather than opening a broken or wrong-domain link.
-function resolvePointUrl(path: string | undefined): string | null {
+// "/blog/post-1") that leaves a bare path with no host, so `clientDomain` is
+// threaded in from the parent (same pattern as PageOverlapTable in
+// technical-audit-tables.tsx) to build an absolute URL. If the path is
+// already absolute, open it as-is. If there is no path at all, the click is
+// a no-op rather than opening a broken link.
+function resolvePointUrl(path: string | undefined, clientDomain: string): string | null {
   if (!path) return null
   if (/^https?:\/\//i.test(path)) return path
   if (path.startsWith('//')) return `https:${path}`
-  return null
+  const domain = clientDomain || 'example.com'
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return `https://${domain}${normalizedPath}`
 }
 
-export default function BotVsHumanScatter({ data }: Props) {
+export default function BotVsHumanScatter({ data, clientDomain }: Props) {
   const state = botVsHumanState(data)
   if (state !== 'ok') {
     return (
@@ -80,7 +81,7 @@ export default function BotVsHumanScatter({ data }: Props) {
   // point datum as the first (untyped) arg; narrow it to the same payload
   // shape the tooltip already reads (path/bots/humans) instead of using any.
   const handlePointClick = (point: { payload?: { path?: string } }) => {
-    const url = resolvePointUrl(point?.payload?.path)
+    const url = resolvePointUrl(point?.payload?.path, clientDomain)
     if (!url) return
     window.open(url, '_blank', 'noopener,noreferrer')
   }
