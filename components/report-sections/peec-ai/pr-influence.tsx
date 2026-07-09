@@ -1,19 +1,13 @@
-import { Suspense } from 'react'
-import { SHOW_AI_NARRATIVE } from '@/lib/constants'
+import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
+import { resolveSection } from '@/lib/report-sections/resolve'
+import { lookup } from '@/lib/report-sections/registry'
 import { Megaphone } from 'lucide-react'
 import { SectionHeader } from './section-header'
-import { PRInfluenceSynopsis } from './pr-influence-synopsis'
-import { SynopsisSkeleton } from './synopsis-skeleton'
-import { SentimentInsightsSection, SentimentSkeleton } from './sentiment-insights-section'
-import type { AEOModel } from '@/lib/peec/models'
-import {
-  TopEditorialDomainsTable,
-  BrandAbsentEditorialDomainsTable,
-  PromptClusterOpportunityMatrix,
-  PRPlacementMatchbackTable,
-} from './pr-influence-tables'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
+import type { AEOModel } from '@/lib/peec/models'
 import { buildPrInfluenceCtx } from './pr-influence/ctx'
+import { PR_INFLUENCE_PARTS } from './pr-influence/parts/registry'
+import { PR_INFLUENCE_TEMPLATE } from './pr-influence/template'
 
 // ---------------------------------------------------------------------------
 // PR Influence on AI Visibility
@@ -24,16 +18,19 @@ import { buildPrInfluenceCtx } from './pr-influence/ctx'
 //             PR Proof Library (Google Sheet -- PR placement log)
 //             GA4 (AI referral sessions via AI_REFERRER_DOMAINS filter)
 // Cross-ref:  PR placement domains matched against Peec editorial citation data
+//
+// Body composition (order, hide/show, versions) is resolved via the parts
+// registry/template rather than hardcoded JSX -- see ./pr-influence/parts.
 // ---------------------------------------------------------------------------
-
-function fmt(n: number, decimals = 1, suffix = '%') {
-  return `${n.toFixed(decimals)}${suffix}`
-}
 
 // ── Main RSC ─────────────────────────────────────────────────────────────────
 
 export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days', models = null }: { clientSlug: string; dateRange?: string; models?: AEOModel[] | null }) {
+  const config = await getClientBySlug(clientSlug)
   const ctx = await buildPrInfluenceCtx({ clientSlug, dateRange, models })
+  const template = (await getSectionTemplate('peec-ai:pr-influence')) ?? PR_INFLUENCE_TEMPLATE
+  const override = config?.reportSectionConfig?.['peec-ai:pr-influence']
+  const resolved = resolveSection(template, override)
 
   return (
     <div className="space-y-8">
@@ -46,52 +43,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         subtitle="Where earned media earns LLM citations, which publications carry the most AI authority, and the opportunities to grow share of voice."
       />
 
-      {/* ── FB-009-a · Executive Synopsis (replaces the prior Section A KPI Strip per Tina's FB-009-b ask) ── */}
-      {SHOW_AI_NARRATIVE && (
-        <Suspense fallback={<SynopsisSkeleton />}>
-          <PRInfluenceSynopsis
-            clientSlug={clientSlug}
-            dateRange={dateRange}
-            context={ctx.synopsisContext}
-          />
-        </Suspense>
-      )}
-
-      {/* ── FB-067 · PR Placement Matchback (all-time placements, cited within the selected timeframe) ── */}
-      <PRPlacementMatchbackTable
-        rows={ctx.matchback.rows}
-        totalPlacements={ctx.totalPlacements}
-        placementsCitedByAI={ctx.matchback.citedCount}
-      />
-
-      {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
-          Avenue Z only: Profound is a single-account feed, so this must never
-          render for a client without a Profound account (e.g. Renaissance, which
-          also has this section hidden). Gated on the slug for defense in depth. */}
-      {clientSlug === 'avenue-z' && (
-        <Suspense fallback={<SentimentSkeleton />}>
-          <SentimentInsightsSection dateRange={dateRange} models={models} />
-        </Suspense>
-      )}
-
-      {/* ── FB-012 · Top Editorial Domains + Prompt Cluster Opportunity, side-by-side ──
-          Tina's recommended layout: Synopsis -> Sentiment -> Top Editorial -> Prompt Clusters,
-          both reduced and placed next to each other. */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Top Editorial Domains Cited by AI */}
-        <TopEditorialDomainsTable rows={ctx.topEditorialRows} />
-        {/* Prompt Cluster Opportunity (simple bar chart per FB-012) */}
-        {/* v1 limitation: editorialCitationDensity is computed from aggregated Peec
-            data and is NOT re-computed per selected AI model. The chart reflects
-            all-model data regardless of the active model filter. */}
-        <PromptClusterOpportunityMatrix rows={ctx.opportunityTableRows} />
-      </div>
-
-      {/* ── FB-014 · Top Editorial Opportunities (retitled from Brand-Absent Editorial Domains) ── */}
-      <BrandAbsentEditorialDomainsTable
-        rows={ctx.brandAbsentTableRows}
-        hasEditorialDomains={ctx.hasEditorialDomains}
-      />
+      {resolved.map((r) => {
+        const impl = lookup(PR_INFLUENCE_PARTS, r.id, r.version)
+        const node = impl?.render(ctx, r) ?? null
+        return node == null ? null : <div key={`${r.id}@${r.version}`}>{node}</div>
+      })}
     </div>
   )
 }
