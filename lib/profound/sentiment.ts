@@ -145,7 +145,37 @@ async function buildSourcesMap(
   return finalizeThemeSources(state)
 }
 
+/**
+ * Resolve the Profound category id + brand asset for a call. Client-row
+ * values (clients.profound_category_id / clients.peec_your_brand) are the
+ * source of truth (#138 P6/P7: the card used to be gated on a hardcoded
+ * 'avenue-z' slug and always read Avenue Z's env vars, which would silently
+ * cross-leak into a second Profound client's report). Falls back to the
+ * legacy env vars when no clientSlug is given or the client row has no
+ * profoundCategoryId, same fallback shape as getProfoundOverviewImpl in
+ * lib/profound/client.ts.
+ */
+async function resolveProfoundConfig(
+  clientSlug: string | null | undefined,
+): Promise<{ categoryId: string; asset: string }> {
+  if (clientSlug) {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
+    if (config?.profoundCategoryId) {
+      return {
+        categoryId: config.profoundCategoryId,
+        asset: config.peecYourBrand || resolveAsset(),
+      }
+    }
+  }
+  return { categoryId: await getCategoryId(), asset: resolveAsset() }
+}
+
 async function getProfoundSentimentImpl(
+  // #138 P6/P7: threaded through from PR Influence so brand/category resolve
+  // per client and the cache key below carries a client dimension. null/
+  // undefined keeps the legacy env-only path (see resolveProfoundConfig).
+  clientSlug: string | null | undefined,
   dateRange: string,
   // Accepted for call-site/cache-key compatibility only: the card is
   // pill-only for the current period (#138 P10), so this is never read.
@@ -154,8 +184,7 @@ async function getProfoundSentimentImpl(
   _compareRange: string | null,
   models: AEOModel[] | null,
 ): Promise<ProfoundSentiment> {
-  const categoryId = await getCategoryId()
-  const asset = resolveAsset()
+  const { categoryId, asset } = await resolveProfoundConfig(clientSlug)
   const selected = selectedProfoundModels(models)
 
   const main = parseDateRange(dateRange)
@@ -195,28 +224,49 @@ async function getProfoundSentimentImpl(
 }
 
 /**
- * Cached entry point. Keyed on dateRange + compareRange + the selected-model
- * key, so the pill and themes are cached per (period, model selection) exactly
- * like the rest of the AEO tab. Profound sentiment is a single-account (Avenue
- * Z) feed today, so the account is fixed by env. One-hour TTL.
+ * Cache-key tag builder for getProfoundSentiment, exported so it can be unit
+ * tested directly (see sentiment.test.ts). Keyed on client + dateRange +
+ * compareRange + the selected-model key, so the pill and themes are cached
+ * per (client, period, model selection) exactly like the rest of the AEO tab.
+ *
+ * #138 P7: `client` was added because Profound sentiment used to be a single-
+ * account (Avenue Z) feed with no client dimension in the cache key at all.
+ * Once a second client is wired to Profound, two clients hitting the same
+ * (dateRange, compareRange, models) would have collided on one cache entry
+ * and served each other's sentiment data. `clientSlug ?? 'default'` keeps the
+ * legacy no-slug call path (env-only resolution) on its own stable key too.
+ */
+export function sentimentCacheTags(
+  args: readonly [string | null | undefined, string, string | null, AEOModel[] | null],
+): { client: string; dateRange: string; compareRange: string; models: string } {
+  const [clientSlug, dateRange, compareRange, models] = args
+  return {
+    client: clientSlug ?? 'default',
+    dateRange,
+    compareRange: compareRange ?? 'none',
+    models: modelKeyOf(models),
+  }
+}
+
+/**
+ * Cached entry point. One-hour TTL.
  *
  * IMPORTANT: bump `version` whenever anything downstream of the cache changes
  * shape or logic (fetch params, filter rules, response mapping). The cache
  * key is (vendor, fn, version, today, ...args); missing a bump serves stale
  * results across deploys under the same key. v1 -> v2 landed alongside the
  * paginated /v1/prompts/answers fetch that replaced the bounded 2000-sample.
+ * v2 -> v3 landed alongside the clientSlug parameter (#138 P6/P7): same
+ * fetch/filter/mapping logic, but the cache key now carries a client
+ * dimension so a second Profound client cannot collide with Avenue Z's key.
  */
 export const getProfoundSentiment = cached(
   'profound',
   'getProfoundSentiment',
   getProfoundSentimentImpl,
   {
-    version: 'v2-profound-sentiment-paged',
+    version: 'v3-profound-sentiment-client-scoped',
     ttlSeconds: 3600,
-    extractTags: ([dateRange, compareRange, models]) => ({
-      dateRange,
-      compareRange: compareRange ?? 'none',
-      models: modelKeyOf(models),
-    }),
+    extractTags: sentimentCacheTags,
   },
 )

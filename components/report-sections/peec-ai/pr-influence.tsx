@@ -25,6 +25,7 @@ import {
   type PromptClusterOpportunityRow,
 } from './pr-influence-tables'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
+import { getClientBySlug } from '@/lib/db/queries'
 
 // ---------------------------------------------------------------------------
 // PR Influence on AI Visibility
@@ -160,7 +161,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   const placementHosts = (prData?.placements ?? []).map((p) => normHost(p.domain))
 
   // Fetch remaining data sources in parallel with graceful degradation
-  const [peecResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult, citationDatesResult] = await Promise.allSettled([
+  const [peecResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult, citationDatesResult, clientConfigResult] = await Promise.allSettled([
     // Editorial domains / citations here are a stable all-time reference set, so
     // request YTD explicitly rather than the page date range.
     getPeecOverview(clientSlug, 'year_to_date'),
@@ -193,7 +194,16 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       endDate: resolvedMain.endDate,
       targetHosts: placementHosts,
     }),
+    // #138 P6: the Sentiment card used to gate on a hardcoded clientSlug ===
+    // 'avenue-z' check. It now gates on the client row's profoundCategoryId
+    // (same DB-config pattern as peec-ai/index.tsx's profoundConfigured),
+    // so a client without a Profound account never renders the card and a
+    // future second Profound client renders it correctly without a code change.
+    getClientBySlug(clientSlug),
   ])
+
+  const clientConfig = clientConfigResult.status === 'fulfilled' ? clientConfigResult.value : null
+  const profoundConfigured = !!clientConfig?.profoundCategoryId
 
   let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
   let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
@@ -449,12 +459,14 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       />
 
       {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
-          Avenue Z only: Profound is a single-account feed, so this must never
-          render for a client without a Profound account (e.g. Renaissance, which
-          also has this section hidden). Gated on the slug for defense in depth. */}
-      {clientSlug === 'avenue-z' && (
+          Gated on the client row's profoundCategoryId (#138 P6), not a hardcoded
+          slug: this must never render for a client without a Profound account
+          (e.g. Renaissance, which also has this section hidden). clientSlug is
+          threaded into the fetch so brand/category resolve per client and the
+          cache key carries a client dimension (#138 P7). */}
+      {profoundConfigured && (
         <Suspense fallback={<SentimentSkeleton />}>
-          <SentimentInsightsSection dateRange={dateRange} models={models} />
+          <SentimentInsightsSection clientSlug={clientSlug} dateRange={dateRange} models={models} />
         </Suspense>
       )}
 

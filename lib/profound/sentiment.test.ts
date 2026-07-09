@@ -11,7 +11,7 @@ import {
   accumulateThemeSources,
   finalizeThemeSources,
 } from './sentiment-normalize'
-import { shouldStopAnswerPaging } from './sentiment'
+import { shouldStopAnswerPaging, sentimentCacheTags } from './sentiment'
 
 // Profound echoes the resolved metric order in info.query.metrics; rows align
 // to it. These fixtures use the real observed order (alphabetical).
@@ -188,6 +188,28 @@ describe('collapseModelThemeRows + normalizeThemes (model reactivity)', () => {
     const { positiveThemes, negativeThemes } = normalizeThemes(collapsed)
     expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 15, urls: [] }])
     expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
+  })
+})
+
+describe('sentimentCacheTags (#138 P7: client dimension in cache key)', () => {
+  it('includes a client dimension keyed off clientSlug, so two clients never collide', () => {
+    const tagsA = sentimentCacheTags(['acme', 'last_30_days', null, null])
+    const tagsB = sentimentCacheTags(['other-client', 'last_30_days', null, null])
+    expect(tagsA.client).toBe('acme')
+    expect(tagsB.client).toBe('other-client')
+    expect(tagsA.client).not.toBe(tagsB.client)
+  })
+
+  it('falls back to "default" when clientSlug is null or undefined (legacy no-slug path)', () => {
+    expect(sentimentCacheTags([null, 'last_30_days', null, null]).client).toBe('default')
+    expect(sentimentCacheTags([undefined, 'last_30_days', null, null]).client).toBe('default')
+  })
+
+  it('still carries dateRange, compareRange, and models exactly as before', () => {
+    const tags = sentimentCacheTags(['acme', 'last_30_days', null, ['ChatGPT']])
+    expect(tags.dateRange).toBe('last_30_days')
+    expect(tags.compareRange).toBe('none')
+    expect(tags.models).toBeTruthy()
   })
 })
 
