@@ -466,7 +466,9 @@ used for the FB-065/FB-066 review (template: PR #138 `docs(review): FB-065/FB-06
 Profound sentiment code review record`). It is a markdown file at
 `docs/qa/<feature>-code-review.md`, opened as its own PR off `dev`, titled
 `docs(review): <feature> … code review record`. The review PR changes NO code;
-fixes are follow-ups. Faithful skeleton:
+fixes are follow-ups. It is written against the FEATURE BRANCH (it cites the
+feature-branch diff range) and is the gate that must clear before the feature
+merges to `dev`, not a record written after the fact. Faithful skeleton:
 - **Header:** exact scope, meaning the feature PR(s)/commits under review and
   the precise diff range (e.g. `097b811^..2024b56`, "no unrelated code"), plus
   one line stating no code is changed in this doc.
@@ -487,8 +489,9 @@ fixes are follow-ups. Faithful skeleton:
 
 **Stage 2: `dev → staging` (integration testing).**
 Once `dev` holds the reviewed changes with all feedback accounted for, it feeds
-`staging`. Between `dev` and `staging` sits integration testing: confirm all the
-features work together the way they should, not just each one in isolation.
+`staging`. Integration testing = do the features work together correctly on the
+combined build (data flows, no cross-feature regressions), not just each one in
+isolation.
 
 **Stage 3: `staging` (stakeholder QA).**
 `staging` is where the stakeholder (Tina) QAs the build and confirms it all
@@ -497,9 +500,14 @@ goes back to its feature branch, gets reworked, and must pass the upstream gates
 again (code review, then dev, then integration testing) to return to `staging`.
 
 **Stage 4: `staging → main` (functional testing).**
-From `staging` the build promotes to `main`, where functional testing happens.
-The `main`-merge self-review gate below still applies on top of this, and we
-never merge to `main` without Thomas's explicit go-ahead.
+From `staging` the build promotes to `main`. Functional testing = does the whole
+product do what the spec and stakeholder signed off on, end to end, on a
+prod-like build. The `main`-merge self-review gate below still applies on top of
+this, and we never merge to `main` without Thomas's explicit go-ahead.
+
+**No hotfix fast lane.** Every fix, including a production-critical bug on
+`main`, starts on a feature branch off `dev` and walks all four stages. There is
+no shortcut straight to `main`.
 
 ---
 
