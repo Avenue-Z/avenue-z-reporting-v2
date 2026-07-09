@@ -58,7 +58,7 @@ client visibility.
   through the panel's `<select>` dropdown (shown when > 1 visible). Commentary is
   fetched by `(client, viewKey)` only (`getCommentaryForView`,
   `lib/db/queries.ts:281`), **not** by the dashboard date slider, so it does not
-  auto-change when the dashboard range changes (per Decisions #5).
+  auto-change when the dashboard range changes (per Decisions item 5).
 
 **B. Shared report parts** (commentary as a per-client opt-in part). Commentary
 renders through the existing `reportSectionConfig` system rather than hard-wired
@@ -96,7 +96,7 @@ Every finding below was probed against the live working tree, not just read:
   location in the merged code, and the *absence* findings (no supersede, no
   edit-log, no viewKey validation) confirmed by exhausting every write path in
   `app/actions/commentary.ts` and grepping for demote/supersede/archive.
-- **Finding #1 proven by execution** — a temporary probe spec (since removed)
+- **Finding 1 proven by execution** — a temporary probe spec (since removed)
   ran the real shipped `planCommentaryWrite`, `visibleEntries`, and
   `pickDefaultEntry`: it confirmed editing an approved entry forks (`op:
   'insert'`), and that two approved entries for the same period both return from
@@ -122,7 +122,7 @@ in-tree) / PLAUSIBLE (realistic, trigger unverified).
 | 3 | ○ | CONFIRMED | `app/actions/commentary.ts:57` | `saveCommentary` persists `input.viewKey` with no allowlist check against the 7 canonical keys — unvalidated client input stored (harmless in display, but the body-config path validates strictly; this one doesn't). |
 | 4 | ○ | CONFIRMED (observed live) | `components/report-sections/commentary/commentary-panel.tsx:91` | History/versioning shows "Last updated by {who}" but never *when* — needs the timestamp added. Confirmed in the live view. |
 | 5 | ○ | CONFIRMED | `lib/db/schema.ts:255` | No edit-history log — schema keeps only last `updated_by/at`. The QA checklist's "internal log of edit history" is marked passed, but no such log exists (spec nice-to-have "if not too much work"). |
-| 6 | ○ | CONFIRMED (intentional) | `app/actions/commentary.ts` (write model) | No delete or supersede path (v1 excludes delete by design), so forked drafts and superseded-approved rows accumulate with no cleanup — compounds #1's dropdown clutter over time. |
+| 6 | ○ | CONFIRMED (intentional) | `app/actions/commentary.ts` (write model) | No delete or supersede path (v1 excludes delete by design), so forked drafts and superseded-approved rows accumulate with no cleanup — compounds finding 1's dropdown clutter over time. |
 | 7 | ○ | CONFIRMED | `components/report-sections/commentary/commentary-panel.tsx:33` | After a fork-on-edit, the panel keeps the prior `selectedId` (client state survives `router.refresh()`), so the freshly created draft is not surfaced until the user reselects. |
 | 8 | ○ | CONFIRMED | `lib/commentary/sanitize.ts:7` | Sanitizer allows `<u>`, but the Tiptap toolbar/StarterKit can't emit underline — dead allowlist surface. Cosmetic. |
 | 9 | ○ | CONFIRMED (observed live) | `commentary-panel.tsx:63` | The history/period dropdown is already newest-first in the data, but nothing signals that the top item is the most recent. Make the descending order obvious so most-recent reads as top. Noticed in the live view. |
@@ -213,13 +213,13 @@ checklist reflects reality.
 row on each write; otherwise, un-mark that checklist item.
 
 ### 6 · ○ No cleanup path for stale rows — CONFIRMED (intentional)
-v1 deliberately ships no delete button (Decisions #7). Combined with #1 (no
-supersede) and fork-on-edit, superseded-approved rows and abandoned drafts
-accumulate per view with no way to remove them, and every approved one stays in
-the client's dropdown. Not a v1 blocker on its own, but it compounds #1 and will
-grow the dropdown over a client's lifetime.
+v1 deliberately ships no delete button (Decisions item 7). Combined with
+finding 1 (no supersede) and fork-on-edit, superseded-approved rows and abandoned
+drafts accumulate per view with no way to remove them, and every approved one
+stays in the client's dropdown. Not a v1 blocker on its own, but it compounds
+finding 1 and will grow the dropdown over a client's lifetime.
 
-**Suggested fix:** ships with #1 (supersede on approve). A staff-only "archive"
+**Suggested fix:** ships with finding 1 (supersede on approve). A staff-only "archive"
 (soft delete) is the natural follow-up when delete is added.
 
 ### 7 · ○ Stale panel selection after a fork — CONFIRMED
@@ -260,20 +260,20 @@ the dropdown.
 
 Tracked separately so this stays a pure review record:
 
-- **Correctness:** #1 (supersede on approve — the one client-visible gap vs the
-  QA checklist) and #2 (AEO Overview `'default'` fallback).
-- **Needs a live/DB check first:** #2's trigger (does a `default` client row
-  exist and is it opted in?).
-- **Convention / hardening:** #3 (validate `viewKey` on write).
-- **Observed live (address these):** #4 (show *when*, not just who) and #9 (make
-  the history dropdown's most-recent-on-top ordering obvious).
-- **Spec-checklist reconciliation:** #5 (edit-log marked passed but not
+- **Correctness:** finding 1 (supersede on approve — the one client-visible gap
+  vs the QA checklist) and finding 2 (AEO Overview `'default'` fallback).
+- **Needs a live/DB check first:** finding 2's trigger (does a `default` client
+  row exist and is it opted in?).
+- **Convention / hardening:** finding 3 (validate `viewKey` on write).
+- **Observed live (address these):** finding 4 (show *when*, not just who) and
+  finding 9 (make the history dropdown's most-recent-on-top ordering obvious).
+- **Spec-checklist reconciliation:** finding 5 (edit-log marked passed but not
   implemented) — a nice-to-have; reconcile the checklist or schedule it.
-- **Cleanup:** #6 (stale-row accumulation, ships with #1), #7 (stale panel
-  selection), #8 (drop `<u>`).
+- **Cleanup:** finding 6 (stale-row accumulation, ships with finding 1),
+  finding 7 (stale panel selection), finding 8 (drop `<u>`).
 
 None block the merged, opt-in-gated feature (it is off until a client is opted
-in). **#1 is the highest-value follow-up** — it is the one item that reaches a
+in). **Finding 1 is the highest-value follow-up** — it is the one item that reaches a
 client and directly contradicts a checklist item marked passed. The core
 permission model, XSS boundary, draft isolation, and date-decoupling all verify
 as correct and are well-tested.
