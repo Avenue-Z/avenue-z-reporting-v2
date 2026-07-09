@@ -8,7 +8,7 @@ const BASE_URL = 'https://api.peec.ai/customer/v1'
  *  FB-005: callers should pass `model.id` not `model_channel.id`. The channel id
  *  like "google-2" is the Gemini channel and would otherwise silently fall into
  *  the Google bucket via the "google" substring check. */
-function normalizeEngine(id: string): string | null {
+export function normalizeEngine(id: string): string | null {
   const s = id.toLowerCase()
   if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
   if (s.includes('perplexity')) return 'Perplexity'
