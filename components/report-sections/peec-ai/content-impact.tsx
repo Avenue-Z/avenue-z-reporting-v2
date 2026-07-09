@@ -8,7 +8,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePct, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
 import { urlJoinKey, labelFromPath } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -269,7 +269,10 @@ export async function ContentImpactReport({
       limit: 1000,
     }),
     getUrlCitations(clientSlug),
-    getDomainCoverage(clientSlug),      // per-domain prompt/theme coverage (Section H)
+    // CI-1: pass the selected date range (was called bare, hard-locked to a
+    // rolling last-30 window) so the Prompt Coverage KPI value itself moves
+    // with the page date picker, matching every other date-reactive metric.
+    getDomainCoverage(clientSlug, { startDate: mainDates.startDate, endDate: mainDates.endDate }),  // per-domain prompt/theme coverage (Section H)
     ga4Query({                          // §A totals + §F per-host AI-referred sessions
       clientSlug,
       dateRange: effectiveRange,
@@ -801,12 +804,15 @@ export async function ContentImpactReport({
   // (union of prompt IDs across owned domains). Prior period uses the same
   // definition over coveragePrior (FB-035 added the dateRange parameter to
   // getDomainCoverage), enabling the period-over-period delta below.
+  // CI-1: both current and prior now go through the model-aware helper so
+  // the value (not just its delta) reacts to the selected AI model filter.
+  // With models null/empty this is identical to ownedPromptCoveragePct.
   const ownedDomainNames = ownDomains.map(d => d.domain)
-  const promptCoveragePct = ownedPromptCoveragePct(
-    coverage, ownedDomainNames, totalTrackedPrompts, coverageAvailable,
+  const promptCoveragePct = ownedPromptCoveragePctForModels(
+    coverage, ownedDomainNames, totalTrackedPrompts, models ?? null, coverageAvailable,
   )
-  const promptCoveragePctPrior = ownedPromptCoveragePct(
-    coveragePrior, ownedDomainNames, totalTrackedPrompts, coveragePriorAvailable,
+  const promptCoveragePctPrior = ownedPromptCoveragePctForModels(
+    coveragePrior, ownedDomainNames, totalTrackedPrompts, models ?? null, coveragePriorAvailable,
   )
   const promptCoveragePctDelta =
     promptCoveragePct != null && promptCoveragePctPrior != null
