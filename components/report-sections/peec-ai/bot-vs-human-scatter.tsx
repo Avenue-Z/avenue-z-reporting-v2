@@ -54,14 +54,21 @@ export default function BotVsHumanScatter({ data }: Props) {
     )
   }
 
-  const cornerLabel = 'text-[10px] font-semibold uppercase tracking-wide text-text-muted'
+  // Readable foreground (matches the tooltip's white/70 label color, not the
+  // low-contrast text-text-muted) plus a semi-opaque chip so the label stays
+  // legible sitting on top of chart points.
+  const cornerLabel = 'rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70'
 
   // Render four overlay labels in a 2x2 CSS grid so each label sits in its
-  // true quadrant cell (top-left = Low Bot/High Human, etc.).
+  // true quadrant cell (top-left = Low Bot/High Human, etc.). The top-left
+  // cell gets extra left/top offset (pl-10 pt-8 vs. the p-4 used elsewhere)
+  // so it clears the rotated Y-axis title ("Human Sessions...", angle -90,
+  // position insideLeft) and the densest cluster of high-human points that
+  // otherwise sit right under a p-4 corner label.
   return (
     <div className="relative w-full">
       <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-2 grid-rows-2">
-        <div className="flex items-start justify-start p-4"><span className={cornerLabel}>Low Bot, High Human</span></div>
+        <div className="flex items-start justify-start pl-10 pt-8 pr-4 pb-4"><span className={cornerLabel}>Low Bot, High Human</span></div>
         <div className="flex items-start justify-end p-4"><span className={cornerLabel}>High Bot, High Human</span></div>
         <div className="flex items-end justify-start p-4"><span className={cornerLabel}>Low Bot, Low Human</span></div>
         <div className="flex items-end justify-end p-4"><span className={cornerLabel}>High Bot, Low Human</span></div>
