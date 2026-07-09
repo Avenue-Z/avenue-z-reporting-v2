@@ -191,6 +191,31 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
     expect(map.get('thought leadership')).toEqual(['https://a.com', 'https://b.com'])
   })
 
+  it('normalizes a raw answers-endpoint model id before the filter check (#138 P1)', () => {
+    // The /v1/prompts/answers payload can tag an answer with a raw model id
+    // (e.g. 'openai') instead of the Profound display name ('ChatGPT') that
+    // `selected` is built from. Without normalization this raw id never
+    // matches a display name, so every source is wrongly dropped under a
+    // model filter.
+    const rawAnswers = {
+      data: [
+        { model: 'openai', themes: ['T'], citations: ['https://raw-id-source.com'] },
+      ],
+    }
+    const map = buildThemeSources(rawAnswers, new Set(['ChatGPT']))
+    expect(map.get('t')).toEqual(['https://raw-id-source.com'])
+  })
+
+  it('still excludes an answer whose normalized model is not in the selection', () => {
+    const rawAnswers = {
+      data: [
+        { model: 'gemini', themes: ['T'], citations: ['https://excluded-source.com'] },
+      ],
+    }
+    const map = buildThemeSources(rawAnswers, new Set(['ChatGPT']))
+    expect(map.get('t')).toBeUndefined()
+  })
+
   it('ranks by citation frequency, NOT first-seen order', () => {
     // x is seen first (answer 1) but cited once; y is seen second but cited
     // twice. Frequency must win: y before x.

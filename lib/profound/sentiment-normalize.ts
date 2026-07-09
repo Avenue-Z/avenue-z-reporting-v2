@@ -158,6 +158,30 @@ export function newThemeSourceState(): ThemeSourceState {
   return { counts: new Map() }
 }
 
+/** Map a raw model id from the /v1/prompts/answers payload (e.g. 'openai',
+ *  'gpt') to the Profound display name that `selected` (built by
+ *  selectedProfoundModels from PROFOUND_MODEL_BY_AEO) is keyed on. The
+ *  answers endpoint does not consistently echo the display name the way the
+ *  /v1/reports/sentiment `model` dimension does, so comparing a raw id
+ *  straight against `selected` silently drops every source under a model
+ *  filter (#138 P1). Local and self-contained on purpose: lib/profound/
+ *  client.ts has its own normalizeModel for a different endpoint's id shape
+ *  and target vocabulary (it folds Gemini and AI Overviews to one label),
+ *  which does not match the four-way Profound display names this module's
+ *  `selected` set is built from. Returns null for an id we do not recognize,
+ *  so the caller can fall back to the raw trimmed value unchanged. */
+export function normalizeAnswerModel(id: string): string | null {
+  const s = id.toLowerCase()
+  if (!s) return null
+  if (s.includes('chatgpt') || s.includes('openai') || s === 'gpt') return 'ChatGPT'
+  if (s.includes('perplexity')) return 'Perplexity'
+  if (s.includes('overview')) return 'Google AI Overviews'
+  if (s.includes('gemini') || s.includes('google')) return 'Google Gemini'
+  if (s.includes('claude') || s.includes('anthropic')) return 'Claude'
+  if (s.includes('copilot') || s.includes('bing')) return 'Copilot'
+  return null
+}
+
 /** Fold one page of answers into the theme -> (url -> citation count) tally.
  *
  *  Each Profound answer is tagged with the themes it expresses and the
@@ -175,7 +199,8 @@ export function accumulateThemeSources(
   selected: Set<string> | null,
 ): void {
   for (const a of resp.data) {
-    const model = (a.model ?? '').trim()
+    const rawModel = (a.model ?? '').trim()
+    const model = normalizeAnswerModel(rawModel) ?? rawModel
     if (selected && !selected.has(model)) continue
     const themes = a.themes ?? []
     // Distinct URLs within this one answer (a page cited twice in the same
