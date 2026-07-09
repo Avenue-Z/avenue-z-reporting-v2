@@ -137,6 +137,18 @@ export function avgCitationsByDomain(citations: UrlCitation[]): Record<string, n
   return out
 }
 
+/**
+ * PR-2 (Paul QA): "Top Editorial Opportunities" is titled and subtitled as
+ * rows that are on the rise, so a row must actually be gaining citation share
+ * period over period, not flat or declining. This is the pure predicate for
+ * that gate: current and prior are citation-share percentages for the same
+ * URL, and the row qualifies only when the delta is strictly greater than
+ * zero. Delta exactly zero is excluded (flat is not rising).
+ */
+export function isPositiveDelta(currentShare: number, priorShare: number): boolean {
+  return currentShare - priorShare > 0
+}
+
 function getKey(): string {
   const key = process.env.PEEC_AI_CUSTOMER_TOKEN
   if (!key) throw new Error('Missing env var: PEEC_AI_CUSTOMER_TOKEN')

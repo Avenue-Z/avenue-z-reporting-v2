@@ -12,6 +12,7 @@ import {
   avgCitationsByDomain,
   ownedPromptCoveragePct,
   ownedPromptCoveragePctForModels,
+  isPositiveDelta,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
@@ -277,5 +278,31 @@ describe('ownedPromptCoveragePctForModels', () => {
     }
     expect(ownedPromptCoveragePctForModels(legacy, ['owned.com'], 10, ['ChatGPT'], true)).toBe(0)
     expect(ownedPromptCoveragePctForModels(legacy, ['owned.com'], 10, null, true)).toBe(10)
+  })
+})
+
+// PR-2 (Paul QA, task-17): Top Editorial Opportunities is subtitled "on the
+// rise", so a row must only qualify when citation share actually grew period
+// over period. isPositiveDelta is the pure gate for that: strictly greater
+// than zero, not gte zero, so a flat share does not count as rising.
+describe('isPositiveDelta', () => {
+  it('includes a clearly rising share', () => {
+    expect(isPositiveDelta(12, 5)).toBe(true)
+  })
+
+  it('includes a tiny positive delta', () => {
+    expect(isPositiveDelta(5.0001, 5)).toBe(true)
+  })
+
+  it('excludes a flat share (delta exactly 0)', () => {
+    expect(isPositiveDelta(5, 5)).toBe(false)
+  })
+
+  it('excludes a declining share (negative delta)', () => {
+    expect(isPositiveDelta(3, 5)).toBe(false)
+  })
+
+  it('includes a new appearance (0 prior share, any positive current share)', () => {
+    expect(isPositiveDelta(1, 0)).toBe(true)
   })
 })

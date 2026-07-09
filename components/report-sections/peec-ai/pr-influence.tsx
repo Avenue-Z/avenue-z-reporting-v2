@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
-import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
+import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, isPositiveDelta, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import { computePlacementMatchback, normHost } from '@/lib/pr-proof/matchback'
 import { getPlacementCitationDates } from '@/lib/peec/citation-dates'
@@ -322,11 +322,18 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // there are thousands of articles." → URL-level data source + Peec's literal
   // editorial filter (classification === 'editorial').
   // Tina V1 R17 ⚠️: "must be something wrong with one of the filters" → drop the
-  // legacy PR-placement-set misdefinition AND drop the positive-delta gate filter.
+  // legacy PR-placement-set misdefinition. (FB-028 also dropped the positive-delta
+  // gate at the time; see PR-2 below for why it is back.)
   //
   // Honest URL-level Citation Share = c.citationCount / sumOfAllPeriodCitations * 100.
   // Honest URL-level Delta = currentShare - priorShare (priorShare computed from
   // the new prior-period URL fetch added in Step 4).
+  //
+  // PR-2 (Paul live QA): the table's subtitle and heading both promise rows "on
+  // the rise" (pr-influence-tables.tsx), but without a delta gate flat/declining
+  // rows were showing up too, contradicting the subtitle and Tina's original
+  // "positive delta only" ask. Restored below via isPositiveDelta (lib/peec/url-citations.ts),
+  // gated on the same honest currentShare/priorShare this section already computes.
   // One row per host (highest-cited brand-absent editorial URL on that host) so the
   // table reads cleanly when a single domain has many brand-absent URLs.
 
@@ -361,7 +368,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     if (c.engines.length === 0) return false  // no model-specific signal — drop
     return c.engines.some((e) => (models as string[]).includes(e))
   }
-  const opportunityUrls = urlCitations.filter((c) => !c.mentionsYourBrand && isEditorialUrl(c) && isModelMatch(c))
+  const opportunityUrls = urlCitations.filter((c) =>
+    !c.mentionsYourBrand &&
+    isEditorialUrl(c) &&
+    isModelMatch(c) &&
+    isPositiveDelta(shareOf(c), priorShareByUrlKey.get(c.urlKey) ?? 0),
+  )
   const byHost = new Map<string, typeof urlCitations[number]>()
   for (const u of opportunityUrls) {
     const k = hostKey(u.domain)
