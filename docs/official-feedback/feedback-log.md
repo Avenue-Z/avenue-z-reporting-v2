@@ -2393,3 +2393,36 @@ Peec sorts `/reports/domains` by `retrieved_percentage` descending. The Avenue Z
 **Payload weight:** ~75KB extra per Peec-AI page load (one `topDomains` array of 4,202 small objects, gzipped before transport). Acceptable.
 
 **Files touched (Phase 6):** `lib/peec/client.ts` (3 limit constants), `scripts/peec-domain-count.mjs` (new probe utility, kept in the repo for future debugging).
+
+## FB-067: PR Influence matchback - all-time placements, cited within selected timeframe
+
+**Tab:** PR Influence
+**Round:** QA-checklist sweep (2026-07-09). Surfaced during the source + live QA of the "Which secured PR placements are showing up in AI citations?" card, confirmed with Tina.
+**Source:** Peec `getUrlCitations` (per-URL citations, scoped to the selected date range) joined against the PR Proof Library (all-time PR placements).
+
+### The ask (Tina, 2026-07-09, verbatim)
+"The timeframe copy should say all time and then the dynamic part is that it's only showing placements that are being CITED within the timeframe selected. Not secured within the timeframe."
+
+### What was wrong
+The card subtitle said placements were "secured in the selected timeframe," but the cited-status logic keyed off the wrong signal. `buildMatchback` set `citedByAI = !!editorialMatch || aiEnginesCiting.length > 0`, where `editorialMatch` was a lookup into `editorialDomains` built from `getPeecOverview(clientSlug, 'year_to_date')` (YTD, all year). So a placement could read as "cited" because its domain appeared in the all-year editorial set, regardless of the selected window. Live QA caught a January-secured placement rendering as cited under a "Last 7 Days" view. Two problems at once: the copy implied secured-in-timeframe, and the cited check was not period-scoped.
+
+### What shipped
+Extracted the matchback into a pure, unit-tested function `computePlacementMatchback(placements, urlCitations, models)` in `lib/pr-proof/matchback.ts`, and rewired the RSC to use it.
+- **Cited within the timeframe:** `citedByAI` is now derived only from `urlCitations` (already fetched for the selected range). A placement is cited if its domain appears in the period's citations. `publicationDate` never enters the cited decision. The old YTD `editorialMatch` branch is gone.
+- **All-time list, filtered to cited-in-period:** placements are passed in all-time (no secured-date filter). The table shows only placements cited within the selected timeframe. The "N of M placements cited by AI" line keeps M = all-time total (`prData.totalPlacements`), N = cited-in-period count.
+- **Model filter unchanged:** a placement is kept only if a citing engine is in the selected set; a period-cited placement with no engine attribution shows under all-models and drops under a model filter; the displayed engines are the full citing set.
+- **Copy:** subtitle rewritten to "See which of your all-time secured PR placements are being cited in AI-generated answers within the selected timeframe, and how they are shaping brand visibility, sentiment, and reputation across your tracked prompts." Empty state rewritten to "No PR placements cited by AI in the selected timeframe."
+- **Matching is domain-level** (a placement is cited if any URL on its domain is cited in the period), the card's existing granularity. Tina did not ask to change that.
+
+### Tests
+20 pure-function tests in `lib/pr-proof/matchback.test.ts`, built from the real `PRPlacement` and `UrlCitation` shapes, no mocks. They pin: cited-in-period inclusion, the January-secured-but-cited case (secured date irrelevant), exclusion when not cited, empty-period + all-time-M denominator, model filter (drop-no-engine, union, full-engine display), `models: []` treated as no-filter, host normalization, domain-level dedupe, no phantom rows, and the `citedCount === rows.length` / `totalPlacements === placements.length` invariants.
+
+### Files touched
+- `lib/pr-proof/matchback.ts` (new, pure logic)
+- `lib/pr-proof/matchback.test.ts` (new, 20 tests)
+- `components/report-sections/peec-ai/pr-influence.tsx` (removed inline `buildMatchback` + 4 derivations, call the helper)
+- `components/report-sections/peec-ai/pr-influence-tables.tsx` (subtitle, empty state, comment)
+- `vitest.config.ts` (include the new test)
+
+### Note
+With the table now showing only cited placements, the "Cited by AI" column reads "Yes" for every visible row. Kept per Tina's original column spec; an optional trim if she prefers.
