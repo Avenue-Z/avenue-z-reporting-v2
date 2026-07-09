@@ -120,11 +120,12 @@ in-tree) / PLAUSIBLE (realistic, trigger unverified).
 | 1 | ● | CONFIRMED | `app/actions/commentary.ts:72` + `lib/commentary/mutations.ts:20` | Approving a forked draft does not retire the prior approved row → two approved entries for the same period coexist, both client-visible with identical dropdown labels. Contradicts the QA checklist "newly approved version replaces the old client-visible version cleanly." |
 | 2 | ● | PLAUSIBLE | `components/report-sections/peec-ai/index.tsx:138` | AEO Overview passes `clientSlug ?? 'default'` (the other 6 views pass `clientSlug` directly). If a `default` client row exists and is opted into commentary, its commentary renders in a no-client context. |
 | 3 | ○ | CONFIRMED | `app/actions/commentary.ts:57` | `saveCommentary` persists `input.viewKey` with no allowlist check against the 7 canonical keys — unvalidated client input stored (harmless in display, but the body-config path validates strictly; this one doesn't). |
-| 4 | ○ | CONFIRMED | `components/report-sections/commentary/commentary-panel.tsx:91` | Panel shows "Last updated by {who}" but never *when* — the "who changed it and when" requirement is half-met (who, not when). |
+| 4 | ○ | CONFIRMED (observed live) | `components/report-sections/commentary/commentary-panel.tsx:91` | History/versioning shows "Last updated by {who}" but never *when* — needs the timestamp added. Confirmed in the live view. |
 | 5 | ○ | CONFIRMED | `lib/db/schema.ts:255` | No edit-history log — schema keeps only last `updated_by/at`. The QA checklist's "internal log of edit history" is marked passed, but no such log exists (spec nice-to-have "if not too much work"). |
 | 6 | ○ | CONFIRMED (intentional) | `app/actions/commentary.ts` (write model) | No delete or supersede path (v1 excludes delete by design), so forked drafts and superseded-approved rows accumulate with no cleanup — compounds #1's dropdown clutter over time. |
 | 7 | ○ | CONFIRMED | `components/report-sections/commentary/commentary-panel.tsx:33` | After a fork-on-edit, the panel keeps the prior `selectedId` (client state survives `router.refresh()`), so the freshly created draft is not surfaced until the user reselects. |
 | 8 | ○ | CONFIRMED | `lib/commentary/sanitize.ts:7` | Sanitizer allows `<u>`, but the Tiptap toolbar/StarterKit can't emit underline — dead allowlist surface. Cosmetic. |
+| 9 | ○ | CONFIRMED (observed live) | `commentary-panel.tsx:63` | The history/period dropdown is already newest-first in the data, but nothing signals that the top item is the most recent. Make the descending order obvious so most-recent reads as top. Noticed in the live view. |
 
 ---
 
@@ -190,12 +191,12 @@ already exists and isn't consulted here.
 **Suggested fix:** reject a `viewKey` not in the 7 canonical keys (reuse the
 `CommentaryViewKey` set) before insert.
 
-### 4 · ○ "Who" without "when" — CONFIRMED
+### 4 · ○ "Who" without "when" — CONFIRMED (observed live)
 The panel renders `Last updated by {selected.updatedBy}`
-(`commentary-panel.tsx:91`) but never renders `updatedAt`. The Q&A lists "show
-who changed it and when" as a nice-to-have; the code delivers who, not when.
-Non-blocking, but it's why the QA checklist item "Confirm the UI shows who
-changed commentary and when" is (correctly) left unverified.
+(`commentary-panel.tsx:91`) but never renders `updatedAt`. Confirmed in the live
+view: the history/versioning area shows who changed the commentary but not when.
+The Q&A lists "who changed it and when" as a nice-to-have; the code delivers who,
+not when, so it needs addressing.
 
 **Suggested fix:** append the formatted `updatedAt` next to `updatedBy`.
 
@@ -241,6 +242,18 @@ impact.
 **Suggested fix:** drop `u` from `allowedTags`, or add an underline control if
 underline is wanted.
 
+### 9 · ○ History dropdown ordering not obvious — CONFIRMED (observed live)
+The period/history dropdown maps `entries` in order (`commentary-panel.tsx:63`),
+and that array is already newest-first — `getCommentaryForView` orders by
+`period_start DESC, updated_at DESC` (`lib/db/queries.ts:287`). So the data is
+correct, but the UI gives no cue that the top item is the most recent; the
+options are bare date ranges. Noticed in the live view: the descending order
+isn't clear.
+
+**Suggested fix:** signal the ordering — e.g. label the first option "Latest",
+sort/pin most-recent to the top explicitly, or add a "most recent first" hint on
+the dropdown.
+
 ---
 
 ## 5. Follow-ups (not fixed here)
@@ -252,9 +265,10 @@ Tracked separately so this stays a pure review record:
 - **Needs a live/DB check first:** #2's trigger (does a `default` client row
   exist and is it opted in?).
 - **Convention / hardening:** #3 (validate `viewKey` on write).
-- **Spec-checklist reconciliation:** #4 (who-without-when) and #5 (edit-log
-  marked passed but not implemented) — both nice-to-haves; reconcile the
-  checklist or schedule them.
+- **Observed live (address these):** #4 (show *when*, not just who) and #9 (make
+  the history dropdown's most-recent-on-top ordering obvious).
+- **Spec-checklist reconciliation:** #5 (edit-log marked passed but not
+  implemented) — a nice-to-have; reconcile the checklist or schedule it.
 - **Cleanup:** #6 (stale-row accumulation, ships with #1), #7 (stale panel
   selection), #8 (drop `<u>`).
 
