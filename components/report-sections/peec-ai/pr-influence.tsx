@@ -3,7 +3,8 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
-import { computePlacementMatchback } from '@/lib/pr-proof/matchback'
+import { computePlacementMatchback, normHost } from '@/lib/pr-proof/matchback'
+import { getPlacementCitationDates } from '@/lib/peec/citation-dates'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { Megaphone } from 'lucide-react'
@@ -144,12 +145,25 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     ? `${resolvedCompare.startDate},${resolvedCompare.endDate}`
     : null
 
-  // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult] = await Promise.allSettled([
+  // PR Proof placements are fetched first (ahead of the main parallel batch)
+  // because FB-068's citation-date fetch needs the placement domains as its
+  // targetHosts (an early-exit optimization for the Peec walk, not a
+  // correctness requirement). Still wrapped for the same graceful-degradation
+  // behavior the rest of the fetches get via Promise.allSettled.
+  const prResult = await getPRProofData(clientSlug).then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason) => ({ status: 'rejected' as const, reason }),
+  )
+  let prData = prResult.status === 'fulfilled' ? prResult.value : null
+  if (prResult.status === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
+
+  const placementHosts = (prData?.placements ?? []).map((p) => normHost(p.domain))
+
+  // Fetch remaining data sources in parallel with graceful degradation
+  const [peecResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult, citationDatesResult] = await Promise.allSettled([
     // Editorial domains / citations here are a stable all-time reference set, so
     // request YTD explicitly rather than the page date range.
     getPeecOverview(clientSlug, 'year_to_date'),
-    getPRProofData(clientSlug),
     ga4Query({
       clientSlug,
       dateRange: mainIso,
@@ -171,10 +185,17 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     resolvedCompare
       ? getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })
       : Promise.resolve([]),
+    // FB-068: all-time first/last citation date per placement host, bounded to
+    // the SAME selected timeframe already used for getUrlCitations above (per
+    // FB-067, dates stay scoped to the selected period, not true all-time).
+    getPlacementCitationDates(clientSlug, {
+      startDate: resolvedMain.startDate,
+      endDate: resolvedMain.endDate,
+      targetHosts: placementHosts,
+    }),
   ])
 
   let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
-  let prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
   let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
   let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
   let coverage       = coverageResult.status === 'fulfilled'
@@ -182,9 +203,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
   let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
+  let citationDates   = citationDatesResult.status === 'fulfilled' ? citationDatesResult.value : {}
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
-  if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
 
   // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
   // Only when the query failed / GA4 is unconfigured do we show -- (no data).
@@ -218,7 +239,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // only placements whose domain is CITED within the selected timeframe (from
   // period-scoped urlCitations), not those secured within the timeframe. Pure,
   // unit-tested logic lives in lib/pr-proof/matchback.ts.
-  const matchback = computePlacementMatchback(prData?.placements ?? [], urlCitations, models)
+  const matchback = computePlacementMatchback(prData?.placements ?? [], urlCitations, models, citationDates)
 
   // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
   // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.

@@ -381,6 +381,10 @@ export interface PRPlacementMatchbackRow {
   publicationDate: string
   citedByAI: boolean
   aiEnginesCiting: string[]
+  /** Earliest citation date for this placement's host (empty string when unknown). */
+  firstCitedDate: string
+  /** Most-recent citation date for this placement's host (empty string when unknown). */
+  lastCitedDate: string
 }
 
 export function PRPlacementMatchbackTable({
@@ -427,6 +431,26 @@ export function PRPlacementMatchbackTable({
       accessor: (r) => r.publicationDate,
       render: (r) => (
         <span className="tabular-nums text-white/60">{r.publicationDate || '--'}</span>
+      ),
+    },
+    {
+      key: 'firstCitedDate',
+      label: 'First cited',
+      align: 'left',
+      tooltip: 'Earliest date Peec AI observed a citation for this placement\'s domain, within the selected timeframe. (Peec AI source data.)',
+      accessor: (r) => r.firstCitedDate,
+      render: (r) => (
+        <span className="tabular-nums text-white/60">{r.firstCitedDate || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'lastCitedDate',
+      label: 'Most recent',
+      align: 'left',
+      tooltip: 'Most recent date Peec AI observed a citation for this placement\'s domain, within the selected timeframe. (Peec AI source data.)',
+      accessor: (r) => r.lastCitedDate,
+      render: (r) => (
+        <span className="tabular-nums text-white/60">{r.lastCitedDate || 'N/A'}</span>
       ),
     },
     {
