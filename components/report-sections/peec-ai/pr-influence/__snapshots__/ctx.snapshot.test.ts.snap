@@ -1,0 +1,134 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildPrInfluenceCtx derivation, active model filter 1`] = `
+{
+  "brandAbsentTableRows": [],
+  "clientSlug": "fixture",
+  "dateRange": "last_30_days",
+  "hasEditorialDomains": true,
+  "matchback": {
+    "citedCount": 0,
+    "rows": [],
+    "totalPlacements": 0,
+  },
+  "models": [
+    "ChatGPT",
+  ],
+  "opportunityTableRows": [
+    {
+      "brandCitationRate": 48,
+      "brandMentionRate": 48,
+      "cluster": "PR & Communications",
+      "competitorPresence": 15,
+      "count": 1,
+      "editorialCitationDensity": 0,
+      "opportunityScore": 26.1,
+    },
+    {
+      "brandCitationRate": 65,
+      "brandMentionRate": 65,
+      "cluster": "Agency Selection",
+      "competitorPresence": 22,
+      "count": 1,
+      "editorialCitationDensity": 0,
+      "opportunityScore": 22.4,
+    },
+  ],
+  "synopsisContext": {
+    "aiReferralSessions": 100,
+    "aiReferralSessionsDelta": 0,
+    "aiVisibility": 55.2,
+    "aiVisibilityDelta": 3.1,
+    "avgAiPosition": 2.1,
+    "avgAiPositionDelta": -0.3,
+    "brandAbsentCount": 0,
+    "placementsCitedByAI": 0,
+    "topBrandAbsentDomains": [],
+    "topOpportunityClusters": [
+      {
+        "cluster": "PR & Communications",
+        "score": 26.1,
+      },
+      {
+        "cluster": "Agency Selection",
+        "score": 22.4,
+      },
+    ],
+    "totalAiCitations": 943,
+    "totalEditorialDomains": 1,
+    "totalPlacements": 0,
+  },
+  "topEditorialRows": [],
+  "totalPlacements": 0,
+}
+`;
+
+exports[`buildPrInfluenceCtx derivation, no model filter 1`] = `
+{
+  "brandAbsentTableRows": [],
+  "clientSlug": "fixture",
+  "dateRange": "last_30_days",
+  "hasEditorialDomains": true,
+  "matchback": {
+    "citedCount": 0,
+    "rows": [],
+    "totalPlacements": 0,
+  },
+  "models": null,
+  "opportunityTableRows": [
+    {
+      "brandCitationRate": 48,
+      "brandMentionRate": 48,
+      "cluster": "PR & Communications",
+      "competitorPresence": 15,
+      "count": 1,
+      "editorialCitationDensity": 0,
+      "opportunityScore": 26.1,
+    },
+    {
+      "brandCitationRate": 65,
+      "brandMentionRate": 65,
+      "cluster": "Agency Selection",
+      "competitorPresence": 22,
+      "count": 1,
+      "editorialCitationDensity": 0,
+      "opportunityScore": 22.4,
+    },
+  ],
+  "synopsisContext": {
+    "aiReferralSessions": 100,
+    "aiReferralSessionsDelta": 0,
+    "aiVisibility": 55.2,
+    "aiVisibilityDelta": 3.1,
+    "avgAiPosition": 2.1,
+    "avgAiPositionDelta": -0.3,
+    "brandAbsentCount": 0,
+    "placementsCitedByAI": 0,
+    "topBrandAbsentDomains": [],
+    "topOpportunityClusters": [
+      {
+        "cluster": "PR & Communications",
+        "score": 26.1,
+      },
+      {
+        "cluster": "Agency Selection",
+        "score": 22.4,
+      },
+    ],
+    "totalAiCitations": 943,
+    "totalEditorialDomains": 1,
+    "totalPlacements": 0,
+  },
+  "topEditorialRows": [
+    {
+      "avgCitations": null,
+      "citationCount": 61,
+      "citationCountDelta": 2.8,
+      "domain": "techcrunch.com",
+      "hasPR": false,
+      "promptCoverage": null,
+    },
+  ],
+  "totalPlacements": 0,
+}
+`;
