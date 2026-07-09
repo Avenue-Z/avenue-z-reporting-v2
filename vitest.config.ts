@@ -16,6 +16,7 @@ export default defineConfig({
       'lib/profound/**/*.test.{ts,tsx}',
       'lib/pr-proof/matchback.test.ts',
       'lib/peec/citation-dates.test.ts',
+      'lib/peec/models.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],

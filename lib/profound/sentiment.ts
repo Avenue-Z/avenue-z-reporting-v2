@@ -7,8 +7,11 @@
 // sources cited per theme. Profound is where that analysis actually lives, so
 // we pull it instead of regenerating it. Tina's v1 flag was that the card was
 // static ("doesn't change when a new date range or model is selected"): this
-// fetch is reactive to BOTH the date range (start/end + comparison) AND the
-// model picker. See memory project-sentiment-insights-profound-source.
+// fetch is reactive to the date range (start/end) AND the model picker. The
+// card renders the current period only, pill and themes with no prior-period
+// comparison: the only caller passes compareRange=null and the UI never
+// renders a delta, so there is no comparison-period path here.
+// See memory project-sentiment-insights-profound-source.
 //
 // Endpoint: POST /v1/reports/sentiment
 //   - group_by ['model']         -> per-model positive/negative -> pill % after
@@ -22,8 +25,8 @@
 // Profound's server-side model filter keys on UUIDs and silently no-ops.
 
 import { cached } from '@/lib/cache'
-import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import type { AEOModel } from '@/lib/peec/models'
+import { parseDateRange } from '@/lib/ga4/client'
+import { modelKeyOf, type AEOModel } from '@/lib/peec/models'
 import { profoundPost, getCategoryId } from './client'
 import {
   positiveShare,
@@ -80,13 +83,6 @@ function resolveAsset(): string {
   return asset
 }
 
-/** Stable cache-key fragment for the active model filter. Mirrors the Peec
- *  modelKeyOf: null/empty -> 'all', else sorted comma-joined. */
-function modelKeyOf(models: AEOModel[] | null | undefined): string {
-  if (!models || models.length === 0) return 'all'
-  return [...models].sort().join(',')
-}
-
 /** One model-grouped sentiment call for a date window. */
 async function fetchByModel(
   categoryId: string,
@@ -120,14 +116,22 @@ async function buildSourcesMap(
   const state = newThemeSourceState()
   try {
     for (let page = 0; page < ANSWERS_MAX_PAGES; page++) {
-      const resp = (await profoundPost('/v1/prompts/answers', {
-        category_id: categoryId,
-        asset,
-        start_date: startDate,
-        end_date: endDate,
-        include: { sentiment_claims: true },
-        pagination: { limit: ANSWERS_PAGE, offset: page * ANSWERS_PAGE },
-      })) as unknown as AnswersResp
+      const resp = (await profoundPost(
+        '/v1/prompts/answers',
+        {
+          category_id: categoryId,
+          asset,
+          start_date: startDate,
+          end_date: endDate,
+          include: { sentiment_claims: true },
+          pagination: { limit: ANSWERS_PAGE, offset: page * ANSWERS_PAGE },
+        },
+        // #138 P9: skip the inert fetch-layer cache. The final theme->sources
+        // map is what getProfoundSentiment's outer cached() wrapper persists;
+        // this raw per-page answers payload is too large for Next's 2MB
+        // data-cache entry limit, so revalidate here never actually caches.
+        { revalidate: false },
+      )) as unknown as AnswersResp
       const rows = resp?.data ?? []
       accumulateThemeSources(state, { data: rows }, selected)
       if (shouldStopAnswerPaging(rows)) break // last page reached (zero rows)
@@ -143,7 +147,11 @@ async function buildSourcesMap(
 
 async function getProfoundSentimentImpl(
   dateRange: string,
-  compareRange: string | null,
+  // Accepted for call-site/cache-key compatibility only: the card is
+  // pill-only for the current period (#138 P10), so this is never read.
+  // The only caller (SentimentInsightsSection) always passes null, and the
+  // UI never renders a delta.
+  _compareRange: string | null,
   models: AEOModel[] | null,
 ): Promise<ProfoundSentiment> {
   const categoryId = await getCategoryId()
@@ -151,9 +159,8 @@ async function getProfoundSentimentImpl(
   const selected = selectedProfoundModels(models)
 
   const main = parseDateRange(dateRange)
-  const compare = compareRange ? deriveCompareRange(dateRange, compareRange) : null
 
-  const [pillMainResp, themeResp, pillPriorResp, themeSources] = await Promise.all([
+  const [pillMainResp, themeResp, themeSources] = await Promise.all([
     fetchByModel(categoryId, asset, main.startDate, main.endDate),
     profoundPost('/v1/reports/sentiment', {
       category_id: categoryId,
@@ -164,20 +171,12 @@ async function getProfoundSentimentImpl(
       metrics: ['positive', 'negative', 'occurrences'],
       limit: 10000,
     }) as Promise<SentimentResp>,
-    compare
-      ? fetchByModel(categoryId, asset, compare.startDate, compare.endDate)
-      : Promise.resolve(null),
     // Theme -> cited sources, model-filtered to match the pill/themes selection.
     buildSourcesMap(categoryId, asset, main.startDate, main.endDate, selected),
   ])
 
   const mainCounts = sumModelRows(pillMainResp, selected)
   const positivePct = positiveShare(mainCounts.positive, mainCounts.negative)
-
-  const priorCounts = pillPriorResp ? sumModelRows(pillPriorResp, selected) : null
-  const priorPct = priorCounts ? positiveShare(priorCounts.positive, priorCounts.negative) : null
-  const positivePctDelta =
-    positivePct !== null && priorPct !== null ? positivePct - priorPct : null
 
   const { positiveThemes, negativeThemes } = normalizeThemes(
     collapseModelThemeRows(themeResp, selected),
@@ -187,7 +186,8 @@ async function getProfoundSentimentImpl(
 
   return {
     positivePct,
-    positivePctDelta,
+    // No prior-period comparison for this card (see param comment above).
+    positivePctDelta: null,
     positiveThemes,
     negativeThemes,
     occurrences: mainCounts.positive + mainCounts.negative,

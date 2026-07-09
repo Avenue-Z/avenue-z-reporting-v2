@@ -52,3 +52,13 @@ export function serializeModelsParam(selected: AEOModel[]): string | null {
 export function isAllModels(selected: AEOModel[] | null): boolean {
   return selected === null || selected.length === 0 || selected.length === AEO_MODELS.length
 }
+
+/** Stable cache-key fragment for a model filter, order-independent: null/empty
+ *  -> 'all', else sorted comma-joined. Shared by every vendor cache wrapper
+ *  that keys on the active model selection (Peec, Profound), so a caller
+ *  filtering to `['Gemini', 'ChatGPT']` and one filtering to `['ChatGPT',
+ *  'Gemini']` land on the same cache entry. */
+export function modelKeyOf(models: AEOModel[] | null | undefined): string {
+  if (!models || models.length === 0) return 'all'
+  return [...models].sort().join(',')
+}

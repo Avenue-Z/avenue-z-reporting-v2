@@ -27,12 +27,23 @@ type ProfoundResponse = {
 
 // --- HTTP helpers ---
 
-export async function profoundPost(path: string, body: Record<string, unknown>): Promise<ProfoundResponse> {
+export async function profoundPost(
+  path: string,
+  body: Record<string, unknown>,
+  options?: { revalidate?: number | false },
+): Promise<ProfoundResponse> {
+  const revalidate = options?.revalidate ?? 3600
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'X-API-Key': getKey(), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    next: { revalidate: 3600 },
+    // Pass { revalidate: false } to skip fetch-layer caching entirely (#138
+    // P9): the outer cached() wrapper around the caller already persists the
+    // small final result, and for a payload like /v1/prompts/answers that
+    // exceeds Next's 2MB data-cache limit, this fetch-level revalidate never
+    // actually caches anyway, so leaving it on is misleading, not harmful.
+    // Smaller requests (visibility, citations, sentiment) keep the default.
+    ...(revalidate === false ? {} : { next: { revalidate } }),
   })
   if (!res.ok) {
     const text = await res.text()
