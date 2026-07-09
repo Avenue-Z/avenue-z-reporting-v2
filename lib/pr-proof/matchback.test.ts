@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { computePlacementMatchback, normHost } from './matchback'
 import type { PRPlacement } from './types'
 import type { UrlCitation } from '@/lib/peec/url-citations'
+import type { CitationDateIndex } from '@/lib/peec/citation-dates'
 
 // ── Fixture factories ────────────────────────────────────────────────────────
 function placement(over: Partial<PRPlacement> = {}): PRPlacement {
@@ -51,6 +52,7 @@ describe('computePlacementMatchback', () => {
       [placement()],
       [citation({ engines: ['ChatGPT', 'Google'] })],
       null,
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].citedByAI).toBe(true)
@@ -65,6 +67,7 @@ describe('computePlacementMatchback', () => {
       [placement({ domain: 'techround.co.uk' })],
       [citation({ domain: 'odwyerpr.com' })],
       null,
+      {},
     )
     expect(res.rows).toHaveLength(0)
     expect(res.citedCount).toBe(0)
@@ -77,6 +80,7 @@ describe('computePlacementMatchback', () => {
       [placement({ publicationDate: '2026-01-27', domain: 'odwyerpr.com' })],
       [citation({ domain: 'odwyerpr.com' })], // urlCitations is already the selected window
       null,
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].publicationDate).toBe('2026-01-27')
@@ -87,6 +91,7 @@ describe('computePlacementMatchback', () => {
       [placement()],
       [citation({ engines: [] })],
       null,
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].aiEnginesCiting).toEqual([])
@@ -98,6 +103,7 @@ describe('computePlacementMatchback', () => {
       [placement()],
       [citation({ engines: [] })],
       ['ChatGPT'],
+      {},
     )
     expect(res.rows).toHaveLength(0)
     expect(res.citedCount).toBe(0)
@@ -115,6 +121,7 @@ describe('computePlacementMatchback', () => {
         citation({ domain: 'prweek.com', engines: ['Google'] }),
       ],
       ['ChatGPT'],
+      {},
     )
     expect(res.rows.map((r) => r.outlet)).toEqual(['ODwyer'])
   })
@@ -130,6 +137,7 @@ describe('computePlacementMatchback', () => {
         citation({ domain: 'prweek.com', engines: ['Google'] }),
       ],
       ['ChatGPT', 'Google'],
+      {},
     )
     expect(res.rows.map((r) => r.outlet).sort()).toEqual(['ODwyer', 'PRWeek'])
   })
@@ -139,6 +147,7 @@ describe('computePlacementMatchback', () => {
       [placement()],
       [citation({ engines: ['Google', 'ChatGPT', 'Perplexity'] })],
       ['ChatGPT'],
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].aiEnginesCiting.sort()).toEqual(['ChatGPT', 'Google', 'Perplexity'])
@@ -149,6 +158,7 @@ describe('computePlacementMatchback', () => {
       [placement(), placement({ domain: 'prweek.com' }), placement({ domain: 'techround.co.uk' })],
       [], // no citations in this period
       null,
+      {},
     )
     expect(res.rows).toHaveLength(0)
     expect(res.citedCount).toBe(0)
@@ -160,6 +170,7 @@ describe('computePlacementMatchback', () => {
       [placement({ domain: 'WWW.ODWYERPR.COM' })],
       [citation({ domain: 'odwyerpr.com' })],
       null,
+      {},
     )
     expect(res.rows).toHaveLength(1)
   })
@@ -172,6 +183,7 @@ describe('computePlacementMatchback', () => {
         citation({ urlKey: 'odwyerpr.com/b', url: 'https://odwyerpr.com/b', engines: ['Google'] }),
       ],
       null,
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].aiEnginesCiting.sort()).toEqual(['ChatGPT', 'Google'])
@@ -185,6 +197,7 @@ describe('computePlacementMatchback', () => {
       ],
       [citation({ domain: 'odwyerpr.com', engines: ['ChatGPT'] })],
       null,
+      {},
     )
     expect(res.rows.map((r) => r.outlet).sort()).toEqual(['A', 'B'])
   })
@@ -197,6 +210,7 @@ describe('computePlacementMatchback', () => {
         citation({ domain: 'forbes.com', engines: ['Google'] }),
       ],
       null,
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].outlet).toBe("O'Dwyer's PR")
@@ -207,6 +221,7 @@ describe('computePlacementMatchback', () => {
       [placement({ outlet: 'PRWeek', headline: 'Big News', link: 'https://prweek.com/x', publicationDate: '2025-06-25', domain: 'prweek.com' })],
       [citation({ domain: 'prweek.com' })],
       null,
+      {},
     )
     expect(res.rows[0]).toMatchObject({
       outlet: 'PRWeek',
@@ -221,6 +236,7 @@ describe('computePlacementMatchback', () => {
       [placement({ domain: 'odwyerpr.com' }), placement({ domain: 'prweek.com' }), placement({ domain: 'nomatch.com' })],
       [citation({ domain: 'odwyerpr.com' }), citation({ domain: 'prweek.com' })],
       null,
+      {},
     )
     expect(res.citedCount).toBe(res.rows.length)
     expect(res.citedCount).toBe(2)
@@ -232,6 +248,7 @@ describe('computePlacementMatchback', () => {
       [placement()],
       [citation({ engines: ['ChatGPT'] })],
       [],
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].aiEnginesCiting).toEqual(['ChatGPT'])
@@ -242,14 +259,133 @@ describe('computePlacementMatchback', () => {
       [placement()],
       [citation({ engines: [] })],
       [],
+      {},
     )
     expect(res.rows).toHaveLength(1)
     expect(res.rows[0].aiEnginesCiting).toEqual([])
   })
 
   it('handles an empty placement list', () => {
-    const res = computePlacementMatchback([], [citation()], null)
+    const res = computePlacementMatchback([], [citation()], null, {})
     expect(res.rows).toHaveLength(0)
     expect(res.totalPlacements).toBe(0)
+  })
+})
+
+describe('computePlacementMatchback: citation dates (FB-068)', () => {
+  it('no model filter: firstCitedDate/lastCitedDate come from the "*" any-engine roll-up', () => {
+    const citationDates: CitationDateIndex = {
+      'a.com': {
+        '*': { first: '2026-01-01', last: '2026-03-15' },
+        ChatGPT: { first: '2026-02-01', last: '2026-02-20' },
+      },
+    }
+    const res = computePlacementMatchback(
+      [placement({ domain: 'a.com' })],
+      [citation({ domain: 'a.com' })],
+      null,
+      citationDates,
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].firstCitedDate).toBe('2026-01-01')
+    expect(res.rows[0].lastCitedDate).toBe('2026-03-15')
+  })
+
+  it('single-engine filter [ChatGPT]: dates come from that engine only, not the "*" roll-up', () => {
+    const citationDates: CitationDateIndex = {
+      'a.com': {
+        '*': { first: '2026-01-01', last: '2026-03-15' },
+        ChatGPT: { first: '2026-02-01', last: '2026-02-20' },
+      },
+    }
+    const res = computePlacementMatchback(
+      [placement({ domain: 'a.com' })],
+      [citation({ domain: 'a.com', engines: ['ChatGPT'] })],
+      ['ChatGPT'],
+      citationDates,
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].firstCitedDate).toBe('2026-02-01')
+    expect(res.rows[0].lastCitedDate).toBe('2026-02-20')
+  })
+
+  it('two-engine filter [ChatGPT,Perplexity]: firstCitedDate is the min of both firsts, lastCitedDate is the max of both lasts', () => {
+    const citationDates: CitationDateIndex = {
+      'a.com': {
+        '*': { first: '2025-12-01', last: '2026-04-01' },
+        ChatGPT: { first: '2026-02-01', last: '2026-02-20' },
+        Perplexity: { first: '2026-01-10', last: '2026-03-05' },
+        Gemini: { first: '2025-06-01', last: '2025-06-01' },
+      },
+    }
+    const res = computePlacementMatchback(
+      [placement({ domain: 'a.com' })],
+      [citation({ domain: 'a.com', engines: ['ChatGPT', 'Perplexity'] })],
+      ['ChatGPT', 'Perplexity'],
+      citationDates,
+    )
+    expect(res.rows).toHaveLength(1)
+    // min(2026-02-01, 2026-01-10) = 2026-01-10
+    expect(res.rows[0].firstCitedDate).toBe('2026-01-10')
+    // max(2026-02-20, 2026-03-05) = 2026-03-05
+    expect(res.rows[0].lastCitedDate).toBe('2026-03-05')
+  })
+
+  it('host absent from the citation-date index: both dates default to empty string ("N/A")', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'a.com' })],
+      [citation({ domain: 'a.com' })],
+      null,
+      {}, // no entry for a.com at all
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].firstCitedDate).toBe('')
+    expect(res.rows[0].lastCitedDate).toBe('')
+  })
+
+  it('model filter selects engines absent from the index: both dates default to empty string', () => {
+    const citationDates: CitationDateIndex = {
+      'a.com': { '*': { first: '2026-01-01', last: '2026-01-01' } },
+    }
+    const res = computePlacementMatchback(
+      [placement({ domain: 'a.com' })],
+      [citation({ domain: 'a.com', engines: ['ChatGPT'] })],
+      ['ChatGPT'], // present in urlCitations engines but not in citationDates for a.com
+      citationDates,
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].firstCitedDate).toBe('')
+    expect(res.rows[0].lastCitedDate).toBe('')
+  })
+
+  it('invariant: firstCitedDate <= lastCitedDate whenever both are non-empty, across all rows', () => {
+    const citationDates: CitationDateIndex = {
+      'odwyerpr.com': {
+        '*': { first: '2026-01-05', last: '2026-06-30' },
+        ChatGPT: { first: '2026-02-10', last: '2026-05-01' },
+        Google: { first: '2026-01-05', last: '2026-06-30' },
+      },
+      'prweek.com': {
+        '*': { first: '2026-03-01', last: '2026-03-01' },
+      },
+    }
+    const res = computePlacementMatchback(
+      [
+        placement({ domain: 'odwyerpr.com', outlet: 'ODwyer' }),
+        placement({ domain: 'prweek.com', outlet: 'PRWeek' }),
+      ],
+      [
+        citation({ domain: 'odwyerpr.com', engines: ['ChatGPT', 'Google'] }),
+        citation({ domain: 'prweek.com', engines: [] }),
+      ],
+      null,
+      citationDates,
+    )
+    expect(res.rows.length).toBeGreaterThan(0)
+    for (const row of res.rows) {
+      if (row.firstCitedDate && row.lastCitedDate) {
+        expect(row.firstCitedDate <= row.lastCitedDate).toBe(true)
+      }
+    }
   })
 })
