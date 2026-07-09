@@ -291,6 +291,18 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
     expect(buildThemeSources(dupeInAnswer, null).get('t')).toEqual(['https://y.com', 'https://x.com'])
   })
 
+  it('dedupes case-variant theme labels within one answer (#138 P5)', () => {
+    // One answer tagged with the same theme in two casings must attribute its
+    // citation to that folded key ONCE, not once per casing variant.
+    const state = newThemeSourceState()
+    accumulateThemeSources(
+      state,
+      { data: [{ model: 'ChatGPT', themes: ['Pricing', 'pricing'], citations: ['x.com'] }] },
+      null,
+    )
+    expect(state.counts.get('pricing')?.get('x.com')).toBe(1)
+  })
+
   it('caps URLs per theme after ranking', () => {
     const many = { data: [{ model: 'ChatGPT', themes: ['T'], citations: ['u1', 'u2', 'u3', 'u4'] }] }
     // all count 1 (one answer), tie -> first-seen, cap 2 => u1, u2

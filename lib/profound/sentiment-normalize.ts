@@ -220,10 +220,17 @@ export function accumulateThemeSources(
       (a.citations ?? []).filter((c): c is string => typeof c === 'string' && c.length > 0),
     )
     if (themes.length === 0 || cites.size === 0) continue
-    for (const t of themes) {
-      const title = (t ?? '').trim()
-      if (!title) continue
-      const key = title.toLowerCase()
+    // Distinct theme keys within this one answer (case-folded, same as the
+    // key below): an answer tagged with the same theme in two casings
+    // ("Pricing" and "pricing") must still attribute its citations to that
+    // theme ONCE, not once per casing variant (#138 P5).
+    const keys = new Set(
+      themes
+        .map((t) => (t ?? '').trim())
+        .filter((title): title is string => title.length > 0)
+        .map((title) => title.toLowerCase()),
+    )
+    for (const key of keys) {
       let urlCounts = state.counts.get(key)
       if (!urlCounts) { urlCounts = new Map(); state.counts.set(key, urlCounts) }
       for (const c of cites) {
