@@ -15,6 +15,7 @@
 - Avenue Z surfaces stay data-only. No AI/Glean synopsis added or changed. Honest no-data, never fabricated.
 - `ds_id` / model ids resolved via existing helpers; never hardcode client slugs (P6 fixes an existing violation).
 - Per task: `npx tsc --noEmit`, `npm run check:rsc`, and focused `vitest run <file>` must pass. The full suite has pre-existing flaky golden-test timeouts, so run focused tests per task.
+- The `vitest.config.ts` include is a curated literal list (NOT a glob, to avoid a known-broken test). Any task that CREATES a new `*.test.ts` file MUST add that literal path to the include array in the same task, or its tests will not run.
 - Peec fetch auth is unchanged: `X-API-Key = process.env.PEEC_AI_CUSTOMER_TOKEN`, project id from the client row (`peecCustomerProjectId`).
 - Add each fixed item to `docs/official-feedback/feedback-log.md` in the final docs task.
 
@@ -49,7 +50,7 @@ Detailed design: `docs/superpowers/specs/2026-07-09-pr-influence-citation-dates-
   - empty rows => {}.
   - rows with unmappable model id (normalizeEngine returns null) still contribute to `'*'` but not to any engine key.
 - [ ] **Step 2: Run** `npx vitest run lib/peec/citation-dates.test.ts` => FAIL (module missing).
-- [ ] **Step 3: Implement** `buildCitationDateIndex`: import `normalizeEngine` is not exported today, so replicate the host normalization with the shared `normHost` from `lib/pr-proof/matchback.ts` (import it) and a local engine map identical to `normalizeEngine` in `lib/peec/url-citations.ts` (copy the mapping; do NOT export from url-citations to avoid touching it). For each row: `h = normHost(row.domain)`; skip if empty or no date; update `'*'` min/max; if the model maps to an engine, update that engine's min/max. Min/max via string compare (ISO dates sort lexically).
+- [ ] **Step 3: Implement** `buildCitationDateIndex`: reuse the shared helpers rather than duplicating (duplication is exactly what P8 fixes). Add `export` to `normalizeEngine` in `lib/peec/url-citations.ts` (a helper-only export; it does NOT change `getUrlCitations`) and import it here, and import `normHost` from `lib/pr-proof/matchback.ts`. For each row: `h = normHost(row.domain)`; skip if empty or no date; update `'*'` min/max; if `normalizeEngine(row.model?.id ?? '')` returns an engine label, update that engine's min/max. Min/max via string compare (ISO dates sort lexically).
 - [ ] **Step 4: Run tests** => PASS.
 - [ ] **Step 5: Commit** `feat(FB-068): pure buildCitationDateIndex + tests`.
 
