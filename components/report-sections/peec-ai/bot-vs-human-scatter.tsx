@@ -42,6 +42,23 @@ const QUADRANT_FILL: Record<string, string> = {
   'low-bot-low-human':   '#888888', // gray: both low (background)
 }
 
+// CI-3b: resolve a scatter point's URL for click-to-open. `p.path` here is a
+// urlJoinKey() output (lib/url.ts): lowercased, protocol/host/www stripped,
+// trailing slash trimmed. For a GA4 pagePath (the common case, e.g.
+// "/blog/post-1") that leaves a bare path with no host. This component's
+// BotVsHumanScatterResult (lib/peec/bot-vs-human-scatter.ts) carries only
+// path/bots/humans/quadrant, no client domain, so there is no origin
+// available here to turn a bare path into an absolute URL without guessing
+// wrong (the reporting app's own origin is not the client's site). Handle
+// the case where the path is already absolute; otherwise return null so the
+// click is a no-op rather than opening a broken or wrong-domain link.
+function resolvePointUrl(path: string | undefined): string | null {
+  if (!path) return null
+  if (/^https?:\/\//i.test(path)) return path
+  if (path.startsWith('//')) return `https:${path}`
+  return null
+}
+
 export default function BotVsHumanScatter({ data }: Props) {
   const state = botVsHumanState(data)
   if (state !== 'ok') {
@@ -58,6 +75,15 @@ export default function BotVsHumanScatter({ data }: Props) {
   // low-contrast text-text-muted) plus a semi-opaque chip so the label stays
   // legible sitting on top of chart points.
   const cornerLabel = 'rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70'
+
+  // CI-3b: click a point to open its page in a new tab. Recharts passes the
+  // point datum as the first (untyped) arg; narrow it to the same payload
+  // shape the tooltip already reads (path/bots/humans) instead of using any.
+  const handlePointClick = (point: { payload?: { path?: string } }) => {
+    const url = resolvePointUrl(point?.payload?.path)
+    if (!url) return
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   // Render four overlay labels in a 2x2 CSS grid so each label sits in its
   // true quadrant cell (top-left = Low Bot/High Human, etc.). The top-left
@@ -112,6 +138,8 @@ export default function BotVsHumanScatter({ data }: Props) {
               ...p,
               fill: QUADRANT_FILL[p.quadrant],
             }))}
+            cursor="pointer"
+            onClick={handlePointClick}
           />
         </ScatterChart>
       </ResponsiveContainer>
