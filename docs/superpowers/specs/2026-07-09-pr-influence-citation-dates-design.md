@@ -42,9 +42,13 @@ prod token. Read-only, no writes.
   values are the scraper ids (`chatgpt-scraper`, `perplexity-scraper`,
   `gemini-scraper`, `google-ai-overview-scraper`), which map to our engine labels
   through the existing `normalizeEngine()` in `lib/peec/url-citations.ts`.
-- **Sort:** `order_by: [{ field: 'date', order: 'asc' }]` for the first-cited
-  pass; `order: 'desc'` for the most-recent pass. Confirmed: `order:'desc'`
-  returned the window's END dates first. Valid `order_by[].field` values:
+- **Sort (verified quirk):** Peec ignores the direction value and forces
+  DESCENDING whenever `order_by` sorts on `date`. So the first-cited (min) pass
+  uses NO `order_by` (the API default order is ascending, verified head = window
+  start), and the most-recent (max) pass uses `order_by: [{ field:'date',
+  order:'desc' }]` (verified head = window end). Both proven correct against an
+  independent full-scan ground truth: 12/12 target domains, both dates, on live
+  Avenue Z data (2026-07-09). Valid `order_by[].field` values:
   `citation_rate | retrieval_count | citation_count | date | week | month`.
 - **Pagination:** `offset` + `limit`. The response envelope has only a `data`
   key (no total/next), so end-of-data is detected by a short page
