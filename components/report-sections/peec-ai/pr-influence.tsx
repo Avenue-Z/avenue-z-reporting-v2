@@ -3,7 +3,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
 import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
-import type { PRPlacement } from '@/lib/pr-proof/types'
+import { computePlacementMatchback } from '@/lib/pr-proof/matchback'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { Megaphone } from 'lucide-react'
@@ -22,7 +22,6 @@ import {
   type TopEditorialDomainRow,
   type BrandAbsentEditorialDomainRow,
   type PromptClusterOpportunityRow,
-  type PRPlacementMatchbackRow,
 } from './pr-influence-tables'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
@@ -39,64 +38,6 @@ import { SharedPartsHeader } from '@/components/report-sections/shared/shared-pa
 
 function fmt(n: number, decimals = 1, suffix = '%') {
   return `${n.toFixed(decimals)}${suffix}`
-}
-
-// ── Cross-reference PR placements with Peec editorial domain data ────────────
-
-type MatchbackRow = PRPlacement & {
-  citedByAI: boolean
-  aiEnginesCiting: string[]
-  promptCount: number
-  brandMentioned: boolean
-  citationRate: number
-}
-
-function buildMatchback(
-  placements: PRPlacement[],
-  editorialDomains: TopDomain[],
-  coverage: DomainCoverage,
-  urlCitations: UrlCitation[],
-): MatchbackRow[] {
-  // Build lookup: domain -> editorial domain data
-  const domainLookup = new Map<string, TopDomain>()
-  for (const d of editorialDomains) {
-    domainLookup.set(d.domain.toLowerCase(), d)
-  }
-
-  // Real AI engine names per host (ChatGPT/Perplexity/…) from per-URL citation
-  // data. These values match AEOModel, so the model filter works on them too.
-  const host = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
-  const enginesByHost = new Map<string, Set<string>>()
-  for (const c of urlCitations) {
-    if (!c.engines.length) continue
-    const k = host(c.domain)
-    if (!enginesByHost.has(k)) enginesByHost.set(k, new Set())
-    for (const e of c.engines) enginesByHost.get(k)!.add(e)
-  }
-
-  return placements.map((p) => {
-    const domainKey = p.domain.toLowerCase()
-    const editorialMatch = domainLookup.get(domainKey)
-
-    // Real engine names citing a URL on this placement's host (empty when none).
-    const aiEnginesCiting = [...(enginesByHost.get(host(p.domain)) ?? [])]
-    // Cited if Peec lists the domain as an editorial citation OR a URL on it
-    // carries engine-level citation data.
-    const citedByAI = !!editorialMatch || aiEnginesCiting.length > 0
-    // Distinct tracked prompts in which a URL on this domain is cited, derived
-    // from per-URL citation data (not trackedPrompts[].sources, which are
-    // AI-engine ids and never match a domain).
-    const promptCount = domainPromptIds(coverage, p.domain).length
-
-    return {
-      ...p,
-      citedByAI,
-      aiEnginesCiting,
-      promptCount,
-      brandMentioned: citedByAI, // If the domain cites us, brand is mentioned
-      citationRate: editorialMatch?.citationRate ?? 0,
-    }
-  })
 }
 
 // ── Opportunity scoring per PRD ──────────────────────────────────────────────
@@ -266,47 +207,24 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   const youMetrics = data?.brandRankings.find(b => b.isYou) ?? null
   const editorialDomains = (data?.topDomains ?? []).filter(d => d.type === 'Editorial')
 
-  // Build matchback: PR placements x Peec editorial domains
-  const matchbackRows = prData && data
-    ? buildMatchback(prData.placements, editorialDomains, coverage, urlCitations)
-    : []
-
   // True once the coverage fetch returned data: a domain missing from it is a
   // known 0 (cited by no tracked prompt), not unknown. Empty map = fetch
   // failed / project unconfigured → keep -- for prompt count.
   const coverageAvailable = Object.keys(coverage.promptIdsByDomain).length > 0
+
+  // ── FB-067 · PR Placement Matchback (all-time placements, cited within the
+  // selected timeframe) ────────────────────────────────────────────────────────
+  // Tina 2026-07-09: the placement list is all-time; the card dynamically shows
+  // only placements whose domain is CITED within the selected timeframe (from
+  // period-scoped urlCitations), not those secured within the timeframe. Pure,
+  // unit-tested logic lives in lib/pr-proof/matchback.ts.
+  const matchback = computePlacementMatchback(prData?.placements ?? [], urlCitations, models)
 
   // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
   // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
   // Citation-count-weighted avg citations-per-answer per domain (Peec citation_avg).
   const avgCitByDomain = avgCitationsByDomain(urlCitations)
-  // ── Filter PR placement matchback rows by selected AI models ─────────────────
-  // When a filter is active, keep only rows that have at least one cited AI
-  // engine matching the selection. Rows with no AI engines at all are DROPPED
-  // when a filter is active — they provide no signal for model-specific analysis.
-  const filteredMatchbackRows = models
-    ? matchbackRows.filter((r) => {
-        if (!r.citedByAI || r.aiEnginesCiting.length === 0) return false
-        return r.aiEnginesCiting.some((e) => models.includes(e as AEOModel))
-      })
-    : matchbackRows
-
-  const placementsCitedByAI = filteredMatchbackRows.filter(r => r.citedByAI).length
-
-  // ── FB-029 · PR Placement Matchback rows for the new card ─────────────────
-  // Tina v1 CSV R23 REVISION. The data layer (buildMatchback,
-  // filteredMatchbackRows) survived FB-015's removal; the render + component
-  // were what got deleted. Map filteredMatchbackRows to the simplified 5-col
-  // row shape that matches Tina's literal title.
-  const matchbackTableRows: PRPlacementMatchbackRow[] = filteredMatchbackRows.map((r) => ({
-    outlet: r.outlet ?? r.domain,
-    headline: r.headline ?? r.domain,
-    link: r.link ?? '',
-    publicationDate: r.publicationDate ?? '',
-    citedByAI: r.citedByAI,
-    aiEnginesCiting: r.aiEnginesCiting,
-  }))
 
   // Build opportunity rows (Section E)
   const opportunityRows = data
@@ -461,7 +379,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     avgAiPositionDelta:     youMetrics ? youMetrics.positionDelta : null,
     totalAiCitations:       data?.totalCitations ?? 0,
     totalPlacements:        prData?.totalPlacements ?? 0,
-    placementsCitedByAI,
+    placementsCitedByAI: matchback.citedCount,
     aiReferralSessions:     aiReferralOk ? aiSessions : null,
     aiReferralSessionsDelta: aiSessionsDelta ?? null,
     totalEditorialDomains:  editorialDomains.length,
@@ -502,11 +420,11 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
         </Suspense>
       )}
 
-      {/* ── FB-029 · PR Placement Matchback (restored under Exec Summary per Tina v1 CSV R23 REVISION) ── */}
+      {/* ── FB-067 · PR Placement Matchback (all-time placements, cited within the selected timeframe) ── */}
       <PRPlacementMatchbackTable
-        rows={matchbackTableRows}
+        rows={matchback.rows}
         totalPlacements={prData?.totalPlacements ?? 0}
-        placementsCitedByAI={placementsCitedByAI}
+        placementsCitedByAI={matchback.citedCount}
       />
 
       {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
