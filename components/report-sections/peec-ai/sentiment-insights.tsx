@@ -119,11 +119,11 @@ function ThemeColumn({
   themes: ProfoundSentimentTheme[]
   accent: string
 }) {
-  const [open, setOpen] = useState<Set<number>>(new Set())
-  const toggle = (i: number) => {
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggle = (title: string) => {
     const next = new Set(open)
-    if (next.has(i)) next.delete(i)
-    else next.add(i)
+    if (next.has(title)) next.delete(title)
+    else next.add(title)
     setOpen(next)
   }
   return (
@@ -139,8 +139,8 @@ function ThemeColumn({
               key={`${theme.title}-${i}`}
               title={theme.title}
               count={theme.count}
-              expanded={open.has(i)}
-              onToggle={() => toggle(i)}
+              expanded={open.has(theme.title)}
+              onToggle={() => toggle(theme.title)}
             >
               <SourceList urls={theme.urls} accent={accent} />
             </ThemeAccordion>
