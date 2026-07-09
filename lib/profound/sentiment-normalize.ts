@@ -116,14 +116,24 @@ export function collapseModelThemeRows(
   resp: SentimentResp,
   selected: Set<string> | null,
 ): SentimentResp {
+  // Resolve the metric name ordering ONCE, up front, and reuse it both to read
+  // the incoming [model,theme] rows below and to build the returned info.
+  // readMetric/metricIndex resolve a metric by name against info.query.metrics,
+  // so if that fallback were applied only when building the output `data` (and
+  // the input rows were still read against the original, possibly-empty
+  // resp.info), the read side would resolve every metric to 0 and every theme
+  // would sum to a 0/0 tie, which normalizeThemes drops as ambiguous (#138 P4).
+  const metricNames = resp.info?.query?.metrics ?? ['negative', 'occurrences', 'positive']
+  const effectiveInfo: SentimentResp['info'] = { query: { metrics: metricNames } }
+
   const byTheme = new Map<string, { theme: string; positive: number; negative: number }>()
   for (const row of resp.data) {
     const model = (row.dimensions?.[0] ?? '').trim()
     if (selected && !selected.has(model)) continue
     const theme = (row.dimensions?.[1] ?? '').trim()
     if (!theme) continue
-    const positive = readMetric(row, resp.info, 'positive')
-    const negative = readMetric(row, resp.info, 'negative')
+    const positive = readMetric(row, effectiveInfo, 'positive')
+    const negative = readMetric(row, effectiveInfo, 'negative')
     const acc = byTheme.get(theme)
     if (!acc) byTheme.set(theme, { theme, positive, negative })
     else {
@@ -131,14 +141,15 @@ export function collapseModelThemeRows(
       acc.negative += negative
     }
   }
-  const metricNames = resp.info?.query?.metrics ?? ['negative', 'occurrences', 'positive']
   const data = [...byTheme.values()].map((a) => ({
     dimensions: [a.theme],
     metrics: metricNames.map((m) =>
       m === 'positive' ? a.positive : m === 'negative' ? a.negative : a.positive + a.negative,
     ),
   }))
-  return { info: resp.info, data }
+  // Return the rebuilt info (not the original resp.info) so downstream
+  // readMetric/normalizeThemes can resolve metrics by name too.
+  return { info: { ...resp.info, query: { ...resp.info?.query, metrics: metricNames } }, data }
 }
 
 /** Accumulator for per-theme cited-source frequencies. Holds a count of how

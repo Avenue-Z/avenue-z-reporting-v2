@@ -166,6 +166,29 @@ describe('collapseModelThemeRows + normalizeThemes (model reactivity)', () => {
     expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 10, urls: [] }])
     expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
   })
+
+  it('missing info.query.metrics (#138 P4): themes are not dropped as 0/0 ties', () => {
+    // Profound response with no query.metrics at all. Rows still carry real
+    // positive/negative values in the default fallback order
+    // (negative, occurrences, positive). Before the P4 fix, collapseModelThemeRows
+    // defaulted metricNames for building `data` but returned the original
+    // (still-empty) info, so readMetric/normalizeThemes could not resolve any
+    // metric by name and every theme summed to 0/0 and was dropped as a tie.
+    const noMetricsResp = {
+      info: {},
+      data: [
+        mtRow('ChatGPT', 'Thought Leadership', 0, 10),
+        mtRow('Perplexity', 'Thought Leadership', 0, 5),
+        mtRow('ChatGPT', 'Premium Pricing', 8, 0),
+      ],
+    }
+    const collapsed = collapseModelThemeRows(noMetricsResp, null)
+    // the fallback must be rebuilt into info.query.metrics, not left absent
+    expect(collapsed.info.query?.metrics).toEqual(['negative', 'occurrences', 'positive'])
+    const { positiveThemes, negativeThemes } = normalizeThemes(collapsed)
+    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 15, urls: [] }])
+    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
+  })
 })
 
 describe('shouldStopAnswerPaging (#138 P3)', () => {
