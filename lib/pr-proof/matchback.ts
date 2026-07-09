@@ -53,9 +53,10 @@ export function normHost(s: string): string {
  * @param urlCitations  Per-URL citations for the SELECTED date range only.
  * @param models        Active AI-model filter, or null for all models.
  * @param citationDates Per-host, per-engine (plus "*" roll-up) first/last citation
- *                       dates, all time (not scoped to the selected period). Used
- *                       only to populate firstCitedDate/lastCitedDate; row inclusion
- *                       and citedByAI are still driven entirely by urlCitations.
+ *                       dates, bounded to the selected timeframe (the same window
+ *                       used for urlCitations below). Used only to populate
+ *                       firstCitedDate/lastCitedDate; row inclusion and citedByAI
+ *                       are still driven entirely by urlCitations.
  */
 export function computePlacementMatchback(
   placements: PRPlacement[],
@@ -82,9 +83,9 @@ export function computePlacementMatchback(
   const modelSet = models && models.length > 0 ? new Set<string>(models) : null
 
   // First/most-recent citation date for a host, scoped to the active model
-  // filter (or the "*" any-engine roll-up when there is no filter). This is
-  // ALL TIME data from citationDates, unrelated to the selected-period
-  // citedHostsInPeriod/enginesByHost above, which only decide row inclusion.
+  // filter (or the "*" any-engine roll-up when there is no filter). citationDates
+  // is bounded to the selected timeframe (same window as citedHostsInPeriod/
+  // enginesByHost above), which only decide row inclusion, not the date values.
   const datesFor = (h: string): { first: string; last: string } => {
     const perEngine = citationDates[h]
     if (!perEngine) return { first: '', last: '' }

@@ -5,7 +5,8 @@
  */
 export function formatDaysToFirst(val: number | null): string {
   if (val === null) return 'None'
-  if (val === 0) return 'Same day'
-  if (val === 1) return '1 day'
-  return `${Math.round(val)} days`
+  const n = Math.round(val)
+  if (n === 0) return 'Same day'
+  if (n === 1) return '1 day'
+  return `${n} days`
 }

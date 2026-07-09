@@ -186,9 +186,9 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     resolvedCompare
       ? getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })
       : Promise.resolve([]),
-    // FB-068: all-time first/last citation date per placement host, bounded to
-    // the SAME selected timeframe already used for getUrlCitations above (per
-    // FB-067, dates stay scoped to the selected period, not true all-time).
+    // FB-068: first/last citation date per placement host, bounded to the SAME
+    // selected timeframe already used for getUrlCitations above (matches the
+    // "within the selected timeframe" language in the matchback tooltip).
     getPlacementCitationDates(clientSlug, {
       startDate: resolvedMain.startDate,
       endDate: resolvedMain.endDate,

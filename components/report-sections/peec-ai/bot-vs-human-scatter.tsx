@@ -49,15 +49,16 @@ const QUADRANT_FILL: Record<string, string> = {
 // "/blog/post-1") that leaves a bare path with no host, so `clientDomain` is
 // threaded in from the parent (same pattern as PageOverlapTable in
 // technical-audit-tables.tsx) to build an absolute URL. If the path is
-// already absolute, open it as-is. If there is no path at all, the click is
-// a no-op rather than opening a broken link.
+// already absolute, open it as-is. If there is no path, or no owned
+// clientDomain to build an absolute URL from, the click is a no-op rather
+// than opening a broken link or a foreign placeholder domain.
 function resolvePointUrl(path: string | undefined, clientDomain: string): string | null {
   if (!path) return null
   if (/^https?:\/\//i.test(path)) return path
   if (path.startsWith('//')) return `https:${path}`
-  const domain = clientDomain || 'example.com'
+  if (!clientDomain) return null
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return `https://${domain}${normalizedPath}`
+  return `https://${clientDomain}${normalizedPath}`
 }
 
 export default function BotVsHumanScatter({ data, clientDomain }: Props) {
