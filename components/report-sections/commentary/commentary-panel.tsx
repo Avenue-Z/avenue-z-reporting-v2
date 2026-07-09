@@ -15,6 +15,13 @@ function fmt(d: string): string {
   return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function fmtDateTime(iso: string): string {
+  // ISO timestamp → 'Mon D, YYYY, h:mm AM/PM' (local time).
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+}
+
 export function CommentaryPanel({
   clientSlug,
   viewKey,
@@ -88,7 +95,12 @@ export function CommentaryPanel({
                 className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"
                 dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
               />
-              <p className="text-xs text-text-muted">Last updated by {selected.updatedBy}</p>
+              <p className="text-xs text-text-muted">
+                Last updated by {selected.updatedBy} on {fmtDateTime(selected.updatedAt)}
+                {selected.status === 'approved' && selected.approvedBy && (
+                  <> · Approved by {selected.approvedBy}{selected.approvedAt ? ` on ${fmtDateTime(selected.approvedAt)}` : ''}</>
+                )}
+              </p>
               {capabilities.canEdit && (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button onClick={() => setEditing(selected.id)}>Edit</Button>
