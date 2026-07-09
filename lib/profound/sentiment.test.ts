@@ -11,6 +11,7 @@ import {
   accumulateThemeSources,
   finalizeThemeSources,
 } from './sentiment-normalize'
+import { shouldStopAnswerPaging } from './sentiment'
 
 // Profound echoes the resolved metric order in info.query.metrics; rows align
 // to it. These fixtures use the real observed order (alphabetical).
@@ -164,6 +165,19 @@ describe('collapseModelThemeRows + normalizeThemes (model reactivity)', () => {
     // ChatGPT-only Thought Leadership is 10, not 15
     expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 10, urls: [] }])
     expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
+  })
+})
+
+describe('shouldStopAnswerPaging (#138 P3)', () => {
+  it('does NOT stop on a short-but-nonempty page (Profound page cap below requested limit)', () => {
+    // Profound can cap page size below ANSWERS_PAGE; a short page still means
+    // more rows may follow, so paging must continue.
+    expect(shouldStopAnswerPaging(new Array(1))).toBe(false)
+    expect(shouldStopAnswerPaging(new Array(4999))).toBe(false)
+  })
+
+  it('stops only on a zero-row page', () => {
+    expect(shouldStopAnswerPaging([])).toBe(true)
   })
 })
 

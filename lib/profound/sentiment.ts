@@ -50,6 +50,15 @@ import {
 const ANSWERS_PAGE = 5000
 const ANSWERS_MAX_PAGES = 8
 
+/** Pagination stop condition for the answers loop below (#138 P3). Profound
+ *  can cap a page's row count below the requested `pagination.limit`, so a
+ *  page shorter than ANSWERS_PAGE does NOT mean the last page: only a page
+ *  with zero rows does. Stopping on "short" truncated sources to page 1
+ *  whenever Profound's cap was below ANSWERS_PAGE. */
+export function shouldStopAnswerPaging(rows: unknown[]): boolean {
+  return rows.length === 0
+}
+
 export type { ProfoundSentimentTheme } from './sentiment-normalize'
 
 export type ProfoundSentiment = {
@@ -121,7 +130,7 @@ async function buildSourcesMap(
       })) as unknown as AnswersResp
       const rows = resp?.data ?? []
       accumulateThemeSources(state, { data: rows }, selected)
-      if (rows.length < ANSWERS_PAGE) break // last page reached
+      if (shouldStopAnswerPaging(rows)) break // last page reached (zero rows)
     }
   } catch (e) {
     console.error('[profound] sentiment answers paging failed (themes render with partial/no sources):', e)
