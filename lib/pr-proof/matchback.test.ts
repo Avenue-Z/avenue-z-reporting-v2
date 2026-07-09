@@ -227,6 +227,26 @@ describe('computePlacementMatchback', () => {
     expect(res.totalPlacements).toBe(3)
   })
 
+  it('treats models: [] the same as null (no filter): a period-cited placement is included with its engines', () => {
+    const res = computePlacementMatchback(
+      [placement()],
+      [citation({ engines: ['ChatGPT'] })],
+      [],
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].aiEnginesCiting).toEqual(['ChatGPT'])
+  })
+
+  it('with models: [] (no filter), still includes a period-cited placement that has no engine data', () => {
+    const res = computePlacementMatchback(
+      [placement()],
+      [citation({ engines: [] })],
+      [],
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].aiEnginesCiting).toEqual([])
+  })
+
   it('handles an empty placement list', () => {
     const res = computePlacementMatchback([], [citation()], null)
     expect(res.rows).toHaveLength(0)
