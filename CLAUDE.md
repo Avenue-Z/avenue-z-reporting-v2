@@ -443,6 +443,66 @@ Key principle (see **Client Configuration** above): per-client **identifiers**
 
 ---
 
+## Branch Flow & Promotion Pipeline (canonical, required every session)
+
+Work flows `feature → dev → staging → main`. Each hop is a gate with a distinct
+purpose. The one mistake we do NOT repeat: merging a feature straight into `dev`
+before it has been code-reviewed on its own PR. FB-067 did exactly that (merged
+to dev via PR #139 before the review PR), and that is what we are correcting.
+
+**Stage 1: feature branch off `dev` (code review gate).**
+Every feature is built on its own branch cut from `dev`, and every feature gets
+its own PR for code review. ALL code changes and reviewer feedback happen on
+that PR BEFORE anything reaches `dev`. Nothing merges to `dev` until the code
+review is done on the PR and every piece of feedback is accounted for. Do NOT
+merge to `dev` first and review after.
+
+The reviewers on the Stage-1 PR are Paul and Thomas. CI (type-check, tests)
+must be green on the PR before it merges to `dev`, and every reviewer comment
+must be resolved on the branch first.
+
+The code-review artifact is a standalone review-record doc, same format Paul
+used for the FB-065/FB-066 review (template: PR #138 `docs(review): FB-065/FB-066
+Profound sentiment code review record`). It is a markdown file at
+`docs/qa/<feature>-code-review.md`, opened as its own PR off `dev`, titled
+`docs(review): <feature> … code review record`. The review PR changes NO code;
+fixes are follow-ups. Faithful skeleton:
+- **Header:** exact scope, meaning the feature PR(s)/commits under review and
+  the precise diff range (e.g. `097b811^..2024b56`, "no unrelated code"), plus
+  one line stating no code is changed in this doc.
+- **§1 How it works:** comprehension summary. Where every number comes from
+  (which endpoint, formula, filter), so a client question ("how is this sourced
+  / ranked / calculated?") is answerable straight from the doc.
+- **§2 Verification method:** how each finding was actually probed, not just
+  read (static anchor confirmed at the stated line, logic executed in a
+  throwaway probe spec, external-API triggers flagged rather than asserted).
+- **§3 Findings table:** columns `# | Sev | Status | Location | Finding`.
+  Sev legend: **●** correctness, **○** cleanup/convention. Status legend:
+  CONFIRMED (proven in-tree) / PLAUSIBLE (code assumption confirmed, external
+  trigger unverified). Location is `file:line`.
+- **§4 Detail:** one block per finding: the mechanism, then a suggested fix.
+- **§5 Follow-ups:** the fixes, tracked separately (not applied in the review
+  PR), bucketed (e.g. Correctness / Needs a live call first / Decide together /
+  Cleanup), noting which block the ship and which is highest-value.
+
+**Stage 2: `dev → staging` (integration testing).**
+Once `dev` holds the reviewed changes with all feedback accounted for, it feeds
+`staging`. Between `dev` and `staging` sits integration testing: confirm all the
+features work together the way they should, not just each one in isolation.
+
+**Stage 3: `staging` (stakeholder QA).**
+`staging` is where the stakeholder (Tina) QAs the build and confirms it all
+works as intended. If any feature or change is requested there, that feature
+goes back to its feature branch, gets reworked, and must pass the upstream gates
+again (code review, then dev, then integration testing) to return to `staging`.
+
+**Stage 4: `staging → main` (functional testing).**
+From `staging` the build promotes to `main`, where functional testing happens.
+The `main`-merge self-review gate below still applies on top of this, and we
+never merge to `main` without Thomas's explicit go-ahead.
+
+---
+
 ## Code Review & Merge Process (required before anything merges to `main`)
 
 Every change that goes into `main` must pass a self-review first. This is not a
