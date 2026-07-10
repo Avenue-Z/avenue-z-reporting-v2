@@ -1,15 +1,15 @@
 'use server'
 
 import { revalidateTag } from 'next/cache'
-import { eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { reportCommentary } from '@/lib/db/schema'
-import { getClientBySlug, getCommentaryForView } from '@/lib/db/queries'
+import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditCommentary, canApproveCommentary } from '@/lib/commentary/permissions'
 import { isCommentaryViewKey } from '@/lib/commentary/views'
 import { sanitizeCommentaryHtml } from '@/lib/commentary/sanitize'
-import { validateCommentaryInput, planCommentaryWrite, approvedSiblingsToDemote } from '@/lib/commentary/mutations'
+import { validateCommentaryInput, planCommentaryWrite } from '@/lib/commentary/mutations'
 import type { CommentaryInput, CommentaryStatus } from '@/lib/commentary/types'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -70,36 +70,14 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
   return { ok: true }
 }
 
-/** Approve an entry for client visibility. Allowlist only. Retires any other
- *  approved entry for the same (client, view, reporting period) so a client sees
- *  exactly one approved version per period — different-period approvals are kept. */
+/** Approve an entry for client visibility. Allowlist only. Other approved entries for
+ *  the same view + period are left untouched — the client view shows only the most
+ *  recently approved one per period (see visibleEntries), so a re-approval replaces
+ *  the visible version and a revoke falls back to the previously approved one. */
 export async function approveCommentary(id: string): Promise<Result> {
   const session = await auth()
   const email = session?.user?.email
   if (!canApproveCommentary(email)) return { ok: false, error: 'forbidden' }
-
-  const rows = await db
-    .select({
-      clientId: reportCommentary.clientId,
-      viewKey: reportCommentary.viewKey,
-      periodStart: reportCommentary.periodStart,
-      periodEnd: reportCommentary.periodEnd,
-    })
-    .from(reportCommentary)
-    .where(eq(reportCommentary.id, id))
-    .limit(1)
-  const target = rows[0]
-  if (!target) return { ok: false, error: 'not found' }
-
-  // Demote any other approved row for the same view + period back to draft.
-  const all = await getCommentaryForView(target.clientId, target.viewKey)
-  const demoteIds = approvedSiblingsToDemote({ id, periodStart: target.periodStart, periodEnd: target.periodEnd }, all)
-  if (demoteIds.length > 0) {
-    await db
-      .update(reportCommentary)
-      .set({ status: 'draft', approvedBy: null, approvedAt: null, updatedAt: new Date() })
-      .where(inArray(reportCommentary.id, demoteIds))
-  }
 
   await db
     .update(reportCommentary)

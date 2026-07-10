@@ -83,6 +83,12 @@ export function CommentaryEditor({
   function handleSave() {
     if (!editor) return
     setError('')
+    // Don't let the untouched suggested outline get saved/approved as real commentary.
+    const strip = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (strip(editor.getHTML()) === strip(SUGGESTED_TEMPLATE)) {
+      setError('Replace the suggested outline with your commentary before saving.')
+      return
+    }
     startTransition(async () => {
       const res = await saveCommentary({
         id: entry?.id,

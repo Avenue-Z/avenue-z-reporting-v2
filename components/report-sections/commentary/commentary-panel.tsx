@@ -85,9 +85,9 @@ export function CommentaryPanel({
               onChange={(e) => setUserSelectedId(e.target.value)}
               className="rounded border border-white/[0.08] bg-bg-base px-2 py-1 text-sm text-white"
             >
-              {entries.map((e, i) => (
+              {entries.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {fmt(e.periodStart)} – {fmt(e.periodEnd)}{e.status === 'draft' ? ' (draft)' : ''}{i === 0 ? ' · latest' : ''}
+                  {fmt(e.periodStart)} – {fmt(e.periodEnd)}{e.status === 'draft' ? ' (draft)' : ''}{e.id === initialId ? ' · latest' : ''}
                 </option>
               ))}
             </select>
