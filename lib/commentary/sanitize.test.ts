@@ -28,9 +28,10 @@ describe('sanitizeCommentaryHtml', () => {
     expect(out).not.toContain('javascript:')
     expect(out).toContain('x')
   })
-  test('strips disallowed tags (img, iframe) but keeps text', () => {
+  test('strips disallowed tags (img, iframe, u) but keeps text', () => {
     expect(sanitizeCommentaryHtml('<p>hi</p><img src=x onerror=alert(1)>')).toBe('<p>hi</p>')
     expect(sanitizeCommentaryHtml('<iframe src="evil"></iframe>text')).toBe('text')
+    expect(sanitizeCommentaryHtml('<p><u>x</u></p>')).toBe('<p>x</p>') // <u> is not in the allowlist (Tiptap can't emit it)
   })
   test('handles empty/nullish input', () => {
     expect(sanitizeCommentaryHtml('')).toBe('')

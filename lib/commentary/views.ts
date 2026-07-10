@@ -54,3 +54,9 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'linkedin-ads': { label: 'LinkedIn Advertising', owner: 'Greg' },
   'organic-social': { label: 'Organic Social', owner: 'Jasmine / Kyleah' },
 }
+
+/** Runtime guard: is this string one of the 7 canonical view keys? Used to reject
+ *  an unvalidated viewKey on the commentary write path (types are erased at runtime). */
+export function isCommentaryViewKey(v: string): v is CommentaryViewKey {
+  return Object.prototype.hasOwnProperty.call(COMMENTARY_VIEWS, v)
+}
