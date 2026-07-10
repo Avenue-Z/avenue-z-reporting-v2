@@ -12,6 +12,7 @@
 import type { PRPlacement } from './types'
 import type { UrlCitation } from '@/lib/peec/url-citations'
 import type { AEOModel } from '@/lib/peec/models'
+import type { CitationDateIndex } from '@/lib/peec/citation-dates'
 
 /** One matchback row for the "which placements are cited" table. */
 export interface MatchbackRow {
@@ -21,6 +22,12 @@ export interface MatchbackRow {
   publicationDate: string
   citedByAI: boolean
   aiEnginesCiting: string[]
+  /** Earliest citation date for this host, scoped to the active model filter
+   *  (or the "*" any-engine roll-up when there is no filter). Empty string
+   *  when the host has no entry in the citation-date index ("N/A" in the UI). */
+  firstCitedDate: string
+  /** Most-recent citation date for this host, same scoping as firstCitedDate. */
+  lastCitedDate: string
 }
 
 export interface MatchbackResult {
@@ -42,14 +49,20 @@ export function normHost(s: string): string {
 /**
  * Build the placement matchback for a period.
  *
- * @param placements   All-time PR-secured placements (from the PR Proof Library).
- * @param urlCitations Per-URL citations for the SELECTED date range only.
- * @param models       Active AI-model filter, or null for all models.
+ * @param placements    All-time PR-secured placements (from the PR Proof Library).
+ * @param urlCitations  Per-URL citations for the SELECTED date range only.
+ * @param models        Active AI-model filter, or null for all models.
+ * @param citationDates Per-host, per-engine (plus "*" roll-up) first/last citation
+ *                       dates, bounded to the selected timeframe (the same window
+ *                       used for urlCitations below). Used only to populate
+ *                       firstCitedDate/lastCitedDate; row inclusion and citedByAI
+ *                       are still driven entirely by urlCitations.
  */
 export function computePlacementMatchback(
   placements: PRPlacement[],
   urlCitations: UrlCitation[],
   models: AEOModel[] | null,
+  citationDates: CitationDateIndex,
 ): MatchbackResult {
   // Hosts cited anywhere in the period (engine data optional), plus the union of
   // engines per host. Building citedHosts from ALL citations (not only ones with
@@ -69,6 +82,28 @@ export function computePlacementMatchback(
 
   const modelSet = models && models.length > 0 ? new Set<string>(models) : null
 
+  // First/most-recent citation date for a host, scoped to the active model
+  // filter (or the "*" any-engine roll-up when there is no filter). citationDates
+  // is bounded to the selected timeframe (same window as citedHostsInPeriod/
+  // enginesByHost above), which only decide row inclusion, not the date values.
+  const datesFor = (h: string): { first: string; last: string } => {
+    const perEngine = citationDates[h]
+    if (!perEngine) return { first: '', last: '' }
+    if (!modelSet) {
+      const rollup = perEngine['*']
+      return rollup ? { first: rollup.first, last: rollup.last } : { first: '', last: '' }
+    }
+    let first = ''
+    let last = ''
+    for (const engine of modelSet) {
+      const entry = perEngine[engine]
+      if (!entry) continue
+      if (!first || entry.first < first) first = entry.first
+      if (!last || entry.last > last) last = entry.last
+    }
+    return { first, last }
+  }
+
   const rows: MatchbackRow[] = []
   for (const p of placements) {
     const h = normHost(p.domain)
@@ -79,6 +114,7 @@ export function computePlacementMatchback(
       if (aiEnginesCiting.length === 0) continue
       if (!aiEnginesCiting.some((e) => modelSet.has(e))) continue
     }
+    const { first, last } = datesFor(h)
     rows.push({
       outlet: p.outlet ?? p.domain,
       headline: p.headline ?? p.domain,
@@ -86,6 +122,8 @@ export function computePlacementMatchback(
       publicationDate: p.publicationDate ?? '',
       citedByAI: true,
       aiEnginesCiting,
+      firstCitedDate: first,
+      lastCitedDate: last,
     })
   }
 

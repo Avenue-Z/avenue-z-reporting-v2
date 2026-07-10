@@ -31,19 +31,22 @@ export function SentimentSkeleton() {
  * Server wrapper that fetches Profound sentiment and renders the client card.
  * Rendered inside its own <Suspense> by PR Influence so the answers fetch
  * streams independently. Gated to Profound-configured clients by the caller
- * (PR Influence renders this only for Avenue Z); Profound is a single-account
- * feed, so it must never render for a client without a Profound account.
+ * (PR Influence renders this only when the client row has a profoundCategoryId,
+ * #138 P6); clientSlug is threaded through so brand/category resolve per
+ * client and the sentiment cache key carries a client dimension (#138 P7).
  */
 export async function SentimentInsightsSection({
+  clientSlug,
   dateRange,
   models,
 }: {
+  clientSlug: string
   dateRange: string
   models: AEOModel[] | null
 }) {
   let data: Awaited<ReturnType<typeof getProfoundSentiment>> | null = null
   try {
-    data = await getProfoundSentiment(dateRange, null, models)
+    data = await getProfoundSentiment(clientSlug, dateRange, null, models)
   } catch (e) {
     console.error('[pr-influence] Profound sentiment fetch failed:', e)
   }
