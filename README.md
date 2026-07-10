@@ -9,9 +9,35 @@ sources**: GA4, Google Search Console, HubSpot, Peec AI, and Profound AI via
 their native APIs, plus the **Supermetrics Data API** for the paid/social ad
 channels (Paid Search, Meta, LinkedIn).
 
-> **New here?** Read [`ENGINEERS.md`](./ENGINEERS.md) (human onboarding guide)
-> and [`CLAUDE.md`](./CLAUDE.md) (architecture reference). This README is just
-> the quick start.
+> **New here? Read in this order:** [`ENGINEERS.md`](./ENGINEERS.md)
+> (Reports-product onboarding) then [`CLAUDE.md`](./CLAUDE.md) (platform
+> architecture). This README is the quick start; the full map is below.
+
+## Documentation Map
+
+This repo hosts **two products** over one shared spine. The docs below are
+**current** — read these and ignore anything not listed as current.
+
+| Doc | Covers | Status |
+|---|---|---|
+| `README.md` (this file) | Quick start + orientation | ✅ current |
+| `ENGINEERS.md` | **Reports** product: auth, data clients, report-section build status, env vars, conventions | ✅ current |
+| `CLAUDE.md` | Platform architecture / shared spine + Supermetrics reference | ✅ current |
+| `lib/dashboard/ENGINEERS.md` | **Configurable dashboard** product: blocks → bindings → resolvers → adapters, caching, sharing | ✅ current |
+| `lib/dashboard/CLAUDE.md` · `components/dashboard/CLAUDE.md` | Terse working rules for the dashboard engine + its UI | ✅ current |
+| `TODO.md` | Standing task list | ✅ current |
+| `Guides/brand.md` · `Guides/prplacements.md` | Topic guides (brand tokens, PR placements) | ✅ current |
+| `Guides/gleansdk.md` | Glean meeting-prep feature guide — SDK usage is current; **ignore its "Existing Platform Context"** (stale Next 15 / `clients.config.ts`) | 🟡 mostly current |
+| `docs/superpowers/{plans,specs}/**` | **Dated, point-in-time** design/plan docs for specific past PRs. Useful history, but **not** current architecture — where they differ, trust `CLAUDE.md` / `ENGINEERS.md` | 🟡 historical context |
+| `docs/official-feedback/paul-v3-qa-scorecard.md` | **Paul V3 QA scorecard**: the 19 items fixed on `feature/paul-v3-qa-fixes` (PR #144), each as initial problem / issue / how it was fixed. Companion to `docs/official-feedback/feedback-log.md` | ✅ current |
+| `Guides/claude.md` · `Guides/progress.md` | **ARCHIVED** — describe a superseded architecture (flat `clients.config.ts`, `middleware.ts`, Next 15, demo data). **Do not follow.** | ⛔ historical |
+
+**The two products, one line each:**
+
+- **Reports** (client-facing) — per-client report sections in `components/report-sections/`, shown to staff at `/dashboard` and to clients at `/portal/[clientSlug]`, gated by the client's `enabledReports`.
+- **Configurable dashboard** (internal) — a JSON-configured, drag-and-arrange block grid stored in `clients.dashboard_config`, authored in the browser with no deploy.
+
+Both share **Neon Postgres + Drizzle** (`lib/db/`), **Auth.js v5** (`auth.ts` + `proxy.ts`), and the per-client `clients` row.
 
 ## Tech Stack
 
@@ -27,8 +53,8 @@ channels (Paid Search, Meta, LinkedIn).
 ```bash
 npm install
 
-# Create .env.local (there is no .env.example yet — get values from the
-# team or the Vercel project settings). See "Environment Variables" below.
+# Copy the env template and fill in values (secrets from the team or Vercel):
+cp .env.example .env.local
 
 # Set up the database (DATABASE_URL_UNPOOLED → dev Neon project)
 npm run db:migrate     # apply Drizzle migrations
@@ -42,33 +68,37 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with Google
 
 ### Environment Variables
 
-A subset to get running locally — see [`ENGINEERS.md`](./ENGINEERS.md) for the
-full annotated list and Vercel scoping notes.
-
-```env
-# Auth.js
-AUTH_SECRET=                          # openssl rand -base64 32
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
-AUTH_TRUST_HOST=true
-
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-APP_URL=http://localhost:3000
-
-# Database (Neon Postgres)
-DATABASE_URL=                         # pooled (app runtime)
-DATABASE_URL_UNPOOLED=                # direct (drizzle-kit migrations)
-
-# Data sources (examples — see ENGINEERS.md for the rest)
-GOOGLE_SERVICE_ACCOUNT_KEY=           # shared SA for GA4 + GSC
-HUBSPOT_ACCESS_TOKEN_AVENUE_Z=        # per-client HubSpot token
-PEEC_AI_CUSTOMER_TOKEN=
-PROFOUND_AI_ACCESS_TOKEN=
-# Supermetrics: per-client key, env-var name stored in clients.sm_api_key_env_var
-```
+**[`.env.example`](./.env.example)** is the complete, annotated list and the single
+source of truth — `cp .env.example .env.local` and fill in values from the team or
+Vercel. For per-integration notes and Vercel Production/Preview scoping, see
+[`ENGINEERS.md`](./ENGINEERS.md#environment-variables).
 
 ## Architecture
+
+At a glance — two products over one shared spine:
+
+```
+                 Auth.js v5 (Google + Credentials)  →  role + clientSlug in JWT
+                                  │
+              proxy.ts  →  /dashboard (internal)   /portal/[slug] (client)
+                                  │
+        ┌─────────────────────────┴─────────────────────────┐
+        │                                                    │
+   REPORTS product                              CONFIGURABLE DASHBOARD product
+   components/report-sections/<slug>            clients.dashboard_config (JSON)
+   one RSC per section, gated by                blocks → bindings → resolvers
+   enabledReports                               rendered by renderBlockNode
+        │                                                    │
+        └─────────────────────────┬─────────────────────────┘
+                                  │
+     Data sources: GA4 · GSC · HubSpot · Peec · Profound  (native APIs)
+                   Paid Search · Meta · LinkedIn · Shopify · Triple Whale (Supermetrics / TW)
+                                  │
+                   Neon Postgres + Drizzle  (clients, users, dashboard config, shares)
+```
+
+- **Reports** is code — a section is an RSC (see [`ENGINEERS.md`](./ENGINEERS.md) § Adding a Report Section).
+- **Configurable dashboard** is data — blocks authored in the browser (see [`lib/dashboard/ENGINEERS.md`](./lib/dashboard/ENGINEERS.md)).
 
 ### Two Audiences
 
@@ -89,7 +119,7 @@ deploy required for routine data entry.
 | Role | Access |
 |------|--------|
 | `INTERNAL_ADMIN` | All clients, all reports, admin actions |
-| `INTERNAL_ANALYST` | All clients, all reports (read-only) |
+| `INTERNAL_ANALYST` | All clients, all reports; read-only on Reports + admin actions (but **may edit configurable dashboards**) |
 | `CLIENT_ADMIN` | Own client: auth hub + enabled reports |
 | `CLIENT_VIEWER` | Own client: enabled reports (read-only) |
 
@@ -134,8 +164,15 @@ proxy.ts                     # Next.js 16 route protection
 npm run dev          # Start dev server
 npm run build        # Production build
 npm run lint         # ESLint
+npm test             # Vitest (report-sections, app/actions — see ENGINEERS.md § Testing)
 npm run db:studio    # Drizzle Studio
 ```
+
+> **Two test conventions.** `npm test` (Vitest) covers only `lib/report-sections`,
+> `app/actions`, and `components/report-sections`. The dashboard engine and most of
+> `lib` use standalone `node:assert` scripts run individually
+> (`npx tsx <file>.test.ts`). See [`ENGINEERS.md`](./ENGINEERS.md#testing) for the
+> full story.
 
 ## Deployment
 

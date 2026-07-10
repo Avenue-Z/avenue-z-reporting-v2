@@ -21,6 +21,7 @@ import { type BotVsHumanScatterResult, type BotVsHumanState, botVsHumanState } f
 
 interface Props {
   data: BotVsHumanScatterResult
+  clientDomain: string
 }
 
 // Message per non-renderable state. Distinguishes "no bot data" (the common
@@ -42,7 +43,25 @@ const QUADRANT_FILL: Record<string, string> = {
   'low-bot-low-human':   '#888888', // gray: both low (background)
 }
 
-export default function BotVsHumanScatter({ data }: Props) {
+// CI-3b: resolve a scatter point's URL for click-to-open. `p.path` here is a
+// urlJoinKey() output (lib/url.ts): lowercased, protocol/host/www stripped,
+// trailing slash trimmed. For a GA4 pagePath (the common case, e.g.
+// "/blog/post-1") that leaves a bare path with no host, so `clientDomain` is
+// threaded in from the parent (same pattern as PageOverlapTable in
+// technical-audit-tables.tsx) to build an absolute URL. If the path is
+// already absolute, open it as-is. If there is no path, or no owned
+// clientDomain to build an absolute URL from, the click is a no-op rather
+// than opening a broken link or a foreign placeholder domain.
+function resolvePointUrl(path: string | undefined, clientDomain: string): string | null {
+  if (!path) return null
+  if (/^https?:\/\//i.test(path)) return path
+  if (path.startsWith('//')) return `https:${path}`
+  if (!clientDomain) return null
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return `https://${clientDomain}${normalizedPath}`
+}
+
+export default function BotVsHumanScatter({ data, clientDomain }: Props) {
   const state = botVsHumanState(data)
   if (state !== 'ok') {
     return (
@@ -54,14 +73,30 @@ export default function BotVsHumanScatter({ data }: Props) {
     )
   }
 
-  const cornerLabel = 'text-[10px] font-semibold uppercase tracking-wide text-text-muted'
+  // Readable foreground (matches the tooltip's white/70 label color, not the
+  // low-contrast text-text-muted) plus a semi-opaque chip so the label stays
+  // legible sitting on top of chart points.
+  const cornerLabel = 'rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70'
+
+  // CI-3b: click a point to open its page in a new tab. Recharts passes the
+  // point datum as the first (untyped) arg; narrow it to the same payload
+  // shape the tooltip already reads (path/bots/humans) instead of using any.
+  const handlePointClick = (point: { payload?: { path?: string } }) => {
+    const url = resolvePointUrl(point?.payload?.path, clientDomain)
+    if (!url) return
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   // Render four overlay labels in a 2x2 CSS grid so each label sits in its
-  // true quadrant cell (top-left = Low Bot/High Human, etc.).
+  // true quadrant cell (top-left = Low Bot/High Human, etc.). The top-left
+  // cell gets extra left/top offset (pl-10 pt-8 vs. the p-4 used elsewhere)
+  // so it clears the rotated Y-axis title ("Human Sessions...", angle -90,
+  // position insideLeft) and the densest cluster of high-human points that
+  // otherwise sit right under a p-4 corner label.
   return (
     <div className="relative w-full">
       <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-2 grid-rows-2">
-        <div className="flex items-start justify-start p-4"><span className={cornerLabel}>Low Bot, High Human</span></div>
+        <div className="flex items-start justify-start pl-10 pt-8 pr-4 pb-4"><span className={cornerLabel}>Low Bot, High Human</span></div>
         <div className="flex items-start justify-end p-4"><span className={cornerLabel}>High Bot, High Human</span></div>
         <div className="flex items-end justify-start p-4"><span className={cornerLabel}>Low Bot, Low Human</span></div>
         <div className="flex items-end justify-end p-4"><span className={cornerLabel}>High Bot, Low Human</span></div>
@@ -105,6 +140,8 @@ export default function BotVsHumanScatter({ data }: Props) {
               ...p,
               fill: QUADRANT_FILL[p.quadrant],
             }))}
+            cursor="pointer"
+            onClick={handlePointClick}
           />
         </ScatterChart>
       </ResponsiveContainer>

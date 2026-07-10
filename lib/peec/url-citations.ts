@@ -8,7 +8,7 @@ const BASE_URL = 'https://api.peec.ai/customer/v1'
  *  FB-005: callers should pass `model.id` not `model_channel.id`. The channel id
  *  like "google-2" is the Gemini channel and would otherwise silently fall into
  *  the Google bucket via the "google" substring check. */
-function normalizeEngine(id: string): string | null {
+export function normalizeEngine(id: string): string | null {
   const s = id.toLowerCase()
   if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
   if (s.includes('perplexity')) return 'Perplexity'
@@ -137,6 +137,18 @@ export function avgCitationsByDomain(citations: UrlCitation[]): Record<string, n
   return out
 }
 
+/**
+ * PR-2 (Paul QA): "Top Editorial Opportunities" is titled and subtitled as
+ * rows that are on the rise, so a row must actually be gaining citation share
+ * period over period, not flat or declining. This is the pure predicate for
+ * that gate: current and prior are citation-share percentages for the same
+ * URL, and the row qualifies only when the delta is strictly greater than
+ * zero. Delta exactly zero is excluded (flat is not rising).
+ */
+export function isPositiveDelta(currentShare: number, priorShare: number): boolean {
+  return currentShare - priorShare > 0
+}
+
 function getKey(): string {
   const key = process.env.PEEC_AI_CUSTOMER_TOKEN
   if (!key) throw new Error('Missing env var: PEEC_AI_CUSTOMER_TOKEN')
@@ -215,6 +227,16 @@ export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitations
 export type DomainCoverage = {
   /** host (lowercased, www-stripped) → distinct prompt ids citing a URL on that host */
   promptIdsByDomain: Record<string, string[]>
+  /**
+   * host → engine label (normalizeEngine output, e.g. "ChatGPT") → distinct
+   * prompt ids citing a URL on that host via that engine. CI-1: lets the
+   * Content Impact "Prompt Coverage" KPI value react to the model filter, not
+   * just its delta pill. Optional so hand-built fallback/empty DomainCoverage
+   * literals elsewhere (other consumers' rejected-fetch placeholders) do not
+   * need updating: treat a missing entry the same as "no citations for that
+   * host under any engine."
+   */
+  promptIdsByDomainByModel?: Record<string, Record<string, string[]>>
   /** host → distinct theme (tag) ids */
   tagIdsByDomain: Record<string, string[]>
   /** url join key → distinct theme (tag) ids citing that specific URL (Section H.3) */
@@ -230,7 +252,15 @@ function lookupHost(domain: string): string {
   return domain.trim().toLowerCase().replace(/^www\./, '')
 }
 
-/** Aggregate prompt/tag-dimensioned URL rows into per-domain id sets. */
+/**
+ * Aggregate prompt/tag-dimensioned URL rows into per-domain id sets.
+ *
+ * CI-1: `promptRows` may also carry `model.id` (fetch dimensions
+ * `['prompt_id','model_id']`); when present, an additional model-aware
+ * structure is derived alongside the existing all-engines one so the
+ * Content Impact "Prompt Coverage" KPI value can be filtered by the selected
+ * AI model(s), not just its delta pill.
+ */
 export function aggregateDomainCoverage(
   promptRows: ApiUrlRow[],
   tagRows: ApiUrlRow[],
@@ -252,8 +282,35 @@ export function aggregateDomainCoverage(
     }
     return Object.fromEntries([...sets].map(([k, v]) => [k, [...v]]))
   }
+
+  // host -> engine label -> distinct prompt ids. Rows without a resolvable
+  // model.id (or an unmapped scraper id) are simply skipped here; they still
+  // count toward the all-engines promptIdsByDomain below.
+  const byDomainByModel = new Map<string, Map<string, Set<string>>>()
+  for (const r of promptRows) {
+    const promptId = r.prompt?.id
+    if (!promptId) continue
+    const host = hostOf(r.url)
+    if (!host) continue
+    const rawModelId = r.model?.id ?? r.model_channel?.id
+    if (!rawModelId) continue
+    const engine = normalizeEngine(rawModelId)
+    if (!engine) continue
+    if (!byDomainByModel.has(host)) byDomainByModel.set(host, new Map())
+    const byModel = byDomainByModel.get(host)!
+    if (!byModel.has(engine)) byModel.set(engine, new Set())
+    byModel.get(engine)!.add(promptId)
+  }
+  const promptIdsByDomainByModel: Record<string, Record<string, string[]>> = {}
+  for (const [host, byModel] of byDomainByModel) {
+    promptIdsByDomainByModel[host] = Object.fromEntries(
+      [...byModel].map(([engine, ids]) => [engine, [...ids]]),
+    )
+  }
+
   return {
     promptIdsByDomain: collect(promptRows, (r) => r.prompt?.id, (r) => hostOf(r.url) || null),
+    promptIdsByDomainByModel,
     tagIdsByDomain: collect(tagRows, (r) => r.tag?.id, (r) => hostOf(r.url) || null),
     tagIdsByUrlKey: collect(tagRows, (r) => r.tag?.id, (r) => urlJoinKey(r.url)),
     promptIdsByUrlKey: collect(promptRows, (r) => r.prompt?.id, (r) => urlJoinKey(r.url)),
@@ -284,6 +341,40 @@ export function ownedPromptCoveragePct(
   const ids = new Set<string>()
   for (const d of ownedDomains) {
     for (const pid of domainPromptIds(cov, d)) ids.add(pid)
+  }
+  return Math.round((ids.size / totalTrackedPrompts) * 100)
+}
+
+/**
+ * Model-aware variant of `ownedPromptCoveragePct` (CI-1). Same contract, plus
+ * a `models` filter: when `models` is null or empty ("all models" / no filter),
+ * this returns exactly the same value as `ownedPromptCoveragePct` (union across
+ * all engines, via `promptIdsByDomain`). When one or more engines are selected,
+ * prompt ids are unioned only across owned domains AND only for citations
+ * attributed to a selected engine (via `promptIdsByDomainByModel`), so the
+ * Content Impact "Prompt Coverage" KPI value moves with the model filter, not
+ * just its period-over-period delta.
+ */
+export function ownedPromptCoveragePctForModels(
+  cov: DomainCoverage,
+  ownedDomains: string[],
+  totalTrackedPrompts: number,
+  models: string[] | null | undefined,
+  available: boolean,
+): number | null {
+  if (!available || totalTrackedPrompts <= 0) return null
+  const ids = new Set<string>()
+  if (!models || models.length === 0) {
+    for (const d of ownedDomains) {
+      for (const pid of domainPromptIds(cov, d)) ids.add(pid)
+    }
+  } else {
+    for (const d of ownedDomains) {
+      const byModel = cov.promptIdsByDomainByModel?.[lookupHost(d)] ?? {}
+      for (const m of models) {
+        for (const pid of byModel[m] ?? []) ids.add(pid)
+      }
+    }
   }
   return Math.round((ids.size / totalTrackedPrompts) * 100)
 }
@@ -332,7 +423,14 @@ async function getDomainCoverageImpl(
   const d = last30()
   const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
   const [promptRes, tagRes, tagsRes] = await Promise.all([
-    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['prompt_id'], limit: 2000 }, pid),
+    // CI-1: dimensioned by prompt_id AND model_id so promptIdsByDomainByModel
+    // can be derived (Content Impact "Prompt Coverage" KPI value reacting to
+    // the model filter). Adding a second dimension multiplies row count (up to
+    // ~6x, one row per prompt per engine instead of one per prompt), so the
+    // limit is raised from 2000 to 10000 to match the precedent for other
+    // prompt_id + model dimensioned fetches (lib/peec/client.ts:437) and avoid
+    // silently truncating owned-domain prompt rows.
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['prompt_id', 'model_id'], limit: 10000 }, pid),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['tag_id'], limit: 2000 }, pid),
     get<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
   ])
@@ -341,6 +439,9 @@ async function getDomainCoverageImpl(
 }
 
 export const getDomainCoverage = cached('peec', 'getDomainCoverage', getDomainCoverageImpl, {
-  version: 'v4',  // v4: added promptIdsByUrlKey + dateRange parameter (FB-035)
+  // v5: prompt-coverage fetch now dimensioned by prompt_id + model_id (was
+  // prompt_id only), adding promptIdsByDomainByModel to the response shape
+  // and raising the fetch limit 2000 -> 10000 (CI-1).
+  version: 'v5',
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })

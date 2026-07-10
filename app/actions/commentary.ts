@@ -7,6 +7,7 @@ import { reportCommentary } from '@/lib/db/schema'
 import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditCommentary, canApproveCommentary } from '@/lib/commentary/permissions'
+import { isCommentaryViewKey } from '@/lib/commentary/views'
 import { sanitizeCommentaryHtml } from '@/lib/commentary/sanitize'
 import { validateCommentaryInput, planCommentaryWrite } from '@/lib/commentary/mutations'
 import type { CommentaryInput, CommentaryStatus } from '@/lib/commentary/types'
@@ -19,6 +20,7 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
   const session = await auth()
   const email = session?.user?.email
   if (!canEditCommentary(email)) return { ok: false, error: 'forbidden' }
+  if (!isCommentaryViewKey(input.viewKey)) return { ok: false, error: 'invalid viewKey' }
 
   const client = await getClientBySlug(input.clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
@@ -68,7 +70,10 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
   return { ok: true }
 }
 
-/** Approve an entry for client visibility. Allowlist only. */
+/** Approve an entry for client visibility. Allowlist only. Other approved entries for
+ *  the same view + period are left untouched — the client view shows only the most
+ *  recently approved one per period (see visibleEntries), so a re-approval replaces
+ *  the visible version and a revoke falls back to the previously approved one. */
 export async function approveCommentary(id: string): Promise<Result> {
   const session = await auth()
   const email = session?.user?.email

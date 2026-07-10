@@ -363,15 +363,16 @@ export function PromptClusterOpportunityMatrix({
   )
 }
 
-// ─── 5. PR Placement Matchback (FB-029 — restored under Exec Summary) ────────
-// Tina v1 CSV R23 REVISION. The PRD ask: 'Did placements achieved by the
-// PR team get cited in AI? The dashboard must compare a maintained list of
-// PR-secured placements against the list of editorial URLs cited in tracked
-// AI answers.' This component is the answer. Lives directly under the
-// Executive Synopsis. Reuses filteredMatchbackRows from pr-influence.tsx
-// (already date + model aware). Five columns mapped to Tina's literal
-// title: which placement (Publication + Article), when (Publish Date),
-// is it showing up in AI citations (Cited by AI? + AI Engines).
+// ─── 5. PR Placement Matchback (FB-029 restored, FB-067 cited-in-timeframe) ──
+// Tina's PRD ask: "Did placements achieved by the PR team get cited in AI? The
+// dashboard must compare a maintained list of PR-secured placements against the
+// list of editorial URLs cited in tracked AI answers." Tina 2026-07-09 refined
+// it: the placement list is ALL TIME, and the card dynamically shows only
+// placements whose domain is CITED within the selected timeframe (not secured
+// within it). The cited-in-timeframe logic is computePlacementMatchback in
+// lib/pr-proof/matchback.ts (pure, unit-tested); this component only renders the
+// rows it returns. Columns: Publication + Article (which placement), Publish
+// Date (when secured), Cited by AI + AI Engines (how it is showing up in AI).
 
 export interface PRPlacementMatchbackRow {
   outlet: string
@@ -380,6 +381,10 @@ export interface PRPlacementMatchbackRow {
   publicationDate: string
   citedByAI: boolean
   aiEnginesCiting: string[]
+  /** Earliest citation date for this placement's host (empty string when unknown). */
+  firstCitedDate: string
+  /** Most-recent citation date for this placement's host (empty string when unknown). */
+  lastCitedDate: string
 }
 
 export function PRPlacementMatchbackTable({
@@ -426,6 +431,26 @@ export function PRPlacementMatchbackTable({
       accessor: (r) => r.publicationDate,
       render: (r) => (
         <span className="tabular-nums text-white/60">{r.publicationDate || '--'}</span>
+      ),
+    },
+    {
+      key: 'firstCitedDate',
+      label: 'First cited',
+      align: 'left',
+      tooltip: 'Earliest date Peec AI observed a citation for this placement\'s domain, within the selected timeframe. (Peec AI source data.)',
+      accessor: (r) => r.firstCitedDate,
+      render: (r) => (
+        <span className="tabular-nums text-white/60">{r.firstCitedDate || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'lastCitedDate',
+      label: 'Most recent',
+      align: 'left',
+      tooltip: 'Most recent date Peec AI observed a citation for this placement\'s domain, within the selected timeframe. (Peec AI source data.)',
+      accessor: (r) => r.lastCitedDate,
+      render: (r) => (
+        <span className="tabular-nums text-white/60">{r.lastCitedDate || 'N/A'}</span>
       ),
     },
     {
@@ -476,7 +501,7 @@ export function PRPlacementMatchbackTable({
       <SectionHeading
         title="Which secured PR placements are showing up in AI citations?"
         tooltip="Compares your PR-secured placements (PR Proof Library) against the editorial URLs cited in tracked AI answers (Peec AI)."
-        subtitle="See which placements secured in the selected timeframe are being cited in AI-generated answers and how they are shaping brand visibility, sentiment, and reputation across your tracked prompts."
+        subtitle="See which of your all-time secured PR placements are being cited in AI-generated answers within the selected timeframe, and how they are shaping brand visibility, sentiment, and reputation across your tracked prompts."
       />
       {totalPlacements > 0 && (
         <p className="mb-4 text-xs text-text-muted">
@@ -489,12 +514,12 @@ export function PRPlacementMatchbackTable({
           rows={rows}
           rowKey={(r) => r.link || r.headline}
           initialPageSize={15}
-          emptyMessage="No PR placements in the selected timeframe."
+          emptyMessage="No PR placements cited by AI in the selected timeframe."
         />
       ) : (
         <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">
-            No PR placements in the selected timeframe.
+            No PR placements cited by AI in the selected timeframe.
           </p>
         </div>
       )}

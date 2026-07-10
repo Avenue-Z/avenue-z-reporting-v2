@@ -13,6 +13,21 @@ const CONTENT_CLASS =
   'min-h-[8rem] p-3 text-sm text-white focus:outline-none [&_a]:underline [&_a]:text-blue-400 ' +
   '[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1'
 
+// Suggested commentary structure (PRD "Commentary Guidance"). Pre-filled as an
+// editable scaffold when adding a NEW entry; authors replace each line. Editing
+// an existing entry shows its own content instead.
+const SUGGESTED_TEMPLATE =
+  '<ul>' +
+  '<li>Headline with business framing</li>' +
+  '<li>Prior-period change</li>' +
+  '<li>Why it changed</li>' +
+  '<li>Operational caveats</li>' +
+  '<li>Bigger-picture trend context</li>' +
+  '<li>Cross-channel notes</li>' +
+  '<li>Risks or watchouts, if relevant</li>' +
+  '<li>Next steps</li>' +
+  '</ul>'
+
 function ToolbarButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
     <button
@@ -51,7 +66,7 @@ export function CommentaryEditor({
       StarterKit.configure({ heading: { levels: [3] }, link: false }),
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
     ],
-    content: entry?.bodyHtml || '<p></p>',
+    content: entry?.bodyHtml || SUGGESTED_TEMPLATE,
     immediatelyRender: false, // avoid SSR hydration mismatch in Next
     editorProps: { attributes: { class: CONTENT_CLASS } },
   })
@@ -68,6 +83,12 @@ export function CommentaryEditor({
   function handleSave() {
     if (!editor) return
     setError('')
+    // Don't let the untouched suggested outline get saved/approved as real commentary.
+    const strip = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (strip(editor.getHTML()) === strip(SUGGESTED_TEMPLATE)) {
+      setError('Replace the suggested outline with your commentary before saving.')
+      return
+    }
     startTransition(async () => {
       const res = await saveCommentary({
         id: entry?.id,

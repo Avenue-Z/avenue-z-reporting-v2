@@ -1,10 +1,10 @@
 import sanitizeHtml from 'sanitize-html'
 
 // The client-facing XSS boundary. Allow only the formatting Tiptap can emit
-// (bold/italic/underline, lists, a single heading level, links). Everything else
+// (bold/italic, lists, a single heading level, links). Everything else
 // — scripts, event handlers, img/iframe, javascript: URLs — is stripped.
 const OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'h3', 'a'],
+  allowedTags: ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h3', 'a'],
   allowedAttributes: { a: ['href', 'target', 'rel'] },
   allowedSchemes: ['http', 'https', 'mailto'],
   disallowedTagsMode: 'discard',
