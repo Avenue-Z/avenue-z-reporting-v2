@@ -2426,3 +2426,122 @@ Extracted the matchback into a pure, unit-tested function `computePlacementMatch
 
 ### Note
 With the table now showing only cited placements, the "Cited by AI" column reads "Yes" for every visible row. Kept per Tina's original column spec; an optional trim if she prefers.
+
+---
+
+## Paul V3 QA: column H live QA + PR #138 sentiment code review (2026-07-09)
+
+**Round:** V3 QA-checklist sweep, branch `feature/paul-v3-qa-fixes`. Two sources: (1) Paul's live QA pass over Content Impact and PR Influence, column H of the tracking sheet, items CI-1 through PR-3; (2) Paul's inline code review comments on GitHub PR #138 covering the Sentiment Insights feature, items P1 through P10. 19 items total.
+
+### CI-1: Prompt Coverage value static at 58% (Content Impact)
+- **Tab:** Content Impact
+- **Ask (Paul's flag):** The §A Prompt Coverage KPI value read a fixed 58% regardless of the date range or model filter; only its delta pill moved.
+- **What shipped:** `getDomainCoverage` now dimensions the Peec prompt-coverage fetch by `prompt_id` AND `model_id` (was `prompt_id` only), aggregating a new `promptIdsByDomainByModel` structure alongside the existing all-models one. New `ownedPromptCoveragePctForModels` helper collapses that structure to a model-aware percentage (equals the old all-models result when no model filter is active). `content-impact.tsx` now passes the selected date range into `getDomainCoverage` and computes both current and prior Prompt Coverage through the model-aware helper, so the value (and its delta) reacts to both the date picker and the model filter, apples-to-apples across periods. Fetch limit raised 2000 to 10000 to cover the new prompt x model row count.
+- **Files:** `lib/peec/url-citations.ts`, `lib/peec/url-citations.test.ts`, `components/report-sections/peec-ai/content-impact.tsx`.
+
+### CI-2: Speed Stats "0 days" for sub-day results (Content Impact)
+- **Tab:** Content Impact
+- **Ask (Paul's flag):** Fastest/Slowest AI-Indexed Content tiles showed "0 days" for content that earned traffic same-day, reading as broken data rather than a fast result.
+- **What shipped:** New pure `formatDaysToFirst()` helper (`lib/ga4/format-speed.ts`) maps `null` to "None", `0` to "Same day", `1` to "1 day", `n > 1` to "n days". Wired into the shared §C tile render. The underlying day computation in `lib/ga4/content-derive.ts` is unchanged, this is display formatting only.
+- **Files:** `lib/ga4/format-speed.ts` (new), `lib/ga4/format-speed.test.ts` (new), `components/report-sections/peec-ai/content-impact.tsx`.
+
+### CI-3a: Scatter top-left quadrant label illegible (Content Impact)
+- **Tab:** Content Impact
+- **Ask (Paul's flag):** The bot-vs-human scatter's quadrant corner labels were low-contrast against the point cloud, and the top-left (Low Bot/High Human) label overlapped the rotated Y-axis title.
+- **What shipped:** Label color switched from muted gray to `text-white/70` (matches the chart's own tooltip label color) plus a `bg-black/40` background chip so each label reads regardless of the fill color underneath. The top-left cell gets extra inward padding (`pl-10 pt-8` vs `p-4` on the other three) so it clears the Y-axis title and the densest part of the point cloud. No change to scatter data, quadrant math, median crosshair, axes, or hover behavior.
+- **Files:** `components/report-sections/peec-ai/bot-vs-human-scatter.tsx`.
+
+### CI-3b: Scatter point URLs not clickable (Content Impact)
+- **Tab:** Content Impact
+- **Ask (Paul's flag):** Hovering a scatter point showed the page path in the tooltip but there was no way to actually open the page from the chart.
+- **What shipped:** Clicking a scatter point now opens the page URL in a new tab (with pointer-cursor styling so it reads as clickable). `BotVsHumanScatter` takes a new `clientDomain` prop; `resolvePointUrl` builds an absolute URL from `clientDomain` + the point's path the same way `PageOverlapTable` already does in `technical-audit-tables.tsx` (leading-slash handling, already-absolute http(s) paths passed through). `content-impact.tsx` passes `clientDomain={ownedDomainNames[0] ?? ''}` since this RSC has no `clientConfig` in scope, only the Peec-derived owned-domains list. Without the client domain, a bare GA4 path (e.g. `/blog/post-1`) had no host to resolve against and the click was a silent no-op on real data; that's the bug this closes.
+- **Files:** `components/report-sections/peec-ai/bot-vs-human-scatter.tsx`, `components/report-sections/peec-ai/content-impact.tsx`.
+
+### CI-3c: Scatter ignores the date picker (Content Impact)
+- **Tab:** Content Impact
+- **Ask (Paul's flag):** The bot-vs-human scatter's human (GA4) axis was hard-locked to a rolling last-30-days window regardless of the page date picker, even when the selected range was fully inside that window.
+- **What shipped:** New pure resolver `resolveScatterWindow` (`lib/peec/scatter-window.ts`): when the selected date-picker range is fully inside the last 30 days it's used as-is for the human axis; if it starts before the 30-day floor the start gets clamped; if it's entirely older than 30 days, the chart falls back to the default rolling 30-day window (unchanged behavior for out-of-window selections). The bot axis (Peec `agentData.byPath`) still can't move: Peec only retains 30 days of crawl data, so it stays fixed. §D subtitle updated to describe this conditional behavior. Wired into the GA4 fetch feeding `pathHumans` in `content-impact.tsx`.
+- **Files:** `lib/peec/scatter-window.ts` (new), `lib/peec/scatter-window.test.ts` (new), `components/report-sections/peec-ai/content-impact.tsx`.
+
+### CI-4: Correct the "caps at 18.2%" note on Competitor Citation Share (Content Impact)
+- **Tab:** Content Impact
+- **Ask (Paul's flag):** Paul flagged that a note describing §H.1 Competitor Citation Share as "caps at a realistic top of 18.2%" is wrong, and asked for the record to be corrected.
+- **What shipped:** No code change. §H.1 Competitor Citation Share is share-of-period math (`d.citationCount / totalCompetitorCitations * 100`, FB-051), and it has no ceiling: any value from 0% to 100% is a legitimate output, and a value like 29.8% is not a red flag. There is no cap in the code, and there should be no cap claimed in the docs. For the record: FB-052 raised the Peec `/reports/domains` fetch limit from 100 to 500 (later FB-059 raised it again to 5000) and raised the §H.1 UI slice from `.slice(0, 10)` to `.slice(0, 25)`. That was a row-count change, how many competitor rows surface, not a change to the share math or any value ceiling. The earlier "caps at 18.2%" wording conflated those two things: a bigger row-count denominator does not mean any individual row's share is capped. Note for transparency: a grep across `docs/official-feedback/feedback-log.md`, `changelog.md`, `status.md`, and `tina-scorecard.csv` for "18.2" or "caps at" turned up no literal prior instance of that exact wording in the tracked docs (FB-052's own entry above, and the V3 backlog note under V2 Phase 4, both describe the row-count bump correctly and never claim a value ceiling). This entry stands as the correction of record regardless of where Paul saw the original wording.
+
+### PR-1: Sentiment pill percentage doesn't match listed themes (PR Influence)
+- **Tab:** PR Influence
+- **Ask (Paul's flag):** The Sentiment Insights pill percentage doesn't visibly reconcile with the theme rows shown underneath it, looked like a math mismatch.
+- **What shipped:** Not a math bug: the pill is `positive / (positive + negative)` over ALL classified sentiment for the selected models and period; the theme rows below are a top-8, dominant-polarity, ties-dropped subset from a separate call, so the two were never going to reconcile by eye. Added an info tooltip on the pill explaining it reflects all classified sentiment for the selected models and period, not only the themes listed below. Copy only, no change to the math or either label.
+- **Files:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/sentiment-insights.tsx`.
+
+### PR-2: Non-positive-delta rows in Top Editorial Opportunities (PR Influence)
+- **Tab:** PR Influence
+- **Ask (Paul's flag):** Top Editorial Opportunities was showing rows with flat or negative citation-share delta, which doesn't match the "on the rise" subtitle or Tina's original ask (a positive-delta filter existed at FB-014 but was dropped in FB-028's URL-level rewrite).
+- **What shipped:** Restored the positive-delta gate on the URL-level brand-absent editorial rows so only rising citation share shows, matching the "on the rise" subtitle. Extracted a pure `isPositiveDelta(current, prior)` helper into `lib/peec/url-citations.ts` with unit tests (rising included; flat-at-zero excluded; negative excluded; new appearance from zero included) and wired it into the `opportunityUrls` filter. The URL-level brand-absent + editorial + model-match predicates from FB-028 are unchanged.
+- **Files:** `lib/peec/url-citations.ts`, `lib/peec/url-citations.test.ts`, `components/report-sections/peec-ai/pr-influence.tsx`.
+
+### PR-3: Matchback showed only publish date (PR Influence, FB-068)
+- **Tab:** PR Influence
+- **Ask (Paul's flag):** The PR Placement Matchback table (FB-067) only shows Publish Date; Paul asked for cited-date visibility so a reader can see when a placement was first picked up and whether it's still being cited recently, bounded to the selected timeframe like the rest of the card.
+- **What shipped:** New `getPlacementCitationDates` (`lib/peec/citation-dates.ts`) does a bounded asc/desc Peec walk per target host to find each host's first and most-recent citation date within the selected timeframe, and a pure `buildCitationDateIndex` helper turns that into a lookup by host. `computePlacementMatchback` takes the index as a new 4th argument and each matchback row now carries `firstCitedDate` / `mostRecentCitedDate`. The RSC (`pr-influence.tsx`) fetches PR Proof placements ahead of the main parallel batch so their domains can seed the citation-date fetch's `targetHosts` (an early-exit optimization, not a correctness requirement), then wires the index through. New "First cited" / "Most recent citation" columns render in the matchback table right after Publish Date, formatted like the existing date cell, showing N/A when a placement's host has no citation-date entry in the selected window. Both new columns are bounded to the selected timeframe and respect the existing model filter, same as every other column on the card.
+- **Files:** `lib/peec/citation-dates.ts` (new), `lib/peec/citation-dates.test.ts` (new), `lib/pr-proof/matchback.ts`, `lib/pr-proof/matchback.test.ts`, `components/report-sections/peec-ai/pr-influence-tables.tsx`, `components/report-sections/peec-ai/pr-influence.tsx`, `vitest.config.ts`.
+
+### P1: Model-filtered source accordions could go empty (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: the Profound `/v1/prompts/answers` payload can tag an answer with a raw model id (e.g. `openai`) instead of the display name (`ChatGPT`) that the selected-models filter Set is keyed on; comparing the raw id straight against that Set silently drops every source when a model filter is active, so the source accordion for a filtered theme renders empty even though sources exist.
+- **What shipped:** `accumulateThemeSources` now normalizes the answer's model through a local `normalizeAnswerModel` before the filter check, falling back to the raw trimmed value when unrecognized, so model-filtered accordions show their sources instead of silently emptying.
+- **Files:** `lib/profound/sentiment-normalize.ts`, `lib/profound/sentiment.test.ts`.
+
+### P2: Sentiment accordion open-state keyed by index (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: the accordion's open-state Set was keyed by array index; when a model or date filter change reordered the theme list, the retained indices pointed at different themes and the wrong theme rendered expanded.
+- **What shipped:** Keyed the open-state Set by `theme.title` instead of index, stable across re-renders and filter changes, so a filter change no longer expands the wrong theme.
+- **Files:** `components/report-sections/peec-ai/sentiment-insights.tsx`.
+
+### P3: Answers pagination stopped on a short page, not an empty one (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: Profound can cap a page's row count below the requested pagination limit, so a short-but-nonempty page doesn't mean the last page; the loop was breaking on `rows.length < ANSWERS_PAGE`, truncating per-theme sources to page one whenever Profound's cap kicked in.
+- **What shipped:** Extracted the stop condition into an exported `shouldStopAnswerPaging(rows)` predicate (`rows.length === 0`) so it's unit-testable, and used it in the paging loop. The `ANSWERS_MAX_PAGES` safety cap is unchanged. Companion fix: `vitest.setup.ts` now defaults a dummy `DATABASE_URL` so DB-importing tests actually run in CI instead of being silently skipped.
+- **Files:** `lib/profound/sentiment.ts`, `lib/profound/sentiment.test.ts`, `vitest.setup.ts`.
+
+### P4: Themes dropped as 0/0 ties when a response omits metrics (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: `collapseModelThemeRows` defaulted metric names when a Profound response omitted `info.query.metrics`, but only used that fallback when building the output rows; the accumulation step and the returned `info` still referenced the original empty `info`, so `readMetric` resolved 0 for every metric and every theme got dropped as a 0/0 tie.
+- **What shipped:** Resolve `metricNames` once up front and reuse it as an effective `info` for both the accumulation read and the returned info, so the fallback takes effect end to end instead of only in the output shape.
+- **Files:** `lib/profound/sentiment-normalize.ts`, `lib/profound/sentiment.test.ts`.
+
+### P5: Duplicate-casing theme labels double-counted a cited URL (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: `accumulateThemeSources` iterated an answer's raw themes array without folding case-variant duplicates first, so an answer tagged both `'Pricing'` and `'pricing'` incremented every cited URL's count twice under the folded key.
+- **What shipped:** Build a Set of case-folded theme keys per answer before the attribution loop, so each distinct theme is counted once per answer, matching the existing per-answer URL dedupe. Key-folding and URL-dedupe behavior elsewhere is unchanged.
+- **Files:** `lib/profound/sentiment-normalize.ts`, `lib/profound/sentiment.test.ts`.
+
+### P6: Sentiment card gated on a hardcoded client slug (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: the card was gated on `clientSlug === 'avenue-z'`, a hardcoded string, instead of the DB config that actually determines whether a client is Profound-enabled.
+- **What shipped:** Replaced the string gate with a DB-config check on the client row's `profoundCategoryId`, the same pattern already used by `peec-ai/index.tsx` and `lib/profound/client.ts`. The card now renders when the client is Profound-configured, not when the slug happens to match one string. Avenue Z's own rendered output is unchanged, its client row already carries `profoundCategoryId`.
+- **Files:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/sentiment-insights-section.tsx`, `lib/profound/sentiment.ts`.
+
+### P7: Sentiment cache key had no client dimension (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: the sentiment cache key had no client dimension, so a second Profound client could collide with Avenue Z on the same `(dateRange, compareRange, models)` cache entry.
+- **What shipped:** Threaded `clientSlug` through `SentimentInsightsSection` into `getProfoundSentiment` as a new first parameter, resolved brand (`peecYourBrand`) and category (`profoundCategoryId`) from the client row with the existing env vars as fallback, and added a client tag to the cache key via a new named, exported, unit-tested `sentimentCacheTags` function. Cache version bumped since the fetch's config-resolution logic changed shape.
+- **Files:** `components/report-sections/peec-ai/pr-influence.tsx`, `components/report-sections/peec-ai/sentiment-insights-section.tsx`, `lib/profound/sentiment.ts`, `lib/profound/sentiment.test.ts`.
+
+### P8: modelKeyOf duplicated (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: `modelKeyOf` was duplicated across files instead of shared.
+- **What shipped:** Moved `modelKeyOf` from `lib/profound/sentiment.ts` into a new `lib/peec/models.ts` as an exported helper alongside `isAllModels`, reproducing the exact prior behavior (null/empty maps to all-models, sorted comma join) so cache keys don't shift. New `lib/peec/models.test.ts` pins that stability.
+- **Files:** `lib/peec/models.ts` (new), `lib/peec/models.test.ts` (new), `lib/profound/client.ts`, `lib/profound/sentiment.ts`, `vitest.config.ts`.
+
+### P9: Inert revalidate on the large answers fetch (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: `next.revalidate` is inert on the `/v1/prompts/answers` payload because it exceeds Next's 2MB data-cache limit, so the option was doing nothing there, but the same helper also backs smaller visibility/citations/sentiment calls that do benefit from it.
+- **What shipped:** Added an `options.revalidate` override on the shared `profoundPost` helper instead of a blanket removal, and pass `revalidate: false` only from the answers call site, so the small requests keep their working cache while the oversized answers fetch stops carrying a no-op option.
+- **Files:** `lib/profound/client.ts`, `lib/profound/sentiment.ts`.
+
+### P10: Dead prior-period comparison path (PR #138 code review)
+- **Tab:** PR Influence (Sentiment Insights)
+- **Ask (Paul's flag):** PR #138 review comment: the only caller of `getProfoundSentiment` passes `compareRange = null` and the UI never reads `positivePctDelta`, so the prior-period `fetchByModel` call and the delta computation were dead code; the header comment also claimed the card "reacts to comparison range," which it doesn't.
+- **What shipped:** Removed the dead prior-period fetch and delta-computation branch, hardcoded `positivePctDelta` to `null`, and corrected the misleading header comment. Kept the function's positional signature so the existing call site didn't need to change.
+- **Files:** `lib/profound/sentiment.ts`, `lib/profound/sentiment.test.ts`.

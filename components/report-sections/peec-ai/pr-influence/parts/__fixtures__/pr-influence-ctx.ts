@@ -1,9 +1,10 @@
 import type { PrInfluenceCtx } from '../../ctx'
 
 export const FIXTURE_PR_INFLUENCE_CTX: PrInfluenceCtx = {
-  clientSlug: 'fixture',           // not 'avenue-z' -> sentiment part renders null
+  clientSlug: 'fixture',
   dateRange: 'last_30_days',
   models: null,
+  profoundConfigured: false,       // no Profound account -> sentiment part renders null
   synopsisContext: {
     aiVisibility: 55, aiVisibilityDelta: 4, avgAiPosition: 2.1, avgAiPositionDelta: -0.3,
     totalAiCitations: 1200, totalPlacements: 8, placementsCitedByAI: 5,
@@ -14,7 +15,7 @@ export const FIXTURE_PR_INFLUENCE_CTX: PrInfluenceCtx = {
   },
   matchback: {
     rows: [
-      { outlet: 'Example News', headline: 'Brand in the news', link: 'https://example.com/a', publicationDate: '2025-06-01', citedByAI: true, aiEnginesCiting: ['ChatGPT'] },
+      { outlet: 'Example News', headline: 'Brand in the news', link: 'https://example.com/a', publicationDate: '2025-06-01', citedByAI: true, aiEnginesCiting: ['ChatGPT'], firstCitedDate: '2025-06-02', lastCitedDate: '2025-06-20' },
     ],
     citedCount: 1,
     totalPlacements: 8,

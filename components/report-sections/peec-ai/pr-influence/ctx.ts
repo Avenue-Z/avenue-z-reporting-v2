@@ -1,8 +1,10 @@
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
-import { getDomainCoverage, getUrlCitations, domainPromptIds, avgCitationsByDomain, type DomainCoverage } from '@/lib/peec/url-citations'
+import { getDomainCoverage, getUrlCitations, domainPromptIds, avgCitationsByDomain, isPositiveDelta, type DomainCoverage } from '@/lib/peec/url-citations'
 import { getPRProofData } from '@/lib/pr-proof/client'
-import { computePlacementMatchback, type MatchbackResult } from '@/lib/pr-proof/matchback'
+import { computePlacementMatchback, normHost, type MatchbackResult } from '@/lib/pr-proof/matchback'
+import { getPlacementCitationDates } from '@/lib/peec/citation-dates'
+import { getClientBySlug } from '@/lib/db/queries'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource } from '@/lib/constants'
 import { filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -14,6 +16,7 @@ export type PrInfluenceCtx = {
   clientSlug: string
   dateRange: string
   models: AEOModel[] | null
+  profoundConfigured: boolean
   synopsisContext: PRInfluenceSynopsisContext
   matchback: MatchbackResult
   totalPlacements: number
@@ -133,12 +136,24 @@ export async function buildPrInfluenceCtx(args: {
     ? `${resolvedCompare.startDate},${resolvedCompare.endDate}`
     : null
 
-  // Fetch all data sources in parallel with graceful degradation
-  const [peecResult, prResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult] = await Promise.allSettled([
+  // PR Proof placements are fetched first (ahead of the main parallel batch)
+  // because FB-068's citation-date fetch needs the placement domains as its
+  // targetHosts (an early-exit optimization for the Peec walk). Still wrapped
+  // for the same graceful-degradation behavior the rest of the fetches get.
+  const prResult = await getPRProofData(clientSlug).then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason) => ({ status: 'rejected' as const, reason }),
+  )
+  const prData = prResult.status === 'fulfilled' ? prResult.value : null
+  if (prResult.status === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
+
+  const placementHosts = (prData?.placements ?? []).map((p) => normHost(p.domain))
+
+  // Fetch remaining data sources in parallel with graceful degradation
+  const [peecResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult, citationDatesResult, clientConfigResult] = await Promise.allSettled([
     // Editorial domains / citations here are a stable all-time reference set, so
     // request YTD explicitly rather than the page date range.
     getPeecOverview(clientSlug, 'year_to_date'),
-    getPRProofData(clientSlug),
     ga4Query({
       clientSlug,
       dateRange: mainIso,
@@ -160,20 +175,33 @@ export async function buildPrInfluenceCtx(args: {
     resolvedCompare
       ? getUrlCitations(clientSlug, { startDate: resolvedCompare.startDate, endDate: resolvedCompare.endDate })
       : Promise.resolve([]),
+    // FB-068: first/last citation date per placement host, bounded to the SAME
+    // selected timeframe already used for getUrlCitations above.
+    getPlacementCitationDates(clientSlug, {
+      startDate: resolvedMain.startDate,
+      endDate: resolvedMain.endDate,
+      targetHosts: placementHosts,
+    }),
+    // #138 P6: gate the Sentiment card on the client row's profoundCategoryId
+    // (same DB-config pattern as peec-ai/index.tsx's profoundConfigured), not a
+    // hardcoded slug, so a future second Profound client renders it without a code change.
+    getClientBySlug(clientSlug),
   ])
 
-  let data    = peecResult.status === 'fulfilled' ? peecResult.value : null
-  let prData  = prResult.status   === 'fulfilled' ? prResult.value   : null
-  let aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
-  let compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
-  let coverage       = coverageResult.status === 'fulfilled'
+  const clientConfig = clientConfigResult.status === 'fulfilled' ? clientConfigResult.value : null
+  const profoundConfigured = !!clientConfig?.profoundCategoryId
+
+  const data    = peecResult.status === 'fulfilled' ? peecResult.value : null
+  const aiReferralRows = aiReferralResult.status === 'fulfilled' ? (aiReferralResult.value?.rows ?? []) : []
+  const compareAiRows  = compareAiResult.status  === 'fulfilled' ? (compareAiResult.value?.rows  ?? []) : []
+  const coverage       = coverageResult.status === 'fulfilled'
     ? coverageResult.value
     : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
-  let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
-  let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
+  const urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
+  const urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
+  const citationDates  = citationDatesResult.status === 'fulfilled' ? citationDatesResult.value : {}
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
-  if (prResult.status   === 'rejected') console.error('[pr-influence] PR Proof error:', prResult.reason)
 
   // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
   // Only when the query failed / GA4 is unconfigured do we show -- (no data).
@@ -207,7 +235,7 @@ export async function buildPrInfluenceCtx(args: {
   // only placements whose domain is CITED within the selected timeframe (from
   // period-scoped urlCitations), not those secured within the timeframe. Pure,
   // unit-tested logic lives in lib/pr-proof/matchback.ts.
-  const matchback = computePlacementMatchback(prData?.placements ?? [], urlCitations, models)
+  const matchback = computePlacementMatchback(prData?.placements ?? [], urlCitations, models, citationDates)
 
   // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
   // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
@@ -280,7 +308,8 @@ export async function buildPrInfluenceCtx(args: {
   // there are thousands of articles." → URL-level data source + Peec's literal
   // editorial filter (classification === 'editorial').
   // Tina V1 R17 ⚠️: "must be something wrong with one of the filters" → drop the
-  // legacy PR-placement-set misdefinition AND drop the positive-delta gate filter.
+  // legacy PR-placement-set misdefinition. (PR-2: the positive-delta gate is
+  // restored below via isPositiveDelta so the table matches its "on the rise" subtitle.)
   //
   // Honest URL-level Citation Share = c.citationCount / sumOfAllPeriodCitations * 100.
   // Honest URL-level Delta = currentShare - priorShare (priorShare computed from
@@ -319,7 +348,12 @@ export async function buildPrInfluenceCtx(args: {
     if (c.engines.length === 0) return false  // no model-specific signal — drop
     return c.engines.some((e) => (models as string[]).includes(e))
   }
-  const opportunityUrls = urlCitations.filter((c) => !c.mentionsYourBrand && isEditorialUrl(c) && isModelMatch(c))
+  const opportunityUrls = urlCitations.filter((c) =>
+    !c.mentionsYourBrand &&
+    isEditorialUrl(c) &&
+    isModelMatch(c) &&
+    isPositiveDelta(shareOf(c), priorShareByUrlKey.get(c.urlKey) ?? 0),
+  )
   const byHost = new Map<string, typeof urlCitations[number]>()
   for (const u of opportunityUrls) {
     const k = hostKey(u.domain)
@@ -389,6 +423,7 @@ export async function buildPrInfluenceCtx(args: {
 
   return {
     clientSlug, dateRange, models,
+    profoundConfigured,
     synopsisContext,
     matchback,
     totalPlacements: prData?.totalPlacements ?? 0,

@@ -15,6 +15,13 @@ function fmt(d: string): string {
   return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function fmtDateTime(iso: string): string {
+  // ISO timestamp → 'Mon D, YYYY, h:mm AM/PM' (local time).
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+}
+
 export function CommentaryPanel({
   clientSlug,
   viewKey,
@@ -30,10 +37,14 @@ export function CommentaryPanel({
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(initialId)
+  // The user's explicit dropdown pick, or null to follow the RSC's default (newest).
+  // Clearing it on save auto-lands selection on the freshly-created/newest entry —
+  // no state-sync effect needed.
+  const [userSelectedId, setUserSelectedId] = useState<string | null>(null)
   const [editing, setEditing] = useState<null | 'new' | string>(null)
   const [isPending, startTransition] = useTransition()
 
+  const selectedId = userSelectedId ?? initialId
   const selected = entries.find((e) => e.id === selectedId) ?? null
 
   function refresh() {
@@ -42,6 +53,14 @@ export function CommentaryPanel({
   }
   function doApprove(id: string) { startTransition(async () => { await approveCommentary(id); refresh() }) }
   function doRevoke(id: string) { startTransition(async () => { await revokeCommentary(id); refresh() }) }
+
+  // After a save (Add or a fork-on-edit), clear the manual selection so the panel
+  // follows the RSC's recomputed newest entry — surfacing a freshly created draft.
+  function handleSaved() {
+    setUserSelectedId(null)
+    setEditing(null)
+    router.refresh()
+  }
 
   return (
     <section className="mb-8 rounded-lg border border-white/[0.08] bg-bg-surface">
@@ -57,18 +76,18 @@ export function CommentaryPanel({
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
           {editing === 'new' && (
-            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={refresh} />
+            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} />
           )}
 
           {editing !== 'new' && entries.length > 1 && (
             <select
               value={selectedId ?? ''}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => setUserSelectedId(e.target.value)}
               className="rounded border border-white/[0.08] bg-bg-base px-2 py-1 text-sm text-white"
             >
               {entries.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {fmt(e.periodStart)} – {fmt(e.periodEnd)}{e.status === 'draft' ? ' (draft)' : ''}
+                  {fmt(e.periodStart)} – {fmt(e.periodEnd)}{e.status === 'draft' ? ' (draft)' : ''}{e.id === initialId ? ' · latest' : ''}
                 </option>
               ))}
             </select>
@@ -88,7 +107,12 @@ export function CommentaryPanel({
                 className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"
                 dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
               />
-              <p className="text-xs text-text-muted">Last updated by {selected.updatedBy}</p>
+              <p className="text-xs text-text-muted">
+                Last updated by {selected.updatedBy} on {fmtDateTime(selected.updatedAt)}
+                {selected.status === 'approved' && selected.approvedBy && (
+                  <> · Approved by {selected.approvedBy}{selected.approvedAt ? ` on ${fmtDateTime(selected.approvedAt)}` : ''}</>
+                )}
+              </p>
               {capabilities.canEdit && (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button onClick={() => setEditing(selected.id)}>Edit</Button>
@@ -104,7 +128,7 @@ export function CommentaryPanel({
           )}
 
           {editing !== 'new' && selected && editing === selected.id && (
-            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={refresh} />
+            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} />
           )}
         </div>
       )}

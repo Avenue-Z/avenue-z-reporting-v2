@@ -29,6 +29,7 @@ This repo hosts **two products** over one shared spine. The docs below are
 | `Guides/brand.md` · `Guides/prplacements.md` | Topic guides (brand tokens, PR placements) | ✅ current |
 | `Guides/gleansdk.md` | Glean meeting-prep feature guide — SDK usage is current; **ignore its "Existing Platform Context"** (stale Next 15 / `clients.config.ts`) | 🟡 mostly current |
 | `docs/superpowers/{plans,specs}/**` | **Dated, point-in-time** design/plan docs for specific past PRs. Useful history, but **not** current architecture — where they differ, trust `CLAUDE.md` / `ENGINEERS.md` | 🟡 historical context |
+| `docs/official-feedback/paul-v3-qa-scorecard.md` | **Paul V3 QA scorecard**: the 19 items fixed on `feature/paul-v3-qa-fixes` (PR #144), each as initial problem / issue / how it was fixed. Companion to `docs/official-feedback/feedback-log.md` | ✅ current |
 | `Guides/claude.md` · `Guides/progress.md` | **ARCHIVED** — describe a superseded architecture (flat `clients.config.ts`, `middleware.ts`, Next 15, demo data). **Do not follow.** | ⛔ historical |
 
 **The two products, one line each:**

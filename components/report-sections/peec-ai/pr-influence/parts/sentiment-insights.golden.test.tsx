@@ -16,13 +16,13 @@ import { FIXTURE_PR_INFLUENCE_CTX } from './__fixtures__/pr-influence-ctx'
 const impl = PR_INFLUENCE_PARTS['sentiment-insights'][1]
 const resolved = { id: impl.id, version: impl.version, label: impl.defaultLabel }
 
-test('sentiment-insights@1 renders null for a non-avenue-z client', () => {
+test('sentiment-insights@1 renders null when the client has no Profound account', () => {
   const { container } = render(<TooltipProvider>{impl.render(FIXTURE_PR_INFLUENCE_CTX, resolved)}</TooltipProvider>)
   expect(container.firstChild).toBeNull()
 })
 
-test('sentiment-insights@1 renders (skeleton fallback) for avenue-z', () => {
-  const ctx = { ...FIXTURE_PR_INFLUENCE_CTX, clientSlug: 'avenue-z' }
+test('sentiment-insights@1 renders (skeleton fallback) when profoundConfigured', () => {
+  const ctx = { ...FIXTURE_PR_INFLUENCE_CTX, profoundConfigured: true }
   const { container } = render(<TooltipProvider>{impl.render(ctx, resolved)}</TooltipProvider>)
   expect(container.textContent).toContain('Sentiment Insights') // SentimentSkeleton header
   expect(container.firstChild).toMatchSnapshot()

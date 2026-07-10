@@ -8,7 +8,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePct, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
+import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
 import { urlJoinKey, labelFromPath } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
@@ -17,7 +17,9 @@ import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
+import { formatDaysToFirst } from '@/lib/ga4/format-speed'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
+import { resolveScatterWindow } from '@/lib/peec/scatter-window'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
 import type { SlopeChartInput } from '@/lib/peec/slope-chart'
 import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
@@ -228,6 +230,15 @@ export async function ContentImpactReport({
   const compareDates = compareRange ? deriveCompareRange(mainRangeStr, compareRange) : null
   const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
 
+  // FB-048/CI-3c: §D scatter human-axis window. Peec bot data (agentData.byPath)
+  // only retains the last 30 days, so it always stays a rolling last-30 window.
+  // The human-axis GA4 window used to be hardcoded to that same last-30 window
+  // regardless of the page date picker. resolveScatterWindow follows the picker
+  // when the selected range fits inside the last 30 days, and falls back to the
+  // last-30 window otherwise (same as the prior unconditional behavior).
+  const scatterToday = new Date().toISOString().slice(0, 10)
+  const scatterWindow = resolveScatterWindow(mainDates, scatterToday)
+
   const [
     peecResult,
     agentResult,
@@ -258,7 +269,10 @@ export async function ContentImpactReport({
       limit: 1000,
     }),
     getUrlCitations(clientSlug),
-    getDomainCoverage(clientSlug),      // per-domain prompt/theme coverage (Section H)
+    // CI-1: pass the selected date range (was called bare, hard-locked to a
+    // rolling last-30 window) so the Prompt Coverage KPI value itself moves
+    // with the page date picker, matching every other date-reactive metric.
+    getDomainCoverage(clientSlug, { startDate: mainDates.startDate, endDate: mainDates.endDate }),  // per-domain prompt/theme coverage (Section H)
     ga4Query({                          // §A totals + §F per-host AI-referred sessions
       clientSlug,
       dateRange: effectiveRange,
@@ -343,17 +357,14 @@ export async function ContentImpactReport({
           limit: 2000,
         })
       : Promise.resolve(null),
-    // FB-037 §D: GA4 page-level sessions over a HARDCODED last-30-days window,
-    // matched to the Peec agent-analytics window (also hardcoded last-30-days at
-    // lib/peec/agent-analytics.ts:284). Used by the scatter chart only.
+    // FB-048/CI-3c §D: GA4 page-level sessions for the scatter's human axis.
+    // Window comes from resolveScatterWindow: follows the page date picker when
+    // the selected range is within the last 30 days, otherwise falls back to
+    // the last-30-days window to match the Peec agent-analytics window (also
+    // last-30-days at lib/peec/agent-analytics.ts:284, which cannot be widened).
     ga4Query({
       clientSlug,
-      dateRange: `${(() => {
-        const end = new Date()
-        const start = new Date()
-        start.setDate(start.getDate() - 30)
-        return start.toISOString().slice(0, 10)
-      })()},${new Date().toISOString().slice(0, 10)}`,
+      dateRange: `${scatterWindow.start_date},${scatterWindow.end_date}`,
       metrics: ['sessions'],
       dimensions: ['pagePath', 'sessionSource'],
       limit: 1000,
@@ -642,11 +653,13 @@ export async function ContentImpactReport({
     : null
   const sectionCOk = timingOk
 
-  // ── §D · Bot vs Human scatter (FB-037) ───────────────────────────────────────
-  // Build per-path maps over the hardcoded last-30-days window. Bot side comes
-  // from agentData.byPath (already last-30 by getAgentAnalytics window). Human
-  // side comes from the new ga4ScatterRows query (same last-30 window). Both
-  // maps are keyed by urlJoinKey so a (pagePath, request_path) pair joins.
+  // ── §D · Bot vs Human scatter (FB-037, window fix FB-048/CI-3c) ──────────────
+  // Build per-path maps. Bot side comes from agentData.byPath, always the last
+  // 30 days (Peec retention, cannot be widened). Human side comes from
+  // ga4ScatterRows, fetched over scatterWindow: the page date picker's range
+  // when it fits inside the last 30 days (scatterWindow.locked === false), or
+  // the same last-30 window as the bot side otherwise. Both maps are keyed by
+  // urlJoinKey so a (pagePath, request_path) pair joins.
   const pathBots = new Map<string, number>()
   if (agentData) {
     for (const [k, agg] of Object.entries(agentData.byPath)) {
@@ -791,12 +804,15 @@ export async function ContentImpactReport({
   // (union of prompt IDs across owned domains). Prior period uses the same
   // definition over coveragePrior (FB-035 added the dateRange parameter to
   // getDomainCoverage), enabling the period-over-period delta below.
+  // CI-1: both current and prior now go through the model-aware helper so
+  // the value (not just its delta) reacts to the selected AI model filter.
+  // With models null/empty this is identical to ownedPromptCoveragePct.
   const ownedDomainNames = ownDomains.map(d => d.domain)
-  const promptCoveragePct = ownedPromptCoveragePct(
-    coverage, ownedDomainNames, totalTrackedPrompts, coverageAvailable,
+  const promptCoveragePct = ownedPromptCoveragePctForModels(
+    coverage, ownedDomainNames, totalTrackedPrompts, models ?? null, coverageAvailable,
   )
-  const promptCoveragePctPrior = ownedPromptCoveragePct(
-    coveragePrior, ownedDomainNames, totalTrackedPrompts, coveragePriorAvailable,
+  const promptCoveragePctPrior = ownedPromptCoveragePctForModels(
+    coveragePrior, ownedDomainNames, totalTrackedPrompts, models ?? null, coveragePriorAvailable,
   )
   const promptCoveragePctDelta =
     promptCoveragePct != null && promptCoveragePctPrior != null
@@ -1208,7 +1224,7 @@ export async function ContentImpactReport({
               <Icon className="h-4 w-4" style={{ color }} />
               <span className="text-[11px] font-semibold text-text-muted">{label}</span>
               <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
-                {val !== null ? `${Math.round(val)} days` : 'None'}
+                {formatDaysToFirst(val)}
               </span>
               {sourceUrl && (
                 <a
@@ -1238,9 +1254,9 @@ export async function ContentImpactReport({
       {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
         title="AI Bot Traffic vs. Human Traffic"
-        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data, so this chart always shows a rolling 30-day window regardless of the page date range."
+        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data. When your selected date range is within the last 30 days, this chart follows it. Otherwise it shows the last 30 days."
       >
-        <BotVsHumanScatter data={scatterData} />
+        <BotVsHumanScatter data={scatterData} clientDomain={ownedDomainNames[0] ?? ''} />
       </SectionCard>
 
       {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}

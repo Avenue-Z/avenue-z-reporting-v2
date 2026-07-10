@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`sentiment-insights@1 renders (skeleton fallback) for avenue-z 1`] = `
+exports[`sentiment-insights@1 renders (skeleton fallback) when profoundConfigured 1`] = `
 <section
   class="rounded-xl border border-white/[0.08] bg-bg-surface p-6"
 >

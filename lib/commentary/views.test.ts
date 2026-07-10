@@ -1,5 +1,16 @@
 import { describe, expect, test } from 'vitest'
-import { resolveCommentaryView, COMMENTARY_VIEWS } from './views'
+import { resolveCommentaryView, COMMENTARY_VIEWS, isCommentaryViewKey } from './views'
+
+describe('isCommentaryViewKey', () => {
+  test('accepts the 7 canonical keys', () => {
+    for (const k of Object.keys(COMMENTARY_VIEWS)) expect(isCommentaryViewKey(k)).toBe(true)
+  })
+  test('rejects non-canonical keys', () => {
+    for (const k of ['ga4', 'exec-summary', 'peec-ai:technical-audit', 'paid-media', '', 'commentary']) {
+      expect(isCommentaryViewKey(k)).toBe(false)
+    }
+  })
+})
 
 describe('resolveCommentaryView', () => {
   test('AEO tabs', () => {

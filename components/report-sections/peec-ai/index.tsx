@@ -135,7 +135,7 @@ export async function PeecAIReport({
 
   return (
     <>
-      <SharedPartsHeader viewKey="peec-ai" clientSlug={clientSlug ?? 'default'} />
+      {clientSlug && <SharedPartsHeader viewKey="peec-ai" clientSlug={clientSlug} />}
       <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
     </>
   )

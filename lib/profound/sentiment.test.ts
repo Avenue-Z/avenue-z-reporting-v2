@@ -11,6 +11,7 @@ import {
   accumulateThemeSources,
   finalizeThemeSources,
 } from './sentiment-normalize'
+import { shouldStopAnswerPaging, sentimentCacheTags } from './sentiment'
 
 // Profound echoes the resolved metric order in info.query.metrics; rows align
 // to it. These fixtures use the real observed order (alphabetical).
@@ -165,6 +166,64 @@ describe('collapseModelThemeRows + normalizeThemes (model reactivity)', () => {
     expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 10, urls: [] }])
     expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
   })
+
+  it('missing info.query.metrics (#138 P4): themes are not dropped as 0/0 ties', () => {
+    // Profound response with no query.metrics at all. Rows still carry real
+    // positive/negative values in the default fallback order
+    // (negative, occurrences, positive). Before the P4 fix, collapseModelThemeRows
+    // defaulted metricNames for building `data` but returned the original
+    // (still-empty) info, so readMetric/normalizeThemes could not resolve any
+    // metric by name and every theme summed to 0/0 and was dropped as a tie.
+    const noMetricsResp = {
+      info: {},
+      data: [
+        mtRow('ChatGPT', 'Thought Leadership', 0, 10),
+        mtRow('Perplexity', 'Thought Leadership', 0, 5),
+        mtRow('ChatGPT', 'Premium Pricing', 8, 0),
+      ],
+    }
+    const collapsed = collapseModelThemeRows(noMetricsResp, null)
+    // the fallback must be rebuilt into info.query.metrics, not left absent
+    expect(collapsed.info.query?.metrics).toEqual(['negative', 'occurrences', 'positive'])
+    const { positiveThemes, negativeThemes } = normalizeThemes(collapsed)
+    expect(positiveThemes).toEqual([{ title: 'Thought Leadership', count: 15, urls: [] }])
+    expect(negativeThemes).toEqual([{ title: 'Premium Pricing', count: 8, urls: [] }])
+  })
+})
+
+describe('sentimentCacheTags (#138 P7: client dimension in cache key)', () => {
+  it('includes a client dimension keyed off clientSlug, so two clients never collide', () => {
+    const tagsA = sentimentCacheTags(['acme', 'last_30_days', null, null])
+    const tagsB = sentimentCacheTags(['other-client', 'last_30_days', null, null])
+    expect(tagsA.client).toBe('acme')
+    expect(tagsB.client).toBe('other-client')
+    expect(tagsA.client).not.toBe(tagsB.client)
+  })
+
+  it('falls back to "default" when clientSlug is null or undefined (legacy no-slug path)', () => {
+    expect(sentimentCacheTags([null, 'last_30_days', null, null]).client).toBe('default')
+    expect(sentimentCacheTags([undefined, 'last_30_days', null, null]).client).toBe('default')
+  })
+
+  it('still carries dateRange, compareRange, and models exactly as before', () => {
+    const tags = sentimentCacheTags(['acme', 'last_30_days', null, ['ChatGPT']])
+    expect(tags.dateRange).toBe('last_30_days')
+    expect(tags.compareRange).toBe('none')
+    expect(tags.models).toBeTruthy()
+  })
+})
+
+describe('shouldStopAnswerPaging (#138 P3)', () => {
+  it('does NOT stop on a short-but-nonempty page (Profound page cap below requested limit)', () => {
+    // Profound can cap page size below ANSWERS_PAGE; a short page still means
+    // more rows may follow, so paging must continue.
+    expect(shouldStopAnswerPaging(new Array(1))).toBe(false)
+    expect(shouldStopAnswerPaging(new Array(4999))).toBe(false)
+  })
+
+  it('stops only on a zero-row page', () => {
+    expect(shouldStopAnswerPaging([])).toBe(true)
+  })
 })
 
 describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
@@ -189,6 +248,31 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
     const map = buildThemeSources(answers, new Set(['ChatGPT']))
     // Perplexity answer excluded; Thought Leadership only from answer 1 => a,b
     expect(map.get('thought leadership')).toEqual(['https://a.com', 'https://b.com'])
+  })
+
+  it('normalizes a raw answers-endpoint model id before the filter check (#138 P1)', () => {
+    // The /v1/prompts/answers payload can tag an answer with a raw model id
+    // (e.g. 'openai') instead of the Profound display name ('ChatGPT') that
+    // `selected` is built from. Without normalization this raw id never
+    // matches a display name, so every source is wrongly dropped under a
+    // model filter.
+    const rawAnswers = {
+      data: [
+        { model: 'openai', themes: ['T'], citations: ['https://raw-id-source.com'] },
+      ],
+    }
+    const map = buildThemeSources(rawAnswers, new Set(['ChatGPT']))
+    expect(map.get('t')).toEqual(['https://raw-id-source.com'])
+  })
+
+  it('still excludes an answer whose normalized model is not in the selection', () => {
+    const rawAnswers = {
+      data: [
+        { model: 'gemini', themes: ['T'], citations: ['https://excluded-source.com'] },
+      ],
+    }
+    const map = buildThemeSources(rawAnswers, new Set(['ChatGPT']))
+    expect(map.get('t')).toBeUndefined()
   })
 
   it('ranks by citation frequency, NOT first-seen order', () => {
@@ -227,6 +311,18 @@ describe('buildThemeSources + normalizeThemes (accordion sources)', () => {
       ],
     }
     expect(buildThemeSources(dupeInAnswer, null).get('t')).toEqual(['https://y.com', 'https://x.com'])
+  })
+
+  it('dedupes case-variant theme labels within one answer (#138 P5)', () => {
+    // One answer tagged with the same theme in two casings must attribute its
+    // citation to that folded key ONCE, not once per casing variant.
+    const state = newThemeSourceState()
+    accumulateThemeSources(
+      state,
+      { data: [{ model: 'ChatGPT', themes: ['Pricing', 'pricing'], citations: ['x.com'] }] },
+      null,
+    )
+    expect(state.counts.get('pricing')?.get('x.com')).toBe(1)
   })
 
   it('caps URLs per theme after ranking', () => {

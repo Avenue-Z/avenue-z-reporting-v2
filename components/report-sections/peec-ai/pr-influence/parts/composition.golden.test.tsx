@@ -31,26 +31,26 @@ function renderComposition(ctx: typeof FIXTURE_PR_INFLUENCE_CTX, override: Param
   )
 }
 
-test('default composition for a non-avenue-z client renders 3 visible parts (synopsis + sentiment null)', () => {
+test('default composition (no Profound account) renders 3 visible parts (synopsis + sentiment null)', () => {
   const { container } = renderComposition(FIXTURE_PR_INFLUENCE_CTX, undefined)
   const spaceY = container.querySelector('.space-y-8')!
-  // 5 template parts minus pr-synopsis (SHOW_AI_NARRATIVE=false) minus sentiment (not avenue-z) = 3.
+  // 5 template parts minus pr-synopsis (SHOW_AI_NARRATIVE=false) minus sentiment (not profoundConfigured) = 3.
   expect(spaceY.children.length).toBe(3)
   expect(spaceY.firstElementChild?.innerHTML).not.toBe('')
   expect(spaceY).toMatchSnapshot()
 })
 
-test('avenue-z renders 4 visible parts (sentiment appears)', () => {
-  const ctx = { ...FIXTURE_PR_INFLUENCE_CTX, clientSlug: 'avenue-z' }
+test('a Profound-configured client renders 4 visible parts (sentiment appears)', () => {
+  const ctx = { ...FIXTURE_PR_INFLUENCE_CTX, profoundConfigured: true }
   const { container } = renderComposition(ctx, undefined)
   expect(container.querySelector('.space-y-8')!.children.length).toBe(4)
   expect(container.textContent).toContain('Sentiment Insights')
 })
 
-test('hidden override drops sentiment-insights even on avenue-z', () => {
-  const ctx = { ...FIXTURE_PR_INFLUENCE_CTX, clientSlug: 'avenue-z' }
+test('hidden override drops sentiment-insights even when profoundConfigured', () => {
+  const ctx = { ...FIXTURE_PR_INFLUENCE_CTX, profoundConfigured: true }
   const { container } = renderComposition(ctx, { hidden: ['sentiment-insights'] })
-  // avenue-z would show 4, but the override removes sentiment before render -> 3.
+  // profoundConfigured would show 4, but the override removes sentiment before render -> 3.
   expect(container.querySelector('.space-y-8')!.children.length).toBe(3)
   expect(container.textContent).not.toContain('Sentiment Insights')
 })
