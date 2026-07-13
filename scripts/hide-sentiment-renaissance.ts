@@ -6,9 +6,10 @@
 // safe to re-run. Mirrors scripts/enable-commentary-renaissance.ts.
 //
 // Note: today this is a no-op visually, because the sentiment-insights part
-// already self-gates to clientSlug === 'avenue-z' (Profound is a single-account
-// feed), so renaissance never renders it. This config hide makes the exclusion
-// explicit and config-driven, and remains correct if that gate is ever relaxed.
+// already self-gates on profoundConfigured (!!clientConfig.profoundCategoryId,
+// #138 P6) and renaissance has no Profound account, so it never renders. This
+// config hide makes the exclusion explicit and config-driven, and remains
+// correct if renaissance ever gains a Profound account.
 //
 // Equivalent raw SQL (deep-merges into the existing key, preserving sharedParts):
 //   UPDATE clients SET report_section_config = jsonb_set(
