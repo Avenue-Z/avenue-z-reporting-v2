@@ -557,9 +557,13 @@ export function CompetitorUrlsBrandAbsentTable({
       render: (r) => (
         <span className="tabular-nums text-white">
           {r.citationShare !== null ? `${r.citationShare.toFixed(1)}%` : '--'}
-          {renderDelta(r.citationShareDelta, 'pp')}
         </span>
       ),
+    },
+    {
+      key: 'citationShareDelta', label: 'Δ', align: 'right',
+      accessor: (r) => r.citationShareDelta ?? null,
+      render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
       key: 'competitorsMentioned', label: 'Competitors Mentioned',
