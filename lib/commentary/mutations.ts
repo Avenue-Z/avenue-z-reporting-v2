@@ -33,3 +33,17 @@ export function authorizeRowForClient(
   if (!row || row.clientId !== clientId) return { ok: false, error: 'not found' }
   return { ok: true }
 }
+
+/** Only a live draft may be soft-deleted.
+ *
+ *  Approved entries are refused because they may be what a client is currently
+ *  reading — deletion must never pull content out from under them. An already-deleted
+ *  row is refused with the SAME 'not found' as a missing row, so a double-delete is an
+ *  explicit failure rather than a silent success the UI would report as "deleted". */
+export function canDeleteDraft(
+  row: { status: CommentaryStatus; deletedAt: Date | string | null } | undefined,
+): { ok: boolean; error?: string } {
+  if (!row || row.deletedAt) return { ok: false, error: 'not found' }
+  if (row.status !== 'draft') return { ok: false, error: 'Only drafts can be deleted.' }
+  return { ok: true }
+}

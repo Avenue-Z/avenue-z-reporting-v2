@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient } from './mutations'
+import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient, canDeleteDraft } from './mutations'
 
 describe('validateCommentaryInput', () => {
   const base = { bodyHtml: '<p>Solid month.</p>', periodStart: '2026-01-01', periodEnd: '2026-01-31' }
@@ -43,5 +43,21 @@ describe('authorizeRowForClient (cross-client row scoping)', () => {
   })
   test('missing and foreign rows are indistinguishable (no id probing)', () => {
     expect(authorizeRowForClient(undefined, 'c1')).toEqual(authorizeRowForClient({ clientId: 'c2' }, 'c1'))
+  })
+})
+
+describe('canDeleteDraft', () => {
+  test('a live draft is deletable', () => {
+    expect(canDeleteDraft({ status: 'draft', deletedAt: null })).toEqual({ ok: true })
+  })
+  test('an approved entry is NOT deletable — it may be client-visible', () => {
+    expect(canDeleteDraft({ status: 'approved', deletedAt: null }).ok).toBe(false)
+  })
+  test('an already-deleted row returns an explicit failure, not a silent ok', () => {
+    // A silent { ok: true } would let the UI report "deleted" for a no-op.
+    expect(canDeleteDraft({ status: 'draft', deletedAt: new Date() })).toEqual({ ok: false, error: 'not found' })
+  })
+  test('a missing row is rejected', () => {
+    expect(canDeleteDraft(undefined).ok).toBe(false)
   })
 })
