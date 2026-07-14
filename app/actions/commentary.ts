@@ -9,7 +9,7 @@ import { auth } from '@/auth'
 import { canEditCommentary, canApproveCommentary } from '@/lib/commentary/permissions'
 import { isCommentaryViewKey } from '@/lib/commentary/views'
 import { sanitizeCommentaryHtml } from '@/lib/commentary/sanitize'
-import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient, canDeleteDraft } from '@/lib/commentary/mutations'
+import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient, guardNotDeleted, canDeleteDraft } from '@/lib/commentary/mutations'
 import type { CommentaryInput, CommentaryStatus } from '@/lib/commentary/types'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -51,6 +51,8 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
     const row = await findCommentaryRow(input.id)
     const authorized = authorizeRowForClient(row, client.id)
     if (!authorized.ok) return { ok: false, error: authorized.error! }
+    const notDeleted = guardNotDeleted(row)
+    if (!notDeleted.ok) return { ok: false, error: notDeleted.error! }
     existingStatus = row!.status
   }
 
@@ -98,8 +100,11 @@ export async function approveCommentary(clientSlug: string, id: string): Promise
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
 
-  const authorized = authorizeRowForClient(await findCommentaryRow(id), client.id)
+  const row = await findCommentaryRow(id)
+  const authorized = authorizeRowForClient(row, client.id)
   if (!authorized.ok) return { ok: false, error: authorized.error! }
+  const notDeleted = guardNotDeleted(row)
+  if (!notDeleted.ok) return { ok: false, error: notDeleted.error! }
 
   await db
     .update(reportCommentary)

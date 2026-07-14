@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient, canDeleteDraft } from './mutations'
+import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient, guardNotDeleted, canDeleteDraft } from './mutations'
 
 describe('validateCommentaryInput', () => {
   const base = { bodyHtml: '<p>Solid month.</p>', periodStart: '2026-01-01', periodEnd: '2026-01-31' }
@@ -43,6 +43,18 @@ describe('authorizeRowForClient (cross-client row scoping)', () => {
   })
   test('missing and foreign rows are indistinguishable (no id probing)', () => {
     expect(authorizeRowForClient(undefined, 'c1')).toEqual(authorizeRowForClient({ clientId: 'c2' }, 'c1'))
+  })
+})
+
+describe('guardNotDeleted (approve/save must not act on a soft-deleted row)', () => {
+  test('a live row is allowed', () => {
+    expect(guardNotDeleted({ deletedAt: null })).toEqual({ ok: true })
+  })
+  test('a soft-deleted row is rejected with the same "not found" as a missing row', () => {
+    expect(guardNotDeleted({ deletedAt: new Date() })).toEqual({ ok: false, error: 'not found' })
+  })
+  test('a missing row is rejected', () => {
+    expect(guardNotDeleted(undefined)).toEqual({ ok: false, error: 'not found' })
   })
 })
 

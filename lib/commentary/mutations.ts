@@ -34,6 +34,19 @@ export function authorizeRowForClient(
   return { ok: true }
 }
 
+/** A soft-deleted row may not be mutated further (approved or saved over) — the same
+ *  'not found' as authorizeRowForClient, so a caller can't probe which ids exist by
+ *  diffing "forbidden/deleted" from "missing". Used by saveCommentary and
+ *  approveCommentary; deleteCommentaryDraft uses the stricter canDeleteDraft instead,
+ *  and revokeCommentary intentionally has no guard (draft → draft on a deleted row is
+ *  a harmless no-op). */
+export function guardNotDeleted(
+  row: { deletedAt: Date | string | null } | undefined,
+): { ok: boolean; error?: string } {
+  if (!row || row.deletedAt) return { ok: false, error: 'not found' }
+  return { ok: true }
+}
+
 /** Only a live draft may be soft-deleted.
  *
  *  Approved entries are refused because they may be what a client is currently

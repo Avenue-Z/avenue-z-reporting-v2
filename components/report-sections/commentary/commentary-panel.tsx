@@ -65,7 +65,10 @@ export function CommentaryPanel({
   function doRevoke(id: string) { startTransition(async () => { await revokeCommentary(clientSlug, id); refresh() }) }
   function doDelete(id: string) {
     if (!window.confirm('Delete this draft? It stays recoverable in the approver history log.')) return
-    startTransition(async () => { await deleteCommentaryDraft(clientSlug, id); refresh() })
+    // Unlike approve/revoke, the selected row itself vanishes here — clear the manual
+    // selection (same as handleSaved) so it falls back to the RSC's recomputed default
+    // instead of stranding the panel on a now-nonexistent id.
+    startTransition(async () => { await deleteCommentaryDraft(clientSlug, id); setUserSelectedId(null); refresh() })
   }
 
   // After a save (Add or a fork-on-edit), clear the manual selection so the panel
@@ -150,7 +153,7 @@ export function CommentaryPanel({
             <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} />
           )}
 
-          {history.length > 0 && (
+          {capabilities.canApprove && history.length > 0 && (
             <div className="border-t border-white/[0.08] pt-3">
               <button
                 type="button"

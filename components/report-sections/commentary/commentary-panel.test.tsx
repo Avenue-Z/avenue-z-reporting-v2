@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { CommentaryPanel } from './commentary-panel'
 import type { CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
 
@@ -109,6 +109,45 @@ describe('delete draft button', () => {
   })
 })
 
+describe('deleting the dropdown-selected draft', () => {
+  test('falls back to the RSC default instead of stranding on "No commentary yet."', async () => {
+    const { deleteCommentaryDraft } = await import('@/app/actions/commentary')
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    const juneApproved = ENTRY // approved, id 'e1', is `initialId`
+    const mayDraft: CommentaryEntry = { ...DRAFT, id: 'may-draft', periodStart: '2026-05-01', periodEnd: '2026-05-31' }
+
+    const props = {
+      clientSlug: 'acme',
+      viewKey: 'peec-ai' as const,
+      capabilities: { canEdit: true, canApprove: false },
+      history: [] as CommentaryPeriodHistory[],
+    }
+
+    const { rerender } = render(
+      <CommentaryPanel {...props} entries={[juneApproved, mayDraft]} initialId={juneApproved.id} />,
+    )
+
+    // Editor explicitly picks the May draft from the dropdown (not the default June entry).
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: mayDraft.id } })
+    expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    })
+
+    expect(deleteCommentaryDraft).toHaveBeenCalledWith('acme', mayDraft.id)
+
+    // Simulate the RSC's post-refresh render: the deleted draft is gone from `entries`.
+    rerender(<CommentaryPanel {...props} entries={[juneApproved]} initialId={juneApproved.id} />)
+
+    expect(screen.queryByText('No commentary yet.')).toBeNull()
+    expect(screen.getByText('Visibility climbed this month.')).toBeTruthy()
+
+    confirmSpy.mockRestore()
+  })
+})
+
 describe('history disclosure', () => {
   const HISTORY: CommentaryPeriodHistory[] = [{
     periodStart: '2026-06-01',
@@ -126,6 +165,10 @@ describe('history disclosure', () => {
   })
   test('an editor with an empty history sees no disclosure', () => {
     renderWith({ canEdit: true, canApprove: false, history: [] })
+    expect(screen.queryByText(/History/)).toBeNull()
+  })
+  test('a non-approver never sees the disclosure, even with a non-empty history — the capability gate is real, not just the empty-array RSC default', () => {
+    renderWith({ canEdit: true, canApprove: false, history: HISTORY })
     expect(screen.queryByText(/History/)).toBeNull()
   })
   test('expanding shows every version with its tag', () => {
