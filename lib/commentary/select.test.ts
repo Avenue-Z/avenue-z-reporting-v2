@@ -98,7 +98,17 @@ describe('visibleEntries — deleted rows are hidden from BOTH views', () => {
   const draft = e({ id: 'P', status: 'draft' })
 
   test('client view excludes a deleted row', () => {
-    const out = visibleEntries([del, live], { canEdit: false, canApprove: false })
+    // Hand-built approved+deleted row: the DB CHECK constraint forbids this state (a
+    // deleted row always keeps status='draft'), but the pure function must be robust to
+    // it anyway — same rationale as the tagVersion precedence test below. Without that,
+    // a `status: 'draft'` deleted fixture is excluded by the client's status filter alone
+    // and never exercises the deleted-filter at all. DA's later approvedAt would make it
+    // the period's live winner over L if the deleted-filter were removed.
+    const deletedApproved = e({
+      id: 'DA', status: 'approved',
+      approvedAt: '2026-02-20T00:00:00.000Z', deletedAt: '2026-02-21T00:00:00.000Z',
+    })
+    const out = visibleEntries([deletedApproved, live], { canEdit: false, canApprove: false })
     expect(out.map((x) => x.id)).toEqual(['L'])
   })
   test('staff dropdown excludes a deleted row but keeps live drafts', () => {
