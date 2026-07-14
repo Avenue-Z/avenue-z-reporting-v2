@@ -249,6 +249,12 @@ Two preservation requirements, both by set-union on the existing override rather
 The script is idempotent: re-running does not duplicate `hidden` entries, add a second
 `sentiment-insights`, or drop the commentary opt-in.
 
+> **Portability caveat (for when this pattern is copied to future migrations).** The `existing.hidden`
+> access above is safe only because renaissance is guaranteed a prior commentary override on this
+> key, so `existing` is always defined. A future hide-script targeting a client with *no* prior
+> override on the key must use optional chaining (`existing?.hidden ?? []`) and tolerate a missing
+> override object. Do not copy the non-optional form forward unchanged.
+
 Result: renaissance's PR Influence renders parts 1, 2, 4, 5 (Sentiment omitted); all other clients
 render all five.
 
