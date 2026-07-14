@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidateTag } from 'next/cache'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { reportCommentary } from '@/lib/db/schema'
 import { getClientBySlug } from '@/lib/db/queries'
@@ -9,15 +9,38 @@ import { auth } from '@/auth'
 import { canEditCommentary, canApproveCommentary } from '@/lib/commentary/permissions'
 import { isCommentaryViewKey } from '@/lib/commentary/views'
 import { sanitizeCommentaryHtml } from '@/lib/commentary/sanitize'
-import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient } from '@/lib/commentary/mutations'
+import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient, guardNotDeleted, canDeleteDraft } from '@/lib/commentary/mutations'
 import type { CommentaryInput, CommentaryStatus } from '@/lib/commentary/types'
 
 type Result = { ok: true } | { ok: false; error: string }
 
+/** Every write below re-asserts `deleted_at IS NULL` in its WHERE clause, even though the
+ *  caller has already run guardNotDeleted / canDeleteDraft against a freshly-read row.
+ *
+ *  The guards read, then write: a delete landing in between would slip through. That is not
+ *  theoretical — approving a row deleted in that window violates the
+ *  report_commentary_no_deleted_approved CHECK constraint, and the driver throws out of the
+ *  action rather than returning a Result. Matching on the deleted state at write time closes
+ *  the window: the UPDATE simply matches nothing.
+ *
+ *  Which is exactly why these writes must also check whether they hit anything. An UPDATE
+ *  that matches zero rows succeeds — so without this, losing the race would return { ok: true }
+ *  for a write that did nothing, and the UI would report success. `.returning()` turns that
+ *  silent no-op into the same explicit 'not found' every other rejection uses.
+ *
+ *  Not exported: a `'use server'` module may only export async *actions*. */
+function affectedNothing(rows: { id: string }[]): boolean {
+  return rows.length === 0
+}
+
 /** Not exported: a `'use server'` module may only export async *actions*. */
 async function findCommentaryRow(id: string) {
   const rows = await db
-    .select({ status: reportCommentary.status, clientId: reportCommentary.clientId })
+    .select({
+      status: reportCommentary.status,
+      clientId: reportCommentary.clientId,
+      deletedAt: reportCommentary.deletedAt,
+    })
     .from(reportCommentary)
     .where(eq(reportCommentary.id, id))
     .limit(1)
@@ -47,12 +70,14 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
     const row = await findCommentaryRow(input.id)
     const authorized = authorizeRowForClient(row, client.id)
     if (!authorized.ok) return { ok: false, error: authorized.error! }
+    const notDeleted = guardNotDeleted(row)
+    if (!notDeleted.ok) return { ok: false, error: notDeleted.error! }
     existingStatus = row!.status
   }
 
   const plan = planCommentaryWrite(existingStatus)
   if (plan.op === 'update' && input.id) {
-    await db
+    const updated = await db
       .update(reportCommentary)
       .set({
         bodyHtml,
@@ -61,7 +86,12 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
         updatedBy: email!,
         updatedAt: new Date(),
       })
-      .where(eq(reportCommentary.id, input.id))
+      .where(and(eq(reportCommentary.id, input.id), isNull(reportCommentary.deletedAt)))
+      .returning({ id: reportCommentary.id })
+
+    // Deleted out from under us mid-edit. Failing loudly beats writing the user's
+    // work into a row nothing will ever render again.
+    if (affectedNothing(updated)) return { ok: false, error: 'not found' }
   } else {
     await db.insert(reportCommentary).values({
       clientId: client.id,
@@ -94,13 +124,21 @@ export async function approveCommentary(clientSlug: string, id: string): Promise
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
 
-  const authorized = authorizeRowForClient(await findCommentaryRow(id), client.id)
+  const row = await findCommentaryRow(id)
+  const authorized = authorizeRowForClient(row, client.id)
   if (!authorized.ok) return { ok: false, error: authorized.error! }
+  const notDeleted = guardNotDeleted(row)
+  if (!notDeleted.ok) return { ok: false, error: notDeleted.error! }
 
-  await db
+  const approved = await db
     .update(reportCommentary)
     .set({ status: 'approved', approvedBy: email!, approvedAt: new Date(), updatedAt: new Date() })
-    .where(eq(reportCommentary.id, id))
+    .where(and(eq(reportCommentary.id, id), isNull(reportCommentary.deletedAt)))
+    .returning({ id: reportCommentary.id })
+
+  // Deleted between the guard and this write. Without the isNull match this UPDATE would
+  // violate the deleted⇒draft CHECK constraint and throw out of the action.
+  if (affectedNothing(approved)) return { ok: false, error: 'not found' }
 
   revalidateTag('db', 'max')
   return { ok: true }
@@ -123,6 +161,46 @@ export async function revokeCommentary(clientSlug: string, id: string): Promise<
     .update(reportCommentary)
     .set({ status: 'draft', approvedBy: null, approvedAt: null, updatedAt: new Date() })
     .where(eq(reportCommentary.id, id))
+
+  revalidateTag('db', 'max')
+  return { ok: true }
+}
+
+/** Soft-delete a draft. Any Avenue Z editor may delete any draft (product decision,
+ *  2026-07-14): deleting is not a greater power than editing, since an editor can
+ *  already gut a draft's contents by editing it.
+ *
+ *  The row is retained — `deleted_at` is set, nothing is removed — so the approver
+ *  history log still shows it and it stays recallable at the DB level. Approved
+ *  entries are refused (see canDeleteDraft): they may be what a client is reading.
+ *
+ *  deletedBy is the AUTHENTICATED actor, taken from the session — never a parameter.
+ *  An audit log whose attribution can be asserted by the caller is worthless. */
+export async function deleteCommentaryDraft(clientSlug: string, id: string): Promise<Result> {
+  const session = await auth()
+  const email = session?.user?.email
+  if (!canEditCommentary(email)) return { ok: false, error: 'forbidden' }
+
+  const client = await getClientBySlug(clientSlug)
+  if (!client) return { ok: false, error: 'client not found' }
+
+  const row = await findCommentaryRow(id)
+
+  const authorized = authorizeRowForClient(row, client.id)
+  if (!authorized.ok) return { ok: false, error: authorized.error! }
+
+  const deletable = canDeleteDraft(row)
+  if (!deletable.ok) return { ok: false, error: deletable.error! }
+
+  const deleted = await db
+    .update(reportCommentary)
+    .set({ deletedAt: new Date(), deletedBy: email!, updatedAt: new Date() })
+    .where(and(eq(reportCommentary.id, id), isNull(reportCommentary.deletedAt)))
+    .returning({ id: reportCommentary.id })
+
+  // Two editors deleting at once: only the first wins. Without the isNull match the
+  // second would overwrite deleted_by, and the audit log would name the wrong person.
+  if (affectedNothing(deleted)) return { ok: false, error: 'not found' }
 
   revalidateTag('db', 'max')
   return { ok: true }
