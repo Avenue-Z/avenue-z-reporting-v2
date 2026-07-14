@@ -11,7 +11,7 @@ const e = (over: Partial<CommentaryEntry>): CommentaryEntry => ({
 
 describe('visibleEntries', () => {
   const entries = [e({ id: 'd', status: 'draft' }), e({ id: 'a', status: 'approved' })]
-  test('Avenue Z sees all', () => {
+  test('Avenue Z sees drafts alongside the live approved entry', () => {
     expect(visibleEntries(entries, { canEdit: true, canApprove: false }).map((x) => x.id)).toEqual(['d', 'a'])
   })
   test('clients see approved only', () => {
@@ -37,14 +37,40 @@ describe('visibleEntries — client sees one approved per period (replace + fall
     const feb = e({ id: 'feb', status: 'approved', periodStart: '2026-02-01', periodEnd: '2026-02-28', approvedAt: '2026-03-01T00:00:00.000Z' })
     expect(visibleEntries([feb, jan], client).map((x) => x.id).sort()).toEqual(['feb', 'jan'])
   })
-  test('staff still see every version (no dedupe)', () => {
-    const all = [e({ id: 'B', status: 'approved' }), e({ id: 'A', status: 'approved' }), e({ id: 'd', status: 'draft' })]
-    expect(visibleEntries(all, { canEdit: true, canApprove: false }).map((x) => x.id)).toEqual(['B', 'A', 'd'])
-  })
   test('mostRecentApprovedPerPeriod: tie on approvedAt breaks on updatedAt', () => {
     const a = e({ id: 'a', status: 'approved', approvedAt: '2026-02-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' })
     const b = e({ id: 'b', status: 'approved', approvedAt: '2026-02-01T00:00:00.000Z', updatedAt: '2026-02-02T00:00:00.000Z' })
     expect(mostRecentApprovedPerPeriod([a, b]).map((x) => x.id)).toEqual(['b'])
+  })
+})
+
+describe('visibleEntries — staff dropdown: an approved re-edit replaces the original', () => {
+  const staff = { canEdit: true, canApprove: false }
+  // The lifecycle: editing an approved entry forks a new draft (planCommentaryWrite),
+  // so approving it leaves TWO approved rows for the same period. Only the new one shows.
+  const original = e({ id: 'A', status: 'approved', approvedAt: '2026-02-01T00:00:00.000Z' })
+  const reApproved = e({ id: 'B', status: 'approved', approvedAt: '2026-02-05T00:00:00.000Z' })
+
+  test('the superseded original drops out of the dropdown', () => {
+    expect(visibleEntries([reApproved, original], staff).map((x) => x.id)).toEqual(['B'])
+  })
+  test('a pending draft is still shown next to the live approved entry', () => {
+    const pending = e({ id: 'C', status: 'draft' })
+    expect(visibleEntries([pending, reApproved, original], staff).map((x) => x.id)).toEqual(['C', 'B'])
+  })
+  test('revoking the newest brings the superseded original back', () => {
+    const revoked = e({ id: 'B', status: 'draft', approvedAt: null })
+    expect(visibleEntries([revoked, original], staff).map((x) => x.id)).toEqual(['B', 'A'])
+  })
+  test('other periods keep their own live entry', () => {
+    const feb = e({ id: 'feb', status: 'approved', periodStart: '2026-02-01', periodEnd: '2026-02-28', approvedAt: '2026-03-01T00:00:00.000Z' })
+    expect(visibleEntries([feb, reApproved, original], staff).map((x) => x.id)).toEqual(['feb', 'B'])
+  })
+  test('input order (period desc) is preserved, not regrouped', () => {
+    const janOld = e({ id: 'janOld', status: 'approved', approvedAt: '2026-02-01T00:00:00.000Z' })
+    const janNew = e({ id: 'janNew', status: 'approved', approvedAt: '2026-02-09T00:00:00.000Z' })
+    const mar = e({ id: 'mar', status: 'approved', periodStart: '2026-03-01', periodEnd: '2026-03-31', approvedAt: '2026-04-01T00:00:00.000Z' })
+    expect(visibleEntries([mar, janNew, janOld], staff).map((x) => x.id)).toEqual(['mar', 'janNew'])
   })
 })
 
