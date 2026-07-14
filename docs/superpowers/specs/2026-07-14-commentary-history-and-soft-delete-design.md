@@ -117,15 +117,15 @@ Derivation is pure and testable, and adds **no new DB query** — it re-reads th
 
 ## 3. Server action — `deleteCommentaryDraft(clientSlug, id)`
 
-> ### ⚠️ OPEN — blocking: who may delete whose draft?
+> ### ✅ DECIDED — any Avenue Z editor may delete any draft
 >
-> The design currently says **any Avenue Z editor may delete any draft**, gated by `canEditCommentary`. The engineering rationale: deleting is not a greater power than editing, since an editor can already gut a draft by editing its contents to nothing; and commentary enforces no row ownership (`createdBy`) anywhere today, so adding one here would be novel and would block the ordinary case of clearing a teammate's abandoned draft.
+> **Decided by Paul, 2026-07-14**, with the design review's objection explicitly in front of him.
 >
-> **That rationale is internally consistent and still does not settle the question.** "No row ownership exists today" describes the current state; it does not justify a new destructive-looking button. To this guard, *clearing an abandoned draft* and *binning a colleague's in-progress draft* are the same operation.
+> The rationale: deleting is not a greater power than editing, since an editor can already gut a draft by editing its contents to nothing; and commentary enforces no row ownership (`createdBy`) anywhere today, so adding one here would be novel and would block the ordinary case of clearing a teammate's abandoned draft.
 >
-> This is a **product policy decision, not an engineering one.** It was chosen by Paul during design, but the stakeholder for this feedback round is **Tina**, and she has not seen it. **Needs her explicit sign-off before implementation.** The alternatives, if she wants them, are author-only (plus approvers) or approver-only — both are small changes to the same guard.
+> The objection, recorded because it remains true and may resurface: to this guard, *clearing an abandoned draft* and *binning a colleague's in-progress draft* are the same operation. The decision was taken by Paul rather than by **Tina**, the stakeholder for this feedback round; she has not been consulted on it. If she later objects, the alternatives are author-only (plus approvers) or approver-only — both are small changes to this one guard, not a redesign.
 
-- Gated by `canEditCommentary` (pending the decision above): any Avenue Z editor may delete any draft.
+- Gated by `canEditCommentary`: any Avenue Z editor may delete any draft.
 - Refuses anything that is not a live draft (`status === 'draft' && !deletedAt`), so an approved entry can never be deleted out from under a client.
 - **A double-delete returns an explicit failure, not a silent success.** Re-deleting an already-deleted row returns `{ ok: false, error: 'not found' }` — the same shape every other rejection uses. A silent `{ ok: true }` would let the UI report "deleted" for an operation that did nothing, which is exactly the kind of lie a confirm dialog must not tell.
 - Verifies row-to-client ownership via `authorizeRowForClient` (added in `fix/commentary-action-client-scoping`).
@@ -153,6 +153,8 @@ Two hardening rules follow, and both are testable:
 
 **2. The panel must never fetch history client-side.** If the boundary passes `[]` but the panel has *any* path to fetch its own history, the gate is gone. Verified 2026-07-14: `CommentaryPanel` has no fetch path — it only invokes server actions and `router.refresh()`. Keep it that way; this is one careless `useEffect` from being false.
 
+> **The `rsc-boundary` CI check does NOT cover this.** Its name invites exactly that assumption. `scripts/check-rsc-props.ts` guards *serializability* — a Server Component passing a **function** prop to a Client Component, which throws "Functions cannot be passed directly to Client Components" at render time. It is a **crash guard, not a confidentiality guard**: it has no opinion about a Server Component shipping data the viewer should not see. Green CI says nothing about the leak described in this section. Gate 3 needs its own test.
+
 ---
 
 ## 5. Testing
@@ -179,16 +181,16 @@ Panel render tests (`commentary-panel.test.tsx`, the harness added in `fix/comme
 
 ---
 
-## 7. Dependencies — a hard merge gate, not a footnote
+## 7. Dependencies — ✅ SATISFIED 2026-07-14
 
-This work **cannot merge, and should not be reviewed**, until both of these land in `feat/report-commentary`:
+Both hard dependencies are merged into `feat/report-commentary`:
 
-- **`fix/commentary-supersede-approved`** (PR #149) — edits the *same* `visibleEntries` function this feature edits, and the `superseded` tag is meaningless until it lands.
-- **`fix/commentary-action-client-scoping`** (PR #150) — provides `authorizeRowForClient`, which `deleteCommentaryDraft` reuses rather than duplicating.
+- **`fix/commentary-supersede-approved`** (PR #149, merged `2aa779a`) — edits the *same* `visibleEntries` function this feature edits; the `superseded` tag is meaningless without it.
+- **`fix/commentary-action-client-scoping`** (PR #150, merged `c9afda5`) — provides `authorizeRowForClient`, which `deleteCommentaryDraft` reuses rather than duplicating.
 
-**Reviewers: do not approve this feature against `feat/report-commentary` before #149 and #150 are in** — you would be reading a conflicted diff and reviewing a `visibleEntries` that does not exist in the form the feature assumes. This must be stated in the feature PR description, not left to be discovered.
+The feature branch must therefore be cut from `feat/report-commentary` at `c9afda5` or later. (These two conflicted on merge — both edited the `approveCommentary` docstring — resolved in `46821c3`.)
 
-(`fix/commentary-hide-client-timestamp`, PR #148, is independent, but it provides the `commentary-panel.test.tsx` harness the §5 render tests build on.)
+**Still open: `fix/commentary-hide-client-timestamp` (PR #148).** Not a correctness dependency, but it adds `commentary-panel.test.tsx`, the render-test harness the §5 panel tests build on. If it has not merged when implementation starts, the feature branch creates that file itself and PR #148 will conflict on it.
 
 ---
 
@@ -199,8 +201,9 @@ Added by design review, 2026-07-14. The first three are engineering and are now 
 | # | Gate | Status |
 |---|---|---|
 | 1 | DB CHECK constraint enforces `deleted ⇒ draft` (§1) | **Specified** — `check()` confirmed available in installed `drizzle-orm` |
-| 2 | Prove `visibleEntries` is genuinely the only read path (§2) | **Verified 2026-07-14** — 1 consumer of `getCommentaryForView`, 1 of `visibleEntries`, no export/PDF/analytics path touches commentary |
-| 3 | RSC-boundary leak has a test that inspects the **payload**, not the DOM (§4, §5) | **Specified** — blocks the PR |
-| 4 | **Product signs off on any-editor-deletes-any-draft (§3)** | **OPEN — needs Tina.** Blocking. Not ours to decide alone. |
+| 2 | Prove `visibleEntries` is genuinely the only read path (§2) | ✅ **Verified 2026-07-14** — 1 consumer of `getCommentaryForView`, 1 of `visibleEntries`, no export/PDF/analytics path touches commentary |
+| 3 | RSC-boundary leak has a test that inspects the **payload**, not the DOM (§4, §5) | **Specified — still to write. Blocks the PR.** Note the existing `rsc-boundary` CI check does *not* cover it (§4) |
+| 4 | Product signs off on any-editor-deletes-any-draft (§3) | ✅ **Closed 2026-07-14** — approved as-is by Paul; Tina not consulted (§3) |
+| 5 | Hard dependencies #149 / #150 merged (§7) | ✅ **Closed 2026-07-14** — both in `feat/report-commentary` |
 
-Gate 4 is the only one that cannot be closed by writing code.
+**All gates are closed except #1 and #3, which are implementation work.** Nothing external now blocks starting.
