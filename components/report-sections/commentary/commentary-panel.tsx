@@ -51,8 +51,8 @@ export function CommentaryPanel({
     setEditing(null)
     router.refresh() // re-runs the RSC; revalidateTag already busted the cache
   }
-  function doApprove(id: string) { startTransition(async () => { await approveCommentary(id); refresh() }) }
-  function doRevoke(id: string) { startTransition(async () => { await revokeCommentary(id); refresh() }) }
+  function doApprove(id: string) { startTransition(async () => { await approveCommentary(clientSlug, id); refresh() }) }
+  function doRevoke(id: string) { startTransition(async () => { await revokeCommentary(clientSlug, id); refresh() }) }
 
   // After a save (Add or a fork-on-edit), clear the manual selection so the panel
   // follows the RSC's recomputed newest entry — surfacing a freshly created draft.

@@ -19,3 +19,17 @@ export function validateCommentaryInput(input: {
 export function planCommentaryWrite(existingStatus: CommentaryStatus | null): { op: 'insert' | 'update' } {
   return existingStatus === 'draft' ? { op: 'update' } : { op: 'insert' }
 }
+
+/** A commentary row may only be acted on by a request scoped to its own client.
+ *  Every action that takes a row id must run this before writing: without it, a
+ *  stale or mismatched id silently mutates another client's row.
+ *
+ *  Missing and foreign rows return the SAME error — a caller must not be able to
+ *  probe which ids exist by diffing the responses. */
+export function authorizeRowForClient(
+  row: { clientId: string } | undefined,
+  clientId: string,
+): { ok: boolean; error?: string } {
+  if (!row || row.clientId !== clientId) return { ok: false, error: 'not found' }
+  return { ok: true }
+}

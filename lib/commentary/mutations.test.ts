@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { validateCommentaryInput, planCommentaryWrite } from './mutations'
+import { validateCommentaryInput, planCommentaryWrite, authorizeRowForClient } from './mutations'
 
 describe('validateCommentaryInput', () => {
   const base = { bodyHtml: '<p>Solid month.</p>', periodStart: '2026-01-01', periodEnd: '2026-01-31' }
@@ -28,5 +28,20 @@ describe('planCommentaryWrite (fork-on-edit-of-approved)', () => {
   })
   test('no existing row inserts', () => {
     expect(planCommentaryWrite(null)).toEqual({ op: 'insert' })
+  })
+})
+
+describe('authorizeRowForClient (cross-client row scoping)', () => {
+  test('a row belonging to the requesting client is allowed', () => {
+    expect(authorizeRowForClient({ clientId: 'c1' }, 'c1')).toEqual({ ok: true })
+  })
+  test("another client's row is rejected", () => {
+    expect(authorizeRowForClient({ clientId: 'c2' }, 'c1').ok).toBe(false)
+  })
+  test('a missing row is rejected', () => {
+    expect(authorizeRowForClient(undefined, 'c1').ok).toBe(false)
+  })
+  test('missing and foreign rows are indistinguishable (no id probing)', () => {
+    expect(authorizeRowForClient(undefined, 'c1')).toEqual(authorizeRowForClient({ clientId: 'c2' }, 'c1'))
   })
 })
