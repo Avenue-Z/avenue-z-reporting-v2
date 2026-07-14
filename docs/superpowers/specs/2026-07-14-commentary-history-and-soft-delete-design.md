@@ -123,7 +123,9 @@ Derivation is pure and testable, and adds **no new DB query** — it re-reads th
 >
 > The rationale: deleting is not a greater power than editing, since an editor can already gut a draft by editing its contents to nothing; and commentary enforces no row ownership (`createdBy`) anywhere today, so adding one here would be novel and would block the ordinary case of clearing a teammate's abandoned draft.
 >
-> The objection, recorded because it remains true and may resurface: to this guard, *clearing an abandoned draft* and *binning a colleague's in-progress draft* are the same operation. The decision was taken by Paul rather than by **Tina**, the stakeholder for this feedback round; she has not been consulted on it. If she later objects, the alternatives are author-only (plus approvers) or approver-only — both are small changes to this one guard, not a redesign.
+> **Signed off by Tina (the stakeholder for this feedback round) on 2026-07-14, as-is**, after being shown the trade-off and the two alternatives (author-only-plus-approvers, or approver-only). Design review had flagged this as a product decision that Paul could not take alone; that gate is now properly closed.
+>
+> The trade-off she accepted, recorded because it remains true: to this guard, *clearing an abandoned draft* and *binning a colleague's in-progress draft* are the same operation. If that ever becomes a problem in practice, both alternatives are small changes to this one guard, not a redesign.
 
 - Gated by `canEditCommentary`: any Avenue Z editor may delete any draft.
 - Refuses anything that is not a live draft (`status === 'draft' && !deletedAt`), so an approved entry can never be deleted out from under a client.
@@ -203,7 +205,7 @@ Added by design review, 2026-07-14. The first three are engineering and are now 
 | 1 | DB CHECK constraint enforces `deleted ⇒ draft` (§1) | **Specified** — `check()` confirmed available in installed `drizzle-orm` |
 | 2 | Prove `visibleEntries` is genuinely the only read path (§2) | ✅ **Verified 2026-07-14** — 1 consumer of `getCommentaryForView`, 1 of `visibleEntries`, no export/PDF/analytics path touches commentary |
 | 3 | RSC-boundary leak has a test that inspects the **payload**, not the DOM (§4, §5) | **Specified — still to write. Blocks the PR.** Note the existing `rsc-boundary` CI check does *not* cover it (§4) |
-| 4 | Product signs off on any-editor-deletes-any-draft (§3) | ✅ **Closed 2026-07-14** — approved as-is by Paul; Tina not consulted (§3) |
+| 4 | Product signs off on any-editor-deletes-any-draft (§3) | ✅ **Closed 2026-07-14** — **signed off as-is by Tina**, the stakeholder, after being shown the trade-off and both alternatives (§3) |
 | 5 | Hard dependencies #149 / #150 merged (§7) | ✅ **Closed 2026-07-14** — both in `feat/report-commentary` |
 
 **All gates are closed except #1 and #3, which are implementation work.** Nothing external now blocks starting.
