@@ -1,13 +1,21 @@
 import type { CommentaryEntry, CommentaryCapabilities } from './types'
 
-/** Avenue Z staff see every entry (full history). Clients see approved entries only,
- *  and at most one — the most recently approved — per reporting period. Deduping at
- *  read time (rather than demoting rows on approve) means a re-approval cleanly
- *  replaces the client-visible version, and a revoke *falls back* to the previously
- *  approved version for that period — with no row mutation or deletion. */
+/** Everyone sees at most one approved entry — the most recently approved — per
+ *  reporting period, so a re-approval *replaces* the previous version rather than
+ *  stacking beside it. Avenue Z staff additionally see drafts (including a pending
+ *  edit that forked off an approved entry); clients see approved entries only.
+ *
+ *  Superseded rows are hidden, not deleted. Deduping at read time (rather than
+ *  demoting or dropping rows on approve) is what lets a revoke *fall back* to the
+ *  previously approved version for that period — with no row mutation or deletion. */
 export function visibleEntries(entries: CommentaryEntry[], caps: CommentaryCapabilities): CommentaryEntry[] {
-  if (caps.canEdit) return entries
-  return mostRecentApprovedPerPeriod(entries.filter((x) => x.status === 'approved'))
+  const approved = mostRecentApprovedPerPeriod(entries.filter((x) => x.status === 'approved'))
+  if (!caps.canEdit) return approved
+
+  // Preserve the caller's ordering (period desc, updatedAt desc) rather than the
+  // grouped order, so the dropdown stays newest-period-first.
+  const live = new Set(approved.map((x) => x.id))
+  return entries.filter((x) => x.status === 'draft' || live.has(x.id))
 }
 
 /** From approved entries, keep only the most-recently-approved one per

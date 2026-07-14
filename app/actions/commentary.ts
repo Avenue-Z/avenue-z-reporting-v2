@@ -71,9 +71,9 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
 }
 
 /** Approve an entry for client visibility. Allowlist only. Other approved entries for
- *  the same view + period are left untouched — the client view shows only the most
- *  recently approved one per period (see visibleEntries), so a re-approval replaces
- *  the visible version and a revoke falls back to the previously approved one. */
+ *  the same view + period are left untouched in the DB — every view shows only the most
+ *  recently approved one per period (see visibleEntries), so a re-approval replaces the
+ *  previous version and a revoke falls back to it. Superseded rows are hidden, not deleted. */
 export async function approveCommentary(id: string): Promise<Result> {
   const session = await auth()
   const email = session?.user?.email
