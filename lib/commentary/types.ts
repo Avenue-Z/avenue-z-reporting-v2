@@ -15,6 +15,8 @@ export interface CommentaryEntry {
   updatedAt: string
   approvedBy: string | null
   approvedAt: string | null
+  deletedAt: string | null
+  deletedBy: string | null
 }
 
 /** What the current viewer may do. */

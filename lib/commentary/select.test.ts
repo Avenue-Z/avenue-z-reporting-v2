@@ -6,7 +6,7 @@ const e = (over: Partial<CommentaryEntry>): CommentaryEntry => ({
   id: 'x', viewKey: 'meta-ads', bodyHtml: '<p>x</p>',
   periodStart: '2026-01-01', periodEnd: '2026-01-31', status: 'approved',
   updatedBy: 'a@avenuez.com', updatedAt: '2026-02-01T00:00:00.000Z',
-  approvedBy: null, approvedAt: null, ...over,
+  approvedBy: null, approvedAt: null, deletedAt: null, deletedBy: null, ...over,
 })
 
 describe('visibleEntries', () => {

@@ -273,6 +273,8 @@ export function toCommentaryEntry(row: ReportCommentary): CommentaryEntry {
     updatedAt: row.updatedAt.toISOString(),
     approvedBy: row.approvedBy,
     approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
+    deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+    deletedBy: row.deletedBy,
   }
 }
 

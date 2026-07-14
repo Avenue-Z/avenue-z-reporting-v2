@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check } from 'drizzle-orm/pg-core'
+import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
 
@@ -258,8 +258,20 @@ export const reportCommentary = pgTable('report_commentary', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   approvedAt: timestamp('approved_at', { withTimezone: true }),
+  // Soft delete. Deleted rows are hidden from every view but never removed: the
+  // approver history log still shows them, and a deleted draft stays recallable
+  // at the DB level. Only drafts are deletable (see canDeleteDraft), enforced below.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  deletedBy: text('deleted_by'),
 }, (table) => ({
   clientViewIdx: index('report_commentary_client_view_idx').on(table.clientId, table.viewKey),
+  // The "only drafts are deletable" rule is an application invariant (canDeleteDraft).
+  // Enforce it in the DB too, so a future caller cannot produce an approved+deleted row
+  // — a state the history log has no way to describe.
+  noDeletedApproved: check(
+    'report_commentary_no_deleted_approved',
+    sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`,
+  ),
 }))
 
 export type Client = typeof clients.$inferSelect

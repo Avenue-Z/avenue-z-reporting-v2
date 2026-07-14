@@ -21,6 +21,8 @@ const ENTRY: CommentaryEntry = {
   updatedAt: '2026-07-09T20:01:00.000Z',
   approvedBy: 'thomas@avenuez.com',
   approvedAt: '2026-07-10T13:12:00.000Z',
+  deletedAt: null,
+  deletedBy: null,
 }
 
 function renderPanel(canEdit: boolean) {
