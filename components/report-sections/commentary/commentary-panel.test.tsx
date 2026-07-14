@@ -1,13 +1,14 @@
-import { expect, test, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, test, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { CommentaryPanel } from './commentary-panel'
-import type { CommentaryEntry } from '@/lib/commentary/types'
+import type { CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }))
 vi.mock('@/app/actions/commentary', () => ({
   approveCommentary: vi.fn(),
   revokeCommentary: vi.fn(),
   saveCommentary: vi.fn(),
+  deleteCommentaryDraft: vi.fn(),
 }))
 
 const ENTRY: CommentaryEntry = {
@@ -56,4 +57,82 @@ test('staff view still shows who updated/approved it and when', () => {
   expect(container.textContent).toContain('Last updated by paul.ramirez@avenuez.com')
   expect(container.textContent).toContain('Approved by thomas@avenuez.com')
   expect(container.textContent).toMatch(/2026, \d+:\d\d/)
+})
+
+const DRAFT: CommentaryEntry = { ...ENTRY, id: 'd1', status: 'draft', approvedBy: null, approvedAt: null }
+
+function renderWith(opts: {
+  entry?: CommentaryEntry
+  canEdit?: boolean
+  canApprove?: boolean
+  history?: CommentaryPeriodHistory[]
+}) {
+  const entry = opts.entry ?? ENTRY
+  return render(
+    <CommentaryPanel
+      clientSlug="acme"
+      viewKey="peec-ai"
+      entries={[entry]}
+      initialId={entry.id}
+      capabilities={{ canEdit: opts.canEdit ?? false, canApprove: opts.canApprove ?? false }}
+      history={opts.history ?? []}
+    />,
+  )
+}
+
+describe('delete draft button', () => {
+  test('an editor sees Delete on a draft', () => {
+    renderWith({ entry: DRAFT, canEdit: true })
+    expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
+  })
+  test('no Delete on an approved entry — it may be client-visible', () => {
+    renderWith({ entry: ENTRY, canEdit: true })
+    expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
+  })
+  test('a client never sees Delete', () => {
+    renderWith({ entry: DRAFT, canEdit: false })
+    expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
+  })
+  test('Delete calls the action only after the confirm is accepted', async () => {
+    const { deleteCommentaryDraft } = await import('@/app/actions/commentary')
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    renderWith({ entry: DRAFT, canEdit: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    expect(deleteCommentaryDraft).not.toHaveBeenCalled()
+
+    confirmSpy.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    expect(deleteCommentaryDraft).toHaveBeenCalledWith('acme', 'd1')
+
+    confirmSpy.mockRestore()
+  })
+})
+
+describe('history disclosure', () => {
+  const HISTORY: CommentaryPeriodHistory[] = [{
+    periodStart: '2026-06-01',
+    periodEnd: '2026-06-30',
+    versions: [
+      { entry: ENTRY, tag: 'live' },
+      { entry: { ...ENTRY, id: 'old', bodyHtml: '<p>OLD</p>' }, tag: 'superseded' },
+      { entry: { ...DRAFT, id: 'gone', bodyHtml: '<p>GONE</p>' }, tag: 'deleted' },
+    ],
+  }]
+
+  test('an approver sees the History disclosure', () => {
+    renderWith({ canEdit: true, canApprove: true, history: HISTORY })
+    expect(screen.getByText(/History/)).toBeTruthy()
+  })
+  test('an editor with an empty history sees no disclosure', () => {
+    renderWith({ canEdit: true, canApprove: false, history: [] })
+    expect(screen.queryByText(/History/)).toBeNull()
+  })
+  test('expanding shows every version with its tag', () => {
+    renderWith({ canEdit: true, canApprove: true, history: HISTORY })
+    fireEvent.click(screen.getByText(/History/))
+    expect(screen.getByText('live')).toBeTruthy()
+    expect(screen.getByText('superseded')).toBeTruthy()
+    expect(screen.getByText('deleted')).toBeTruthy()
+  })
 })
