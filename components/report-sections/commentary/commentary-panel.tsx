@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { CommentaryEditor } from './commentary-editor'
 import { approveCommentary, revokeCommentary } from '@/app/actions/commentary'
-import type { CommentaryEntry, CommentaryCapabilities } from '@/lib/commentary/types'
+import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 
 function fmt(d: string): string {
@@ -28,12 +28,14 @@ export function CommentaryPanel({
   entries,
   initialId,
   capabilities,
+  history,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
   entries: CommentaryEntry[]
   initialId: string | null
   capabilities: CommentaryCapabilities
+  history: CommentaryPeriodHistory[]
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)

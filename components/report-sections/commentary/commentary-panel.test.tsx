@@ -33,6 +33,7 @@ function renderPanel(canEdit: boolean) {
       entries={[ENTRY]}
       initialId={ENTRY.id}
       capabilities={{ canEdit, canApprove: false }}
+      history={[]}
     />,
   )
 }
