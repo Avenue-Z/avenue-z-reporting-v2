@@ -10,6 +10,7 @@
     "check:rsc": "tsx scripts/check-rsc-props.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:staging": "bash scripts/migrate-staging.sh",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "db:seed-section-templates": "tsx --env-file=.env.local scripts/seed-section-templates.ts",
