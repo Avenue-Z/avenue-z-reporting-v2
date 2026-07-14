@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { visibleEntries, pickDefaultEntry, mostRecentApprovedPerPeriod } from './select'
+import { visibleEntries, pickDefaultEntry, mostRecentApprovedPerPeriod, historyEntries, tagVersion } from './select'
 import type { CommentaryEntry } from './types'
 
 const e = (over: Partial<CommentaryEntry>): CommentaryEntry => ({
@@ -88,5 +88,79 @@ describe('pickDefaultEntry', () => {
     const arr = [e({ id: '1', periodStart: '2026-01-01' }), e({ id: '2', periodStart: '2026-02-01' })]
     pickDefaultEntry(arr)
     expect(arr.map((x) => x.id)).toEqual(['1', '2'])
+  })
+})
+
+describe('visibleEntries — deleted rows are hidden from BOTH views', () => {
+  // §2 claims one filter fixes client and staff simultaneously. Prove both; don't infer.
+  const del = e({ id: 'D', status: 'draft', deletedAt: '2026-02-10T00:00:00.000Z' })
+  const live = e({ id: 'L', status: 'approved', approvedAt: '2026-02-01T00:00:00.000Z' })
+  const draft = e({ id: 'P', status: 'draft' })
+
+  test('client view excludes a deleted row', () => {
+    const out = visibleEntries([del, live], { canEdit: false, canApprove: false })
+    expect(out.map((x) => x.id)).toEqual(['L'])
+  })
+  test('staff dropdown excludes a deleted row but keeps live drafts', () => {
+    const out = visibleEntries([del, draft, live], { canEdit: true, canApprove: false })
+    expect(out.map((x) => x.id)).toEqual(['P', 'L'])
+  })
+  test('a deleted row never becomes the live approved entry by falling back', () => {
+    // An approved row that was revoked to draft and then deleted must not resurface.
+    const deletedFallback = e({ id: 'X', status: 'draft', approvedAt: '2026-02-09T00:00:00.000Z', deletedAt: '2026-02-11T00:00:00.000Z' })
+    const out = visibleEntries([deletedFallback, live], { canEdit: true, canApprove: false })
+    expect(out.map((x) => x.id)).toEqual(['L'])
+  })
+})
+
+describe('tagVersion — precedence: deleted wins over live', () => {
+  test('deleted beats live even when the row is in the live set', () => {
+    // Hand-built approved+deleted row: the DB now FORBIDS this state (CHECK constraint),
+    // and historyEntries never puts a deleted row in liveIds. The pure function must be
+    // robust to it anyway, so a later refactor widening the winner set cannot relabel
+    // a deleted row as 'live'.
+    const row = e({ id: 'Z', status: 'approved', deletedAt: '2026-02-10T00:00:00.000Z' })
+    expect(tagVersion(row, new Set(['Z']))).toBe('deleted')
+  })
+  test('live when it wins the period', () => {
+    expect(tagVersion(e({ id: 'A', status: 'approved' }), new Set(['A']))).toBe('live')
+  })
+  test('superseded when approved but not the winner', () => {
+    expect(tagVersion(e({ id: 'B', status: 'approved' }), new Set(['A']))).toBe('superseded')
+  })
+  test('draft otherwise', () => {
+    expect(tagVersion(e({ id: 'C', status: 'draft' }), new Set(['A']))).toBe('draft')
+  })
+})
+
+describe('historyEntries', () => {
+  const approver = { canEdit: true, canApprove: true }
+
+  test('returns [] for a non-approver, even an editor', () => {
+    const entries = [e({ id: 'A', status: 'approved' })]
+    expect(historyEntries(entries, { canEdit: true, canApprove: false })).toEqual([])
+    expect(historyEntries(entries, { canEdit: false, canApprove: false })).toEqual([])
+  })
+
+  test('groups every version by period and tags each one', () => {
+    const liveRow = e({ id: 'B', status: 'approved', approvedAt: '2026-02-05T00:00:00.000Z' })
+    const oldRow = e({ id: 'A', status: 'approved', approvedAt: '2026-02-01T00:00:00.000Z' })
+    const goneRow = e({ id: 'D', status: 'draft', deletedAt: '2026-02-02T00:00:00.000Z' })
+    const out = historyEntries([liveRow, oldRow, goneRow], approver)
+
+    expect(out).toHaveLength(1)
+    expect(out[0].periodStart).toBe('2026-01-01')
+    expect(out[0].versions.map((v) => [v.entry.id, v.tag])).toEqual([
+      ['B', 'live'],
+      ['A', 'superseded'],
+      ['D', 'deleted'],
+    ])
+  })
+
+  test('separate periods become separate groups, input order preserved', () => {
+    const feb = e({ id: 'feb', periodStart: '2026-02-01', periodEnd: '2026-02-28', status: 'approved' })
+    const jan = e({ id: 'jan', status: 'approved' })
+    const out = historyEntries([feb, jan], approver)
+    expect(out.map((g) => g.periodStart)).toEqual(['2026-02-01', '2026-01-01'])
   })
 })

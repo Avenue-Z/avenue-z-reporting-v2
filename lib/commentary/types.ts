@@ -34,3 +34,18 @@ export interface CommentaryInput {
   periodStart: string
   periodEnd: string
 }
+
+/** How a version relates to what the client currently sees. Order matters — see tagVersion. */
+export type CommentaryVersionTag = 'live' | 'superseded' | 'deleted' | 'draft'
+
+export interface CommentaryVersion {
+  entry: CommentaryEntry
+  tag: CommentaryVersionTag
+}
+
+/** One reporting period's full version stack, newest-period-first. */
+export interface CommentaryPeriodHistory {
+  periodStart: string
+  periodEnd: string
+  versions: CommentaryVersion[]
+}
