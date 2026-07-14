@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { render } from '@testing-library/react'
 import type { CommentaryEntry } from '@/lib/commentary/types'
 
@@ -49,13 +49,20 @@ async function renderSection() {
   const { CommentarySection } = await import('./index')
   const element = await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai' })
   render(element)
+  // The payload greps below are vacuous if the panel never ran (JSON.stringify(null)
+  // contains no marker strings), so prove it ran before asserting anything about it.
+  expect(captured).not.toBeNull()
   return captured
 }
 
 describe('CommentarySection — RSC boundary', () => {
   beforeEach(() => {
     captured = null
-    process.env.COMMENTARY_APPROVERS = 'thomas@avenuez.com'
+    vi.stubEnv('COMMENTARY_APPROVERS', 'thomas@avenuez.com')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   test('a CLIENT receives no history across the boundary', async () => {
