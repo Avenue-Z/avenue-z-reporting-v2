@@ -43,6 +43,18 @@ export function mostRecentApprovedPerPeriod(approved: CommentaryEntry[]): Commen
   return [...best.values()]
 }
 
+/** Strip the attribution a client must never receive: who edited/approved (internal
+ *  staff emails) and when (the modified/approved timestamps #148 asked to hide). The
+ *  panel only renders these behind `capabilities.canEdit`, but a JSX gate does NOT
+ *  stop them crossing the RSC→client boundary — every field on an entry serializes
+ *  into the browser bundle regardless of what renders. Same reasoning as the
+ *  historyEntries gate: redact server-side so a non-editor's props carry nothing to
+ *  leak. Deleted rows are already filtered out for non-editors upstream, so
+ *  deletedAt/deletedBy are null here regardless. */
+export function toClientSafeEntry(entry: CommentaryEntry): CommentaryEntry {
+  return { ...entry, updatedBy: '', updatedAt: '', approvedBy: null, approvedAt: null }
+}
+
 /** The default entry to show: most recent by period start, then by last update.
  *  ISO date strings compare chronologically. Non-mutating. */
 export function pickDefaultEntry(entries: CommentaryEntry[]): CommentaryEntry | null {

@@ -74,6 +74,11 @@ describe('CommentarySection — RSC boundary', () => {
     const payload = JSON.stringify(props)
     expect(payload).not.toContain('SUPERSEDED SECRET')
     expect(payload).not.toContain('DELETED SECRET')
+    // #148: attribution is stripped server-side, so no staff email or edit/approve
+    // timestamp crosses to a client — not even on the live entry they do see.
+    expect(payload).not.toContain('avenuez.com')
+    expect(payload).not.toContain('2026-07-10T13:12:00.000Z') // approvedAt
+    expect(payload).not.toContain('2026-07-09T20:01:00.000Z') // updatedAt
   })
 
   test('a NON-APPROVER EDITOR receives no history either', async () => {
