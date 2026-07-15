@@ -15,6 +15,8 @@ export interface CommentaryEntry {
   updatedAt: string
   approvedBy: string | null
   approvedAt: string | null
+  deletedAt: string | null
+  deletedBy: string | null
 }
 
 /** What the current viewer may do. */
@@ -31,4 +33,19 @@ export interface CommentaryInput {
   bodyHtml: string
   periodStart: string
   periodEnd: string
+}
+
+/** How a version relates to what the client currently sees. Order matters — see tagVersion. */
+export type CommentaryVersionTag = 'live' | 'superseded' | 'deleted' | 'draft'
+
+export interface CommentaryVersion {
+  entry: CommentaryEntry
+  tag: CommentaryVersionTag
+}
+
+/** One reporting period's full version stack, newest-period-first. */
+export interface CommentaryPeriodHistory {
+  periodStart: string
+  periodEnd: string
+  versions: CommentaryVersion[]
 }
