@@ -116,9 +116,11 @@ export function CommentaryPanel({
             <article className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <span className="text-text-muted">Reporting period: {fmt(selected.periodStart)} – {fmt(selected.periodEnd)}</span>
-                <span className={`rounded px-2 py-0.5 font-semibold ${selected.status === 'approved' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
-                  {selected.status === 'approved' ? 'Approved' : 'Draft'}
-                </span>
+                {capabilities.canEdit && (
+                  <span className={`rounded px-2 py-0.5 font-semibold ${selected.status === 'approved' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
+                    {selected.status === 'approved' ? 'Approved' : 'Draft'}
+                  </span>
+                )}
               </div>
               <div
                 className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"
