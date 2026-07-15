@@ -59,6 +59,16 @@ test('staff view still shows who updated/approved it and when', () => {
   expect(container.textContent).toMatch(/2026, \d+:\d\d/)
 })
 
+test('client view hides the Approved/Draft status badge', () => {
+  renderPanel(false)
+  expect(screen.queryByText(/^(Approved|Draft)$/)).toBeNull()
+})
+
+test('staff view still shows the Approved/Draft status badge', () => {
+  renderPanel(true)
+  expect(screen.getByText(/^(Approved|Draft)$/).textContent).toBe('Approved')
+})
+
 const DRAFT: CommentaryEntry = { ...ENTRY, id: 'd1', status: 'draft', approvedBy: null, approvedAt: null }
 
 function renderWith(opts: {
