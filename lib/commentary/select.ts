@@ -50,7 +50,11 @@ export function mostRecentApprovedPerPeriod(approved: CommentaryEntry[]): Commen
  *  into the browser bundle regardless of what renders. Same reasoning as the
  *  historyEntries gate: redact server-side so a non-editor's props carry nothing to
  *  leak. Deleted rows are already filtered out for non-editors upstream, so
- *  deletedAt/deletedBy are null here regardless. */
+ *  deletedAt/deletedBy are null here regardless.
+ *
+ *  CAUTION: this blanks `updatedAt` to ''. Only call it AFTER any ordering that reads
+ *  updatedAt (e.g. pickDefaultEntry runs on the un-redacted list). A redacted entry must
+ *  never feed an updatedAt sort — empty strings would silently mis-order. */
 export function toClientSafeEntry(entry: CommentaryEntry): CommentaryEntry {
   return { ...entry, updatedBy: '', updatedAt: '', approvedBy: null, approvedAt: null }
 }

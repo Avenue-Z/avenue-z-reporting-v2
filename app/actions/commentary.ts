@@ -14,8 +14,11 @@ import type { CommentaryInput, CommentaryStatus } from '@/lib/commentary/types'
 
 type Result = { ok: true } | { ok: false; error: string }
 
-/** Every write below re-asserts `deleted_at IS NULL` in its WHERE clause, even though the
- *  caller has already run guardNotDeleted / canDeleteDraft against a freshly-read row.
+/** The three sensitive writes below (saveCommentary, approveCommentary, deleteCommentaryDraft)
+ *  re-assert `deleted_at IS NULL` in their WHERE clause, even though the caller has already run
+ *  guardNotDeleted / canDeleteDraft against a freshly-read row. (revokeCommentary is exempt: it
+ *  writes status='draft', which no deleted row can violate, so a lost race there is a harmless
+ *  no-op — see its body.)
  *
  *  The guards read, then write: a delete landing in between would slip through. That is not
  *  theoretical — approving a row deleted in that window violates the
@@ -157,10 +160,16 @@ export async function revokeCommentary(clientSlug: string, id: string): Promise<
   const authorized = authorizeRowForClient(await findCommentaryRow(id), client.id)
   if (!authorized.ok) return { ok: false, error: authorized.error! }
 
-  await db
+  // No isNull(deletedAt) guard here (unlike the other writes): revoke only ever sets
+  // status='draft', which no deleted row can violate, so racing a delete is harmless.
+  // The .returning() check is only for uniform 'not found' semantics across the actions.
+  const revoked = await db
     .update(reportCommentary)
     .set({ status: 'draft', approvedBy: null, approvedAt: null, updatedAt: new Date() })
     .where(eq(reportCommentary.id, id))
+    .returning({ id: reportCommentary.id })
+
+  if (affectedNothing(revoked)) return { ok: false, error: 'not found' }
 
   revalidateTag('db', 'max')
   return { ok: true }
