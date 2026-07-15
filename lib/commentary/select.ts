@@ -49,14 +49,25 @@ export function mostRecentApprovedPerPeriod(approved: CommentaryEntry[]): Commen
  *  stop them crossing the RSC→client boundary — every field on an entry serializes
  *  into the browser bundle regardless of what renders. Same reasoning as the
  *  historyEntries gate: redact server-side so a non-editor's props carry nothing to
- *  leak. Deleted rows are already filtered out for non-editors upstream, so
- *  deletedAt/deletedBy are null here regardless.
+ *  leak. Deleted rows are already filtered out for non-editors upstream, so in practice
+ *  deletedAt/deletedBy are null before we get here — but we blank them anyway so the
+ *  projection is self-contained and stays client-safe regardless of the caller (same
+ *  defense-in-depth stance as tagVersion checking `deleted` first). deletedBy is a
+ *  staff email, so this is not merely cosmetic.
  *
  *  CAUTION: this blanks `updatedAt` to ''. Only call it AFTER any ordering that reads
  *  updatedAt (e.g. pickDefaultEntry runs on the un-redacted list). A redacted entry must
  *  never feed an updatedAt sort — empty strings would silently mis-order. */
 export function toClientSafeEntry(entry: CommentaryEntry): CommentaryEntry {
-  return { ...entry, updatedBy: '', updatedAt: '', approvedBy: null, approvedAt: null }
+  return {
+    ...entry,
+    updatedBy: '',
+    updatedAt: '',
+    approvedBy: null,
+    approvedAt: null,
+    deletedAt: null,
+    deletedBy: null,
+  }
 }
 
 /** The default entry to show: most recent by period start, then by last update.

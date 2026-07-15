@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { visibleEntries, pickDefaultEntry, mostRecentApprovedPerPeriod, historyEntries, tagVersion } from './select'
+import { visibleEntries, pickDefaultEntry, mostRecentApprovedPerPeriod, historyEntries, tagVersion, toClientSafeEntry } from './select'
 import type { CommentaryEntry } from './types'
 
 const e = (over: Partial<CommentaryEntry>): CommentaryEntry => ({
@@ -88,6 +88,26 @@ describe('pickDefaultEntry', () => {
     const arr = [e({ id: '1', periodStart: '2026-01-01' }), e({ id: '2', periodStart: '2026-02-01' })]
     pickDefaultEntry(arr)
     expect(arr.map((x) => x.id)).toEqual(['1', '2'])
+  })
+})
+
+describe('toClientSafeEntry — strips every staff-only field', () => {
+  test('blanks all six attribution fields, including deletedAt/deletedBy', () => {
+    const row = e({
+      id: 'r', status: 'draft',
+      updatedBy: 'paul@avenuez.com', updatedAt: '2026-02-01T00:00:00.000Z',
+      approvedBy: 'thomas@avenuez.com', approvedAt: '2026-02-05T00:00:00.000Z',
+      deletedAt: '2026-02-10T00:00:00.000Z', deletedBy: 'ops@avenuez.com',
+    })
+    const safe = toClientSafeEntry(row)
+    expect(safe).toMatchObject({
+      updatedBy: '', updatedAt: '', approvedBy: null, approvedAt: null,
+      deletedAt: null, deletedBy: null,
+    })
+    // No staff email survives on any field.
+    expect(JSON.stringify(safe)).not.toContain('avenuez.com')
+    // Non-attribution fields (the body the client should see) are untouched.
+    expect(safe.bodyHtml).toBe(row.bodyHtml)
   })
 })
 
