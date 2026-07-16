@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check } from 'drizzle-orm/pg-core'
+import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
 
@@ -237,9 +237,48 @@ export const sectionTemplates = pgTable('section_templates', {
 
 export type SectionTemplateRow = typeof sectionTemplates.$inferSelect
 
+export const commentaryStatusEnum = pgEnum('commentary_status', ['draft', 'approved'])
+
+// One row per commentary entry. Many entries per (client, viewKey) form the
+// history stream shown in the older-entries dropdown. viewKey is a canonical
+// key from lib/commentary/views.ts (e.g. 'peec-ai', 'meta-ads'), NOT a raw route
+// slug. body_html is sanitized on write. period_* is the commentary's OWN range,
+// independent of the dashboard date picker.
+export const reportCommentary = pgTable('report_commentary', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  viewKey: text('view_key').notNull(),
+  bodyHtml: text('body_html').notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  status: commentaryStatusEnum('status').notNull().default('draft'),
+  createdBy: text('created_by').notNull(),
+  updatedBy: text('updated_by').notNull(),
+  approvedBy: text('approved_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  // Soft delete. Deleted rows are hidden from every view but never removed: the
+  // approver history log still shows them, and a deleted draft stays recallable
+  // at the DB level. Only drafts are deletable (see canDeleteDraft), enforced below.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  deletedBy: text('deleted_by'),
+}, (table) => ({
+  clientViewIdx: index('report_commentary_client_view_idx').on(table.clientId, table.viewKey),
+  // The "only drafts are deletable" rule is an application invariant (canDeleteDraft).
+  // Enforce it in the DB too, so a future caller cannot produce an approved+deleted row
+  // — a state the history log has no way to describe.
+  noDeletedApproved: check(
+    'report_commentary_no_deleted_approved',
+    sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`,
+  ),
+}))
+
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type ClientRole = (typeof clientRoleEnum.enumValues)[number]
 export type HealthStateRow = typeof healthState.$inferSelect
+export type ReportCommentary = typeof reportCommentary.$inferSelect
+export type NewReportCommentary = typeof reportCommentary.$inferInsert

@@ -21,10 +21,15 @@ export type SectionOverride = {
   order?: string[]
   hidden?: string[]
   extraParts?: PartPin[]
+  sharedParts?: PartPin[]   // cross-section shared parts (commentary, …); validated against SHARED_PARTS
   labels?: Record<string, string>
   thresholds?: Record<string, number>
 }
 
+/** Per-client report config. A key is EITHER a section slug (body composition,
+ *  looked up in REGISTRIES) OR a viewKey (shared-parts opt-in, e.g.
+ *  'peec-ai:pr-influence') OR both (single-view sections where viewKey == slug).
+ *  A viewKey-only key has no REGISTRIES entry — that is expected, not an orphan. */
 export type ReportSectionConfig = Record<string, SectionOverride>
 
 export type ResolvedPart = { id: string; version: number; label: string; threshold?: number }

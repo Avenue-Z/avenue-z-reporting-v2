@@ -17,6 +17,7 @@ import { PEEC_PARTS } from './parts/registry'
 import { BESPOKE_PARTS } from './parts/bespoke/registry'
 import { PEEC_TEMPLATE } from './template'
 import type { SectionOverride } from '@/lib/report-sections/types'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 // --- Per-provider section (shared markup; renders via parts registry) ---
 
@@ -133,7 +134,10 @@ export async function PeecAIReport({
   if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} />
 
   return (
-    <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
+    <>
+      {clientSlug && <SharedPartsHeader viewKey="peec-ai" clientSlug={clientSlug} />}
+      <ProviderTabs availableProviders={availableProviders} clientSlug={clientSlug ?? 'default'} sections={sections} />
+    </>
   )
 }
 

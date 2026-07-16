@@ -63,7 +63,7 @@ describe('computePromotion', () => {
   })
 })
 
-import { freezeViolations, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import type { PartRegistry } from '@/lib/report-sections/types'
 
 const reg: PartRegistry<unknown> = {
@@ -125,5 +125,21 @@ describe('validateSectionOverride', () => {
     expect(validateSectionOverride('peec-ai', { hidden: ['a'] }, { 'peec-ai': reg }, ['a'])['peec-ai'].hidden).toEqual(
       ['a'],
     )
+  })
+})
+
+describe('mergePreservingSharedParts', () => {
+  test('preserves a prior sharedParts opt-in when the new payload omits it', () => {
+    const prev = { sharedParts: [{ id: 'commentary', version: 1 }] }
+    const next = { versions: { x: 2 } } // body-only edit, no sharedParts
+    expect(mergePreservingSharedParts(prev, next).sharedParts).toEqual([{ id: 'commentary', version: 1 }])
+  })
+  test('an explicit sharedParts in the new payload wins', () => {
+    const prev = { sharedParts: [{ id: 'commentary', version: 1 }] }
+    const next = { sharedParts: [] as { id: string; version: number }[] }
+    expect(mergePreservingSharedParts(prev, next).sharedParts).toEqual([])
+  })
+  test('no prior and none in payload → no sharedParts key added', () => {
+    expect(mergePreservingSharedParts(undefined, { versions: {} }).sharedParts).toBeUndefined()
   })
 })
