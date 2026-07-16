@@ -1,9 +1,32 @@
 # Commentary: approver history log + draft soft-delete — design
 
 **Date:** 2026-07-14
-**Status:** shape approved; **implementation blocked on the gates in §8**
+**Status:** ✅ Implemented in full — **including all three §8 gates.** Accurate.
 **Source:** stakeholder feedback round on `feat/report-commentary` (two Should-Haves)
 **Revised:** 2026-07-14 after design review (see §8 for the gates it added)
+
+> Current architecture: [`lib/commentary/ENGINEERS.md`](../../../lib/commentary/ENGINEERS.md).
+> Every §1–§6 claim shipped as designed, and the §8 gates cleared: the DB CHECK
+> constraint (`report_commentary_no_deleted_approved`) and the payload-inspecting
+> boundary test both exist. The code is now **stricter** than this doc in ways it
+> never contemplated, all consistent with its own reasoning:
+>
+> - **Attribution is stripped server-side for non-editors** (`toClientSafeEntry`).
+>   This is §4's argument — *props cross the boundary regardless of what renders* —
+>   applied to a data class §4 only ever applied it to `history`. §4 is incomplete
+>   here, not wrong.
+> - **The sensitive writes carry `isNull(deletedAt)` race guards.** This doc doesn't
+>   model the read-then-write window, and the guard is coupled to the §1 CHECK
+>   constraint: without it, approving a row deleted in that window violates the
+>   constraint and throws out of the action. See the write-path section of the
+>   ENGINEERS doc.
+> - **The Approved/Draft badge is hidden from clients**, and `revokeCommentary`
+>   returns a uniform `not found` — both below this doc's altitude.
+>
+> One stale line: §2 says the action file *"only ever selects `status` and
+> `client_id`"*. `findCommentaryRow` now also selects `deletedAt`. The invariant that
+> sentence protects — never reads `body_html`, never returns rows to a caller — still
+> holds.
 
 > 1. *"Right now, the log of edit history is not accessible by the user. Can we make this full log accessible to the approvers only?"*
 > 2. *"Ability to soft-delete drafts. If someone creates a draft and then wants to delete it, have a button that they can click to delete the draft. I was thinking 'soft delete' could be a way to do this where if we needed to recall a deleted draft with version control, that would still be possible."*

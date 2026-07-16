@@ -1,9 +1,25 @@
 # Shared Report Parts — Commentary as a Per-Client Part — Design
 
 **Date:** 2026-07-07
-**Status:** Approved (design); pending implementation plan
+**Status:** ✅ Implemented — accurate, with two deltas noted below.
 **Branch:** `feat/report-commentary` (stacked — the commentary feature evolves from
 page-level to part-based before it merges)
+
+> Current architecture: [`lib/commentary/ENGINEERS.md`](../../../lib/commentary/ENGINEERS.md).
+> This doc describes the render path that actually shipped, and supersedes the
+> page-level path in `2026-07-06-report-commentary-design.md`. Two deltas:
+>
+> 1. **`resolveSharedParts` takes the registry as a parameter** rather than closing
+>    over `SHARED_PARTS` as §"Resolution" specifies. This keeps `resolve.ts` free of
+>    component imports so it tests without the RSC tree; the cost is a double cast at
+>    the `SharedPartsHeader` call site. It also makes the body/shared isolation test
+>    proposed in §"Testing" structurally unnecessary — and it was never written.
+> 2. **`mergePreservingSharedParts` (`lib/report-sections/mutations.ts`) is not in
+>    this design.** It was added afterwards to fix a real bug this design created: a
+>    body-only save through `saveReportSectionConfig` would drop a client's commentary
+>    pin, because body config and `sharedParts` share one `reportSectionConfig` entry.
+>    The claim that body and shared resolution "never cross" holds on **read**, but
+>    was false on **write** until that fix.
 **Related:** builds on the commentary feature (`2026-07-06-report-commentary-design.md`)
 and the per-client report-sections system (`2026-06-30-per-client-report-sections-design.md`).
 

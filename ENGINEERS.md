@@ -379,6 +379,20 @@ The split:
 
 ---
 
+## Commentary
+
+Seven report views can carry a **commentary** block at the top — a human-written,
+client-ready summary with its own reporting period, published through a
+`draft → approved` flow. It is **opt-in per client, per view**: it renders only where
+the client's `report_section_config[viewKey].sharedParts` pins it. No pin, no block,
+no error — which is the first thing to check when someone reports it missing.
+
+**→ [`lib/commentary/ENGINEERS.md`](./lib/commentary/ENGINEERS.md)** for the render
+path, permission model, soft-delete semantics, and the server-side client-safety
+boundary. Read it before touching commentary or the shared-parts system.
+
+---
+
 ## Adding a Report Section
 
 A report section is a self-contained React Server Component fed a `clientSlug`
@@ -492,6 +506,26 @@ GWS-only OAuth is wired up: `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` set in Verce
 `lib/hubspot/client.ts` has numerous `[forms-debug]` console.log statements added during active debugging of the "customers showing 0" issue in the Forms tab. These will spam production logs.
 
 **Fix:** Once the customer-column issue is confirmed resolved, remove all `[forms-debug]` lines from `getFormSubmissionCounts`.
+
+### 🟡 Commentary Server Actions Are Untested
+
+The commentary **pure logic** is well covered (`lib/commentary/*.test.ts`), as is the
+RSC props boundary (`components/report-sections/commentary/index.test.tsx`) and panel
+rendering. The four server actions in `app/actions/commentary.ts` are not: nothing
+exercises their auth gates, their `clientSlug` scoping, or their `isNull(deletedAt)`
+race guards.
+
+That is the riskiest code in the feature — every recent security fix landed there
+(`306aaaa` strip attribution, `a184063` null deletedAt/deletedBy, `ce3a605` client
+scoping, `fcfafc8` write guards) — and it is the part with no regression net. The
+approve path is the priority: its race guard is coupled to the
+`report_commentary_no_deleted_approved` CHECK constraint, so a regression there throws
+out of the action instead of returning a `Result`.
+
+**Fix:** Add `app/actions/commentary.test.ts` covering, per action: non-`@avenuez.com`
+rejected, non-approver rejected on approve/revoke, a row from another client rejected
+with `not found`, and a lost delete race returning `not found` rather than `{ ok: true }`.
+See [`lib/commentary/ENGINEERS.md`](./lib/commentary/ENGINEERS.md#write-path).
 
 ---
 
