@@ -8,7 +8,7 @@
 | **Raised** | 2026-07-20 |
 | **Raised by** | Thomas Chang |
 | **Decision owner (blocking)** | Tina Fleming |
-| **Status** | **OPEN.** 6 decisions awaiting Tina. Implementation blocked. |
+| **Status** | **OPEN.** 6 decisions awaiting Tina, plus 1 engineering prerequisite (E7) that independently blocks ship. |
 
 ---
 
@@ -103,21 +103,35 @@ now rather than after A ships, because retrofitting the column later costs more.
 **Status:** `OPEN`
 
 **The question.** Today the table hides every placement that did not match, so every
-visible row says Yes. There is no way to see how many placements did not get cited.
+visible row says Yes.
 
-**Why it matters.** Right now the "Cited by AI" column cannot say No. It is a column of
-Yes by construction, which makes it decorative rather than informative. It also hides the
-hit rate.
+> **Correction, 2026-07-20.** An earlier draft of this document said there was no visible
+> denominator. **That was wrong.** The card already renders
+> `"{N} of {M} placements cited by AI ({P}%)"` above the table
+> (`pr-influence-tables.tsx:506-508`), where M is all-time placements
+> (`pr-influence.tsx:469`) and N is the matched count (`:470`). The honest ratio is
+> already on screen today. Left visible rather than quietly edited, per this document's
+> own rule about preserving the record.
+
+**What this means.** The headline rate is already correct and will simply get more
+accurate after the fix. So the real question is narrower than first framed: should the
+**table body** also list the placements that were not cited?
+
+**Why it still matters.** The "Cited by AI" column cannot currently say No. It is a
+column of Yes by construction, which makes the column itself decorative. The rate above
+it carries all the information.
 
 | Option | What the client sees | Trade-off |
 |---|---|---|
-| **A. Show all placements with honest Yes/No** ⭐ recommended | A full list, most rows likely No after the fix | The column becomes meaningful and the real hit rate is visible. Harder conversation, the table gets long, and it will look worse. It will also be true. |
-| **B. Keep hiding uncited rows** | Short list, all Yes, as today | Minimal change. The column stays informationally empty and the hit rate stays hidden. |
-| **C. Keep hiding rows, but state the denominator loudly** | Short list, plus a prominent "3 of 47 placements cited by AI" | Honest headline number without a wall of No rows. Probably the best client-facing compromise. |
+| **A. Show all placements with honest Yes/No** | Full list, most rows likely No after the fix | The column becomes meaningful. Table gets long and reads as a wall of failure, even though the headline rate says the same thing more kindly. |
+| **B. Keep hiding uncited rows** ⭐ recommended | Short list, all Yes, plus the existing rate headline | No work. The rate above the table already tells the truth. Arguably the "Cited by AI" column should then be dropped as redundant, since every row says Yes. |
+| **C. Hide uncited rows, drop the redundant column** | Short list of genuinely cited placements, rate headline above | Cleanest. Removes a column that carries no information rather than keeping a decorative one. |
 
-**Our recommendation: C**, unless you specifically want the full list. C gives you the
-honesty of A without a table that reads as a wall of failure. Worth noting the card
-already computes both numbers, so C is cheap.
+**Our recommendation: B or C, not A.** Now that the denominator is confirmed already
+visible, A's main benefit disappears and only its cost remains. C is slightly better than
+B but touches column layout, which collides with
+[#146](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/146). Your call on whether
+that is worth it.
 
 - **Decision:**
 - **Decided by / date:**
@@ -301,6 +315,51 @@ merge cost.
 **Leaning:** land the correctness fix first, because it is a live client-facing accuracy
 problem and #146 is a refactor. To be confirmed with Paul.
 
+### E7. The 2000-row citation cap must be solved before this ships. HARD PREREQUISITE.
+
+**Status:** `OPEN`. **Blocks implementation.** Engineering-owned, but Tina should know it
+exists because it has a client-facing consequence.
+
+**The problem.** `getUrlCitations` fetches Peec citations with a hard `limit: 2000` and no
+pagination (`lib/peec/url-citations.ts:205`). The API returns URLs ranked by citation
+count across all domains, so URLs below the top 2000 are silently dropped.
+
+**Why the fix makes this dangerous.** Today, under domain matching, a placement counts as
+cited if **any** URL on its domain made the top 2000. A busy publisher almost always has
+something in there, so the cap rarely bites. After the fix, **that specific placement URL**
+must make the top 2000. PR placements are typically low-citation long-tail pages, which is
+exactly the population a top-N cap removes first.
+
+**So without addressing this, the fix could report "not cited" for a placement that
+genuinely was cited.** That is the same category of harm as the current bug, inverted, and
+it would be harder to detect because a false No looks like an ordinary result.
+
+**This is not hypothetical.** The code comment at `lib/peec/url-citations.ts:202-204`
+records that this class of truncation already bit us once: FB-058 raised the limit from
+1000 to 2000 after owned cited pages were being truncated before a downstream filter ran.
+We would be re-entering a known failure mode with a stricter matcher.
+
+**The good news: prior art exists in-repo.** `lib/peec/citation-dates.ts:126-159`
+(`walkDomainDates`) already implements a bounded paginated walk against the Peec API using
+`limit` + `offset` + `order_by`, with `PAGE_LIMIT = 5000` and `PAGE_CAP = 8` (`:90-91`),
+so up to 40,000 rows. The same technique applies to `/reports/urls`. This is a solved
+problem in this codebase, not new research.
+
+**Options:**
+
+| Option | Trade-off |
+|---|---|
+| **A. Paginate `/reports/urls` using the `walkDomainDates` pattern** ⭐ recommended | Reuses a proven in-repo technique. Removes the false-negative risk properly. Costs extra API calls and latency on this card. |
+| **B. Raise the limit again (2000 to 10000)** | One-line change, precedent exists at `:433`. Reduces but does not eliminate the risk, and repeats the FB-058 pattern of raising a cap until it hurts again. |
+| **C. Ship without addressing it** | Not acceptable. Trades a known false-positive bug for an undetectable false-negative one. |
+
+**Recommendation: A.** If latency turns out to be a problem, B is an acceptable interim,
+but only with the residual risk written down.
+
+**Verification owed before ship:** for at least one real client, confirm the number of
+cited URLs returned in a typical window is comfortably under whatever cap we settle on, and
+confirm known placement URLs appear in the result set.
+
 ### E6. `urlJoinKey` test coverage gets added to CI
 
 **Status:** `DECIDED` (2026-07-20, Thomas + Claude)
@@ -327,12 +386,70 @@ Chronological record. Every answer lands here as it is given, with attribution.
 | | D5 | _awaiting_ | Tina Fleming | |
 | | D6 | _awaiting_ | Tina Fleming + Paul | |
 | | E5 | _awaiting_ | Paul Ramirez | Sequencing vs #146 |
+| | E7 | _awaiting_ | Engineering | **Blocks ship.** 2000-row citation cap, false-negative risk |
+
+---
+
+## §4.1 Can we build this once the decisions land?
+
+**Yes, with one hard prerequisite (E7).** Assessed 2026-07-20 against the actual code.
+
+| Requirement | Status |
+|---|---|
+| The per-article data needed for matching is available | ✅ Already in memory. `UrlCitation` carries `url` and `urlKey`; the matchback discards them (`url-citations.ts:44`, `matchback.ts:74`). No new fetch. |
+| A URL normalizer exists and is battle-tested | ✅ `urlJoinKey` (`url.ts:12-32`), already used across the codebase. |
+| Placements are guaranteed to carry a link to match on | ✅ Rows without a link are skipped before becoming placements (`client.ts:161-162`), so matching cannot silently degrade from missing link data. |
+| The matching logic is isolated and unit-testable | ✅ `computePlacementMatchback` is a pure function with no DB, network, or framework imports, and already has a 26-case suite. |
+| The change can be scoped and reviewed independently | ✅ Core change is one pure function plus its tests. |
+| **Citation data is complete enough to match against** | ❌ **Not yet.** E7. The 2000-row cap must be resolved or the fix can produce false negatives. Prior art exists (`citation-dates.ts:126-159`), so this is engineering work, not research. |
+
+**Honest summary:** the fix itself is small and low-risk. The risk is not in the matching
+logic, it is in whether the data we match against is complete. Solve E7 first and the rest
+is a contained change to one pure function, its tests, and two display fixes.
+
+**Sequencing implication:** E7 should be verified against live client data before the
+matching change is written, not after. If the cap turns out to bite for a real client, it
+changes how we build, not just whether we ship.
 
 ---
 
 ## §5. Appendix: technical backing
 
 Included so the claims in §1 and §2 are checkable. Not required reading to answer.
+
+### 5.0 Traceability: every question maps to a verified code finding
+
+Audit performed 2026-07-20. Rule applied: no question appears in this document unless it
+traces to a specific line of code or committed doc that was read directly. Anything that
+could not be verified in-tree is marked as such rather than asserted.
+
+| ID | Question exists because | Anchor | Verified |
+|---|---|---|---|
+| D1 | The match reads `p.domain` against a set of cited hosts, and never compares `p.link`. The per-URL data needed is present and discarded. | `matchback.ts:110`, `:74`, `url-citations.ts:44` | ✅ read directly |
+| D2 | Uncited placements are filtered out before render, and `citedByAI` is then hardcoded `true`, so the column cannot say No. | `matchback.ts:110`, `:123` | ✅ read directly |
+| D3 | Column label is literally "First cited", while the design doc scopes the value to the selected window. | `pr-influence-tables.tsx:438`, `2026-07-09-pr-influence-citation-dates-design.md:16-20` | ✅ read directly |
+| D4 | The matchback is shared library code with no per-client branching, so the number changes everywhere at once. | `matchback.ts` (whole file), `pr-influence.tsx:252` | ✅ read directly |
+| D5 | `section_templates` keys on `section_slug` alone with no client column, so per-client divergence is not representable. | `schema.ts:230-236`, `queries.ts:255-258` | ✅ read directly |
+| D6 | `cell()` returns `''` for a blank sheet cell; `??` does not catch `''`, so the fallback never fires; the empty string renders inside an anchor. | `client.ts:148-151`, `matchback.ts:120`, `pr-influence-tables.tsx:415-425` | ✅ read directly |
+| E1 | `urlJoinKey` already normalizes protocol, `www.`, case, trailing slash, query and hash. | `url.ts:12-32` | ✅ read directly |
+| E2 | No AMP handling exists anywhere in the URL or citation layer. | grep across `lib/url.ts`, `lib/peec/` returned nothing | ✅ absence confirmed |
+| E3 | A passing test asserts the domain-level behavior we are reversing. | `matchback.test.ts:192` | ✅ read directly |
+| E4 | A code comment attributes domain-level matching to Tina's 2026-07-09 direction. | `matchback.ts:5-10` | ✅ read directly |
+| E5 | Collision with the in-flight parts migration. | [#146](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/146) | ⚠️ **branch not read.** Inferred from the PR title and the in-repo plan docs, not from its diff. Treated as unconfirmed. |
+| E6 | `lib/url.test.ts` is a bare assert script and is absent from the Vitest include allowlist. | `vitest.config.ts:13-25`, `url.test.ts:1-27` | ✅ read directly |
+| E7 | `/reports/urls` is fetched with a hard cap and no pagination; the codebase records a prior truncation incident at the same call site. | `url-citations.ts:205`, `:202-204`, prior art at `citation-dates.ts:126-159`, `:90-91` | ✅ read directly |
+
+**Two items were corrected during this audit rather than left standing:**
+
+1. **D2's premise was wrong.** The claim that there was no visible denominator did not
+   survive checking. `pr-influence-tables.tsx:506-508` already renders the honest rate.
+   D2 was rewritten and the error left visible.
+2. **E7 did not exist in the first draft.** The row cap was found while verifying whether
+   the fix was actually buildable. It is the single largest technical risk on this work and
+   it was missed until the buildability check forced it.
+
+**One item is knowingly unverified:** E5. The #146 branch has not been read, only its
+title and the related in-repo plan docs. It is marked unconfirmed rather than asserted.
 
 ### 5.1 Evidence that domain-level matching was deliberate
 
