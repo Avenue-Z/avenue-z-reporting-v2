@@ -1,0 +1,470 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`brand-absent-editorial@1 golden 1`] = `
+<div
+  class="rounded-lg border border-white/[0.08] bg-bg-surface p-6"
+>
+  <div
+    class="mb-5"
+  >
+    <div
+      class="flex items-center gap-1.5"
+    >
+      <h3
+        class="text-sm font-bold text-white"
+      >
+        What are the top pitch opportunities for getting our brand mentioned in AI?
+      </h3>
+      <span
+        class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+        data-slot="tooltip-trigger"
+        data-state="closed"
+      >
+        ?
+      </span>
+    </div>
+    <p
+      class="mt-1 text-xs text-text-muted"
+    >
+      Prompt-level citations on the rise where your brand is not mentioned, revealing outreach opportunities that may require different strategies depending on the type of article being cited.
+    </p>
+  </div>
+  <div
+    class="overflow-hidden"
+  >
+    <div
+      class="overflow-x-auto"
+    >
+      <table
+        class="w-full text-sm"
+      >
+        <thead>
+          <tr
+            class="border-b border-white/[0.04]"
+          >
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Publication"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Publication
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-controls="radix-_r_1_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Publication"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Article"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Article
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-controls="radix-_r_2_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Article"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Competitors Mentioned"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Competitors Mentioned
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_4_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Competitors Mentioned"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Citation Share"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Citation Share
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_6_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Citation Share"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Delta of Citation Share"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Delta of Citation Share
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_8_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Delta of Citation Share"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]"
+          >
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <span
+                class="font-medium text-white"
+              >
+                rival.com
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <a
+                class="block max-w-[240px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
+                href="https://rival.com/x"
+                rel="noopener noreferrer"
+                target="_blank"
+                title="A competitor piece"
+              >
+                A competitor piece
+              </a>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <span
+                class="text-[11px] text-white/70"
+              >
+                Rival
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-white"
+              >
+                12.0
+                %
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="text-xs font-semibold tabular-nums text-[#60FF80]"
+              >
+                ↑
+                2.0
+                %
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;

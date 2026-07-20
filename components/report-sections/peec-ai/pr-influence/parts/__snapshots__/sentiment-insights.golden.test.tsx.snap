@@ -1,0 +1,62 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`sentiment-insights@1 renders (skeleton fallback) when profoundConfigured 1`] = `
+<section
+  class="rounded-xl border border-white/[0.08] bg-bg-surface p-6"
+>
+  <header
+    class="mb-4 flex items-center gap-3"
+  >
+    <span
+      class="flex h-7 w-7 items-center justify-center rounded-lg bg-[#60FF80]/10"
+    >
+      <svg
+        aria-hidden="true"
+        class="lucide lucide-sparkles h-4 w-4 text-[#60FF80]"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+        />
+        <path
+          d="M20 2v4"
+        />
+        <path
+          d="M22 4h-4"
+        />
+        <circle
+          cx="4"
+          cy="20"
+          r="2"
+        />
+      </svg>
+    </span>
+    <h3
+      class="text-sm font-bold uppercase tracking-widest text-text-muted"
+    >
+      Sentiment Insights
+    </h3>
+    <div
+      class="ml-auto h-6 w-28 animate-pulse rounded-full bg-white/[0.06]"
+    />
+  </header>
+  <div
+    class="grid gap-4 sm:grid-cols-2"
+  >
+    <div
+      class="h-28 animate-pulse rounded-md border border-white/[0.06] bg-white/[0.02]"
+    />
+    <div
+      class="h-28 animate-pulse rounded-md border border-white/[0.06] bg-white/[0.02]"
+    />
+  </div>
+</section>
+`;
