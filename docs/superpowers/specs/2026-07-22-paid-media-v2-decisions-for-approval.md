@@ -145,8 +145,8 @@ settle it now than discover it later.
   the bottom, and the keyword table at the bottom.
 - Both totals are plain sums. If one lead can be attributed to more than one metro
   area, or can fire more than one form-fill action, it would be counted twice. This
-  was assigned to Amir and never closed, and we can't check it without the live
-  data, so tell us if you know it can happen.
+  was assigned to Amir and never closed, so we'll check it against the live data
+  before building. Tell us now if you already know it can happen.
 
 **On the keyword table**
 
@@ -161,8 +161,9 @@ settle it now than discover it later.
 **On Meta**
 
 - Cost / LPV keeps using Meta's own figure rather than us dividing spend by landing
-  page views. These normally agree. We haven't compared them against a live account
-  yet, and will flag it if they diverge.
+  page views. These normally agree. We'll compare the two against the live account
+  before the fix ships, and if they diverge we'll use Greg's definition and compute
+  it ourselves.
 - Spend on the Top Regions chart shows cents, while the card above it stays in
   whole dollars, so the same figure appears at two precisions on one screen.
 
