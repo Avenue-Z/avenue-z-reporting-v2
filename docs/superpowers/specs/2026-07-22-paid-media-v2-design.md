@@ -3,8 +3,7 @@
 **Date:** 2026-07-22
 **Branch:** `ave-z-reporting-paid-media-v2`
 **PR:** #164 (base `dev`)
-**Companion docs:** [initial requirements](./2026-07-22-paid-media-v2-requirements.md) ·
-[decisions for approval](./2026-07-22-paid-media-v2-decisions-for-approval.md)
+**Companion doc:** [decisions for approval](./2026-07-22-paid-media-v2-decisions-for-approval.md)
 **Status:** For engineering review. No code written.
 
 ## What this document is
@@ -503,9 +502,6 @@ locally computed `cost / landing_page_views` can now be run, and should be, befo
 the Req 4 fix ships. If the two agree, keep reading Meta's field. If they diverge,
 Greg's confirmed definition (spend divided by landing page views) is authoritative
 and we compute it ourselves.
-
----
-
 
 ---
 
