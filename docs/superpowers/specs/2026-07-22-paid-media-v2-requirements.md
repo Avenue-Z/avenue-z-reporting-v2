@@ -127,19 +127,15 @@ the `check:rsc` CI gate, which exists to catch exactly that crash.
 **Open:** whether two-decimal currency applies only to this chart or becomes a
 shared formatter used elsewhere.
 
-### 6. LinkedIn API issues
+### 6. LinkedIn API issues (RESOLVED)
 
-**Where:** `lib/linkedin/`, `components/report-sections/linkedin-ads/`.
+**Resolved 2026-07-22.** The LinkedIn connection on Supermetrics had de-authed
+and was re-authenticated. Not a code defect. The earlier note that this could not
+be verified locally is superseded: live Supermetrics access now exists, which also
+unblocks the Cost / LPV source comparison under Requirement 4.
 
-**Verified:** cannot be confirmed from local. `SUPERMETRICS_API_KEY` is one of
-the 29 of 31 Vercel env vars stored as type `sensitive` (write-only), so it
-pulls back empty and no live LinkedIn call can be made locally. Static review of
-`lib/linkedin/base.ts` against `lib/meta/base.ts` is possible; reproducing an
-actual API failure is not.
-
-**Open:** the observed symptom. What was seen, on which client and date range,
-determines whether this is auth, a field-name mismatch, an empty-result path, or
-a timeout.
+See the design doc for the follow-up this exposed: neither the Connections page
+nor the health sweep can observe a paid media connection failing.
 
 ---
 

@@ -380,7 +380,8 @@ Greg confirmed the **semantics**, not the **source**. The code reads Meta's
 `cost / landing_page_views`. Both inputs are already fetched (`lib/meta/kpis.ts:80` and `:88`).
 Normally these agree. They can diverge on attribution-window differences. Worth a
 one-time comparison against the live account before deciding whether to keep the
-field or derive the value, which needs Supermetrics access (see Req 6).
+field or derive the value. Supermetrics access now exists (see Req 6), so this
+comparison should be run before the fix ships.
 
 ---
 
@@ -421,44 +422,48 @@ precision.
 
 ---
 
-## Req 6: LinkedIn API investigation
+## Req 6: LinkedIn API investigation (RESOLVED)
 
-**No stakeholder input exists for this requirement**, and no symptom has been
-reported. "If there are any API issues" is the entire brief.
+**Resolved 2026-07-22.** The LinkedIn connection on Supermetrics had de-authed
+and was re-authenticated. Not a code defect, so nothing in `lib/linkedin/`
+changes. Live Supermetrics access now exists.
 
-### Blocker
+Two consequences worth carrying forward.
 
-This cannot be verified locally. `SUPERMETRICS_API_KEY` is one of 29 of 31
-Vercel environment variables stored as type `sensitive`, which is write-only, so
-it pulls back empty and no live LinkedIn call can be made from a developer
-machine. Confirmed against the Vercel API.
+### The failure was invisible to every monitoring surface we have
 
-### What is possible without the key
+A stale Supermetrics connection is exactly the class of fault the platform
+should surface, and it surfaced nowhere. It was found by a person opening the
+page.
 
-A static comparison of `lib/linkedin/` against `lib/meta/`, which are near-
-identical in shape. Two asymmetries are already visible and worth checking:
+1. **The Connections page cannot report it.** `app/dashboard/connections/page.tsx:31-45`
+   builds `connectionMap` from environment variables, and hardcodes
+   `META`, `GOOGLE_ADS` and `LINKEDIN` to `false` under a "not yet integrated"
+   comment. All three render `NOT_CONFIGURED` permanently, including for
+   Renaissance where all three are live. The page cannot show a paid media
+   connection as broken because it never shows one as working.
+2. **The health sweep never reaches the subpages.** `app/api/health/sweep/route.ts:60-70`
+   iterates `client.enabledReports` and builds `?section=${report}` with no
+   subsection parameter. For `paid-media` that resolves to the default
+   subsection, which is Paid Search. The Meta and LinkedIn subpages are never
+   probed, on either surface, so a fault confined to one of them is silent.
 
-1. `transformLinkedInGeo` (`lib/linkedin/geo.ts:14`) hard-caps at
-   `.slice(0, 15)` inside the transform, so the cap is invisible to callers.
-   Meta's equivalent returns all rows and slices in the component.
-2. LinkedIn's geo returns no comparison data, while Meta's `MetaGeoData` carries
-   `prevTopRegionSpend` and `prevTotalRegions`. LinkedIn's geo section is 35
-   lines against Meta's 66, so LinkedIn's has no deltas.
+This also applies to the new Overview: unless the sweep is taught to enumerate
+subsections, it will probe the Overview and nothing beneath it. Given `D1` moves
+the default subsection, note that the sweep's coverage silently *changes* when
+Overview takes `id: null`. It will begin probing the Overview and stop probing
+Paid Search.
 
-Neither is necessarily the reported problem, because no problem has been
-reported.
+Tracked as a follow-up, not part of this work.
 
-### Proposed approach
+### Cost / LPV source comparison is now unblocked
 
-1. Ask what was actually seen: which client, which date range, which symptom.
-   Renaissance is the only configured client (`C3`), so it is necessarily that
-   one.
-2. Static pass over `lib/linkedin/` against `lib/meta/`.
-3. Live reproduction, which requires either the Supermetrics key locally or
-   checking a preview deployment where the variable is injected.
-
-Until step 1 produces a symptom, this requirement cannot be scoped or estimated.
-It should not block the other five.
+Live Supermetrics access existing removes the blocker recorded under Req 4. The
+one-time comparison of Meta's `cost_per_landing_page_view` field against a
+locally computed `cost / landing_page_views` can now be run, and should be, before
+the Req 4 fix ships. If the two agree, keep reading Meta's field. If they diverge,
+Greg's confirmed definition (spend divided by landing page views) is authoritative
+and we compute it ourselves.
 
 ---
 
@@ -486,7 +491,7 @@ stakeholder doc left open.
 
 Reqs 4 and 5 are independent of every decision above and can proceed
 immediately. Req 3 needs only `D9`. Req 2 needs `D6` through `D8`. Req 1 needs
-`D1` through `D5`. Req 6 needs a reported symptom.
+`D1` through `D5`. Req 6 is resolved.
 
 Suggested order, each its own PR against `dev` per the Stage 1 gate:
 
@@ -498,7 +503,7 @@ Suggested order, each its own PR against `dev` per the Stage 1 gate:
 3. **Req 3** (keyword filter): after `D9`.
 4. **Req 2** (totals): after `D6` to `D8`.
 5. **Req 1** (Overview): after `D1` to `D5`. Largest by a wide margin.
-6. **Req 6** (LinkedIn): once a symptom exists.
+6. ~~Req 6 (LinkedIn)~~: resolved, connection re-authed on Supermetrics.
 
 ## Verification
 
