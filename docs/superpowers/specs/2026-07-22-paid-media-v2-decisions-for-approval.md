@@ -8,7 +8,7 @@ requirements.
 Requirements 3 (keyword filter) and 5 (Spend formatting) are settled and need
 nothing from you. They're in the assumptions list at the end.
 
-**Who we need answers from:** Greg on A and B, Amir on C and D, Dianna on E and F.
+**Who we need answers from:** Greg on A and B, Amir on C, D and E, Dianna on F.
 
 ---
 
@@ -79,13 +79,13 @@ The Region to DMA table shows the top 10 regions, while the card directly above
 shows the true count of every region with activity. Whenever that count is above
 10, a total summing the table sits right under a card saying there are more.
 
-- **A.** Total just the 10 shown.
-- **B.** Total every region, including those not displayed.
-- **C.** Show both, for example "1,240 across top 10 of 34 regions".
+- **1.** Total just the 10 shown.
+- **2.** Total every region, including those not displayed.
+- **3.** Show both, for example "1,240 across top 10 of 34 regions".
 
-**Default: C.**
+**Default: option 3.**
 
-*→ Amir: reply A, B or C.*
+*→ Amir: reply 1, 2 or 3.*
 
 ---
 
