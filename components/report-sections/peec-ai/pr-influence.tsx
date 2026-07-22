@@ -235,6 +235,14 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
   if (placementCitationsResult.status === 'rejected') console.error('[pr-influence] placement citations error:', placementCitationsResult.reason)
 
+  // Review #11: distinguish "we asked and the answer was none" from "we could not
+  // ask". Either input failing means the matchback's zero rows carry no
+  // information about the client's PR performance, and the table must not print
+  // one. Covers the placements fetch too: prData null yields the identical
+  // zero-row outcome by a different route.
+  const matchbackDataUnavailable =
+    placementCitationsResult.status === 'rejected' || prResult.status === 'rejected'
+
   // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
   // Only when the query failed / GA4 is unconfigured do we show -- (no data).
   const aiReferralOk = aiReferralResult.status === 'fulfilled'
@@ -485,7 +493,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       )}
 
       {/* ── FB-067 · PR Placement Matchback (all-time placements, cited within the selected timeframe) ── */}
-      <PRPlacementMatchbackTable rows={matchback.rows} />
+      <PRPlacementMatchbackTable rows={matchback.rows} dataUnavailable={matchbackDataUnavailable} />
 
       {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
           Gated on the client row's profoundCategoryId (#138 P6), not a hardcoded

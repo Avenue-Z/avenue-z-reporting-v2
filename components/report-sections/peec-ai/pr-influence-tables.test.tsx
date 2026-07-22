@@ -70,14 +70,18 @@ const BLANK_TITLE: PRPlacementMatchbackRow[] = [
 ]
 
 test('a missing article title renders a visible error, not an empty cell', () => {
-  const { container } = render(
+  render(
     <TooltipProvider>
       <PRPlacementMatchbackTable rows={BLANK_TITLE} />
     </TooltipProvider>,
   )
   const cell = screen.getByText(/missing article title/i)
   expect(cell).toBeInTheDocument()
-  expect(container.textContent).not.toMatch(/^\s*$/)
+  // Review #13: the previous assertion here was `container.textContent` not
+  // matching /^\s*$/, which a zero-row table also passes because the section
+  // heading is always in the container. Scoped to the cell's own link so it
+  // actually guards "this cell is not blank".
+  expect(cell.closest('a')?.textContent?.trim()).toBeTruthy()
 })
 
 test('the missing-title error still links through to the article', () => {
@@ -94,4 +98,38 @@ test('a row with a title is unaffected and shows no error', () => {
   const { container } = renderTable()
   expect(screen.getByText('Building a Benefits Dream Team')).toBeInTheDocument()
   expect(container.textContent).not.toMatch(/missing article title/i)
+})
+
+// ── Review #11: a failed fetch must not read as "nothing was cited" ──────────
+// On rejection the matchback gets an empty citation list and returns zero rows,
+// which rendered a factual claim about the client's PR performance in the client
+// portal on the strength of a network error. Same distinction GA4 already makes
+// on this page: a resolved zero renders 0, an unconfigured source renders "--".
+test('a zero-row table caused by a failed fetch says so, and does not claim nothing was cited', () => {
+  render(
+    <TooltipProvider>
+      <PRPlacementMatchbackTable rows={[]} dataUnavailable />
+    </TooltipProvider>,
+  )
+  expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument()
+  expect(screen.queryByText(/No PR placements cited by AI/i)).not.toBeInTheDocument()
+})
+
+test('a genuine zero still reads as a genuine zero', () => {
+  render(
+    <TooltipProvider>
+      <PRPlacementMatchbackTable rows={[]} />
+    </TooltipProvider>,
+  )
+  expect(screen.getByText(/No PR placements cited by AI in the selected timeframe/i)).toBeInTheDocument()
+  expect(screen.queryByText(/could not be loaded/i)).not.toBeInTheDocument()
+})
+
+test('rows still render even if the flag is somehow set', () => {
+  render(
+    <TooltipProvider>
+      <PRPlacementMatchbackTable rows={ROWS} dataUnavailable />
+    </TooltipProvider>,
+  )
+  expect(screen.getByText('Employee Benefit News')).toBeInTheDocument()
 })

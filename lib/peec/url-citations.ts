@@ -197,14 +197,35 @@ function last30() {
  * cheaper than many small ones.
  */
 export async function fetchAllPages<T>(
-  fetchPage: (offset: number, limit: number) => Promise<T[]>,
+  fetchPage: (offset: number, limit: number) => Promise<{ rows: T[]; totalCount?: number }>,
   opts: { pageSize: number; maxPages: number; label?: string },
 ): Promise<T[]> {
   const out: T[] = []
+  let reportedTotal: number | undefined
+
+  // Review #10: disjoint pages prove `offset` is honoured, they do not prove the
+  // union is the whole set. With a tie-heavy sort and no explicit order_by, a
+  // reorder between requests can carry a row past the page boundary so it is
+  // never returned, and the dedupe added for finding 6 is structurally blind to
+  // that. Peec reports totalCount alongside data, so compare against it. One
+  // assertion also catches an ignored offset, a mid-walk data shift, and a
+  // silently changed page cap.
+  const checkComplete = () => {
+    if (reportedTotal == null || out.length === reportedTotal) return
+    console.warn(
+      `[peec] fetchAllPages${opts.label ? ` (${opts.label})` : ''}: got ${out.length} rows ` +
+      `but the source reported ${reportedTotal} — RESULT IS INCOMPLETE`,
+    )
+  }
+
   for (let page = 0; page < opts.maxPages; page++) {
-    const rows = await fetchPage(page * opts.pageSize, opts.pageSize)
+    const { rows, totalCount } = await fetchPage(page * opts.pageSize, opts.pageSize)
+    if (page === 0) reportedTotal = totalCount
     out.push(...rows)
-    if (rows.length < opts.pageSize) return out   // short page: the source is exhausted
+    if (rows.length < opts.pageSize) {   // short page: the source is exhausted
+      checkComplete()
+      return out
+    }
   }
   // Ran out of pages with every page full, so the source had more than we read.
   // Silent truncation is the exact failure this whole change exists to remove,
@@ -214,6 +235,35 @@ export async function fetchAllPages<T>(
     `at pageSize=${opts.pageSize}, returning ${out.length} rows — RESULT IS TRUNCATED`,
   )
   return out
+}
+
+/**
+ * Count repeated urlKeys across a walked citation set.
+ *
+ * Review #10: offset pagination is only complete if the server's ordering is
+ * stable between requests. Disjoint pages prove `offset` is honoured, not that
+ * the union is the whole set: a mid-walk reorder can carry a row past the page
+ * boundary so it is never returned.
+ *
+ * Measured against Peec, neither suggested check is available here. /reports/urls
+ * returns no totalCount (only `data`), and order_by on `url` is rejected with a
+ * 400 -- the sole accepted sort field is `citation_count`, which is the tie-heavy
+ * field the concern is about, so it adds no determinism.
+ *
+ * What IS observable: a reorder that pushes some rows forward past the boundary
+ * pulls others backward across it. Within a single complete walk every base row
+ * is a distinct URL, so any repeated urlKey means the ordering shifted underneath
+ * us, which implies rows may also have been lost. Not a proof of completeness,
+ * but it turns a silent class of failure into a loud one.
+ */
+export function countDuplicateUrlKeys(citations: Pick<UrlCitation, 'urlKey'>[]): number {
+  const seen = new Set<string>()
+  let duplicates = 0
+  for (const c of citations) {
+    if (seen.has(c.urlKey)) duplicates++
+    else seen.add(c.urlKey)
+  }
+  return duplicates
 }
 
 /**
@@ -332,17 +382,20 @@ async function getPlacementCitationsImpl(
   const [baseRows, engineRows, brandsRes] = await Promise.all([
     fetchAllPages(
       (offset, limit) =>
-        post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit, offset }, pid)
-          .then((r) => r.data ?? []),
+        // Review #10: Peec returns totalCount alongside data (already typed and
+        // used on other endpoints in lib/peec/client.ts). Threading it lets
+        // fetchAllPages assert the walk was complete, not merely non-overlapping.
+        post<{ data: ApiUrlRow[]; totalCount?: number }>('/reports/urls', { ...window, limit, offset }, pid)
+          .then((r) => ({ rows: r.data ?? [], totalCount: r.totalCount })),
       { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES, label: 'placement citations (base)' },
     ),
     fetchAllPages(
       (offset, limit) =>
-        post<{ data: ApiUrlRow[] }>(
+        post<{ data: ApiUrlRow[]; totalCount?: number }>(
           '/reports/urls',
           { ...window, dimensions: ['model_channel_id', 'model_id'], limit, offset },
           pid,
-        ).then((r) => r.data ?? []),
+        ).then((r) => ({ rows: r.data ?? [], totalCount: r.totalCount })),
       { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES, label: 'placement citations (engines)' },
     ),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
@@ -351,6 +404,19 @@ async function getPlacementCitationsImpl(
   const yourBrandIds = resolveYourBrandIds(brandRows, yourBrand)
   const brandNameById = new Map(brandRows.map((b) => [b.brand.id, b.brand.name]))
   const merged = mergeUrlCitations(baseRows, engineRows, yourBrandIds, brandNameById)
+
+  // Review #10: a repeated urlKey inside one walk means the source reordered
+  // mid-pagination, which implies rows may also have been dropped past a page
+  // boundary. pickCitationsForUrls collapses duplicates, so without this the
+  // anomaly would be silently absorbed.
+  const duplicates = countDuplicateUrlKeys(merged)
+  if (duplicates > 0) {
+    console.warn(
+      `[peec] getPlacementCitations(${clientSlug ?? 'default'}): ${duplicates} duplicate urlKey(s) ` +
+      `across ${merged.length} walked rows — pagination reordered mid-walk, result MAY BE INCOMPLETE`,
+    )
+  }
+
   return pickCitationsForUrls(merged, placementUrlKeys)
 }
 

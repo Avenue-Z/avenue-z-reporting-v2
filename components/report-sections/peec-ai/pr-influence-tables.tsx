@@ -385,7 +385,12 @@ export interface PRPlacementMatchbackRow {
   headline: string
   link: string
   publicationDate: string
-  citedByAI: boolean
+  /** Review #14: retained but OPTIONAL. Every row here is cited by construction,
+   *  so the component ignores this field; its column was removed in Req 2. It
+   *  stays required on MatchbackRow (matchback.ts), where it documents the
+   *  invariant and is asserted in tests, but requiring it here would oblige every
+   *  future caller and fixture to supply a value nothing reads. */
+  citedByAI?: boolean
   aiEnginesCiting: string[]
   /** Earliest citation date for this placement's host (empty string when unknown). */
   firstCitedDate: string
@@ -395,8 +400,16 @@ export interface PRPlacementMatchbackRow {
 
 export function PRPlacementMatchbackTable({
   rows,
+  dataUnavailable = false,
 }: {
   rows: PRPlacementMatchbackRow[]
+  /** Review #11: true when the citation or placement fetch REJECTED, as opposed
+   *  to resolving with nothing. Without this, a network error renders as the
+   *  claim "No PR placements cited by AI", which is a statement about the
+   *  client's PR performance made on the strength of a failed request. Mirrors
+   *  the distinction this page already draws for GA4: a resolved zero renders 0,
+   *  an unavailable source renders "--". */
+  dataUnavailable?: boolean
 }) {
   const columns: SortableColumn<PRPlacementMatchbackRow>[] = [
     {
@@ -523,6 +536,12 @@ export function PRPlacementMatchbackTable({
           initialPageSize={15}
           emptyMessage="No PR placements cited by AI in the selected timeframe."
         />
+      ) : dataUnavailable ? (
+        <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-amber-400/20">
+          <p className="text-xs text-amber-400/90">
+            Citation data could not be loaded for this timeframe. This is not a report of zero citations.
+          </p>
+        </div>
       ) : (
         <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">
