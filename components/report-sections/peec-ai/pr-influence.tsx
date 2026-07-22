@@ -485,11 +485,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       )}
 
       {/* ── FB-067 · PR Placement Matchback (all-time placements, cited within the selected timeframe) ── */}
-      <PRPlacementMatchbackTable
-        rows={matchback.rows}
-        totalPlacements={prData?.totalPlacements ?? 0}
-        placementsCitedByAI={matchback.citedCount}
-      />
+      <PRPlacementMatchbackTable rows={matchback.rows} />
 
       {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
           Gated on the client row's profoundCategoryId (#138 P6), not a hardcoded

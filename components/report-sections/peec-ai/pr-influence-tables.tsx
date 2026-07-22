@@ -389,16 +389,9 @@ export interface PRPlacementMatchbackRow {
 
 export function PRPlacementMatchbackTable({
   rows,
-  totalPlacements,
-  placementsCitedByAI,
 }: {
   rows: PRPlacementMatchbackRow[]
-  totalPlacements: number
-  placementsCitedByAI: number
 }) {
-  const citationRatePct =
-    totalPlacements > 0 ? (placementsCitedByAI / totalPlacements) * 100 : 0
-
   const columns: SortableColumn<PRPlacementMatchbackRow>[] = [
     {
       key: 'outlet',
@@ -503,11 +496,11 @@ export function PRPlacementMatchbackTable({
         tooltip="Compares your PR-secured placements (PR Proof Library) against the editorial URLs cited in tracked AI answers (Peec AI)."
         subtitle="See which of your all-time secured PR placements are being cited in AI-generated answers within the selected timeframe, and how they are shaping brand visibility, sentiment, and reputation across your tracked prompts."
       />
-      {totalPlacements > 0 && (
-        <p className="mb-4 text-xs text-text-muted">
-          <span className="font-bold tabular-nums text-white">{placementsCitedByAI}</span> of {totalPlacements} placements cited by AI (<span className="tabular-nums">{citationRatePct.toFixed(1)}%</span>)
-        </p>
-      )}
+      {/* FB-069 Req 4: the "N of M placements cited by AI (X%)" line was removed.
+          Its numerator counted placements cited within the selected date range
+          while its denominator counted every placement ever secured, so the
+          percentage compared two different bases and moved with the date picker
+          for a reason no reader could infer. */}
       {rows.length > 0 ? (
         <SortableTable
           columns={columns}
