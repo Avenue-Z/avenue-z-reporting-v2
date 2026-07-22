@@ -198,21 +198,53 @@ function last30() {
  */
 export async function fetchAllPages<T>(
   fetchPage: (offset: number, limit: number) => Promise<T[]>,
-  opts: { pageSize: number; maxPages: number },
+  opts: { pageSize: number; maxPages: number; label?: string },
 ): Promise<T[]> {
   const out: T[] = []
   for (let page = 0; page < opts.maxPages; page++) {
     const rows = await fetchPage(page * opts.pageSize, opts.pageSize)
     out.push(...rows)
-    if (rows.length < opts.pageSize) break
+    if (rows.length < opts.pageSize) return out   // short page: the source is exhausted
   }
+  // Ran out of pages with every page full, so the source had more than we read.
+  // Silent truncation is the exact failure this whole change exists to remove,
+  // so it must not be indistinguishable from "the data ran out".
+  console.warn(
+    `[peec] fetchAllPages${opts.label ? ` (${opts.label})` : ''}: hit maxPages=${opts.maxPages} ` +
+    `at pageSize=${opts.pageSize}, returning ${out.length} rows — RESULT IS TRUNCATED`,
+  )
   return out
 }
 
-/** Page size for the citation fetches. Peec accepts 10,000 on /reports/urls. */
-const CITATION_PAGE_SIZE = 10_000
-/** Ceiling of 120,000 rows per fetch. Renaissance, the largest today, uses 2 pages. */
-const CITATION_MAX_PAGES = 12
+/**
+ * Keep only the citations matching a specific set of URL keys, deduped.
+ *
+ * The PR-placement matchback needs the whole cited-URL set to answer a question
+ * about ~12 URLs. Filtering server-side keeps the cached value proportional to
+ * the placement count rather than the citation count, so it stays kilobytes
+ * regardless of how large the account grows.
+ *
+ * Dedupe is deliberate: nothing downstream of a paginated fetch guarantees a row
+ * appears once, and duplicates would otherwise reach consumers that sum values.
+ * Engines are unioned rather than overwritten so a URL split across pages keeps
+ * every engine that cited it.
+ */
+export function pickCitationsForUrls(citations: UrlCitation[], urlKeys: string[]): UrlCitation[] {
+  if (urlKeys.length === 0) return []
+  const wanted = new Set(urlKeys)
+  const byKey = new Map<string, UrlCitation>()
+  for (const c of citations) {
+    if (!wanted.has(c.urlKey)) continue
+    const seen = byKey.get(c.urlKey)
+    if (!seen) {
+      byKey.set(c.urlKey, { ...c, engines: [...c.engines] })
+      continue
+    }
+    for (const e of c.engines) if (!seen.engines.includes(e)) seen.engines.push(e)
+  }
+  return [...byKey.values()]
+}
+
 
 async function getUrlCitationsImpl(
   clientSlug?: string,
@@ -231,16 +263,78 @@ async function getUrlCitationsImpl(
   const d = last30()
   const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
 
+  const [baseRes, engineRes, brandsRes] = await Promise.all([
+    // FB-058: base URL fetch raised 1000 -> 2000 so owned cited pages ranked below
+    // the top 1000 most-cited URLs (across all domains) are not truncated before the
+    // §F owned-host filter runs. Matches the engine fetch limit below.
+    //
+    // FB-069 deliberately leaves this capped. The PR-placement matchback is the
+    // only consumer that needs every cited URL, and it now has its own narrow
+    // fetch (getPlacementCitations) rather than widening this shared one. At
+    // Renaissance's 17,081 URLs an uncapped result is ~7.6 MB, which exceeds
+    // Next's 2 MB data-cache limit and would silently stop caching for all five
+    // call sites across three tabs (same failure as #138 P9).
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit: 2000 }, pid),
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
+    post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
+  ])
+  const brandRows = brandsRes.data ?? []
+  const yourBrandIds = resolveYourBrandIds(brandRows, yourBrand)
+  const brandNameById = new Map(brandRows.map((b) => [b.brand.id, b.brand.name]))
+  return mergeUrlCitations(baseRes.data ?? [], engineRes.data ?? [], yourBrandIds, brandNameById)
+}
+
+export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
+  version: 'v3',  // v3: dateRange opts surfaced to callers (FB-035). FB-069 deliberately did NOT bump this: this fetch is unchanged, so existing cache entries stay valid.
+  extractTags: ([slug]) => ({ client: slug ?? 'default' }),
+})
+
+// ── FB-069: citations for a specific set of PR placements ────────────────────
+// Narrow companion to getUrlCitations, for the PR-placement matchback only.
+//
+// The matchback asks a small question ("were these ~12 article URLs cited?") of a
+// large data set (17,081 URLs for Renaissance). getUrlCitations is capped at
+// 2,000 rows and shared by three tabs, so it cannot answer that question, and
+// uncapping it would push its cached payload to ~7.6 MB — past Next's 2 MB limit,
+// silently disabling the cache for every consumer. So this walks every page and
+// returns only the matching rows: a few hundred bytes, and proportional to the
+// placement count rather than the citation count.
+//
+// Blast radius is exactly one table. No existing caller changes.
+
+/** Peec accepts 10,000 per page on /reports/urls at flat latency (~1.2s at both
+ *  2,000 and 10,000), so a large page is strictly cheaper than many small ones. */
+const CITATION_PAGE_SIZE = 10_000
+/** 120,000-row ceiling. Measured today: base query 17,081 rows, engine query
+ *  19,005 — about 6x headroom. fetchAllPages warns loudly if it is ever hit. */
+const CITATION_MAX_PAGES = 12
+
+async function getPlacementCitationsImpl(
+  clientSlug: string | undefined,
+  placementUrlKeys: string[],
+  opts: { startDate?: string; endDate?: string } = {},
+): Promise<UrlCitation[]> {
+  if (placementUrlKeys.length === 0) return []
+
+  let pid: string | undefined
+  let yourBrand = ''
+  if (clientSlug) {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
+    pid = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+    yourBrand = config?.peecYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
+  }
+  if (!pid && !process.env.PEEC_AI_PROJECT_ID) return []
+
+  const d = last30()
+  const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
+
   const [baseRows, engineRows, brandsRes] = await Promise.all([
-    // FB-058 raised this 1000 -> 2000 so owned cited pages ranked below the top
-    // 1000 were not truncated. FB-069 replaces the fixed limit with a full walk:
-    // a single page still truncated Renaissance at 2,000 of 17,081 URLs, which
-    // article-level matching cannot tolerate (see fetchAllPages).
     fetchAllPages(
       (offset, limit) =>
         post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit, offset }, pid)
           .then((r) => r.data ?? []),
-      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES },
+      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES, label: 'placement citations (base)' },
     ),
     fetchAllPages(
       (offset, limit) =>
@@ -249,18 +343,19 @@ async function getUrlCitationsImpl(
           { ...window, dimensions: ['model_channel_id', 'model_id'], limit, offset },
           pid,
         ).then((r) => r.data ?? []),
-      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES },
+      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES, label: 'placement citations (engines)' },
     ),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
   ])
   const brandRows = brandsRes.data ?? []
   const yourBrandIds = resolveYourBrandIds(brandRows, yourBrand)
   const brandNameById = new Map(brandRows.map((b) => [b.brand.id, b.brand.name]))
-  return mergeUrlCitations(baseRows, engineRows, yourBrandIds, brandNameById)
+  const merged = mergeUrlCitations(baseRows, engineRows, yourBrandIds, brandNameById)
+  return pickCitationsForUrls(merged, placementUrlKeys)
 }
 
-export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
-  version: 'v4',  // v4: paginated fetch, no longer capped at one 2000-row page (FB-069). v3: dateRange opts surfaced to callers (FB-035)
+export const getPlacementCitations = cached('peec', 'getPlacementCitations', getPlacementCitationsImpl, {
+  version: 'v1',
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 

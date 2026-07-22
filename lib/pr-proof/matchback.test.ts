@@ -3,6 +3,7 @@ import { computePlacementMatchback, normHost } from './matchback'
 import type { PRPlacement } from './types'
 import type { UrlCitation } from '@/lib/peec/url-citations'
 import type { CitationDateIndex } from '@/lib/peec/citation-dates'
+import { urlJoinKey } from '@/lib/url'
 
 // ── Fixture factories ────────────────────────────────────────────────────────
 // FB-069: link/url/urlKey default to the same article path on whatever `domain`
@@ -30,7 +31,7 @@ function citation(over: Partial<UrlCitation> = {}): UrlCitation {
   const domain = over.domain ?? 'odwyerpr.com'
   return {
     url: `https://${domain}${ARTICLE_PATH}`,
-    urlKey: `${domain.toLowerCase().replace(/^www\./, '')}${ARTICLE_PATH}`,
+    urlKey: urlJoinKey(`https://${domain}${ARTICLE_PATH}`)!,
     domain,
     classification: 'editorial',
     title: null,
@@ -501,5 +502,51 @@ describe('computePlacementMatchback: article-URL matching (FB-069)', () => {
       {},
     )
     expect(res.rows).toHaveLength(0)
+  })
+})
+
+// ── FB-069 review, finding 5: date lookup when link host and Domain disagree ──
+// The citation-date index is keyed by whatever host Peec recorded. Row inclusion
+// keys off the article URL. Those two agree for every one of the 290 real
+// placements today (Domain is derived FROM the link by extractDomain), but they
+// are separately sourced, so the lookup should tolerate either.
+describe('computePlacementMatchback: date lookup host resolution (FB-069 review F5)', () => {
+  const dates = (host: string): CitationDateIndex => ({
+    [host]: { '*': { first: '2026-01-05', last: '2026-03-09' } },
+  })
+
+  it('finds dates when the index is keyed by the article link host', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'benefitnews.com', link: 'https://digital.benefitnews.com/news/x' })],
+      [citation({ url: 'https://digital.benefitnews.com/news/x', urlKey: 'digital.benefitnews.com/news/x' })],
+      null,
+      dates('digital.benefitnews.com'),
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].firstCitedDate).toBe('2026-01-05')
+    expect(res.rows[0].lastCitedDate).toBe('2026-03-09')
+  })
+
+  it('falls back to the sheet Domain column when the index is keyed by that instead', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'benefitnews.com', link: 'https://digital.benefitnews.com/news/x' })],
+      [citation({ url: 'https://digital.benefitnews.com/news/x', urlKey: 'digital.benefitnews.com/news/x' })],
+      null,
+      dates('benefitnews.com'),
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].firstCitedDate).toBe('2026-01-05')
+    expect(res.rows[0].lastCitedDate).toBe('2026-03-09')
+  })
+
+  it('still reports empty dates when neither host is in the index', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'benefitnews.com', link: 'https://digital.benefitnews.com/news/x' })],
+      [citation({ url: 'https://digital.benefitnews.com/news/x', urlKey: 'digital.benefitnews.com/news/x' })],
+      null,
+      dates('somewhere-else.com'),
+    )
+    expect(res.rows[0].firstCitedDate).toBe('')
+    expect(res.rows[0].lastCitedDate).toBe('')
   })
 })

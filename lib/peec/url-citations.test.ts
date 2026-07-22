@@ -1,5 +1,5 @@
 // lib/peec/url-citations.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   resolveYourBrandIds,
   mergeUrlCitations,
@@ -14,6 +14,7 @@ import {
   ownedPromptCoveragePctForModels,
   isPositiveDelta,
   fetchAllPages,
+  pickCitationsForUrls,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
@@ -348,5 +349,64 @@ describe('fetchAllPages', () => {
   it('returns an empty array when the first page is empty', async () => {
     const out = await fetchAllPages(async () => [], { pageSize: 2, maxPages: 5 })
     expect(out).toEqual([])
+  })
+})
+
+// ── FB-069: narrow placement-citation selection ──────────────────────────────
+// The matchback is the only consumer that needs every cited URL. Rather than
+// widening the shared getUrlCitations fetch (which would push the cached payload
+// past Next's 2 MB limit and silently stop caching for three tabs), it walks all
+// pages and keeps only the rows matching this client's placement URLs.
+describe('pickCitationsForUrls', () => {
+  const cite = (urlKey: string, engines: string[] = ['ChatGPT']) => ({
+    url: `https://${urlKey}`, urlKey, domain: urlKey.split('/')[0],
+    classification: 'editorial', title: null, citationCount: 1, citationRate: 1,
+    citationAvg: 1, engines, mentionedBrandIds: [], competitorBrandNames: [],
+    mentionsYourBrand: false,
+  })
+
+  it('keeps only citations whose urlKey was asked for', () => {
+    const out = pickCitationsForUrls(
+      [cite('a.com/1'), cite('b.com/2'), cite('c.com/3')],
+      ['a.com/1', 'c.com/3'],
+    )
+    expect(out.map((c) => c.urlKey)).toEqual(['a.com/1', 'c.com/3'])
+  })
+
+  it('returns an empty array when nothing is asked for', () => {
+    expect(pickCitationsForUrls([cite('a.com/1')], [])).toEqual([])
+  })
+
+  it('ignores requested urls that were never cited', () => {
+    const out = pickCitationsForUrls([cite('a.com/1')], ['a.com/1', 'never.com/x'])
+    expect(out.map((c) => c.urlKey)).toEqual(['a.com/1'])
+  })
+
+  it('dedupes repeated urlKeys so a duplicated page cannot double-count', () => {
+    const out = pickCitationsForUrls(
+      [cite('a.com/1', ['ChatGPT']), cite('a.com/1', ['Google'])],
+      ['a.com/1'],
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].engines.sort()).toEqual(['ChatGPT', 'Google'])
+  })
+})
+
+// ── FB-069 review, finding 3: exhaustion must be distinguishable from "done" ──
+describe('fetchAllPages truncation signal', () => {
+  it('warns when it stops because it ran out of pages, not out of data', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await fetchAllPages(async () => [1, 2], { pageSize: 2, maxPages: 2, label: 'unit test' })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0][0])).toContain('TRUNCATED')
+    expect(String(warn.mock.calls[0][0])).toContain('unit test')
+    warn.mockRestore()
+  })
+
+  it('stays silent when the source genuinely runs out', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await fetchAllPages(async () => [1], { pageSize: 2, maxPages: 5 })
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

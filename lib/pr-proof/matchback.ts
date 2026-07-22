@@ -133,14 +133,24 @@ export function computePlacementMatchback(
     if (!citedUrlsInPeriod.has(k)) continue // this article was not cited in the period
     // Host is still needed for the citation-date index, which Peec only exposes
     // per domain (see citation-dates.ts), so first/last remain domain-scoped.
-    const h = k.split('/')[0]
+    //
+    // Review F5: row inclusion keys off the article URL, but the date index is
+    // keyed by whatever host Peec recorded. Those agree for all 290 real
+    // placements today (client.ts:170 derives Domain FROM the link), but they are
+    // separately sourced, so try the link host first and fall back to the sheet's
+    // Domain column rather than silently rendering "N/A" on a mismatch.
     const aiEnginesCiting = [...(enginesByUrl.get(k) ?? [])]
     if (modelSet) {
       // A model filter needs engine attribution to decide inclusion.
       if (aiEnginesCiting.length === 0) continue
       if (!aiEnginesCiting.some((e) => modelSet.has(e))) continue
     }
-    const { first, last } = datesFor(h)
+    const linkHost = k.split('/')[0]
+    const sheetHost = normHost(p.domain ?? '')
+    let { first, last } = datesFor(linkHost)
+    if (!first && !last && sheetHost && sheetHost !== linkHost) {
+      ({ first, last } = datesFor(sheetHost))
+    }
     rows.push({
       outlet: p.outlet ?? p.domain,
       headline: p.headline ?? p.domain,
