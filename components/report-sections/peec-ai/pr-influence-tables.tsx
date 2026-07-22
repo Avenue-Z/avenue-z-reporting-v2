@@ -368,18 +368,29 @@ export function PromptClusterOpportunityMatrix({
 // dashboard must compare a maintained list of PR-secured placements against the
 // list of editorial URLs cited in tracked AI answers." Tina 2026-07-09 refined
 // it: the placement list is ALL TIME, and the card dynamically shows only
-// placements whose domain is CITED within the selected timeframe (not secured
-// within it). The cited-in-timeframe logic is computePlacementMatchback in
-// lib/pr-proof/matchback.ts (pure, unit-tested); this component only renders the
-// rows it returns. Columns: Publication + Article (which placement), Publish
-// Date (when secured), Cited by AI + AI Engines (how it is showing up in AI).
+// placements CITED within the selected timeframe (not secured within it).
+//
+// FB-069 superseded the domain-level half of that: a placement now appears only
+// when its own ARTICLE URL is cited, not merely some other page on its domain.
+// The logic is computePlacementMatchback in lib/pr-proof/matchback.ts (pure,
+// unit-tested); this component only renders the rows it returns.
+//
+// Columns: Publication + Article (which placement), Publish Date (when secured),
+// First cited + Most recent (when it was cited), AI Engines (where). The
+// "Cited by AI" column was removed in FB-069 Req 2 -- every row here is cited by
+// construction, so it read "Yes" on every row and carried no information.
 
 export interface PRPlacementMatchbackRow {
   outlet: string
   headline: string
   link: string
   publicationDate: string
-  citedByAI: boolean
+  /** Review #14: retained but OPTIONAL. Every row here is cited by construction,
+   *  so the component ignores this field; its column was removed in Req 2. It
+   *  stays required on MatchbackRow (matchback.ts), where it documents the
+   *  invariant and is asserted in tests, but requiring it here would oblige every
+   *  future caller and fixture to supply a value nothing reads. */
+  citedByAI?: boolean
   aiEnginesCiting: string[]
   /** Earliest citation date for this placement's host (empty string when unknown). */
   firstCitedDate: string
@@ -389,16 +400,17 @@ export interface PRPlacementMatchbackRow {
 
 export function PRPlacementMatchbackTable({
   rows,
-  totalPlacements,
-  placementsCitedByAI,
+  dataUnavailable = false,
 }: {
   rows: PRPlacementMatchbackRow[]
-  totalPlacements: number
-  placementsCitedByAI: number
+  /** Review #11: true when the citation or placement fetch REJECTED, as opposed
+   *  to resolving with nothing. Without this, a network error renders as the
+   *  claim "No PR placements cited by AI", which is a statement about the
+   *  client's PR performance made on the strength of a failed request. Mirrors
+   *  the distinction this page already draws for GA4: a resolved zero renders 0,
+   *  an unavailable source renders "--". */
+  dataUnavailable?: boolean
 }) {
-  const citationRatePct =
-    totalPlacements > 0 ? (placementsCitedByAI / totalPlacements) * 100 : 0
-
   const columns: SortableColumn<PRPlacementMatchbackRow>[] = [
     {
       key: 'outlet',
@@ -412,17 +424,38 @@ export function PRPlacementMatchbackTable({
       label: 'Article',
       align: 'left',
       accessor: (r) => r.headline,
-      render: (r) => (
-        <a
-          href={r.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block max-w-[280px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
-          title={r.headline}
-        >
-          {r.headline}
-        </a>
-      ),
+      // FB-069 Req 3: a blank title used to render a zero-width <a> — an
+      // invisible, clickable gap that read as a rendering bug rather than as
+      // missing source data. It now surfaces as a visible warning so the gap is
+      // noticed and fixed in the client's PR Proof sheet.
+      //
+      // Wording is deliberately audience-neutral. This table also renders in the
+      // client portal (app/portal/[clientSlug]/reports), and there is no
+      // role-gating precedent in report sections, so internal process language
+      // ("add it to the PR Proof sheet") would be shown to clients too. The link
+      // is preserved either way, so a missing title never costs the click-through.
+      render: (r) =>
+        r.headline ? (
+          <a
+            href={r.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[280px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
+            title={r.headline}
+          >
+            {r.headline}
+          </a>
+        ) : (
+          <a
+            href={r.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[280px] truncate font-medium text-amber-400/90 hover:text-amber-300 hover:underline"
+            title="No article title has been recorded for this placement."
+          >
+            ⚠ Missing article title
+          </a>
+        ),
     },
     {
       key: 'publicationDate',
@@ -453,24 +486,11 @@ export function PRPlacementMatchbackTable({
         <span className="tabular-nums text-white/60">{r.lastCitedDate || 'N/A'}</span>
       ),
     },
-    {
-      key: 'citedByAI',
-      label: 'Cited by AI',
-      align: 'left',
-      tooltip:
-        'Whether this URL or its domain has been cited by any tracked AI engine in Peec AI data. (Peec AI source data.)',
-      accessor: (r) => (r.citedByAI ? 1 : 0),
-      render: (r) => (
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-            r.citedByAI ? 'bg-[#60FDFF]/10 text-[#60FDFF]' : 'bg-white/[0.06] text-white/40',
-          )}
-        >
-          {r.citedByAI ? 'Yes' : 'No'}
-        </span>
-      ),
-    },
+    // FB-069 Req 2: the "Cited by AI" column was removed. Every row in this table
+    // is a cited placement by construction (matchback.ts drops the rest), so the
+    // column read "Yes" on every row and could never read anything else. The
+    // MatchbackRow.citedByAI field is retained: it still documents that invariant
+    // and is asserted in matchback.test.ts, it simply is not rendered.
     {
       key: 'aiEnginesCiting',
       label: 'AI Engines',
@@ -503,11 +523,11 @@ export function PRPlacementMatchbackTable({
         tooltip="Compares your PR-secured placements (PR Proof Library) against the editorial URLs cited in tracked AI answers (Peec AI)."
         subtitle="See which of your all-time secured PR placements are being cited in AI-generated answers within the selected timeframe, and how they are shaping brand visibility, sentiment, and reputation across your tracked prompts."
       />
-      {totalPlacements > 0 && (
-        <p className="mb-4 text-xs text-text-muted">
-          <span className="font-bold tabular-nums text-white">{placementsCitedByAI}</span> of {totalPlacements} placements cited by AI (<span className="tabular-nums">{citationRatePct.toFixed(1)}%</span>)
-        </p>
-      )}
+      {/* FB-069 Req 4: the "N of M placements cited by AI (X%)" line was removed.
+          Its numerator counted placements cited within the selected date range
+          while its denominator counted every placement ever secured, so the
+          percentage compared two different bases and moved with the date picker
+          for a reason no reader could infer. */}
       {rows.length > 0 ? (
         <SortableTable
           columns={columns}
@@ -516,6 +536,12 @@ export function PRPlacementMatchbackTable({
           initialPageSize={15}
           emptyMessage="No PR placements cited by AI in the selected timeframe."
         />
+      ) : dataUnavailable ? (
+        <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-amber-400/20">
+          <p className="text-xs text-amber-400/90">
+            Citation data could not be loaded for this timeframe. This is not a report of zero citations.
+          </p>
+        </div>
       ) : (
         <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">
