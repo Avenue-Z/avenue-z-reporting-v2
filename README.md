@@ -24,6 +24,7 @@ This repo hosts **two products** over one shared spine. The docs below are
 | `ENGINEERS.md` | **Reports** product: auth, data clients, report-section build status, env vars, conventions | ✅ current |
 | `CLAUDE.md` | Platform architecture / shared spine + Supermetrics reference | ✅ current |
 | `lib/dashboard/ENGINEERS.md` | **Configurable dashboard** product: blocks → bindings → resolvers → adapters, caching, sharing | ✅ current |
+| `lib/commentary/ENGINEERS.md` | **Report commentary**: the per-client opt-in render path, draft→approved flow, soft delete, and the client-safety boundary | ✅ current |
 | `lib/dashboard/CLAUDE.md` · `components/dashboard/CLAUDE.md` | Terse working rules for the dashboard engine + its UI | ✅ current |
 | `TODO.md` | Standing task list | ✅ current |
 | `Guides/brand.md` · `Guides/prplacements.md` | Topic guides (brand tokens, PR placements) | ✅ current |

@@ -1,9 +1,26 @@
 # Dashboard Report Commentary — Design
 
 **Date:** 2026-07-06
-**Status:** Approved (design); pending implementation plan
+**Status:** ✅ Implemented — ⚠️ **partly superseded; do not use as a reference.**
 **Branch:** TBD (off `design/per-client-report-sections`)
 **Source PRD:** "Dashboard Report Commentary PRD" (06.30.2026)
+
+> **Read [`lib/commentary/ENGINEERS.md`](../../../lib/commentary/ENGINEERS.md) instead.**
+> This doc is the original design record, kept for history. Two of its central
+> claims are no longer true:
+>
+> 1. **The render path described here was replaced** by the shared-parts system
+>    (`2026-07-07-shared-report-parts-commentary-design.md`). Commentary is not
+>    rendered by the four route files calling `resolveCommentaryView`; it renders via
+>    `SharedPartsHeader`, and **only** for clients who opt in through a `sharedParts`
+>    pin in `report_section_config`. `resolveCommentaryView` survives but is called by
+>    nothing outside its own test.
+> 2. **"Delete UI" is listed here as a non-goal.** That was reversed — draft
+>    soft-delete shipped (`2026-07-14-commentary-history-and-soft-delete-design.md`).
+>
+> Its permission table is also out of date: the history log is approver-only, and
+> staff attribution is stripped server-side for non-editors. The schema, sanitizer,
+> permission helpers, selection logic, and editor described below are accurate.
 
 ## Summary
 

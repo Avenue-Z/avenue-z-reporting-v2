@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TrackedPrompt, TopDomain } from '@/lib/peec/client'
-import { getDomainCoverage, getUrlCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, isPositiveDelta, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
+import { getDomainCoverage, getUrlCitations, getPlacementCitations, domainPromptIds, domainTagNames, avgCitationsByDomain, isPositiveDelta, type DomainCoverage, type UrlCitation } from '@/lib/peec/url-citations'
+import { urlJoinKey } from '@/lib/url'
 import { getPRProofData } from '@/lib/pr-proof/client'
 import { computePlacementMatchback, normHost } from '@/lib/pr-proof/matchback'
 import { getPlacementCitationDates } from '@/lib/peec/citation-dates'
@@ -160,8 +161,17 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
 
   const placementHosts = (prData?.placements ?? []).map((p) => normHost(p.domain))
 
+  // FB-069: the matchback needs to know whether these exact article URLs were
+  // cited, which the shared getUrlCitations below cannot answer — it is capped at
+  // 2,000 of Renaissance's 17,081 URLs. getPlacementCitations walks every page and
+  // returns only these rows, so the answer is complete without changing anything
+  // the other two tabs (or the rest of this one) read.
+  const placementUrlKeys = (prData?.placements ?? [])
+    .map((p) => urlJoinKey(p.link))
+    .filter((k): k is string => !!k)
+
   // Fetch remaining data sources in parallel with graceful degradation
-  const [peecResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult, citationDatesResult, clientConfigResult] = await Promise.allSettled([
+  const [peecResult, aiReferralResult, compareAiResult, coverageResult, urlCitationsResult, urlCitationsPriorResult, citationDatesResult, clientConfigResult, placementCitationsResult] = await Promise.allSettled([
     // Editorial domains / citations here are a stable all-time reference set, so
     // request YTD explicitly rather than the page date range.
     getPeecOverview(clientSlug, 'year_to_date'),
@@ -200,6 +210,12 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
     // so a client without a Profound account never renders the card and a
     // future second Profound client renders it correctly without a code change.
     getClientBySlug(clientSlug),
+    // FB-069: complete citation coverage for the placement URLs only. Separate
+    // from getUrlCitations on purpose — see the comment at placementUrlKeys.
+    getPlacementCitations(clientSlug, placementUrlKeys, {
+      startDate: resolvedMain.startDate,
+      endDate: resolvedMain.endDate,
+    }),
   ])
 
   const clientConfig = clientConfigResult.status === 'fulfilled' ? clientConfigResult.value : null
@@ -214,8 +230,18 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   let urlCitations   = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let urlCitationsPrior   = urlCitationsPriorResult.status === 'fulfilled' ? urlCitationsPriorResult.value : []
   let citationDates   = citationDatesResult.status === 'fulfilled' ? citationDatesResult.value : {}
+  const placementCitations = placementCitationsResult.status === 'fulfilled' ? placementCitationsResult.value : []
 
   if (peecResult.status === 'rejected') console.error('[pr-influence] Peec error:', peecResult.reason)
+  if (placementCitationsResult.status === 'rejected') console.error('[pr-influence] placement citations error:', placementCitationsResult.reason)
+
+  // Review #11: distinguish "we asked and the answer was none" from "we could not
+  // ask". Either input failing means the matchback's zero rows carry no
+  // information about the client's PR performance, and the table must not print
+  // one. Covers the placements fetch too: prData null yields the identical
+  // zero-row outcome by a different route.
+  const matchbackDataUnavailable =
+    placementCitationsResult.status === 'rejected' || prResult.status === 'rejected'
 
   // GA4 connected (query resolved) → a 0 is a real "no AI referrals", shown as 0.
   // Only when the query failed / GA4 is unconfigured do we show -- (no data).
@@ -249,7 +275,10 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
   // only placements whose domain is CITED within the selected timeframe (from
   // period-scoped urlCitations), not those secured within the timeframe. Pure,
   // unit-tested logic lives in lib/pr-proof/matchback.ts.
-  const matchback = computePlacementMatchback(prData?.placements ?? [], urlCitations, models, citationDates)
+  // FB-069: placementCitations, not urlCitations. The shared fetch is capped at
+  // 2,000 rows, so a placement whose article sits below that cap would read as
+  // "not cited" and silently vanish from the table.
+  const matchback = computePlacementMatchback(prData?.placements ?? [], placementCitations, models, citationDates)
 
   // ── Per-URL citation derivations (Section C/D, matchback Avg. Citations) ─────
   // host (www-stripped, lowercased) — matches hostOf()/lookupHost() in url-citations.
@@ -464,11 +493,7 @@ export async function PRInfluenceReport({ clientSlug, dateRange = 'last_30_days'
       )}
 
       {/* ── FB-067 · PR Placement Matchback (all-time placements, cited within the selected timeframe) ── */}
-      <PRPlacementMatchbackTable
-        rows={matchback.rows}
-        totalPlacements={prData?.totalPlacements ?? 0}
-        placementsCitedByAI={matchback.citedCount}
-      />
+      <PRPlacementMatchbackTable rows={matchback.rows} dataUnavailable={matchbackDataUnavailable} />
 
       {/* ── FB-065 · Sentiment Insights (Profound-sourced, date + model reactive) ──
           Gated on the client row's profoundCategoryId (#138 P6), not a hardcoded
