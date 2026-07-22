@@ -4,17 +4,32 @@
 **Branch:** `ave-z-reporting-paid-media-v2`
 **PR:** #164 (base `dev`)
 **Companion doc:** [decisions for approval](./2026-07-22-paid-media-v2-decisions-for-approval.md)
-**Status:** For engineering review. No code written.
+**Status:** For engineering review. No code written, nothing compiled.
 
 ## What this document is
 
 The build design for all six requirements. For each: what exists today, what
-changes, and how the new pieces are shaped. Sections 7 to 9 carry the actual
-design work (module types and signatures, caching, component tree and routing).
+changes, and how the new pieces are shaped. Three sections carry the actual design
+work: **Rollup module design**, **Caching and performance**, and **Overview UI and
+routing**.
 
-Every claim about current behavior cites `file:line` and was verified against the
-tree, not assumed. A dedicated sweep re-opened all 34 citations; the corrections it
-found are applied.
+## How far each claim has been verified
+
+Three different levels, and the difference matters when reviewing.
+
+| Claim type | Verification |
+|---|---|
+| Current behavior in the Req 1 to 6 sections and the constraints | **Swept.** A dedicated pass re-opened all 34 citations that existed before the design sections were added and checked each claim against the line. Six corrections were found and are applied |
+| Current behavior cited in the three design sections | **Partially verified.** Roughly 115 further citations were added by those sections. All 149 unique references were confirmed to point at a real file and an in-range line, but the individual claims were not independently re-swept |
+| The proposed design itself | **Unverified.** The types, signatures and component props have never been compiled. `MetricValue`, `ChannelRollup` and the `toKpis` adapter are written against the existing `Kpi` type and `KpiGrid` props but have not been typechecked against them |
+
+The Cost / LPV defect under Req 4 is the one thing in this document proven by
+execution rather than by reading.
+
+Three further claims were explicitly out of the sweep's reach and remain unchecked:
+the lint baseline under Out of scope, the PR reference in this header, and the `C3`
+client-configuration table. `C3` came from a live database read and is load-bearing
+for `D4`, so it should be re-run before that decision is taken.
 
 ## What is decided here, and what is not
 
