@@ -21,7 +21,8 @@ Three different levels, and the difference matters when reviewing.
 |---|---|
 | Current behavior in the Req 1 to 6 sections and the constraints | **Swept.** A dedicated pass re-opened all 34 citations that existed before the design sections were added and checked each claim against the line. Six corrections were found and are applied |
 | Current behavior cited in the three design sections | **Partially verified.** Roughly 115 further citations were added by those sections. All 149 unique references were confirmed to point at a real file and an in-range line, but the individual claims were not independently re-swept |
-| The proposed design itself | **Unverified.** The types, signatures and component props have never been compiled. `MetricValue`, `ChannelRollup` and the `toKpis` adapter are written against the existing `Kpi` type and `KpiGrid` props but have not been typechecked against them |
+| The proposed types | **Compiled.** `MetricValue`, `ChannelRollup` and `toKpis` were written into a throwaway module and run through `tsc --noEmit` against the real `Kpi` type and the real `KpiGrid`. Clean. A negative control (feeding `Kpi.value` a boolean) produced the expected error, proving the check was reading the files rather than skipping them. This confirms the union compiles, `ChannelRollup` is exhaustive (an unhandled case fails the `never` check), `toKpis` returns valid `Kpi[]`, and `KpiGrid` consumes it with no change |
+| The rest of the proposed design | **Unverified.** `getPaidMediaRollup` and its fetch orchestration, the caching design, the component tree beyond the `KpiGrid` handoff, and the blended arithmetic have not been executed. The arithmetic is stated with a worked example but has not been run against data |
 
 The Cost / LPV defect under Req 4 is the one thing in this document proven by
 execution rather than by reading.
