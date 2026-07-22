@@ -550,3 +550,22 @@ describe('computePlacementMatchback: date lookup host resolution (FB-069 review 
     expect(res.rows[0].lastCitedDate).toBe('')
   })
 })
+
+// Characterization test (passes before and after the cleanup below, by design).
+// The UI now owns the empty-title case: pr-influence-tables.tsx renders a visible
+// "Missing article title" warning. So the matchback must pass a blank headline
+// through UNCHANGED rather than substituting anything, or that warning never
+// fires and the old invisible-link bug returns in a new form.
+describe('computePlacementMatchback: blank headline passthrough', () => {
+  it('passes a blank headline through as blank, never substituting the domain', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'odwyerpr.com', headline: '' })],
+      [citation({ domain: 'odwyerpr.com' })],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].headline).toBe('')
+    expect(res.rows[0].headline).not.toBe('odwyerpr.com')
+  })
+})

@@ -51,3 +51,47 @@ test('the empty state is unchanged', () => {
   renderTable([])
   expect(screen.getByText('No PR placements cited by AI in the selected timeframe.')).toBeInTheDocument()
 })
+
+// ── FB-069 Req 2 (Tina: "Remove it") ─────────────────────────────────────────
+// Every row in this table is a cited placement by construction, so a column that
+// always reads "Yes" carries no information.
+test('the "Cited by AI" column is gone', () => {
+  const { container } = renderTable()
+  expect(screen.queryByText('Cited by AI')).not.toBeInTheDocument()
+  expect(container.textContent).not.toMatch(/\bYes\b/)
+})
+
+// ── FB-069 Req 3 (Tina: "Display an error that instructs the PR team to fix
+// the missing data in the sheet") ────────────────────────────────────────────
+// A blank title previously rendered a zero-width <a>: an invisible, clickable
+// gap that read as a rendering bug rather than as missing data.
+const BLANK_TITLE: PRPlacementMatchbackRow[] = [
+  { ...ROWS[0], headline: '' },
+]
+
+test('a missing article title renders a visible error, not an empty cell', () => {
+  const { container } = render(
+    <TooltipProvider>
+      <PRPlacementMatchbackTable rows={BLANK_TITLE} />
+    </TooltipProvider>,
+  )
+  const cell = screen.getByText(/missing article title/i)
+  expect(cell).toBeInTheDocument()
+  expect(container.textContent).not.toMatch(/^\s*$/)
+})
+
+test('the missing-title error still links through to the article', () => {
+  render(
+    <TooltipProvider>
+      <PRPlacementMatchbackTable rows={BLANK_TITLE} />
+    </TooltipProvider>,
+  )
+  const link = screen.getByText(/missing article title/i).closest('a')
+  expect(link).toHaveAttribute('href', BLANK_TITLE[0].link)
+})
+
+test('a row with a title is unaffected and shows no error', () => {
+  const { container } = renderTable()
+  expect(screen.getByText('Building a Benefits Dream Team')).toBeInTheDocument()
+  expect(container.textContent).not.toMatch(/missing article title/i)
+})

@@ -153,7 +153,12 @@ export function computePlacementMatchback(
     }
     rows.push({
       outlet: p.outlet ?? p.domain,
-      headline: p.headline ?? p.domain,
+      // FB-069 Req 3: this used to read `p.headline ?? p.domain`. That fallback
+      // was dead — parseRows always produces a string (client.ts:148-151), and
+      // `??` does not catch '' — so a blank title silently rendered an invisible
+      // link. The UI now owns that case with a visible warning, so the blank must
+      // pass through unchanged rather than being papered over here.
+      headline: p.headline,
       link: p.link ?? '',
       publicationDate: p.publicationDate ?? '',
       citedByAI: true,

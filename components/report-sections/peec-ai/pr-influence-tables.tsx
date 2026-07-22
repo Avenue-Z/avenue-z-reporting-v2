@@ -405,17 +405,38 @@ export function PRPlacementMatchbackTable({
       label: 'Article',
       align: 'left',
       accessor: (r) => r.headline,
-      render: (r) => (
-        <a
-          href={r.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block max-w-[280px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
-          title={r.headline}
-        >
-          {r.headline}
-        </a>
-      ),
+      // FB-069 Req 3: a blank title used to render a zero-width <a> — an
+      // invisible, clickable gap that read as a rendering bug rather than as
+      // missing source data. It now surfaces as a visible warning so the gap is
+      // noticed and fixed in the client's PR Proof sheet.
+      //
+      // Wording is deliberately audience-neutral. This table also renders in the
+      // client portal (app/portal/[clientSlug]/reports), and there is no
+      // role-gating precedent in report sections, so internal process language
+      // ("add it to the PR Proof sheet") would be shown to clients too. The link
+      // is preserved either way, so a missing title never costs the click-through.
+      render: (r) =>
+        r.headline ? (
+          <a
+            href={r.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[280px] truncate text-white/80 hover:text-[#39A0FF] hover:underline"
+            title={r.headline}
+          >
+            {r.headline}
+          </a>
+        ) : (
+          <a
+            href={r.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[280px] truncate font-medium text-amber-400/90 hover:text-amber-300 hover:underline"
+            title="No article title has been recorded for this placement."
+          >
+            ⚠ Missing article title
+          </a>
+        ),
     },
     {
       key: 'publicationDate',
@@ -446,24 +467,11 @@ export function PRPlacementMatchbackTable({
         <span className="tabular-nums text-white/60">{r.lastCitedDate || 'N/A'}</span>
       ),
     },
-    {
-      key: 'citedByAI',
-      label: 'Cited by AI',
-      align: 'left',
-      tooltip:
-        'Whether this URL or its domain has been cited by any tracked AI engine in Peec AI data. (Peec AI source data.)',
-      accessor: (r) => (r.citedByAI ? 1 : 0),
-      render: (r) => (
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-            r.citedByAI ? 'bg-[#60FDFF]/10 text-[#60FDFF]' : 'bg-white/[0.06] text-white/40',
-          )}
-        >
-          {r.citedByAI ? 'Yes' : 'No'}
-        </span>
-      ),
-    },
+    // FB-069 Req 2: the "Cited by AI" column was removed. Every row in this table
+    // is a cited placement by construction (matchback.ts drops the rest), so the
+    // column read "Yes" on every row and could never read anything else. The
+    // MatchbackRow.citedByAI field is retained: it still documents that invariant
+    // and is asserted in matchback.test.ts, it simply is not rendered.
     {
       key: 'aiEnginesCiting',
       label: 'AI Engines',
