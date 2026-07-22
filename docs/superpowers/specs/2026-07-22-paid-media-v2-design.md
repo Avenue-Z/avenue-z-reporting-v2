@@ -36,11 +36,28 @@ for `D4`, so it should be re-run before that decision is taken.
 
 Engineering decisions are **made** in this document and stated with their
 rationale. Product decisions are **surfaced** as `D1` through `D10` and left for
-the team, because they change what gets built rather than how. Five of them block
-Requirement 1 outright.
+the team, because they change what gets built rather than how. Six of them block
+Requirement 1 outright: `D1` through `D5` plus `D10`.
 
 Where a decision carries an engineering-cost difference, that difference is stated
 so the team chooses with the cost visible.
+
+---
+
+## The six requirements, as given
+
+Verbatim, unedited. Everything downstream traces to these.
+
+1. Add an Overview subpage for Paid Media that shows a rollup of performance across Paid Search, Meta & LinkedIn subpages.
+2. On Paid Search subpage, add "Total Leads" to the top of the "Leads by Action" table and at the bottom of the "Region → DMA Breakdown" table. These values should be a sum of the subtotals in the tables.
+3. On Paid Search subpage, add a default filter view to the keyword table at the bottom for the column "Clicks" and filter to 10 clicks or more.
+4. On Meta Advertising subpage, investigate the calculation of "Cost / LPV" and verify it's correctly displaying.
+5. On Meta Advertising subpage, the "Top Regions by Spend" chart's "Spend" value formatting should be $X,XXX.XX.
+6. Take a look at LinkedIn subpage - if there are any API issues.
+
+Nav location: sidebar, Reports, **Paid Media**, which today expands to Paid Search,
+Meta Advertising and LinkedIn Advertising (`PAID_MEDIA_SUBSECTIONS`,
+`lib/constants.ts:174`).
 
 ---
 
@@ -198,23 +215,27 @@ case 'paid-media':
   return <PaidSearchReport ... />   // fallthrough default
 ```
 
-### The collision nobody has flagged yet
+### Commentary: less coupled than it looks
 
-`lib/commentary/views.ts:38` maps commentary by the same key:
+`lib/commentary/views.ts:38` maps `paid-media` with no subsection to `'paid-search'`,
+which looks like a trap: move Overview to `id: null` and existing Paid Search
+commentary re-points at the Overview.
 
-```ts
-case 'paid-media':
-  if (!subsection) return 'paid-search'
-```
+**It is not a trap, because `resolveCommentaryView` is dead code.** Verified: the
+only references in the tree are its own definition (`lib/commentary/views.ts:22`) and
+its test (`lib/commentary/views.test.ts`). No application code calls it. The real
+binding is a hardcoded `viewKey` prop each section passes to `SharedPartsHeader`, for
+example `viewKey="linkedin-ads"` at
+`components/report-sections/linkedin-ads/index.tsx:46`.
 
-So `paid-media` with no subsection means **Paid Search** to the commentary
-system. Putting Overview at `id: null` silently re-points Paid Search's
-commentary block at the Overview. Existing `report_commentary` rows are keyed to
-the `'paid-search'` view key, so they would surface on the wrong page.
+So no existing `report_commentary` row can be misfiled by this change. What remains
+is the smaller question of whether the Overview renders a commentary block at all,
+which needs a new `CommentaryViewKey` and a named owner. `COMMENTARY_VIEWS`
+(`views.ts:48`) has seven keys, owned by Amir and Greg. See `D5`.
 
-`COMMENTARY_VIEWS` (`views.ts:48`) has seven canonical keys, each with an owner:
-Paid Search is Amir, Meta and LinkedIn are Greg. An Overview has no key and no
-owner. See `D5`.
+One real consequence: `views.test.ts:24` asserts
+`resolveCommentaryView('paid-media') === 'paid-search'`. If the mapping changes, that
+assertion changes with it, and the implementation map must include the test.
 
 ### Implementation map
 
@@ -234,22 +255,21 @@ Sidebars (`components/layout/sidebar.tsx:582`,
 `components/layout/portal-sidebar.tsx:239`) render from
 `PAID_MEDIA_SUBSECTIONS` directly, so they update from change 1 with no edit.
 
-### Proposed module boundary
+### Module boundary
 
-A new `lib/paid-media/rollup.ts` owning one job: call the three existing KPI
-functions, normalize to a common shape, aggregate. It does not re-implement any
-channel fetch. Each channel keeps owning its own data access.
+A new `lib/paid-media/` owning one job: fetch the four agreed metrics from each
+channel, normalize, aggregate. It does not re-implement any channel fetch.
 
-```
-getPaidMediaRollup(slug, dateRange, compareRange)
-  → { blended: {spend, clicks, leads, cpl},
-      channels: [{ channel, spend, clicks, leads, cpl, status }] }
-```
+**The canonical types and signatures live in "Rollup module design" below, and that
+section is normative.** It is the only part of this design that has been compiled.
+Where any other section of this document describes the data layer differently, the
+rollup section wins.
 
-`status` per channel is one of `ok | unconfigured | error`, which is what drives
-`D4`. Deriving `cpl` as `spend / leads` at the rollup level rather than summing
-per-channel CPLs is required for the blended figure to be correct; averaging
-CPLs across channels is mathematically wrong when spend is uneven.
+One consequence worth stating here because it constrains everything else: deriving
+Cost per lead as total spend over total leads at the rollup level, rather than
+summing or averaging per-channel CPLs, is required for the blended figure to be
+correct. Averaging is wrong whenever channel spend is uneven. Worked example in the
+rollup section.
 
 ### Decisions
 
@@ -832,7 +852,7 @@ components/report-sections/paid-media-overview/
   overview-empty.tsx         All-three-unconfigured state, wraps the shared EmptyState.
 ```
 
-Data assembly (`getPaidMediaOverview`) lives in `lib/paid-media/overview.ts` and is
+Data assembly (`getPaidMediaRollup`) lives in `lib/paid-media/rollup.ts` and is
 the data section's contract, not a component. This section only consumes it.
 
 Why these five files and not fewer: the three existing sections each keep the entry
@@ -844,7 +864,7 @@ and each visual unit is its own file (`kpi-grid.tsx`, `creative-table.tsx`,
 
 | File | Kind | Why |
 |---|---|---|
-| `index.tsx` | Server (async) | Awaits `getPaidMediaOverview`, same shape as `MetaAdsReport` (`components/report-sections/meta-ads/index.tsx:28-42`). |
+| `index.tsx` | Server (async) | Awaits `getPaidMediaRollup`, same shape as `MetaAdsReport` (`components/report-sections/meta-ads/index.tsx:28-42`). |
 | `blended-kpis.tsx` | Server | Pure markup over `KpiCard`, which is itself a Server Component (`components/charts/kpi-card.tsx` has no `'use client'`). |
 | `channel-breakdown-table.tsx` | Server | Renders the already-client `DataTable` (`components/charts/data-table.tsx:1`). Formatting is done server-side into strings, so nothing but serializable props crosses. |
 | `channel-notes.tsx` | Server | Static text. |
@@ -875,44 +895,38 @@ from `lib/supermetrics/format.ts`, producing strings before they cross.
 
 #### 3. Props
 
-Types consumed from the data layer (`lib/paid-media/overview.ts`):
+Types consumed from the data layer (`lib/paid-media/rollup.ts`):
 
-```ts
-export type PaidMediaChannel = 'paid-search' | 'meta' | 'linkedin'
+> **Superseded.** This section originally defined its own data-layer types
+> (`PaidMediaOverviewData`, `ChannelTotals`, `BlendedTotals`, `ChannelResult`,
+> `PaidMediaChannel`, status `'not_configured'`). Those are **withdrawn**. They
+> duplicated the rollup section with different names and a different shape
+> (`Record<channel, …>` versus an array, nullable fields versus the `MetricValue`
+> union), and only the rollup version has been compiled.
+>
+> The Overview consumes the rollup types verbatim: `PaidMediaRollup`,
+> `ChannelRollup`, `ChannelMetrics`, `MetricValue`, `PaidChannel`, and the
+> `toKpis` adapter. Canonical names, for avoidance of doubt:
+>
+> | Concept | Canonical |
+> |---|---|
+> | Channel enum | `PaidChannel` |
+> | Data-layer function | `getPaidMediaRollup` |
+> | Data-layer file | `lib/paid-media/rollup.ts` |
+> | Top-level type | `PaidMediaRollup` |
+> | Per-channel result | `ChannelRollup` |
+> | Metric bundle | `ChannelMetrics` |
+> | Missing metric | `MetricValue` union, not `null` |
+> | Not-configured status | `'unconfigured'` |
+> | Error detail field | `error` |
+> | Cost per lead key | `costPerLead` |
+> | Channel collection | `ChannelRollup[]`, always length 3, fixed order |
+>
+> Unavailable metrics render as the single-character dash placeholder already used
+> at `lib/linkedin/kpis.ts:38`, not the string `'NA'`. Where this document says
+> `'NA'` in a rendered cell, read the dash.
 
-export interface ChannelTotals {
-  spend: number
-  clicks: number
-  /** null when the channel cannot report leads at all (Meta). */
-  leads: number | null
-  /** null when leads is null or 0. Never a divide-by-zero artifact. */
-  costPerLead: number | null
-  /** Prior-period percent deltas, undefined when there is no comparison. */
-  delta?: { spend?: number; clicks?: number; leads?: number; costPerLead?: number }
-}
 
-export type ChannelResult =
-  | { status: 'ok'; totals: ChannelTotals }
-  | { status: 'not_configured' }
-  | { status: 'error'; kind: 'timeout' | 'error' }
-
-export interface BlendedTotals {
-  /** null means "NA": at least one contributing channel failed (Dianna's rule). */
-  spend: number | null
-  clicks: number | null
-  leads: number | null
-  costPerLead: number | null
-  /** Channels that errored, so the UI can name them in the tooltip. */
-  degraded: PaidMediaChannel[]
-  /** Channels excluded from leads / cost-per-lead because they cannot report leads. */
-  leadExcluded: PaidMediaChannel[]
-}
-
-export interface PaidMediaOverviewData {
-  channels: Record<PaidMediaChannel, ChannelResult>
-  blended: BlendedTotals
-}
-```
 
 Component props:
 
@@ -925,15 +939,15 @@ export async function PaidMediaOverviewReport(props: {
 }): Promise<React.ReactElement>
 
 // blended-kpis.tsx
-export function BlendedKpis({ blended }: { blended: BlendedTotals }): React.ReactElement
+export function BlendedKpis({ blended }: { blended: ChannelMetrics }): React.ReactElement
 
 // channel-breakdown-table.tsx
 export function ChannelBreakdownTable({
   channels,
   blended,
 }: {
-  channels: Record<PaidMediaChannel, ChannelResult>
-  blended: BlendedTotals
+  channels: ChannelRollup[]
+  blended: ChannelMetrics
 }): React.ReactElement
 
 // channel-notes.tsx
@@ -941,8 +955,8 @@ export function ChannelNotes({
   channels,
   blended,
 }: {
-  channels: Record<PaidMediaChannel, ChannelResult>
-  blended: BlendedTotals
+  channels: ChannelRollup[]
+  blended: ChannelMetrics
 }): React.ReactElement | null
 
 // overview-empty.tsx
@@ -1066,7 +1080,7 @@ at all:
 
 **Dianna's rule applied to the blended line.** If any channel that contributes to a
 blended metric is in `error` or `timeout`, that blended metric renders `NA`, not a
-partial sum. `BlendedTotals.spend | clicks | leads | costPerLead` are therefore
+partial sum. `ChannelMetrics.spend | clicks | leads | costPerLead` are therefore
 `number | null`, and `null` means NA. The KPI card shows `NA` as the value with the
 tooltip naming the channels responsible ("Excludes LinkedIn: data could not be
 loaded"), using the existing `Kpi.tooltip` path (`components/charts/kpi-card.tsx:36-46`).
@@ -1103,7 +1117,8 @@ will ask:
   (`lib/paid-search/kpis.ts:40`, `lib/linkedin/kpis.ts:42`). The blended Clicks tooltip
   states this.
 - Leads excludes Meta entirely, since Meta exposes no lead metric. The Leads and
-  Cost / Lead tooltips name the excluded channels from `BlendedTotals.leadExcluded`.
+  Cost / Lead tooltips name the excluded channels, sourced from the `reason` string
+on the relevant `MetricValue` rather than a parallel array.
 
 **Stacked per-channel breakdown.** One `DataTable`
 (`components/charts/data-table.tsx:69`) directly below, columns
@@ -1139,10 +1154,35 @@ pages, per Greg.
 | `D8` | Total Leads: plain sum or de-duplicated | Amir | Req 2 |
 | `D9` | Keyword filter user-adjustable or fixed | Engineering | Req 3 |
 | `D10` | Blended Cost per lead when a channel has spend but no leads | Greg + Dianna | Req 1 |
+| `D11` | Rollup reuses the channel KPI functions, or fetches its own raw totals | Engineering | Req 1 |
 
 `D2` is the highest-value one to resolve first. It is the only decision that
 determines whether Req 1 is buildable as specified, and it is the one the
 stakeholder doc left open.
+
+`D11` is an engineering decision but it is listed here because it blocks Req 1 and
+because the obvious answer is provably wrong. The tempting design is for the rollup
+to call the existing `getPaidSearchKpis` / `getMetaKpis` / `getLinkedInKpis`. It
+cannot, and the reason is not preference:
+
+- All three return `Promise<Kpi[]>` (`lib/paid-search/kpis.ts`, `lib/meta/kpis.ts`,
+  `lib/linkedin/kpis.ts`). A `Kpi` carries a current value and an already-computed
+  percentage `delta`. The prior-period absolute values never escape the function;
+  `delta(cur, prev)` consumes them internally (`lib/paid-search/kpis.ts:9`,
+  `lib/meta/kpis.ts:8`). So `ChannelRollup.compare` cannot be populated, and blended
+  deltas cannot be computed from blended totals as this design requires.
+- Values are rounded before they are returned: `Math.round(cost)`
+  (`lib/paid-search/kpis.ts:40`), `Math.round(cost / leads)` (`:25`),
+  `Math.round(n(totals, 'cost'))` (`lib/meta/kpis.ts:23`, `lib/linkedin/kpis.ts:33`).
+  Summing those violates the full-precision rule stated in the rollup section.
+- Reusing `getLinkedInKpis` hands back `oneClickLeadsCost`, the vendor Cost per lead
+  field (`lib/linkedin/kpis.ts:66`), contradicting the decision to derive it.
+
+So the rollup must call the per-channel query wrappers (`awQuery`, `metaQuery`,
+`linkedinQuery`) and the pure `transform*` functions directly, or each channel must
+export a raw-totals accessor alongside its `Kpi[]` builder. This changes the caching
+design too: the caching section's argument that a leaf cache lets the Overview warm
+the channel pages holds only under reuse, because `fields` is part of the cache key.
 
 `D10` surfaced while designing the rollup and is not in the feedback doc. If `D2`
 resolves such that Meta still contributes Spend but no Leads, blended Cost per lead
@@ -1173,8 +1213,8 @@ Each is stated with its rationale in the section named.
 ## Sequencing
 
 Reqs 4 and 5 are independent of every decision above and can proceed
-immediately. Req 3 needs only `D9`. Req 2 needs `D6` through `D8`. Req 1 needs
-`D1` through `D5`. Req 6 is resolved.
+immediately. Req 3 needs only `D9`. Req 2 needs `D6` through `D8`. Req 1 needs `D1` through `D5`
+plus `D10`, and `D11` below. Req 6 is resolved.
 
 Suggested order, each its own PR against `dev` per the Stage 1 gate:
 

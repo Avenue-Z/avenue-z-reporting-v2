@@ -90,8 +90,7 @@ We'd have it reflect what's on screen, so it moves when the filter moves.
 ## F. The Overview commentary box has no owner
 
 Paid Search, Meta and LinkedIn each have one, owned by Amir and Greg. The Overview
-would be a fourth with nobody on it, and getting the wiring wrong risks existing
-Paid Search commentary appearing on the wrong page.
+would be a fourth with nobody on it.
 
 We'd give it no box.
 
