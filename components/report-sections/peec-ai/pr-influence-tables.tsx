@@ -368,11 +368,17 @@ export function PromptClusterOpportunityMatrix({
 // dashboard must compare a maintained list of PR-secured placements against the
 // list of editorial URLs cited in tracked AI answers." Tina 2026-07-09 refined
 // it: the placement list is ALL TIME, and the card dynamically shows only
-// placements whose domain is CITED within the selected timeframe (not secured
-// within it). The cited-in-timeframe logic is computePlacementMatchback in
-// lib/pr-proof/matchback.ts (pure, unit-tested); this component only renders the
-// rows it returns. Columns: Publication + Article (which placement), Publish
-// Date (when secured), Cited by AI + AI Engines (how it is showing up in AI).
+// placements CITED within the selected timeframe (not secured within it).
+//
+// FB-069 superseded the domain-level half of that: a placement now appears only
+// when its own ARTICLE URL is cited, not merely some other page on its domain.
+// The logic is computePlacementMatchback in lib/pr-proof/matchback.ts (pure,
+// unit-tested); this component only renders the rows it returns.
+//
+// Columns: Publication + Article (which placement), Publish Date (when secured),
+// First cited + Most recent (when it was cited), AI Engines (where). The
+// "Cited by AI" column was removed in FB-069 Req 2 -- every row here is cited by
+// construction, so it read "Yes" on every row and carried no information.
 
 export interface PRPlacementMatchbackRow {
   outlet: string
