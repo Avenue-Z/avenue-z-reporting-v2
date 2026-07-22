@@ -643,6 +643,18 @@ PR; the first is pre-existing FB-068 behaviour that #163 merely sharpened.
   caps and stop conditions. `fetchAllPages` is the right abstraction and is
   already generic; `walkDomainDates` needs an early-exit predicate it does not
   have yet. Same class as the `keyHash`-in-four-files item above.
+- [ ] **`getPRProofData`'s cache key ignores the config it read.** The key is
+  `(vendor, fn, clientSlug)` via `cached()`, so it reflects *which client* but not
+  *which sheet* or *which columns*. Changing `pr_proof_sheet_id` or
+  `pr_proof_column_map` therefore invalidates nothing, and the dashboard serves a
+  parse made under the old config for up to the 1-hour TTL. Observed on staging
+  2026-07-22: the column map was corrected to point at the demo sheet, and the
+  table kept rendering the previous sheet's result (one row, blank Article) for
+  the rest of the TTL. The symptom reads as a bug rather than as lag, which is the
+  same trap that made the 2026-07-21 outage hard to attribute. Fix is small: fold
+  the sheet id and a hash of the column map into the cache key so a config change
+  invalidates itself. Until then, a redeploy is the only way to force a config
+  change to take effect immediately. (`lib/pr-proof/client.ts`, `lib/cache.ts`)
 - [ ] **Peec `/reports/urls` gives no way to prove a paginated walk was complete.**
   Verified live: the endpoint returns only `data` with no `totalCount`, and
   `order_by` on `url` is rejected with a 400. The sole accepted sort field is
