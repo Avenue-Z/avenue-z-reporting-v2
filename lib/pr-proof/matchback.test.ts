@@ -5,14 +5,21 @@ import type { UrlCitation } from '@/lib/peec/url-citations'
 import type { CitationDateIndex } from '@/lib/peec/citation-dates'
 
 // ── Fixture factories ────────────────────────────────────────────────────────
+// FB-069: link/url/urlKey default to the same article path on whatever `domain`
+// the caller passes, so `placement({domain:'x.com'})` and `citation({domain:'x.com'})`
+// still describe the same article. Override `link`/`url`/`urlKey` explicitly to
+// test the case where a publication is cited but our specific article is not.
+const ARTICLE_PATH = '/story/123'
+
 function placement(over: Partial<PRPlacement> = {}): PRPlacement {
+  const domain = over.domain ?? 'odwyerpr.com'
   return {
     client: 'Avenue Z',
     outlet: "O'Dwyer's PR",
     headline: 'On the Move: McGinnis Joins Board of Penta Group',
     publicationDate: '2026-01-27',
-    link: 'https://odwyerpr.com/story/123',
-    domain: 'odwyerpr.com',
+    link: `https://${domain}${ARTICLE_PATH}`,
+    domain,
     impact: '',
     dateAdded: '',
     ...over,
@@ -20,10 +27,11 @@ function placement(over: Partial<PRPlacement> = {}): PRPlacement {
 }
 
 function citation(over: Partial<UrlCitation> = {}): UrlCitation {
+  const domain = over.domain ?? 'odwyerpr.com'
   return {
-    url: 'https://odwyerpr.com/story/123',
-    urlKey: 'odwyerpr.com/story/123',
-    domain: 'odwyerpr.com',
+    url: `https://${domain}${ARTICLE_PATH}`,
+    urlKey: `${domain.toLowerCase().replace(/^www\./, '')}${ARTICLE_PATH}`,
+    domain,
     classification: 'editorial',
     title: null,
     citationCount: 3,
@@ -175,12 +183,12 @@ describe('computePlacementMatchback', () => {
     expect(res.rows).toHaveLength(1)
   })
 
-  it('counts a placement once and unions engines when the domain has multiple cited URLs', () => {
+  it('counts a placement once and unions engines when the same article is cited on several rows', () => {
     const res = computePlacementMatchback(
       [placement({ domain: 'odwyerpr.com' })],
       [
-        citation({ urlKey: 'odwyerpr.com/a', url: 'https://odwyerpr.com/a', engines: ['ChatGPT'] }),
-        citation({ urlKey: 'odwyerpr.com/b', url: 'https://odwyerpr.com/b', engines: ['Google'] }),
+        citation({ domain: 'odwyerpr.com', engines: ['ChatGPT'] }),
+        citation({ domain: 'odwyerpr.com', engines: ['Google'] }),
       ],
       null,
       {},
@@ -189,17 +197,22 @@ describe('computePlacementMatchback', () => {
     expect(res.rows[0].aiEnginesCiting.sort()).toEqual(['ChatGPT', 'Google'])
   })
 
-  it('includes both placements when two placements share a cited domain (domain-level)', () => {
+  // FB-069 REVERSAL. This assertion used to read `.toEqual(['A', 'B'])` and was
+  // named "(domain-level)", encoding Tina's 2026-07-09 direction that any URL on
+  // a placement's domain counted as citing it. Bristol's 2026-07-20 report showed
+  // that overstates: only placement A's article was cited, yet B was reported as
+  // cited too. Matching is now on the article URL, so B is correctly excluded.
+  it('excludes a placement sharing a cited domain when its own article is not cited', () => {
     const res = computePlacementMatchback(
       [
         placement({ domain: 'odwyerpr.com', link: 'https://odwyerpr.com/a', outlet: 'A' }),
         placement({ domain: 'odwyerpr.com', link: 'https://odwyerpr.com/b', outlet: 'B' }),
       ],
-      [citation({ domain: 'odwyerpr.com', engines: ['ChatGPT'] })],
+      [citation({ url: 'https://odwyerpr.com/a', urlKey: 'odwyerpr.com/a', engines: ['ChatGPT'] })],
       null,
       {},
     )
-    expect(res.rows.map((r) => r.outlet).sort()).toEqual(['A', 'B'])
+    expect(res.rows.map((r) => r.outlet)).toEqual(['A'])
   })
 
   it('does not invent rows for cited domains that match no placement', () => {
@@ -219,7 +232,7 @@ describe('computePlacementMatchback', () => {
   it('passes through outlet, headline, link, and publicationDate to the row', () => {
     const res = computePlacementMatchback(
       [placement({ outlet: 'PRWeek', headline: 'Big News', link: 'https://prweek.com/x', publicationDate: '2025-06-25', domain: 'prweek.com' })],
-      [citation({ domain: 'prweek.com' })],
+      [citation({ domain: 'prweek.com', url: 'https://prweek.com/x', urlKey: 'prweek.com/x' })],
       null,
       {},
     )
@@ -387,5 +400,106 @@ describe('computePlacementMatchback: citation dates (FB-068)', () => {
         expect(row.firstCitedDate <= row.lastCitedDate).toBe(true)
       }
     }
+  })
+})
+
+// ── FB-069: article-URL matchback ────────────────────────────────────────────
+// Tina 2026-07-09 specified domain-level matching. Bristol's 2026-07-20 report
+// showed why that overstates: a dig-in.com placement was reported as cited in
+// ChatGPT when only *other* dig-in.com articles appeared in Peec. The rule is
+// now an intersection on the article URL itself.
+describe('computePlacementMatchback: article-URL matching (FB-069)', () => {
+  it('excludes a placement whose domain is cited but whose own article is not', () => {
+    const res = computePlacementMatchback(
+      [placement({
+        domain: 'dig-in.com',
+        link: 'https://www.dig-in.com/opinion/why-insurance-ai-needs-clean-workflows-and-accountability',
+      })],
+      [citation({
+        domain: 'dig-in.com',
+        url: 'https://www.dig-in.com/news/a-completely-different-article',
+        urlKey: 'dig-in.com/news/a-completely-different-article',
+      })],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(0)
+    expect(res.citedCount).toBe(0)
+    expect(res.totalPlacements).toBe(1)
+  })
+
+  it('includes a placement whose own article URL is cited', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'dig-in.com', link: 'https://www.dig-in.com/opinion/our-piece' })],
+      [citation({ domain: 'dig-in.com', url: 'https://www.dig-in.com/opinion/our-piece', urlKey: 'dig-in.com/opinion/our-piece' })],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(1)
+  })
+
+  it('matches when the sheet URL carries www. and the Peec URL does not', () => {
+    // The one genuine Renaissance match differs only by "www.".
+    const res = computePlacementMatchback(
+      [placement({
+        domain: 'benefitnews.com',
+        link: 'https://www.benefitnews.com/news/building-a-benefits-dream-team',
+      })],
+      [citation({
+        domain: 'benefitnews.com',
+        url: 'https://benefitnews.com/news/building-a-benefits-dream-team',
+        urlKey: 'benefitnews.com/news/building-a-benefits-dream-team',
+      })],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(1)
+  })
+
+  it('ignores a trailing slash and a query string when matching', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'benefitspro.com', link: 'https://benefitspro.com/2026/05/04/story/?utm_source=newsletter' })],
+      [citation({ domain: 'benefitspro.com', url: 'https://benefitspro.com/2026/05/04/story', urlKey: 'benefitspro.com/2026/05/04/story' })],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(1)
+  })
+
+  it('includes only the placement whose own article is cited when two share a domain', () => {
+    const res = computePlacementMatchback(
+      [
+        placement({ domain: 'odwyerpr.com', link: 'https://odwyerpr.com/a', outlet: 'A' }),
+        placement({ domain: 'odwyerpr.com', link: 'https://odwyerpr.com/b', outlet: 'B' }),
+      ],
+      [citation({ url: 'https://odwyerpr.com/a', urlKey: 'odwyerpr.com/a', engines: ['ChatGPT'] })],
+      null,
+      {},
+    )
+    expect(res.rows.map((r) => r.outlet)).toEqual(['A'])
+  })
+
+  it('scopes engine chips to the cited article, not every citation on the domain', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'odwyerpr.com', link: 'https://odwyerpr.com/a' })],
+      [
+        citation({ url: 'https://odwyerpr.com/a', urlKey: 'odwyerpr.com/a', engines: ['ChatGPT'] }),
+        citation({ url: 'https://odwyerpr.com/b', urlKey: 'odwyerpr.com/b', engines: ['Google', 'Perplexity'] }),
+      ],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].aiEnginesCiting).toEqual(['ChatGPT'])
+  })
+
+  it('excludes a placement with no link at all', () => {
+    const res = computePlacementMatchback(
+      [placement({ domain: 'odwyerpr.com', link: '' })],
+      [citation()],
+      null,
+      {},
+    )
+    expect(res.rows).toHaveLength(0)
   })
 })

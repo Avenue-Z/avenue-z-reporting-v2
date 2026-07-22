@@ -13,6 +13,7 @@ import {
   ownedPromptCoveragePct,
   ownedPromptCoveragePctForModels,
   isPositiveDelta,
+  fetchAllPages,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
@@ -304,5 +305,48 @@ describe('isPositiveDelta', () => {
 
   it('includes a new appearance (0 prior share, any positive current share)', () => {
     expect(isPositiveDelta(1, 0)).toBe(true)
+  })
+})
+
+// ── FB-069: paginated citation fetch ─────────────────────────────────────────
+// A single limit-2000 request returned 2,000 of Renaissance's 17,081 cited URLs,
+// which was enough to hide a real placement (dig-in.com) from the matchback.
+// Article-level matching needs the exact URL present, so the fetch has to walk
+// every page rather than trusting the first one.
+describe('fetchAllPages', () => {
+  it('walks pages until one comes back short', async () => {
+    const pages: number[][] = [[1, 2], [3, 4], [5]]
+    const offsets: number[] = []
+    const out = await fetchAllPages(
+      async (offset, limit) => { offsets.push(offset); return pages[offset / limit] ?? [] },
+      { pageSize: 2, maxPages: 10 },
+    )
+    expect(out).toEqual([1, 2, 3, 4, 5])
+    expect(offsets).toEqual([0, 2, 4])
+  })
+
+  it('makes exactly one request when the first page is already short', async () => {
+    let calls = 0
+    const out = await fetchAllPages(
+      async () => { calls++; return [1] },
+      { pageSize: 2, maxPages: 10 },
+    )
+    expect(calls).toBe(1)
+    expect(out).toEqual([1])
+  })
+
+  it('stops at maxPages so a huge account cannot spin unbounded requests', async () => {
+    let calls = 0
+    const out = await fetchAllPages(
+      async () => { calls++; return [1, 2] },   // always a full page
+      { pageSize: 2, maxPages: 3 },
+    )
+    expect(calls).toBe(3)
+    expect(out).toHaveLength(6)
+  })
+
+  it('returns an empty array when the first page is empty', async () => {
+    const out = await fetchAllPages(async () => [], { pageSize: 2, maxPages: 5 })
+    expect(out).toEqual([])
   })
 })

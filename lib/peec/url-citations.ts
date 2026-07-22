@@ -181,6 +181,39 @@ function last30() {
   return { start_date: isoDate(start), end_date: isoDate(end) }
 }
 
+/**
+ * FB-069: walk a paginated Peec list endpoint until a short page arrives.
+ *
+ * A single `limit: 2000` request returned 2,000 of Renaissance's 17,081 cited
+ * URLs. Under the old domain-level matchback that mostly went unnoticed, because
+ * a busy domain shows up early. Article-level matching needs the *exact* URL in
+ * the result set, so anything truncated becomes a placement that silently reads
+ * as "not cited". Bristol's dig-in.com placement was already being dropped this
+ * way before the match rule changed.
+ *
+ * Bounded by maxPages so an unusually large account cannot spin unbounded
+ * requests. Measured against Peec: per-request latency is flat across page
+ * sizes (~1.2s at both 2,000 and 10,000 rows), so a large page is strictly
+ * cheaper than many small ones.
+ */
+export async function fetchAllPages<T>(
+  fetchPage: (offset: number, limit: number) => Promise<T[]>,
+  opts: { pageSize: number; maxPages: number },
+): Promise<T[]> {
+  const out: T[] = []
+  for (let page = 0; page < opts.maxPages; page++) {
+    const rows = await fetchPage(page * opts.pageSize, opts.pageSize)
+    out.push(...rows)
+    if (rows.length < opts.pageSize) break
+  }
+  return out
+}
+
+/** Page size for the citation fetches. Peec accepts 10,000 on /reports/urls. */
+const CITATION_PAGE_SIZE = 10_000
+/** Ceiling of 120,000 rows per fetch. Renaissance, the largest today, uses 2 pages. */
+const CITATION_MAX_PAGES = 12
+
 async function getUrlCitationsImpl(
   clientSlug?: string,
   opts: { startDate?: string; endDate?: string } = {},
@@ -198,22 +231,36 @@ async function getUrlCitationsImpl(
   const d = last30()
   const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
 
-  const [baseRes, engineRes, brandsRes] = await Promise.all([
-    // FB-058: base URL fetch raised 1000 -> 2000 so owned cited pages ranked below
-    // the top 1000 most-cited URLs (across all domains) are not truncated before the
-    // §F owned-host filter runs. Matches the engine fetch limit below.
-    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit: 2000 }, pid),
-    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
+  const [baseRows, engineRows, brandsRes] = await Promise.all([
+    // FB-058 raised this 1000 -> 2000 so owned cited pages ranked below the top
+    // 1000 were not truncated. FB-069 replaces the fixed limit with a full walk:
+    // a single page still truncated Renaissance at 2,000 of 17,081 URLs, which
+    // article-level matching cannot tolerate (see fetchAllPages).
+    fetchAllPages(
+      (offset, limit) =>
+        post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit, offset }, pid)
+          .then((r) => r.data ?? []),
+      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES },
+    ),
+    fetchAllPages(
+      (offset, limit) =>
+        post<{ data: ApiUrlRow[] }>(
+          '/reports/urls',
+          { ...window, dimensions: ['model_channel_id', 'model_id'], limit, offset },
+          pid,
+        ).then((r) => r.data ?? []),
+      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES },
+    ),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
   ])
   const brandRows = brandsRes.data ?? []
   const yourBrandIds = resolveYourBrandIds(brandRows, yourBrand)
   const brandNameById = new Map(brandRows.map((b) => [b.brand.id, b.brand.name]))
-  return mergeUrlCitations(baseRes.data ?? [], engineRes.data ?? [], yourBrandIds, brandNameById)
+  return mergeUrlCitations(baseRows, engineRows, yourBrandIds, brandNameById)
 }
 
 export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
-  version: 'v3',  // v3: dateRange opts surfaced to callers (FB-035)
+  version: 'v4',  // v4: paginated fetch, no longer capped at one 2000-row page (FB-069). v3: dateRange opts surfaced to callers (FB-035)
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 
