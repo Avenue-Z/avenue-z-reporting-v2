@@ -181,6 +181,121 @@ function last30() {
   return { start_date: isoDate(start), end_date: isoDate(end) }
 }
 
+/**
+ * FB-069: walk a paginated Peec list endpoint until a short page arrives.
+ *
+ * A single `limit: 2000` request returned 2,000 of Renaissance's 17,081 cited
+ * URLs. Under the old domain-level matchback that mostly went unnoticed, because
+ * a busy domain shows up early. Article-level matching needs the *exact* URL in
+ * the result set, so anything truncated becomes a placement that silently reads
+ * as "not cited". Bristol's dig-in.com placement was already being dropped this
+ * way before the match rule changed.
+ *
+ * Bounded by maxPages so an unusually large account cannot spin unbounded
+ * requests. Measured against Peec: per-request latency is flat across page
+ * sizes (~1.2s at both 2,000 and 10,000 rows), so a large page is strictly
+ * cheaper than many small ones.
+ */
+export async function fetchAllPages<T>(
+  fetchPage: (offset: number, limit: number) => Promise<{ rows: T[]; totalCount?: number }>,
+  opts: { pageSize: number; maxPages: number; label?: string },
+): Promise<T[]> {
+  const out: T[] = []
+  let reportedTotal: number | undefined
+
+  // Review #10: disjoint pages prove `offset` is honoured, they do not prove the
+  // union is the whole set. With a tie-heavy sort and no explicit order_by, a
+  // reorder between requests can carry a row past the page boundary so it is
+  // never returned, and the dedupe added for finding 6 is structurally blind to
+  // that. Peec reports totalCount alongside data, so compare against it. One
+  // assertion also catches an ignored offset, a mid-walk data shift, and a
+  // silently changed page cap.
+  const checkComplete = () => {
+    if (reportedTotal == null || out.length === reportedTotal) return
+    console.warn(
+      `[peec] fetchAllPages${opts.label ? ` (${opts.label})` : ''}: got ${out.length} rows ` +
+      `but the source reported ${reportedTotal} — RESULT IS INCOMPLETE`,
+    )
+  }
+
+  for (let page = 0; page < opts.maxPages; page++) {
+    const { rows, totalCount } = await fetchPage(page * opts.pageSize, opts.pageSize)
+    if (page === 0) reportedTotal = totalCount
+    out.push(...rows)
+    if (rows.length < opts.pageSize) {   // short page: the source is exhausted
+      checkComplete()
+      return out
+    }
+  }
+  // Ran out of pages with every page full, so the source had more than we read.
+  // Silent truncation is the exact failure this whole change exists to remove,
+  // so it must not be indistinguishable from "the data ran out".
+  console.warn(
+    `[peec] fetchAllPages${opts.label ? ` (${opts.label})` : ''}: hit maxPages=${opts.maxPages} ` +
+    `at pageSize=${opts.pageSize}, returning ${out.length} rows — RESULT IS TRUNCATED`,
+  )
+  return out
+}
+
+/**
+ * Count repeated urlKeys across a walked citation set.
+ *
+ * Review #10: offset pagination is only complete if the server's ordering is
+ * stable between requests. Disjoint pages prove `offset` is honoured, not that
+ * the union is the whole set: a mid-walk reorder can carry a row past the page
+ * boundary so it is never returned.
+ *
+ * Measured against Peec, neither suggested check is available here. /reports/urls
+ * returns no totalCount (only `data`), and order_by on `url` is rejected with a
+ * 400 -- the sole accepted sort field is `citation_count`, which is the tie-heavy
+ * field the concern is about, so it adds no determinism.
+ *
+ * What IS observable: a reorder that pushes some rows forward past the boundary
+ * pulls others backward across it. Within a single complete walk every base row
+ * is a distinct URL, so any repeated urlKey means the ordering shifted underneath
+ * us, which implies rows may also have been lost. Not a proof of completeness,
+ * but it turns a silent class of failure into a loud one.
+ */
+export function countDuplicateUrlKeys(citations: Pick<UrlCitation, 'urlKey'>[]): number {
+  const seen = new Set<string>()
+  let duplicates = 0
+  for (const c of citations) {
+    if (seen.has(c.urlKey)) duplicates++
+    else seen.add(c.urlKey)
+  }
+  return duplicates
+}
+
+/**
+ * Keep only the citations matching a specific set of URL keys, deduped.
+ *
+ * The PR-placement matchback needs the whole cited-URL set to answer a question
+ * about ~12 URLs. Filtering server-side keeps the cached value proportional to
+ * the placement count rather than the citation count, so it stays kilobytes
+ * regardless of how large the account grows.
+ *
+ * Dedupe is deliberate: nothing downstream of a paginated fetch guarantees a row
+ * appears once, and duplicates would otherwise reach consumers that sum values.
+ * Engines are unioned rather than overwritten so a URL split across pages keeps
+ * every engine that cited it.
+ */
+export function pickCitationsForUrls(citations: UrlCitation[], urlKeys: string[]): UrlCitation[] {
+  if (urlKeys.length === 0) return []
+  const wanted = new Set(urlKeys)
+  const byKey = new Map<string, UrlCitation>()
+  for (const c of citations) {
+    if (!wanted.has(c.urlKey)) continue
+    const seen = byKey.get(c.urlKey)
+    if (!seen) {
+      byKey.set(c.urlKey, { ...c, engines: [...c.engines] })
+      continue
+    }
+    for (const e of c.engines) if (!seen.engines.includes(e)) seen.engines.push(e)
+  }
+  return [...byKey.values()]
+}
+
+
 async function getUrlCitationsImpl(
   clientSlug?: string,
   opts: { startDate?: string; endDate?: string } = {},
@@ -202,6 +317,13 @@ async function getUrlCitationsImpl(
     // FB-058: base URL fetch raised 1000 -> 2000 so owned cited pages ranked below
     // the top 1000 most-cited URLs (across all domains) are not truncated before the
     // §F owned-host filter runs. Matches the engine fetch limit below.
+    //
+    // FB-069 deliberately leaves this capped. The PR-placement matchback is the
+    // only consumer that needs every cited URL, and it now has its own narrow
+    // fetch (getPlacementCitations) rather than widening this shared one. At
+    // Renaissance's 17,081 URLs an uncapped result is ~7.6 MB, which exceeds
+    // Next's 2 MB data-cache limit and would silently stop caching for all five
+    // call sites across three tabs (same failure as #138 P9).
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, limit: 2000 }, pid),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['model_channel_id', 'model_id'], limit: 2000 }, pid),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
@@ -213,7 +335,93 @@ async function getUrlCitationsImpl(
 }
 
 export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
-  version: 'v3',  // v3: dateRange opts surfaced to callers (FB-035)
+  version: 'v3',  // v3: dateRange opts surfaced to callers (FB-035). FB-069 deliberately did NOT bump this: this fetch is unchanged, so existing cache entries stay valid.
+  extractTags: ([slug]) => ({ client: slug ?? 'default' }),
+})
+
+// ── FB-069: citations for a specific set of PR placements ────────────────────
+// Narrow companion to getUrlCitations, for the PR-placement matchback only.
+//
+// The matchback asks a small question ("were these ~12 article URLs cited?") of a
+// large data set (17,081 URLs for Renaissance). getUrlCitations is capped at
+// 2,000 rows and shared by three tabs, so it cannot answer that question, and
+// uncapping it would push its cached payload to ~7.6 MB — past Next's 2 MB limit,
+// silently disabling the cache for every consumer. So this walks every page and
+// returns only the matching rows: a few hundred bytes, and proportional to the
+// placement count rather than the citation count.
+//
+// Blast radius is exactly one table. No existing caller changes.
+
+/** Peec accepts 10,000 per page on /reports/urls at flat latency (~1.2s at both
+ *  2,000 and 10,000), so a large page is strictly cheaper than many small ones. */
+const CITATION_PAGE_SIZE = 10_000
+/** 120,000-row ceiling. Measured today: base query 17,081 rows, engine query
+ *  19,005 — about 6x headroom. fetchAllPages warns loudly if it is ever hit. */
+const CITATION_MAX_PAGES = 12
+
+async function getPlacementCitationsImpl(
+  clientSlug: string | undefined,
+  placementUrlKeys: string[],
+  opts: { startDate?: string; endDate?: string } = {},
+): Promise<UrlCitation[]> {
+  if (placementUrlKeys.length === 0) return []
+
+  let pid: string | undefined
+  let yourBrand = ''
+  if (clientSlug) {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
+    pid = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+    yourBrand = config?.peecYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
+  }
+  if (!pid && !process.env.PEEC_AI_PROJECT_ID) return []
+
+  const d = last30()
+  const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
+
+  const [baseRows, engineRows, brandsRes] = await Promise.all([
+    fetchAllPages(
+      (offset, limit) =>
+        // Review #10: Peec returns totalCount alongside data (already typed and
+        // used on other endpoints in lib/peec/client.ts). Threading it lets
+        // fetchAllPages assert the walk was complete, not merely non-overlapping.
+        post<{ data: ApiUrlRow[]; totalCount?: number }>('/reports/urls', { ...window, limit, offset }, pid)
+          .then((r) => ({ rows: r.data ?? [], totalCount: r.totalCount })),
+      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES, label: 'placement citations (base)' },
+    ),
+    fetchAllPages(
+      (offset, limit) =>
+        post<{ data: ApiUrlRow[]; totalCount?: number }>(
+          '/reports/urls',
+          { ...window, dimensions: ['model_channel_id', 'model_id'], limit, offset },
+          pid,
+        ).then((r) => ({ rows: r.data ?? [], totalCount: r.totalCount })),
+      { pageSize: CITATION_PAGE_SIZE, maxPages: CITATION_MAX_PAGES, label: 'placement citations (engines)' },
+    ),
+    post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
+  ])
+  const brandRows = brandsRes.data ?? []
+  const yourBrandIds = resolveYourBrandIds(brandRows, yourBrand)
+  const brandNameById = new Map(brandRows.map((b) => [b.brand.id, b.brand.name]))
+  const merged = mergeUrlCitations(baseRows, engineRows, yourBrandIds, brandNameById)
+
+  // Review #10: a repeated urlKey inside one walk means the source reordered
+  // mid-pagination, which implies rows may also have been dropped past a page
+  // boundary. pickCitationsForUrls collapses duplicates, so without this the
+  // anomaly would be silently absorbed.
+  const duplicates = countDuplicateUrlKeys(merged)
+  if (duplicates > 0) {
+    console.warn(
+      `[peec] getPlacementCitations(${clientSlug ?? 'default'}): ${duplicates} duplicate urlKey(s) ` +
+      `across ${merged.length} walked rows — pagination reordered mid-walk, result MAY BE INCOMPLETE`,
+    )
+  }
+
+  return pickCitationsForUrls(merged, placementUrlKeys)
+}
+
+export const getPlacementCitations = cached('peec', 'getPlacementCitations', getPlacementCitationsImpl, {
+  version: 'v1',
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 

@@ -1,5 +1,5 @@
 // lib/peec/url-citations.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   resolveYourBrandIds,
   mergeUrlCitations,
@@ -13,6 +13,9 @@ import {
   ownedPromptCoveragePct,
   ownedPromptCoveragePctForModels,
   isPositiveDelta,
+  fetchAllPages,
+  pickCitationsForUrls,
+  countDuplicateUrlKeys,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
@@ -304,5 +307,171 @@ describe('isPositiveDelta', () => {
 
   it('includes a new appearance (0 prior share, any positive current share)', () => {
     expect(isPositiveDelta(1, 0)).toBe(true)
+  })
+})
+
+// ── FB-069: paginated citation fetch ─────────────────────────────────────────
+// A single limit-2000 request returned 2,000 of Renaissance's 17,081 cited URLs,
+// which was enough to hide a real placement (dig-in.com) from the matchback.
+// Article-level matching needs the exact URL present, so the fetch has to walk
+// every page rather than trusting the first one.
+describe('fetchAllPages', () => {
+  it('walks pages until one comes back short', async () => {
+    const pages: number[][] = [[1, 2], [3, 4], [5]]
+    const offsets: number[] = []
+    const out = await fetchAllPages(
+      async (offset, limit) => { offsets.push(offset); return { rows: pages[offset / limit] ?? [] } },
+      { pageSize: 2, maxPages: 10 },
+    )
+    expect(out).toEqual([1, 2, 3, 4, 5])
+    expect(offsets).toEqual([0, 2, 4])
+  })
+
+  it('makes exactly one request when the first page is already short', async () => {
+    let calls = 0
+    const out = await fetchAllPages(
+      async () => { calls++; return { rows: [1] } },
+      { pageSize: 2, maxPages: 10 },
+    )
+    expect(calls).toBe(1)
+    expect(out).toEqual([1])
+  })
+
+  it('stops at maxPages so a huge account cannot spin unbounded requests', async () => {
+    let calls = 0
+    const out = await fetchAllPages(
+      async () => { calls++; return { rows: [1, 2] } },   // always a full page
+      { pageSize: 2, maxPages: 3 },
+    )
+    expect(calls).toBe(3)
+    expect(out).toHaveLength(6)
+  })
+
+  it('returns an empty array when the first page is empty', async () => {
+    const out = await fetchAllPages(async () => ({ rows: [] }), { pageSize: 2, maxPages: 5 })
+    expect(out).toEqual([])
+  })
+})
+
+// ── FB-069: narrow placement-citation selection ──────────────────────────────
+// The matchback is the only consumer that needs every cited URL. Rather than
+// widening the shared getUrlCitations fetch (which would push the cached payload
+// past Next's 2 MB limit and silently stop caching for three tabs), it walks all
+// pages and keeps only the rows matching this client's placement URLs.
+describe('pickCitationsForUrls', () => {
+  const cite = (urlKey: string, engines: string[] = ['ChatGPT']) => ({
+    url: `https://${urlKey}`, urlKey, domain: urlKey.split('/')[0],
+    classification: 'editorial', title: null, citationCount: 1, citationRate: 1,
+    citationAvg: 1, engines, mentionedBrandIds: [], competitorBrandNames: [],
+    mentionsYourBrand: false,
+  })
+
+  it('keeps only citations whose urlKey was asked for', () => {
+    const out = pickCitationsForUrls(
+      [cite('a.com/1'), cite('b.com/2'), cite('c.com/3')],
+      ['a.com/1', 'c.com/3'],
+    )
+    expect(out.map((c) => c.urlKey)).toEqual(['a.com/1', 'c.com/3'])
+  })
+
+  it('returns an empty array when nothing is asked for', () => {
+    expect(pickCitationsForUrls([cite('a.com/1')], [])).toEqual([])
+  })
+
+  it('ignores requested urls that were never cited', () => {
+    const out = pickCitationsForUrls([cite('a.com/1')], ['a.com/1', 'never.com/x'])
+    expect(out.map((c) => c.urlKey)).toEqual(['a.com/1'])
+  })
+
+  it('dedupes repeated urlKeys so a duplicated page cannot double-count', () => {
+    const out = pickCitationsForUrls(
+      [cite('a.com/1', ['ChatGPT']), cite('a.com/1', ['Google'])],
+      ['a.com/1'],
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].engines.sort()).toEqual(['ChatGPT', 'Google'])
+  })
+})
+
+// ── FB-069 review, finding 3: exhaustion must be distinguishable from "done" ──
+describe('fetchAllPages truncation signal', () => {
+  it('warns when it stops because it ran out of pages, not out of data', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await fetchAllPages(async () => ({ rows: [1, 2] }), { pageSize: 2, maxPages: 2, label: 'unit test' })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0][0])).toContain('TRUNCATED')
+    expect(String(warn.mock.calls[0][0])).toContain('unit test')
+    warn.mockRestore()
+  })
+
+  it('stays silent when the source genuinely runs out', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await fetchAllPages(async () => ({ rows: [1] }), { pageSize: 2, maxPages: 5 })
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
+// ── Review #10: a complete walk vs a gapped one ──────────────────────────────
+// "0 overlapping URLs between page 0 and page 1" proves offset is honoured. It
+// does NOT prove the union of the pages is the whole set: with a tie-heavy sort
+// and no explicit order_by, a reorder between requests can move a row past the
+// page boundary so it is never returned. Peec reports totalCount, so compare.
+describe('fetchAllPages completeness check', () => {
+  it('warns when fewer rows came back than the source said existed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = await fetchAllPages(
+      async (offset) => (offset === 0 ? { rows: [1, 2], totalCount: 5 } : { rows: [3] }),
+      { pageSize: 2, maxPages: 10, label: 'gapped walk' },
+    )
+    expect(out).toHaveLength(3)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0][0])).toContain('INCOMPLETE')
+    expect(String(warn.mock.calls[0][0])).toContain('gapped walk')
+    warn.mockRestore()
+  })
+
+  it('stays silent when the row count matches what the source reported', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await fetchAllPages(
+      async (offset) => (offset === 0 ? { rows: [1, 2], totalCount: 3 } : { rows: [3] }),
+      { pageSize: 2, maxPages: 10 },
+    )
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('stays silent when the source does not report a total', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await fetchAllPages(async () => ({ rows: [1] }), { pageSize: 2, maxPages: 5 })
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
+// ── Review #10, what actually works on this endpoint ─────────────────────────
+// /reports/urls returns no totalCount and rejects order_by on `url` (only
+// citation_count is accepted, which is the tie-heavy field in the first place).
+// So neither suggested fix can settle completeness directly. But a reorder that
+// pushes rows past a page boundary also pulls others backward, and THAT is
+// observable: within one complete walk every base row is a distinct URL, so any
+// repeated urlKey means the pagination shifted underneath us.
+describe('countDuplicateUrlKeys', () => {
+  const c = (urlKey: string) => ({ urlKey } as never)
+
+  it('is zero for a clean walk', () => {
+    expect(countDuplicateUrlKeys([c('a.com/1'), c('b.com/2'), c('c.com/3')])).toBe(0)
+  })
+
+  it('counts a row repeated across page boundaries', () => {
+    expect(countDuplicateUrlKeys([c('a.com/1'), c('b.com/2'), c('a.com/1')])).toBe(1)
+  })
+
+  it('counts every extra occurrence, not just the fact of duplication', () => {
+    expect(countDuplicateUrlKeys([c('a.com/1'), c('a.com/1'), c('a.com/1')])).toBe(2)
+  })
+
+  it('is zero for an empty set', () => {
+    expect(countDuplicateUrlKeys([])).toBe(0)
   })
 })
