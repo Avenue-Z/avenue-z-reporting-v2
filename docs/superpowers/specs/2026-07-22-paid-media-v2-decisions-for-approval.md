@@ -1,140 +1,153 @@
 # Decisions for Approval: Paid Media
 
-Covering the six changes you asked for: the Overview subpage, Total Leads rows,
-the keyword table filter, Cost / LPV, Spend formatting, and the LinkedIn check.
+Six decisions, each with what we'll do by default. **Silence means we proceed as
+written**, so you only need to reply where you disagree or where we say there's no
+default. Decisions are lettered so they don't get confused with your numbered
+requirements.
 
-**If you disagree with any item, or it's not what you expected, flag it now.**
-Anything marked ⚠️ is a choice you might not expect.
+Requirements 3 (keyword filter) and 5 (Spend formatting) are settled and need
+nothing from you. They're in the assumptions list at the end.
 
----
-
-## ⚠️ 1. Meta doesn't report leads at all
-
-Paid Search and LinkedIn report all four agreed metrics. Meta reports Spend and
-Clicks only. It sends no lead or conversion data, and nothing records which Meta
-action should count as a lead, so "use the leads event" isn't a matter of picking
-the right one. There isn't one connected.
-
-Three options: set Meta up like Paid Search, where each client has a named list
-of lead actions, most consistent but someone must specify them per client; pick
-one Meta action for every client, fastest but assumes everyone optimises the same
-way; or ship the Overview with Meta showing no lead figure.
-
-*→ Which of the three? This decides whether the Overview can be built as
-specified.*
+**Who we need answers from:** Greg on A and B, Amir on C and D, Dianna on E and F.
 
 ---
 
-## ⚠️ 2. "Leads" and "Clicks" are counted differently on each channel
+## Already fixing, no action needed
 
-Reconciliation came back as "I can't think of anything that would be different."
-Two things are.
+**Cost / LPV has been showing $0.** Greg confirmed the formula, spend divided by
+landing page views, and that part is right. The display rounds to whole dollars,
+and cost per landing page view is usually well under a dollar, so a real cost of
+42 cents showed as $0. CPM and CPC sit beside it and both show cents correctly.
+This is live now, so anyone who looked at that number saw a wrong one. We're
+shipping the fix first, ahead of everything else.
 
-**Clicks.** Meta counts link clicks only, the other two count all clicks. Added
+---
+
+## ⚠️ A. Meta sends us no lead data, so we need to know which action counts
+
+Of the four metrics agreed for the Overview, Meta only has two. It reports Spend
+and Clicks, but sends no lead or conversion data at all, and nothing on our side
+records which Meta action should count as a lead. So "use the leads event" isn't a
+matter of picking the right one. There isn't one connected.
+
+For context on how the other two behave: on Paid Search a lead is one of the eight
+form-fill actions configured for Renaissance. On LinkedIn it's only a native lead
+form submission, so someone who clicks through and converts on the website isn't
+counted.
+
+**There is no default here.** The Overview cannot show Leads or Cost per lead
+until this is answered.
+
+*→ Greg: which Meta action counts as a lead, and is it the same action for every
+client or does it vary?*
+
+---
+
+## ⚠️ B. "Clicks" doesn't mean the same thing on Meta
+
+Meta counts link clicks only. Paid Search and LinkedIn count all clicks. Added
 together that's one number holding two definitions, and Meta's share looks
 artificially low.
 
-**Leads.** On Paid Search a lead is one of the eight form-fill actions configured
-for Renaissance. On LinkedIn it's only a native lead form submission, so someone
-who clicks through and converts on the website isn't counted.
+**Default: we switch Meta to all clicks so the three match.**
 
-*→ Switch Meta to all clicks so the three match, or keep link clicks and label
-the column? And is adding the two lead types together fine for a top-line view?*
+*→ Greg: confirm, or say if you'd rather keep link clicks and have the column
+labeled that way.*
 
 ---
 
-## ⚠️ 3. Cost / LPV has been showing $0
+## C. What a total does when a channel is missing
 
-Greg confirmed the formula, spend divided by landing page views. That part is
-right. The display isn't.
+Renaissance is the only client with all three channels connected, so a missing
+channel is the normal case rather than an edge case. Dianna's guidance covers the
+calculated metrics: if a broken figure feeds a calculation, show the result as
+unavailable rather than risk a wrong number reaching a client. That settles Cost
+per lead. It doesn't settle what a Spend or Clicks total does.
 
-It rounds to whole dollars, and cost per landing page view is usually well under
-a dollar, so a real cost of 42 cents shows as $0. CPM and CPC sit beside it and
-both show cents correctly. This is live now, so anyone who looked at that number
-saw a wrong one.
+Clients without Paid Media enabled won't see the section at all, same as today.
 
-*→ Confirm it should show cents, and we'll ship the fix on its own ahead of
-everything else.*
+**Default: totals cover the channels we do have, and name the ones missing.**
 
----
-
-## ⚠️ 4. Only Renaissance has all three channels set up
-
-The other six clients have none connected, so for most clients an Overview would
-open empty. A missing channel is the normal case, not an edge case.
-
-Dianna's guidance covers half of it: if a broken figure feeds a calculation, show
-the result as unavailable rather than risk a wrong number reaching a client. That
-settles Cost per lead, but not what a Spend total does when a channel is missing
-entirely.
-
-*→ Should totals leave a missing channel out and say so, or should the whole
-Overview show as unavailable? And should it appear at all for clients with no
-paid media?*
+*→ Amir: confirm, or say if a missing channel should make the whole total show as
+unavailable.*
 
 ---
 
-## ⚠️ 5. The region total will only cover the 10 rows shown
+## D. The region total covers only the 10 rows shown
 
-The table shows the top 10 regions, while the card directly above shows the true
-count of every region with activity. Whenever that count is above 10, a total
-summing the table sits right under a card saying there are more.
+The Region to DMA table shows the top 10 regions, while the card directly above
+shows the true count of every region with activity. Whenever that count is above
+10, a total summing the table sits right under a card saying there are more.
 
-We can total the 10 shown, total every region, or show both, for example "1,240
-across top 10 of 34 regions". Separately, if one lead can be attributed to more
-than one metro area, summing the rows double-counts it. That can't happen on
-Leads by Action, but it can here.
+- **A.** Total just the 10 shown.
+- **B.** Total every region, including those not displayed.
+- **C.** Show both, for example "1,240 across top 10 of 34 regions".
 
-*→ Which of the three? And plain sum, or does it need to avoid double-counting?*
+**Default: C.**
 
----
-
-## 6. The Overview becomes the page Paid Media opens on
-
-Today Paid Media opens on Paid Search. Adding an Overview the way the other
-sections work makes Overview the landing page, with Paid Search becoming a tab.
-That matches AEO and Web Analytics, but changes where existing links and
-bookmarks land.
-
-*→ Confirm Overview should be the default, or say if Paid Search stays.*
+*→ Amir: reply A, B or C.*
 
 ---
 
-## 7. Totals on every Paid Search table, or only the two you named
+## E. The keyword table has a filter and now also needs a total
 
-The request named two tables. Amir's note widened it to "this and all tables on
-the Paid Search reporting tab", which also covers the campaign and keyword tables
-and roughly doubles the work. Not a problem, we'd rather confirm than guess.
+Your note widened totals to every table on the Paid Search tab. The keyword table
+is the one that also carries the 10-or-more-clicks filter, so its total can either
+reflect what's on screen or every keyword behind the filter.
 
-*→ All four tables, or only Leads by Action and Region to DMA?*
+**Default: the total reflects what's on screen, so it changes when the filter
+changes.**
 
----
-
-## ⚠️ 8. We can't look at LinkedIn without knowing what went wrong
-
-No symptom was recorded, so there's nothing specific to chase. We've read
-LinkedIn's setup against Meta's and found two small differences, neither of which
-obviously explains a fault, and we can't call the LinkedIn data source from a
-developer machine to reproduce anything blind.
-
-*→ What was seen, and roughly when? A screenshot or a date range is enough. This
-is the only item we can't estimate.*
+*→ Amir: confirm, or say if it should always total every keyword.*
 
 ---
 
-## 9. Smaller assumptions, flag any you'd expect differently
+## F. The Overview needs a commentary owner
 
+Paid Search, Meta and LinkedIn each have a commentary box, assigned to Amir and
+Greg. The Overview would be a fourth, and nobody owns it. Getting this wrong also
+risks existing Paid Search commentary showing on the wrong page, so we'd rather
+settle it now than discover it later.
+
+**Default: the Overview gets no commentary box.**
+
+*→ Dianna: name an owner, or confirm no box.*
+
+---
+
+## Need from you: LinkedIn
+
+The request was to take a look for API issues, which reads as a precaution rather
+than a reported fault. We've read LinkedIn's setup against Meta's and found two
+small differences, neither of which obviously explains a problem.
+
+If anyone has seen LinkedIn misbehave, send the date range and what you saw and
+we'll chase it. If nobody has, we'll run our own pass and report back, and you
+don't need to do anything.
+
+---
+
+## Assumptions, correct by exception
+
+- ⚠️ Paid Media will open on the Overview rather than Paid Search, matching AEO and
+  Web Analytics. **Existing links and bookmarks to Paid Media will land on the
+  Overview instead.**
+- All four Paid Search tables get a total, per Amir's note. The campaign table
+  already has one, so this adds three.
+- The Region to DMA total is a plain sum. If one lead can be attributed to more
+  than one metro area it would be counted twice. We can't check that without the
+  live data, so tell us if you know it can happen.
 - The keyword table opens filtered to 10 or more clicks, and the viewer can clear
   or change it rather than it being locked.
 - If nothing reaches 10 clicks we show a short message, rather than Amir's
   50-impressions fallback. He left this to us and called the case unlikely.
-- Cost / LPV keeps using Meta's own figure rather than us dividing spend by
-  landing page views. These normally agree, and Meta's accounts for its own
-  attribution window.
-- Spend on the Top Regions chart shows cents. The card above it stays in whole
-  dollars, so the two differ in precision on one screen.
-- The Overview gets its own commentary box, which needs an owner, since Paid
-  Search, Meta and LinkedIn are assigned to Amir and Greg.
+- Cost / LPV keeps using Meta's own figure rather than us dividing spend by landing
+  page views. These normally agree. We haven't been able to compare them against a
+  live account yet, and will flag it if they diverge.
+- Spend on the Top Regions chart shows cents, while the card above it stays in
+  whole dollars, so the same figure appears at two precisions on one screen.
+- The rollup shows both a combined top line and a per-channel breakdown, as all
+  three of you preferred.
 - All of this applies to both the internal view and the client portal.
 
 *→ Any of these not what you'd expect?*
