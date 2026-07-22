@@ -11,8 +11,9 @@ Dianna asked whether we had anything specific in mind on metric definitions. Yes
 two things, and they're A and B below.
 
 Requirement 3's keyword filter and Requirement 5's Spend formatting are settled and
-sit in the assumptions at the end. E below is about a *total* on the keyword table,
-which is new and comes out of Requirement 2.
+sit in the assumptions at the end. Requirement 6, the LinkedIn check, has been
+handled separately and needs nothing here. E below is about a *total* on the
+keyword table, which is new and comes out of Requirement 2.
 
 ---
 
@@ -121,18 +122,6 @@ settle it now than discover it later.
 **Default: the Overview gets no commentary box.**
 
 *→ Dianna: name an owner, or confirm no box.*
-
----
-
-## Need from you: LinkedIn
-
-The request was to take a look for API issues, which reads as a precaution rather
-than a reported fault. We've read LinkedIn's setup against Meta's and found two
-small differences, neither of which obviously explains a problem.
-
-If anyone has seen LinkedIn misbehave, send the date range and what you saw and
-we'll chase it. If nobody has, we'll run our own pass and report back, and you
-don't need to do anything.
 
 ---
 
