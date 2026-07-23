@@ -29,6 +29,14 @@ export const CHANNEL_LABEL: Record<DashChannel, string> = {
   LINKEDIN: 'LinkedIn',
 }
 
+/** Resolve the reportable Dash channels, honoring an optional lowercase allowlist.
+ *  Absent/empty ⇒ all four. Order always follows CHANNELS. */
+export function resolveChannels(allowlist?: string[] | null): DashChannel[] {
+  if (!allowlist?.length) return [...CHANNELS]
+  const up = allowlist.map((c) => c.toUpperCase())
+  return CHANNELS.filter((c) => up.includes(c))
+}
+
 export interface ChannelMetricMap {
   followers: string
   netNewFollowers: string
