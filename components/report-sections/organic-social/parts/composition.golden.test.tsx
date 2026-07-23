@@ -22,7 +22,8 @@ test('Overview composition resolves to the three parts in order', () => {
   expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'engagement-trend', 'top-content'])
   const nodes = resolved.map((r) => lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)?.render(FIXTURE_ORGANIC_SOCIAL_CTX, r))
   const { container } = render(<>{nodes}</>)
-  expect(container.firstChild).toMatchSnapshot()
+  // Snapshot the whole container (all three skeletons), not just firstChild.
+  expect(container).toMatchSnapshot()
 })
 
 test('Platform composition resolves the same three parts (follower-graph arrives in M3)', () => {
@@ -31,5 +32,6 @@ test('Platform composition resolves the same three parts (follower-graph arrives
   expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'engagement-trend', 'top-content'])
   const nodes = resolved.map((r) => lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)?.render(ctx, r))
   const { container } = render(<>{nodes}</>)
-  expect(container.firstChild).toMatchSnapshot()
+  // Snapshot the whole container (all three skeletons), not just firstChild.
+  expect(container).toMatchSnapshot()
 })

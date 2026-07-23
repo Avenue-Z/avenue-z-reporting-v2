@@ -21,6 +21,14 @@ test('unknown entries are ignored', () => {
   expect(resolveChannels(['tiktok', 'twitter'])).toEqual(['TWITTER'])
 })
 
+// Documents intended behavior (review finding #3): a non-empty allowlist that matches NO
+// supported channel collapses to [] — NOT a silent fallback to all four. `[]` is the honest
+// answer to "report only these (unsupported) channels"; the safeguard against a typo'd config
+// is validation at config-write time, not masking it here. Inert today (no client sets `channels`).
+test('an all-unknown allowlist collapses to [] (not a fallback to all four)', () => {
+  expect(resolveChannels(['tiktok', 'myspace'])).toEqual([])
+})
+
 test('scoped view rethrows a channel error', () => {
   const err = new Error('Dash 500')
   expect(() => onChannelError(err, /* scoped */ true)).toThrow('Dash 500')
