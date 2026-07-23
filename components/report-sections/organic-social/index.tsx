@@ -1,13 +1,11 @@
 import { Suspense } from 'react'
-import { SHOW_AI_NARRATIVE } from '@/lib/constants'
 import { getPlatformHeadlines } from '@/lib/organic-social/headlines'
 import { getEngagementTrend } from '@/lib/organic-social/trends'
 import { getTopContent } from '@/lib/organic-social/top-content'
 import { PlatformHeadlines } from './platform-headlines'
 import { EngagementTrend } from './trends'
 import { TopContent } from './top-content'
-import { OrganicSocialSynopsis } from './synopsis'
-import { SynopsisSkeleton, HeadlinesSkeleton, TrendSkeleton, TopContentSkeleton } from './skeletons'
+import { HeadlinesSkeleton, TrendSkeleton, TopContentSkeleton } from './skeletons'
 import { DashTimeoutError } from '@/lib/dash-social/client'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
@@ -46,11 +44,6 @@ export function OrganicSocialReport({
   return (
     <div className="space-y-8">
       <SharedPartsHeader viewKey="organic-social" clientSlug={clientSlug} />
-      {SHOW_AI_NARRATIVE && (
-        <Suspense fallback={<SynopsisSkeleton />}>
-          <OrganicSocialSynopsis clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-        </Suspense>
-      )}
       <Suspense fallback={<HeadlinesSkeleton />}>
         <HeadlinesSection clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       </Suspense>

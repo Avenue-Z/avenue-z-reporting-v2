@@ -1,28 +1,6 @@
-import { Sparkles } from 'lucide-react'
-
 const Pulse = ({ className }: { className: string }) => (
   <div className={`animate-pulse rounded bg-white/[0.06] ${className}`} />
 )
-
-/** Mirrors synopsis.tsx — green Sparkles header + pulsing text lines. */
-export function SynopsisSkeleton() {
-  return (
-    <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
-      <header className="mb-4 flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#60FF80]/10">
-          <Sparkles className="h-4 w-4 text-[#60FF80]" />
-        </span>
-        <h3 className="text-sm font-bold uppercase tracking-widest text-text-muted">Executive Synopsis</h3>
-      </header>
-      <div className="space-y-3">
-        <Pulse className="h-4 w-full" />
-        <Pulse className="h-4 w-[94%]" />
-        <Pulse className="h-4 w-[88%]" />
-        <Pulse className="h-4 w-2/3" />
-      </div>
-    </section>
-  )
-}
 
 /** Mirrors platform-headlines.tsx — label + a 5-up KpiCard grid, shown twice. */
 export function HeadlinesSkeleton() {
