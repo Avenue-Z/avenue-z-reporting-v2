@@ -1,8 +1,7 @@
 import { expect, test, vi } from 'vitest'
 
-// index.tsx -> parts registry -> top-content display -> DataTable -> '@/auth' (next-auth's
-// `next/server` import breaks under Vitest's ESM resolver; real Next builds never hit this).
-vi.mock('@/auth', () => ({ auth: vi.fn() }))
+// @/auth is stubbed globally in vitest.setup.ts (index.tsx -> parts registry -> top-content
+// display -> DataTable -> next-auth landmine); no per-file @/auth mock needed here.
 vi.mock('@/lib/organic-social/headlines', () => import('./parts/__mocks__/headlines'))
 vi.mock('@/lib/organic-social/trends', () => import('./parts/__mocks__/trends'))
 vi.mock('@/lib/organic-social/top-content', () => import('./parts/__mocks__/top-content'))

@@ -1,12 +1,8 @@
 import { expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
 
-// The registry import below pulls in ALL THREE parts, including top-content, whose display
-// component chains through DataTable -> EditableText -> app/actions/dashboard -> '@/auth'.
-// Under Vitest's ESM resolver, next-auth's `next/server` import breaks (Next 16's
-// package.json has no `exports` map); real Next builds never hit this. Isolate from it.
-vi.mock('@/auth', () => ({ auth: vi.fn() }))
-
+// @/auth is stubbed globally in vitest.setup.ts (the registry import reaches the DataTable
+// display chain -> next-auth landmine); no per-file @/auth mock needed here.
 vi.mock('@/lib/organic-social/headlines', () => import('./__mocks__/headlines'))
 vi.mock('@/lib/organic-social/trends', () => import('./__mocks__/trends'))
 vi.mock('@/lib/organic-social/top-content', () => import('./__mocks__/top-content'))
