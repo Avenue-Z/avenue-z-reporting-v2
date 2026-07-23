@@ -8,8 +8,16 @@ import type { TrendSeries } from '@/lib/organic-social/types'
 
 const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
+// Canonical per-channel color — stable whether a channel is shown alone or with others.
+const CHANNEL_COLOR: Record<string, string> = {
+  Instagram: PALETTE[0],
+  Facebook: PALETTE[1],
+  X: PALETTE[2],
+  LinkedIn: PALETTE[3],
+}
+const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
+
 function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
-  const colorFor = (channel: string) => PALETTE[series.channels.indexOf(channel) % PALETTE.length]
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
 
   const toggle = (channel: string) =>
