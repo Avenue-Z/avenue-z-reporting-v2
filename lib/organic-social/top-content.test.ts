@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from 'vitest'
-import { transformTopContent } from './top-content'
+import { transformTopContent, groupByPlatform } from './top-content'
 import type { MediaV2Response } from '@/lib/dash-social/types'
+import type { DashChannel } from './metrics'
+import type { TopContentRow } from './types'
 
 const fixture = JSON.parse(
   readFileSync(path.join(import.meta.dirname, '__fixtures__/media-v2.json'), 'utf8'),
@@ -40,4 +42,29 @@ test('instagram permalink extracted', () => {
 
 test('url is string | null', () => {
   expect(rows.every((r) => r.url === null || typeof r.url === 'string')).toBe(true)
+})
+
+const row = (platform: string, engagements: number): TopContentRow => ({
+  id: engagements, caption: '', platform, sourceType: 'organic',
+  publishDate: '2026-07-01', views: 0, engagements, url: null,
+})
+
+test('groupByPlatform: allowed=[TWITTER] yields the "X" group (label-space bridge)', () => {
+  const rows = [row('Instagram', 5), row('X', 9)]
+  const groups = groupByPlatform(rows, 25, ['TWITTER'] as DashChannel[])
+  expect(groups.map((g) => g.platform)).toEqual(['X'])
+  expect(groups[0].rows).toHaveLength(1)
+})
+
+test('groupByPlatform: allowed=[INSTAGRAM] keeps INSTAGRAM_STORY folded to Instagram', () => {
+  // transformTopContent maps INSTAGRAM_STORY.source → displayChannel → 'Instagram'
+  const rows = [row('Instagram', 3), row('Facebook', 4)]
+  const groups = groupByPlatform(rows, 25, ['INSTAGRAM'] as DashChannel[])
+  expect(groups.map((g) => g.platform)).toEqual(['Instagram'])
+})
+
+test('groupByPlatform: all four allowed preserves CHANNELS order and still skips UPLOAD', () => {
+  const rows = [row('LinkedIn', 1), row('UPLOAD', 99), row('Instagram', 2)]
+  const groups = groupByPlatform(rows, 25, ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'] as DashChannel[])
+  expect(groups.map((g) => g.platform)).toEqual(['Instagram', 'LinkedIn'])
 })
