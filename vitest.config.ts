@@ -21,6 +21,7 @@ export default defineConfig({
       'lib/peec/url-citations.test.ts',
       'lib/ga4/format-speed.test.ts',
       'lib/organic-social/**/*.test.{ts,tsx}',
+      'lib/dash-social/**/*.test.{ts,tsx}',
       'app/actions/**/*.test.{ts,tsx}',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
