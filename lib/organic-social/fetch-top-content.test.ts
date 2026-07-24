@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { normalizePost, toTopContentRows } from './top-content'
-import type { DashContentPost, TopContentPost } from './content-types'
+import type { ContentResponse, DashContentPost, TopContentPost } from './content-types'
 
 // Named fixture post (spec 2 §3.1): reactions 2 + post_clicks 1 → total_engagements 3,
 // total_engagements_public 2. Dash's card displays 2 — we must read the *_public variant.
@@ -86,6 +87,19 @@ test('X reads `engagements`; caption from text, url from permalink_url', () => {
   expect(p.metrics.impressions).toBe(540)
   expect(p.caption).toBe('x post')
   expect(p.url).toBe('https://x.com/p/x')
+})
+
+test('normalizePost handles a UGC Instagram post from the captured fixture', () => {
+  const fixture = JSON.parse(
+    readFileSync('lib/organic-social/__fixtures__/content-instagram-ugc.json', 'utf8'),
+  ) as ContentResponse
+  const first = fixture.data.content[0]
+  const p = normalizePost(first, 'INSTAGRAM')
+  expect(p.channel).toBe('INSTAGRAM')
+  expect(p.platform).toBe('Instagram')
+  expect(p.id).toBe(first.id)
+  // UGC engagement is keyed under the same field as owned Instagram (engagements_public)
+  expect(p.metrics.engagements).toBeGreaterThan(0)
 })
 
 test('toTopContentRows maps normalized posts to the interim table rows', () => {

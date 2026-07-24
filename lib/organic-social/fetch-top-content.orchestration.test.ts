@@ -22,6 +22,9 @@ const SUB_KEY: Record<string, string> = { INSTAGRAM: 'instagram', FACEBOOK: 'fac
 const ENG_FIELD: Record<string, string> = { INSTAGRAM: 'engagements_public', FACEBOOK: 'total_engagements_public', LINKEDIN: 'engagements', TWITTER: 'engagements' }
 
 function contentRes(channel: string, engagements: number, id: number) {
+  // The Instagram-UGC surface is queried in addition to the owned channels; return no UGC
+  // posts by default so these owned-channel assertions stay deterministic.
+  if (channel === 'INSTAGRAM_UGC') return { data: { content: [] } }
   return { data: { content: [{ id, source: channel, type: 'IMAGE', [SUB_KEY[channel]]: { [ENG_FIELD[channel]]: engagements } }] } }
 }
 
@@ -31,8 +34,16 @@ test('Overview fans out to all channels and sorts across them by engagements des
   const ids: Record<string, number> = { INSTAGRAM: 1, FACEBOOK: 2, LINKEDIN: 3, TWITTER: 4 }
   getContent.mockImplementation(async (a: { channel: string }) => contentRes(a.channel, eng[a.channel], ids[a.channel]))
   const posts = await fetchTopContent('renaissance', 'june', null)
-  expect(getContent).toHaveBeenCalledTimes(4)
+  expect(getContent).toHaveBeenCalledTimes(5) // 4 owned channels + Instagram UGC
   expect(posts.map((p) => p.metrics.engagements)).toEqual([483, 13, 10, 5]) // cross-channel sort desc
+})
+
+test('Overview also queries the Instagram-UGC surface with a UGC metric', async () => {
+  getContent.mockReset()
+  getContent.mockImplementation(async (a: { channel: string }) => contentRes(a.channel, 1, 1))
+  await fetchTopContent('renaissance', 'june', null)
+  const ugcCall = getContent.mock.calls.find((c) => c[0]?.channel === 'INSTAGRAM_UGC')
+  expect(ugcCall?.[0]).toMatchObject({ channel: 'INSTAGRAM_UGC', metric: 'UGC_TOTAL_ENGAGEMENTS', limit: 500 })
 })
 
 test('Overview drops a channel whose getContent throws (returns [])', async () => {
