@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { DataTable } from '@/components/charts/data-table'
 import { num } from '@/lib/supermetrics/format'
 import { cn } from '@/lib/utils'
+import { DesignationToggle } from './designation-toggle'
 import type { PlatformTopContent, TopContentRow } from '@/lib/organic-social/types'
 
 type SortBy = 'engagements' | 'views'
@@ -20,8 +21,9 @@ const columns = [
   { key: 'views', label: 'Views / Impr.', align: 'right' as const, sortable: true, sortKey: 'viewsRaw' },
   { key: 'engagements', label: 'Engagements', align: 'right' as const, sortable: true, sortKey: 'engagementsRaw' },
 ]
+const designationColumn = { key: 'designation', label: '' }
 
-function top5(rows: TopContentRow[], sortBy: SortBy) {
+function top5(rows: TopContentRow[], sortBy: SortBy, canEdit: boolean, clientSlug?: string) {
   return [...rows]
     .sort((a, b) => b[sortBy] - a[sortBy])
     .slice(0, 5)
@@ -35,11 +37,19 @@ function top5(rows: TopContentRow[], sortBy: SortBy) {
       publishDate: r.publishDate,
       views: num(r.views), viewsRaw: r.views,
       engagements: num(r.engagements), engagementsRaw: r.engagements,
+      ...(canEdit && clientSlug
+        ? { designation: <DesignationToggle clientSlug={clientSlug} postId={r.id} value={r.sourceType} /> }
+        : {}),
     }))
 }
 
-export function TopContent({ groups }: { groups: PlatformTopContent[] }) {
+/** `canEdit` + `clientSlug` (internal staff, top-content@2) add a per-row Organic/Influencer
+ *  toggle column. Omitted (the V1 path) → the table renders exactly as before. */
+export function TopContent({ groups, canEdit = false, clientSlug }: {
+  groups: PlatformTopContent[]; canEdit?: boolean; clientSlug?: string
+}) {
   const [sortBy, setSortBy] = useState<SortBy>('engagements')
+  const cols = canEdit ? [...columns, designationColumn] : columns
 
   return (
     <section className="space-y-6">
@@ -69,7 +79,7 @@ export function TopContent({ groups }: { groups: PlatformTopContent[] }) {
           {/* key on sortBy: DataTable seeds its sort state from defaultSort only
               on mount, so remount it when the metric toggles to re-sort the table
               by the clicked column. */}
-          <DataTable key={sortBy} columns={columns} rows={top5(g.rows, sortBy)} defaultSort={{ key: sortBy, dir: 'desc' }} />
+          <DataTable key={sortBy} columns={cols} rows={top5(g.rows, sortBy, canEdit, clientSlug)} defaultSort={{ key: sortBy, dir: 'desc' }} />
         </div>
       ))}
     </section>
