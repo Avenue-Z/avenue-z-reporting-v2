@@ -1,4 +1,5 @@
 // lib/organic-social/base.ts
+import { cache } from 'react'
 import { DashSocialClient } from '@/lib/dash-social/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
@@ -17,14 +18,18 @@ export function displayChannel(source: string): string {
   return CHANNEL_DISPLAY[prefix] ?? source
 }
 
-export async function dashClientFor(slug: string): Promise<{ client: DashSocialClient; brandId: number; channels: DashChannel[] }> {
-  const c = await getClientBySlug(slug)
-  const cfg = c?.dashSocialConfig
-  if (!cfg) throw new Error(`dash_social_config missing for ${slug}`)
-  const token = process.env.DASH_API_TOKEN
-  if (!token) throw new Error('Missing env var DASH_API_TOKEN')
-  return { client: new DashSocialClient({ token }), brandId: cfg.brandId, channels: resolveChannels(cfg.channels) }
-}
+/** React.cache-wrapped for per-render dedup (matches getClientBySlug) — callers that need
+ *  both the client and the channel list (e.g. getTopContent) resolve it once, not twice. */
+export const dashClientFor = cache(
+  async (slug: string): Promise<{ client: DashSocialClient; brandId: number; channels: DashChannel[] }> => {
+    const c = await getClientBySlug(slug)
+    const cfg = c?.dashSocialConfig
+    if (!cfg) throw new Error(`dash_social_config missing for ${slug}`)
+    const token = process.env.DASH_API_TOKEN
+    if (!token) throw new Error('Missing env var DASH_API_TOKEN')
+    return { client: new DashSocialClient({ token }), brandId: cfg.brandId, channels: resolveChannels(cfg.channels) }
+  },
+)
 
 /** Plain reporting window (yyyy-mm-dd) — used by the library media/v2 endpoint. */
 export function isoRange(dateRange: string): { start: string; end: string } {
