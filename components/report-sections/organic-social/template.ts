@@ -5,7 +5,7 @@ export const ORGANIC_SOCIAL_TEMPLATE: SectionTemplate = {
   order: [
     { id: 'platform-headlines', version: 1 },
     { id: 'engagement-trend', version: 1 },
-    { id: 'top-content', version: 1 },
+    { id: 'top-content', version: 2 },
   ],
   labels: {},
   thresholds: {},
@@ -17,7 +17,7 @@ export const ORGANIC_SOCIAL_PLATFORM_TEMPLATE: SectionTemplate = {
   order: [
     { id: 'platform-headlines', version: 1 },
     { id: 'engagement-trend', version: 1 },
-    { id: 'top-content', version: 1 },
+    { id: 'top-content', version: 2 },
   ],
   labels: {},
   thresholds: {},

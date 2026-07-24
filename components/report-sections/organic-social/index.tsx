@@ -1,3 +1,4 @@
+import { auth } from '@/auth'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { resolveSection } from '@/lib/report-sections/resolve'
 import { lookup } from '@/lib/report-sections/registry'
@@ -16,7 +17,11 @@ export async function OrganicSocialReport({
   compareRange?: string | null
   channel?: DashChannel | null
 }) {
-  const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel })
+  // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively:
+  // a failed session lookup must not blank the section, so fall back to a client role (no edit).
+  let role: string | undefined
+  try { role = (await auth())?.user?.role } catch { role = undefined }
+  const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, role })
   const key = ctx.channel ? 'organic-social:platform' : 'organic-social'
   // Resolve the composition defensively. The template/config lookup is a dependency the
   // three data sections don't otherwise need; a DB hiccup here must NOT blank the whole
