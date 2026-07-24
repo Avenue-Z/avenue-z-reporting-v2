@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
@@ -276,6 +276,27 @@ export const reportCommentary = pgTable('report_commentary', {
     sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`,
   ),
 }))
+
+export const postDesignationEnum = pgEnum('post_designation', ['organic', 'influencer'])
+
+// One row per (client, Dash post id). Absence = never manually designated (lets the
+// #ad suggestion apply); a stored row always wins, including a stored 'organic' that
+// overrides an #ad suggestion. post_id is Dash's own id — stable and unique in the
+// CONTENT payload. Mirrors report_commentary's shape/indexing.
+export const postDesignations = pgTable('post_designations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  postId: bigint('post_id', { mode: 'number' }).notNull(),
+  designation: postDesignationEnum('designation').notNull(),
+  setBy: text('set_by').notNull(),          // email
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientPostUnique: unique('post_designations_client_post_key').on(table.clientId, table.postId),
+  clientIdx: index('post_designations_client_idx').on(table.clientId),
+}))
+
+export type PostDesignation = typeof postDesignations.$inferSelect
+export type NewPostDesignation = typeof postDesignations.$inferInsert
 
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert
