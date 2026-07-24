@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { normalizePost } from './top-content'
-import type { DashContentPost } from './content-types'
+import { normalizePost, toTopContentRows } from './top-content'
+import type { DashContentPost, TopContentPost } from './content-types'
 
 // Named fixture post (spec 2 §3.1): reactions 2 + post_clicks 1 → total_engagements 3,
 // total_engagements_public 2. Dash's card displays 2 — we must read the *_public variant.
@@ -47,4 +47,12 @@ test('Instagram carousel keeps its CAROUSEL media type and single record', () =>
   expect(p.mediaType).toBe('CAROUSEL')
   expect(p.mediaGroup).toBe(42)
   expect(p.metrics.engagements).toBe(12)
+})
+
+test('toTopContentRows maps normalized posts to the interim table rows', () => {
+  const posts: TopContentPost[] = [
+    { id: 1, channel: 'INSTAGRAM', platform: 'Instagram', publishedAt: '2026-06-01', caption: 'a', url: null, mediaType: 'IMAGE', mediaGroup: null, creative: null, metrics: { effectiveness: 10, engagementRate: 0.03, engagements: 50 }, sourceType: 'organic' },
+  ]
+  const rows = toTopContentRows(posts)
+  expect(rows[0]).toMatchObject({ id: 1, platform: 'Instagram', engagements: 50, sourceType: 'organic', publishDate: '2026-06-01' })
 })

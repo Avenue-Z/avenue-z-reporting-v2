@@ -145,15 +145,29 @@ export async function fetchTopContent(
   return perChannel.flat().sort((a, b) => b.metrics.engagements - a.metrics.engagements)
 }
 
+/** INTERIM (removed in S2-C when the card gallery lands): normalized posts → the current
+ *  table's row shape. `views` is not part of the final metric set (requirements Change 3
+ *  drops it); the interim table ranks by engagements. */
+export function toTopContentRows(posts: TopContentPost[]): TopContentRow[] {
+  return posts.map((p) => ({
+    id: p.id,
+    caption: p.caption,
+    platform: p.platform,
+    sourceType: p.sourceType,
+    publishDate: p.publishedAt,
+    views: 0,
+    engagements: p.metrics.engagements,
+    url: p.url,
+  }))
+}
+
 export const getTopContent = cache(async (
   slug: string,
   dateRange: string,
   channel: DashChannel | null = null,
 ): Promise<PlatformTopContent[]> => {
-  const { client, brandId, channels } = await dashClientFor(slug)
+  const posts = await fetchTopContent(slug, dateRange, channel)
+  const { channels } = await dashClientFor(slug)
   const allowed = resolveTargets(channels, channel)
-  const { start, end } = isoRange(dateRange)
-  // The media/v2 request is unchanged (the endpoint has no channel param); only the transform is scoped.
-  const res = await client.getMedia({ brandId, startDate: start, endDate: end, limit: 100 })
-  return groupByPlatform(transformTopContent(res), 25, allowed)
+  return groupByPlatform(toTopContentRows(posts), 25, allowed)
 })
