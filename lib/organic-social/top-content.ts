@@ -145,7 +145,24 @@ export async function fetchTopContent(
       }
     }),
   )
-  return perChannel.flat().sort((a, b) => b.metrics.engagements - a.metrics.engagements)
+  // Instagram influencer posts are UGC — absent from CONTENT (OWNED only). Pull them via
+  // the INSTAGRAM_UGC surface with a UGC_*-prefixed metric (spec 2 §4.5). Instagram ONLY:
+  // FACEBOOK_UGC / LINKEDIN_UGC 400. Engagement is keyed under engagements_public, the same
+  // as owned Instagram (confirmed via live UGC probe), so normalizePost(_, 'INSTAGRAM') works.
+  const wantsInstagram = targets.includes('INSTAGRAM')
+  let ugc: TopContentPost[] = []
+  if (wantsInstagram) {
+    try {
+      const res = await client.getContent({
+        brandId, channel: 'INSTAGRAM_UGC', metric: 'UGC_TOTAL_ENGAGEMENTS',
+        startDate: start, endDate: end, limit: 500,
+      })
+      ugc = (res.data?.content ?? []).map((p) => normalizePost(p, 'INSTAGRAM'))
+    } catch (e) {
+      if (scoped) throw e // scoped Instagram view surfaces the error
+    }
+  }
+  return [...perChannel.flat(), ...ugc].sort((a, b) => b.metrics.engagements - a.metrics.engagements)
 }
 
 /** INTERIM (removed in S2-C when the card gallery lands): normalized posts → the current
