@@ -227,3 +227,25 @@ An independent review pass plus a **live CONTENT probe** (brand 26952, window
 - **Still blocks merge:** the live A5 `/verify` — now especially confirming LinkedIn/X show real
   non-zero engagement and reconcile against Dash's card values (and whether X should use
   `engagements` vs `engagements_organic` when a post has paid).
+
+### Views / Impressions — kept, not dropped (owner decision, 2026-07-24)
+
+The interim `Views / Impr.` column read `0` (finding #1). On review of the source, **dropping
+Views was never a stakeholder decision** — Change 3 (requirements) asked only to *show the
+creative*, and Tina's note on the metric breakdown was *"a metric breakdown would be interesting,
+but show a proposal first."* The S2-C card's three-metric list (Effectiveness · Engagement Rate ·
+Engagements) was a **design proposal mirroring Dash's card**, which happens to omit impressions.
+Owner decision: **keep Views/Impressions.**
+
+- **Interim table — populated.** `TopContentPost.metrics` gains `impressions`; `normalizePost`
+  reads it per channel via `CONTENT_IMPRESSIONS_FIELD` (all four channels expose `impressions`;
+  kept as a per-channel map for future narrowing, e.g. FB `organic_impressions` / X
+  `impressions_organic`). `toTopContentRows` maps it to the row's `views`, so the column shows
+  real numbers. Per-channel tests added.
+- **Definition caveat.** Unlike engagements, **Dash's card shows no impressions figure**, so there
+  is no Dash-card value to reconcile against — A5 sanity-checks magnitude only. The exact
+  "impressions vs reach vs video-views" definition (and per-post-type behaviour) is a **proposal
+  for Tina**, not a matched number.
+- **S2-C follow-up (forward note — the S2-C design doc lives on the `docs/…-parts-spec` branch,
+  not this PR):** add **Impressions** to the S2-C card metric list and to the proposal Tina signs
+  off on, so the card carries Effectiveness · Engagement Rate · Engagements · **Impressions**.
