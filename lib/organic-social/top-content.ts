@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
-import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD } from './content-types'
+import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD, CONTENT_IMPRESSIONS_FIELD } from './content-types'
 import type { DashContentPost, TopContentPost } from './content-types'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
@@ -110,6 +110,7 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
       effectiveness: typeof effectivenessRaw === 'number' ? effectivenessRaw : null,
       engagementRate: typeof rateRaw === 'number' ? rateRaw : null,
       engagements: n(sub?.[CONTENT_ENGAGEMENT_FIELD[channel]]),
+      impressions: n(sub?.[CONTENT_IMPRESSIONS_FIELD[channel]]),
     },
     sourceType: 'organic',
   }
@@ -148,8 +149,8 @@ export async function fetchTopContent(
 }
 
 /** INTERIM (removed in S2-C when the card gallery lands): normalized posts → the current
- *  table's row shape. `views` is not part of the final metric set (requirements Change 3
- *  drops it); the interim table ranks by engagements. */
+ *  table's row shape. `views` carries per-channel impressions (CONTENT_IMPRESSIONS_FIELD);
+ *  the interim table ranks by engagements. */
 export function toTopContentRows(posts: TopContentPost[]): TopContentRow[] {
   return posts.map((p) => ({
     id: p.id,
@@ -157,7 +158,7 @@ export function toTopContentRows(posts: TopContentPost[]): TopContentRow[] {
     platform: p.platform,
     sourceType: p.sourceType,
     publishDate: p.publishedAt,
-    views: 0,
+    views: p.metrics.impressions,
     engagements: p.metrics.engagements,
     url: p.url,
   }))

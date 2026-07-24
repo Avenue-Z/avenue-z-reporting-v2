@@ -17,7 +17,7 @@ export interface TopContentPost {
   mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL'
   mediaGroup: number | null
   creative: null             // resolved in S2-C; always null in S2-A/S2-B
-  metrics: { effectiveness: number | null; engagementRate: number | null; engagements: number }
+  metrics: { effectiveness: number | null; engagementRate: number | null; engagements: number; impressions: number }
   sourceType: SourceType     // hardcoded 'organic' here; the designation table sets it in S2-B
 }
 
@@ -50,4 +50,21 @@ export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
   FACEBOOK: 'total_engagements_public',
   LINKEDIN: 'engagements',
   TWITTER: 'engagements',
+}
+
+/**
+ * The Views / Impressions field per channel on CONTENT. Confirmed present on all four in the
+ * same live probe: every channel exposes `impressions` (total impressions; ≈ organic for these
+ * organic-social accounts, which run little/no paid). Kept as a per-channel map — like
+ * CONTENT_ENGAGEMENT_FIELD — so it can be narrowed later (e.g. FB `organic_impressions`,
+ * X `impressions_organic`) without touching normalizePost. NOTE: Dash's own Top Performing
+ * Posts card does not display impressions, so there is no Dash-card value to reconcile against —
+ * A5 sanity-checks magnitude only, and the exact "views vs impressions vs reach" definition is a
+ * proposal for Tina (requirements Change 3 metric breakdown).
+ */
+export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
+  INSTAGRAM: 'impressions',
+  FACEBOOK: 'impressions',
+  LINKEDIN: 'impressions',
+  TWITTER: 'impressions',
 }
