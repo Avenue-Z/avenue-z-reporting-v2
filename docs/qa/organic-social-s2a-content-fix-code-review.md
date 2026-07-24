@@ -195,3 +195,35 @@ whether to prune now or when S2-B lands):
 - `transformTopContent` / `metricsFor`
   ([top-content.ts:20](../../lib/organic-social/top-content.ts#L20)) — now only reached by
   `top-content.test.ts`.
+
+---
+
+## §6 Post-review update (2026-07-24 — independent review + live probe)
+
+An independent review pass plus a **live CONTENT probe** (brand 26952, window
+2026-04-01..2026-07-24) resolved several items:
+
+- **NEW ● CONFIRMED → FIXED — per-channel engagement field.** The engagement value is keyed
+  under a **different field per channel** on CONTENT; only Facebook uses
+  `total_engagements_public`. Reading that key uniformly returned **0 for Instagram,
+  LinkedIn, and X** via `n()`'s falsy fallback — **live-confirmed** on the page (engagement
+  `0` everywhere except Facebook). This was the review's most-severe finding and was broader
+  than first flagged (Instagram too, not just LinkedIn/X). **Fixed** by
+  `CONTENT_ENGAGEMENT_FIELD` (`content-types.ts`) read per-channel in `normalizePost`: IG
+  `engagements_public`, FB `total_engagements_public`, LI/X `engagements`. Regression tests
+  added for IG (must ignore a stray `total_engagements_public`), LinkedIn, and X.
+  *(Supersedes the old finding #7: the field is now confirmed against live data, not synthetic.)*
+- **#1 Views column — RESOLVED as accept-and-note (owner decision).** The interim all-zero
+  Views column/toggle stays; S2-C removes the table. Documented here and on the PR; no code change.
+- **Test-coverage gap — CLOSED.** Added `fetch-top-content.orchestration.test.ts` (cross-channel
+  fan-out + sort, Overview drops a failing channel, scoped re-throw, scoped queries only its
+  channel with the right metric+limit) and the LinkedIn/X `normalizePost` tests above.
+- **Efficiency — FIXED.** `dashClientFor` is now `React.cache`-wrapped, so `getTopContent`
+  resolves the client/channels once, not twice.
+- **#2 engagement-RATE variant — still open, now known to be per-channel too.** The probe shows
+  `engagement_rate_public` exists on IG/FB but **not** LinkedIn/X (which expose `engagement_rate`).
+  Dormant in S2-A (rate isn't displayed). C1 must map the rate field **per channel**, not assume
+  one key. Recorded for A5 Step 4 / C1.
+- **Still blocks merge:** the live A5 `/verify` — now especially confirming LinkedIn/X show real
+  non-zero engagement and reconcile against Dash's card values (and whether X should use
+  `engagements` vs `engagements_organic` when a post has paid).
