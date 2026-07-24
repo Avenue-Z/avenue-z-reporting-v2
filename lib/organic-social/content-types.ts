@@ -78,3 +78,19 @@ export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
   LINKEDIN: 'impressions',
   TWITTER: 'impressions',
 }
+
+/**
+ * Engagement-RATE field per channel on CONTENT. Also per-channel (like engagement): Instagram
+ * exposes THREE (engagement_rate_public / _impressions / _views) and Facebook has
+ * engagement_rate_public, while LinkedIn and X expose only a plain `engagement_rate` (confirmed
+ * via the same live probe). ⚠️ GATE (spec 2 §3.2 / task C1): which Instagram variant matches
+ * Dash's own card is NOT yet visually confirmed — `_public` is the documented default here (for
+ * symmetry with the public engagement count), pending the A5/C1 Dash-UI comparison. If the card
+ * value differs, change only the INSTAGRAM entry.
+ */
+export const CONTENT_ENGAGEMENT_RATE_FIELD: Record<DashChannel, string> = {
+  INSTAGRAM: 'engagement_rate_public',
+  FACEBOOK: 'engagement_rate_public',
+  LINKEDIN: 'engagement_rate',
+  TWITTER: 'engagement_rate',
+}

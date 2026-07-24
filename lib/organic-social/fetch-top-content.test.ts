@@ -72,6 +72,7 @@ test('LinkedIn reads `engagements`; caption from caption, url from linkedin_link
   expect(p.platform).toBe('LinkedIn')
   expect(p.metrics.engagements).toBe(483)
   expect(p.metrics.impressions).toBe(9100)
+  expect(p.metrics.engagementRate).toBe(0.66) // LinkedIn: plain engagement_rate, not *_public
   expect(p.caption).toBe('li post')
   expect(p.url).toBe('https://linkedin.com/p/li')
 })
@@ -85,6 +86,7 @@ test('X reads `engagements`; caption from text, url from permalink_url', () => {
   expect(p.platform).toBe('X')
   expect(p.metrics.engagements).toBe(13)
   expect(p.metrics.impressions).toBe(540)
+  expect(p.metrics.engagementRate).toBe(0.9) // X: plain engagement_rate
   expect(p.caption).toBe('x post')
   expect(p.url).toBe('https://x.com/p/x')
 })
