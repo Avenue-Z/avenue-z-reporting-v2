@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNEL_LABEL, type DashChannel } from './metrics'
-import { CONTENT_METRIC } from './content-types'
+import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD } from './content-types'
 import type { DashContentPost, TopContentPost } from './content-types'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
@@ -84,10 +84,12 @@ function captionUrl(sub: Record<string, unknown> | null, channel: DashChannel): 
 
 const MEDIA_TYPES = new Set(['IMAGE', 'VIDEO', 'CAROUSEL'])
 
-/** Pure: one CONTENT item → the normalized model. Engagements = the *_public variant
- *  (findings §7.4). NOTE (spec 2 §3.2): the engagement-RATE variant is NOT VERIFIED —
- *  engagement_rate_public is a reasonable prior, confirmed against the Dash UI before
- *  S2-C's card ships (task C1), not defaulted silently. */
+/** Pure: one CONTENT item → the normalized model. Engagements read the channel's public/
+ *  organic engagement field (CONTENT_ENGAGEMENT_FIELD — different per channel; a uniform key
+ *  silently zeroed 3 of 4 channels). NOTE (spec 2 §3.2): the engagement-RATE variant is still
+ *  NOT VERIFIED and is per-channel too (engagement_rate_public exists on IG/FB but not LI/X);
+ *  it is dormant here (the interim table doesn't display rate) and is resolved before S2-C's
+ *  card ships (task C1), not defaulted silently. */
 export function normalizePost(post: DashContentPost, channel: DashChannel): TopContentPost {
   const sub = subObject(post, channel)
   const { caption, url } = captionUrl(sub, channel)
@@ -107,7 +109,7 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
     metrics: {
       effectiveness: typeof effectivenessRaw === 'number' ? effectivenessRaw : null,
       engagementRate: typeof rateRaw === 'number' ? rateRaw : null,
-      engagements: n(sub?.total_engagements_public),
+      engagements: n(sub?.[CONTENT_ENGAGEMENT_FIELD[channel]]),
     },
     sourceType: 'organic',
   }

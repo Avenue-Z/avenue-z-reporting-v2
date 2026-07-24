@@ -33,3 +33,21 @@ export const CONTENT_METRIC: Record<DashChannel, string> = {
   TWITTER: 'TOTAL_ENGAGEMENTS',
   LINKEDIN: 'ENGAGEMENTS_BY_POST',
 }
+
+/**
+ * The engagement value on a CONTENT post is keyed under a DIFFERENT field name per channel —
+ * only Facebook uses `total_engagements_public`. Confirmed via a live CONTENT probe
+ * (brand 26952, window 2026-04-01..2026-07-24, 2026-07-24):
+ *  - Instagram: `engagements_public`      (no `total_engagements_public` field exists)
+ *  - Facebook:  `total_engagements_public` (excludes post clicks; = card value)
+ *  - LinkedIn:  `engagements`             (no `*_public` variant is returned)
+ *  - X:         `engagements`             (= `engagements_organic` when no paid; excludes promoted-only via _organic)
+ * Reading a single uniform key silently returned 0 for Instagram/LinkedIn/X (the `n()` falsy
+ * fallback), which is the bug this map fixes. A5 reconciles each against Dash's card value.
+ */
+export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
+  INSTAGRAM: 'engagements_public',
+  FACEBOOK: 'total_engagements_public',
+  LINKEDIN: 'engagements',
+  TWITTER: 'engagements',
+}
