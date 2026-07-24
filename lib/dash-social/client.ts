@@ -3,7 +3,7 @@
  * Modeled on dash-social-connection/src/dashsocial/client.py.
  * One Bearer token works across all hosts; brand selected per call by brandId.
  */
-import type { ReportsDataParams, ReportsDataResponse, MediaV2Response } from './types'
+import type { ReportsDataParams, ReportsDataResponse, MediaV2Response, ContentResponse } from './types'
 export * from './types'
 
 const DASHBOARD = 'https://dashboard.dashsocial.com'
@@ -82,6 +82,7 @@ export class DashSocialClient {
     if (p.contextEndDate) q.set('context_end_date', p.contextEndDate)
     if (p.aggregateBy) q.set('aggregate_by', p.aggregateBy)
     if (p.requirePosts) q.set('require_posts', 'true')
+    if (p.limit != null) q.set('limit', String(p.limit))
     return this.request<ReportsDataResponse<M>>('GET', `${DASHBOARD}/reports/data?${q}`)
   }
 
@@ -89,5 +90,23 @@ export class DashSocialClient {
     return this.request<MediaV2Response>('PUT', `${LIBRARY}/brands/${p.brandId}/media/v2`, {
       start_date: p.startDate, end_date: p.endDate, limit: p.limit ?? 50,
     })
+  }
+
+  /** Top Content via /reports/data?report_type=CONTENT — server-side date filtering.
+   *  `limit` is MANDATORY (omitted ⇒ 6 posts). Never send aggregate_by (⇒ 0 items). */
+  getContent(p: {
+    brandId: number; channel: string; metric: string;
+    startDate: string; endDate: string; limit: number
+  }): Promise<ContentResponse> {
+    const q = new URLSearchParams({
+      brand_ids: String(p.brandId),
+      channels: p.channel,
+      metrics: p.metric,
+      report_type: 'CONTENT',
+      start_date: p.startDate,
+      end_date: p.endDate,
+      limit: String(p.limit),
+    })
+    return this.request<ContentResponse>('GET', `${DASHBOARD}/reports/data?${q}`)
   }
 }
