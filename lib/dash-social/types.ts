@@ -56,6 +56,13 @@ export interface DashContentPost {
   type: string               // 'IMAGE' | 'VIDEO' | 'CAROUSEL' | ...
   source_created_at?: string
   media_group?: number | null
+  // Creative lives at the POST TOP LEVEL (not the channel sub-object), confirmed via live
+  // probe: image.sizes.{medium_square,original,...}.url and video.sizes.{original}.url (.mp4)
+  // + video.thumbnails.*, on cdn.dashsocial.com / images.dashsocial.com. A carousel carries
+  // its cover frame under `image`. Read defensively in resolveCreative.
+  image?: Record<string, unknown> | null
+  video?: Record<string, unknown> | null
+  variants?: unknown
   instagram?: Record<string, unknown> | null
   facebook?: Record<string, unknown> | null
   linkedin?: Record<string, unknown> | null

@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
 import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD, CONTENT_IMPRESSIONS_FIELD } from './content-types'
+import { resolveCreative } from './creative'
 import type { DashContentPost, TopContentPost } from './content-types'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
@@ -105,7 +106,7 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
     url,
     mediaType,
     mediaGroup: post.media_group ?? null,
-    creative: null,
+    creative: resolveCreative(post, channel),
     metrics: {
       effectiveness: typeof effectivenessRaw === 'number' ? effectivenessRaw : null,
       engagementRate: typeof rateRaw === 'number' ? rateRaw : null,

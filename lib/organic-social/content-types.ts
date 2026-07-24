@@ -6,6 +6,11 @@ import type { SourceType } from './types'
 // layer has one import surface (./content-types) for everything CONTENT-related.
 export type { DashContentPost, ContentResponse } from '@/lib/dash-social/types'
 
+/** A renderable creative resolved from the post's top-level image/video (S2-C). */
+export type Creative =
+  | { kind: 'image'; thumb: string; full: string }
+  | { kind: 'video'; src: string; poster: string }
+
 /** The one normalized shape produced by fetchTopContent and consumed downstream. */
 export interface TopContentPost {
   id: number                 // Dash post id — stable, unique; the designation key (S2-B)
@@ -16,10 +21,15 @@ export interface TopContentPost {
   url: string | null
   mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL'
   mediaGroup: number | null
-  creative: null             // resolved in S2-C; always null in S2-A/S2-B
+  creative: Creative | null  // resolved by resolveCreative (S2-C); null only on genuine failure
   metrics: { effectiveness: number | null; engagementRate: number | null; engagements: number; impressions: number }
   sourceType: SourceType     // hardcoded 'organic' here; the designation table sets it in S2-B
 }
+
+/** The frozen Dash-sourced facts for one Top-Content card. Everything on TopContentPost
+ *  EXCEPT sourceType (that stays live — snapshot §4). creative holds CDN URLs, not bytes.
+ *  Defined here (not in snapshot.ts) so lib/db/schema.ts can $type it without a schema→feature cycle. */
+export type SnapshotPayload = Omit<TopContentPost, 'sourceType'>
 
 /**
  * CONTENT-valid engagement metric per channel. Traps (findings §6.1, spec 2 §2.4):
