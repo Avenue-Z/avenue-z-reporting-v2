@@ -41,12 +41,46 @@ test('Instagram carousel keeps its CAROUSEL media type and single record', () =>
   const igCarousel: DashContentPost = {
     id: 1, source: 'INSTAGRAM', type: 'CAROUSEL', source_created_at: '2026-06-15T00:00:00Z',
     media_group: 42,
-    instagram: { caption: 'swipe', url: 'https://instagram.com/p/1', total_engagements_public: 12, effectiveness: 30, engagement_rate_public: 0.05 },
+    instagram: { caption: 'swipe', url: 'https://instagram.com/p/1', engagements_public: 12, effectiveness: 30, engagement_rate_public: 0.05 },
   }
   const p = normalizePost(igCarousel, 'INSTAGRAM')
   expect(p.mediaType).toBe('CAROUSEL')
   expect(p.mediaGroup).toBe(42)
   expect(p.metrics.engagements).toBe(12)
+})
+
+// Per-channel engagement field regression (live probe, brand 26952): the field name differs
+// per channel; a uniform `total_engagements_public` read silently zeroed IG/LI/X.
+test('Instagram reads engagements_public, NOT total_engagements_public (the silent-zero bug)', () => {
+  const ig: DashContentPost = {
+    id: 5, source: 'INSTAGRAM', type: 'IMAGE',
+    instagram: { caption: 'x', engagements_public: 10, total_engagements_public: 999 },
+  }
+  expect(normalizePost(ig, 'INSTAGRAM').metrics.engagements).toBe(10)
+})
+
+test('LinkedIn reads `engagements`; caption from caption, url from linkedin_link', () => {
+  const li: DashContentPost = {
+    id: 687024106, source: 'LINKEDIN', type: 'IMAGE', source_created_at: '2026-06-10T00:00:00Z',
+    linkedin: { caption: 'li post', linkedin_link: 'https://linkedin.com/p/li', engagements: 483, engagement_rate: 0.66 },
+  }
+  const p = normalizePost(li, 'LINKEDIN')
+  expect(p.platform).toBe('LinkedIn')
+  expect(p.metrics.engagements).toBe(483)
+  expect(p.caption).toBe('li post')
+  expect(p.url).toBe('https://linkedin.com/p/li')
+})
+
+test('X reads `engagements`; caption from text, url from permalink_url', () => {
+  const x: DashContentPost = {
+    id: 662970035, source: 'TWITTER', type: 'IMAGE', source_created_at: '2026-06-05T00:00:00Z',
+    twitter: { text: 'x post', permalink_url: 'https://x.com/p/x', engagements: 13, engagement_rate: 0.9 },
+  }
+  const p = normalizePost(x, 'TWITTER')
+  expect(p.platform).toBe('X')
+  expect(p.metrics.engagements).toBe(13)
+  expect(p.caption).toBe('x post')
+  expect(p.url).toBe('https://x.com/p/x')
 })
 
 test('toTopContentRows maps normalized posts to the interim table rows', () => {
