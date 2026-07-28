@@ -16,8 +16,10 @@ const fbPost: DashContentPost = {
     url: 'https://facebook.com/p/699150694',
     total_engagements: 3,
     total_engagements_public: 2,
-    effectiveness: 41,
-    engagement_rate_public: 0.012,
+    effectiveness: 41,              // old field — must NOT be used
+    engagement_rate_public: 0.012,  // old field — must NOT be used
+    organic_effectiveness_v2: 0.15,
+    organic_engagement_rate_v2: 0.08,
     impressions: 880,
   },
 }
@@ -25,6 +27,12 @@ const fbPost: DashContentPost = {
 test('Facebook engagements use total_engagements_public, not total_engagements', () => {
   const p = normalizePost(fbPost, 'FACEBOOK')
   expect(p.metrics.engagements).toBe(2) // NOT 3
+})
+
+test('Facebook rate/effectiveness read the organic *_v2 family (matches Dash), not *_public/effectiveness', () => {
+  const p = normalizePost(fbPost, 'FACEBOOK')
+  expect(p.metrics.engagementRate).toBe(0.08)  // organic_engagement_rate_v2, NOT engagement_rate_public 0.012
+  expect(p.metrics.effectiveness).toBe(0.15)   // organic_effectiveness_v2, NOT effectiveness 41
 })
 
 test('normalizePost fills the stable normalized shape', () => {
