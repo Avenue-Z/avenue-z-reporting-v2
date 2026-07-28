@@ -34,9 +34,12 @@ export async function readSnapshot(
 }
 
 /** Full-window replace: delete this window's rows, then insert the current set. Sequential
- *  (the neon-http driver has no interactive transactions; the repo uses none). The
- *  delete→insert window is per-(client,channel,range) and only touched by a single render, so
- *  the tiny non-atomic gap is acceptable. A post deleted mid-period drops out naturally. */
+ *  (the neon-http driver has no interactive transactions; the repo uses none). Only closed
+ *  windows are written, and only once (frozen.ts reads thereafter), but two viewers can still
+ *  hit a just-closed window before any snapshot exists and interleave delete→insert; the insert
+ *  is race-safed with onConflictDoNothing on the (client,channel,range,post) unique key so the
+ *  loser is a no-op rather than a unique-violation throw. A post deleted mid-period drops out
+ *  naturally. */
 export async function writeSnapshot(
   clientId: string, channel: string, rangeStart: string, rangeEnd: string, posts: TopContentPost[],
 ): Promise<void> {
@@ -52,5 +55,10 @@ export async function writeSnapshot(
       clientId, channel, rangeStart, rangeEnd,
       postId: post.id, rank: i, payload: toPayload(post),
     })),
-  )
+  ).onConflictDoNothing({
+    target: [
+      topContentSnapshots.clientId, topContentSnapshots.channel,
+      topContentSnapshots.rangeStart, topContentSnapshots.rangeEnd, topContentSnapshots.postId,
+    ],
+  })
 }

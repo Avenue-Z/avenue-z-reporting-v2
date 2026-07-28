@@ -127,7 +127,10 @@ export async function fetchTopContent(
   channel: DashChannel | null,
 ): Promise<TopContentPost[]> {
   const { client, brandId, channels } = await dashClientFor(slug)
-  const targets = channel ? channels.filter((c) => c === channel) : channels
+  // resolveTargets (not a bare filter) so a scoped channel OUTSIDE the allowlist THROWS — the
+  // frozen path (fetchTopContentFrozen) calls this directly, so a bare filter would silently
+  // yield [] and blank the subpage instead of surfacing the error card (PR #168 R2 #2).
+  const targets = resolveTargets(channels, channel)
   const scoped = channel != null
   const { start, end } = isoRange(dateRange)
 
@@ -148,8 +151,9 @@ export async function fetchTopContent(
   )
   // Instagram influencer posts are UGC — absent from CONTENT (OWNED only). Pull them via
   // the INSTAGRAM_UGC surface with a UGC_*-prefixed metric (spec 2 §4.5). Instagram ONLY:
-  // FACEBOOK_UGC / LINKEDIN_UGC 400. Engagement is keyed under engagements_public, the same
-  // as owned Instagram (confirmed via live UGC probe), so normalizePost(_, 'INSTAGRAM') works.
+  // FACEBOOK_UGC / LINKEDIN_UGC 400. normalizePost(_, 'INSTAGRAM') reads the Instagram engagement
+  // field — sum_total_engagements (CONTENT_ENGAGEMENT_FIELD.INSTAGRAM, post-reconciliation; it
+  // counts reposts, unlike the old engagements_public), the same field as owned Instagram.
   const wantsInstagram = targets.includes('INSTAGRAM')
   let ugc: TopContentPost[] = []
   if (wantsInstagram) {

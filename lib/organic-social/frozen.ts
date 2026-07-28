@@ -5,10 +5,16 @@ import { getClientBySlug } from '@/lib/db/queries'
 import type { DashChannel } from './metrics'
 import type { TopContentPost } from './content-types'
 
-/** A window is OPEN while range_end is today or in the future (snapshot §3 edge:
- *  a straddling window is open and freezes on the first render after range_end passes). */
+/** A window is OPEN while its end is recent — today, the future, or yesterday. The yesterday
+ *  boundary is load-bearing: rolling presets (last_N_days, incl. the default last_30_days) resolve
+ *  range_end to YESTERDAY — today's partial day is excluded (lib/date-range.ts) — yet still advance
+ *  daily and must stay live. A settled past window (a named month, last_month) ends ≥2 days ago →
+ *  CLOSED and frozen. (snapshot §3 edge: a straddling window is open and freezes on the first
+ *  render after it settles.) */
 export function isPeriodOpen(rangeEnd: string, today: string): boolean {
-  return rangeEnd >= today
+  const y = new Date(`${today}T00:00:00Z`)
+  y.setUTCDate(y.getUTCDate() - 1)
+  return rangeEnd >= y.toISOString().slice(0, 10)
 }
 
 interface Deps {
@@ -31,8 +37,9 @@ function defaultDeps(): Deps {
   }
 }
 
-/** Snapshot-aware Top Content. OPEN ⇒ live + overwrite; CLOSED + snapshot ⇒ read (no live
- *  data query); CLOSED + absent ⇒ fetch once + insert. `channel` scopes the snapshot key —
+/** Snapshot-aware Top Content. OPEN ⇒ live only (never frozen, never written — a rolling window's
+ *  key shifts daily, so writing it would just accumulate dead per-day rows); CLOSED + snapshot ⇒
+ *  read (no live data query); CLOSED + absent ⇒ fetch once + insert. `channel` scopes the key —
  *  Overview (channel null) snapshots under the sentinel 'ALL'. Designations are NOT frozen —
  *  the caller re-resolves them live (partitionPosts).
  *
@@ -61,9 +68,10 @@ export async function fetchTopContentFrozen(
     }
   }
 
-  // OPEN, or closed-and-not-yet-snapshotted, or a failed read → live + best-effort persist.
+  // OPEN, or closed-and-not-yet-snapshotted, or a failed read → live. Persist ONLY when closed:
+  // an open/rolling window is never frozen, so writing it would just churn dead per-day rows.
   const posts = await d.fetchLive(slug, dateRange, channel)
-  if (clientId) {
+  if (clientId && !open) {
     try {
       await d.writeSnapshot(clientId, key, start, end, posts)
     } catch (e) {
