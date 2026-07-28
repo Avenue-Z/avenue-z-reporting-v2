@@ -38,6 +38,18 @@ export function TrendSkeleton() {
   )
 }
 
+/** The whole Overview body (all three parts) as skeletons — the first-paint Suspense fallback
+ *  shown while the composition/template resolves, so paint isn't gated on that DB round-trip. */
+export function OverviewSkeleton() {
+  return (
+    <>
+      <HeadlinesSkeleton />
+      <TrendSkeleton />
+      <TopContentSkeleton />
+    </>
+  )
+}
+
 /** Mirrors top-content.tsx — view toggles + table rows. */
 export function TopContentSkeleton() {
   return (
