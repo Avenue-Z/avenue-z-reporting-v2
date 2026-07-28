@@ -65,6 +65,19 @@ function Gallery({ groups, clientSlug, canEdit }: {
   )
 }
 
+/** Best-effort designations: a designation-table/read failure (e.g. the migration hasn't been
+ *  applied) degrades to "no stored designations" — every post falls to the #ad suggestion /
+ *  organic — rather than blanking the whole section. Logged so a missed migration stays visible. */
+async function loadDesignations(clientSlug: string, postIds: number[]): Promise<Map<number, SourceType>> {
+  try {
+    const client = await getClientBySlug(clientSlug)
+    return client ? await getDesignations(client.id, postIds) : new Map<number, SourceType>()
+  } catch (e) {
+    console.warn('[organic-social] getDesignations failed; rendering all-organic:', (e as Error).message)
+    return new Map<number, SourceType>()
+  }
+}
+
 /** top-content@2: the card gallery (owned + a separate Influencer section), backed by the
  *  snapshot-aware frozen fetch, split live by post_designations. Exported for the golden test,
  *  which awaits its resolved output directly (RTL does not render an async child's output). */
@@ -72,10 +85,7 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
   const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel))
   if (!r.data) return <Fallback kind={r.error!} />
   const posts = r.data
-  const client = await getClientBySlug(clientSlug)
-  const stored = client
-    ? await getDesignations(client.id, posts.map((p) => p.id))
-    : new Map<number, SourceType>()
+  const stored = await loadDesignations(clientSlug, posts.map((p) => p.id))
   const { owned, influencer } = partitionPosts(posts, stored)
   const canEdit = canSetDesignation(role)
 

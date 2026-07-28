@@ -51,3 +51,44 @@ test('CLOSED period never viewed while open fetches once and inserts', async () 
   expect(out).toBe(live)
   expect(deps.writeSnapshot).toHaveBeenCalled()
 })
+
+test('a snapshot WRITE failure still returns live posts (best-effort persist)', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const live = [p(4)]
+  const deps = {
+    today: '2026-07-23', isoRange: () => ({ start: '2026-07-01', end: '2026-07-31' }),
+    clientId: async () => 'c1',
+    fetchLive: vi.fn(async () => live), readSnapshot: vi.fn(),
+    writeSnapshot: vi.fn(async () => { throw new Error('relation does not exist') }),
+  }
+  const out = await fetchTopContentFrozen('renaissance', 'this_month', 'INSTAGRAM', deps)
+  expect(out).toBe(live) // section renders live despite the write throwing
+})
+
+test('a snapshot READ failure on a closed period falls through to live', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const live = [p(5)]
+  const deps = {
+    today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
+    clientId: async () => 'c1',
+    fetchLive: vi.fn(async () => live),
+    readSnapshot: vi.fn(async () => { throw new Error('relation does not exist') }),
+    writeSnapshot: vi.fn(async () => {}),
+  }
+  const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
+  expect(out).toBe(live)
+  expect(deps.fetchLive).toHaveBeenCalled()
+})
+
+test('a failed client lookup skips the snapshot and serves live', async () => {
+  const live = [p(6)]
+  const deps = {
+    today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
+    clientId: async () => { throw new Error('db down') },
+    fetchLive: vi.fn(async () => live), readSnapshot: vi.fn(), writeSnapshot: vi.fn(),
+  }
+  const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
+  expect(out).toBe(live)
+  expect(deps.readSnapshot).not.toHaveBeenCalled()
+  expect(deps.writeSnapshot).not.toHaveBeenCalled()
+})
