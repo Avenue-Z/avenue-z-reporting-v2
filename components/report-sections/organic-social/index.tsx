@@ -44,11 +44,18 @@ export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
   let template = CODE_TEMPLATES[key]
   let override: SectionOverride | undefined
   try {
-    template = (await getSectionTemplate(key)) ?? CODE_TEMPLATES[key]
-    const config = await getClientBySlug(ctx.clientSlug)
+    // Two independent reads — run them together, not serialized.
+    const [dbTemplate, config] = await Promise.all([
+      getSectionTemplate(key),
+      getClientBySlug(ctx.clientSlug),
+    ])
+    template = dbTemplate ?? CODE_TEMPLATES[key]
     override = config?.reportSectionConfig?.[key]
-  } catch {
-    // keep code-template fallback + no override
+  } catch (e) {
+    // Degrade, don't blank: keep the code-template fallback + no override so each part still
+    // renders. Log it — otherwise a prod DB failure silently drops every render to the code
+    // template and quietly stops applying per-client overrides with no signal at all.
+    console.error(`[organic-social] template/config lookup failed for '${key}'; using code template`, e)
   }
   const resolved = resolveSection(template, override)
   return (

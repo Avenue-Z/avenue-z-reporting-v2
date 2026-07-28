@@ -32,13 +32,16 @@ test('the outer report is synchronous — first paint is not gated on the DB tem
   expect(el).not.toHaveProperty('then') // a React element, not a promise
 })
 
-test('OrganicSocialBody: a template/config lookup failure degrades to the code template — it does NOT reject and blank the whole section', async () => {
+test('OrganicSocialBody: a template/config lookup failure degrades to the code template (does NOT blank the section) and logs a signal', async () => {
   getSectionTemplate.mockRejectedValue(new Error('DB down'))
   getClientBySlug.mockRejectedValue(new Error('DB down'))
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
   // Before the defensive resolution this await rejected, taking the entire Organic Social
   // section to the route error boundary. It must now resolve so each part renders behind its
-  // own Suspense/safe() boundary.
+  // own Suspense/safe() boundary — and the silent degrade must leave a signal in the log.
   await expect(OrganicSocialBody({ ctx })).resolves.toBeTruthy()
+  expect(err).toHaveBeenCalledWith(expect.stringContaining('template/config lookup failed'), expect.any(Error))
+  err.mockRestore()
 })
 
 test('OrganicSocialBody: happy path resolves with no DB row (code-template fallback) and a present client config', async () => {
