@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { buildTrendSeries } from './trend-series'
 import { dashClientFor, isoRangeTz } from './base'
-import { CHANNEL_LABEL, CHANNEL_METRICS, type DashChannel } from './metrics'
+import { CHANNEL_LABEL, CHANNEL_METRICS, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
 import type { GraphMetric } from '@/lib/dash-social/types'
 import type { TrendSeries } from './types'
 
@@ -10,10 +10,8 @@ import type { TrendSeries } from './types'
 type GraphData = { metrics?: Record<string, GraphMetric> }
 
 /** Scoped views surface a trend-channel failure; Overview drops it to a null series (then filtered). */
-export function onTrendChannelError(e: unknown, scoped: boolean, label: string): { label: string; daily: null } {
-  if (scoped) throw e
-  return { label, daily: null }
-}
+export const onTrendChannelError = (e: unknown, scoped: boolean, label: string): { label: string; daily: null } =>
+  channelErrorPolicy(scoped, e, { label, daily: null })
 
 export const getEngagementTrend = cache(async (
   slug: string,
@@ -21,7 +19,7 @@ export const getEngagementTrend = cache(async (
   channel: DashChannel | null = null,
 ): Promise<TrendSeries> => {
   const { client, brandId, channels } = await dashClientFor(slug)
-  const targets: DashChannel[] = channel ? channels.filter((c) => c === channel) : channels
+  const targets = resolveTargets(channels, channel)
   const scoped = channel != null
   const { start, end } = isoRangeTz(dateRange)
 

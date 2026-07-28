@@ -1,7 +1,9 @@
 import { expect, test } from 'vitest'
-import { resolveChannels } from './metrics'
+import { resolveChannels, resolveTargets } from './metrics'
 import { onChannelError } from './headlines'
 import { onTrendChannelError } from './trends'
+
+const ALL = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'] as const
 
 test('absent allowlist ⇒ all four channels', () => {
   expect(resolveChannels()).toEqual(['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'])
@@ -27,6 +29,20 @@ test('unknown entries are ignored', () => {
 // is validation at config-write time, not masking it here. Inert today (no client sets `channels`).
 test('an all-unknown allowlist collapses to [] (not a fallback to all four)', () => {
   expect(resolveChannels(['tiktok', 'myspace'])).toEqual([])
+})
+
+// resolveTargets (review R2 #2): the empty-targets hole is now a surfaced error, not a blank.
+test('unscoped ⇒ all resolved channels, unchanged (Overview is byte-identical)', () => {
+  expect(resolveTargets([...ALL], null)).toEqual(ALL)
+})
+
+test('scoped to an allowed channel ⇒ just that channel', () => {
+  expect(resolveTargets([...ALL], 'TWITTER')).toEqual(['TWITTER'])
+})
+
+test('scoped to a channel outside the allowlist THROWS (surfaces, never a silent empty state)', () => {
+  // Client allows only IG/FB; a platform subpage for X has nothing to show → error card, not blank.
+  expect(() => resolveTargets(['INSTAGRAM', 'FACEBOOK'], 'TWITTER')).toThrow(/not in this client's Organic Social allowlist/)
 })
 
 test('scoped view rethrows a channel error', () => {

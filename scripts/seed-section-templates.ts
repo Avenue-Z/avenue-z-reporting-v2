@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { sectionTemplates } from '@/lib/db/schema'
@@ -26,7 +27,10 @@ async function main() {
     const rows = await db.select().from(sectionTemplates).where(eq(sectionTemplates.sectionSlug, slug))
     const existing = rows[0]?.composition
     if (existing) {
-      const diverged = JSON.stringify(existing) !== JSON.stringify(template)
+      // Structural deep-equal, NOT JSON.stringify: `existing` is a jsonb value whose keys
+      // Postgres normalizes to its own order, while `template` is in source declaration order —
+      // string comparison would report phantom drift the moment those orders differ.
+      const diverged = !isDeepStrictEqual(existing, template)
       if (diverged) {
         drift++
         console.warn(`[drift] '${slug}' row differs from the code constant (promotion or manual edit).`)

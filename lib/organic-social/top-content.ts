@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
-import { CHANNEL_LABEL, type DashChannel } from './metrics'
+import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
 
@@ -69,7 +69,7 @@ export const getTopContent = cache(async (
   channel: DashChannel | null = null,
 ): Promise<PlatformTopContent[]> => {
   const { client, brandId, channels } = await dashClientFor(slug)
-  const allowed = channel ? channels.filter((c) => c === channel) : channels
+  const allowed = resolveTargets(channels, channel)
   const { start, end } = isoRange(dateRange)
   // The media/v2 request is unchanged (the endpoint has no channel param); only the transform is scoped.
   const res = await client.getMedia({ brandId, startDate: start, endDate: end, limit: 100 })

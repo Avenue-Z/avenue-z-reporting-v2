@@ -1,14 +1,14 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { expect, test } from 'vitest'
 import { transformTopContent, groupByPlatform } from './top-content'
 import type { MediaV2Response } from '@/lib/dash-social/types'
 import type { DashChannel } from './metrics'
 import type { TopContentRow } from './types'
+// Direct JSON import (resolveJsonModule): portable across every Node 20 and works under Vitest.
+// Avoids both `import.meta.dirname` (needs Node ≥20.11) and `new URL(import.meta.url)` +
+// readFileSync (Vitest's import.meta.url isn't a file: URL → "URL must be of scheme file").
+import mediaV2 from './__fixtures__/media-v2.json'
 
-const fixture = JSON.parse(
-  readFileSync(path.join(import.meta.dirname, '__fixtures__/media-v2.json'), 'utf8'),
-) as MediaV2Response
+const fixture = mediaV2 as unknown as MediaV2Response
 const rows = transformTopContent(fixture, 10)
 
 test('respects limit', () => {

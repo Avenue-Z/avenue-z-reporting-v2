@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
-import { CHANNEL_LABEL, CHANNEL_METRICS, type DashChannel } from './metrics'
+import { CHANNEL_LABEL, CHANNEL_METRICS, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline } from './types'
 
@@ -20,10 +20,7 @@ function pruneDeltas(d: PlatformHeadline['deltas']): PlatformHeadline['deltas'] 
 }
 
 /** Scoped (single-channel) views surface Dash failures as errors; Overview drops the bad channel. */
-export function onChannelError(e: unknown, scoped: boolean): null {
-  if (scoped) throw e
-  return null
-}
+export const onChannelError = (e: unknown, scoped: boolean): null => channelErrorPolicy(scoped, e, null)
 
 export const getPlatformHeadlines = cache(async (
   slug: string,
@@ -32,7 +29,7 @@ export const getPlatformHeadlines = cache(async (
   channel: DashChannel | null = null,
 ): Promise<PlatformHeadline[]> => {
   const { client, brandId, channels } = await dashClientFor(slug)
-  const targets: DashChannel[] = channel ? channels.filter((c) => c === channel) : channels
+  const targets = resolveTargets(channels, channel)
   const scoped = channel != null
   const { start, end } = isoRangeTz(dateRange)
   const ctx = resolveCompareIso(dateRange, compareRange)

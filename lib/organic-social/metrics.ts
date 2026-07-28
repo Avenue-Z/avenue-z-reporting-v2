@@ -40,6 +40,26 @@ export function resolveChannels(allowlist?: string[] | null): DashChannel[] {
   return CHANNELS.filter((c) => up.includes(c))
 }
 
+/** Fetch targets for a getter: all resolved channels on Overview (unscoped); the single channel
+ *  on a platform subpage (scoped). A scoped view for a channel outside the client's allowlist has
+ *  nothing to show and is a routing/config error — throw so it surfaces as an error card rather
+ *  than a silent empty state (PR #168 review R2 #2). Unscoped returns `channels` unchanged. */
+export function resolveTargets(channels: DashChannel[], channel: DashChannel | null): DashChannel[] {
+  if (!channel) return channels
+  if (!channels.includes(channel)) {
+    throw new Error(`channel '${channel}' is not in this client's Organic Social allowlist`)
+  }
+  return [channel]
+}
+
+/** The one scoped-error decision: a scoped (single-channel) view rethrows a per-channel failure so
+ *  it surfaces; Overview degrades to `degradeValue` (dropped downstream). Callers supply only the
+ *  degrade payload — all that differed between the getters (PR #168 review R2 #4). */
+export function channelErrorPolicy<T>(scoped: boolean, error: unknown, degradeValue: T): T {
+  if (scoped) throw error
+  return degradeValue
+}
+
 export interface ChannelMetricMap {
   followers: string
   netNewFollowers: string
