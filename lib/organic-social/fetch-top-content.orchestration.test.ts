@@ -19,7 +19,7 @@ vi.mock('./base', () => ({
 import { fetchTopContent } from './top-content'
 
 const SUB_KEY: Record<string, string> = { INSTAGRAM: 'instagram', FACEBOOK: 'facebook', LINKEDIN: 'linkedin', TWITTER: 'twitter' }
-const ENG_FIELD: Record<string, string> = { INSTAGRAM: 'engagements_public', FACEBOOK: 'total_engagements_public', LINKEDIN: 'engagements', TWITTER: 'engagements' }
+const ENG_FIELD: Record<string, string> = { INSTAGRAM: 'sum_total_engagements', FACEBOOK: 'total_engagements_public', LINKEDIN: 'engagements', TWITTER: 'engagements' }
 
 function contentRes(channel: string, engagements: number, id: number) {
   // The Instagram-UGC surface is queried in addition to the owned channels; return no UGC

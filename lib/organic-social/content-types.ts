@@ -56,7 +56,11 @@ export const CONTENT_METRIC: Record<DashChannel, string> = {
  * fallback), which is the bug this map fixes. A5 reconciles each against Dash's card value.
  */
 export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
-  INSTAGRAM: 'engagements_public',
+  // Instagram: sum_total_engagements matches Dash's per-post "Engagements – Organic" (INCLUDES
+  // reposts); engagements_public excludes them, so it undercounts a post with reposts (confirmed
+  // 2026-07-28 vs Dash Reels Insights: post 700541683 = 4 not 3). FB/LI/X still read the field
+  // verified in S2-A — pending the same Dash reconciliation.
+  INSTAGRAM: 'sum_total_engagements',
   FACEBOOK: 'total_engagements_public',
   LINKEDIN: 'engagements',
   TWITTER: 'engagements',
@@ -89,8 +93,27 @@ export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
  * value differs, change only the INSTAGRAM entry.
  */
 export const CONTENT_ENGAGEMENT_RATE_FIELD: Record<DashChannel, string> = {
-  INSTAGRAM: 'engagement_rate_public',
+  // Instagram: the plain `engagement` field matches Dash's "Engagement Rate – Organic (F)" on
+  // both a repost-free and a reposted post (2026-07-28: 0.667=66.67% and 0.125=12.50%).
+  // engagement_rate_public matched only by luck when there were no reposts. FB/LI/X pending
+  // reconciliation. Stored as a fraction; the card ×100 for display.
+  INSTAGRAM: 'engagement',
   FACEBOOK: 'engagement_rate_public',
   LINKEDIN: 'engagement_rate',
   TWITTER: 'engagement_rate',
+}
+
+/**
+ * Effectiveness field per channel on CONTENT — a FRACTION (the card ×100 for %).
+ * Instagram: `effectiveness_engagements` matches Dash's "Effectiveness – Organic" exactly
+ * (2026-07-28: 0.2=20.00% and 0.031=3.10%). The old `effectiveness` field was a different,
+ * larger score and, shown without ×100, produced a nonsense ~1% on the card.
+ * LinkedIn/X expose no effectiveness field → resolves to null → the card shows "—".
+ * Facebook is UNRECONCILED (still reads `effectiveness`) — pending the FB Dash comparison.
+ */
+export const CONTENT_EFFECTIVENESS_FIELD: Record<DashChannel, string> = {
+  INSTAGRAM: 'effectiveness_engagements',
+  FACEBOOK: 'effectiveness',
+  LINKEDIN: 'effectiveness',
+  TWITTER: 'effectiveness',
 }

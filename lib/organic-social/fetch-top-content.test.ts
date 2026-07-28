@@ -44,7 +44,7 @@ test('Instagram carousel keeps its CAROUSEL media type and single record', () =>
   const igCarousel: DashContentPost = {
     id: 1, source: 'INSTAGRAM', type: 'CAROUSEL', source_created_at: '2026-06-15T00:00:00Z',
     media_group: 42,
-    instagram: { caption: 'swipe', url: 'https://instagram.com/p/1', engagements_public: 12, effectiveness: 30, engagement_rate_public: 0.05, impressions: 3400 },
+    instagram: { caption: 'swipe', url: 'https://instagram.com/p/1', sum_total_engagements: 12, effectiveness_engagements: 0.3, engagement: 0.05, impressions: 3400 },
   }
   const p = normalizePost(igCarousel, 'INSTAGRAM')
   expect(p.mediaType).toBe('CAROUSEL')
@@ -53,14 +53,25 @@ test('Instagram carousel keeps its CAROUSEL media type and single record', () =>
   expect(p.metrics.impressions).toBe(3400)
 })
 
-// Per-channel engagement field regression (live probe, brand 26952): the field name differs
-// per channel; a uniform `total_engagements_public` read silently zeroed IG/LI/X.
-test('Instagram reads engagements_public, NOT total_engagements_public (the silent-zero bug)', () => {
+// Instagram metric fields reconciled against Dash's per-post "Organic" numbers (2026-07-28):
+// engagements = sum_total_engagements (INCLUDES reposts), rate = `engagement`, effectiveness =
+// effectiveness_engagements. The *_public variants exclude reposts and undercount.
+test('Instagram engagements read sum_total_engagements (incl. reposts), not engagements_public', () => {
   const ig: DashContentPost = {
     id: 5, source: 'INSTAGRAM', type: 'IMAGE',
-    instagram: { caption: 'x', engagements_public: 10, total_engagements_public: 999 },
+    instagram: { caption: 'x', sum_total_engagements: 4, engagements_public: 3 },
   }
-  expect(normalizePost(ig, 'INSTAGRAM').metrics.engagements).toBe(10)
+  expect(normalizePost(ig, 'INSTAGRAM').metrics.engagements).toBe(4) // NOT 3
+})
+
+test('Instagram engagement rate reads `engagement`; effectiveness reads effectiveness_engagements', () => {
+  const ig: DashContentPost = {
+    id: 6, source: 'INSTAGRAM', type: 'IMAGE',
+    instagram: { caption: 'y', engagement: 0.125, engagement_rate_public: 0.09375, effectiveness_engagements: 0.031, effectiveness: 0.134 },
+  }
+  const p = normalizePost(ig, 'INSTAGRAM')
+  expect(p.metrics.engagementRate).toBe(0.125)  // = Dash (F), NOT engagement_rate_public 0.09375
+  expect(p.metrics.effectiveness).toBe(0.031)    // = Dash Effectiveness (fraction; card ×100 → 3.1%)
 })
 
 test('LinkedIn reads `engagements`; caption from caption, url from linkedin_link', () => {

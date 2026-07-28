@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
-import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD, CONTENT_IMPRESSIONS_FIELD, CONTENT_ENGAGEMENT_RATE_FIELD } from './content-types'
+import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD, CONTENT_IMPRESSIONS_FIELD, CONTENT_ENGAGEMENT_RATE_FIELD, CONTENT_EFFECTIVENESS_FIELD } from './content-types'
 import { resolveCreative } from './creative'
 import type { DashContentPost, TopContentPost } from './content-types'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
@@ -94,7 +94,7 @@ const MEDIA_TYPES = new Set(['IMAGE', 'VIDEO', 'CAROUSEL'])
 export function normalizePost(post: DashContentPost, channel: DashChannel): TopContentPost {
   const sub = subObject(post, channel)
   const { caption, url } = captionUrl(sub, channel)
-  const effectivenessRaw = sub?.effectiveness
+  const effectivenessRaw = sub?.[CONTENT_EFFECTIVENESS_FIELD[channel]]
   const rateRaw = sub?.[CONTENT_ENGAGEMENT_RATE_FIELD[channel]]
   const mediaType = MEDIA_TYPES.has(post.type) ? (post.type as TopContentPost['mediaType']) : 'IMAGE'
   return {

@@ -10,8 +10,8 @@ interface CardMetric { key: string; label: string; value: string; emphasised?: b
 function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
   const m = post.metrics
   return [
-    // effectiveness is a 0–100 Dash score; engagementRate is a fraction (×100 for %).
-    { key: 'effectiveness', label: 'Effectiveness', value: m.effectiveness != null ? pct(m.effectiveness) : '—' },
+    // effectiveness + engagementRate are both fractions (×100 for %).
+    { key: 'effectiveness', label: 'Effectiveness', value: m.effectiveness != null ? pct(m.effectiveness * 100) : '—' },
     { key: 'engagementRate', label: 'Engagement Rate', value: m.engagementRate != null ? pct(m.engagementRate * 100) : '—' },
     { key: 'engagements', label: 'Engagements', value: num(m.engagements) },
     { key: 'impressions', label: 'Views / Impr.', value: num(m.impressions) },
