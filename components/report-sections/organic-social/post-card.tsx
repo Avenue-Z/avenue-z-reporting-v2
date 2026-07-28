@@ -33,11 +33,22 @@ function Media({ post }: { post: TopContentPost }) {
   if (c.kind === 'video') {
     return (
       <video className="aspect-square w-full object-cover" controls preload="metadata" poster={c.poster} onError={() => setBroken(true)}>
-        <source src={c.src} type="video/mp4" />
+        <source src={c.src} type="video/mp4" onError={() => setBroken(true)} />
       </video>
     )
   }
-  return <img className="aspect-square w-full object-cover" src={c.thumb} alt={post.caption.slice(0, 80)} onError={() => setBroken(true)} />
+  return (
+    <img
+      className="aspect-square w-full object-cover"
+      src={c.thumb}
+      alt={post.caption.slice(0, 80)}
+      // onError catches failures AFTER hydration; the ref catches an <img> that already errored
+      // BEFORE React hydrated (SSR sends the tag, the browser can fail the load before the
+      // handler attaches — a complete image with zero natural width is a failed load).
+      ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setBroken(true) }}
+      onError={() => setBroken(true)}
+    />
+  )
 }
 
 export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }: {
