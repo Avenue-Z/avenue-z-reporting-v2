@@ -1,0 +1,236 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Overview headlines render the actual metric values, not a skeleton 1`] = `
+<div>
+  <div
+    class="space-y-6"
+  >
+    <section
+      class="space-y-3"
+    >
+      <h3
+        class="text-sm font-extrabold uppercase tracking-widest text-text-muted"
+      >
+        Instagram
+      </h3>
+      <div
+        class="grid grid-cols-2 gap-3 md:grid-cols-5"
+      >
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Followers
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            12,345
+          </p>
+          <p
+            class="mt-1 text-sm font-bold text-brand-green"
+          >
+            ↑
+             
+            5.2
+            % 
+            vs prior period
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Net New Followers
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            210
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Views
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            98,765
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Engagements
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            4,321
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Engagement Rate
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            3.5
+            %
+          </p>
+          <p
+            class="mt-1 text-sm font-bold text-[#FF4444]"
+          >
+            ↓
+             
+            1.1
+            % 
+            vs prior period
+          </p>
+        </div>
+      </div>
+    </section>
+    <section
+      class="space-y-3"
+    >
+      <h3
+        class="text-sm font-extrabold uppercase tracking-widest text-text-muted"
+      >
+        Facebook
+      </h3>
+      <div
+        class="grid grid-cols-2 gap-3 md:grid-cols-5"
+      >
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Followers
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            8,000
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Net New Followers
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            -15
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Views
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            42,000
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Engagements
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            900
+          </p>
+        </div>
+        <div
+          class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+        >
+          <div
+            class="flex items-center gap-1.5"
+          >
+            <p
+              class="text-xs font-extrabold uppercase tracking-widest text-text-muted"
+            >
+              Engagement Rate
+            </p>
+          </div>
+          <p
+            class="mt-2 text-3xl font-extrabold text-white"
+          >
+            1.2
+            %
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+`;

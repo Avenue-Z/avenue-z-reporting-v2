@@ -30,7 +30,10 @@ export const CHANNEL_LABEL: Record<DashChannel, string> = {
 }
 
 /** Resolve the reportable Dash channels, honoring an optional lowercase allowlist.
- *  Absent/empty ⇒ all four. Order always follows CHANNELS. */
+ *  Absent/empty ⇒ all four. Order always follows CHANNELS.
+ *  NOTE: a non-empty allowlist matching no supported channel resolves to [] (the honest answer),
+ *  which blanks the section. The safeguard is config-write validation, not a fallback here —
+ *  tracked as a FOLLOW-UP on DashSocialConfig.channels in lib/db/schema.ts (PR #168 review #2). */
 export function resolveChannels(allowlist?: string[] | null): DashChannel[] {
   if (!allowlist?.length) return [...CHANNELS]
   const up = allowlist.map((c) => c.toUpperCase())

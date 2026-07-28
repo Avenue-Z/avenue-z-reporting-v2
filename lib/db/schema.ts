@@ -67,7 +67,10 @@ export interface LinkedInConfig {
 export interface DashSocialConfig {
   /** Dash Social brand id (digits), e.g. 24350. Selects the brand for the shared DASH_API_TOKEN. */
   brandId: number
-  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter'); defaults to all reportable channels. */
+  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter'); defaults to all reportable channels.
+   *  FOLLOW-UP (PR #168 review #2): a non-empty allowlist matching NO supported channel resolves to []
+   *  and silently blanks the whole Organic Social section. When the config-write path lands (M3/M4),
+   *  validate this at write time (reject / warn on a zero-match allowlist) — resolveChannels stays honest. */
   channels?: string[]
 }
 

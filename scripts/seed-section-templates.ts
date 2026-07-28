@@ -33,6 +33,13 @@ async function main() {
       }
       continue // never overwrite — promoteToTemplate owns divergence
     }
+    if (check) {
+      // --check is READ-ONLY: it never writes. An absent row is drift the report surfaces
+      // (exit 1 below), not something --check silently inserts.
+      drift++
+      console.warn(`[drift] '${slug}' row is absent (a non-check run would insert it).`)
+      continue
+    }
     await db.insert(sectionTemplates)
       .values({ sectionSlug: slug, composition: template })
       .onConflictDoNothing({ target: sectionTemplates.sectionSlug })
@@ -40,7 +47,7 @@ async function main() {
   }
 
   if (check && drift > 0) {
-    console.error(`--check: ${drift} row(s) diverge from code constants (see [drift] above).`)
+    console.error(`--check: ${drift} row(s) diverge from / are absent vs code constants (see [drift] above).`)
     process.exit(1)
   }
   console.log('Seed complete.')

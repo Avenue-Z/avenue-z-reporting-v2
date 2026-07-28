@@ -6,16 +6,18 @@ import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import type { TrendSeries } from '@/lib/organic-social/types'
 
-const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
+export const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
 // Canonical per-channel color — stable whether a channel is shown alone or with others.
-const CHANNEL_COLOR: Record<string, string> = {
+// Exported so the invariant test can prove the all-four case equals the old positional
+// lookup and the degraded case intentionally diverges (see render-invariant.test.tsx).
+export const CHANNEL_COLOR: Record<string, string> = {
   Instagram: PALETTE[0],
   Facebook: PALETTE[1],
   X: PALETTE[2],
   LinkedIn: PALETTE[3],
 }
-const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
+export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
 
 function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
