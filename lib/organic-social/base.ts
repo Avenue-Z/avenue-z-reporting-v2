@@ -2,7 +2,7 @@
 import { DashSocialClient } from '@/lib/dash-social/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { CHANNELS } from './metrics'
+import { resolveChannels, type DashChannel } from './metrics'
 
 export { num, pct } from '@/lib/supermetrics/format'
 
@@ -17,20 +17,13 @@ export function displayChannel(source: string): string {
   return CHANNEL_DISPLAY[prefix] ?? source
 }
 
-/** Resolve the reportable Dash channels, honoring an optional lowercase allowlist. */
-function dashChannelsFor(allowlist?: string[]): string[] {
-  if (!allowlist?.length) return [...CHANNELS]
-  const up = allowlist.map((c) => c.toUpperCase())
-  return CHANNELS.filter((c) => up.includes(c))
-}
-
-export async function dashClientFor(slug: string): Promise<{ client: DashSocialClient; brandId: number; channels: string[] }> {
+export async function dashClientFor(slug: string): Promise<{ client: DashSocialClient; brandId: number; channels: DashChannel[] }> {
   const c = await getClientBySlug(slug)
   const cfg = c?.dashSocialConfig
   if (!cfg) throw new Error(`dash_social_config missing for ${slug}`)
   const token = process.env.DASH_API_TOKEN
   if (!token) throw new Error('Missing env var DASH_API_TOKEN')
-  return { client: new DashSocialClient({ token }), brandId: cfg.brandId, channels: dashChannelsFor(cfg.channels) }
+  return { client: new DashSocialClient({ token }), brandId: cfg.brandId, channels: resolveChannels(cfg.channels) }
 }
 
 /** Plain reporting window (yyyy-mm-dd) — used by the library media/v2 endpoint. */

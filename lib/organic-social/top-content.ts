@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { dashClientFor, isoRange, displayChannel } from './base'
-import { CHANNELS, CHANNEL_LABEL } from './metrics'
+import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
 
@@ -36,35 +36,42 @@ export function transformTopContent(res: MediaV2Response, limit?: number): TopCo
   return limit != null ? rows.slice(0, limit) : rows
 }
 
-const PLATFORM_ORDER = CHANNELS.map((c) => CHANNEL_LABEL[c])
-
 /**
- * Group rows into per-platform sections, in canonical order. Keeps all of a
- * platform's rows (optionally capped) so the UI can rank by either engagement
- * or views without losing a top performer in the other metric.
+ * Group rows into per-platform sections, ordered and filtered by `allowed`.
+ * Comparison is in LABEL space — `allowed` holds DashChannel enums ('TWITTER')
+ * while rows[].platform holds display labels ('X'), bridged via CHANNEL_LABEL.
  */
-export function groupByPlatform(rows: TopContentRow[], perPlatform?: number): PlatformTopContent[] {
+export function groupByPlatform(
+  rows: TopContentRow[],
+  perPlatform: number | undefined,
+  allowed: DashChannel[],
+): PlatformTopContent[] {
+  const order = allowed.map((c) => CHANNEL_LABEL[c]) // ['Instagram','X',…]
   const byPlatform = new Map<string, TopContentRow[]>()
   for (const r of rows) {
-    // Only the report's known platforms — skips unmapped sources like UPLOAD.
-    if (!PLATFORM_ORDER.includes(r.platform)) continue
+    if (!order.includes(r.platform)) continue // skips unmapped sources like UPLOAD
     const arr = byPlatform.get(r.platform) ?? []
     arr.push(r)
     byPlatform.set(r.platform, arr)
   }
   const rank = (p: string) => {
-    const i = PLATFORM_ORDER.indexOf(p)
-    return i === -1 ? PLATFORM_ORDER.length : i
+    const i = order.indexOf(p)
+    return i === -1 ? order.length : i
   }
   return [...byPlatform.entries()]
     .sort((a, b) => rank(a[0]) - rank(b[0]))
     .map(([platform, rs]) => ({ platform, rows: perPlatform != null ? rs.slice(0, perPlatform) : rs }))
 }
 
-export const getTopContent = cache(async (slug: string, dateRange: string): Promise<PlatformTopContent[]> => {
-  const { client, brandId } = await dashClientFor(slug)
+export const getTopContent = cache(async (
+  slug: string,
+  dateRange: string,
+  channel: DashChannel | null = null,
+): Promise<PlatformTopContent[]> => {
+  const { client, brandId, channels } = await dashClientFor(slug)
+  const allowed = resolveTargets(channels, channel)
   const { start, end } = isoRange(dateRange)
+  // The media/v2 request is unchanged (the endpoint has no channel param); only the transform is scoped.
   const res = await client.getMedia({ brandId, startDate: start, endDate: end, limit: 100 })
-  // Cap at 25/platform to bound payload; the UI slices to top 5 by the active metric.
-  return groupByPlatform(transformTopContent(res), 25)
+  return groupByPlatform(transformTopContent(res), 25, allowed)
 })
