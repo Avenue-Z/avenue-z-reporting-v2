@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
-import { CHANNEL_LABEL, CHANNEL_METRICS, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
+import { CHANNEL_LABEL, kpiFor, metricForKey, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline } from './types'
 
@@ -37,7 +37,11 @@ export const getPlatformHeadlines = cache(async (
 
   const results = await Promise.all(
     targets.map(async (channel): Promise<PlatformHeadline | null> => {
-      const map = CHANNEL_METRICS[channel]
+      const followersMetric = metricForKey(channel, 'followers')
+      const netNewMetric = metricForKey(channel, 'netNewFollowers')
+      const exposureMetric = metricForKey(channel, 'exposure')
+      const engagementsMetric = metricForKey(channel, 'engagements')
+      const engagementRateMetric = metricForKey(channel, 'engagementRate')
       try {
         const res = await client.getReportsData<TotalMetric>({
           brandId,
@@ -45,7 +49,7 @@ export const getPlatformHeadlines = cache(async (
           reportType: 'TOTAL_GROUPED_METRIC',
           aggregateBy: 'BRAND',
           requirePosts: true,
-          metrics: [map.followers, map.netNewFollowers, map.exposure, map.engagements, map.engagementRate],
+          metrics: [followersMetric, netNewMetric, exposureMetric, engagementsMetric, engagementRateMetric],
           startDate: start,
           endDate: end,
           contextStartDate: ctx?.start,
@@ -54,11 +58,11 @@ export const getPlatformHeadlines = cache(async (
         const metrics = res.data?.[key]?.metrics
         if (!metrics) return null
 
-        const followers = metrics[map.followers]
-        const netNew = metrics[map.netNewFollowers]
-        const exposure = metrics[map.exposure]
-        const engagements = metrics[map.engagements]
-        const engagementRate = metrics[map.engagementRate]
+        const followers = metrics[followersMetric]
+        const netNew = metrics[netNewMetric]
+        const exposure = metrics[exposureMetric]
+        const engagements = metrics[engagementsMetric]
+        const engagementRate = metrics[engagementRateMetric]
 
         const deltas = pruneDeltas({
           followers: delta(followers),
@@ -71,7 +75,7 @@ export const getPlatformHeadlines = cache(async (
         return {
           channel,
           label: CHANNEL_LABEL[channel],
-          exposureLabel: map.exposureLabel,
+          exposureLabel: kpiFor(channel, 'exposure').label,
           followers: followers?.value ?? 0,
           netNewFollowers: netNew?.value ?? 0,
           exposure: exposure?.value ?? 0,
