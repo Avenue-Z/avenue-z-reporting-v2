@@ -33,16 +33,16 @@ The five Overview KPIs, per channel, under each basis. **All-posts** column is c
 | `engagementRate` | FB | `AVG_ENGAGEMENT_RATE_V2` | `AVG_ENGAGEMENT_RATE_V2` | no |
 | `exposure` | Instagram | `VIEWS` | `VIEWS` | no (IG already by-post family) |
 | `exposure` | Facebook | `PAID_AND_ORGANIC_VIEWS_BY_POST` | `PAID_AND_ORGANIC_VIEWS_BY_POST` | no (already by-post name) |
-| `exposure` | X (`TWITTER`) | `IMPRESSIONS` | `IMPRESSIONS_BY_POST` ★ | **yes** 176 → 289 |
+| `exposure` | X (`TWITTER`) | `IMPRESSIONS` | `IMPRESSIONS_BY_POST` ★ | **yes** 183 → 299 (live 2026-07-29; §6.2's 176→289 was a different window) |
 | `exposure` | LinkedIn | `IMPRESSIONS` | `IMPRESSIONS_BY_POST` ★ | **yes** 13248 → 12195 (live 2026-07-29; findings §6.2's "unchanged / 10 746" was a different window and is superseded) |
 | `engagements` | Instagram | `TOTAL_ENGAGEMENTS` | `TOTAL_ENGAGEMENTS` | no |
 | `engagements` | Facebook | `TOTAL_ENGAGEMENTS_POSTS_V2` | `TOTAL_ENGAGEMENTS_POSTS_V2` | no |
 | `engagements` | X (`TWITTER`) | `TOTAL_ENGAGEMENTS` | `TOTAL_ENGAGEMENTS_POSTS` | **yes** (§7.1) |
-| `engagements` | LinkedIn | `ENGAGEMENTS` | `ENGAGEMENTS_BY_POST` | **yes** 1861 → 1486 (§7.1) |
+| `engagements` | LinkedIn | `ENGAGEMENTS` | `ENGAGEMENTS_BY_POST` | **yes** 1920 → 1627 (§7.1; live 2026-07-29 — §6.2's 1861→1486 was a different window) |
 
 Per-channel `exposure` **label** (the `KpiSpec.label` for `key:'exposure'`, preserving today's `exposureLabel`): Instagram `Views`, Facebook `Views`, X `Impressions`, LinkedIn `Impressions`.
 
-The `/verify` figures for Task 2 Step 8 (findings §6.2, 30-day window, brand 26952): X exposure **289**, LinkedIn engagements **1486** (and the daily engagement series now sums to that card, §7.1: LinkedIn 1486 = 1486).
+The `/verify` figures (Task 2 Step 8), live-confirmed 2026-07-29 for the 30-day window 06-22..07-22, brand 26952: X exposure **299**, LinkedIn engagements **1627** (and the daily engagement series now sums to that card, §7.1: LinkedIn 1627 = 1627). Exact integers roll with the window; §6.2's earlier 289/1486 were a different window.
 
 ---
 
@@ -346,7 +346,7 @@ The findings name the by-post engagement metrics explicitly (§7.1) but do **not
 Using the same method §6 used — a `TOTAL_GROUPED_METRIC`, `aggregate_by=BRAND`, `require_posts=true`, 30-day-window `/reports/data` call against brand 26952 (via the Dash MCP `data_query`, or the repo's `DashSocialClient` in a throwaway `tsx` script with `DASH_API_TOKEN`) — request metric `IMPRESSIONS_BY_POST` for `channels: ['TWITTER']` and for `channels: ['LINKEDIN']`.
 
 Acceptance:
-- `IMPRESSIONS_BY_POST` for X returns **289** (findings §6.2/§6.3). If the metric 400s or returns a different number, **stop** — do not flip. Find the correct by-post impression metric name from Dash's catalog (§3b, `developer.dashsocial.com`) and record it in `metrics.ts` `TWITTER.exposure.metric.byPost` and in the test's `EXPECTED` table before continuing.
+- `IMPRESSIONS_BY_POST` for X must resolve to a value DISTINCT from all-posts `IMPRESSIONS` (the posts-published subset) — live 2026-07-29: 183 → 299. **The stop condition is a `400` (invalid metric name), NOT a specific integer** — the exact number rolls with the window, so do not halt a re-run just because it differs from a figure recorded here. If the name 400s, find the correct by-post impression metric name from Dash's catalog (§3b, `developer.dashsocial.com`) and record it in `metrics.ts` `TWITTER.exposure.metric.byPost` and in the test's `EXPECTED` table before continuing.
 - `IMPRESSIONS_BY_POST` for LinkedIn returns a value DISTINCT from all-posts `IMPRESSIONS` — live 2026-07-29: 13248 (all-posts) → 12195 (by-post). (findings §6.2's 10746 "unchanged" was a different window and is superseded; the by-post name and its downward movement are what matter.) Same stop-and-correct rule.
 
 Record the confirmed names + observed values in a one-line comment on the PR. **Do not skip this step** — it is the guard the findings doc's "wrong twice" warning demands.
@@ -397,9 +397,9 @@ git commit -m "feat(organic-social): M2b — flip REPORTING_BASIS to byPost (Lin
 - [ ] **Step 8: `/verify` the live figures (manual, requires a real Dash call)**
 
 This is the spec's `/verify` gate — the static test pins names; this confirms the numbers actually moved as decided. Run the Organic Social Overview for Renaissance (brand 26952, 30-day window) — via the running app on the M2 branch, or a `tsx` script calling `getPlatformHeadlines('renaissance', 'last_30_days', null)` and `getEngagementTrend('renaissance', 'last_30_days')`. Confirm:
-  - **X exposure (Impressions) = 289** (was 176 under all-posts) — decision-3 movement.
-  - **LinkedIn engagements = 1486** (was 1861) — decision-3 movement.
-  - **The LinkedIn engagement graph now sums to the LinkedIn engagement KPI card** (both 1486) — the bug fix riding along (§7.1). Under the old all-posts combination the card read 1861 while the graph read 1486; they now agree.
+  - **X exposure (Impressions) = 299** (was 183 under all-posts; figures roll with the window) — decision-3 movement.
+  - **LinkedIn engagements = 1627** (was 1920) — decision-3 movement.
+  - **The LinkedIn engagement graph now sums to the LinkedIn engagement KPI card** (both 1627) — the bug fix riding along (§7.1). Under the old all-posts combination the card read 1920 while the graph read 1627; they now agree.
   - **Instagram and Facebook Overview numbers are unchanged** (their five metric names are identical across bases — the reference table's "Moves? no" rows).
   - **`followers`, `netNewFollowers`, `engagementRate` are unchanged on all four channels.** engagementRate in particular has no distinct by-post metric name in Dash's catalog for this brand; if the `/verify` shows any engagement-rate value moved, stop and investigate before shipping — it would mean a by-post rate metric exists and the table's basis-neutral assumption for `engagementRate` is wrong.
 
@@ -407,7 +407,7 @@ Record the observed before/after numbers on the PR.
 
 - [ ] **Step 9: Communicate the correction before shipping (decision 3 — required)**
 
-M2b changes numbers on a page clients have already seen. Per decision 3 this must be **communicated as a correction before it ships**, not discovered by a client. On the Stage-1 PR, state plainly: which platforms move (LinkedIn engagements 1861→1486; X impressions 176→289), why (posts-published-in-window is the correct, post-level-reconciled basis — findings §6.3), and that the engagement graph and card now agree. Flag to Tina/Thomas that the stakeholder-facing correction note must go out before this promotes past `staging`. The flip is one revertable commit if the timing needs to change.
+M2b changes numbers on a page clients have already seen. Per decision 3 this must be **communicated as a correction before it ships**, not discovered by a client. On the Stage-1 PR, state plainly: which platforms move (LinkedIn engagements 1920→1627 and impressions 13248→12195; X impressions 183→299 and engagements 49→48), why (posts-published-in-window is the correct, post-level-reconciled basis — findings §6.3), and that the engagement graph and card now agree. Flag to Tina/Thomas that the stakeholder-facing correction note must go out before this promotes past `staging`. The flip is one revertable commit if the timing needs to change.
 
 ---
 

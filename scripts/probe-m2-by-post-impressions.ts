@@ -56,6 +56,29 @@ async function query(channel: string, metrics: string[]) {
   return { status: res.status, ok: res.ok, resolved, rawSnippet: body.slice(0, 400) }
 }
 
+// Like query(), but over an EXPLICIT window and reporting KEY presence (`m in brand`)
+// separately from value — the distinction the presence check turns on. Context window is
+// derived from the passed window so require_posts stays satisfied for arbitrary ranges.
+async function query2(channel: string, metrics: string[], s: string, e: string) {
+  const len = new Date(e).getTime() - new Date(s).getTime()
+  const cs = new Date(new Date(s).getTime() - len).toISOString().slice(0, 10) + 'T04:00:00Z'
+  const q = new URLSearchParams({
+    brand_ids: String(BRAND_ID), channels: channel, metrics: metrics.join(','),
+    report_type: 'TOTAL_GROUPED_METRIC', start_date: s, end_date: e,
+    context_start_date: cs, context_end_date: s,
+    aggregate_by: 'BRAND', require_posts: 'true',
+  })
+  const res = await fetch(`${DASHBOARD}/reports/data?${q}`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' },
+  })
+  const body = await res.text()
+  let json: any = null
+  try { json = JSON.parse(body) } catch { /* leave raw */ }
+  const brand = json?.data?.[String(BRAND_ID)]?.metrics ?? {}
+  const present = new Set(metrics.filter((m) => m in brand))
+  return { status: res.status, ok: res.ok, present, rawSnippet: body.slice(0, 400) }
+}
+
 // Shipped known-good combo (headlines.ts) + every by-post candidate to test in one batch.
 const SHIPPED: Record<string, string[]> = {
   TWITTER:  ['TOTAL_FOLLOWERS', 'NET_NEW_FOLLOWERS', 'IMPRESSIONS', 'TOTAL_ENGAGEMENTS', 'AVG_ENGAGEMENT_RATE'],
@@ -99,6 +122,24 @@ async function main() {
       ? (missing.length ? `⚠️ 200 but MISSING ${JSON.stringify(missing)} — ${JSON.stringify(r.resolved)}`
                         : `✅ all 5 resolved — ${JSON.stringify(r.resolved)}`)
       : `❌ 400 — production would DROP this channel. body: ${r.rawSnippet.slice(0, 200)}`))
+  }
+  console.log('')
+
+  // STEP 2 — empty-window contract (PR #173 review round 2, item A). headlines.ts drops a
+  // channel if a requested metric key is ABSENT. Prove that a zero-posts window does NOT
+  // omit the post-scoped by-post keys (which would wrongly hide valid follower data) — Dash
+  // returns every requested key PRESENT with value:null, so `key in metrics` stays true and
+  // the presence check never fires on a legitimately-empty channel. A 2019 window predates
+  // the brand's activity ⇒ no posts published in-window on any channel.
+  console.log('===== STEP 2 · empty-window (2019) · every requested key must be PRESENT (value may be null) =====')
+  for (const channel of CHANNELS) {
+    const prod = OVERVIEW_KPI_KEYS.map((k) => metricForKey(channel, k))
+    const r = await query2(channel, prod, '2019-01-01T04:00:00Z', '2019-01-08T04:00:00Z')
+    const absent = prod.filter((m) => !r.present.has(m))
+    console.log(`  ${CHANNEL_LABEL[channel].padEnd(10)} status=${r.status}  ` + (r.ok
+      ? (absent.length ? `❌ OMITS ${JSON.stringify(absent)} — presence check WOULD wrongly drop this channel`
+                       : `✅ all 5 keys present (value:null ⇒ renders 0, channel NOT dropped)`)
+      : `status ${r.status} (channel drops via the existing !metrics guard)`))
   }
   console.log('')
 
