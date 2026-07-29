@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { buildTrendSeries } from './trend-series'
 import { dashClientFor, isoRangeTz } from './base'
-import { CHANNEL_LABEL, CHANNEL_METRICS, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
+import { CHANNEL_LABEL, metricForKey, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
 import type { GraphMetric } from '@/lib/dash-social/types'
 import type { TrendSeries } from './types'
 
@@ -25,7 +25,7 @@ export const getEngagementTrend = cache(async (
 
   const perChannel = await Promise.all(
     targets.map(async (channel) => {
-      const metric = CHANNEL_METRICS[channel].engagements
+      const metric = metricForKey(channel, 'engagements')
       const label = CHANNEL_LABEL[channel]
       try {
         const res = await client.getReportsData<GraphMetric>({

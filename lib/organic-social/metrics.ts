@@ -60,48 +60,82 @@ export function channelErrorPolicy<T>(scoped: boolean, error: unknown, degradeVa
   return degradeValue
 }
 
-export interface ChannelMetricMap {
-  followers: string
-  netNewFollowers: string
-  engagements: string
-  /** Dash-computed engagement rate (0..1). */
-  engagementRate: string
-  /** Per-channel exposure metric (views for IG/FB, impressions for X/LinkedIn). */
-  exposure: string
-  exposureLabel: 'Views' | 'Impressions'
+export type ReportingBasis = 'allPosts' | 'byPost'
+
+/** The active reporting basis. M2b flips this one constant — decisions 3 & 4.
+ *  'allPosts'  = every post active in the window (older posts still accruing).
+ *  'byPost'    = only posts published in the window (findings §3a, §6.2). */
+export const REPORTING_BASIS: ReportingBasis = 'byPost'
+
+export interface KpiSpec {
+  key: string                              // stable id: 'followers', 'exposure'
+  label: string                            // display label ('Total Followers', 'Views')
+  /** Metric name per basis. Identical entries are deliberate, not duplication. */
+  metric: Record<ReportingBasis, string>
+  /** number vs percent formatting. Carried on the spec now; consumed when M3 renders
+   *  the KPI list generically (M2's headline formats its fixed five fields inline). */
+  format: 'number' | 'percent'
+  /** Rendered as a caveat under the card (used by M3 — decision 6, Facebook). */
+  footnote?: string
 }
 
-export const CHANNEL_METRICS: Record<DashChannel, ChannelMetricMap> = {
-  INSTAGRAM: {
-    followers: 'TOTAL_FOLLOWERS',
-    netNewFollowers: 'NET_NEW_FOLLOWERS',
-    engagements: 'TOTAL_ENGAGEMENTS',
-    engagementRate: 'AVG_ENGAGEMENT_RATE',
-    exposure: 'VIEWS',
-    exposureLabel: 'Views',
-  },
-  FACEBOOK: {
-    followers: 'TOTAL_FOLLOWERS',
-    netNewFollowers: 'NET_NEW_FOLLOWERS',
-    engagements: 'TOTAL_ENGAGEMENTS_POSTS_V2',
-    engagementRate: 'AVG_ENGAGEMENT_RATE_V2',
-    exposure: 'PAID_AND_ORGANIC_VIEWS_BY_POST',
-    exposureLabel: 'Views',
-  },
-  TWITTER: {
-    followers: 'TOTAL_FOLLOWERS',
-    netNewFollowers: 'NET_NEW_FOLLOWERS',
-    engagements: 'TOTAL_ENGAGEMENTS',
-    engagementRate: 'AVG_ENGAGEMENT_RATE',
-    exposure: 'IMPRESSIONS',
-    exposureLabel: 'Impressions',
-  },
-  LINKEDIN: {
-    followers: 'TOTAL_FOLLOWERS',
-    netNewFollowers: 'NET_NEW_FOLLOWERS',
-    engagements: 'ENGAGEMENTS',
-    engagementRate: 'AVG_ENGAGEMENT_RATE',
-    exposure: 'IMPRESSIONS',
-    exposureLabel: 'Impressions',
-  },
+// Overview shows five KPIs, un-aggregated. M3 extends each channel's list to the
+// full 10–11; M2 carries only the five Overview keys. Names: all-posts copied from
+// the pre-M2 CHANNEL_METRICS; by-post from findings §6.2 / §7.1. `followers`,
+// `netNewFollowers`, `engagementRate` are basis-neutral (identical both columns).
+export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
+  INSTAGRAM: [
+    { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
+    { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+    { key: 'exposure',        label: 'Views',           format: 'number',  metric: { allPosts: 'VIEWS',             byPost: 'VIEWS' } },
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS' } },
+    { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+  ],
+  FACEBOOK: [
+    { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
+    { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+    { key: 'exposure',        label: 'Views',           format: 'number',  metric: { allPosts: 'PAID_AND_ORGANIC_VIEWS_BY_POST', byPost: 'PAID_AND_ORGANIC_VIEWS_BY_POST' } },
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' } },
+    { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE_V2', byPost: 'AVG_ENGAGEMENT_RATE_V2' } },
+  ],
+  TWITTER: [
+    { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
+    { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+    // by-post names confirmed live 2026-07-29 via scripts/probe-m2-by-post-impressions.ts
+    // (30-day window 06-22..07-22, brand 26952): the exact 5-metric prod batch 200s on
+    // every channel; X IMPRESSIONS 183→IMPRESSIONS_BY_POST 299, LinkedIn 13248→12195.
+    { key: 'exposure',        label: 'Impressions',     format: 'number',  metric: { allPosts: 'IMPRESSIONS',       byPost: 'IMPRESSIONS_BY_POST' } },
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS_POSTS' } },
+    { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+  ],
+  LINKEDIN: [
+    { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
+    { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+    { key: 'exposure',        label: 'Impressions',     format: 'number',  metric: { allPosts: 'IMPRESSIONS',       byPost: 'IMPRESSIONS_BY_POST' } },
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'ENGAGEMENTS',       byPost: 'ENGAGEMENTS_BY_POST' } },
+    { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+  ],
 }
+
+/** The subset Overview shows, by key, in display order. Overview stays 5-up. */
+export const OVERVIEW_KPI_KEYS = ['followers', 'netNewFollowers', 'exposure',
+                                  'engagements', 'engagementRate'] as const
+
+/** The metric name for a KPI under the active basis. */
+export const metricFor = (k: KpiSpec): string => k.metric[REPORTING_BASIS]
+
+/** Per-channel key→spec index so kpiFor is O(1), not a linear scan per lookup
+ *  (headlines resolves 5 keys per channel per render). Built once at module load. */
+const KPI_INDEX: Record<DashChannel, Record<string, KpiSpec>> = Object.fromEntries(
+  CHANNELS.map((ch) => [ch, Object.fromEntries(PLATFORM_KPIS[ch].map((k) => [k.key, k]))]),
+) as Record<DashChannel, Record<string, KpiSpec>>
+
+/** The KpiSpec for a key on a channel. Throws if absent — a missing Overview key is a bug. */
+export function kpiFor(channel: DashChannel, key: string): KpiSpec {
+  const spec = KPI_INDEX[channel][key]
+  if (!spec) throw new Error(`no KPI '${key}' for channel ${channel}`)
+  return spec
+}
+
+/** Convenience: the active-basis metric name for a channel+key. */
+export const metricForKey = (channel: DashChannel, key: string): string => metricFor(kpiFor(channel, key))
