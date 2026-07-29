@@ -99,7 +99,7 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
   TWITTER: [
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
     { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
-    // by-post names confirmed live in M2b Step 1 before the flip.
+    // by-post names from findings §6.2/§7.1; live-probe of IMPRESSIONS_BY_POST (X 289 / LinkedIn 10746) is a pre-merge gate, not yet run.
     { key: 'exposure',        label: 'Impressions',     format: 'number',  metric: { allPosts: 'IMPRESSIONS',       byPost: 'IMPRESSIONS_BY_POST' } },
     { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS_POSTS' } },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
