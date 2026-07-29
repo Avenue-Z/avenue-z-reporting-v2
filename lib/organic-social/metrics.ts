@@ -79,10 +79,18 @@ export interface KpiSpec {
   footnote?: string
 }
 
-// Overview shows five KPIs, un-aggregated. M3 extends each channel's list to the
-// full 10–11; M2 carries only the five Overview keys. Names: all-posts copied from
-// the pre-M2 CHANNEL_METRICS; by-post from findings §6.2 / §7.1. `followers`,
+// Overview shows five KPIs (OVERVIEW_KPI_KEYS); a platform subpage shows the full
+// per-channel set below (M3 — 9–11 KPIs). Names: all-posts copied from the pre-M2
+// CHANNEL_METRICS; by-post from findings §6.2 / §7.1 and the M3 probe. `followers`,
 // `netNewFollowers`, `engagementRate` are basis-neutral (identical both columns).
+//
+// M3 breakdown-KPI by-post names confirmed live 2026-07-29 via
+// scripts/probe-m3-kpi-names.ts (brand 26952, window 06-22..07-22):
+//  - Instagram/Facebook/X breakdown KPIs are basis-neutral bare names (their _BY_POST
+//    variants 400 "Invalid combination"); only the bare name is valid on the channel.
+//  - LinkedIn reactions/comments/shares/postClicks have real _BY_POST variants (used
+//    under byPost); profileViews has NO by-post variant (PAGE_VIEWS_BY_POST 400s) so
+//    it falls back to PAGE_VIEWS_ALL_POSTS — a page-level metric, inherently all-posts.
 export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
   INSTAGRAM: [
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
@@ -90,13 +98,25 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
     { key: 'exposure',        label: 'Views',           format: 'number',  metric: { allPosts: 'VIEWS',             byPost: 'VIEWS' } },
     { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS' } },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+    { key: 'profileViews',    label: 'Profile Views',   format: 'number',  metric: { allPosts: 'PROFILE_VIEWS',    byPost: 'PROFILE_VIEWS' } },
+    { key: 'likes',           label: 'Likes',           format: 'number',  metric: { allPosts: 'ORGANIC_LIKES',    byPost: 'ORGANIC_LIKES' } },
+    { key: 'comments',        label: 'Comments',        format: 'number',  metric: { allPosts: 'ORGANIC_COMMENTS', byPost: 'ORGANIC_COMMENTS' } },
+    { key: 'shares',          label: 'Shares',          format: 'number',  metric: { allPosts: 'SHARES',           byPost: 'SHARES' } },
+    { key: 'saves',           label: 'Saves',           format: 'number',  metric: { allPosts: 'SAVES',            byPost: 'SAVES' } },
+    { key: 'reposts',         label: 'Reposts',         format: 'number',  metric: { allPosts: 'REPOSTS',          byPost: 'REPOSTS' } },
   ],
   FACEBOOK: [
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
     { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
     { key: 'exposure',        label: 'Views',           format: 'number',  metric: { allPosts: 'PAID_AND_ORGANIC_VIEWS_BY_POST', byPost: 'PAID_AND_ORGANIC_VIEWS_BY_POST' } },
-    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' } },
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' },
+      footnote: 'Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive).' },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE_V2', byPost: 'AVG_ENGAGEMENT_RATE_V2' } },
+    // Facebook has NO Profile Views KPI (decision 7 / findings §7.5) — omitted.
+    { key: 'reactions',       label: 'Reactions',       format: 'number',  metric: { allPosts: 'REACTIONS',        byPost: 'REACTIONS' } },
+    { key: 'comments',        label: 'Comments',        format: 'number',  metric: { allPosts: 'TOTAL_COMMENTS',   byPost: 'TOTAL_COMMENTS' } },
+    { key: 'shares',          label: 'Shares',          format: 'number',  metric: { allPosts: 'SHARES',           byPost: 'SHARES' } },
+    { key: 'postClicks',      label: 'Post Clicks',     format: 'number',  metric: { allPosts: 'POST_CLICKS',      byPost: 'POST_CLICKS' } },
   ],
   TWITTER: [
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
@@ -107,6 +127,12 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
     { key: 'exposure',        label: 'Impressions',     format: 'number',  metric: { allPosts: 'IMPRESSIONS',       byPost: 'IMPRESSIONS_BY_POST' } },
     { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS_POSTS' } },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+    // Profile *Clicks*, not Views (decision 7). Breakdown KPIs are basis-neutral bare names.
+    { key: 'profileClicks',   label: 'Profile Clicks',  format: 'number',  metric: { allPosts: 'PROFILE_CLICKS',   byPost: 'PROFILE_CLICKS' } },
+    { key: 'likes',           label: 'Likes',           format: 'number',  metric: { allPosts: 'LIKES',            byPost: 'LIKES' } },
+    { key: 'replies',         label: 'Replies',         format: 'number',  metric: { allPosts: 'REPLIES',          byPost: 'REPLIES' } },
+    { key: 'reposts',         label: 'Reposts',         format: 'number',  metric: { allPosts: 'RETWEETS',         byPost: 'RETWEETS' } },
+    { key: 'linkClicks',      label: 'Link Clicks',     format: 'number',  metric: { allPosts: 'LINK_CLICKS',      byPost: 'LINK_CLICKS' } },
   ],
   LINKEDIN: [
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
@@ -114,6 +140,13 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
     { key: 'exposure',        label: 'Impressions',     format: 'number',  metric: { allPosts: 'IMPRESSIONS',       byPost: 'IMPRESSIONS_BY_POST' } },
     { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'ENGAGEMENTS',       byPost: 'ENGAGEMENTS_BY_POST' } },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+    // Breakdown KPIs move all-posts → by-post under the active basis (findings §6.3).
+    { key: 'reactions',       label: 'Reactions',       format: 'number',  metric: { allPosts: 'REACTIONS_ALL_POSTS', byPost: 'REACTIONS_BY_POST' } },
+    { key: 'comments',        label: 'Comments',        format: 'number',  metric: { allPosts: 'COMMENTS_ALL_POSTS',  byPost: 'COMMENTS_BY_POST' } },
+    { key: 'shares',          label: 'Shares',          format: 'number',  metric: { allPosts: 'SHARES_ALL_POSTS',    byPost: 'SHARES_BY_POST' } },
+    { key: 'postClicks',      label: 'Post Clicks',     format: 'number',  metric: { allPosts: 'CLICKS_ALL_POSTS',    byPost: 'CLICKS_BY_POST' } },
+    // No by-post variant (PAGE_VIEWS_BY_POST 400s) — page-level, inherently all-posts.
+    { key: 'profileViews',    label: 'Profile Views',   format: 'number',  metric: { allPosts: 'PAGE_VIEWS_ALL_POSTS', byPost: 'PAGE_VIEWS_ALL_POSTS' } },
   ],
 }
 
@@ -139,3 +172,6 @@ export function kpiFor(channel: DashChannel, key: string): KpiSpec {
 
 /** Convenience: the active-basis metric name for a channel+key. */
 export const metricForKey = (channel: DashChannel, key: string): string => metricFor(kpiFor(channel, key))
+
+/** Every KPI key for a channel, in display order (platform subpages show all of these). */
+export const platformKpiKeys = (channel: DashChannel): string[] => PLATFORM_KPIS[channel].map((k) => k.key)

@@ -1,23 +1,20 @@
 export type SourceType = 'organic' | 'influencer'
 
-/** Headline KPIs for a single platform (channel). */
+/** One KPI on a platform headline. */
+export interface HeadlineKpi {
+  key: string
+  label: string
+  value: number
+  format: 'number' | 'percent'
+  delta?: number            // prior-period % change, when Dash returned a context
+  footnote?: string         // caveat under the card (decision 6, Facebook)
+}
+
+/** Headline KPIs for a single platform (channel) — Overview shows 5, subpages 10–11. */
 export interface PlatformHeadline {
-  channel: string            // Dash channel key, e.g. 'INSTAGRAM'
-  label: string              // display: 'Instagram'
-  exposureLabel: string      // 'Views' | 'Impressions'
-  followers: number
-  netNewFollowers: number
-  exposure: number           // views or impressions
-  engagements: number
-  engagementRate: number     // percent (0..100)
-  /** Prior-period percent-change deltas, where Dash returned a comparison context. */
-  deltas?: {
-    followers?: number
-    netNewFollowers?: number
-    exposure?: number
-    engagements?: number
-    engagementRate?: number
-  }
+  channel: string           // Dash channel key, e.g. 'INSTAGRAM'
+  label: string             // display: 'Instagram'
+  kpis: HeadlineKpi[]
 }
 
 /** A daily point for a single channel in a trend series. */

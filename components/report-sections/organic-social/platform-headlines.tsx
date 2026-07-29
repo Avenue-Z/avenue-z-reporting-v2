@@ -7,16 +7,16 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
     <section className="space-y-3">
       <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{h.label}</h3>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <KpiCard title="Followers" value={num(h.followers)} delta={h.deltas?.followers} />
-        <KpiCard title="Net New Followers" value={num(h.netNewFollowers)} delta={h.deltas?.netNewFollowers} />
-        <KpiCard title={h.exposureLabel} value={num(h.exposure)} delta={h.deltas?.exposure} />
-        <KpiCard title="Engagements" value={num(h.engagements)} delta={h.deltas?.engagements} />
-        <KpiCard
-          title="Engagement Rate"
-          value={h.engagementRate.toFixed(1)}
-          suffix="%"
-          delta={h.deltas?.engagementRate}
-        />
+        {h.kpis.map((k) => (
+          <KpiCard
+            key={k.key}
+            title={k.label}
+            value={k.format === 'percent' ? k.value.toFixed(1) : num(k.value)}
+            suffix={k.format === 'percent' ? '%' : undefined}
+            delta={k.delta}
+            footnote={k.footnote}
+          />
+        ))}
       </div>
     </section>
   )

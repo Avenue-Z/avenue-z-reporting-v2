@@ -13,6 +13,8 @@ interface KpiCardProps {
   deltaLabel?: string
   /** Secondary line shown below the delta, e.g. "2,483 in 2025". */
   subValue?: string
+  /** Small caveat line under the value (e.g. Facebook influencer note). */
+  footnote?: string
 }
 
 export function KpiCard({
@@ -25,6 +27,7 @@ export function KpiCard({
   tooltip,
   deltaLabel = 'vs prior period',
   subValue,
+  footnote,
 }: KpiCardProps) {
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5">
@@ -68,6 +71,10 @@ export function KpiCard({
 
       {subValue && (
         <p className="mt-0.5 text-xs text-text-muted">{subValue}</p>
+      )}
+
+      {footnote && (
+        <p className="mt-1 text-xs leading-snug text-text-muted">{footnote}</p>
       )}
     </div>
   )
