@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint } from 'drizzle-orm/pg-core'
+import type { SnapshotPayload } from '@/lib/organic-social/content-types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
@@ -276,6 +277,50 @@ export const reportCommentary = pgTable('report_commentary', {
     sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`,
   ),
 }))
+
+export const postDesignationEnum = pgEnum('post_designation', ['organic', 'influencer'])
+
+// One row per (client, Dash post id). Absence = never manually designated (lets the
+// #ad suggestion apply); a stored row always wins, including a stored 'organic' that
+// overrides an #ad suggestion. post_id is Dash's own id — stable and unique in the
+// CONTENT payload. Mirrors report_commentary's shape/indexing.
+export const postDesignations = pgTable('post_designations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  postId: bigint('post_id', { mode: 'number' }).notNull(),
+  designation: postDesignationEnum('designation').notNull(),
+  setBy: text('set_by').notNull(),          // email
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientPostUnique: unique('post_designations_client_post_key').on(table.clientId, table.postId),
+  clientIdx: index('post_designations_client_idx').on(table.clientId),
+}))
+
+export type PostDesignation = typeof postDesignations.$inferSelect
+export type NewPostDesignation = typeof postDesignations.$inferInsert
+
+// One row per (client, channel, resolved window, post). Freezes Dash-sourced facts for a
+// CLOSED period; the creative still pulls live from the URLs in `payload` (no media bytes).
+// Keyed on RESOLVED dates so a rolling preset (range_end = today) never freezes and a named
+// past month does (snapshot §2.2). sourceType is NOT stored — designations stay live (§4).
+export const topContentSnapshots = pgTable('top_content_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),
+  rangeStart: date('range_start').notNull(),
+  rangeEnd: date('range_end').notNull(),
+  postId: bigint('post_id', { mode: 'number' }).notNull(),
+  rank: integer('rank').notNull(),
+  payload: jsonb('payload').$type<SnapshotPayload>().notNull(),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  windowPostUnique: unique('top_content_snapshots_window_post_key').on(
+    table.clientId, table.channel, table.rangeStart, table.rangeEnd, table.postId,
+  ),
+}))
+
+export type TopContentSnapshot = typeof topContentSnapshots.$inferSelect
+export type NewTopContentSnapshot = typeof topContentSnapshots.$inferInsert
 
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert
