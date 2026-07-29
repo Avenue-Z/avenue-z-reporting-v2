@@ -192,6 +192,8 @@ export const getTopContent = cache(async (
   channel: DashChannel | null = null,
 ): Promise<PlatformTopContent[]> => {
   const posts = await fetchTopContent(slug, dateRange, channel)
+  // The out-of-allowlist THROW now lives in fetchTopContent; here resolveTargets only derives the
+  // platform display order (dashClientFor is React.cache'd, so this is not a second round-trip).
   const { channels } = await dashClientFor(slug)
   const allowed = resolveTargets(channels, channel)
   return groupByPlatform(toTopContentRows(posts), 25, allowed)

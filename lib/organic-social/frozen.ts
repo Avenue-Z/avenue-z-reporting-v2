@@ -57,21 +57,25 @@ export async function fetchTopContentFrozen(
 
   const open = isPeriodOpen(end, d.today)
 
-  // Closed period with a stored snapshot → serve it (no live query). Any read failure falls
-  // through to the live fetch below.
+  // Closed period already frozen → serve the snapshot (no live query), INCLUDING a frozen-empty
+  // window (returns []). A read that THROWS is a transient failure, not proof of absence: fall
+  // through to live but do NOT re-write, so a momentary DB blip can't overwrite frozen numbers.
+  let readFailed = false
   if (!open && clientId) {
     try {
       const snap = await d.readSnapshot(clientId, key, start, end)
-      if (snap.length > 0) return snap
+      if (snap.frozen) return snap.posts
     } catch (e) {
-      console.warn('[organic-social] snapshot read failed; serving live:', (e as Error).message)
+      readFailed = true
+      console.warn('[organic-social] snapshot read failed; serving live (not overwriting):', (e as Error).message)
     }
   }
 
-  // OPEN, or closed-and-not-yet-snapshotted, or a failed read → live. Persist ONLY when closed:
-  // an open/rolling window is never frozen, so writing it would just churn dead per-day rows.
+  // OPEN, or closed-and-not-yet-frozen → live. Persist ONLY when closed AND the read succeeded
+  // (absent, not failed): an open/rolling window is never frozen (writing it churns dead per-day
+  // rows), and a failed read must not clobber an existing snapshot.
   const posts = await d.fetchLive(slug, dateRange, channel)
-  if (clientId && !open) {
+  if (clientId && !open && !readFailed) {
     try {
       await d.writeSnapshot(clientId, key, start, end, posts)
     } catch (e) {

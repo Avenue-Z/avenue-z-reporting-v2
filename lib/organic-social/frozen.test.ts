@@ -35,11 +35,23 @@ test('CLOSED period with a snapshot reads it and does NOT query live data', asyn
   const deps = {
     today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
     clientId: async () => 'c1',
-    fetchLive: vi.fn(), readSnapshot: vi.fn(async () => snap), writeSnapshot: vi.fn(),
+    fetchLive: vi.fn(), readSnapshot: vi.fn(async () => ({ frozen: true, posts: snap })), writeSnapshot: vi.fn(),
   }
   const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
   expect(out).toBe(snap)
   expect(deps.fetchLive).not.toHaveBeenCalled()
+})
+
+test('CLOSED period frozen while EMPTY returns [] and does NOT re-query live', async () => {
+  const deps = {
+    today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
+    clientId: async () => 'c1',
+    fetchLive: vi.fn(), readSnapshot: vi.fn(async () => ({ frozen: true, posts: [] })), writeSnapshot: vi.fn(),
+  }
+  const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
+  expect(out).toEqual([])
+  expect(deps.fetchLive).not.toHaveBeenCalled() // frozen-empty ≠ absent — no live re-hit
+  expect(deps.writeSnapshot).not.toHaveBeenCalled()
 })
 
 test('CLOSED period never viewed while open fetches once and inserts', async () => {
@@ -47,7 +59,7 @@ test('CLOSED period never viewed while open fetches once and inserts', async () 
   const deps = {
     today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
     clientId: async () => 'c1',
-    fetchLive: vi.fn(async () => live), readSnapshot: vi.fn(async () => []), writeSnapshot: vi.fn(async () => {}),
+    fetchLive: vi.fn(async () => live), readSnapshot: vi.fn(async () => ({ frozen: false, posts: [] })), writeSnapshot: vi.fn(async () => {}),
   }
   const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
   expect(out).toBe(live)
@@ -60,7 +72,7 @@ test('a snapshot WRITE failure still returns live posts (best-effort persist)', 
   const deps = {
     today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
     clientId: async () => 'c1',
-    fetchLive: vi.fn(async () => live), readSnapshot: vi.fn(async () => []), // closed + absent → writes
+    fetchLive: vi.fn(async () => live), readSnapshot: vi.fn(async () => ({ frozen: false, posts: [] })), // closed + absent → writes
     writeSnapshot: vi.fn(async () => { throw new Error('relation does not exist') }),
   }
   const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
@@ -68,7 +80,7 @@ test('a snapshot WRITE failure still returns live posts (best-effort persist)', 
   expect(deps.writeSnapshot).toHaveBeenCalled()
 })
 
-test('a snapshot READ failure on a closed period falls through to live', async () => {
+test('a snapshot READ failure serves live but does NOT overwrite the frozen snapshot', async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   const live = [p(5)]
   const deps = {
@@ -81,6 +93,7 @@ test('a snapshot READ failure on a closed period falls through to live', async (
   const out = await fetchTopContentFrozen('renaissance', 'june', 'INSTAGRAM', deps)
   expect(out).toBe(live)
   expect(deps.fetchLive).toHaveBeenCalled()
+  expect(deps.writeSnapshot).not.toHaveBeenCalled() // a transient read blip must not clobber frozen numbers
 })
 
 test('a failed client lookup skips the snapshot and serves live', async () => {

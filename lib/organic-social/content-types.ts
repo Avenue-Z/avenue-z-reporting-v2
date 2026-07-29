@@ -9,7 +9,7 @@ export type { DashContentPost, ContentResponse } from '@/lib/dash-social/types'
 /** A renderable creative resolved from the post's top-level image/video (S2-C). */
 export type Creative =
   | { kind: 'image'; thumb: string; full: string }
-  | { kind: 'video'; src: string; poster: string }
+  | { kind: 'video'; src: string; poster: string | null } // poster optional — a playable src is enough
 
 /** The one normalized shape produced by fetchTopContent and consumed downstream. */
 export interface TopContentPost {

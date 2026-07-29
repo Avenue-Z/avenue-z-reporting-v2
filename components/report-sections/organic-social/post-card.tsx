@@ -32,7 +32,7 @@ function Media({ post }: { post: TopContentPost }) {
   }
   if (c.kind === 'video') {
     return (
-      <video className="aspect-square w-full object-cover" controls preload="metadata" poster={c.poster} onError={() => setBroken(true)}>
+      <video className="aspect-square w-full object-cover" controls preload="metadata" poster={c.poster ?? undefined} onError={() => setBroken(true)}>
         <source src={c.src} type="video/mp4" onError={() => setBroken(true)} />
       </video>
     )

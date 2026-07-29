@@ -26,7 +26,9 @@ export function resolveCreative(post: DashContentPost, _channel: DashChannel): C
     const thumbs = asObj(video.thumbnails)
     const src = sizeUrl(sizes, 'original') ?? sizeUrl(sizes, 'original_converted')
     const poster = sizeUrl(thumbs, 'medium_square') ?? sizeUrl(thumbs, 'original_converted') ?? sizeUrl(thumbs, 'small_square')
-    if (src && poster) return { kind: 'video', src, poster }
+    // A playable src is enough — poster is optional in HTML <video>; don't drop a good video to
+    // the placeholder just because no thumbnail resolved.
+    if (src) return { kind: 'video', src, poster }
   }
   const image = asObj(post.image)
   if (image) {
