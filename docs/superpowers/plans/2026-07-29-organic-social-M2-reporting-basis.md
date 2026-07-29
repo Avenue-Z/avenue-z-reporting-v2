@@ -34,7 +34,7 @@ The five Overview KPIs, per channel, under each basis. **All-posts** column is c
 | `exposure` | Instagram | `VIEWS` | `VIEWS` | no (IG already by-post family) |
 | `exposure` | Facebook | `PAID_AND_ORGANIC_VIEWS_BY_POST` | `PAID_AND_ORGANIC_VIEWS_BY_POST` | no (already by-post name) |
 | `exposure` | X (`TWITTER`) | `IMPRESSIONS` | `IMPRESSIONS_BY_POST` ★ | **yes** 176 → 289 |
-| `exposure` | LinkedIn | `IMPRESSIONS` | `IMPRESSIONS_BY_POST` ★ | value unchanged (10 746); name made family-consistent |
+| `exposure` | LinkedIn | `IMPRESSIONS` | `IMPRESSIONS_BY_POST` ★ | **yes** 13248 → 12195 (live 2026-07-29; findings §6.2's "unchanged / 10 746" was a different window and is superseded) |
 | `engagements` | Instagram | `TOTAL_ENGAGEMENTS` | `TOTAL_ENGAGEMENTS` | no |
 | `engagements` | Facebook | `TOTAL_ENGAGEMENTS_POSTS_V2` | `TOTAL_ENGAGEMENTS_POSTS_V2` | no |
 | `engagements` | X (`TWITTER`) | `TOTAL_ENGAGEMENTS` | `TOTAL_ENGAGEMENTS_POSTS` | **yes** (§7.1) |
@@ -347,7 +347,7 @@ Using the same method §6 used — a `TOTAL_GROUPED_METRIC`, `aggregate_by=BRAND
 
 Acceptance:
 - `IMPRESSIONS_BY_POST` for X returns **289** (findings §6.2/§6.3). If the metric 400s or returns a different number, **stop** — do not flip. Find the correct by-post impression metric name from Dash's catalog (§3b, `developer.dashsocial.com`) and record it in `metrics.ts` `TWITTER.exposure.metric.byPost` and in the test's `EXPECTED` table before continuing.
-- `IMPRESSIONS_BY_POST` for LinkedIn returns **10746** (findings §6.2). Same stop-and-correct rule.
+- `IMPRESSIONS_BY_POST` for LinkedIn returns a value DISTINCT from all-posts `IMPRESSIONS` — live 2026-07-29: 13248 (all-posts) → 12195 (by-post). (findings §6.2's 10746 "unchanged" was a different window and is superseded; the by-post name and its downward movement are what matter.) Same stop-and-correct rule.
 
 Record the confirmed names + observed values in a one-line comment on the PR. **Do not skip this step** — it is the guard the findings doc's "wrong twice" warning demands.
 

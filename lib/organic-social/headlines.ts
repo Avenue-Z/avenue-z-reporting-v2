@@ -58,6 +58,15 @@ export const getPlatformHeadlines = cache(async (
         const metrics = res.data?.[key]?.metrics
         if (!metrics) return null
 
+        // Dash 400s a whole batch if any requested metric is invalid for the channel
+        // (proven live — scripts/probe-m2-by-post-impressions.ts Step 0), so a 200 that
+        // OMITS a requested metric is a malformed/partial payload, not a real zero.
+        // Fail the channel (Overview drops it; a scoped view errors) rather than let
+        // `?? 0` below render a fabricated 0 on a client card (PR #173 review #1).
+        const absent = [followersMetric, netNewMetric, exposureMetric, engagementsMetric, engagementRateMetric]
+          .filter((name) => !(name in metrics))
+        if (absent.length) throw new Error(`${channel}: Dash omitted requested metric(s): ${absent.join(', ')}`)
+
         const followers = metrics[followersMetric]
         const netNew = metrics[netNewMetric]
         const exposure = metrics[exposureMetric]

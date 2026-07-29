@@ -10,6 +10,17 @@ export {} // module scope
 // Why raw fetch: DashSocialClient throws "400 at <url>" without the body, and the
 // body is where Dash names the offending metric. Auth/host are already known-good
 // (a 400, not 401, means the token works and only the params are wrong).
+//
+// BATCH CONTRACT (proven live 2026-07-29, PR #173 review #1): Dash 400s the WHOLE
+// request if ANY requested metric is invalid for the channel — it does NOT drop the
+// bad name and 200 with the rest. Evidence: the candidate superset below (valid names
+// + one invalid) returns status=400 naming the offending metric. This is why
+// headlines.ts wraps each channel in try/catch (a bad name ⇒ the channel's whole batch
+// 400s ⇒ the channel drops on Overview / errors when scoped) rather than risking a
+// silent 0. Step 0 below re-proves this contract each run; Step 1 runs the EXACT
+// five-name production batch so we never ship a combination nobody tested.
+
+import { OVERVIEW_KPI_KEYS, metricForKey, REPORTING_BASIS, CHANNELS, CHANNEL_LABEL } from '@/lib/organic-social/metrics'
 
 const TOKEN = process.env.DASH_API_TOKEN
 if (!TOKEN) { console.error('Missing DASH_API_TOKEN'); process.exit(1) }
@@ -59,7 +70,38 @@ const CANDIDATES: Record<string, string[]> = {
 }
 
 async function main() {
-  console.log(`Brand ${BRAND_ID} · window ${RANGE}\n`)
+  console.log(`Brand ${BRAND_ID} · window ${RANGE}  ·  active basis = ${REPORTING_BASIS}\n`)
+
+  // STEP 0 — prove the batch contract (PR #173 review #1). Send known-valid names +
+  // one guaranteed-invalid sentinel. 400 ⇒ Dash rejects the WHOLE batch (headlines.ts's
+  // catch is correct); 200-with-the-valid-ones-resolved ⇒ Dash drops-and-200 (the
+  // silent-zero risk would be real and headlines.ts would need a presence check).
+  console.log('===== STEP 0 · batch contract (invalid metric in a batch) =====')
+  const contract = await query('TWITTER',
+    ['TOTAL_FOLLOWERS', 'IMPRESSIONS', '__DEFINITELY_NOT_A_METRIC__'])
+  const validResolvedDespiteBad = 'IMPRESSIONS' in contract.resolved
+  console.log(`  status=${contract.status}  ` + (contract.ok
+    ? `→ 200: Dash DROPPED the bad name and returned the valid ones (${JSON.stringify(contract.resolved)}). DROP-AND-200 contract.`
+    : `→ 400: Dash REJECTED the whole batch. body: ${contract.rawSnippet.slice(0, 160)}`))
+  console.log(`  VERDICT: ${contract.ok && validResolvedDespiteBad
+    ? 'DROP-AND-200 — headlines.ts needs a presence check; a missing metric must not render 0.'
+    : 'WHOLE-BATCH-400 — an invalid name 400s the channel; headlines.ts try/catch drops it (no silent 0 from a bad name).'}\n`)
+
+  // STEP 1 — the EXACT five-name production batch per channel (PR #173 review #2).
+  // This is literally what headlines.ts sends: OVERVIEW_KPI_KEYS resolved through the
+  // ACTIVE basis. If any channel here 400s, production would drop that channel.
+  console.log('===== STEP 1 · exact production 5-metric batch (active basis) =====')
+  for (const channel of CHANNELS) {
+    const prod = OVERVIEW_KPI_KEYS.map((k) => metricForKey(channel, k))
+    const r = await query(channel, prod)
+    const missing = prod.filter((m) => !(m in r.resolved))
+    console.log(`  ${CHANNEL_LABEL[channel].padEnd(10)} status=${r.status}  ` + (r.ok
+      ? (missing.length ? `⚠️ 200 but MISSING ${JSON.stringify(missing)} — ${JSON.stringify(r.resolved)}`
+                        : `✅ all 5 resolved — ${JSON.stringify(r.resolved)}`)
+      : `❌ 400 — production would DROP this channel. body: ${r.rawSnippet.slice(0, 200)}`))
+  }
+  console.log('')
+
   for (const channel of ['TWITTER', 'LINKEDIN'] as const) {
     console.log(`===== ${channel} =====`)
 
