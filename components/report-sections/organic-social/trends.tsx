@@ -19,7 +19,8 @@ export const CHANNEL_COLOR: Record<string, string> = {
 }
 export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
 
-function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
+// Exported so the Follower Graph part (M3) reuses the exact same chart + legend, retitled.
+export function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
 
   const toggle = (channel: string) =>

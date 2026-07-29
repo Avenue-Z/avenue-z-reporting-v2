@@ -22,12 +22,12 @@ test('Overview composition resolves to the three parts in order', () => {
   expect(container).toMatchSnapshot()
 })
 
-test('Platform composition resolves the same three parts (follower-graph arrives in M3)', () => {
+test('Platform composition inserts follower-graph as the second part', () => {
   const ctx = { ...FIXTURE_ORGANIC_SOCIAL_CTX, channel: 'INSTAGRAM' as const }
   const resolved = resolveSection(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, undefined)
-  expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'engagement-trend', 'top-content'])
+  expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'follower-graph', 'engagement-trend', 'top-content'])
   const nodes = resolved.map((r) => lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)?.render(ctx, r))
   const { container } = render(<>{nodes}</>)
-  // Snapshot the whole container (all three skeletons), not just firstChild.
+  // Snapshot the whole container (all four skeletons), not just firstChild.
   expect(container).toMatchSnapshot()
 })
