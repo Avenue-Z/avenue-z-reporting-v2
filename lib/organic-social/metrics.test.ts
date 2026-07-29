@@ -70,20 +70,17 @@ test('metricForKey resolves through the active REPORTING_BASIS', () => {
   }
 })
 
-// (D) M2a guard: the ACTIVE resolution is still all-posts (no numbers move yet).
-test('M2a: active basis is allPosts and resolves to today\'s names', () => {
-  expect(REPORTING_BASIS).toBe('allPosts')
-  for (const channel of CHANNELS) {
-    for (const key of OVERVIEW_KPI_KEYS) {
-      expect(metricForKey(channel, key)).toBe(EXPECTED[channel][key].allPosts)
-    }
-  }
-})
-
 // (E) The exposure label the headline still renders (preserves today's exposureLabel).
 test('exposure label is Views for IG/FB, Impressions for X/LI', () => {
   expect(kpiFor('INSTAGRAM', 'exposure').label).toBe('Views')
   expect(kpiFor('FACEBOOK', 'exposure').label).toBe('Views')
   expect(kpiFor('TWITTER', 'exposure').label).toBe('Impressions')
   expect(kpiFor('LINKEDIN', 'exposure').label).toBe('Impressions')
+})
+
+// M2b: the basis has been flipped. This is the single revertable assertion that
+// pins the visible change. Test (A) already pins the by-post NAMES; this pins the
+// active BASIS. Reverting the one-line flip in metrics.ts makes exactly this fail.
+test('M2b: active basis is byPost', () => {
+  expect(REPORTING_BASIS).toBe('byPost')
 })

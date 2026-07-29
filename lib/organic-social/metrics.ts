@@ -65,7 +65,7 @@ export type ReportingBasis = 'allPosts' | 'byPost'
 /** The active reporting basis. M2b flips this one constant — decisions 3 & 4.
  *  'allPosts'  = every post active in the window (older posts still accruing).
  *  'byPost'    = only posts published in the window (findings §3a, §6.2). */
-export const REPORTING_BASIS: ReportingBasis = 'allPosts'
+export const REPORTING_BASIS: ReportingBasis = 'byPost'
 
 export interface KpiSpec {
   key: string                              // stable id: 'followers', 'exposure'
