@@ -72,6 +72,8 @@ export interface KpiSpec {
   label: string                            // display label ('Total Followers', 'Views')
   /** Metric name per basis. Identical entries are deliberate, not duplication. */
   metric: Record<ReportingBasis, string>
+  /** number vs percent formatting. Carried on the spec now; consumed when M3 renders
+   *  the KPI list generically (M2's headline formats its fixed five fields inline). */
   format: 'number' | 'percent'
   /** Rendered as a caveat under the card (used by M3 — decision 6, Facebook). */
   footnote?: string
@@ -122,9 +124,15 @@ export const OVERVIEW_KPI_KEYS = ['followers', 'netNewFollowers', 'exposure',
 /** The metric name for a KPI under the active basis. */
 export const metricFor = (k: KpiSpec): string => k.metric[REPORTING_BASIS]
 
+/** Per-channel key→spec index so kpiFor is O(1), not a linear scan per lookup
+ *  (headlines resolves 5 keys per channel per render). Built once at module load. */
+const KPI_INDEX: Record<DashChannel, Record<string, KpiSpec>> = Object.fromEntries(
+  CHANNELS.map((ch) => [ch, Object.fromEntries(PLATFORM_KPIS[ch].map((k) => [k.key, k]))]),
+) as Record<DashChannel, Record<string, KpiSpec>>
+
 /** The KpiSpec for a key on a channel. Throws if absent — a missing Overview key is a bug. */
 export function kpiFor(channel: DashChannel, key: string): KpiSpec {
-  const spec = PLATFORM_KPIS[channel].find((k) => k.key === key)
+  const spec = KPI_INDEX[channel][key]
   if (!spec) throw new Error(`no KPI '${key}' for channel ${channel}`)
   return spec
 }
