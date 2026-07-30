@@ -1,16 +1,20 @@
 # Organic Social — M4 (seed `section_templates`) — Code Review Record
 
 **Scope under review:** PR [#178](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/178),
-branch `feat/organic-social-m4-seed-templates`, diff range **`406f195..aa1d7f1`** (1 commit) off
-`origin/integration/organic-social` (`406f195` = the M3 `/verify` sign-off, #177). The range
-touches exactly two files: `scripts/seed-section-templates.ts` (+6) and the plan doc
-`docs/superpowers/plans/2026-07-30-organic-social-M4-seeding.md` (+156). No other code is in scope.
+branch `feat/organic-social-m4-seed-templates`, diff range **`406f195..4152704`** (2 commits) off
+`origin/integration/organic-social` (`406f195` = the M3 `/verify` sign-off, #177). Commit `aa1d7f1`
+is the seed change itself; `4152704` is the review-round follow-up (this record's §3 findings). The
+range touches three files: `scripts/seed-section-templates.ts` (+11), the new test
+`lib/report-sections/seed-templates.test.ts` (+43), and the plan doc
+`docs/superpowers/plans/2026-07-30-organic-social-M4-seeding.md` (+157). No other code is in scope.
 
 **This document changes no code.** It is the pre-merge comprehension-gate record for Spec 1's final
-module (M4, §9 step 9). Paul's inline review on PR #178 and the two remaining gated steps — the
-real DB seed and the `/verify` render check (both blocked on confirming the target database, Spec 1
-§10) — are tracked in §5 as the open gates; this record documents what the change is, why it is
-safe, and how that was verified offline.
+module (M4, §9 step 9). It documents what the change is, why it is safe, and — importantly — what
+was verified **offline** versus what remains outstanding. The offline review (§2) surfaced the
+findings in §3; the two runtime-gated steps — the real DB seed and the `/verify` render check (both
+blocked on confirming the target database, Spec 1 §10) — are the open gates in §5. This record is
+**not** a clean-runtime sign-off: the only steps that could surface a live data/DB problem have not
+yet run.
 
 Reviewers: Paul.
 
@@ -83,7 +87,10 @@ lock-in). This is by design, not a regression; it is the whole reason M4 runs la
   OK  organic-social:platform: platform-headlines@1, follower-graph@1, engagement-trend@1, top-content@2
   ```
   (Run with a dummy `DATABASE_URL` so the module graph loads without a network connection — the
-  Neon client only connects on query, and parse issues none.)
+  Neon client only connects on query, and parse issues none.) The follow-up commit makes this a
+  **standing CI check**: `lib/report-sections/seed-templates.test.ts` runs the same parse over the
+  seed mapping on every PR (finding #1), so this offline guard no longer depends on someone running
+  the probe by hand.
 - **Type-check.** `npx tsc --noEmit` — clean.
 - **`--check` dry run against the DB — DEFERRED to the seed step.** Because it needs `.env.local`,
   which is intentionally absent from this fresh worktree, and because even the read-only `--check`
@@ -102,31 +109,58 @@ lock-in). This is by design, not a regression; it is the whole reason M4 runs la
 
 Sev: **●** correctness · **○** cleanup/convention/efficiency.
 Status: **CONFIRMED** (proven in-tree) · **PLAUSIBLE** (code assumption confirmed, external trigger
-unverified). Locations as reviewed (`aa1d7f1`).
+unverified). Locations as reviewed (`aa1d7f1`), fixes as of `4152704`.
 
-| # | Sev | Status | Location | Finding |
-|---|-----|--------|----------|---------|
-| — | — | — | — | No correctness or cleanup findings. The change is a two-entry extension of a list whose per-entry handling was reviewed and merged with M1; parse-before-insert, slug↔view-key match, and `tsc` all verified clean (§2). |
+These are findings **from the offline review** (parse probe + `tsc` + slug↔view-key read); runtime
+verification is outstanding (§2, §5), so this is not a completed-gate table. The 6-line diff carried
+**no correctness bug** — the one thing that could read as a defect, that seeding freezes the
+composition against future code edits, is the designed §6/§10 lock-in documented in §1. But the
+review of the change's *test and verification posture* did raise findings, all now dispositioned on
+#178 (follow-up commit `4152704`):
 
-The review deliberately did **not** manufacture findings. The one item that could read as a defect
-— that seeding freezes the composition against future code edits — is the **designed** §6/§10
-lock-in behavior, documented in §1 as the key comprehension point rather than filed as a bug.
+| # | Sev | Status | Location | Finding | Disposition |
+|---|-----|--------|----------|---------|-------------|
+| 1 | ○ | CONFIRMED | `.github/workflows/checks.yml`; `scripts/seed-section-templates.ts:31` | Parse-before-insert — the one guard protecting this hard-to-undo write — ran only on manual invocation, never in CI. `validate.test.ts` exercised a *synthetic* registry, never the real `SEED` constants against `REGISTRIES`. A later unpublish/removal of `top-content@2` or `follower-graph@1` would keep CI green and only break at the gated manual seed (recovery = manual SQL, §10). Highest-value item. | **Fixed.** Added `lib/report-sections/seed-templates.test.ts` — loops the seed mapping and runs `parseSectionTemplate(template, REGISTRIES[slug])` on every PR. Can't import the script (it pulls in `@/lib/db/client`, which throws without `DATABASE_URL`; `scripts/**` is excluded from vitest), so it mirrors the `SEED` list. |
+| 2 | ○ | CONFIRMED | `lib/report-sections/registries.ts:9-10` | `REGISTRIES['organic-social']` and `['organic-social:platform']` are the **same** `ORGANIC_SOCIAL_PARTS` object, so parse-before-insert can't enforce Spec 1 §6 (follower-graph is platform-only, never on Overview): a template wrongly putting it on Overview would parse clean. Today's constant is correct; the guard is weaker than "parse catches bad rows" implies. | **Fixed (asserted).** The new test asserts Overview excludes follower-graph and the platform template includes it — the separation the shared registry can't structurally enforce. |
+| 3 | ○ | CONFIRMED | `scripts/seed-section-templates.ts:59-62` | A real (non-`--check`) run exits 0 even when it prints `[drift]`; only `--check` escalates to exit 1. Automation calling the real seed swallows the drift signal. | **Documented as by-design.** A divergent existing row is *expected* — promotion / manual SQL own divergence (§6); `--check` is the audit mode that gates a pipeline. Comment added at the exit-code split making the split deliberate, not accidental. |
+| 4 | ○ | CONFIRMED | `components/report-sections/organic-social/template.ts:18-19` | The comment "a future edit to Overview's order is automatically mirrored here" describes the code-constant relationship, which M4 makes non-authoritative: once rows are seeded, editing `ORGANIC_SOCIAL_TEMPLATE.order` changes nothing for seeded clients (§6/§10 lock-in). A maintainer could edit the constant and be surprised nothing moves. | **Deferred (tracked, §5).** `template.ts` is explicitly out of M4 scope (plan "Scope discipline", confirmed with Paul). Comment-only fix; belongs in the follow-up that touches that file, not this seed PR. |
+| 5 | ○ | CONFIRMED | plan doc | Plan cited `:7` / `:13-15` for the edit sites; the org-social import actually lands at `:8-11` and the extended `SEED` array at `:17-21`. | **Fixed.** Plan citations corrected; the "no test file" note updated to describe the added parse test. |
+
+Nothing here blocks the *correctness* of the diff. #1 and #2 (the CI-test gap and the shared-registry
+limitation) were the items to address before this becomes the pattern every future section copies —
+both are now in-tree. #4 is the only open code item and is a comment-only cleanup on an out-of-scope
+file.
 
 ---
 
 ## §4 Detail
 
-Nothing to detail beyond §1. The diff adds one `import { ORGANIC_SOCIAL_TEMPLATE,
+The seed change itself needs nothing beyond §1: it adds one `import { ORGANIC_SOCIAL_TEMPLATE,
 ORGANIC_SOCIAL_PLATFORM_TEMPLATE }` and two `SEED` entries; the existing `main()` loop handles them
-with no new branch. The comment above the array (`Add a row here ONLY when every part it references
-exists`) already carries the §10 residual-risk warning about early seeding requiring manual-SQL
-recovery, so no new comment was needed.
+with no new branch, and the comment above the array (`Add a row here ONLY when every part it
+references exists`) already carries the §10 residual-risk warning about early seeding requiring
+manual-SQL recovery.
+
+The follow-up commit (`4152704`) adds, per §3: the CI parse test
+(`lib/report-sections/seed-templates.test.ts`, findings #1/#2); a comment at the exit-code split
+recording that a real run exits 0 on `[drift]` by design while `--check` gates (finding #3); and the
+plan-doc corrections (finding #5). None of these change the seed's runtime behavior — the test is
+additive, and the comment is documentation.
 
 ---
 
 ## §5 Follow-ups (disposition)
 
-**No code follow-ups.** The remaining work is the two operational gates, not fixes:
+**Review findings (§3):** #1, #2, #3, #5 are fixed in `4152704`. One code item remains open:
+
+- **Finding #4 — `template.ts:18-19` comment (deferred, tracked).** The "automatically mirrored
+  here" comment is now misleading: post-seed, editing `ORGANIC_SOCIAL_TEMPLATE.order` no longer moves
+  what seeded clients render (§6/§10 lock-in). Fix is comment-only — reword to say the code constant
+  is a first-boot fallback and the DB row is authoritative once seeded. Not applied here because
+  `template.ts` is outside M4's scope ("Scope discipline" in the plan, confirmed with Paul); it rides
+  the next change that legitimately touches that file.
+
+**Operational gates** (not fixes — the runtime steps that must still run):
 
 - **Real seed — GATED on target-DB confirmation.** Run `npm run db:seed-section-templates` (writes)
   only after Paul confirms which database (staging Neon branch vs prod). Expected: two `Seeded …`
@@ -138,6 +172,8 @@ recovery, so no new comment was needed.
   `integration/organic-social`. Per M1–M3 practice the reviewer is Paul (CLAUDE.md also names
   Thomas, who has not reviewed M1–M3); confirmed for this module.
 
-**Post-change gate state:** `tsc --noEmit` clean; parse-before-insert verified offline for both
-rows; slug↔view-key match confirmed. The DB write and `/verify` are the only things outstanding,
-and both are deliberately gated on the target-database confirmation (Spec 1 §10).
+**Post-change gate state:** `tsc --noEmit` clean; parse-before-insert now runs in CI for all seeded
+rows (`seed-templates.test.ts`) as well as offline; slug↔view-key match confirmed. The DB write and
+`/verify` are the only runtime steps outstanding, and both are deliberately gated on the
+target-database confirmation (Spec 1 §10). This record is a completed **offline** gate, not a
+runtime sign-off.
