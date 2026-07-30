@@ -56,6 +56,11 @@ async function main() {
     console.log(`Seeded '${slug}' (insert-if-absent).`)
   }
 
+  // Exit code is deliberately split by mode. `--check` is the audit tool: it escalates any drift to
+  // exit 1 so CI/automation can gate on it. A real seed run does NOT — its contract is "insert the
+  // absent rows"; a divergent existing row is EXPECTED (promoteToTemplate + manual SQL own
+  // divergence, Spec 1 §6), so it is reported via [drift] above but is not a failure. Run `--check`
+  // when you need drift to fail a pipeline.
   if (check && drift > 0) {
     console.error(`--check: ${drift} row(s) diverge from / are absent vs code constants (see [drift] above).`)
     process.exit(1)

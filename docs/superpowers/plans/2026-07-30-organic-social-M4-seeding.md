@@ -26,16 +26,17 @@
 
 ## File Structure
 
-- **Modify:** `scripts/seed-section-templates.ts` — extend the `SEED` array from one entry to three; add one import from `template.ts`. No other file changes.
+- **Modify:** `scripts/seed-section-templates.ts` — extend the `SEED` array from one entry to three; add one import from `template.ts`.
+- **Add:** `lib/report-sections/seed-templates.test.ts` — a pure parse test (added in the PR #178 review round; see below).
 
-There is no test file. The seed script has no unit test today (peec-ai's entry has none either); its correctness gate is the built-in `--check` self-report plus `tsc`, and the end-to-end gate is `/verify` against a live DB row. Adding a bespoke vitest harness that stands up a fake Drizzle client would be new scope beyond this module and is explicitly out.
+There is no *end-to-end* seed test: standing up a fake Drizzle client to exercise the insert path is new scope and stays out. But the review round added `lib/report-sections/seed-templates.test.ts` — a self-contained vitest that re-declares the `slug → template` mapping and runs the same `parseSectionTemplate(template, REGISTRIES[slug])` the script runs before it writes. It can't import the script (that pulls in `@/lib/db/client`, which throws without `DATABASE_URL`, and `scripts/**` is excluded from vitest), so it mirrors the `SEED` list. This moves the parse-before-insert guard into CI (it goes red if a code template ever pins a removed/unpublished part) and adds two assertions that follower-graph is platform-only (Spec 1 §6), which the shared `ORGANIC_SOCIAL_PARTS` registry can't enforce structurally. `tsc` and `--check` remain the other gates; `/verify` against a live DB row is still the end-to-end gate.
 
 ---
 
 ### Task 1: Extend the SEED array to the two Organic Social rows
 
 **Files:**
-- Modify: `scripts/seed-section-templates.ts:7` (imports) and `:13-15` (the `SEED` array)
+- Modify: `scripts/seed-section-templates.ts` — after the change the org-social import lands at `:8-11` and the extended `SEED` array at `:17-21`
 
 **Interfaces:**
 - Consumes: `ORGANIC_SOCIAL_TEMPLATE`, `ORGANIC_SOCIAL_PLATFORM_TEMPLATE` from `@/components/report-sections/organic-social/template` (both `SectionTemplate`, already exported); `REGISTRIES['organic-social']` and `REGISTRIES['organic-social:platform']` (both present, → `ORGANIC_SOCIAL_PARTS`).
