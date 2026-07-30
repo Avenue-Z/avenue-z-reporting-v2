@@ -41,3 +41,10 @@ export function buildTrendSeries(
   const points = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)))
   return { points, channels }
 }
+
+/** True when a series carries no plottable data — no channels, no points, or every point is
+ *  null/non-finite for every channel (e.g. a window before the account's history begins). Lets
+ *  the chart show a "no data" placeholder instead of an empty axis frame. */
+export function isEmptyTrend(series: TrendSeries): boolean {
+  return !series.points.some((p) => series.channels.some((c) => Number.isFinite(Number(p[c]))))
+}

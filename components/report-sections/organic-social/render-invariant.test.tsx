@@ -12,7 +12,7 @@ import type { PlatformHeadline } from '@/lib/organic-social/types'
 // --- #3: real metric values render (the skeleton goldens can't see these) ---
 const HEADLINES: PlatformHeadline[] = [
   {
-    channel: 'INSTAGRAM', label: 'Instagram',
+    channel: 'INSTAGRAM', label: 'Instagram', noData: false,
     kpis: [
       { key: 'followers', label: 'Total Followers', value: 12345, format: 'number', delta: 5.2 },
       { key: 'netNewFollowers', label: 'Net New Followers', value: 210, format: 'number' },
@@ -22,7 +22,7 @@ const HEADLINES: PlatformHeadline[] = [
     ],
   },
   {
-    channel: 'FACEBOOK', label: 'Facebook',
+    channel: 'FACEBOOK', label: 'Facebook', noData: false,
     kpis: [
       { key: 'followers', label: 'Total Followers', value: 8000, format: 'number' },
       { key: 'netNewFollowers', label: 'Net New Followers', value: -15, format: 'number' },
