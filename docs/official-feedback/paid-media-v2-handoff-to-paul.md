@@ -1,8 +1,24 @@
 # Handoff — Paid Media v2
 
-> **This is a mid-build engineering handoff, not a final delivery handoff.** The
-> team's Handoff Agreement template assumes a finished deliverable. This transfers
-> ownership of work in progress, so "Current state" and "Known notes" carry the weight.
+> ## START HERE
+>
+> **You are in the right file.** This is the single entry point for Paid Media v2.
+> Everything else hangs off it. Read in this order, stop whenever you have what you need:
+>
+> | # | File | Why you would open it |
+> |---|---|---|
+> | **1** | **this file** | State of the work, what is blocked, what to do first |
+> | 2 | [`paid-media-v2-merged-worklist.md`](./paid-media-v2-merged-worklist.md) | **The build list.** Every row traced to a source line. Start builds here. |
+> | 3 | [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) | Verbatim record of the **Decisions for Approval** tab. Open when you need to check what someone actually said. |
+> | 4 | [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) | Same, for the **Q&A** tab |
+> | 5 | [`paid-media-v2-review-request.md`](./paid-media-v2-review-request.md) | The review brief you already actioned. Historical now. |
+>
+> Files 3 and 4 are **records**, not analysis. If the work list and a scorecard ever
+> disagree, the scorecard wins.
+>
+> **This is a mid-build engineering handoff, not a final delivery handoff.** The team's
+> Handoff Agreement template assumes a finished deliverable. This transfers ownership of
+> work in progress, so "Current state" and "Known notes" carry the weight.
 
 ## Project
 
