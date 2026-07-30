@@ -22,8 +22,8 @@ Three things, in priority order:
    **Merging them was our call, not something either document told us to do.** The merge
    rule we chose is chronological precedence. If you would merge them differently, that
    changes the build.
-3. **Are the two blockers real?** We are holding the Overview on them. If either is us
-   over-thinking it, say so and we start building.
+3. **Confirm your own verbal decision on blended Clicks** (section below), and tell us
+   whether the one remaining blocker is real. We are holding the Overview's Leads on it.
 
 Push back hard. The point of this review is to catch a bad read now rather than after
 we build.
@@ -35,7 +35,7 @@ we build.
 | 1 | `paid-media-v2-doc1-questions-scorecard.md` | Verbatim 1:1 record of the **Q&A** tab |
 | 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval** tab |
 | 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced back to a scorecard ID |
-| 4 | this file | Why we think 2 items block and 6 do not |
+| 4 | this file | Why 1 item still blocks, 6 do not, and the decision you made verbally |
 
 The first two are records. The third is a judgement call. Weight your scepticism
 accordingly.
@@ -110,9 +110,46 @@ Two consequences we want you to sanity-check:
 
 ---
 
+## Paul: confirm your own verbal decision
+
+**On 2026-07-30 you told Thomas: Paid Search and LinkedIn should be aggregated, Meta
+should be its own metric.** That resolved what was Blocker 2 (blended Clicks mixing
+two definitions).
+
+We have recorded it, but flagged hard, because **it is the only decision in the entire
+work list that does not trace to a source document.** Everything else cites an element
+ID in one of the two scorecards. This one cites a conversation. Please confirm the
+wording in [`paid-media-v2-merged-worklist.md`](./paid-media-v2-merged-worklist.md) §A2
+matches what you meant.
+
+**Our reading of it:**
+
+- Blended **Clicks** on the Overview = **Paid Search + LinkedIn only**. Both count all
+  clicks, so they are the same unit and blend safely.
+- **Meta stays out of that number.** It counts link clicks
+  (`inline_link_clicks`, `lib/meta/kpis.ts:37`).
+- **Spend still blends across all three**, since spend is the same unit everywhere.
+- Leads and Cost per lead are untouched by this and remain blocked by A1.
+
+**Two details we did not want to guess at:**
+
+1. **Does "its own metric" mean Meta gets its own card** on the Overview, for example
+   "Link Clicks (Meta)", **or** is it simply excluded from the blend and shown only in
+   the per-channel breakdown already planned (B2)? This changes the layout.
+2. **Should the blended Clicks number be labelled** as covering 2 of 3 channels?
+   Dianna's own rule elsewhere (B4, B5) is to never print a number that implies
+   completeness we do not have, so a footnote looks consistent with her posture, but no
+   document says it.
+
+This also means **Dianna's answer at comment `[d]` still stands unchanged** ("keep link
+clicks and label it that way"). Your decision is about the blended rollup, not about
+Meta's own tab, and the two are compatible.
+
+---
+
 ## The blockers
 
-We think these two genuinely block the Overview (Req 1). Both land on Dianna.
+**One blocker remains** after your decision above. It lands on Dianna.
 
 ### Blocker 1 — Where does "Leads" come from?
 
@@ -124,7 +161,13 @@ We think these two genuinely block the Overview (Req 1). Both land on Dianna.
 | **Size** | This is a client onboarding step **plus** a new attribution model, not a config change. It is the difference between "point the metric at a different field" and "build a new data source and decide how a HubSpot lead gets credited to a paid channel." |
 | **Knock-on** | If leads come from HubSpot, it also undercuts Decisions item 1 ("hold Meta's Leads") and item 3 (blended CPL), both of which assume platform-reported leads. Req 1's whole metric set depends on it. |
 
-### Blocker 2 — Does blended Clicks sum two different definitions?
+### ~~Blocker 2~~ — Does blended Clicks sum two different definitions? — **RESOLVED**
+
+> **Resolved verbally by Paul, 2026-07-30:** Paid Search and LinkedIn aggregate, Meta is
+> its own metric. Kept below for the record so the reasoning stays visible. Two layout
+> details remain open, listed in the confirmation section above.
+
+#### Original statement of the problem
 
 | | |
 |---|---|
@@ -158,13 +201,14 @@ line of the source document. Summary:
 
 | Bucket | Count | |
 |---|---|---|
-| **BLOCKED** | **2** | A1 leads source, A2 blended clicks. Both hit the Overview only. |
-| **CONFIRM** (one word each) | **4** | C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) |
+| **BLOCKED** | **1** | A1 leads source only. A2 resolved verbally by Paul on 2026-07-30. |
+| **CONFIRM** (one answer each) | **5** | A2 layout detail (**Paul**), C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) |
 | **READY to build** | **19** | All of Paid Search and Meta, plus 6 of the 8 Overview rows |
 | Out of scope | 3 | Other clients, the doc's other 4 tabs, Meta lead-magnet events |
 
-**Nothing in Paid Search or Meta is blocked.** Both blockers sit on the Overview's
-metric *values*. Table totals, the keyword filter and the Cost/LPV fix can start now.
+**Nothing in Paid Search or Meta is blocked.** The one remaining blocker sits on the
+Overview's Leads and Cost per lead only. Table totals, the keyword filter and the
+Cost/LPV fix can start now.
 
 ### The 19 ready items, in one place
 
@@ -212,8 +256,9 @@ These changed our assessment and are worth your eye:
    at all and no paid-channel attribution exists anywhere in the repo. Is there
    something outside this codebase (a Sheet, a Supermetrics HubSpot connector, an
    existing attribution report) that would make this cheaper than it looks?
-2. **Is Blocker 2 a real problem or are we being precious?** A footnoted sum may be
-   perfectly acceptable for a client-facing rollup.
+2. ~~Is Blocker 2 real?~~ **Answered by your own call.** What is left is the two layout
+   details in the confirmation section: does Meta get its own card, and do we label the
+   blended Clicks number as covering 2 of 3 channels?
 3. **Is chronological precedence the right merge rule** for reconciling the two docs,
    or would you weight by role instead (channel owner wins on their own channel)?
 4. **Anything in the "not blockers" list you would promote to a blocker?**

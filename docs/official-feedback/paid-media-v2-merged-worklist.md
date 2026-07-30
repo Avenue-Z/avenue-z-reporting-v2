@@ -39,7 +39,11 @@ Q&A body (Req 1-4, the asks)
 
 ---
 
-# A. Blocked — must be resolved before the Overview can be built
+# A. Blockers
+
+**A1 is the only remaining blocker.** A2 was resolved verbally by Paul on 2026-07-30
+and is kept here with its full history rather than moved, so the reasoning stays
+visible.
 
 ## A1. Where does "Leads" come from? — **BLOCKED**
 
@@ -52,16 +56,25 @@ Q&A body (Req 1-4, the asks)
 | **So it is** | A client onboarding step **plus** a net-new attribution model. Not a field swap. |
 | **Owner** | Dianna |
 
-## A2. Does blended Clicks sum two definitions? — **BLOCKED**
+## A2. Does blended Clicks sum two definitions? — **RESOLVED, pending one detail**
+
+> ### ⚠️ Provenance: this decision is NOT from either source document
+>
+> **Source: Paul, verbally, relayed by Thomas, 2026-07-30.** Every other row in this
+> file cites a document element ID. This one cannot, because it was decided in
+> conversation. It is recorded here so the build is not blocked, and it is flagged
+> so nobody later mistakes it for something traced to the docs. **Paul to confirm it
+> in his review of PR #175.**
 
 | | |
 |---|---|
 | **Trace** | Decisions `D2-B11`–`D2-B14` (the ask), comment `[d]` (Dianna, Jul 30) |
 | **Situation** | Doc proposed switching Meta to all clicks. Dianna: *"Keep link clicks and label it that way. Meta doesn't have a way to pull clicks (all) anymore"* |
-| **The gap** | Fine on Meta's own tab. But the Overview shows **one combined Clicks number**, so it would add Meta's link clicks to Paid Search and LinkedIn's all clicks. A label does not fix a sum of two different things. **Nobody addressed this.** |
-| **Blocks** | Overview **Clicks** (1 of the 4 metrics) |
-| **Decision needed** | Sum with a footnote, or show Clicks per channel only and keep it out of the blended line |
-| **Owner** | Dianna |
+| **The gap that blocked it** | Fine on Meta's own tab. But the Overview shows **one combined Clicks number**, so it would add Meta's link clicks to Paid Search and LinkedIn's all clicks. Neither document addressed this. |
+| **DECISION (Paul, verbal)** | **Paid Search and LinkedIn aggregate. Meta is its own metric.** Both Paid Search and LinkedIn count all clicks, so they are the same unit and blend safely. Meta counts link clicks and stays out of that number. |
+| **What this means concretely** | Blended **Clicks** = Paid Search + LinkedIn only. **Spend still blends across all three**, since spend is the same unit everywhere. Leads and Cost per lead remain blocked by A1. |
+| **Still open (for Paul)** | **1.** Does "its own metric" mean Meta gets its **own card** on the Overview (e.g. "Link Clicks (Meta)"), or is it simply **excluded from the blend** and shown only in the per-channel breakdown already planned in B2? This changes the layout. **2.** Should the blended Clicks number be **labelled** as covering 2 of 3 channels? Dianna's own rule (B4, B5) is to never show a number that implies completeness we do not have, so a footnote looks consistent with her posture, but no document says it. |
+| **Owner** | Paul (decision made), Dianna (aware, her `[d]` answer stands unchanged) |
 
 ---
 
@@ -150,15 +163,24 @@ no equivalent in the codebase.
 
 | Bucket | Count |
 |---|---|
-| **BLOCKED** | **2** (A1 leads source, A2 blended clicks) |
-| **CONFIRM** (one word each) | **4** (C1, C2, C3, F2) |
+| **BLOCKED** | **1** (A1 leads source) |
+| **CONFIRM** (one answer each) | **5** (A2 layout detail, C1, C2, C3, F2) |
 | **READY to build** | **19** |
 | Out of scope | 3 |
 
-**Nothing in D (Paid Search) or E (Meta) is blocked.** Both blockers sit on the
-Overview's metric values only. Paid Search table totals, the keyword filter, and the
-Cost/LPV fix can all start immediately.
+**Nothing in D (Paid Search) or E (Meta) is blocked.** The one remaining blocker sits
+on the Overview's Leads and Cost per lead only. Paid Search table totals, the keyword
+filter, and the Cost/LPV fix can all start immediately.
 
 **Highest-value single item:** A1. It decides whether Leads is a platform metric or a
 HubSpot-attributed one, which changes Req 1's data layer, Decisions items 1 and 3, and
 whether Meta's lead gap matters at all.
+
+## Decisions taken outside the source documents
+
+Anything here was decided in conversation, not in the Q&A or Decisions tabs, so it
+carries no element ID. Kept in one place so the distinction never blurs.
+
+| # | Decision | Source | Status |
+|---|---|---|---|
+| A2 | Blended Clicks aggregates **Paid Search + LinkedIn**. **Meta is its own metric**, kept out of that number. | **Paul, verbal, relayed by Thomas, 2026-07-30** | Recorded, **awaiting Paul's confirmation in PR #175**, plus the two open details listed in A2 |
