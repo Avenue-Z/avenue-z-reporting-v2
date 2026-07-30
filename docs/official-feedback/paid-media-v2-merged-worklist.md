@@ -6,7 +6,7 @@
 >
 > **Sources**
 > - Tab **Q&A** → [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) (IDs `D1-Bnn`, comments `[a]`–`[i]`)
-> - Tab **Decisions for Approval — Paid Media** → [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) (IDs `D2-Bnn`, comments `[a]`–`[x]`, inline answers `IN-1`–`IN-5`)
+> - Tab **Decisions for Approval** → [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) (IDs `D2-Bnn`, comments `[a]`–`[x]`, inline answers `IN-1`–`IN-5`)
 >
 > **This list is derived.** The scorecards are the 1:1 record of what was said.
 > Where this list and a scorecard disagree, **the scorecard wins**.
@@ -18,7 +18,7 @@ is open in draft on branch `ave-z-reporting-paid-media-v2`. It holds a **1,296-l
 technical design** (`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`, **on
 that branch, not this one**) plus an earlier approval doc. Created 2026-07-22, untouched since.
 
-**Paul reviewed this design, and the "Decisions for Approval — Paid Media" tab was
+**Paul reviewed this design, and the "Decisions for Approval" tab was
 written as a result.** The review happened **off GitHub**, so the PR carries no review
 artifact (verified via the GitHub API on 2026-07-30: zero formal reviews, zero inline
 comments). The absence on GitHub is a missing paper trail, not a missing review.

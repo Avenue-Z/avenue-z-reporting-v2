@@ -16,7 +16,7 @@ Three things, in priority order:
    the single source of truth for this overhaul, so if either is a bad read of the
    source, everything downstream is wrong.
    - [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) — tab **Q&A**
-   - [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) — tab **Decisions for Approval — Paid Media**
+   - [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) — tab **Decisions for Approval**
 2. **Then review the merged work list**, which is the two scorecards combined into what
    actually gets built: [`paid-media-v2-merged-worklist.md`](./paid-media-v2-merged-worklist.md).
    **Merging them was our call, not something either document told us to do.** The merge
@@ -33,7 +33,7 @@ we build.
 | Order | File | What it is |
 |---|---|---|
 | 1 | `paid-media-v2-doc1-questions-scorecard.md` | Verbatim 1:1 record of the **Q&A** tab |
-| 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval — Paid Media** tab |
+| 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval** tab |
 | 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced to a scorecard ID |
 | 4 | this file | Why 1 item still blocks, what needs one word, and the decision you made verbally |
 
@@ -92,11 +92,11 @@ the Drive API using a read-only service account.
 | Deliverable | Covers | File |
 |---|---|---|
 | Scorecard 1 | Tab **Q&A** — "Questions for Paid Media Tab in Reporting" | [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) |
-| Scorecard 2 | Tab **Decisions for Approval — Paid Media** | [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) |
+| Scorecard 2 | Tab **Decisions for Approval** &mdash; H1 "Decisions for Approval — Paid Media" | [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) |
 
 ### Verification, measured not asserted
 
-| | Q&A | Decisions for Approval — Paid Media |
+| | Q&A | Decisions for Approval |
 |---|---|---|
 | Body elements captured | 52 / 52 | 57 / 57 |
 | Distinct words captured | 359 / 359 | 489 / 489 |

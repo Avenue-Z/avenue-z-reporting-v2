@@ -14,8 +14,15 @@
 | Field | Value |
 |---|---|
 | Live source | Google Doc `1WNa3zDAkFss3Cx5EYBrfENJnYfOZOX-PfWqdbVLXyMQ`, **tab 3 of 6** |
-| **Tab name** | **`Decisions for Approval — Paid Media`** (the tab label in the Google Docs sidebar). **Renamed 2026-07-30**, previously `Decisions for Approval`. Content unchanged by the rename, verified element-by-element. |
+| **Tab name** | **`Decisions for Approval`** (the tab label in the Google Docs sidebar) |
 | Document title (H1) | Decisions for Approval — Paid Media |
+
+> **The tab label is not a stable identifier.** On 2026-07-30 it was renamed to
+> `Decisions for Approval — Paid Media` and then reverted to `Decisions for Approval` the same day, accidentally.
+> Both times the content was byte-identical: 77 body elements, zero diffs, comments
+> unchanged. **Anchor on the H1 above, not the sidebar label** — the H1 has never
+> moved. Verified read-only against the live doc at version 297.
+
 | HTML export cross-check | `Paid Media Reporting Dashboard v2 (1)/PaidMediaReportingDashboardv2.html`, exported 2026-07-30 09:37 |
 | Captured | 2026-07-30 |
 | Branch | `feat/paid-media-v2-feedback` |
