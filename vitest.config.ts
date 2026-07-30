@@ -23,6 +23,9 @@ export default defineConfig({
       'lib/organic-social/**/*.test.{ts,tsx}',
       'lib/dash-social/content.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
+      // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
+      // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
+      'components/charts/line-chart.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
     exclude: ['node_modules', '.next', 'scripts/**', '.claude/**'],
