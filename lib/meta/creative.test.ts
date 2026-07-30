@@ -49,4 +49,23 @@ assert.equal(totals.impressions, 17000)
 assert.equal(totals.reach, 12000)
 assert.equal(totals.engagements, 880)
 assert.equal(totals.shareOfSpend, 100)
+
+// --- Cost / LPV keeps cents at every level ---
+// Leaf rows read Meta's cost_per_landing_page_view field verbatim; a sub-dollar
+// value must not collapse to 0.
+const centRows = [
+  { ad_name: 'Ad D', adcampaign_name: 'Traffic', adset_name: 'Set 3', adstatus: 'ACTIVE', cost: '30', impressions: '4000', reach: '3000', Frequency: '1.3', inline_link_clicks: '90', CTR: '2.25', CPC: '0.33', landing_page_views: '100', cost_per_landing_page_view: '0.30', action_post_engagement: '120' },
+  { ad_name: 'Ad E', adcampaign_name: 'Traffic', adset_name: 'Set 3', adstatus: 'ACTIVE', cost: '15', impressions: '2000', reach: '1500', Frequency: '1.33', inline_link_clicks: '40', CTR: '2.0', CPC: '0.38', landing_page_views: '100', cost_per_landing_page_view: '0.15', action_post_engagement: '60' },
+]
+const centFlat = transformCreative(centRows)
+assert.equal(centFlat[0].costPerLpv, 0.3)   // Ad D, from the field
+assert.equal(centFlat[1].costPerLpv, 0.15)  // Ad E, from the field
+
+// Aggregates recompute spend / lpv and must also keep cents:
+// spend 45 / lpv 200 = 0.225 -> 0.23 at 2dp
+const centTree = buildCreativeTree(centRows)
+assert.equal(centTree[0].spend, 45)
+assert.equal(centTree[0].lpv, 200)
+assert.equal(centTree[0].costPerLpv, 0.23)
+
 console.log('ok')
