@@ -6,7 +6,11 @@ import { TrendSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 
-async function FollowerSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
+export async function FollowerSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
+  // Platform-only: never overlay every channel's follower count on one Overview chart.
+  // validate.ts has no channel-scoping concept, so an admin extraParts override could
+  // otherwise reach this part with channel=null (PR #174 review).
+  if (!channel) return null
   const r = await safe(getFollowerGraph(clientSlug, dateRange, channel))
   return r.data ? <FollowerGraph series={r.data} /> : <Fallback kind={r.error!} />
 }

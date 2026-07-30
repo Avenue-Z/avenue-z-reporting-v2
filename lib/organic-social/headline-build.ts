@@ -4,7 +4,7 @@
 // map over a given key set. Overview passes OVERVIEW_KPI_KEYS (5); a platform
 // subpage passes the channel's full set. Kept pure so the guard and mapping are
 // unit-testable.
-import { kpiFor, metricForKey, CHANNEL_LABEL, type DashChannel } from './metrics'
+import { kpiFor, metricFor, metricForKey, CHANNEL_LABEL, type DashChannel } from './metrics'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline, HeadlineKpi } from './types'
 
@@ -37,7 +37,10 @@ export function buildPlatformHeadline(
   keys: readonly string[],
   scoped: boolean,
 ): PlatformHeadline {
-  const specs = keys.map((key) => ({ key, spec: kpiFor(channel, key), metric: metricForKey(channel, key) }))
+  const specs = keys.map((key) => {
+    const spec = kpiFor(channel, key)
+    return { key, spec, metric: metricFor(spec) }
+  })
 
   const absent = specs.filter(({ metric }) => !(metric in metrics)).map(({ metric }) => metric)
   if (absent.length) throw new Error(`${channel}: Dash omitted requested metric(s): ${absent.join(', ')}`)
