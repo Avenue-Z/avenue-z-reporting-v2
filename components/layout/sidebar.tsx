@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
-import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS, visibleSubsections } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS, visibleSubsections, organicSocialSubsections } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
@@ -582,6 +582,60 @@ function ClientSidebar({
                                   {PAID_MEDIA_SUBSECTIONS.map((sub) => {
                                     const subParams = new URLSearchParams()
                                     subParams.set('section', 'paid-media')
+                                    if (sub.id) subParams.set('subsection', sub.id)
+                                    if (dateRange) subParams.set('dateRange', dateRange)
+                                    if (compareRange) subParams.set('compareRange', compareRange)
+                                    const subIsActive = sub.id === null
+                                      ? !activeSubsection
+                                      : activeSubsection === sub.id
+                                    return (
+                                      <li key={sub.id ?? 'overview'}>
+                                        <Link
+                                          href={`/dashboard/${clientSlug}/reports?${subParams.toString()}`}
+                                          className={cn(
+                                            'flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                            subIsActive
+                                              ? 'bg-white/[0.08] text-white'
+                                              : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                                          )}
+                                        >
+                                          <span className="truncate">{sub.label}</span>
+                                          <LinkPending />
+                                        </Link>
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                              )}
+                            </li>
+                          )
+                        }
+
+                        // Organic Social — expandable sub-menu (Overview + configured platform tabs)
+                        if (slug === 'organic-social') {
+                          const osBaseParams = new URLSearchParams()
+                          osBaseParams.set('section', 'organic-social')
+                          if (dateRange) osBaseParams.set('dateRange', dateRange)
+                          if (compareRange) osBaseParams.set('compareRange', compareRange)
+                          return (
+                            <li key={slug}>
+                              <Link
+                                href={`/dashboard/${clientSlug}/reports?${osBaseParams.toString()}`}
+                                className={cn(
+                                  'flex items-center rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                                  isActive
+                                    ? 'text-white'
+                                    : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                                )}
+                              >
+                                <span className="truncate">{REPORT_NAMES[slug] ?? slug}</span>
+                                <LinkPending />
+                              </Link>
+                              {isActive && (
+                                <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                                  {organicSocialSubsections(client).map((sub) => {
+                                    const subParams = new URLSearchParams()
+                                    subParams.set('section', 'organic-social')
                                     if (sub.id) subParams.set('subsection', sub.id)
                                     if (dateRange) subParams.set('dateRange', dateRange)
                                     if (compareRange) subParams.set('compareRange', compareRange)

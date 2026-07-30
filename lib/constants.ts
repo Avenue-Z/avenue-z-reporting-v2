@@ -1,4 +1,6 @@
 import type { AEOModel } from '@/lib/peec/models'
+import type { Client } from '@/lib/db/schema'
+import { resolveChannels, type DashChannel } from '@/lib/organic-social/metrics'
 
 /** Chart color mapping — consistent across all charts */
 export const CHART_COLORS = {
@@ -176,6 +178,29 @@ export const PAID_MEDIA_SUBSECTIONS: { id: string | null; label: string; comingS
   { id: 'meta',     label: 'Meta Advertising'     },
   { id: 'linkedin', label: 'LinkedIn Advertising' },
 ]
+
+/** Sub-items shown under the Organic Social parent nav item. `channel` maps a subsection
+ *  to its Dash channel; Overview (id null) is all channels. */
+export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null }[] = [
+  { id: null,        label: 'Overview',  channel: null },
+  { id: 'instagram', label: 'Instagram', channel: 'INSTAGRAM' },
+  { id: 'facebook',  label: 'Facebook',  channel: 'FACEBOOK' },
+  { id: 'linkedin',  label: 'LinkedIn',  channel: 'LINKEDIN' },
+  { id: 'x',         label: 'X',         channel: 'TWITTER' },
+]
+
+/** Overview + the platform tabs this client is configured for AND has not hidden. */
+export function organicSocialSubsections(client: Client) {
+  const allowed = resolveChannels(client.dashSocialConfig?.channels)
+  return visibleSubsections(ORGANIC_SOCIAL_SUBSECTIONS, client.hiddenReports)
+    .filter((s) => s.channel == null || allowed.includes(s.channel))
+}
+
+/** Single source of truth for "which view is this?". Never null — unknown/hidden/unconfigured → Overview. */
+export function resolveOrganicSubsection(client: Client, subsection?: string | null) {
+  const subs = organicSocialSubsections(client)
+  return subs.find((s) => s.id === (subsection ?? null)) ?? subs[0]
+}
 
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */
 export const SOON_REPORT_SLUGS = new Set<string>([])
