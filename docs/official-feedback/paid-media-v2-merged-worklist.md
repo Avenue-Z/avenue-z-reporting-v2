@@ -6,7 +6,7 @@
 >
 > **Sources**
 > - Tab **Q&A** → [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) (IDs `D1-Bnn`, comments `[a]`–`[i]`)
-> - Tab **Decisions for Approval** → [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) (IDs `D2-Bnn`, comments `[a]`–`[x]`, inline answers `IN-1`–`IN-5`)
+> - Tab **Decisions for Approval — Paid Media** → [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) (IDs `D2-Bnn`, comments `[a]`–`[x]`, inline answers `IN-1`–`IN-5`)
 >
 > **This list is derived.** The scorecards are the 1:1 record of what was said.
 > Where this list and a scorecard disagree, **the scorecard wins**.

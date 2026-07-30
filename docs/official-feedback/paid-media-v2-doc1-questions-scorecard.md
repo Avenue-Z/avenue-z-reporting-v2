@@ -5,7 +5,7 @@
 > Media v2 overhaul. Nothing here is summarized, condensed, or paraphrased.
 > If it is in the document, it is in this file verbatim.
 >
-> **Status:** Document 1 of 2. Document 2 ("Decisions for Approval - Paid Media")
+> **Status:** Document 1 of 2. Document 2 ("Decisions for Approval — Paid Media")
 > gets its own separate scorecard. The two are blended only after both are
 > individually confirmed accurate.
 

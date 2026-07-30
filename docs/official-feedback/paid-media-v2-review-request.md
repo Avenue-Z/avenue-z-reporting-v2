@@ -33,7 +33,7 @@ we build.
 | Order | File | What it is |
 |---|---|---|
 | 1 | `paid-media-v2-doc1-questions-scorecard.md` | Verbatim 1:1 record of the **Q&A** tab |
-| 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval** tab |
+| 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval — Paid Media** tab |
 | 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced to a scorecard ID |
 | 4 | this file | Why 1 item still blocks, 6 do not, and the decision you made verbally |
 
@@ -91,11 +91,11 @@ the Drive API using a read-only service account.
 | Deliverable | Covers | File |
 |---|---|---|
 | Scorecard 1 | Tab **Q&A** — "Questions for Paid Media Tab in Reporting" | [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) |
-| Scorecard 2 | Tab **Decisions for Approval** — "Decisions for Approval — Paid Media" | [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) |
+| Scorecard 2 | Tab **Decisions for Approval — Paid Media** | [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) |
 
 ### Verification, measured not asserted
 
-| | Q&A | Decisions for Approval |
+| | Q&A | Decisions for Approval — Paid Media |
 |---|---|---|
 | Body elements captured | 52 / 52 | 57 / 57 |
 | Distinct words captured | 359 / 359 | 489 / 489 |
