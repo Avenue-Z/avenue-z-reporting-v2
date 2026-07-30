@@ -35,6 +35,7 @@ export function buildPlatformHeadline(
   channel: DashChannel,
   metrics: Record<string, TotalMetric>,
   keys: readonly string[],
+  scoped: boolean,
 ): PlatformHeadline {
   const specs = keys.map((key) => ({ key, spec: kpiFor(channel, key), metric: metricForKey(channel, key) }))
 
@@ -50,7 +51,10 @@ export function buildPlatformHeadline(
       format: spec.format,
       value: spec.format === 'percent' ? raw * 100 : raw,
       delta: delta(m),
-      footnote: spec.footnote,
+      // Footnotes (e.g. Facebook's influencer-inclusion caveat) are a platform-subpage-only
+      // caveat — Overview must stay byte-identical (PR #174 review #2), so a footnote only
+      // surfaces on the scoped (single-channel) build, never on the unscoped Overview one.
+      footnote: scoped ? spec.footnote : undefined,
     }
   })
 

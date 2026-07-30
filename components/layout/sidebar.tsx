@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
-import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS, visibleSubsections, organicSocialSubsections } from '@/lib/constants'
+import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS, visibleSubsections, organicSocialSubsections, resolveOrganicSubsection } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import {
   LayoutGrid,
@@ -617,6 +617,13 @@ function ClientSidebar({
                           osBaseParams.set('section', 'organic-social')
                           if (dateRange) osBaseParams.set('dateRange', dateRange)
                           if (compareRange) osBaseParams.set('compareRange', compareRange)
+                          // Highlight the RESOLVED tab, not the raw param — a stale/hand-typed
+                          // ?subsection= for a platform this client can't see degrades to
+                          // Overview server-side (resolveOrganicSubsection), and the sidebar
+                          // must match that or no tab highlights at all (PR #174 review).
+                          const resolvedOrganicId = client
+                            ? resolveOrganicSubsection(client, activeSubsection).id
+                            : activeSubsection
                           return (
                             <li key={slug}>
                               <Link
@@ -639,9 +646,7 @@ function ClientSidebar({
                                     if (sub.id) subParams.set('subsection', sub.id)
                                     if (dateRange) subParams.set('dateRange', dateRange)
                                     if (compareRange) subParams.set('compareRange', compareRange)
-                                    const subIsActive = sub.id === null
-                                      ? !activeSubsection
-                                      : activeSubsection === sub.id
+                                    const subIsActive = sub.id === resolvedOrganicId
                                     return (
                                       <li key={sub.id ?? 'overview'}>
                                         <Link

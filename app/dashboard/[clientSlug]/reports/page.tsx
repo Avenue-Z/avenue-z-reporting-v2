@@ -234,8 +234,12 @@ export default async function ReportPage({
         {/* Key on section+subsection so switching reports in the sidebar (a
             same-route ?section= change) remounts this boundary and shows the
             skeleton immediately, instead of holding the old section on screen
-            for the duration of the new section's server-side data fetch. */}
-        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+            for the duration of the new section's server-side data fetch.
+            Organic Social keys on the RESOLVED subsection (organicEntry.id), not the
+            raw param — a disallowed/bogus subsection degrades to Overview and must key
+            identically to a plain Overview visit, or it forces a needless remount
+            (PR #174 review). */}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)}
         </Suspense>
       </ReportErrorBoundary>

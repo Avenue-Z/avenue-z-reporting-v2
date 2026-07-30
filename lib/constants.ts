@@ -180,13 +180,19 @@ export const PAID_MEDIA_SUBSECTIONS: { id: string | null; label: string; comingS
 ]
 
 /** Sub-items shown under the Organic Social parent nav item. `channel` maps a subsection
- *  to its Dash channel; Overview (id null) is all channels. */
+ *  to its Dash channel; Overview (id null) is all channels.
+ *
+ *  Ids are namespaced with an `organic-` prefix (PR #174 review): `hiddenReports` is a flat,
+ *  unscoped string array (`visibleSubsections` does `hidden.has(s.id)` with no section prefix),
+ *  and Paid Media's subsection ids already include a bare `'linkedin'` — an un-namespaced
+ *  `'linkedin'` here would collide, so hiding one platform's LinkedIn tab would silently hide
+ *  the other's too. */
 export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null }[] = [
-  { id: null,        label: 'Overview',  channel: null },
-  { id: 'instagram', label: 'Instagram', channel: 'INSTAGRAM' },
-  { id: 'facebook',  label: 'Facebook',  channel: 'FACEBOOK' },
-  { id: 'linkedin',  label: 'LinkedIn',  channel: 'LINKEDIN' },
-  { id: 'x',         label: 'X',         channel: 'TWITTER' },
+  { id: null,                  label: 'Overview',  channel: null },
+  { id: 'organic-instagram',   label: 'Instagram', channel: 'INSTAGRAM' },
+  { id: 'organic-facebook',    label: 'Facebook',  channel: 'FACEBOOK' },
+  { id: 'organic-linkedin',    label: 'LinkedIn',  channel: 'LINKEDIN' },
+  { id: 'organic-x',           label: 'X',         channel: 'TWITTER' },
 ]
 
 /** Overview + the platform tabs this client is configured for AND has not hidden. */

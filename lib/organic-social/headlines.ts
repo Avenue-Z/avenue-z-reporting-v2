@@ -40,7 +40,7 @@ export const getPlatformHeadlines = cache(async (
         })
         const metrics = res.data?.[key]?.metrics
         if (!metrics) return null
-        return buildPlatformHeadline(channel, metrics, keys)
+        return buildPlatformHeadline(channel, metrics, keys, scoped)
       } catch (e) {
         return onChannelError(e, scoped)
       }

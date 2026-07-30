@@ -252,7 +252,11 @@ export default async function PortalReportPage({
       <div className="h-8" />
 
       <ReportErrorBoundary sectionName={pageTitle}>
-        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+        {/* Organic Social keys on the RESOLVED subsection (organicEntry.id), not the raw
+            param — a disallowed/bogus subsection degrades to Overview and must key
+            identically to a plain Overview visit, or it forces a needless remount
+            (PR #174 review). */}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy, organicEntry?.channel ?? null)}
         </Suspense>
       </ReportErrorBoundary>
