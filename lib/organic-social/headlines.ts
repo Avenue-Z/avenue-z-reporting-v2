@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
-import { resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
-import { buildPlatformHeadline, overviewMetricNames } from './headline-build'
+import { resolveTargets, channelErrorPolicy, OVERVIEW_KPI_KEYS, platformKpiKeys, type DashChannel } from './metrics'
+import { buildPlatformHeadline, metricNamesFor } from './headline-build'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline } from './types'
 
@@ -23,6 +23,8 @@ export const getPlatformHeadlines = cache(async (
 
   const results = await Promise.all(
     targets.map(async (channel): Promise<PlatformHeadline | null> => {
+      // Overview → the five OVERVIEW_KPI_KEYS; a platform subpage → the channel's full set.
+      const keys = scoped ? platformKpiKeys(channel) : [...OVERVIEW_KPI_KEYS]
       try {
         const res = await client.getReportsData<TotalMetric>({
           brandId,
@@ -30,7 +32,7 @@ export const getPlatformHeadlines = cache(async (
           reportType: 'TOTAL_GROUPED_METRIC',
           aggregateBy: 'BRAND',
           requirePosts: true,
-          metrics: overviewMetricNames(channel),
+          metrics: metricNamesFor(channel, keys),
           startDate: start,
           endDate: end,
           contextStartDate: ctx?.start,
@@ -38,7 +40,7 @@ export const getPlatformHeadlines = cache(async (
         })
         const metrics = res.data?.[key]?.metrics
         if (!metrics) return null
-        return buildPlatformHeadline(channel, metrics)
+        return buildPlatformHeadline(channel, metrics, keys, scoped)
       } catch (e) {
         return onChannelError(e, scoped)
       }

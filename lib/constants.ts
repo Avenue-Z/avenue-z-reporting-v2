@@ -1,4 +1,6 @@
 import type { AEOModel } from '@/lib/peec/models'
+import type { Client } from '@/lib/db/schema'
+import { resolveChannels, type DashChannel } from '@/lib/organic-social/metrics'
 
 /** Chart color mapping — consistent across all charts */
 export const CHART_COLORS = {
@@ -176,6 +178,35 @@ export const PAID_MEDIA_SUBSECTIONS: { id: string | null; label: string; comingS
   { id: 'meta',     label: 'Meta Advertising'     },
   { id: 'linkedin', label: 'LinkedIn Advertising' },
 ]
+
+/** Sub-items shown under the Organic Social parent nav item. `channel` maps a subsection
+ *  to its Dash channel; Overview (id null) is all channels.
+ *
+ *  Ids are namespaced with an `organic-` prefix (PR #174 review): `hiddenReports` is a flat,
+ *  unscoped string array (`visibleSubsections` does `hidden.has(s.id)` with no section prefix),
+ *  and Paid Media's subsection ids already include a bare `'linkedin'` — an un-namespaced
+ *  `'linkedin'` here would collide, so hiding one platform's LinkedIn tab would silently hide
+ *  the other's too. */
+export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null }[] = [
+  { id: null,                  label: 'Overview',  channel: null },
+  { id: 'organic-instagram',   label: 'Instagram', channel: 'INSTAGRAM' },
+  { id: 'organic-facebook',    label: 'Facebook',  channel: 'FACEBOOK' },
+  { id: 'organic-linkedin',    label: 'LinkedIn',  channel: 'LINKEDIN' },
+  { id: 'organic-x',           label: 'X',         channel: 'TWITTER' },
+]
+
+/** Overview + the platform tabs this client is configured for AND has not hidden. */
+export function organicSocialSubsections(client: Client) {
+  const allowed = resolveChannels(client.dashSocialConfig?.channels)
+  return visibleSubsections(ORGANIC_SOCIAL_SUBSECTIONS, client.hiddenReports)
+    .filter((s) => s.channel == null || allowed.includes(s.channel))
+}
+
+/** Single source of truth for "which view is this?". Never null — unknown/hidden/unconfigured → Overview. */
+export function resolveOrganicSubsection(client: Client, subsection?: string | null) {
+  const subs = organicSocialSubsections(client)
+  return subs.find((s) => s.id === (subsection ?? null)) ?? subs[0]
+}
 
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */
 export const SOON_REPORT_SLUGS = new Set<string>([])

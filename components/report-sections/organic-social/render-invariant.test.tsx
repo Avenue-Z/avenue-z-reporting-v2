@@ -12,13 +12,24 @@ import type { PlatformHeadline } from '@/lib/organic-social/types'
 // --- #3: real metric values render (the skeleton goldens can't see these) ---
 const HEADLINES: PlatformHeadline[] = [
   {
-    channel: 'INSTAGRAM', label: 'Instagram', exposureLabel: 'Views',
-    followers: 12345, netNewFollowers: 210, exposure: 98765, engagements: 4321, engagementRate: 3.47,
-    deltas: { followers: 5.2, engagementRate: -1.1 },
+    channel: 'INSTAGRAM', label: 'Instagram',
+    kpis: [
+      { key: 'followers', label: 'Total Followers', value: 12345, format: 'number', delta: 5.2 },
+      { key: 'netNewFollowers', label: 'Net New Followers', value: 210, format: 'number' },
+      { key: 'exposure', label: 'Views', value: 98765, format: 'number' },
+      { key: 'engagements', label: 'Engagements', value: 4321, format: 'number' },
+      { key: 'engagementRate', label: 'Engagement Rate', value: 3.47, format: 'percent', delta: -1.1 },
+    ],
   },
   {
-    channel: 'FACEBOOK', label: 'Facebook', exposureLabel: 'Views',
-    followers: 8000, netNewFollowers: -15, exposure: 42000, engagements: 900, engagementRate: 1.23,
+    channel: 'FACEBOOK', label: 'Facebook',
+    kpis: [
+      { key: 'followers', label: 'Total Followers', value: 8000, format: 'number' },
+      { key: 'netNewFollowers', label: 'Net New Followers', value: -15, format: 'number' },
+      { key: 'exposure', label: 'Views', value: 42000, format: 'number' },
+      { key: 'engagements', label: 'Engagements', value: 900, format: 'number' },
+      { key: 'engagementRate', label: 'Engagement Rate', value: 1.23, format: 'percent' },
+    ],
   },
 ]
 
@@ -26,7 +37,7 @@ test('Overview headlines render the actual metric values, not a skeleton', () =>
   const { container, getByText } = render(<PlatformHeadlines headlines={HEADLINES} />)
   getByText('12,345') // followers, locale-formatted
   getByText('98,765') // exposure (Views)
-  getByText('3.5%')   // engagementRate 3.47 -> toFixed(1) + suffix
+  getByText('3.5%')   // engagementRate 3.47 -> pct()
   getByText('Instagram')
   getByText('Facebook')
   expect(container).toMatchSnapshot()

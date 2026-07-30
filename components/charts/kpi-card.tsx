@@ -11,7 +11,8 @@ interface KpiCardProps {
   tooltip?: string
   /** Label shown after the delta %. Defaults to "vs prior period". */
   deltaLabel?: string
-  /** Secondary line shown below the delta, e.g. "2,483 in 2025". */
+  /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a caveat like the
+   *  Facebook influencer note. */
   subValue?: string
 }
 
