@@ -10,16 +10,35 @@
 
 ## What we need from you
 
-Two things, in priority order:
+Three things, in priority order:
 
-1. **Are the two blockers below real?** We are holding the Overview build on them. If
-   either is us over-thinking it, say so and we start building.
-2. **Did we capture the requirements correctly?** The scorecards are meant to be the
-   single source of truth for this overhaul. If they are wrong, everything downstream
-   is wrong.
+1. **Review each scorecard on its own.** There are two, one per source tab. They are
+   the single source of truth for this overhaul, so if either is a bad read of the
+   source, everything downstream is wrong.
+   - [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) — tab **Q&A**
+   - [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) — tab **Decisions for Approval**
+2. **Then review the merged work list**, which is the two scorecards combined into what
+   actually gets built: [`paid-media-v2-merged-worklist.md`](./paid-media-v2-merged-worklist.md).
+   **Merging them was our call, not something either document told us to do.** The merge
+   rule we chose is chronological precedence. If you would merge them differently, that
+   changes the build.
+3. **Are the two blockers real?** We are holding the Overview on them. If either is us
+   over-thinking it, say so and we start building.
 
 Push back hard. The point of this review is to catch a bad read now rather than after
 we build.
+
+### Read them in this order
+
+| Order | File | What it is |
+|---|---|---|
+| 1 | `paid-media-v2-doc1-questions-scorecard.md` | Verbatim 1:1 record of the **Q&A** tab |
+| 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval** tab |
+| 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced back to a scorecard ID |
+| 4 | this file | Why we think 2 items block and 6 do not |
+
+The first two are records. The third is a judgement call. Weight your scepticism
+accordingly.
 
 ---
 
@@ -131,6 +150,62 @@ Listed so you can overrule us.
 
 ---
 
+## The merged work list
+
+Full detail in [`paid-media-v2-merged-worklist.md`](./paid-media-v2-merged-worklist.md).
+Every row there cites a scorecard element ID, so any line can be traced to a specific
+line of the source document. Summary:
+
+| Bucket | Count | |
+|---|---|---|
+| **BLOCKED** | **2** | A1 leads source, A2 blended clicks. Both hit the Overview only. |
+| **CONFIRM** (one word each) | **4** | C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) |
+| **READY to build** | **19** | All of Paid Search and Meta, plus 6 of the 8 Overview rows |
+| Out of scope | 3 | Other clients, the doc's other 4 tabs, Meta lead-magnet events |
+
+**Nothing in Paid Search or Meta is blocked.** Both blockers sit on the Overview's
+metric *values*. Table totals, the keyword filter and the Cost/LPV fix can start now.
+
+### The 19 ready items, in one place
+
+**Overview (Req 1)** — B1 metric set `Spend, Clicks, Leads, Cost per lead` · B2 blended
+**and** per-channel · B3 fallback moot, both is feasible · B4 missing channel makes the
+whole total unavailable · B5 broken metric renders NA, never a partial number · B6
+Overview becomes the default landing · B8 applies to internal **and** portal.
+
+**Paid Search** — D1 totals on **every** table, not just the two named · D2 Total Leads
+at the **top** of Leads by Action · D3 total at the **bottom** of Region → DMA · D5
+plain sum confirmed · D6 keyword table defaults to **clicks ≥ 10**, clearable · D7 show
+a **message** when nothing reaches 10 · D8 keyword total covers **all** keywords while
+the table shows the top 10 · D9 the click filter does **not** touch Leads by Action.
+
+**Meta** — E1 fix **Cost / LPV** · E2 hold Leads and Cost per lead · E3 keep link
+clicks, already correct, no-op · E4 Meta bids one ad-set-level event, varies per client.
+
+**Cross-cutting** — F1 currency precision mismatch, root cause found.
+
+### Three code findings from the final sweep
+
+These changed our assessment and are worth your eye:
+
+1. **The Overview has a pattern to copy.** Paid Media already renders as one section
+   with subsections via `PAID_MEDIA_SUBSECTIONS` (`lib/constants.ts:174`), and **AEO and
+   GA4 already use the exact shape Req 1 asks for**, with `{id: null, label: 'Overview'}`
+   first. So nav and routing are cheap. The genuinely new work is the cross-channel
+   aggregation layer. Our first read called this all-new; it is not.
+2. **F1's root cause is a missing prop.** `usd()` is `'$' + Math.round(n)`, so it never
+   shows cents. **Meta's Top Regions chart charts `spend` without `valueFormat="currency"`**
+   (`meta-ads/geo-section.tsx:52`) so Recharts prints raw decimals, while **LinkedIn's
+   identical chart does pass it** (`linkedin-ads/geo-section.tsx:26`). Dianna's
+   observation is exactly right, and it is a Meta-vs-LinkedIn inconsistency. Note her
+   instruction is "make them all with **cents**", which is the opposite direction from
+   the current formatter.
+3. **D8 carries a number mismatch.** Amir said the keyword table should "display the top
+   10", but the code caps at **50** (`lib/paid-search/keywords.ts:29`). Flagged rather
+   than silently picking one.
+
+---
+
 ## Questions specifically for you
 
 1. **Is Blocker 1 as big as we think?** We found Renaissance has no HubSpot connection
@@ -142,6 +217,10 @@ Listed so you can overrule us.
 3. **Is chronological precedence the right merge rule** for reconciling the two docs,
    or would you weight by role instead (channel owner wins on their own channel)?
 4. **Anything in the "not blockers" list you would promote to a blocker?**
+4b. **Is the merged work list right?** Specifically: is chronological precedence the
+   correct merge rule, and did we mis-resolve any row where the two documents disagree?
+   The four rows where a later answer **reverses** an earlier proposal are B4, D8, E3
+   and Blocker A1. Those are the ones most worth checking.
 5. **Traceability gap:** on the PRD tab Tina wrote *"Requirements were entered directly
    into Asana for this one."* So the root requirements may live in Asana rather than
    this doc. Do you have visibility there, and should we be tracing to it?
