@@ -35,14 +35,14 @@ we build.
 | 1 | `paid-media-v2-doc1-questions-scorecard.md` | Verbatim 1:1 record of the **Q&A** tab |
 | 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval — Paid Media** tab |
 | 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced to a scorecard ID |
-| 4 | this file | Why 1 item still blocks, 6 do not, and the decision you made verbally |
+| 4 | this file | Why 1 item still blocks, what needs one word, and the decision you made verbally |
 
 The first two are records. The third is a judgement call. Weight your scepticism
 accordingly.
 
 ---
 
-## Before you start: there is a second, unreviewed PR
+## Before you start: there is a second PR, with no review trail on it
 
 **[PR #164 "Paid media v2 → dev"](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/164)**
 holds a **1,296-line technical design** for this exact work
@@ -59,16 +59,17 @@ Vercel bot. Verified through the GitHub API on 2026-07-30.
 |---|---|---|
 | Dated | Jul 22 | Jul 30 |
 | Answers | **How** to build it | **What** was decided |
-| Ends with | 11 open decisions `D1`–`D11` | The answers to **9 of those 11** |
+| Ends with | 11 open decisions `#164 D1`–`D11` | Resolutions for **8 of those 11** |
 
 The design was written **before** the stakeholder answers landed (Jul 28–30). It asks
 the questions; the scorecards here contain the replies. The full `D1`–`D11` mapping is
-in the work list under "Prior work".
+in the work list under "Prior work", where the design IDs are prefixed `#164` to keep
+them distinct from this list's own `D1`–`D9` rows.
 
 Two things worth knowing before you read either:
 
 - **The design independently reached the same conclusions this PR did**, a week
-  earlier, on separate evidence: `D2` (Meta lead definition) named as *"the
+  earlier, on separate evidence: `#164 D2` (Meta lead definition) named as *"the
   highest-value one to resolve first"* and still our only blocker, plus the Cost / LPV
   defect and the exact cents root cause.
 - **The design covers six requirements, not four.** Reqs 5 and 6 have **no stakeholder
@@ -242,27 +243,29 @@ line of the source document. Summary:
 | Bucket | Count | |
 |---|---|---|
 | **BLOCKED** | **1** | A1 leads source only. A2 resolved verbally by Paul on 2026-07-30. |
-| **CONFIRM** (one answer each) | **5** | A2 layout detail (**Paul**), C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) — these `C` ids are the **work list's**, not #164's |
-| **READY to build** | **21** | All of Paid Search and Meta, 6 of the 8 Overview rows, plus Reqs 5 and 6 from the original six |
-| **Open engineering decision** | **1** | `D11` rollup architecture, from PR #164. Yours to call. |
+| **CONFIRM** | **7** | A2 layout detail (**Paul**), plus C1–C6. Five gate a work row: B7→C1, D4→C2, D7→C4, B4→C5, D8→C6. C3 gates nothing; D5 stays READY and C3 is a post-build check. |
+| **READY to build** | **17** | Overview 6 (B1,B2,B3,B5,B6,B8) · Paid Search 6 (D1,D2,D3,D5,D6,D9) · Meta 4 (E1–E4) · Req 5 (E5) |
+| **Already resolved** | **1** | E6, Req 6 LinkedIn, fixed 2026-07-22 |
+| **Open engineering decision** | **1** | `#164 D11` rollup architecture. Yours to call. |
 | Out of scope | 3 | Other clients, the doc's other 4 tabs, Meta lead-magnet events |
 
-**Nothing in Paid Search or Meta is blocked.** The one remaining blocker sits on the
-Overview's Leads and Cost per lead only. Table totals, the keyword filter and the
-Cost/LPV fix can start now.
+Row inventory reconciles: B(8) + D(9) + E(6) = 23 work rows, plus A1 = **24**.
+17 READY + 5 row-level CONFIRM + 1 BLOCKED + 1 resolved = 24.
 
-### The 21 ready items, in one place
+**Nothing in Paid Search or Meta is blocked.** The one remaining blocker sits on the
+Overview's Leads and Cost per lead only. Req 4, Req 5 and the table totals can start now.
+
+### The 17 ready items, in one place
 
 **Overview (Req 1)** — B1 metric set `Spend, Clicks, Leads, Cost per lead` · B2 blended
-**and** per-channel · B3 fallback moot, both is feasible · B4 missing channel makes the
-whole total unavailable · B5 broken metric renders NA, never a partial number · B6
-Overview becomes the default landing · B8 applies to internal **and** portal.
+**and** per-channel · B3 fallback moot, both is feasible · B5 broken metric renders NA,
+never a partial number · B6 Overview becomes the default landing · B8 applies to
+internal **and** portal. *(B4 and B7 moved to CONFIRM.)*
 
 **Paid Search** — D1 totals on **every** table, not just the two named · D2 Total Leads
 at the **top** of Leads by Action · D3 total at the **bottom** of Region → DMA · D5
-plain sum confirmed · D6 keyword table defaults to **clicks ≥ 10**, clearable · D7 show
-a **message** when nothing reaches 10 · D8 keyword total covers **all** keywords while
-the table shows the top 10 · D9 the click filter does **not** touch Leads by Action.
+plain sum confirmed · D6 keyword table defaults to **clicks ≥ 10**, clearable · D9 the
+click filter does **not** touch Leads by Action. *(D4, D7 and D8 moved to CONFIRM.)*
 
 **Meta** — E1 fix **Cost / LPV** · E2 hold Leads and Cost per lead · E3 keep link
 clicks, already correct, no-op · E4 Meta bids one ad-set-level event, varies per client.
@@ -271,8 +274,7 @@ clicks, already correct, no-op · E4 Meta bids one ad-set-level event, varies pe
 
 **From the original six requirements** (no stakeholder input on either, so neither
 scorecard covers them) — E5 Req 5 Top Regions formats as `$X,XXX.XX`, same root cause
-as F1 · E6 Req 6 LinkedIn, **already resolved 2026-07-22**, the Supermetrics connection
-had de-authed and was re-authenticated.
+as F1. *(E6 Req 6 LinkedIn is already **resolved**, not pending build.)*
 
 ### Constraints the design doc carries that this work list did not
 

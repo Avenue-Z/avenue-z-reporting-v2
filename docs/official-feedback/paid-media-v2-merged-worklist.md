@@ -29,7 +29,7 @@ comments). The absence on GitHub is a missing paper trail, not a missing review.
 |---|---|---|
 | Dated | 2026-07-22 | 2026-07-30 |
 | Answers | **How** to build it | **What** was decided |
-| Ends with | 11 open decisions `D1`–`D11` | The answers to 9 of those 11 |
+| Ends with | 11 open decisions `#164 D1`–`D11` | Resolutions for 8 of those 11 |
 
 The design was written **before** the stakeholder answers landed (Jul 28–30). It asks
 the questions; the scorecards behind this list contain the replies. Neither is
@@ -39,20 +39,23 @@ complete alone.
 
 | Design | Decision | Answered by | Row here |
 |---|---|---|---|
-| `D1` | Overview as default landing | Dianna `[j]` Jul 30 | **B6** |
-| `D2` | How a Meta "lead" is defined | Greg `[x]` Jul 29, then Dianna `[f]` Jul 30 | **A1 — still blocked** |
-| `D3` | Blended Clicks: link vs all clicks | Dianna `[d]` Jul 30, then **Paul verbally Jul 30** | **A2 — resolved** |
-| `D4` | Unconfigured or erroring channel | Dianna `[h]` Jul 30 | **B4** |
-| `D5` | Overview commentary block and owner | Dianna `[l]` Jul 30 | **B7 / C1** |
-| `D6` | Totals on all tables or only two | Amir `IN-1` | **D1** |
-| `D7` | Region total: top 10 or all regions | Amir `IN-2` | **D4 / C2** |
-| `D8` | Total Leads: plain sum or de-duplicated | Amir `IN-3` | **D5** |
-| `D9` | Keyword filter adjustable or fixed | `D2-B80` ("can be cleared") | **D6** |
-| `D10` | Blended CPL when a channel has spend but no leads | partly Dianna `[f]` | folded into **A1** |
-| `D11` | Rollup reuses channel KPI fns, or fetches raw totals | **unanswered, engineering** | **§E3 constraints, still open** |
+| `#164 D1` | Overview as default landing | Dianna `[j]` Jul 30 | **B6** |
+| `#164 D2` | How a Meta "lead" is defined | Greg `[x]` Jul 29, then Dianna `[f]` Jul 30 | **A1 — still blocked** |
+| `#164 D3` | Blended Clicks: link vs all clicks | Dianna `[d]` Jul 30, then **Paul verbally Jul 30** | **A2 — resolved** |
+| `#164 D4` | Unconfigured or erroring channel | Dianna `[h]` Jul 30 | **B4** |
+| `#164 D5` | Overview commentary block and owner | Dianna `[l]` Jul 30 | **B7 / C1** |
+| `#164 D6` | Totals on all tables or only two | Amir `IN-1` | **D1** |
+| `#164 D7` | Region total: top 10 or all regions | Amir `IN-2` | **D4 / C2** |
+| `#164 D8` | Total Leads: plain sum or de-duplicated | Amir `IN-3` | **D5** |
+| `#164 D9` | Keyword filter adjustable or fixed | `D2-B80` ("can be cleared") | **D6** |
+| `#164 D10` | Blended CPL when a channel has spend but no leads | partly Dianna `[f]` | folded into **A1** |
+| `#164 D11` | Rollup reuses channel KPI fns, or fetches raw totals | **unanswered, engineering** | **§CONSTRAINTS, still open** |
 
-**9 of 11 answered.** The design named `D2` "the highest-value one to resolve first" on
-Jul 22. It is still the only true blocker, reached independently by both passes.
+**8 of 11 resolved.** `#164 D2` received replies but they **conflict** (Greg says platform
+event, Dianna says HubSpot), so it is answered-but-not-resolved and remains **A1, the only
+blocker**. `#164 D10` is folded into A1 and `#164 D11` is untouched. The design named `D2`
+"the highest-value one to resolve first" on Jul 22, and both passes reached that
+independently.
 
 ## The six original requirements
 
@@ -145,7 +148,7 @@ Source: Q&A `D1-B02`/`D1-B03`. All rows below are decided.
 | B1 | **Metric set and order** | **Spend, Clicks, Leads, Cost per lead**, in that order. CTR dropped, Conversions dropped as duplicative of Leads. | `D1-B12`, `D1-B14`, `D1-B26` → restated `D2-B78` | **READY** (values blocked by A1/A2) |
 | B2 | **Layout** | **Both** a blended top line **and** a per-channel breakdown. Unanimous across Amir, Greg, Dianna. | `D1-B16`, `D1-B18`, `D1-B19` → `D2-B79` | **READY** |
 | B3 | **Fallback if both is not feasible** | Blended is the default, per Greg. **Moot: both is feasible.** Dianna challenged the premise (`[t]`, unanswered) and she is right, nothing prevents both. | `D1-B20` → `D2-B79`, comment `[t]` | **READY** — answer Dianna |
-| B4 | **Missing channel behavior** | **A missing channel makes the whole total unavailable.** This reverses the doc's own proposal (`D2-B28`). | `[h]` (Dianna, Jul 30) beats `D2-B28` | **READY** |
+| B4 | **Missing channel behavior** | **A missing channel makes the whole total unavailable.** This reverses the doc's own proposal (`D2-B28`). | `[h]` (Dianna, Jul 30) beats `D2-B28` | **CONFIRM** — see C5 |
 | B5 | **Broken metric feeding a formula** | Show the final metric as NA or erroring, never a partial number that looks complete. | `D1-B30` (Dianna) → cited `D2-B27` | **READY** |
 | B6 | **Default landing** | **Overview becomes the Paid Media landing page.** | `[i]` + `[j]` (Tina, Dianna) | **READY** |
 | B7 | **Commentary box on Overview** | **No box.** Dianna: *"remove the commentary from this page."* | `D2-B39` + `[l]` | **CONFIRM** — see C1 |
@@ -168,6 +171,9 @@ no equivalent in the codebase.
 | C1 | **Commentary scope** (`[l]`) | *"remove the commentary from this page"* | Could mean no box on the new Overview only, or strip commentary from all of Paid Media. All three existing tabs render `SharedPartsHeader` (`paid-search`, `meta-ads`, `linkedin-ads` `index.tsx`), so the wider reading is 3 more edits. | **Dianna** |
 | C2 | **Region total scope** (`IN-2`) | *"You can kept this as is - just asking or there to be a total for all fields at the bottom"* | The doc offered three options (10 shown / all regions / both, `D2-B58`) and he picked none explicitly. Reads as "total everything". Comment `[o]` still has no reply. | **Amir** |
 | C3 | **DMA de-duplication** (`IN-5`) | *"it should only define one DMA per conversion, so a little confused there"* | This is what makes the plain-sum total safe (`D2-B66`). Answered, but hedged. He separately approved the plain sum (`IN-3`), so we build it and verify against live data. | **Amir** |
+| C4 | **Keyword empty-state trigger** (`D1-B49`) | *"If there are less than 10 clicks in the selected date range"* | Carries **OPEN-4** from scorecard 1. Req 3 asks about **no keyword** reaching 10 clicks; Amir's wording reads as an **account-total** condition. If he meant account-total, the empty state fires on the wrong condition. | **Amir** |
+| C5 | **What makes a channel "missing"** (`[h]` vs `[f]`) | *"a missing channel should make the whole total unavailable"* | Carries **OPEN-D2-6** from scorecard 2. `[f]` says Meta's zero leads are irrelevant because leads come from HubSpot, so whether "missing" is judged on **spend, leads, or both** is undefined. B4 cannot be built deterministically until it is. | **Dianna** |
+| C6 | **Keyword table display cap** (`IN-4`) | *"the table should just display the top 10"* | Rests on `IN-4`, which **OPEN-D2-1** flags as attached to a stray duplicated line, so it is not certain it answers item 10. Code currently caps at **50** (`lib/paid-search/keywords.ts:29`). Confirm the cap is 10 and that `IN-4` answers item 10. | **Amir** |
 
 ---
 
@@ -181,8 +187,8 @@ no equivalent in the codebase.
 | D4 | **Region total covers what** | Total **all regions**, while the table keeps displaying the top 10. | `IN-2` + the pattern in `IN-4` | UI slices to `rows.slice(0, 10)` (`geo-section.tsx:14`); the card already shows the true count from the full array, so both numbers are available. | **CONFIRM** (C2) |
 | D5 | **Total Leads math** | **Plain sum.** | `D1-B34` (asked) → `IN-3` (Amir: yes) | Already a plain sum (`lib/paid-search/leads.ts:19`). | **READY** |
 | D6 | **Keyword table default filter** | Default to **clicks ≥ 10**, and it can be cleared. | `D1-B42`, `D1-B43` → `D2-B80` | **No filter exists.** Table is capped at top 50 sorted by leads then cost (`lib/paid-search/keywords.ts:29`). New filter must interact with that existing cap. | **READY** |
-| D7 | **If no keyword reaches 10 clicks** | **Show a message.** Dianna's call. Amir's 50-impression fallback was conditional on being easier to build, and it is not. | `D1-B46`, `D1-B48`, `D1-B49` → resolved `D2-B80` | No empty state for this case. | **READY** |
-| D8 | **Keyword table total scope** | **Total over all keywords**, table displays only the top 10. This reverses the doc's proposal (`D2-B72`). | `IN-4` beats `D2-B72` | No total, and display cap is currently 50 not 10. Note `IN-4` says "top 10" while the code caps at 50. | **READY** — flag the 10 vs 50 mismatch |
+| D7 | **If no keyword reaches 10 clicks** | **Show a message.** Dianna's call. Amir's 50-impression fallback was conditional on being easier to build, and it is not. | `D1-B46`, `D1-B48`, `D1-B49` → resolved `D2-B80` | No empty state for this case. | **CONFIRM** — see C4 |
+| D8 | **Keyword table total scope** | **Total over all keywords**, table displays only the top 10. This reverses the doc's proposal (`D2-B72`). | `IN-4` beats `D2-B72` | No total, and display cap is currently 50 not 10. Note `IN-4` says "top 10" while the code caps at 50. | **CONFIRM** — see C6 |
 | D9 | **Does the click filter affect Leads by Action?** | **No.** The filter is keyword-table only; Leads by Action carries no click data. | `D1-B38`, `D1-B40`, `D1-B41` | Independent components already. | **READY** |
 
 ---
@@ -198,7 +204,7 @@ no equivalent in the codebase.
 
 ---
 
-# E2. Requirements 5 and 6 — no stakeholder input
+# R56. Requirements 5 and 6 — no stakeholder input
 
 Neither appears in the Q&A or Decisions tabs, so neither scorecard covers them. Both
 come from the original six requirements and are designed in PR #164.
@@ -210,7 +216,7 @@ come from the original six requirements and are designed in PR #164.
 
 ---
 
-# E3. Build constraints from the technical design
+# CONSTRAINTS. From the technical design (PR #164)
 
 Not decisions, but they shape every row above and this work list was previously silent
 on all three. Full detail in PR #164.
@@ -229,7 +235,7 @@ on all three. Full detail in PR #164.
 
 ---
 
-# E4. Monitoring gaps surfaced by Req 6
+# MONITORING. Gaps surfaced by Req 6
 
 Recorded in the design as follow-ups, not part of this work. Both are worth knowing
 before the Overview ships.
@@ -262,13 +268,33 @@ before the Overview ships.
 
 # Summary
 
-| Bucket | Count |
-|---|---|
-| **BLOCKED** | **1** (A1 leads source) |
-| **CONFIRM** (one answer each) | **5** (A2 layout detail, C1, C2, C3, F2) |
-| **READY to build** | **21** (19 from the two tabs + E5, E6 from the original requirements) |
-| **Open engineering decision** | **1** (`D11` rollup architecture, PR #164) |
-| Out of scope | 3 |
+| Bucket | Count | Rows |
+|---|---|---|
+| **BLOCKED** | **1** | A1 (leads source) |
+| **CONFIRM** | **7** | A2 layout detail, plus C1–C6. Five of the C rows gate a specific work row: B7→C1, D4→C2, D7→C4, B4→C5, D8→C6. **C3 does not gate anything**: Amir explicitly approved the plain sum (`IN-3`), so D5 stays READY and C3 is a post-build verification against live data. |
+| **READY to build** | **17** | Overview 6 (B1,B2,B3,B5,B6,B8) · Paid Search 6 (D1,D2,D3,D5,D6,D9) · Meta 4 (E1–E4) · Req 5 (E5) |
+| **Already resolved** | **1** | E6, Req 6 LinkedIn, fixed 2026-07-22 |
+| **Open engineering decision** | **1** | `#164 D11` rollup architecture |
+| Out of scope | 3 | Other clients, the doc's other 4 tabs, Meta lead-magnet events |
+
+Row inventory reconciles: B(8) + D(9) + E(6) = 23 work rows, plus A1 = **24**.
+17 READY + 5 row-level CONFIRM + 1 BLOCKED + 1 resolved = 24.
+
+**Nothing in Paid Search or Meta is blocked.** The one blocker sits on the Overview's
+Leads and Cost per lead only. Req 4 (E1), Req 5 (E5) and the table totals can start now.
+
+**Highest-value single item:** A1. It decides whether Leads is a platform metric or a
+HubSpot-attributed one, which changes Req 1's data layer, Decisions items 1 and 3, and
+whether Meta's lead gap matters at all.
+
+## Decisions taken outside the source documents
+
+Anything here was decided in conversation, not in the Q&A or Decisions tabs, so it
+carries no element ID. Kept in one place so the distinction never blurs.
+
+| # | Decision | Source | Status |
+|---|---|---|---|
+| A2 | Blended Clicks aggregates **Paid Search + LinkedIn**. **Meta is its own metric**, kept out of that number. | **Paul, verbal, relayed by Thomas, 2026-07-30** | Recorded, **awaiting Paul's confirmation in PR #175**, plus the two open details listed in A2 |
 
 ## Suggested build order
 

@@ -38,7 +38,8 @@
 > Paid Media* &larr; **Document 2, scorecarded separately**, (4) *Technical
 > Feedback*, (5) *Stakeholder QA & Feedback*, (6) *Handoff Agreement*.
 > The HTML export covers only tab 1. This scorecard is scoped to tab 1 and
-> deliberately excludes the other 17 comment threads that live on other tabs.
+> deliberately excludes the other **16 comment threads that live on other tabs**, plus
+> 1 deleted tombstone that belongs to no tab.
 
 ## How to read this file
 
@@ -207,7 +208,9 @@
 | T4 | D1-B52 | Dianna Gatto | 2 | [g], [h], [i] |
 
 **Whole-document comment census:** 21 threads total. **4 belong to this tab**
-(mapped below). 17 belong to other tabs and are **out of scope for Doc 1**.
+(mapped below). **16 belong to other tabs** (15 on Decisions for Approval, 1 on the PRD
+tab) and are **out of scope for Doc 1**. The remaining 1 is a **deleted tombstone that belongs
+to no tab** (no author, content or anchor); see the note at the end of Part 2.
 **Resolved threads: 0** anywhere in the document. **Deleted: 1** (see note at the
 end of this Part).
 
