@@ -5,6 +5,10 @@ import { sectionTemplates } from '@/lib/db/schema'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { parseSectionTemplate } from '@/lib/report-sections/validate'
 import { PEEC_TEMPLATE } from '@/components/report-sections/peec-ai/template'
+import {
+  ORGANIC_SOCIAL_TEMPLATE,
+  ORGANIC_SOCIAL_PLATFORM_TEMPLATE,
+} from '@/components/report-sections/organic-social/template'
 import type { SectionTemplate } from '@/lib/report-sections/types'
 
 // Insert-if-absent by design (spec 1 §6). The code constant is a first-boot fallback;
@@ -12,6 +16,8 @@ import type { SectionTemplate } from '@/lib/report-sections/types'
 // ONLY when every part it references exists (M4 adds organic-social).
 const SEED: { slug: string; template: SectionTemplate }[] = [
   { slug: 'peec-ai', template: PEEC_TEMPLATE },
+  { slug: 'organic-social', template: ORGANIC_SOCIAL_TEMPLATE },
+  { slug: 'organic-social:platform', template: ORGANIC_SOCIAL_PLATFORM_TEMPLATE },
 ]
 
 async function main() {
