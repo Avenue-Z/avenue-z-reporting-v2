@@ -32,7 +32,9 @@ const COLS: Col[] = [
   { key: 'ctr', label: 'CTR', fmt: pct },
   { key: 'cpc', label: 'CPC', fmt: usd2 },
   { key: 'lpv', label: 'LPV', fmt: num },
-  { key: 'costPerLpv', label: 'Cost / LPV', fmt: usd },
+  // usd2, not usd: Cost / LPV is a per-unit cost and is routinely sub-dollar.
+  // Matches CPC above and LinkedIn's Cost / Lead.
+  { key: 'costPerLpv', label: 'Cost / LPV', fmt: usd2 },
   { key: 'engagements', label: 'Engagements', fmt: num },
   { key: 'shareOfSpend', label: 'Share of Spend', fmt: pct },
 ]
