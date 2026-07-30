@@ -34,11 +34,48 @@ we build.
 |---|---|---|
 | 1 | `paid-media-v2-doc1-questions-scorecard.md` | Verbatim 1:1 record of the **Q&A** tab |
 | 2 | `paid-media-v2-doc2-decisions-scorecard.md` | Verbatim 1:1 record of the **Decisions for Approval** tab |
-| 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced back to a scorecard ID |
+| 3 | `paid-media-v2-merged-worklist.md` | **Derived.** The two merged into one build list, every row traced to a scorecard ID |
 | 4 | this file | Why 1 item still blocks, 6 do not, and the decision you made verbally |
 
 The first two are records. The third is a judgement call. Weight your scepticism
 accordingly.
+
+---
+
+## Before you start: there is a second, unreviewed PR
+
+**[PR #164 "Paid media v2 → dev"](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/164)**
+holds a **1,296-line technical design** for this exact work
+(`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`). It is open in draft on
+`ave-z-reporting-paid-media-v2`, created **2026-07-22**, untouched since, and **has
+never been reviewed by anyone.**
+
+**It is not superseded by this PR. The two are halves of the same thing.**
+
+| | PR #164, design | PR #175, this |
+|---|---|---|
+| Dated | Jul 22 | Jul 30 |
+| Answers | **How** to build it | **What** was decided |
+| Ends with | 11 open decisions `D1`–`D11` | The answers to **9 of those 11** |
+
+The design was written **before** the stakeholder answers landed (Jul 28–30). It asks
+the questions; the scorecards here contain the replies. The full `D1`–`D11` mapping is
+in the work list under "Prior work".
+
+Two things worth knowing before you read either:
+
+- **The design independently reached the same conclusions this PR did**, a week
+  earlier, on separate evidence: `D2` (Meta lead definition) named as *"the
+  highest-value one to resolve first"* and still our only blocker, plus the Cost / LPV
+  defect and the exact cents root cause.
+- **The design covers six requirements, not four.** Reqs 5 and 6 have **no stakeholder
+  input at all**, which is why neither scorecard mentions them. Req 6 (LinkedIn) is
+  already **resolved**: the Supermetrics connection had de-authed and was
+  re-authenticated on Jul 22.
+
+**How would you like these handled?** Options as we see them: review both PRs together
+and keep them separate, fold #164 into #175, or land #164 first as the design of record
+and rebase this on top. We have not touched #164.
 
 ---
 
@@ -203,7 +240,8 @@ line of the source document. Summary:
 |---|---|---|
 | **BLOCKED** | **1** | A1 leads source only. A2 resolved verbally by Paul on 2026-07-30. |
 | **CONFIRM** (one answer each) | **5** | A2 layout detail (**Paul**), C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) |
-| **READY to build** | **19** | All of Paid Search and Meta, plus 6 of the 8 Overview rows |
+| **READY to build** | **21** | All of Paid Search and Meta, 6 of the 8 Overview rows, plus Reqs 5 and 6 from the original six |
+| **Open engineering decision** | **1** | `D11` rollup architecture, from PR #164. Yours to call. |
 | Out of scope | 3 | Other clients, the doc's other 4 tabs, Meta lead-magnet events |
 
 **Nothing in Paid Search or Meta is blocked.** The one remaining blocker sits on the
@@ -227,6 +265,24 @@ the table shows the top 10 · D9 the click filter does **not** touch Leads by Ac
 clicks, already correct, no-op · E4 Meta bids one ad-set-level event, varies per client.
 
 **Cross-cutting** — F1 currency precision mismatch, root cause found.
+
+### Constraints the design doc carries that this work list did not
+
+Folded in now. All three shape the build and we were silent on them:
+
+- **C1: every Paid Media change lands twice**, on the dashboard route and the portal
+  route. Applying one and not the other gives staff and clients different behaviour.
+- **C2: the RSC boundary is CI-enforced.** `npm run check:rsc` fails when a function
+  prop crosses Server to Client. **Meta's geo-section is a Server Component; Paid
+  Search's is a Client Component.** So the currency fix must pass a **string
+  descriptor**, never a function.
+- **D11: the rollup cannot reuse the existing KPI functions**, with proof in the
+  design: they return rounded values and consume prior-period absolutes internally, so
+  blended deltas cannot be derived from them. **Still an open engineering decision.**
+
+Plus two monitoring gaps the design surfaced: the health sweep never probes the Meta or
+LinkedIn subpages, and its coverage **silently changes** when Overview takes `id: null`;
+and the Connections page hardcodes all three paid channels to `NOT_CONFIGURED`.
 
 ### Three code findings from the final sweep
 
@@ -266,9 +322,16 @@ These changed our assessment and are worth your eye:
    correct merge rule, and did we mis-resolve any row where the two documents disagree?
    The four rows where a later answer **reverses** an earlier proposal are B4, D8, E3
    and Blocker A1. Those are the ones most worth checking.
-5. **Traceability gap:** on the PRD tab Tina wrote *"Requirements were entered directly
-   into Asana for this one."* So the root requirements may live in Asana rather than
-   this doc. Do you have visibility there, and should we be tracing to it?
+5. ~~**Traceability gap:** requirements may live in Asana.~~ **Partly closed.** The
+   design doc in PR #164 records the **six original requirements verbatim** as its root
+   source, which is the upstream link we were missing. Asana may still hold the
+   originating task, but we now have the requirement text itself.
+6. **How should PR #164 and PR #175 be handled?** Review both together, fold #164 into
+   #175, or land #164 first as the design of record and rebase this on top. It has
+   never been reviewed and we have not touched it.
+7. **`D11` is still open and it is yours to call:** does the rollup fetch raw totals
+   itself, or does each channel export a raw-totals accessor alongside its `Kpi[]`
+   builder? It blocks Req 1 alongside A1.
 
 ---
 

@@ -11,6 +11,59 @@
 > **This list is derived.** The scorecards are the 1:1 record of what was said.
 > Where this list and a scorecard disagree, **the scorecard wins**.
 
+## Prior work: there is already a technical design, and it is unreviewed
+
+**[PR #164 "Paid media v2 → dev"](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/164)**
+is open in draft on branch `ave-z-reporting-paid-media-v2`. It holds a **1,296-line
+technical design** (`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`) plus an
+earlier approval doc. Created 2026-07-22, untouched since, **zero reviews**.
+
+**That design and this work list are two halves of the same thing, not duplicates.**
+
+| | Technical design (PR #164) | This work list (PR #175) |
+|---|---|---|
+| Dated | 2026-07-22 | 2026-07-30 |
+| Answers | **How** to build it | **What** was decided |
+| Ends with | 11 open decisions `D1`–`D11` | The answers to 9 of those 11 |
+
+The design was written **before** the stakeholder answers landed (Jul 28–30). It asks
+the questions; the scorecards behind this list contain the replies. Neither is
+complete alone.
+
+### The design's open decisions, now answered
+
+| Design | Decision | Answered by | Row here |
+|---|---|---|---|
+| `D1` | Overview as default landing | Dianna `[j]` Jul 30 | **B6** |
+| `D2` | How a Meta "lead" is defined | Greg `[x]` Jul 29, then Dianna `[f]` Jul 30 | **A1 — still blocked** |
+| `D3` | Blended Clicks: link vs all clicks | Dianna `[d]` Jul 30, then **Paul verbally Jul 30** | **A2 — resolved** |
+| `D4` | Unconfigured or erroring channel | Dianna `[h]` Jul 30 | **B4** |
+| `D5` | Overview commentary block and owner | Dianna `[l]` Jul 30 | **B7 / C1** |
+| `D6` | Totals on all tables or only two | Amir `IN-1` | **D1** |
+| `D7` | Region total: top 10 or all regions | Amir `IN-2` | **D4 / C2** |
+| `D8` | Total Leads: plain sum or de-duplicated | Amir `IN-3` | **D5** |
+| `D9` | Keyword filter adjustable or fixed | `D2-B80` ("can be cleared") | **D6** |
+| `D10` | Blended CPL when a channel has spend but no leads | partly Dianna `[f]` | folded into **A1** |
+| `D11` | Rollup reuses channel KPI fns, or fetches raw totals | **unanswered, engineering** | **see E5 below** |
+
+**9 of 11 answered.** The design named `D2` "the highest-value one to resolve first" on
+Jul 22. It is still the only true blocker, reached independently by both passes.
+
+## The six original requirements
+
+The design doc records these verbatim as the root source. **The Q&A tab covers Reqs 1–4
+only. Reqs 5 and 6 have no stakeholder input at all**, which is why neither scorecard
+mentions them.
+
+| # | As given |
+|---|---|
+| 1 | Add an Overview subpage for Paid Media that shows a rollup of performance across Paid Search, Meta & LinkedIn subpages. |
+| 2 | On Paid Search subpage, add "Total Leads" to the top of the "Leads by Action" table and at the bottom of the "Region → DMA Breakdown" table. These values should be a sum of the subtotals in the tables. |
+| 3 | On Paid Search subpage, add a default filter view to the keyword table at the bottom for the column "Clicks" and filter to 10 clicks or more. |
+| 4 | On Meta Advertising subpage, investigate the calculation of "Cost / LPV" and verify it's correctly displaying. |
+| 5 | On Meta Advertising subpage, the "Top Regions by Spend" chart's "Spend" value formatting should be $X,XXX.XX. |
+| 6 | Take a look at LinkedIn subpage - if there are any API issues. |
+
 ## The merge rule
 
 Verified against timestamps, not assumed:
@@ -140,6 +193,44 @@ no equivalent in the codebase.
 
 ---
 
+# E2. Requirements 5 and 6 — no stakeholder input
+
+Neither appears in the Q&A or Decisions tabs, so neither scorecard covers them. Both
+come from the original six requirements and are designed in PR #164.
+
+| # | What | Status | Detail |
+|---|---|---|---|
+| E5 | **Req 5 — Top Regions by Spend formats as `$X,XXX.XX`** | **READY** | Same root cause as F1. Meta's chart renders `BarChart` with **no** `valueFormat` (`meta-ads/geo-section.tsx:52`), and **no two-decimal currency formatter exists** in the codebase. Design's implementation map is 3 files: add a two-decimal helper to `lib/supermetrics/format.ts`, extend the `valueFormat` union in `bar-chart.tsx:21`, pass the descriptor. |
+| E6 | **Req 6 — LinkedIn API investigation** | **RESOLVED 2026-07-22** | Not a code defect. The LinkedIn connection on Supermetrics had **de-authed** and was re-authenticated. Nothing in `lib/linkedin/` changes. |
+
+---
+
+# E3. Build constraints from the technical design
+
+Not decisions, but they shape every row above and this work list was previously silent
+on all three. Full detail in PR #164.
+
+| ID | Constraint | Why it matters here |
+|---|---|---|
+| **C1** | **Every Paid Media change lands twice.** `app/dashboard/[clientSlug]/reports/page.tsx` (internal) and `app/portal/[clientSlug]/reports/page.tsx` (client-facing) both dispatch on `activeSection === 'paid-media'`. | Applying a change to one route only produces a section that behaves differently for staff and clients. Affects **every** row in B, D and E. |
+| **C2** | **The RSC boundary is CI-enforced.** `npm run check:rsc` is a required check and fails when a function prop crosses from a Server to a Client Component. **Meta's geo-section is a Server Component; Paid Search's is a Client Component.** | **Directly constrains F1 and E5.** The currency formatter must be passed as a **string descriptor**, never a function, or CI fails. `BarChart`'s `valueFormat?: 'currency'` was written as a string specifically for this. |
+| **C3** | **Only Renaissance is configured.** 1 of 7 clients has all three channels; the other six have none. | "A channel has no data" is the **normal** case, not an edge case. This is the evidence behind B4. |
+| **D11** | **The rollup cannot reuse `getPaidSearchKpis` / `getMetaKpis` / `getLinkedInKpis`.** They return `Kpi[]` with values already rounded and prior-period absolutes consumed internally by `delta()`, so blended deltas cannot be derived from them. | It must call the query wrappers (`awQuery`, `metaQuery`, `linkedinQuery`) and the pure `transform*` functions directly, or each channel must export a raw-totals accessor. **Still an open engineering decision.** |
+
+---
+
+# E4. Monitoring gaps surfaced by Req 6
+
+Recorded in the design as follow-ups, not part of this work. Both are worth knowing
+before the Overview ships.
+
+| Gap | Detail |
+|---|---|
+| **The health sweep never probes Meta or LinkedIn** | `app/api/health/sweep/route.ts` iterates `enabledReports` and never passes a subsection, so `paid-media` always resolves to the default subsection. A fault confined to Meta or LinkedIn is silent on both surfaces. **When Overview takes `id: null` (B6), the sweep's coverage silently changes**: it starts probing the Overview and stops probing Paid Search. |
+| **The Connections page cannot report a broken paid channel** | `app/dashboard/connections/page.tsx` hardcodes `META`, `GOOGLE_ADS` and `LINKEDIN` to `false`, so all three render `NOT_CONFIGURED` permanently, including for Renaissance where all three are live. |
+
+---
+
 # F. Cross-cutting
 
 | # | What | Decision | Trace | Current code | Status |
@@ -165,8 +256,23 @@ no equivalent in the codebase.
 |---|---|
 | **BLOCKED** | **1** (A1 leads source) |
 | **CONFIRM** (one answer each) | **5** (A2 layout detail, C1, C2, C3, F2) |
-| **READY to build** | **19** |
+| **READY to build** | **21** (19 from the two tabs + E5, E6 from the original requirements) |
+| **Open engineering decision** | **1** (`D11` rollup architecture, PR #164) |
 | Out of scope | 3 |
+
+## Suggested build order
+
+From the design doc's sequencing, updated for the answers that have since landed.
+Each its own PR against `dev` per the Stage 1 gate.
+
+| Order | Req | Why here | Gated on |
+|---|---|---|---|
+| 1 | **Req 4** — Cost / LPV (E1) | One line plus a test. Confirmed defect, formula confirmed by Greg, zero open decisions. **Currently shows clients `$0` for real costs.** Highest value per unit of effort. | nothing |
+| 2 | **Req 5** — Spend formatting (E5, F1) | Three files. Watch **C2**: string descriptor only. | F2 (cents scope) |
+| 3 | **Req 3** — keyword filter (D6, D7, D8) | | nothing, `D9` answered |
+| 4 | **Req 2** — table totals (D1–D5) | | C2 (region scope) |
+| 5 | **Req 1** — Overview | Largest by a wide margin | **A1**, plus `D11` |
+| — | ~~Req 6~~ — LinkedIn | Resolved 2026-07-22 | done |
 
 **Nothing in D (Paid Search) or E (Meta) is blocked.** The one remaining blocker sits
 on the Overview's Leads and Cost per lead only. Paid Search table totals, the keyword
