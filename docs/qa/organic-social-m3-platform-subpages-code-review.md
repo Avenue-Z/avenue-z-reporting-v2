@@ -119,11 +119,13 @@ four live counts, pinned by a `n=6..25` sweep test.
   text is unchanged, only its node structure is.
 - **Suite executed** green in the final range: `npx tsc --noEmit` clean; `npx vitest run` — 60
   files, 438 tests, all passing; `npx eslint` clean on every touched file.
-- **External-API trigger flagged, not asserted:** the manual `/verify` against a live, running
-  Dash-backed app (multi-channel client, both `?section=organic-social` and
-  `&subsection=<platform>`) remains outstanding per the PR's own test plan — not runnable in this
-  environment (no authenticated internal session) — and should gate `staging → main`, not this
-  merge.
+- **Manual `/verify` — DONE 2026-07-30.** Verified by Paul against the `integration/organic-social`
+  Vercel preview (`b87c0a5`) using renaissance (multi-channel). Overview unchanged (5 KPIs, no
+  Follower Graph); the LinkedIn subpage rendered the full 10-KPI headline, Follower Graph, and
+  scoped Engagement Over Time / Top Content; a stale/unknown `?subsection=` degraded to Overview
+  with no 404 and the sidebar correctly showing no highlighted tab. Not runnable from within this
+  review session itself (no authenticated internal session there) — recorded here from the live
+  check.
 
 ---
 
@@ -287,6 +289,7 @@ implicitly inside `metricForKey(channel, key)` (`metricFor(kpiFor(channel, key))
   follow-up on its own.
 
 **Post-fix gate state:** `tsc --noEmit` clean; full suite **60 files / 438 tests** green; eslint
-clean on every touched file. The manual `/verify` against a live, running Dash-backed app
-(multi-channel client, `?section=organic-social` and `&subsection=<platform>`) remains outstanding
-per the PR's own test plan and should gate `staging → main`, not this merge.
+clean on every touched file. The manual `/verify` against a live, running Dash-backed app (multi-
+channel client, `?section=organic-social` and `&subsection=<platform>`) is **DONE** — verified
+2026-07-30 by Paul against the `integration/organic-social` Vercel preview. Nothing outstanding
+gates `staging → main` from this PR.
