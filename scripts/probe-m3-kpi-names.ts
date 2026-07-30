@@ -20,7 +20,8 @@ export {} // module scope
 // We ALSO send each channel's confirmed set as one batch, to prove the shipped combination
 // 200s together (never ship a batch nobody tested).
 
-import { CHANNEL_LABEL } from '@/lib/organic-social/metrics'
+import { CHANNELS, CHANNEL_LABEL, platformKpiKeys } from '@/lib/organic-social/metrics'
+import { metricNamesFor } from '@/lib/organic-social/headline-build'
 
 const TOKEN = process.env.DASH_API_TOKEN
 if (!TOKEN) { console.error('Missing DASH_API_TOKEN'); process.exit(1) }
@@ -136,6 +137,22 @@ async function main() {
     console.log(`  ${CHANNEL_LABEL[channel as keyof typeof CHANNEL_LABEL].padEnd(10)} status=${r.status}  ` + (r.ok
       ? (missing.length ? `⚠️ MISSING ${JSON.stringify(missing)}` : `✅ all ${names.length} resolved together`)
       : `❌ 400 — body: ${r.rawSnippet.slice(0, 200)}`))
+  }
+  console.log('')
+
+  // FULL SHIPPED SCOPED BATCH — the decisive check (review finding #2). A platform tab sends
+  // base-5 (OVERVIEW_KPI_KEYS, byPost) + breakdown in ONE TOTAL_GROUPED_METRIC request; under
+  // WHOLE-BATCH-400 one bad pairing blanks the whole tab. The ★-subset proof above does NOT cover
+  // this combination — so send the EXACT batch metricNamesFor(channel, platformKpiKeys(channel))
+  // (byte-identical to headlines.ts when scoped) and require every metric to resolve together.
+  console.log('===== FULL SHIPPED SCOPED BATCH · base-5 + breakdown, exactly as headlines.ts sends =====')
+  for (const channel of CHANNELS) {
+    const names = metricNamesFor(channel, platformKpiKeys(channel))
+    const r = await query(channel, names)
+    const missing = names.filter((m) => !(m in r.resolved))
+    console.log(`  ${CHANNEL_LABEL[channel].padEnd(10)} n=${names.length} status=${r.status}  ` + (r.ok
+      ? (missing.length ? `⚠️ MISSING ${JSON.stringify(missing)} — tab would render fabricated 0s` : `✅ all ${names.length} resolved together`)
+      : `❌ 400 — SCOPED TAB WOULD BLANK. body: ${r.rawSnippet.slice(0, 200)}`))
   }
   console.log('')
 

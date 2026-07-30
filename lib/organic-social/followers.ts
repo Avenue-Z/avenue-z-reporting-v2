@@ -46,5 +46,8 @@ export const getFollowerGraph = cache(async (
     }),
   )
 
-  return buildTrendSeries(perChannel)
+  // TOTAL_FOLLOWERS is a STOCK, not a flow: a missing day must hold the last known
+  // count, never plot a fabricated 0 (the "don't fabricate a zero" hazard the headline
+  // builder throws to avoid). gapFill:'carry' does exactly that.
+  return buildTrendSeries(perChannel, { gapFill: 'carry' })
 })
