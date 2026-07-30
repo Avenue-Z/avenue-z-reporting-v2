@@ -194,7 +194,7 @@ Meta's own tab, and the two are compatible.
 |---|---|
 | **Conflict** | Greg, Jul 21 (Q&A): use the ad platform's lead event, drop Conversions. Dianna, Jul 30 (Decisions): *"The number of leads should come from hubspot and not from the ad platforms... it should be spend across all platforms / hubspot leads attributed to AVZ"* |
 | **Why it blocks** | Leads and Cost per lead are 2 of the 4 agreed Overview metrics. Neither can be built until this is settled. |
-| **Why it is not a tweak** | Two things are missing, both verified in the repo, not assumed: <br>**(a) Renaissance has no HubSpot connection at all.** `scripts/seed.ts:77` sets `hubspotTokenEnvVar: null` for renaissance, and `hubspot-performance` is not in its `enabledReports`. Only `avenue-z` has HubSpot wired (`HUBSPOT_ACCESS_TOKEN_AVENUE_Z`). So there is no token, no config, no data path. <br>**(b) No paid-channel attribution exists for any client.** `grep` for `hubspot` across `lib/paid-search`, `lib/meta` and `lib/linkedin` returns **zero** matches, and `lib/hubspot` contains no attribution logic (`client.ts`, `rate-limit.ts` only). "Leads attributed to AVZ" is a model that does not exist anywhere in the codebase yet. |
+| **Why it is not a tweak** | Two things are missing, both verified in the repo, not assumed: <br>**(a) Renaissance has no HubSpot connection at all.** `scripts/seed.ts:78` sets `hubspotTokenEnvVar: null` for renaissance, and `hubspot-performance` is not in its `enabledReports`. Only `avenue-z` has HubSpot wired (`HUBSPOT_ACCESS_TOKEN_AVENUE_Z`). So there is no token, no config, no data path. <br>**(b) No paid-channel attribution exists for any client.** `grep` for `hubspot` across `lib/paid-search`, `lib/meta` and `lib/linkedin` returns **zero** matches, and `lib/hubspot` contains no attribution logic (`client.ts`, `rate-limit.ts` only). "Leads attributed to AVZ" is a model that does not exist anywhere in the codebase yet. |
 | **Size** | This is a client onboarding step **plus** a new attribution model, not a config change. It is the difference between "point the metric at a different field" and "build a new data source and decide how a HubSpot lead gets credited to a paid channel." |
 | **Knock-on** | If leads come from HubSpot, it also undercuts Decisions item 1 ("hold Meta's Leads") and item 3 (blended CPL), both of which assume platform-reported leads. Req 1's whole metric set depends on it. |
 
@@ -239,7 +239,7 @@ line of the source document. Summary:
 | Bucket | Count | |
 |---|---|---|
 | **BLOCKED** | **1** | A1 leads source only. A2 resolved verbally by Paul on 2026-07-30. |
-| **CONFIRM** (one answer each) | **5** | A2 layout detail (**Paul**), C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) |
+| **CONFIRM** (one answer each) | **5** | A2 layout detail (**Paul**), C1 commentary scope (Dianna), C2 region total scope (Amir), C3 DMA de-dup (Amir), F2 cents scope (Dianna) — these `C` ids are the **work list's**, not #164's |
 | **READY to build** | **21** | All of Paid Search and Meta, 6 of the 8 Overview rows, plus Reqs 5 and 6 from the original six |
 | **Open engineering decision** | **1** | `D11` rollup architecture, from PR #164. Yours to call. |
 | Out of scope | 3 | Other clients, the doc's other 4 tabs, Meta lead-magnet events |
@@ -248,7 +248,7 @@ line of the source document. Summary:
 Overview's Leads and Cost per lead only. Table totals, the keyword filter and the
 Cost/LPV fix can start now.
 
-### The 19 ready items, in one place
+### The 21 ready items, in one place
 
 **Overview (Req 1)** — B1 metric set `Spend, Clicks, Leads, Cost per lead` · B2 blended
 **and** per-channel · B3 fallback moot, both is feasible · B4 missing channel makes the
@@ -266,17 +266,24 @@ clicks, already correct, no-op · E4 Meta bids one ad-set-level event, varies pe
 
 **Cross-cutting** — F1 currency precision mismatch, root cause found.
 
+**From the original six requirements** (no stakeholder input on either, so neither
+scorecard covers them) — E5 Req 5 Top Regions formats as `$X,XXX.XX`, same root cause
+as F1 · E6 Req 6 LinkedIn, **already resolved 2026-07-22**, the Supermetrics connection
+had de-authed and was re-authenticated.
+
 ### Constraints the design doc carries that this work list did not
 
-Folded in now. All three shape the build and we were silent on them:
+Folded in now. All three shape the build and we were silent on them. IDs below are
+**PR #164's**, prefixed to avoid colliding with this work list's own `C1`/`C2`/`C3`,
+which mean something different:
 
-- **C1: every Paid Media change lands twice**, on the dashboard route and the portal
+- **#164 `C1`: every Paid Media change lands twice**, on the dashboard route and the portal
   route. Applying one and not the other gives staff and clients different behaviour.
-- **C2: the RSC boundary is CI-enforced.** `npm run check:rsc` fails when a function
+- **#164 `C2`: the RSC boundary is CI-enforced.** `npm run check:rsc` fails when a function
   prop crosses Server to Client. **Meta's geo-section is a Server Component; Paid
   Search's is a Client Component.** So the currency fix must pass a **string
   descriptor**, never a function.
-- **D11: the rollup cannot reuse the existing KPI functions**, with proof in the
+- **#164 `D11`: the rollup cannot reuse the existing KPI functions**, with proof in the
   design: they return rounded values and consume prior-period absolutes internally, so
   blended deltas cannot be derived from them. **Still an open engineering decision.**
 

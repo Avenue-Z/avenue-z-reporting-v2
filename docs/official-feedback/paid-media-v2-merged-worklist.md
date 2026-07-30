@@ -15,8 +15,8 @@
 
 **[PR #164 "Paid media v2 → dev"](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/164)**
 is open in draft on branch `ave-z-reporting-paid-media-v2`. It holds a **1,296-line
-technical design** (`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`) plus an
-earlier approval doc. Created 2026-07-22, untouched since, **zero reviews**.
+technical design** (`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`, **on
+that branch, not this one**) plus an earlier approval doc. Created 2026-07-22, untouched since, **zero reviews**.
 
 **That design and this work list are two halves of the same thing, not duplicates.**
 
@@ -44,7 +44,7 @@ complete alone.
 | `D8` | Total Leads: plain sum or de-duplicated | Amir `IN-3` | **D5** |
 | `D9` | Keyword filter adjustable or fixed | `D2-B80` ("can be cleared") | **D6** |
 | `D10` | Blended CPL when a channel has spend but no leads | partly Dianna `[f]` | folded into **A1** |
-| `D11` | Rollup reuses channel KPI fns, or fetches raw totals | **unanswered, engineering** | **see E5 below** |
+| `D11` | Rollup reuses channel KPI fns, or fetches raw totals | **unanswered, engineering** | **§E3 constraints, still open** |
 
 **9 of 11 answered.** The design named `D2` "the highest-value one to resolve first" on
 Jul 22. It is still the only true blocker, reached independently by both passes.
@@ -105,7 +105,7 @@ visible.
 | **Trace** | Q&A: `D1-B26` (Greg, Jul 21) vs Decisions: comment `[f]` (Dianna, Jul 30) |
 | **Conflict** | Greg: use the platform "leads" event, drop Conversions. Dianna: *"The number of leads should come from hubspot and not from the ad platforms... it should be spend across all platforms / hubspot leads attributed to AVZ"* |
 | **Blocks** | Overview **Leads** and **Cost per lead** (2 of the 4 agreed metrics), plus Decisions items 1 and 3 which both assume platform leads |
-| **Verified cost** | **(a)** Renaissance has **no HubSpot connection at all**: `scripts/seed.ts:77` sets `hubspotTokenEnvVar: null` and `hubspot-performance` is not in its `enabledReports`. Only `avenue-z` is wired. **(b)** **No paid-channel attribution exists for any client**: zero `hubspot` references in `lib/paid-search`, `lib/meta`, `lib/linkedin`, and `lib/hubspot` holds only `client.ts` + `rate-limit.ts`. |
+| **Verified cost** | **(a)** Renaissance has **no HubSpot connection at all**: `scripts/seed.ts:78` sets `hubspotTokenEnvVar: null` and `hubspot-performance` is not in its `enabledReports`. Only `avenue-z` is wired. **(b)** **No paid-channel attribution exists for any client**: zero `hubspot` references in `lib/paid-search`, `lib/meta`, `lib/linkedin`, and `lib/hubspot` holds only `client.ts` + `rate-limit.ts`. |
 | **So it is** | A client onboarding step **plus** a net-new attribution model. Not a field swap. |
 | **Owner** | Dianna |
 
@@ -210,12 +210,17 @@ come from the original six requirements and are designed in PR #164.
 Not decisions, but they shape every row above and this work list was previously silent
 on all three. Full detail in PR #164.
 
-| ID | Constraint | Why it matters here |
+> **Heads up on IDs.** These are **PR #164's** identifiers and are prefixed `#164` to
+> avoid collision. This work list also has rows called `C1`, `C2`, `C3` in section C
+> above, which mean something entirely different (items needing one word of
+> confirmation). `#164 C1` and `C1` are not the same thing.
+
+| Design ID | Constraint | Why it matters here |
 |---|---|---|
-| **C1** | **Every Paid Media change lands twice.** `app/dashboard/[clientSlug]/reports/page.tsx` (internal) and `app/portal/[clientSlug]/reports/page.tsx` (client-facing) both dispatch on `activeSection === 'paid-media'`. | Applying a change to one route only produces a section that behaves differently for staff and clients. Affects **every** row in B, D and E. |
-| **C2** | **The RSC boundary is CI-enforced.** `npm run check:rsc` is a required check and fails when a function prop crosses from a Server to a Client Component. **Meta's geo-section is a Server Component; Paid Search's is a Client Component.** | **Directly constrains F1 and E5.** The currency formatter must be passed as a **string descriptor**, never a function, or CI fails. `BarChart`'s `valueFormat?: 'currency'` was written as a string specifically for this. |
-| **C3** | **Only Renaissance is configured.** 1 of 7 clients has all three channels; the other six have none. | "A channel has no data" is the **normal** case, not an edge case. This is the evidence behind B4. |
-| **D11** | **The rollup cannot reuse `getPaidSearchKpis` / `getMetaKpis` / `getLinkedInKpis`.** They return `Kpi[]` with values already rounded and prior-period absolutes consumed internally by `delta()`, so blended deltas cannot be derived from them. | It must call the query wrappers (`awQuery`, `metaQuery`, `linkedinQuery`) and the pure `transform*` functions directly, or each channel must export a raw-totals accessor. **Still an open engineering decision.** |
+| **#164 `C1`** | **Every Paid Media change lands twice.** `app/dashboard/[clientSlug]/reports/page.tsx` (internal) and `app/portal/[clientSlug]/reports/page.tsx` (client-facing) both dispatch on `activeSection === 'paid-media'`. | Applying a change to one route only produces a section that behaves differently for staff and clients. Affects **every** row in B, D and E. |
+| **#164 `C2`** | **The RSC boundary is CI-enforced.** `npm run check:rsc` is a required check and fails when a function prop crosses from a Server to a Client Component. **Meta's geo-section is a Server Component; Paid Search's is a Client Component.** | **Directly constrains F1 and E5.** The currency formatter must be passed as a **string descriptor**, never a function, or CI fails. `BarChart`'s `valueFormat?: 'currency'` was written as a string specifically for this. |
+| **#164 `C3`** | **Only Renaissance is configured.** 1 of 7 clients has all three channels; the other six have none. | "A channel has no data" is the **normal** case, not an edge case. This is the evidence behind B4. |
+| **#164 `D11`** | **The rollup cannot reuse `getPaidSearchKpis` / `getMetaKpis` / `getLinkedInKpis`.** They return `Kpi[]` with values already rounded and prior-period absolutes consumed internally by `delta()`, so blended deltas cannot be derived from them. | It must call the query wrappers (`awQuery`, `metaQuery`, `linkedinQuery`) and the pure `transform*` functions directly, or each channel must export a raw-totals accessor. **Still an open engineering decision.** |
 
 ---
 
