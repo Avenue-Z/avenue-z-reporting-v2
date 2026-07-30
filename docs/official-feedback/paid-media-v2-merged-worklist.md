@@ -16,7 +16,12 @@
 **[PR #164 "Paid media v2 → dev"](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/164)**
 is open in draft on branch `ave-z-reporting-paid-media-v2`. It holds a **1,296-line
 technical design** (`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`, **on
-that branch, not this one**) plus an earlier approval doc. Created 2026-07-22, untouched since, **zero reviews**.
+that branch, not this one**) plus an earlier approval doc. Created 2026-07-22, untouched since.
+
+**Paul reviewed this design, and the "Decisions for Approval — Paid Media" tab was
+written as a result.** The review happened **off GitHub**, so the PR carries no review
+artifact (verified via the GitHub API on 2026-07-30: zero formal reviews, zero inline
+comments). The absence on GitHub is a missing paper trail, not a missing review.
 
 **That design and this work list are two halves of the same thing, not duplicates.**
 

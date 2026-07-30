@@ -14,7 +14,7 @@
 | Field | Value |
 |---|---|
 | Live source | Google Doc `1WNa3zDAkFss3Cx5EYBrfENJnYfOZOX-PfWqdbVLXyMQ`, **tab 3 of 6** |
-| **Tab name** | **`Decisions for Approval`** (the tab label in the Google Docs sidebar) |
+| **Tab name** | **`Decisions for Approval — Paid Media`** (the tab label in the Google Docs sidebar). **Renamed 2026-07-30**, previously `Decisions for Approval`. Content unchanged by the rename, verified element-by-element. |
 | Document title (H1) | Decisions for Approval — Paid Media |
 | HTML export cross-check | `Paid Media Reporting Dashboard v2 (1)/PaidMediaReportingDashboardv2.html`, exported 2026-07-30 09:37 |
 | Captured | 2026-07-30 |

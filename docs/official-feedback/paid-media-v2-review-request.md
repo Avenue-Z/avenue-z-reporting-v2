@@ -16,7 +16,7 @@ Three things, in priority order:
    the single source of truth for this overhaul, so if either is a bad read of the
    source, everything downstream is wrong.
    - [`paid-media-v2-doc1-questions-scorecard.md`](./paid-media-v2-doc1-questions-scorecard.md) — tab **Q&A**
-   - [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) — tab **Decisions for Approval**
+   - [`paid-media-v2-doc2-decisions-scorecard.md`](./paid-media-v2-doc2-decisions-scorecard.md) — tab **Decisions for Approval — Paid Media**
 2. **Then review the merged work list**, which is the two scorecards combined into what
    actually gets built: [`paid-media-v2-merged-worklist.md`](./paid-media-v2-merged-worklist.md).
    **Merging them was our call, not something either document told us to do.** The merge
@@ -47,8 +47,11 @@ accordingly.
 **[PR #164 "Paid media v2 → dev"](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/164)**
 holds a **1,296-line technical design** for this exact work
 (`docs/superpowers/specs/2026-07-22-paid-media-v2-design.md`). It is open in draft on
-`ave-z-reporting-paid-media-v2`, created **2026-07-22**, untouched since, and **has
-never been reviewed by anyone.**
+`ave-z-reporting-paid-media-v2`, created **2026-07-22** and untouched since.
+**Paul reviewed it, and the "Decisions for Approval — Paid Media" doc came out of that
+review.** That review happened **off GitHub**, so the PR itself carries no review
+artifact: zero formal reviews, zero inline comments, zero issue comments except the
+Vercel bot. Verified through the GitHub API on 2026-07-30.
 
 **It is not superseded by this PR. The two are halves of the same thing.**
 
@@ -335,7 +338,7 @@ These changed our assessment and are worth your eye:
    originating task, but we now have the requirement text itself.
 6. **How should PR #164 and PR #175 be handled?** Review both together, fold #164 into
    #175, or land #164 first as the design of record and rebase this on top. It has
-   never been reviewed and we have not touched it.
+   no review artifact on GitHub even though Paul reviewed it, and we have not touched it.
 7. **`D11` is still open and it is yours to call:** does the rollup fetch raw totals
    itself, or does each channel export a raw-totals accessor alongside its `Kpi[]`
    builder? It blocks Req 1 alongside A1.
