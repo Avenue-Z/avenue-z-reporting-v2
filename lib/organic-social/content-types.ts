@@ -83,6 +83,17 @@ export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
  * Top Performing Posts card doesn't display this metric, so there is no card value to reconcile
  * against; the exact "views vs impressions vs reach" definition remains a proposal for Tina
  * (requirements Change 3 metric breakdown).
+ *
+ * ⚠️ KNOWN CAVEAT — "Views" means two things on the Facebook page. This Top Content column
+ * ("Views / Impr.") uses `organic_views` (organic only), while the Facebook profile KPI card
+ * uses `PAID_AND_ORGANIC_VIEWS_BY_POST` (paid + organic — metrics.ts FACEBOOK.exposure). Both
+ * are post-scoped, so summing this column and comparing it to the card differs by exactly paid
+ * views. That is ≈ 0 today because these accounts run ≈ no paid, but the day Facebook paid is
+ * non-zero the two diverge with no on-screen signal that they were ever different measures. The
+ * divergence is with the profile KPI, not with this line — pointing Facebook Top Content at
+ * `organic_views` is correct here (`impressions` is 0). Recorded alongside the decision-6
+ * Facebook footnote (metrics.ts FACEBOOK engagements). If reader-facing surfacing is wanted, add
+ * it as a "Views / Impr." column-header tooltip.
  */
 export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
   INSTAGRAM: 'views',

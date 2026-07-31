@@ -64,7 +64,11 @@ export type ReportingBasis = 'allPosts' | 'byPost'
 
 /** The active reporting basis. M2b flips this one constant — decisions 3 & 4.
  *  'allPosts'  = every post active in the window (older posts still accruing).
- *  'byPost'    = only posts published in the window (findings §3a, §6.2). */
+ *  'byPost'    = only posts published in the window (findings §3a, §6.2).
+ *  byPost is a genuine subset of allPosts (byPost ≤ allPosts) for every metric EXCEPT
+ *  X (TWITTER) exposure, where the two columns are DIFFERENT Dash measures rather than
+ *  one measure re-scoped, so the by-post figure is not bounded by all-posts and can land
+ *  either side of it — see the TWITTER.exposure note below. */
 export const REPORTING_BASIS: ReportingBasis = 'byPost'
 
 export interface KpiSpec {
@@ -121,9 +125,17 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
   TWITTER: [
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
     { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
-    // by-post names confirmed live 2026-07-29 via scripts/probe-m2-by-post-impressions.ts
-    // (30-day window 06-22..07-22, brand 26952): the exact 5-metric prod batch 200s on
-    // every channel; X IMPRESSIONS 183→IMPRESSIONS_BY_POST 299, LinkedIn 13248→12195.
+    // by-post names confirmed live via scripts/probe-m2-by-post-impressions.ts (brand 26952).
+    // X exposure is NOT a subset re-scope, unlike every other by-post metric: bare X
+    // IMPRESSIONS and IMPRESSIONS_BY_POST are two DIFFERENT Dash measures. Proof (re-probed
+    // 2026-07-31, window 06-22..07-22): X has NO IMPRESSIONS_ALL_POSTS — it 400s "not available
+    // for channel: TWITTER" — so bare IMPRESSIONS is a separately-computed account/timeline-level
+    // tally, not the post-level superset of IMPRESSIONS_BY_POST. Contrast LinkedIn, where bare
+    // IMPRESSIONS === IMPRESSIONS_ALL_POSTS (both 13248) and IMPRESSIONS_BY_POST (12481) is a
+    // strict subset. Because X's two figures are measured differently, their difference has no
+    // fixed sign: 183→299 (↑) in the window Step-9 recorded, 708→452 (↓) on 2026-07-31. X
+    // engagements DO stay a subset (50→48). So the X exposure change is a change of measurement
+    // basis, not a window-narrowing — which is why a by-post value can exceed the all-posts value.
     { key: 'exposure',        label: 'Impressions',     format: 'number',  metric: { allPosts: 'IMPRESSIONS',       byPost: 'IMPRESSIONS_BY_POST' } },
     { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS_POSTS' } },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
