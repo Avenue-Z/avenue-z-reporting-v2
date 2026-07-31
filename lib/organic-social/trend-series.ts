@@ -42,9 +42,11 @@ export function buildTrendSeries(
   return { points, channels }
 }
 
-/** True when a series carries no plottable data — no channels, no points, or every point is
- *  null/non-finite for every channel (e.g. a window before the account's history begins). Lets
- *  the chart show a "no data" placeholder instead of an empty axis frame. */
-export function isEmptyTrend(series: TrendSeries): boolean {
-  return !series.points.some((p) => series.channels.some((c) => Number.isFinite(Number(p[c]))))
+/** True when a series carries no plottable data over the given channels — no channels, no points,
+ *  or every point is null/non-finite for every channel (e.g. a window before the account's history
+ *  begins). Defaults to all of the series' channels; pass the currently-toggled-on subset to test
+ *  the active selection (an all-null active channel would otherwise render a blank axis). Lets the
+ *  chart show a "no data" placeholder instead of an empty axis frame. */
+export function isEmptyTrend(series: TrendSeries, channels: readonly string[] = series.channels): boolean {
+  return !series.points.some((p) => channels.some((c) => Number.isFinite(Number(p[c]))))
 }

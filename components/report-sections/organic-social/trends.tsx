@@ -33,9 +33,12 @@ export function ChannelTrendChart({ title, series }: { title: string; series: Tr
       return next
     })
 
-  const yKeys = series.channels
-    .filter((c) => active.has(c))
-    .map((c) => ({ key: c, label: c, color: colorFor(c) }))
+  const activeChannels = series.channels.filter((c) => active.has(c))
+  const yKeys = activeChannels.map((c) => ({ key: c, label: c, color: colorFor(c) }))
+  // Empty-state is evaluated against the ACTIVE selection, not the whole series: toggling off
+  // every channel but an all-null one (or off entirely) would otherwise leave niceYDomain
+  // undefined → a blank [0,'auto'] axis. Legend stays visible so the user can toggle back on.
+  const activeEmpty = isEmptyTrend(series, activeChannels)
 
   return (
     <section className="space-y-3">
@@ -68,7 +71,7 @@ export function ChannelTrendChart({ title, series }: { title: string; series: Tr
               )
             })}
           </div>
-          <LineChart data={series.points} xKey="date" yKeys={yKeys} />
+          {activeEmpty ? <NoData /> : <LineChart data={series.points} xKey="date" yKeys={yKeys} />}
         </>
       )}
     </section>

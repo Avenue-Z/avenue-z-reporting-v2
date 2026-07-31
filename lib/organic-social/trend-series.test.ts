@@ -22,4 +22,17 @@ describe('isEmptyTrend', () => {
     const s: TrendSeries = { channels: ['X'], points: [{ date: '2026-01-01', X: Number.NaN }] }
     expect(isEmptyTrend(s)).toBe(true)
   })
+
+  test('an all-null active channel is empty even when the full series has data', () => {
+    // X has no data; Instagram does. The full series is non-empty, but the active selection
+    // {X} is empty — the chart must show NoData rather than a blank [0,'auto'] axis.
+    const s: TrendSeries = {
+      channels: ['Instagram', 'X'],
+      points: [{ date: '2026-01-01', Instagram: 1200, X: Number.NaN }],
+    }
+    expect(isEmptyTrend(s)).toBe(false)
+    expect(isEmptyTrend(s, ['X'])).toBe(true)
+    expect(isEmptyTrend(s, ['Instagram'])).toBe(false)
+    expect(isEmptyTrend(s, [])).toBe(true) // everything toggled off
+  })
 })
