@@ -20,6 +20,27 @@ function tieBreak(a: TopContentPost, b: TopContentPost): number {
   return a.id - b.id
 }
 
+export interface Page<T> {
+  slice: T[]      // the items on the (clamped) page
+  page: number    // 0-based, clamped to [0, pageCount-1]
+  pageCount: number // always ≥ 1, so an empty list is one empty page
+  total: number
+  start: number   // 0-based index of the first item on the page (end-exclusive slice bounds)
+  end: number
+}
+
+/** Pure pagination over an already-ordered array. `page` is clamped into range so a stale page
+ *  index (e.g. after the list shrinks or the sort changes) never yields an out-of-range empty
+ *  view. Caller does the sort first (sort-then-paginate), so page 0 is the true top-`size`. */
+export function paginate<T>(items: T[], page: number, size: number): Page<T> {
+  const total = items.length
+  const pageCount = Math.max(1, Math.ceil(total / size))
+  const clamped = Math.min(Math.max(page, 0), pageCount - 1)
+  const start = clamped * size
+  const end = Math.min(start + size, total)
+  return { slice: items.slice(start, end), page: clamped, pageCount, total, start, end }
+}
+
 /** Sort a COPY of `posts` by a metric. Nulls (effectiveness / engagementRate are null on
  *  LinkedIn & X) always sort LAST regardless of direction, so a "—" never floats to the top. */
 export function sortPosts(posts: TopContentPost[], key: SortKey, dir: SortDir): TopContentPost[] {
