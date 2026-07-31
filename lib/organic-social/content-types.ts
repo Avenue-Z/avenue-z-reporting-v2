@@ -69,18 +69,24 @@ export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
 }
 
 /**
- * The Views / Impressions field per channel on CONTENT. Confirmed present on all four in the
- * same live probe: every channel exposes `impressions` (total impressions; ≈ organic for these
- * organic-social accounts, which run little/no paid). Kept as a per-channel map — like
- * CONTENT_ENGAGEMENT_FIELD — so it can be narrowed later (e.g. FB `organic_impressions`,
- * X `impressions_organic`) without touching normalizePost. NOTE: Dash's own Top Performing
- * Posts card does not display impressions, so there is no Dash-card value to reconcile against —
- * A5 sanity-checks magnitude only, and the exact "views vs impressions vs reach" definition is a
- * proposal for Tina (requirements Change 3 metric breakdown).
+ * The Views / Impressions field per channel on CONTENT. Per-channel — like CONTENT_ENGAGEMENT_FIELD —
+ * so each reads the field Dash actually populates without touching normalizePost.
+ * ⚠️ The earlier uniform `impressions` was WRONG for organic IG/FB: a live CONTENT probe
+ * (brand 26952, 2026-07-31) confirmed `impressions` is 0 on every organic Instagram AND Facebook
+ * post — the same deprecated-organic-impressions trap the profile KPI avoids by using VIEWS
+ * (see metrics.ts header). Reading it blanked the column to 0 for all IG/FB posts. Fixed to the
+ * populated exposure field per channel:
+ *  - Instagram: `views`        (impressions 0; e.g. captured fixture posts show views 20/88/54).
+ *  - Facebook:  `organic_views` (impressions 0; organic_reach is also unreliable — 0 on videos).
+ *  - LinkedIn / X: `impressions` is genuinely populated (253/420, 2/17) — left unchanged.
+ * These accounts run little/no paid, so `views` / `organic_views` ≈ organic exposure. Dash's own
+ * Top Performing Posts card doesn't display this metric, so there is no card value to reconcile
+ * against; the exact "views vs impressions vs reach" definition remains a proposal for Tina
+ * (requirements Change 3 metric breakdown).
  */
 export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
-  INSTAGRAM: 'impressions',
-  FACEBOOK: 'impressions',
+  INSTAGRAM: 'views',
+  FACEBOOK: 'organic_views',
   LINKEDIN: 'impressions',
   TWITTER: 'impressions',
 }
