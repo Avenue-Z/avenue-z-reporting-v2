@@ -20,7 +20,8 @@ const fbPost: DashContentPost = {
     engagement_rate_public: 0.012,  // old field — must NOT be used
     organic_effectiveness_v2: 0.15,
     organic_engagement_rate_v2: 0.08,
-    impressions: 880,
+    impressions: 0,          // organic FB always returns 0 here (the bug); real exposure below
+    organic_views: 880,      // Views / Impressions column source (CONTENT_IMPRESSIONS_FIELD.FACEBOOK)
   },
 }
 
@@ -52,7 +53,7 @@ test('Instagram carousel keeps its CAROUSEL media type and single record', () =>
   const igCarousel: DashContentPost = {
     id: 1, source: 'INSTAGRAM', type: 'CAROUSEL', source_created_at: '2026-06-15T00:00:00Z',
     media_group: 42,
-    instagram: { caption: 'swipe', url: 'https://instagram.com/p/1', sum_total_engagements: 12, effectiveness_engagements: 0.3, engagement: 0.05, impressions: 3400 },
+    instagram: { caption: 'swipe', url: 'https://instagram.com/p/1', sum_total_engagements: 12, effectiveness_engagements: 0.3, engagement: 0.05, impressions: 0, views: 3400 },
   }
   const p = normalizePost(igCarousel, 'INSTAGRAM')
   expect(p.mediaType).toBe('CAROUSEL')
@@ -121,6 +122,30 @@ test('normalizePost handles a UGC Instagram post from the captured fixture', () 
   expect(p.id).toBe(first.id)
   // UGC engagement is keyed under the same field as owned Instagram (engagements_public)
   expect(p.metrics.engagements).toBeGreaterThan(0)
+})
+
+// Regression (live CONTENT probe, brand 26952, 2026-07-31): organic IG/FB posts return
+// `impressions: 0` — the deprecated-impressions trap the profile KPI avoids by using VIEWS
+// (metrics.ts header). The exposure that Dash actually populates is `views` (Instagram) and
+// `organic_views` (Facebook). Reading `impressions` blanked the Views/Impr. column to 0 for
+// every IG and FB post; these lock in the populated fields.
+test('Instagram exposure reads `views`, not the always-0 organic `impressions` (captured fixture)', () => {
+  const fixture = JSON.parse(
+    readFileSync('lib/organic-social/__fixtures__/content-creative.json', 'utf8'),
+  ) as ContentResponse
+  const first = fixture.data.content[0] // real IG post: impressions 0, views 20
+  expect((first.instagram as Record<string, unknown>).impressions).toBe(0) // guards the fixture's realism
+  const p = normalizePost(first, 'INSTAGRAM')
+  expect(p.metrics.impressions).toBe(20) // = views, NOT 0
+})
+
+test('Facebook exposure reads `organic_views`, not the always-0 organic `impressions`', () => {
+  const fb: DashContentPost = {
+    id: 700000001, source: 'FACEBOOK', type: 'IMAGE', source_created_at: '2026-06-15T00:00:00Z',
+    facebook: { message: 'benefits', url: 'https://facebook.com/p/700000001', total_engagements_public: 4, impressions: 0, organic_views: 55 },
+  }
+  const p = normalizePost(fb, 'FACEBOOK')
+  expect(p.metrics.impressions).toBe(55) // = organic_views, NOT 0
 })
 
 test('toTopContentRows maps normalized posts to the interim table rows', () => {
