@@ -4,12 +4,25 @@ import { useState } from 'react'
 import { LineChart } from '@/components/charts/line-chart'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
+import { NoData } from './no-data'
 
-const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
+export const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
-function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
-  const colorFor = (channel: string) => PALETTE[series.channels.indexOf(channel) % PALETTE.length]
+// Canonical per-channel color — stable whether a channel is shown alone or with others.
+// Exported so the invariant test can prove the all-four case equals the old positional
+// lookup and the degraded case intentionally diverges (see render-invariant.test.tsx).
+export const CHANNEL_COLOR: Record<string, string> = {
+  Instagram: PALETTE[0],
+  Facebook: PALETTE[1],
+  X: PALETTE[2],
+  LinkedIn: PALETTE[3],
+}
+export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
+
+// Exported so the Follower Graph part (M3) reuses the exact same chart + legend, retitled.
+export function ChannelTrendChart({ title, series }: { title: string; series: TrendSeries }) {
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
 
   const toggle = (channel: string) =>
@@ -20,38 +33,47 @@ function ChannelTrendChart({ title, series }: { title: string; series: TrendSeri
       return next
     })
 
-  const yKeys = series.channels
-    .filter((c) => active.has(c))
-    .map((c) => ({ key: c, label: c, color: colorFor(c) }))
+  const activeChannels = series.channels.filter((c) => active.has(c))
+  const yKeys = activeChannels.map((c) => ({ key: c, label: c, color: colorFor(c) }))
+  // Empty-state is evaluated against the ACTIVE selection, not the whole series: toggling off
+  // every channel but an all-null one (or off entirely) would otherwise leave niceYDomain
+  // undefined → a blank [0,'auto'] axis. Legend stays visible so the user can toggle back on.
+  const activeEmpty = isEmptyTrend(series, activeChannels)
 
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{title}</h2>
-      <div className="flex flex-wrap gap-2">
-        {series.channels.map((c) => {
-          const on = active.has(c)
-          return (
-            <button
-              key={c}
-              type="button"
-              onClick={() => toggle(c)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
-                on
-                  ? 'border-white/20 bg-white/[0.06] text-white'
-                  : 'border-white/[0.08] text-text-muted hover:text-white',
-              )}
-            >
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: on ? colorFor(c) : 'transparent', border: `1px solid ${colorFor(c)}` }}
-              />
-              {c}
-            </button>
-          )
-        })}
-      </div>
-      <LineChart data={series.points} xKey="date" yKeys={yKeys} />
+      {isEmptyTrend(series) ? (
+        <NoData />
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {series.channels.map((c) => {
+              const on = active.has(c)
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => toggle(c)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
+                    on
+                      ? 'border-white/20 bg-white/[0.06] text-white'
+                      : 'border-white/[0.08] text-text-muted hover:text-white',
+                  )}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: on ? colorFor(c) : 'transparent', border: `1px solid ${colorFor(c)}` }}
+                  />
+                  {c}
+                </button>
+              )
+            })}
+          </div>
+          {activeEmpty ? <NoData /> : <LineChart data={series.points} xKey="date" yKeys={yKeys} />}
+        </>
+      )}
     </section>
   )
 }

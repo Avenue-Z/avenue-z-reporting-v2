@@ -1,0 +1,37 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`top-content@1 golden (Suspense skeleton) 1`] = `
+<section
+  class="space-y-6"
+>
+  <div
+    class="flex gap-2"
+  >
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+    />
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+    />
+  </div>
+  <div
+    class="space-y-2"
+  >
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+    />
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+    />
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+    />
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+    />
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+    />
+  </div>
+</section>
+`;
