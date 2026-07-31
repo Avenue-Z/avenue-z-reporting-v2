@@ -1,17 +1,30 @@
 import { describe, expect, test } from 'vitest'
-import { niceYDomain } from './line-chart'
+import { niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
 describe('niceYDomain', () => {
-  test('frames a high-value, low-variance series well above 0 (the flat-line bug)', () => {
-    // LinkedIn followers ~5900 with tiny movement — must NOT span 0→6000.
+  test('frames a high-value series well above 0 without over-zooming a trivial move (PR #181 review)', () => {
+    // LinkedIn followers ~5900 moving only ~9 (0.15%). Must NOT span 0→6000 (the original
+    // flat-line bug), but must ALSO not frame so tightly that the 9-unit move fills the chart
+    // (the inverse "lie factor"). The span is floored at ~10% of the value.
     const [lo, hi] = niceYDomain(mk([5900, 5905, 5898, 5902, 5896]), [{ key: 'v' }])!
-    expect(lo).toBeGreaterThan(5000)
+    const span = hi - lo
+    expect(lo).toBeGreaterThan(5000)          // not the 0→max span
     expect(lo).toBeLessThanOrEqual(5896)
     expect(hi).toBeGreaterThanOrEqual(5905)
-    // The visible band is a small fraction of the value → the line actually moves.
-    expect(hi - lo).toBeLessThan(5896 * 0.1)
+    expect(span).toBeGreaterThanOrEqual(5900 * MIN_SPAN_FRACTION * 0.9) // ~590 floor
+    // The 0.15% move occupies a small slice of the band → reads flat, honestly.
+    expect((5905 - 5896) / span).toBeLessThan(0.05)
+  })
+
+  test('a genuinely moving series (exceeds the floor) still frames tightly', () => {
+    // Followers climbing 5000→5900 (+18%) — a real trend. Range (900) is well above the ~545
+    // floor, so no expansion: the climb fills the chart as it should.
+    const [lo, hi] = niceYDomain(mk([5000, 5300, 5600, 5900]), [{ key: 'v' }])!
+    expect(lo).toBeLessThanOrEqual(5000)
+    expect(hi).toBeGreaterThanOrEqual(5900)
+    expect(hi - lo).toBeLessThan(5000 * MIN_SPAN_FRACTION * 3) // tight, not floor-inflated
   })
 
   test('small counts get headroom on both sides without touching 0', () => {

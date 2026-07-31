@@ -27,6 +27,16 @@ interface LineChartProps {
 // is honest — a non-zero baseline is the norm for trend lines (not bars). Clamp the
 // floor at 0 for these non-negative count metrics; return undefined for degenerate
 // data so Recharts falls back to its own default.
+
+// Minimum visible span, as a fraction of the series magnitude. Framing to a *tight* band
+// (the original PR #181) stopped near-max series reading as flat — but it also let a trivial
+// move fill the chart: a 0.15% follower change (5896→5905) climbed nearly the full height, an
+// inverse "lie factor" (PR #181 review). Flooring the span at ~10% of the value keeps genuine
+// movement legible while a change smaller than that fraction stays visibly flat — honest for a
+// client leave-behind. The floor scales with magnitude, so it still avoids the 0→max span that
+// caused the original flat line, yet small-value series (Instagram ~30) keep their zoom.
+export const MIN_SPAN_FRACTION = 0.1
+
 export function niceYDomain(
   data: Record<string, string | number>[],
   yKeys: { key: string }[],
@@ -43,6 +53,14 @@ export function niceYDomain(
     const p = Math.max(1, Math.abs(min) * 0.05)
     min -= p
     max += p
+  }
+
+  // Floor the span so a trivial relative move can't fill the chart (see MIN_SPAN_FRACTION).
+  const mid = (min + max) / 2
+  const minSpan = Math.abs(mid) * MIN_SPAN_FRACTION
+  if (max - min < minSpan) {
+    min = mid - minSpan / 2
+    max = mid + minSpan / 2
   }
 
   const range = max - min
