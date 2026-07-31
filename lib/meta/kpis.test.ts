@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { transformMetaKpis } from './kpis'
+import { money } from '@/lib/paid-media/format'
 
 const totals = {
   cost: '5000',
@@ -28,16 +29,32 @@ describe('transformMetaKpis', () => {
   })
 
   test('Cost / LPV keeps cents (regression for the whole-dollar rounding defect)', () => {
-    // The fixture carries 1.92; before the fix Math.round(1.92) rendered $2.
+    // Money KPIs now carry the raw numeric value + format:'money'; the cents
+    // rounding happens at display time in money(). The old defect was Math.round
+    // in the transform collapsing 1.92 → $2 and 0.42 → $0.
     const k = transformMetaKpis(totals, null)
-    expect(k.find((c) => c.key === 'costPerLpv')!.value).toBe(1.92)
+    const lpv = k.find((c) => c.key === 'costPerLpv')!
+    expect(lpv.value).toBe(1.92)
+    expect(lpv.format).toBe('money')
+    expect(money(lpv.value as number)).toBe('$1.92')
 
-    // A sub-dollar Cost / LPV must not collapse to 0 (a real 42 cents rendered $0).
+    // A sub-dollar Cost / LPV must not collapse to $0 (a real 42 cents rendered $0).
     const subDollar = transformMetaKpis({ ...totals, cost_per_landing_page_view: '0.42' }, null)
-    expect(subDollar.find((c) => c.key === 'costPerLpv')!.value).toBe(0.42)
+    expect(money(subDollar.find((c) => c.key === 'costPerLpv')!.value as number)).toBe('$0.42')
 
-    // Cost / LPV rounds to 2dp, matching CPM and CPC.
+    // Full precision is retained in the transform; money() rounds to 2dp at display.
     const threeDp = transformMetaKpis({ ...totals, cost_per_landing_page_view: '3.456' }, null)
-    expect(threeDp.find((c) => c.key === 'costPerLpv')!.value).toBe(3.46)
+    const raw = threeDp.find((c) => c.key === 'costPerLpv')!.value as number
+    expect(raw).toBe(3.456)
+    expect(money(raw)).toBe('$3.46')
+  })
+
+  test('money KPIs carry format:money and no $ prefix', () => {
+    const k = transformMetaKpis(totals, null)
+    for (const key of ['spend', 'cpm', 'cpc', 'costPerLpv']) {
+      const kpi = k.find((c) => c.key === key)!
+      expect(kpi.format).toBe('money')
+      expect(kpi.prefix).toBeUndefined()
+    }
   })
 })

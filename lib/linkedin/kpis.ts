@@ -30,7 +30,7 @@ export function transformLinkedInKpis(
   const reachNote = 'LinkedIn only reports Reach for date ranges up to ~90 days.'
 
   return [
-    { key: 'spend', label: 'Spend', value: Math.round(n(totals, 'spend')), prefix: '$', delta: d('spend') },
+    { key: 'spend', label: 'Spend', value: n(totals, 'spend'), format: 'money', delta: d('spend') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
     {
       key: 'reach',
@@ -42,8 +42,8 @@ export function transformLinkedInKpis(
     { key: 'clicks', label: 'Clicks', value: n(totals, 'clicks'), delta: d('clicks') },
     // LinkedIn returns ctr / leadFormCompletionRate as 0-1 fractions — scale to percent.
     { key: 'ctr', label: 'CTR', value: +(n(totals, 'ctr') * 100).toFixed(2), suffix: '%', delta: d('ctr') },
-    { key: 'cpm', label: 'CPM', value: +n(totals, 'cpm').toFixed(2), prefix: '$', delta: d('cpm'), invertDelta: true },
-    { key: 'cpc', label: 'CPC', value: +n(totals, 'cpc').toFixed(2), prefix: '$', delta: d('cpc'), invertDelta: true },
+    { key: 'cpm', label: 'CPM', value: n(totals, 'cpm'), format: 'money', delta: d('cpm'), invertDelta: true },
+    { key: 'cpc', label: 'CPC', value: n(totals, 'cpc'), format: 'money', delta: d('cpc'), invertDelta: true },
     {
       key: 'frequency',
       label: 'Frequency',
@@ -57,13 +57,13 @@ export function transformLinkedInKpis(
     {
       key: 'costPerVisit',
       label: 'Cost / Visit',
-      value: +costPerVisit(totals).toFixed(2),
-      prefix: '$',
+      value: costPerVisit(totals),
+      format: 'money',
       delta: delta(costPerVisit(totals), compare ? costPerVisit(compare) : undefined),
       invertDelta: true,
     },
     { key: 'leads', label: 'Leads', value: n(totals, 'oneClickLeads'), delta: d('oneClickLeads') },
-    { key: 'costPerLead', label: 'Cost / Lead', value: +n(totals, 'oneClickLeadsCost').toFixed(2), prefix: '$', delta: d('oneClickLeadsCost'), invertDelta: true },
+    { key: 'costPerLead', label: 'Cost / Lead', value: n(totals, 'oneClickLeadsCost'), format: 'money', delta: d('oneClickLeadsCost'), invertDelta: true },
     { key: 'leadFormOpens', label: 'Lead Form Opens', value: n(totals, 'oneClickLeadFormOpens'), delta: d('oneClickLeadFormOpens') },
     { key: 'leadFormCompletionRate', label: 'Lead Form Completion Rate', value: +(n(totals, 'leadFormCompletionRate') * 100).toFixed(1), suffix: '%', delta: d('leadFormCompletionRate') },
   ]

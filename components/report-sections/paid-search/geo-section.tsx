@@ -5,7 +5,8 @@ import { ChevronRightIcon } from 'lucide-react'
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { CHART_COLORS } from '@/lib/constants'
-import { usd, num } from '@/lib/supermetrics/format'
+import { num } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 import { cn } from '@/lib/utils'
 import type { GeoRegion } from '@/lib/paid-search/types'
 
@@ -95,7 +96,7 @@ export function GeoSection({ rows }: { rows: GeoRegion[] }) {
                     <span className="ml-1 text-xs font-normal text-text-muted">({num(rows.length)})</span>
                   </td>
                   <td className="px-4 py-2.5 text-right">{num(totals.clicks)}</td>
-                  <td className="px-4 py-2.5 text-right">{usd(totals.cost)}</td>
+                  <td className="px-4 py-2.5 text-right">{money(totals.cost)}</td>
                   <td className="px-4 py-2.5 text-right">{num(totals.leads)}</td>
                 </tr>
               </tfoot>
@@ -132,7 +133,7 @@ function FragmentRow({
           </span>
         </td>
         <td className="px-4 py-2.5 text-right text-white/80">{num(region.clicks)}</td>
-        <td className="px-4 py-2.5 text-right text-white/80">{usd(region.cost)}</td>
+        <td className="px-4 py-2.5 text-right text-white/80">{money(region.cost)}</td>
         <td className="px-4 py-2.5 text-right font-semibold text-white">{num(region.leads)}</td>
       </tr>
       {isOpen &&
@@ -140,7 +141,7 @@ function FragmentRow({
           <tr key={`${region.region}-${dma.dma}`} className="border-b border-white/[0.03] bg-white/[0.015]">
             <td className="px-4 py-2 pl-11 text-left text-text-muted">{dma.dma}</td>
             <td className="px-4 py-2 text-right text-text-muted">{num(dma.clicks)}</td>
-            <td className="px-4 py-2 text-right text-text-muted">{usd(dma.cost)}</td>
+            <td className="px-4 py-2 text-right text-text-muted">{money(dma.cost)}</td>
             <td className="px-4 py-2 text-right text-text-muted">{num(dma.leads)}</td>
           </tr>
         ))}

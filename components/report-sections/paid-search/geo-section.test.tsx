@@ -22,11 +22,11 @@ describe('GeoSection Region → DMA total', () => {
     expect(regionRows.length).toBe(10)
 
     // Total row covers ALL 12 regions: clicks/leads = sum(1..12) = 78,
-    // cost = 10 * 78 = $780. Top-10-only would be 55 / $550. (Cost is whole
-    // dollars here; cents across Paid Media is Task 2, applied all at once.)
+    // cost = 10 * 78 = $780. Top-10-only would be 55 / $550. Cost renders in
+    // cents (Paid Media money formatter, item 11d).
     expect(screen.getByText('All Regions')).toBeInTheDocument()
     expect(screen.getByText('(12)')).toBeInTheDocument()
-    expect(screen.getByText('$780')).toBeInTheDocument()
+    expect(screen.getByText('$780.00')).toBeInTheDocument()
     expect(screen.getAllByText('78').length).toBe(2) // clicks + leads in the total row
   })
 })

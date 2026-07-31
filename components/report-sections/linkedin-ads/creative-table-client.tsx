@@ -1,6 +1,7 @@
 'use client'
 import { useState, type ReactNode } from 'react'
-import { usd, num, pct } from '@/lib/supermetrics/format'
+import { num, pct } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 import type {
   LinkedInCampaignGroupNode,
   LinkedInCampaignNode,
@@ -18,16 +19,14 @@ interface Col {
   fmt: (n: number) => string
 }
 
-const usd2 = (n: number) => '$' + n.toFixed(2)
-
 const COLS: Col[] = [
-  { key: 'spend', label: 'Spend', fmt: usd },
+  { key: 'spend', label: 'Spend', fmt: money },
   { key: 'impressions', label: 'Impressions', fmt: num },
   { key: 'clicks', label: 'Clicks', fmt: num },
   { key: 'ctr', label: 'CTR', fmt: pct },
-  { key: 'cpc', label: 'CPC', fmt: usd2 },
+  { key: 'cpc', label: 'CPC', fmt: money },
   { key: 'leads', label: 'Leads', fmt: num },
-  { key: 'costPerLead', label: 'Cost / Lead', fmt: usd2 },
+  { key: 'costPerLead', label: 'Cost / Lead', fmt: money },
   { key: 'leadFormOpens', label: 'LF Opens', fmt: num },
   { key: 'leadFormCompletionRate', label: 'LF Compl. Rate', fmt: pct },
   { key: 'landingPageClicks', label: 'LP Clicks', fmt: num },

@@ -1,7 +1,7 @@
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
 import type { MetaGeoData } from '@/lib/meta/geo'
-import { usd } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 
 function pctDelta(cur: number, prev: number | null): number | undefined {
   if (prev == null || prev === 0) return undefined
@@ -34,7 +34,7 @@ export function MetaGeoSection({ data }: { data: MetaGeoData }) {
         />
         <KpiCard
           title="Spend (Top Region)"
-          value={topRegion ? usd(topRegion.spend) : '—'}
+          value={topRegion ? money(topRegion.spend) : '—'}
           delta={spendDelta}
         />
         <KpiCard
