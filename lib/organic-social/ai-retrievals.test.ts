@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { computeRetrievals } from './ai-retrievals'
+import { computeRetrievals, isOwnedLinkedIn } from './ai-retrievals'
 import type { TopContentPost } from './content-types'
 
 const post = (id: number, url: string): TopContentPost => ({
@@ -23,4 +23,17 @@ test('unresolved post (no canonical key) => null (renders as —)', () => {
   const posts = [post(3, 'https://www.linkedin.com/feed/update/urn:li:ugcPost:3')]
   const r = computeRetrievals(posts, new Map(), new Map(), true)
   expect(r.get(3)).toBeNull()
+})
+
+test('owned post by handle path', () => {
+  expect(isOwnedLinkedIn('linkedin.com/posts/renaissancebenefits_x-activity-1', null, 'renaissancebenefits')).toBe(true)
+})
+test('owned pulse by company author', () => {
+  expect(isOwnedLinkedIn('linkedin.com/pulse/some-article-3w0rc', 'https://www.linkedin.com/company/renaissancebenefits', 'renaissancebenefits')).toBe(true)
+})
+test('third-party pulse (personal author) is NOT owned', () => {
+  expect(isOwnedLinkedIn('linkedin.com/pulse/untapped-gold-howell-nmlce', 'https://www.linkedin.com/in/roger-g-howell', 'renaissancebenefits')).toBe(false)
+})
+test('a competitor company pulse is NOT owned', () => {
+  expect(isOwnedLinkedIn('linkedin.com/pulse/x-tolbert', 'https://www.linkedin.com/company/berinieportal', 'renaissancebenefits')).toBe(false)
 })
