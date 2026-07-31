@@ -11,7 +11,12 @@ interface KpiCardProps {
   tooltip?: string
   /** Label shown after the delta %. Defaults to "vs prior period". */
   deltaLabel?: string
-  /** Secondary line shown below the delta, e.g. "2,483 in 2025". */
+  /** When true and no delta is available, render a greyed "— {deltaLabel}" placeholder instead
+   *  of nothing — signalling "comparison not possible" (distinct from a real 0.0% change). Opt-in
+   *  so cards on sections without a comparison are unaffected. */
+  comparisonExpected?: boolean
+  /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a caveat like the
+   *  Facebook influencer note. */
   subValue?: string
 }
 
@@ -24,6 +29,7 @@ export function KpiCard({
   suffix,
   tooltip,
   deltaLabel = 'vs prior period',
+  comparisonExpected = false,
   subValue,
 }: KpiCardProps) {
   return (
@@ -52,7 +58,7 @@ export function KpiCard({
         {suffix}
       </p>
 
-      {delta !== undefined && (
+      {delta !== undefined ? (
         <p
           className={cn(
             'mt-1 text-sm font-bold',
@@ -64,7 +70,11 @@ export function KpiCard({
           {delta > 0 ? '↑' : delta < 0 ? '↓' : '—'}{' '}
           {Math.abs(delta).toFixed(1)}% {deltaLabel}
         </p>
-      )}
+      ) : comparisonExpected ? (
+        // No prior value to compare against — show a greyed placeholder (no % so it can't be
+        // mistaken for a real 0.0% change) instead of an empty gap.
+        <p className="mt-1 text-sm font-bold text-text-muted">— {deltaLabel}</p>
+      ) : null}
 
       {subValue && (
         <p className="mt-0.5 text-xs text-text-muted">{subValue}</p>

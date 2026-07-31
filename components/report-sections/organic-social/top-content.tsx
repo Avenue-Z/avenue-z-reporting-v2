@@ -20,7 +20,6 @@ const columns = [
   { key: 'views', label: 'Views / Impr.', align: 'right' as const, sortable: true, sortKey: 'viewsRaw' },
   { key: 'engagements', label: 'Engagements', align: 'right' as const, sortable: true, sortKey: 'engagementsRaw' },
 ]
-
 function top5(rows: TopContentRow[], sortBy: SortBy) {
   return [...rows]
     .sort((a, b) => b[sortBy] - a[sortBy])

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
-import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, SHOW_LOCKED_REPORT_TEASERS, visibleSubsections } from '@/lib/constants'
+import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, SHOW_LOCKED_REPORT_TEASERS, visibleSubsections, organicSocialSubsections, resolveOrganicSubsection } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import { LogOut, Lock, Users } from 'lucide-react'
 
@@ -242,6 +242,58 @@ export function PortalSidebar({ clients, userRole }: PortalSidebarProps) {
                         if (sub.id) subParams.set('subsection', sub.id)
                         if (dateRange) subParams.set('dateRange', dateRange)
                         const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
+                        return (
+                          <li key={sub.id ?? 'overview'}>
+                            <Link
+                              href={`/portal/${clientSlug}/reports?${subParams.toString()}`}
+                              className={cn(
+                                'block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                subIsActive
+                                  ? 'bg-white/[0.08] text-white'
+                                  : 'text-text-muted hover:bg-white/[0.04] hover:text-white/70'
+                              )}
+                            >
+                              {sub.label}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </li>
+              )
+            }
+
+            // Organic Social — expandable sub-menu (Overview + configured platform tabs).
+            // Mirrors the Paid Media block above; the internal dashboard sidebar
+            // (components/layout/sidebar.tsx) has the equivalent client-facing tab set
+            // (PR #174 review — clients previously had no UI path to the platform subpages).
+            if (slug === 'organic-social') {
+              const osBaseParams = new URLSearchParams()
+              osBaseParams.set('section', 'organic-social')
+              if (dateRange) osBaseParams.set('dateRange', dateRange)
+              const resolvedOrganicId = resolveOrganicSubsection(client, activeSubsection).id
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/portal/${clientSlug}/reports?${osBaseParams.toString()}`}
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'text-white'
+                        : 'text-text-muted hover:bg-white/[0.04] hover:text-white'
+                    )}
+                  >
+                    {REPORT_NAMES[slug] ?? slug}
+                  </Link>
+                  {isActive && (
+                    <ul className="ml-3 mt-0.5 space-y-px border-l border-white/[0.08] pl-2.5">
+                      {organicSocialSubsections(client).map((sub) => {
+                        const subParams = new URLSearchParams()
+                        subParams.set('section', 'organic-social')
+                        if (sub.id) subParams.set('subsection', sub.id)
+                        if (dateRange) subParams.set('dateRange', dateRange)
+                        const subIsActive = sub.id === resolvedOrganicId
                         return (
                           <li key={sub.id ?? 'overview'}>
                             <Link

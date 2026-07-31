@@ -39,7 +39,9 @@ export type PartImpl<Ctx> = {
   version: number
   published: boolean
   defaultLabel: string
-  // Pure synchronous presentational function — no await, no fetching.
+  // Pure synchronous function — no await, no fetching IN render itself. It MAY return a
+  // <Suspense> wrapping an async child that fetches (organic-social streams per-section
+  // this way); render stays sync and the fetch happens in the child behind the boundary.
   render: (ctx: Ctx, resolved: ResolvedPart) => React.ReactNode
 }
 

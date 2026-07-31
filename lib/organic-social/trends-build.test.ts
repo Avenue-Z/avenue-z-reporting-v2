@@ -1,5 +1,4 @@
-// Run: npx tsx lib/organic-social/trends-build.test.ts
-import { strict as assert } from 'node:assert'
+import { expect, test } from 'vitest'
 import { buildTrendSeries } from './trend-series'
 
 const series = buildTrendSeries([
@@ -8,8 +7,18 @@ const series = buildTrendSeries([
   { label: 'X', daily: { '2026-06-01': 7, '2026-06-02': null } }, // null -> 0
 ])
 
-assert.deepEqual(series.channels, ['Instagram', 'X'], 'drops channels with null daily, keeps order')
-assert.deepEqual(series.points.map((p) => p.date), ['2026-06-01', '2026-06-02'], 'points sorted ascending by date')
-assert.equal(series.points[0].Instagram, 5, 'fills value')
-assert.equal(series.points[1].X, 0, 'null becomes 0')
-console.log('trend-series: all assertions passed')
+test('drops channels with null daily, keeps order', () => {
+  expect(series.channels).toEqual(['Instagram', 'X'])
+})
+
+test('points sorted ascending by date', () => {
+  expect(series.points.map((p) => p.date)).toEqual(['2026-06-01', '2026-06-02'])
+})
+
+test('fills value', () => {
+  expect(series.points[0].Instagram).toBe(5)
+})
+
+test('null becomes 0', () => {
+  expect(series.points[1].X).toBe(0)
+})
