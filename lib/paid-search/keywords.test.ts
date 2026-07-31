@@ -21,4 +21,12 @@ assert.equal(rows[1].keyword, 'dental insurance') // 2 leads
 assert.equal(rows[1].ctr, 8)                       // 80/1000 = 8%
 assert.equal(rows[2].leads, 0)                     // no qualified leads
 
+// transformKeywords returns the FULL set — no top-50 cap (item 10). The cap
+// removal lives in getKeywordRows; the transform itself must never truncate.
+const many = Array.from({ length: 60 }, (_, i) => ({
+  Keyword: `kw${i}`, Matchtype: 'Exact', Clicks: '20', Impressions: '1000', Cost: '100',
+}))
+assert.equal(transformKeywords(many, [], cfg).length, 60)
+
 console.log('ok')
+

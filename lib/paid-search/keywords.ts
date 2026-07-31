@@ -13,7 +13,7 @@ export function transformKeywords(metricRows: Record<string, string>[], leadRows
     .map((r): KeywordRow => {
       const clicks = Number(r.Clicks || 0), impressions = Number(r.Impressions || 0), cost = Number(r.Cost || 0)
       const l = leads.get(`${r.Keyword}␟${r.Matchtype}`) ?? 0
-      return { keyword: r.Keyword, matchType: r.Matchtype, clicks, impressions, cost, leads: l, ctr: impressions ? +((clicks / impressions) * 100).toFixed(1) : 0, cpl: l ? Math.round(cost / l) : 0 }
+      return { keyword: r.Keyword, matchType: r.Matchtype, clicks, impressions, cost, leads: l, ctr: impressions ? +((clicks / impressions) * 100).toFixed(1) : 0, cpl: l ? cost / l : 0 }
     })
     .sort((a, b) => b.leads - a.leads || b.cost - a.cost)
 }
@@ -25,6 +25,8 @@ export async function getKeywordRows(slug: string, dateRange: string): Promise<K
     awQuery(slug, ['Keyword', 'Matchtype', 'Clicks', 'Impressions', 'Cost'], dateRange),
     awQuery(slug, ['Keyword', 'Matchtype', 'ConversionTypeName', 'Conversions'], dateRange),
   ])
-  // Surface the TOP keywords (sorted leads→cost desc), not the long tail.
-  return transformKeywords(m, l, cfg).slice(0, 50)
+  // Return the FULL keyword set (sorted leads→cost desc). The client wrapper
+  // applies the ≥10-clicks filter, totals the filtered set, and displays the
+  // top 10 (item 10, Amir: the total must cover all keywords behind the filter).
+  return transformKeywords(m, l, cfg)
 }
