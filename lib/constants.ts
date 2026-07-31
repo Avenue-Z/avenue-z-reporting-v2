@@ -170,11 +170,13 @@ export const GA4_SUBSECTIONS: { id: string | null; label: string; comingSoon?: b
   { id: 'search-console',     label: 'Search Console' },
 ]
 
-/** Sub-items shown under the Paid Media parent nav item */
+/** Sub-items shown under the Paid Media parent nav item. Overview is the default
+ *  landing (id null, item 5), matching AEO/GA4; Paid Search now has its own id. */
 export const PAID_MEDIA_SUBSECTIONS: { id: string | null; label: string; comingSoon?: boolean }[] = [
-  { id: null,       label: 'Paid Search'          },
-  { id: 'meta',     label: 'Meta Advertising'     },
-  { id: 'linkedin', label: 'LinkedIn Advertising' },
+  { id: null,          label: 'Overview'            },
+  { id: 'paid-search', label: 'Paid Search'         },
+  { id: 'meta',        label: 'Meta Advertising'     },
+  { id: 'linkedin',    label: 'LinkedIn Advertising' },
 ]
 
 /** Slugs that should render as "Soon" in the portal sidebar (not locked, not enabled) */

@@ -10,6 +10,7 @@ import { GA4Report } from '@/components/report-sections/ga4'
 import { ConversionJourneyReport } from '@/components/report-sections/ga4/conversion-journey'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
 import { PaidSearchReport } from '@/components/report-sections/paid-search'
+import { PaidMediaOverviewReport } from '@/components/report-sections/paid-media/overview'
 import { EmailMarketingReport } from '@/components/report-sections/email-marketing'
 import { BlendedPerformanceReport } from '@/components/report-sections/blended-performance'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
@@ -85,9 +86,10 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
     case 'linkedin-ads':
       return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'paid-media':
-      if (subsection === 'meta')     return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-      if (subsection === 'linkedin') return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'linkedin')    return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
     case 'snapchat-ads':
       return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
@@ -134,8 +136,9 @@ const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
 }
 
 const PAID_MEDIA_SUBSECTION_NAMES: Record<string, string> = {
-  'meta':     'Meta Advertising',
-  'linkedin': 'LinkedIn Advertising',
+  'paid-search': 'Paid Search',
+  'meta':        'Meta Advertising',
+  'linkedin':    'LinkedIn Advertising',
 }
 
 const AEO_SUBSECTION_NAMES: Record<string, string> = {
@@ -202,7 +205,7 @@ export default async function PortalReportPage({
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
     : (activeSection === 'paid-media')
-      ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
+      ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Overview')
     : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
       ? AEO_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
