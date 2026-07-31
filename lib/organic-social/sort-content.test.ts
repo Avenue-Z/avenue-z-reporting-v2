@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { sortPosts, SORT_METRICS } from './sort-content'
+import { sortPosts, SORT_METRICS, paginate } from './sort-content'
 import type { TopContentPost } from './content-types'
 
 // Minimal post factory — only the fields sortPosts reads.
@@ -53,5 +53,51 @@ describe('sortPosts', () => {
   test('SORT_METRICS keys are all valid metric fields', () => {
     const valid = new Set(['effectiveness', 'engagementRate', 'engagements', 'impressions'])
     expect(SORT_METRICS.every((m) => valid.has(m.key))).toBe(true)
+  })
+})
+
+describe('paginate', () => {
+  const items = Array.from({ length: 18 }, (_, i) => i + 1) // 1..18
+
+  test('page 0 returns the first `size` items with page metadata', () => {
+    const r = paginate(items, 0, 15)
+    expect(r.slice).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    expect(r).toMatchObject({ page: 0, pageCount: 2, total: 18, start: 0, end: 15 })
+  })
+
+  test('next page returns the following slice (16..18) as a partial last page', () => {
+    const r = paginate(items, 1, 15)
+    expect(r.slice).toEqual([16, 17, 18])
+    expect(r).toMatchObject({ page: 1, pageCount: 2, total: 18, start: 15, end: 18 })
+  })
+
+  test('a page past the end clamps to the last page', () => {
+    const r = paginate(items, 9, 15)
+    expect(r.page).toBe(1) // last page index, not 9
+    expect(r.slice).toEqual([16, 17, 18])
+  })
+
+  test('a negative page clamps to 0', () => {
+    const r = paginate(items, -3, 15)
+    expect(r.page).toBe(0)
+    expect(r.slice[0]).toBe(1)
+  })
+
+  test('total <= size is a single page with no second page', () => {
+    const r = paginate([1, 2, 3, 4, 5, 6], 0, 15)
+    expect(r.pageCount).toBe(1)
+    expect(r.slice).toEqual([1, 2, 3, 4, 5, 6])
+    expect(r).toMatchObject({ start: 0, end: 6, total: 6 })
+  })
+
+  test('empty input is a single empty page (pageCount 1, not 0)', () => {
+    const r = paginate([], 0, 15)
+    expect(r).toMatchObject({ slice: [], page: 0, pageCount: 1, total: 0, start: 0, end: 0 })
+  })
+
+  test('does not mutate the input array', () => {
+    const src = [1, 2, 3]
+    paginate(src, 0, 2)
+    expect(src).toEqual([1, 2, 3])
   })
 })
