@@ -31,11 +31,14 @@
 - **✅ Task 4** — Region → DMA total over all regions, display top 10 (`0a6c731`) + test. NOTE: the total's Cost is whole-dollar `usd()` for now; cents comes in Task 2 (applied across Paid Media all at once).
 - **✅ Task 8 (this branch's part)** — #180's two `lib/meta` tests converted to vitest and wired into CI (`9ae73e9`). The worklist status line lives on the docs branch (PR #175), so update it there, not here.
 
-**TODO for Paul:**
-- **⏳ Task 2** — cents across Paid Media. The `lib/paid-media/format.ts` `money()` formatter is built + tested and ready to wire; NOTHING renders it yet (an earlier partial application to the geo section was reverted so the branch stays internally consistent — do cents all at once, not piecemeal). See Task 2 below for the safe `KpiCard` approach.
-- **⏳ Task 5** — keyword ≥10-clicks filter + full-set data layer.
-- **⏳ Task 6 + 7** — rollup lib + Overview section UI. See **NEEDS ANSWER 2** (spec §2) before finalizing Task 6's missing-channel rule.
-- **⛔ Task 9** — BLOCKED (spec Blocker 1).
+**Now DONE (Paul's session, commits `c99df48`, `bf88db3`, `bb9bfd9`, `261e26f`; full suite green: 43 files / 334 tests, `check:rsc` + `tsc` clean):**
+- **✅ Task 2** — cents across ALL Paid Media money (KPI cards, geo cards + region table, campaign table, both creative tables). Approach B: money KPIs keep a NUMERIC value + `format:'money'` (so the Task 6 rollup reads exact spend); `KpiGrid` renders cents. Shared `usd()` untouched. Scope widened from the plan's bullet list to every money figure per spec §4.C + item 11d ("make them all with cents").
+- **✅ Task 5** — keyword data layer uncapped (`getKeywordRows` returned top 50); new `KeywordsTableClient` owns the ≥10-clicks default filter (clearable), totals the full filtered set (CTR/CPL recomputed from summed numerators/denominators), displays top 10, and messages when none reach 10 clicks. Formatters imported from the pure source so no `lib/db` enters the client bundle.
+- **✅ Task 6** — `lib/paid-media/overview.ts` rollup via `Promise.allSettled`; blended totals null unless all three channels report (item 4 literal reading — **NEEDS ANSWER 2 still open**, adjust `allOk` if Dianna redefines "missing"); Leads/CPL always null (Blocker 1).
+- **✅ Task 7** — Overview section filled: combined Spend/Clicks/Leads/CPL top line + per-channel breakdown; null→`—`; Meta link-clicks note; pending-HubSpot note on Leads/CPL; no `SharedPartsHeader`. Renders on dashboard + portal.
+- **⛔ Task 9** — still BLOCKED (spec Blocker 1 — Dianna).
+
+**Test-environment note (Task 5/6/7):** the whole `lib/paid-search` chain (and the per-channel KPI fetchers) import `lib/db` → next-auth, which jsdom/vitest cannot resolve. New tests therefore either test pure helpers (`summarizeKeywords`, `money`) or `vi.mock` the fetcher/rollup modules; `DataTable` is mocked where a render pulls in `editable-text` → a server action. `transformKeywords`' no-cap is asserted in the node:assert `lib/paid-search/keywords.test.ts` (the established paid-search convention — not in the vitest include).
 
 Doc/example caveat carried into Task 2: the doc's specific "Top Regions chart shows cents vs card in whole dollars" example does NOT reproduce in code (that chart plots leads, not cost). Honor the directive ("make them all with cents") across Paid Media money figures; there is no single chart-vs-card mismatch to point at.
 
@@ -71,7 +74,7 @@ Satisfies spec items **5** (default landing), **6** (no commentary), and the rou
 
 ---
 
-## Task 2: Cents across Paid Media  ⏳ TODO (formatter already built)
+## Task 2: Cents across Paid Media  ✅ DONE (`c99df48`)
 
 Satisfies spec item **11d** ("make them all with cents so it's exact"). Cents scope = Paid Media only; do NOT touch the shared `usd()`. **Do this all at once**, not per-component — a partial rollout makes the same figure (e.g. total spend on a KPI card vs a total row) appear at two precisions, which is the exact defect item 11d wants gone. (An earlier geo-only application was reverted for this reason.)
 
@@ -131,7 +134,7 @@ Satisfies spec items **7, 8, 9**. Plain sum over the full region set; table stil
 
 ---
 
-## Task 5: Keyword table — full-set data layer + ≥10-clicks filter wrapper + total + top-10  ⏳ TODO
+## Task 5: Keyword table — full-set data layer + ≥10-clicks filter wrapper + total + top-10  ✅ DONE (`bf88db3`)
 
 Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change and a client boundary.
 
@@ -162,7 +165,7 @@ Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change
 
 ---
 
-## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule  ⏳ TODO
+## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule  ✅ DONE (`bb9bfd9`)
 
 Satisfies spec items **1, 2, 4, 11a**. Leads/CPL are `—` here (Blocker 1); Task 9 fills them once unblocked. **Confirm NEEDS ANSWER 2 (spec §2) before finalizing the missing-channel rule.**
 
@@ -202,7 +205,7 @@ Satisfies spec items **1, 2, 4, 11a**. Leads/CPL are `—` here (Blocker 1); Tas
 
 ---
 
-## Task 7: Overview section component — combined top line + per-channel breakdown  ⏳ TODO
+## Task 7: Overview section component — combined top line + per-channel breakdown  ✅ DONE (`261e26f`)
 
 Satisfies spec items **1, 2, 11a, 11b, 11d**. Fills the shell at `components/report-sections/paid-media/overview/index.tsx` (created empty in Task 1; the route dispatch already renders it).
 
