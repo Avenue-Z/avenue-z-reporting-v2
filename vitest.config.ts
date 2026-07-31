@@ -21,6 +21,8 @@ export default defineConfig({
       'lib/peec/scatter-window.test.ts',
       'lib/peec/url-citations.test.ts',
       'lib/ga4/format-speed.test.ts',
+      'lib/meta/kpis.test.ts',
+      'lib/meta/creative.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
