@@ -38,6 +38,7 @@ function citation(over: Partial<UrlCitation> = {}): UrlCitation {
     citationCount: 3,
     citationRate: 1,
     citationAvg: 1,
+    retrievals: 0,
     engines: ['ChatGPT'],
     mentionedBrandIds: [],
     competitorBrandNames: [],

@@ -74,6 +74,17 @@ describe('mergeUrlCitations', () => {
     expect(compMerged[0].mentionsYourBrand).toBe(false)
     expect(compMerged[0].competitorBrandNames).toEqual(['Edelman'])
   })
+
+  it('carries retrievals through', () => {
+    const testBase: ApiUrlRow = {
+      url: 'https://www.linkedin.com/posts/renaissancebenefits_x-activity-7482499263831371776-tv03',
+      classification: 'owned', title: 'X', channel_title: null,
+      usage_count: 0, citation_count: 8, citation_avg: 0, retrievals: 9, retrieval_count: 9,
+      citation_rate: 0, mentioned_brands: [],
+    }
+    const [c] = mergeUrlCitations([testBase], [], [], new Map())
+    expect(c.retrievals).toBe(9)
+  })
 })
 
 describe('avgCitationsByDomain', () => {
@@ -362,7 +373,7 @@ describe('pickCitationsForUrls', () => {
   const cite = (urlKey: string, engines: string[] = ['ChatGPT']) => ({
     url: `https://${urlKey}`, urlKey, domain: urlKey.split('/')[0],
     classification: 'editorial', title: null, citationCount: 1, citationRate: 1,
-    citationAvg: 1, engines, mentionedBrandIds: [], competitorBrandNames: [],
+    citationAvg: 1, retrievals: 0, engines, mentionedBrandIds: [], competitorBrandNames: [],
     mentionsYourBrand: false,
   })
 

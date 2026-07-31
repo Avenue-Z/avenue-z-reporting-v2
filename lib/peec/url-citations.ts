@@ -48,6 +48,7 @@ export type UrlCitation = {
   citationCount: number
   citationRate: number
   citationAvg: number              // average citations per answer (Peec citation_avg)
+  retrievals: number               // Peec total retrievals for this URL in the window
   engines: string[]
   mentionedBrandIds: string[]
   competitorBrandNames: string[]   // mentioned brand names excluding "your brand"
@@ -104,6 +105,7 @@ export function mergeUrlCitations(
       citationCount: r.citation_count,
       citationRate: r.citation_rate,
       citationAvg: r.citation_avg,
+      retrievals: r.retrievals ?? 0,
       engines: Array.from(enginesByKey.get(urlKey) ?? []),
       mentionedBrandIds: brandIds,
       competitorBrandNames,
@@ -335,7 +337,7 @@ async function getUrlCitationsImpl(
 }
 
 export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitationsImpl, {
-  version: 'v3',  // v3: dateRange opts surfaced to callers (FB-035). FB-069 deliberately did NOT bump this: this fetch is unchanged, so existing cache entries stay valid.
+  version: 'v4',  // v4: surfaced retrievals (AI Retrievals feature). v3: dateRange opts surfaced to callers (FB-035).
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 
