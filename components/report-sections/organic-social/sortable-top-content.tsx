@@ -13,7 +13,7 @@ export type PlatformGroup = { platform: string; posts: TopContentPost[] }
  *  and page 2 is the next `pageSize`, never a fetch-order reshuffle. Its own `page` state is reset
  *  to 0 by the parent remounting it (keyed on sortKey+dir) whenever the sort changes. */
 function PlatformCardRow({
-  platform, posts, sortKey, dir, pageSize, clientSlug, canEdit,
+  platform, posts, sortKey, dir, pageSize, clientSlug, canEdit, retrievals,
 }: {
   platform: string
   posts: TopContentPost[]
@@ -22,6 +22,7 @@ function PlatformCardRow({
   pageSize: number
   clientSlug: string
   canEdit: boolean
+  retrievals: Map<number, number | null>
 }) {
   const [page, setPage] = useState(0)
   const pg = paginate(sortPosts(posts, sortKey, dir), page, pageSize)
@@ -56,7 +57,7 @@ function PlatformCardRow({
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {pg.slice.map((p) => (
-          <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} />
+          <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} retrievals={retrievals.get(p.id) ?? null} />
         ))}
       </div>
     </div>
@@ -73,12 +74,14 @@ export function SortableTopContent({
   clientSlug,
   canEdit,
   pageSize = 15,
+  retrievals = new Map(),
 }: {
   owned: PlatformGroup[]
   influencer: PlatformGroup[]
   clientSlug: string
   canEdit: boolean
   pageSize?: number
+  retrievals?: Map<number, number | null>
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('engagements')
   const [dir, setDir] = useState<SortDir>('desc')
@@ -107,6 +110,7 @@ export function SortableTopContent({
         pageSize={pageSize}
         clientSlug={clientSlug}
         canEdit={canEdit}
+        retrievals={retrievals}
       />
     ))
 

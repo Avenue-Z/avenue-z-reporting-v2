@@ -7,15 +7,19 @@ import type { TopContentPost } from '@/lib/organic-social/content-types'
 
 interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
 
-function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
+function cardMetrics(post: TopContentPost, sortKey: string, retrievals?: number | null): CardMetric[] {
   const m = post.metrics
-  return [
+  const rows: Omit<CardMetric, 'emphasised'>[] = [
     // effectiveness + engagementRate are both fractions (×100 for %).
     { key: 'effectiveness', label: 'Effectiveness', value: m.effectiveness != null ? pct(m.effectiveness * 100) : '—' },
     { key: 'engagementRate', label: 'Engagement Rate', value: m.engagementRate != null ? pct(m.engagementRate * 100) : '—' },
     { key: 'engagements', label: 'Engagements', value: num(m.engagements) },
     { key: 'impressions', label: 'Views / Impr.', value: num(m.impressions) },
-  ].map((x) => ({ ...x, emphasised: x.key === sortKey }))
+  ]
+  if (retrievals !== undefined) {
+    rows.push({ key: 'retrievals', label: 'AI Retrievals', value: retrievals == null ? '—' : num(retrievals) })
+  }
+  return rows.map((x) => ({ ...x, emphasised: x.key === sortKey }))
 }
 
 /** Creative area with an onError placeholder — a purged/deleted asset shows a placeholder,
@@ -51,8 +55,8 @@ function Media({ post }: { post: TopContentPost }) {
   )
 }
 
-export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }: {
-  post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string
+export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements', retrievals }: {
+  post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string; retrievals?: number | null
 }) {
   return (
     <div className="w-56 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
@@ -66,7 +70,7 @@ export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }:
         <div className="text-[11px] text-text-muted">{post.publishedAt}</div>
         <p className="line-clamp-3 text-xs text-white/90">{post.caption}</p>
         <ul className="space-y-0.5">
-          {cardMetrics(post, sortKey).map((m) => (
+          {cardMetrics(post, sortKey, retrievals).map((m) => (
             <li key={m.key} className={`flex justify-between text-[11px] ${m.emphasised ? 'font-bold text-white' : 'text-text-muted'}`}>
               <span>{m.label}</span><span>{m.value}</span>
             </li>

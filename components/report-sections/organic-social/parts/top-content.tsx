@@ -5,6 +5,7 @@ import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { getDesignations } from '@/lib/organic-social/designations/select'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
+import { retrievalsForPosts } from '@/lib/organic-social/ai-retrievals'
 import { getClientBySlug } from '@/lib/db/queries'
 import { CHANNELS, CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/metrics'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
@@ -70,6 +71,10 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
   const stored = await loadDesignations(clientSlug, posts.map((p) => p.id))
   const { owned, influencer } = partitionPosts(posts, stored)
   const canEdit = canSetDesignation(role)
+  // Retrievals reflect current all-time Peec state (not snapshot-frozen) — fetched live here for
+  // the full post set (union of owned + influencer) so both render paths get their values. A
+  // failure degrades to an all-"—" map rather than blanking the card gallery.
+  const retrievals = await retrievalsForPosts(clientSlug, posts).catch(() => new Map<number, number | null>())
 
   return (
     <section className="space-y-6">
@@ -79,6 +84,7 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
         influencer={groupPostsByPlatform(influencer, channel)}
         clientSlug={clientSlug}
         canEdit={canEdit}
+        retrievals={retrievals}
       />
     </section>
   )
