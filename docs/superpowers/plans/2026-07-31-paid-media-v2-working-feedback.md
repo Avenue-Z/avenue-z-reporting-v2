@@ -22,6 +22,20 @@
 
 ---
 
+## Progress (as of handoff)
+
+Done and committed on `feat/paid-media-v2-working-feedback` (full suite green: 39 files / 323 tests, `check:rsc` green, `tsc` clean):
+- **#180 Cost/LPV fix** folded in (`b1a464a`).
+- **Task 1** — Overview subsection, default landing, no commentary box (`5d39df6`). Both surfaces + both sidebars (sidebars are registry-driven, so no edit needed). Commentary resolution updated + tested.
+- **Task 2 (partial)** — `lib/paid-media/format.ts` `money()` cents formatter + test; applied to the Paid Search **geo** Cost column (`0a6c731`). *Remaining:* KPI spend cards + the two creative tables' cents (needs a `KpiCard` money format that doesn't affect other tabs). Note: the doc's exact "Top Regions chart shows cents vs card whole dollars" example does not reproduce in code (that chart plots leads, not cost); the cents directive is honored on geo money.
+- **Task 3** — Total Leads on Leads by Action (`0a6c731`) + test.
+- **Task 4** — Region → DMA total over all regions, display top 10 (`0a6c731`) + test.
+- **Task 8 (partial)** — #180's two `lib/meta` tests converted to vitest and wired into CI (`9ae73e9`). *Remaining:* the worklist status line lives on the docs branch (PR #175), not this branch, so update it there.
+
+Remaining for Paul: **Task 2** (KPI-card/creative-table cents), **Task 5** (keyword filter + full-set data layer), **Task 6** (rollup lib), **Task 7** (Overview section UI). **Task 9** stays BLOCKED (spec Blocker 1). See NEEDS ANSWER 2 before finalizing Task 6.
+
+---
+
 ## Task 1: Overview subsection — registry, routing, sidebars, empty shell, default landing
 
 Satisfies spec items **5** (default landing), **6** (no commentary), and the routing half of **1/11b**. Ships the nav change with an empty Overview.
