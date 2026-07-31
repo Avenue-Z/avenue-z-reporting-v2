@@ -10,6 +10,13 @@ import type { TopContentRow, PlatformTopContent } from './types'
 const n = (v: unknown): number => (typeof v === 'number' ? v : 0)
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null)
 
+/** Per-channel post fetch cap. ~16× headroom over the largest observed channel (LinkedIn 31),
+ *  so a single request returns the COMPLETE per-channel set — which SortableTopContent's
+ *  sort-then-cap relies on for correctness (it sorts the full set, then slices to 10). If a
+ *  channel ever returns this many posts the set is truncated in FETCH order, and "sort by X"
+ *  would then rank an already-truncated list — hence the warning below rather than silent drop. */
+const CONTENT_FETCH_LIMIT = 500
+
 /** Extract (caption, views, engagements, url) from whichever per-platform sub-object is populated. */
 function metricsFor(post: MediaV2Post): { caption: string; views: number; engagements: number; url: string | null } {
   const ig = post.instagram, fb = post.facebook, li = post.linkedin, tw = post.twitter
@@ -137,12 +144,16 @@ export async function fetchTopContent(
   const perChannel = await Promise.all(
     targets.map(async (ch): Promise<TopContentPost[]> => {
       try {
-        // limit 500 ≈ 16× headroom over the largest channel (LinkedIn 31); no pagination needed.
         const res = await client.getContent({
           brandId, channel: ch, metric: CONTENT_METRIC[ch],
-          startDate: start, endDate: end, limit: 500,
+          startDate: start, endDate: end, limit: CONTENT_FETCH_LIMIT,
         })
-        return (res.data?.content ?? []).map((p) => normalizePost(p, ch))
+        const content = res.data?.content ?? []
+        if (content.length >= CONTENT_FETCH_LIMIT) {
+          console.warn(`[organic-social] ${ch} top-content hit the ${CONTENT_FETCH_LIMIT}-post fetch cap; ` +
+            `the set is truncated in fetch order and sort-then-cap may not reflect the true top posts — raise the cap or paginate.`)
+        }
+        return content.map((p) => normalizePost(p, ch))
       } catch (e) {
         if (scoped) throw e // scoped view surfaces the error (spec 1 §4.3)
         return []           // Overview drops the bad channel
@@ -160,9 +171,14 @@ export async function fetchTopContent(
     try {
       const res = await client.getContent({
         brandId, channel: 'INSTAGRAM_UGC', metric: 'UGC_TOTAL_ENGAGEMENTS',
-        startDate: start, endDate: end, limit: 500,
+        startDate: start, endDate: end, limit: CONTENT_FETCH_LIMIT,
       })
-      ugc = (res.data?.content ?? []).map((p) => normalizePost(p, 'INSTAGRAM'))
+      const content = res.data?.content ?? []
+      if (content.length >= CONTENT_FETCH_LIMIT) {
+        console.warn(`[organic-social] Instagram UGC top-content hit the ${CONTENT_FETCH_LIMIT}-post fetch cap; ` +
+          `the set is truncated in fetch order and sort-then-cap may not reflect the true top posts — raise the cap or paginate.`)
+      }
+      ugc = content.map((p) => normalizePost(p, 'INSTAGRAM'))
     } catch (e) {
       if (scoped) throw e // scoped Instagram view surfaces the error
     }

@@ -29,14 +29,24 @@ export function SortableTopContent({
   const [dir, setDir] = useState<SortDir>('desc')
 
   // Click the active metric → flip direction; click another → switch to it, starting descending.
-  const onMetric = (key: SortKey) =>
-    key === sortKey ? setDir((d) => (d === 'desc' ? 'asc' : 'desc')) : (setSortKey(key), setDir('desc'))
+  const onMetric = (key: SortKey) => {
+    if (key === sortKey) {
+      setDir((d) => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(key)
+      setDir('desc')
+    }
+  }
 
   const rows = (groups: PlatformGroup[]) =>
     groups.map((g) => (
       <div key={g.platform} className="space-y-2">
         <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted">{g.platform}</h4>
         <div className="flex gap-3 overflow-x-auto pb-2">
+          {/* Sort-then-cap: this is only the true top-N by the active metric because the fetch
+              returns the COMPLETE per-platform set (see CONTENT_FETCH_LIMIT in top-content.ts).
+              If that cap is ever hit the incoming list is fetch-order-truncated, so this slice
+              would cap a truncated set — the fetch logs a warning if that happens. */}
           {sortPosts(g.posts, sortKey, dir)
             .slice(0, perPlatform)
             .map((p) => (
