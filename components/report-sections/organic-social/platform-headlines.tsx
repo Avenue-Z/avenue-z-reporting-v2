@@ -16,18 +16,16 @@ export function gridColsBase(n: number): string {
   return 'grid-cols-1'                  // 11 → no orphan possible at 1-col
 }
 
-/** md:+ column count that avoids a lonely last-row card. Overview (5) stays a clean single
- *  row; platform subpages (9–11) divide evenly where possible (10→2×5, 9→3×3) or land on a
- *  full last row (11→4/4/3) instead of the 5/5/1 a fixed 5-wide grid would give. Falls through
- *  4→5→3→2 for any future KPI count the three cases above don't already cover, so a count that
- *  would orphan at 4-wide (e.g. 13, 17: n%4===1) doesn't silently ship the bad layout (PR #174
- *  review — pinned by the n=1..25 sweep in platform-headlines.gridcols.test.ts). */
+/** md:+ column count. Prefer the WIDEST grid (5-up) so every platform's cards are the same width
+ *  — a narrower grid (e.g. 9 KPIs at 3-up) makes those cards visibly chunkier than the others.
+ *  Step down only to avoid a "lonely last-row card" (a full row then a single orphan, n%c===1):
+ *  9→5/4, 10→2×5, 11→4/4/3 (5 would orphan a single card). The 4→3→2 fall-through covers any
+ *  future KPI count (PR #174 review — pinned by the n=6..25 no-orphan sweep in
+ *  platform-headlines.gridcols.test.ts). */
 export function gridColsMd(n: number): string {
   if (n <= 5) return 'md:grid-cols-5'
-  if (n % 5 === 0) return 'md:grid-cols-5' // 10 → 2×5
-  if (n % 3 === 0) return 'md:grid-cols-3' // 9 → 3×3
-  if (n % 4 !== 1) return 'md:grid-cols-4' // 11 → 4/4/3 (no orphan single card)
-  if (n % 5 !== 1) return 'md:grid-cols-5'
+  if (n % 5 !== 1) return 'md:grid-cols-5' // 9 → 5/4, 10 → 2×5
+  if (n % 4 !== 1) return 'md:grid-cols-4' // 11 → 4/4/3 (5 would orphan a single card)
   if (n % 3 !== 1) return 'md:grid-cols-3'
   return 'md:grid-cols-2'
 }
