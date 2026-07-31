@@ -187,6 +187,9 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
       />
     </div>
   </section>
+  <div
+    class="h-24 animate-pulse rounded bg-muted"
+  />
 </div>
 `;
 
@@ -403,5 +406,8 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
       />
     </div>
   </section>
+  <div
+    class="h-24 animate-pulse rounded bg-muted"
+  />
 </div>
 `;
