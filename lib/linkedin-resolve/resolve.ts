@@ -17,7 +17,8 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 export async function fetchAndParse(url: string): Promise<Omit<Resolution, 'urlKey'>> {
   const target = url.replace(/ugcpost/i, 'ugcPost')
   const res = await fetch(target, { redirect: 'follow', headers: { 'User-Agent': UA, Accept: 'text/html' } })
-  if (res.status !== 200) return { canonicalUrl: null, authorUrl: null, status: 'unresolved' }
+  if (res.status === 404 || res.status === 410) return { canonicalUrl: null, authorUrl: null, status: 'unresolved' }
+  if (res.status !== 200) throw new Error(`linkedin transient ${res.status}`)
   const html = await res.text()
   const canonicalUrl = parseCanonicalUrl(html)
   const authorUrl = parseAuthorUrl(html)

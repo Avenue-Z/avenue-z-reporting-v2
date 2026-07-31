@@ -13,12 +13,12 @@ import { ORGANIC_SOCIAL_PARTS } from './registry'
 import { ORGANIC_SOCIAL_TEMPLATE, ORGANIC_SOCIAL_PLATFORM_TEMPLATE } from '../template'
 import { FIXTURE_ORGANIC_SOCIAL_CTX } from './__fixtures__/organic-social-ctx'
 
-test('Overview composition resolves to the three parts in order', () => {
+test('Overview composition resolves to the four parts in order', () => {
   const resolved = resolveSection(ORGANIC_SOCIAL_TEMPLATE, undefined)
   expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'engagement-trend', 'top-content', 'top-ai-retrieved'])
   const nodes = resolved.map((r) => lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)?.render(FIXTURE_ORGANIC_SOCIAL_CTX, r))
   const { container } = render(<>{nodes}</>)
-  // Snapshot the whole container (all three skeletons), not just firstChild.
+  // Snapshot the whole container (all four skeletons), not just firstChild.
   expect(container).toMatchSnapshot()
 })
 
@@ -28,6 +28,6 @@ test('Platform composition inserts follower-graph as the second part', () => {
   expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'follower-graph', 'engagement-trend', 'top-content', 'top-ai-retrieved'])
   const nodes = resolved.map((r) => lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)?.render(ctx, r))
   const { container } = render(<>{nodes}</>)
-  // Snapshot the whole container (all four skeletons), not just firstChild.
+  // Snapshot the whole container (all five skeletons), not just firstChild.
   expect(container).toMatchSnapshot()
 })

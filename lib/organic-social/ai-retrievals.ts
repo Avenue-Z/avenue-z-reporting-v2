@@ -44,7 +44,7 @@ export async function retrievalsForPosts(clientSlug: string, posts: TopContentPo
   }))
 
   // One all-time Peec fetch for exactly the resolved keys.
-  const keys = [...new Set(resolvedKeyByPostId.values())]
+  const keys = [...new Set(resolvedKeyByPostId.values())].sort()
   const retrievalsByKey = new Map<string, number>()
   if (keys.length) {
     const citations = await getPlacementCitations(clientSlug, keys, { startDate: '2015-01-01' })
@@ -65,8 +65,8 @@ export function isOwnedLinkedIn(urlKey: string, authorUrl: string | null, handle
   if (!h) return false
   if (new RegExp(`^linkedin\\.com/posts/${h}(_|/|$)`, 'i').test(urlKey)) return true
   if (/^linkedin\.com\/pulse\//i.test(urlKey) && authorUrl) {
-    const authorKey = (authorUrl.replace(/^https?:\/\//, '').replace(/^www\./, '')).toLowerCase()
-    return new RegExp(`^linkedin\\.com/company/${h}(/|$)`, 'i').test(authorKey)
+    const authorKey = urlJoinKey(authorUrl)
+    return !!authorKey && new RegExp(`^linkedin\\.com/company/${h}(/|$)`, 'i').test(authorKey)
   }
   return false
 }

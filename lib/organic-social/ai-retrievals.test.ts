@@ -37,3 +37,6 @@ test('third-party pulse (personal author) is NOT owned', () => {
 test('a competitor company pulse is NOT owned', () => {
   expect(isOwnedLinkedIn('linkedin.com/pulse/x-tolbert', 'https://www.linkedin.com/company/berinieportal', 'renaissancebenefits')).toBe(false)
 })
+test('owned pulse by company author survives a tracking query string (urlJoinKey strips it)', () => {
+  expect(isOwnedLinkedIn('linkedin.com/pulse/some-article-3w0rc', 'https://www.linkedin.com/company/renaissancebenefits?trk=abc', 'renaissancebenefits')).toBe(true)
+})

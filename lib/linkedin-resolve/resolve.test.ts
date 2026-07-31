@@ -26,3 +26,21 @@ test('a fetch/DB failure yields an unresolved sentinel, never throws', async () 
   const r = await resolveWith('https://www.linkedin.com/feed/update/urn:li:ugcPost:3', store, async () => { throw new Error('net') })
   expect(r.status).toBe('unresolved')
 })
+
+test('a transient fetcher failure (throw) is NOT persisted, so a later report retries', async () => {
+  const write = vi.fn(async () => {})
+  const store: ResolutionStore = { read: async () => null, write }
+  const fetcher = async () => { throw new Error('linkedin transient 429') }
+  const r = await resolveWith('https://www.linkedin.com/feed/update/urn:li:ugcPost:4', store, fetcher)
+  expect(r.status).toBe('unresolved')
+  expect(write).not.toHaveBeenCalled()
+})
+
+test('a definitive unresolved result (fetcher returns, does not throw) IS persisted', async () => {
+  const write = vi.fn(async () => {})
+  const store: ResolutionStore = { read: async () => null, write }
+  const fetcher = async () => ({ canonicalUrl: null, authorUrl: null, status: 'unresolved' as const })
+  const r = await resolveWith('https://www.linkedin.com/feed/update/urn:li:ugcPost:5', store, fetcher)
+  expect(r.status).toBe('unresolved')
+  expect(write).toHaveBeenCalledTimes(1)
+})
