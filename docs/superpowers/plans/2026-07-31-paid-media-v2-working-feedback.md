@@ -24,21 +24,26 @@
 
 ## Progress (as of handoff)
 
-Done and committed on `feat/paid-media-v2-working-feedback` (full suite green: 39 files / 323 tests, `check:rsc` green, `tsc` clean):
+**DONE** and committed on `feat/paid-media-v2-working-feedback` (full suite green: 39 files / 323 tests, `check:rsc` green, `tsc` clean). Each task below is marked ✅ DONE or ⏳ TODO in its own header too.
 - **#180 Cost/LPV fix** folded in (`b1a464a`).
-- **Task 1** — Overview subsection, default landing, no commentary box (`5d39df6`). Both surfaces + both sidebars (sidebars are registry-driven, so no edit needed). Commentary resolution updated + tested.
-- **Task 2 (partial)** — `lib/paid-media/format.ts` `money()` cents formatter + test; applied to the Paid Search **geo** Cost column (`0a6c731`). *Remaining:* KPI spend cards + the two creative tables' cents (needs a `KpiCard` money format that doesn't affect other tabs). Note: the doc's exact "Top Regions chart shows cents vs card whole dollars" example does not reproduce in code (that chart plots leads, not cost); the cents directive is honored on geo money.
-- **Task 3** — Total Leads on Leads by Action (`0a6c731`) + test.
-- **Task 4** — Region → DMA total over all regions, display top 10 (`0a6c731`) + test.
-- **Task 8 (partial)** — #180's two `lib/meta` tests converted to vitest and wired into CI (`9ae73e9`). *Remaining:* the worklist status line lives on the docs branch (PR #175), not this branch, so update it there.
+- **✅ Task 1** — Overview subsection, default landing, no commentary box (`5d39df6`). Both dashboard + portal routes. Sidebars needed NO edit (they iterate `PAID_MEDIA_SUBSECTIONS`, so they picked up the new entries automatically). Commentary resolution updated + tested.
+- **✅ Task 3** — Total Leads on Leads by Action (`0a6c731`) + test.
+- **✅ Task 4** — Region → DMA total over all regions, display top 10 (`0a6c731`) + test. NOTE: the total's Cost is whole-dollar `usd()` for now; cents comes in Task 2 (applied across Paid Media all at once).
+- **✅ Task 8 (this branch's part)** — #180's two `lib/meta` tests converted to vitest and wired into CI (`9ae73e9`). The worklist status line lives on the docs branch (PR #175), so update it there, not here.
 
-Remaining for Paul: **Task 2** (KPI-card/creative-table cents), **Task 5** (keyword filter + full-set data layer), **Task 6** (rollup lib), **Task 7** (Overview section UI). **Task 9** stays BLOCKED (spec Blocker 1). See NEEDS ANSWER 2 before finalizing Task 6.
+**TODO for Paul:**
+- **⏳ Task 2** — cents across Paid Media. The `lib/paid-media/format.ts` `money()` formatter is built + tested and ready to wire; NOTHING renders it yet (an earlier partial application to the geo section was reverted so the branch stays internally consistent — do cents all at once, not piecemeal). See Task 2 below for the safe `KpiCard` approach.
+- **⏳ Task 5** — keyword ≥10-clicks filter + full-set data layer.
+- **⏳ Task 6 + 7** — rollup lib + Overview section UI. See **NEEDS ANSWER 2** (spec §2) before finalizing Task 6's missing-channel rule.
+- **⛔ Task 9** — BLOCKED (spec Blocker 1).
+
+Doc/example caveat carried into Task 2: the doc's specific "Top Regions chart shows cents vs card in whole dollars" example does NOT reproduce in code (that chart plots leads, not cost). Honor the directive ("make them all with cents") across Paid Media money figures; there is no single chart-vs-card mismatch to point at.
 
 ---
 
-## Task 1: Overview subsection — registry, routing, sidebars, empty shell, default landing
+## Task 1: Overview subsection — registry, routing, sidebars, empty shell, default landing  ✅ DONE (`5d39df6`)
 
-Satisfies spec items **5** (default landing), **6** (no commentary), and the routing half of **1/11b**. Ships the nav change with an empty Overview.
+Satisfies spec items **5** (default landing), **6** (no commentary), and the routing half of **1/11b**. Ships the nav change with an empty Overview. **Shipped note:** the sidebars needed no edit; they iterate `PAID_MEDIA_SUBSECTIONS` and picked up Overview + Paid Search automatically. The Overview shell lives at `components/report-sections/paid-media/overview/index.tsx` (Tasks 6-7 fill it).
 
 **Files:**
 - Modify: `lib/constants.ts:173-178` (`PAID_MEDIA_SUBSECTIONS`), and the subsection-name map(s)
@@ -66,31 +71,29 @@ Satisfies spec items **5** (default landing), **6** (no commentary), and the rou
 
 ---
 
-## Task 2: Paid Media cents money formatter
+## Task 2: Cents across Paid Media  ⏳ TODO (formatter already built)
 
-Satisfies spec item **11d** (cents so figures match; Top Regions chart vs card). Cents scope = Paid Media only.
+Satisfies spec item **11d** ("make them all with cents so it's exact"). Cents scope = Paid Media only; do NOT touch the shared `usd()`. **Do this all at once**, not per-component — a partial rollout makes the same figure (e.g. total spend on a KPI card vs a total row) appear at two precisions, which is the exact defect item 11d wants gone. (An earlier geo-only application was reverted for this reason.)
 
-**Files:**
-- Create: `lib/paid-media/format.ts` + Test: `lib/paid-media/format.test.ts` (add `lib/paid-media/**` to `vitest.config.ts` include, written as a vitest suite)
-- Modify: KPI transforms to stop rounding money — `lib/paid-search/kpis.ts:40`, `lib/meta/kpis.ts:23`, `lib/linkedin/kpis.ts:33` (remove `Math.round` on spend/cost so cents survive to the formatter)
-- Modify: Paid Search geo cards + Top Regions chart formatter (`components/report-sections/paid-search/geo-section.tsx`), and the inline `usd2` in `meta-ads/creative-table-client.tsx:17` / `linkedin-ads/creative-table-client.tsx:21` (replace with the shared `money`)
+**Already done:** `lib/paid-media/format.ts` `money(n)` is built + tested (`lib/paid-media/format.test.ts`, in the vitest include). `money(n) = '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })`. Just wire it in.
 
-**Interfaces:**
-- Produces: `money(n: number): string` — `'$' + n` with thousands separators and exactly 2 decimals (e.g. `1234.5 → '$1,234.50'`). Used only inside Paid Media components.
+**Files to change:**
+- Money in the three KPI transforms — `lib/paid-search/kpis.ts:40` (`key:'cost'`), `lib/meta/kpis.ts:23` (`key:'spend'`), `lib/linkedin/kpis.ts:33` (`key:'spend'`), plus the `cpl`/`costPerLead`/`cpc`/`cpm`/`costPerLpv` money KPIs: today they `Math.round(...)` the value and pass `prefix:'$'`, and `KpiCard` renders `value.toLocaleString()` with no decimal control (so cents are lost).
+- Paid Search geo Cost column + total (`components/report-sections/paid-search/geo-section.tsx`, currently `usd()`).
+- The inline `usd2` in `meta-ads/creative-table-client.tsx:17` and `linkedin-ads/creative-table-client.tsx:21` (dedupe onto `money`).
 
-- [ ] **Step 1: Failing test** `lib/paid-media/format.test.ts`: `money(1234.5) === '$1,234.50'`, `money(0.42) === '$0.42'`, `money(1000000) === '$1,000,000.00'`.
-- [ ] **Step 2: Add `lib/paid-media/**/*.test.{ts,tsx}` to `vitest.config.ts` include; run → FAIL.**
-- [ ] **Step 3: Implement `money`** in `lib/paid-media/format.ts`: `` `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` ``.
-- [ ] **Step 4: Run → PASS.**
-- [ ] **Step 5: Stop rounding money in the three KPI transforms** so the cents reach the card (currently `Math.round(cost)` collapses them). Keep integer counts (clicks/leads/impressions) as integers.
-- [ ] **Step 6: Swap Paid Search geo to `money`** so the **Top Regions chart and the card above it both show cents** (Dianna's exact complaint, item 11d). Replace the inline `usd2` in the two creative-table clients with `money`.
-- [ ] **Step 7: Run full suite + RSC + typecheck.** `npm test`, `npm run check:rsc`, `npx tsc --noEmit`.
-- [ ] **Step 8: Manual.** Paid Search page: the Top Regions chart and its card now match at cents; spend KPI cards show `$X,XXX.XX`.
-- [ ] **Step 9: Commit.** `git commit -m "feat(paid-media): cents money formatter, reconcile Top Regions chart and card"`
+**Safe `KpiCard` approach (avoid breaking other tabs):** do NOT change `KpiCard`'s number path (other tabs rely on it). Instead, in the Paid Media KPI transforms, format money KPIs to a **string** via `money(value)` and drop the `prefix:'$'` (KpiCard renders string values verbatim — confirmed in `components/charts/kpi-card.tsx`). That keeps the cents change entirely inside Paid Media. Watch the delta/`invertDelta` logic: it keys off the numeric value, so if you stringify the value, verify deltas still render (or keep the numeric value and add a `format:'money'` opt-in prop to `KpiCard` used only by Paid Media callers — either is fine, pick one and be consistent).
+
+- [ ] **Step 1: Failing test** — a Paid Media KPI/geo test asserting a money figure renders with cents (`$1,234.50`), and a sub-dollar cost does not collapse.
+- [ ] **Step 2: Run → FAIL.**
+- [ ] **Step 3: Wire `money` into the three KPI transforms + geo + the two creative tables**, all in one change, per the approach above.
+- [ ] **Step 4: Run full suite + `check:rsc` + `tsc` → PASS.**
+- [ ] **Step 5: Manual** — every Paid Media money figure (KPI cards, geo, creative tables) shows `$X,XXX.XX`; the same total never appears at two precisions.
+- [ ] **Step 6: Commit.**
 
 ---
 
-## Task 3: "Total Leads" on Leads by Action
+## Task 3: "Total Leads" on Leads by Action  ✅ DONE (`0a6c731`)
 
 Satisfies spec item **7** (Req 2 top). Value already computed; not affected by the keyword filter (spec §4.B, comment `[e][f]`).
 
@@ -109,9 +112,9 @@ Satisfies spec item **7** (Req 2 top). Value already computed; not affected by t
 
 ---
 
-## Task 4: Region → DMA bottom total (all regions, display top 10)
+## Task 4: Region → DMA bottom total (all regions, display top 10)  ✅ DONE (`0a6c731`)
 
-Satisfies spec items **7, 8, 9**. Plain sum over the full region set; table still shows top 10.
+Satisfies spec items **7, 8, 9**. Plain sum over the full region set; table still shows top 10. Cost is whole-dollar `usd()` for now; it flips to cents with Task 2.
 
 **Files:**
 - Modify: `components/report-sections/paid-search/geo-section.tsx:55-77` (append a total `<tr>` after the `top10.map` at `:64-76`)
@@ -128,7 +131,7 @@ Satisfies spec items **7, 8, 9**. Plain sum over the full region set; table stil
 
 ---
 
-## Task 5: Keyword table — full-set data layer + ≥10-clicks filter wrapper + total + top-10
+## Task 5: Keyword table — full-set data layer + ≥10-clicks filter wrapper + total + top-10  ⏳ TODO
 
 Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change and a client boundary.
 
@@ -159,15 +162,19 @@ Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change
 
 ---
 
-## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule
+## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule  ⏳ TODO
 
-Satisfies spec items **1, 2, 4, 11a**. Leads/CPL are `—` here (Blocker 1); Task 9 fills them once unblocked.
+Satisfies spec items **1, 2, 4, 11a**. Leads/CPL are `—` here (Blocker 1); Task 9 fills them once unblocked. **Confirm NEEDS ANSWER 2 (spec §2) before finalizing the missing-channel rule.**
 
 **Files:**
 - Create: `lib/paid-media/overview.ts` + Test: `lib/paid-media/overview.test.ts`
 
 **Interfaces:**
-- Consumes: the per-channel KPI fetchers already used by each subpage's `index.tsx` (`lib/paid-search/kpis.ts`, `lib/meta/kpis.ts`, `lib/linkedin/kpis.ts`) to obtain each channel's Spend and Clicks (Meta clicks = `inline_link_clicks`).
+- Consumes the three per-channel KPI fetchers (each returns `Promise<Kpi[]>`; each `Kpi` is `{ key, label, value: number | string, ... }`). Read Spend and Clicks by key:
+  - `getPaidSearchKpis(slug, dateRange, compareRange)` — Spend key `'cost'`, Clicks key `'clicks'` (`lib/paid-search/kpis.ts:51,40,41`).
+  - `getMetaKpis(slug, dateRange, compareRange)` — Spend key `'spend'`, Clicks key `'linkClicks'` (link clicks — item 2), **no leads key** (`lib/meta/kpis.ts:76,23,35`).
+  - `getLinkedInKpis(slug, dateRange, compareRange)` — Spend key `'spend'`, Clicks key `'clicks'` (`lib/linkedin/kpis.ts:72,33,42`). Note the capital `I` in `getLinkedInKpis`.
+  - Each fetcher throws on a Supermetrics failure — wrap in `Promise.allSettled` / the `safe()` pattern (`components/report-sections/paid-search/index.tsx:16-22`). Values may be `number | string`; coerce before summing.
 - Produces:
   ```ts
   type ChannelKey = 'paid-search' | 'meta' | 'linkedin'
@@ -195,9 +202,9 @@ Satisfies spec items **1, 2, 4, 11a**. Leads/CPL are `—` here (Blocker 1); Tas
 
 ---
 
-## Task 7: Overview section component — combined top line + per-channel breakdown
+## Task 7: Overview section component — combined top line + per-channel breakdown  ⏳ TODO
 
-Satisfies spec items **1, 2, 11a, 11b, 11d**. Fills the shell from Task 1.
+Satisfies spec items **1, 2, 11a, 11b, 11d**. Fills the shell at `components/report-sections/paid-media/overview/index.tsx` (created empty in Task 1; the route dispatch already renders it).
 
 **Files:**
 - Modify: `components/report-sections/paid-media/overview/index.tsx`
@@ -215,9 +222,9 @@ Satisfies spec items **1, 2, 11a, 11b, 11d**. Fills the shell from Task 1.
 
 ---
 
-## Task 8: Housekeeping — worklist status + #180 lib-test wiring
+## Task 8: Housekeeping — worklist status + #180 lib-test wiring  ✅ DONE on this branch (`9ae73e9`)
 
-Satisfies spec §2 housekeeping + NEEDS ATTENTION 5.
+Satisfies spec §2 housekeeping + NEEDS ATTENTION 5. #180's two `lib/meta` tests are converted to vitest and wired into CI. The worklist status line lives on the docs branch (PR #175), not here — update it there.
 
 **Files:**
 - Modify: `docs/official-feedback/paid-media-v2-merged-worklist.md` (E1/Req 4 → folded in via #180)

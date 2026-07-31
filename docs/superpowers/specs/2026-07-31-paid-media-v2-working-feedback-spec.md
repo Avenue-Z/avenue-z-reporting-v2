@@ -67,10 +67,8 @@ Time-critical items are marked. "Owner" is who must answer; it is a stakeholder 
 - **Action:** spot-check live Google Ads data confirms one DMA per conversion before relying on the plain sum. Low risk (Amir confirmed), but the doc explicitly asks for the check.
 - **Owner:** engineering (Paul).
 
-### 🟡 NEEDS ATTENTION 5 — #180's lib tests don't run anywhere
-- PR #180 added `lib/meta/kpis.test.ts` and `lib/meta/creative.test.ts` as `node:assert` scripts. They run in neither vitest CI (the `vitest.config.ts` include list excludes `lib/meta/**`) nor standalone under `tsx` (transitive `lib/db` import fails). Only #180's component test `components/report-sections/meta-ads/creative-table.test.tsx` is CI-gated (and passes).
-- **Action:** convert the two lib asserts to vitest suites (or wire `lib/meta/**` into the include and rewrite as `describe/it`) so the Cost/LPV fix is fully gated. Not blocking.
-- **Owner:** engineering (Paul).
+### ✅ RESOLVED 5 — #180's lib tests now run in CI
+- PR #180 had added `lib/meta/kpis.test.ts` and `lib/meta/creative.test.ts` as `node:assert` scripts that ran nowhere. **Fixed on this branch (`9ae73e9`):** both converted to vitest suites and added to the `vitest.config.ts` include, so #180's Cost/LPV fix is now fully gated (7 lib tests + the component test). The pre-existing `lib/meta/base.test.ts` / `geo.test.ts` node-assert files are left as-is (out of scope).
 
 ### ⚪ Housekeeping
 - `docs/official-feedback/paid-media-v2-merged-worklist.md` still lists Cost/LPV (E1/Req 4) as "ready to build"; it is now folded in via #180. Update the worklist status.
