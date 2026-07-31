@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       'lib/commentary/**/*.test.{ts,tsx}',
       'lib/report-sections/**/*.test.{ts,tsx}',
+      'lib/paid-media/**/*.test.{ts,tsx}',
       'lib/profound/**/*.test.{ts,tsx}',
       'lib/pr-proof/matchback.test.ts',
       'lib/peec/citation-dates.test.ts',
