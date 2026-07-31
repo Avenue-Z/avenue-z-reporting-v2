@@ -116,6 +116,28 @@ test('a present value:null renders 0 rather than throwing', () => {
   expect(h.kpis.find((k) => k.key === 'exposure')?.value).toBe(0)
 })
 
+// noData drives the per-part empty state: true only when EVERY requested metric is null.
+test('noData is true when every requested metric came back null', () => {
+  const m = metricsFor('TWITTER', {
+    followers: { value: null }, netNewFollowers: { value: null }, exposure: { value: null },
+    engagements: { value: null }, engagementRate: { value: null },
+  })
+  expect(buildPlatformHeadline('TWITTER', m, OVERVIEW_KPI_KEYS, true).noData).toBe(true)
+})
+
+// Mirrors renaissance's X `last_year`: a Dec-2025 tail (impressions/engagements) with everything
+// else null. That is a PARTIAL period, not empty — noData is false and null→0 still stands (PR #173).
+test('noData is false for a partial period; null→0 preserved for the missing KPIs', () => {
+  const m = metricsFor('TWITTER', {
+    followers: { value: null }, netNewFollowers: { value: null }, exposure: { value: 52 },
+    engagements: { value: 4 }, engagementRate: { value: null },
+  })
+  const h = buildPlatformHeadline('TWITTER', m, OVERVIEW_KPI_KEYS, true)
+  expect(h.noData).toBe(false)
+  expect(h.kpis.find((k) => k.key === 'followers')?.value).toBe(0)
+  expect(h.kpis.find((k) => k.key === 'exposure')?.value).toBe(52)
+})
+
 test('engagementRate value is x100; number values pass through', () => {
   const h = buildPlatformHeadline('TWITTER', full('TWITTER'), OVERVIEW_KPI_KEYS, false)
   expect(h.kpis.find((k) => k.key === 'engagementRate')?.value).toBeCloseTo(21) // Dash 0.21 → 21%

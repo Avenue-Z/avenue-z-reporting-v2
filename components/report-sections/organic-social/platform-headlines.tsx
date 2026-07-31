@@ -1,6 +1,8 @@
 import { KpiCard } from '@/components/charts/kpi-card'
 import { num, pct } from '@/lib/organic-social/base'
+import { expectsComparison } from '@/lib/organic-social/metrics'
 import type { PlatformHeadline } from '@/lib/organic-social/types'
+import { NoData } from './no-data'
 
 /** Mobile-base column count that avoids a lonely last-row card. Overview (5) is unchanged
  *  (out of scope here — PR #174 review). 10 is already even at 2-col; 9 needs a 3-col mobile
@@ -37,17 +39,22 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
   return (
     <section className="space-y-3">
       <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{h.label}</h3>
-      <div className={`grid ${gridColsBase(n)} gap-3 ${gridColsMd(n)}`}>
-        {h.kpis.map((k) => (
-          <KpiCard
-            key={k.key}
-            title={k.label}
-            value={k.format === 'percent' ? pct(k.value) : num(k.value)}
-            delta={k.delta}
-            subValue={k.footnote}
-          />
-        ))}
-      </div>
+      {h.noData ? (
+        <NoData />
+      ) : (
+        <div className={`grid ${gridColsBase(n)} gap-3 ${gridColsMd(n)}`}>
+          {h.kpis.map((k) => (
+            <KpiCard
+              key={k.key}
+              title={k.label}
+              value={k.format === 'percent' ? pct(k.value) : num(k.value)}
+              delta={k.delta}
+              comparisonExpected={expectsComparison(k.key)}
+              subValue={k.footnote}
+            />
+          ))}
+        </div>
+      )}
     </section>
   )
 }

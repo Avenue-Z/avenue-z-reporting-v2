@@ -15,6 +15,7 @@ export interface PlatformHeadline {
   channel: string           // Dash channel key, e.g. 'INSTAGRAM'
   label: string             // display: 'Instagram'
   kpis: HeadlineKpi[]
+  noData: boolean           // every requested metric came back null (no data for the window)
 }
 
 /** A daily point for a single channel in a trend series. */

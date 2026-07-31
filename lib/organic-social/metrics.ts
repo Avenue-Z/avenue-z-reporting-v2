@@ -154,6 +154,12 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
 export const OVERVIEW_KPI_KEYS = ['followers', 'netNewFollowers', 'exposure',
                                   'engagements', 'engagementRate'] as const
 
+/** KPIs that are THEMSELVES a period-over-period change, so a "— vs prior period" comparison
+ *  placeholder reads as broken rather than informative — Net New Followers is a delta by
+ *  definition. Headline cards suppress the placeholder for these (PR #182 review #1). */
+const KPI_KEYS_WITHOUT_COMPARISON = new Set<string>(['netNewFollowers'])
+export const expectsComparison = (key: string): boolean => !KPI_KEYS_WITHOUT_COMPARISON.has(key)
+
 /** The metric name for a KPI under the active basis. */
 export const metricFor = (k: KpiSpec): string => k.metric[REPORTING_BASIS]
 

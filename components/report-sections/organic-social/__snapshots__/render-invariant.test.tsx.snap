@@ -78,6 +78,12 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
           >
             98,765
           </p>
+          <p
+            class="mt-1 text-sm font-bold text-text-muted"
+          >
+            — 
+            vs prior period
+          </p>
         </div>
         <div
           class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
@@ -95,6 +101,12 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             class="mt-2 text-3xl font-extrabold text-white"
           >
             4,321
+          </p>
+          <p
+            class="mt-1 text-sm font-bold text-text-muted"
+          >
+            — 
+            vs prior period
           </p>
         </div>
         <div
@@ -154,6 +166,12 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
           >
             8,000
           </p>
+          <p
+            class="mt-1 text-sm font-bold text-text-muted"
+          >
+            — 
+            vs prior period
+          </p>
         </div>
         <div
           class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
@@ -190,6 +208,12 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
           >
             42,000
           </p>
+          <p
+            class="mt-1 text-sm font-bold text-text-muted"
+          >
+            — 
+            vs prior period
+          </p>
         </div>
         <div
           class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
@@ -208,6 +232,12 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
           >
             900
           </p>
+          <p
+            class="mt-1 text-sm font-bold text-text-muted"
+          >
+            — 
+            vs prior period
+          </p>
         </div>
         <div
           class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
@@ -225,6 +255,12 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             class="mt-2 text-3xl font-extrabold text-white"
           >
             1.2%
+          </p>
+          <p
+            class="mt-1 text-sm font-bold text-text-muted"
+          >
+            — 
+            vs prior period
           </p>
         </div>
       </div>

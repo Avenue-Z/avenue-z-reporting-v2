@@ -45,6 +45,11 @@ export function buildPlatformHeadline(
   const absent = specs.filter(({ metric }) => !(metric in metrics)).map(({ metric }) => metric)
   if (absent.length) throw new Error(`${channel}: Dash omitted requested metric(s): ${absent.join(', ')}`)
 
+  // No data for the window when EVERY requested metric came back present-but-null. A single
+  // present value flips this false — a mix of real values and nulls is a partial period, where
+  // per-KPI null→0 still stands (PR #173). Distinct from the absent-key guard above (malformed).
+  const noData = specs.every(({ metric }) => metrics[metric]?.value == null)
+
   const kpis: HeadlineKpi[] = specs.map(({ key, spec, metric }) => {
     const m = metrics[metric]
     const raw = m?.value ?? 0
@@ -61,5 +66,5 @@ export function buildPlatformHeadline(
     }
   })
 
-  return { channel, label: CHANNEL_LABEL[channel], kpis }
+  return { channel, label: CHANNEL_LABEL[channel], kpis, noData }
 }
