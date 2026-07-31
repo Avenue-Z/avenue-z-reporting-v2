@@ -35,7 +35,7 @@ test('gridColsBase never orphans the last row for n=6..25', () => {
 // unseen counts must not disturb these.
 test.each([
   [5, 'md:grid-cols-5'],
-  [9, 'md:grid-cols-3'],
+  [9, 'md:grid-cols-5'],  // Facebook — 5/4, matching the other platforms' card width (was 3×3: chunky)
   [10, 'md:grid-cols-5'],
   [11, 'md:grid-cols-4'],
 ])('gridColsMd(%i) === %s', (n, expected) => {

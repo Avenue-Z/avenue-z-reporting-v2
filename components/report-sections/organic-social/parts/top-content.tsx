@@ -10,7 +10,7 @@ import { CHANNELS, CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 import type { SourceType } from '@/lib/organic-social/types'
 import { TopContent } from '../top-content'
-import { PostCard } from '../post-card'
+import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
@@ -32,37 +32,19 @@ export const topContentV1: PartImpl<OrganicSocialCtx> = {
   ),
 }
 
-/** Group posts (creative preserved) by platform for the card gallery, ordered by the canonical
- *  channel order (or the single scoped channel), capped per platform. */
-function groupPostsByPlatform(posts: TopContentPost[], channel: DashChannel | null, perPlatform = 10) {
+/** Group posts (creative preserved) by platform, ordered by the canonical channel order (or the
+ *  single scoped channel). NOT capped here — the client sorts by the chosen metric first, then caps
+ *  (sort-then-cap in SortableTopContent), so the top-N reflects the active sort, not the fetch order. */
+function groupPostsByPlatform(posts: TopContentPost[], channel: DashChannel | null) {
   const order = (channel ? [channel] : [...CHANNELS]).map((c) => CHANNEL_LABEL[c])
   const by = new Map<string, TopContentPost[]>()
   for (const p of posts) {
     if (!order.includes(p.platform)) continue
     const arr = by.get(p.platform) ?? []
-    if (arr.length < perPlatform) arr.push(p)
+    arr.push(p)
     by.set(p.platform, arr)
   }
   return order.filter((pl) => by.has(pl)).map((platform) => ({ platform, posts: by.get(platform)! }))
-}
-
-function Gallery({ groups, clientSlug, canEdit }: {
-  groups: { platform: string; posts: TopContentPost[] }[]; clientSlug: string; canEdit: boolean
-}) {
-  return (
-    <div className="space-y-5">
-      {groups.map((g) => (
-        <div key={g.platform} className="space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted">{g.platform}</h4>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {g.posts.map((p) => (
-              <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 /** Best-effort designations: a designation-table/read failure (e.g. the migration hasn't been
@@ -92,13 +74,12 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
   return (
     <section className="space-y-6">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
-      <Gallery groups={groupPostsByPlatform(owned, channel)} clientSlug={clientSlug} canEdit={canEdit} />
-      {influencer.length > 0 && (
-        <section aria-label="Influencer posts" className="space-y-3">
-          <h3 className="text-xs font-extrabold uppercase tracking-widest text-text-muted">Influencer Posts</h3>
-          <Gallery groups={groupPostsByPlatform(influencer, channel)} clientSlug={clientSlug} canEdit={canEdit} />
-        </section>
-      )}
+      <SortableTopContent
+        owned={groupPostsByPlatform(owned, channel)}
+        influencer={groupPostsByPlatform(influencer, channel)}
+        clientSlug={clientSlug}
+        canEdit={canEdit}
+      />
     </section>
   )
 }
