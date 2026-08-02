@@ -28,6 +28,8 @@ test('Platform composition inserts follower-graph as the second part', () => {
   expect(resolved.map((r) => r.id)).toEqual(['platform-headlines', 'follower-graph', 'engagement-trend', 'top-content', 'top-ai-retrieved'])
   const nodes = resolved.map((r) => lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)?.render(ctx, r))
   const { container } = render(<>{nodes}</>)
-  // Snapshot the whole container (all five skeletons), not just firstChild.
+  // Composition still pins all five parts (assertion above), but on a non-LinkedIn
+  // platform (INSTAGRAM here) the LinkedIn-only 'top-ai-retrieved' part renders null,
+  // so the container shows four skeletons — it's hidden off-LinkedIn by design.
   expect(container).toMatchSnapshot()
 })
