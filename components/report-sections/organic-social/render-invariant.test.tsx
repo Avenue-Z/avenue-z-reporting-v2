@@ -37,7 +37,7 @@ test('Overview headlines render the actual metric values, not a skeleton', () =>
   const { container, getByText } = render(<PlatformHeadlines headlines={HEADLINES} />)
   getByText('12,345') // followers, locale-formatted
   getByText('98,765') // exposure (Views)
-  getByText('3.5%')   // engagementRate 3.47 -> pct()
+  getByText('3%')     // engagementRate 3.47 -> rounded to whole percent
   getByText('Instagram')
   getByText('Facebook')
   expect(container).toMatchSnapshot()
