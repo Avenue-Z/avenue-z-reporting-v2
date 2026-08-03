@@ -1,5 +1,6 @@
 import { KpiCard } from '@/components/charts/kpi-card'
-import { num, pctCompact } from '@/lib/organic-social/base'
+import { num } from '@/lib/organic-social/base'
+import { pctCompact } from '@/lib/organic-social/format'
 import { expectsComparison } from '@/lib/organic-social/metrics'
 import type { PlatformHeadline } from '@/lib/organic-social/types'
 import { NoData } from './no-data'

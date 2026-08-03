@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { num, pctCompact } from '@/lib/supermetrics/format'
+import { num } from '@/lib/supermetrics/format'
+import { pctCompact } from '@/lib/organic-social/format'
 import { DesignationToggle } from './designation-toggle'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 

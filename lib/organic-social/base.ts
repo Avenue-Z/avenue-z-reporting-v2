@@ -5,7 +5,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { resolveChannels, type DashChannel } from './metrics'
 
-export { num, pct, pctCompact } from '@/lib/supermetrics/format'
+export { num, pct } from '@/lib/supermetrics/format'
 
 /** Dash source/channel enum -> display label. Story/variant sources fold to their base channel. */
 export const CHANNEL_DISPLAY: Record<string, string> = {

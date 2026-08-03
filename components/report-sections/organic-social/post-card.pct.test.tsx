@@ -38,3 +38,12 @@ test('PostCard keeps a sub-1% rate at one decimal (does not collapse to "0%")', 
   getByText('0.6%') // effectiveness 0.6% preserved
   expect(queryByText('0%')).toBeNull()
 })
+
+test('PostCard renders "—" when a rate is null (no % formatting on missing data)', () => {
+  const { getAllByText, queryByText } = render(
+    <PostCard post={makePost({ engagementRate: null, effectiveness: null })} clientSlug="c" canEdit={false} />,
+  )
+  expect(getAllByText('—')).toHaveLength(2) // Effectiveness + Engagement Rate both missing
+  expect(queryByText('0%')).toBeNull()
+  expect(queryByText('NaN%')).toBeNull()
+})
