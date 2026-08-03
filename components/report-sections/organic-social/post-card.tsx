@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { num } from '@/lib/supermetrics/format'
+import { num, pctCompact } from '@/lib/supermetrics/format'
 import { DesignationToggle } from './designation-toggle'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
@@ -11,8 +11,8 @@ function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
   const m = post.metrics
   return [
     // effectiveness + engagementRate are both fractions (×100 for %).
-    { key: 'effectiveness', label: 'Effectiveness', value: m.effectiveness != null ? `${Math.round(m.effectiveness * 100)}%` : '—' },
-    { key: 'engagementRate', label: 'Engagement Rate', value: m.engagementRate != null ? `${Math.round(m.engagementRate * 100)}%` : '—' },
+    { key: 'effectiveness', label: 'Effectiveness', value: m.effectiveness != null ? pctCompact(m.effectiveness * 100) : '—' },
+    { key: 'engagementRate', label: 'Engagement Rate', value: m.engagementRate != null ? pctCompact(m.engagementRate * 100) : '—' },
     { key: 'engagements', label: 'Engagements', value: num(m.engagements) },
     { key: 'impressions', label: 'Views / Impr.', value: num(m.impressions) },
   ].map((x) => ({ ...x, emphasised: x.key === sortKey }))
