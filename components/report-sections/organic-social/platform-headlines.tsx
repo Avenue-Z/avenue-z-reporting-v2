@@ -1,5 +1,5 @@
 import { KpiCard } from '@/components/charts/kpi-card'
-import { num, pct } from '@/lib/organic-social/base'
+import { num } from '@/lib/organic-social/base'
 import { expectsComparison } from '@/lib/organic-social/metrics'
 import type { PlatformHeadline } from '@/lib/organic-social/types'
 import { NoData } from './no-data'
@@ -45,7 +45,7 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
             <KpiCard
               key={k.key}
               title={k.label}
-              value={k.format === 'percent' ? pct(k.value) : num(k.value)}
+              value={k.format === 'percent' ? `${Math.round(k.value)}%` : num(k.value)}
               delta={k.delta}
               comparisonExpected={expectsComparison(k.key)}
               subValue={k.footnote}
