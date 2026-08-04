@@ -19,17 +19,20 @@ const metaMock = getMetaKpis as Mock
 const liMock = getLinkedInKpis as Mock
 
 // Minimal KPI arrays keyed the way the rollup reads them.
-const ps = (cost: number, clicks: number): Kpi[] => [
+const ps = (cost: number, clicks: number, leads = 0): Kpi[] => [
   { key: 'cost', label: 'Cost', value: cost, format: 'money' },
   { key: 'clicks', label: 'Clicks', value: clicks },
+  { key: 'leads', label: 'Leads', value: leads },
 ]
+// Meta exposes no `leads` key — Meta lead conversions are unavailable (data gap).
 const meta = (spend: number, linkClicks: number): Kpi[] => [
   { key: 'spend', label: 'Spend', value: spend, format: 'money' },
   { key: 'linkClicks', label: 'Link Clicks', value: linkClicks },
 ]
-const li = (spend: number, clicks: number): Kpi[] => [
+const li = (spend: number, clicks: number, leads = 0): Kpi[] => [
   { key: 'spend', label: 'Spend', value: spend, format: 'money' },
   { key: 'clicks', label: 'Clicks', value: clicks },
+  { key: 'leads', label: 'Leads', value: leads },
 ]
 
 beforeEach(() => {
@@ -40,16 +43,21 @@ beforeEach(() => {
 
 describe('getPaidMediaOverview', () => {
   test('all three channels report → blended spend and clicks sum across them', async () => {
-    psMock.mockResolvedValue(ps(1000, 200))
+    psMock.mockResolvedValue(ps(1000, 200, 12))
     metaMock.mockResolvedValue(meta(500, 80)) // Meta contributes LINK clicks (item 2)
-    liMock.mockResolvedValue(li(300, 40))
+    liMock.mockResolvedValue(li(300, 40, 5))
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
     expect(o.blendedSpend).toBe(1800)
     expect(o.blendedClicks).toBe(320) // 200 + 80 + 40
     expect(o.channels.every((c) => c.ok)).toBe(true)
     expect(o.channels.find((c) => c.key === 'meta')!.clicks).toBe(80)
-    // Leads / CPL are fenced off until HubSpot attribution is defined (Blocker 1).
+    // Per-channel leads: Paid Search + LinkedIn report; Meta has no leads key (data
+    // gap) so it stays null → '—', NOT 0.
+    expect(o.channels.find((c) => c.key === 'paid-search')!.leads).toBe(12)
+    expect(o.channels.find((c) => c.key === 'linkedin')!.leads).toBe(5)
+    expect(o.channels.find((c) => c.key === 'meta')!.leads).toBeNull()
+    // There is still no blended Leads / CPL top line (no all-channel lead source).
     expect(o.leads).toBeNull()
     expect(o.costPerLead).toBeNull()
   })

@@ -60,6 +60,7 @@ export async function PaidMediaOverviewReport({
                 <th className="px-4 py-2 text-left font-bold">Channel</th>
                 <th className="px-4 py-2 text-right font-bold">Spend</th>
                 <th className="px-4 py-2 text-right font-bold">Clicks</th>
+                <th className="px-4 py-2 text-right font-bold">Leads</th>
               </tr>
             </thead>
             <tbody>
@@ -68,11 +69,17 @@ export async function PaidMediaOverviewReport({
                   <td className="px-4 py-2.5 text-left font-medium text-white">{c.label}</td>
                   <td className="px-4 py-2.5 text-right text-white/80">{asMoney(c.spend)}</td>
                   <td className="px-4 py-2.5 text-right text-white/80">{asNum(c.clicks)}</td>
+                  <td className="px-4 py-2.5 text-right text-white/80">{asNum(c.leads)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-xs text-text-muted">
+          Leads are shown per channel where available. Meta lead conversions are
+          not currently available, so Meta shows &lsquo;—&rsquo;. There is no
+          blended Leads total until leads can be sourced for all channels.
+        </p>
       </div>
     </div>
   )

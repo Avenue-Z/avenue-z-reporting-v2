@@ -10,6 +10,13 @@ export interface ChannelMetrics {
   label: string
   spend: number | null
   clicks: number | null
+  /**
+   * Per-channel leads. Paid Search and LinkedIn expose a `leads` KPI; Meta does
+   * not (Meta lead conversions are not available to us — a data-source gap, not
+   * a code gap), so Meta's leads is always null → renders '—'. A channel that
+   * failed to report (ok:false) is also null.
+   */
+  leads: number | null
   ok: boolean
 }
 
@@ -32,13 +39,20 @@ function readKpi(kpis: Kpi[], key: string): number {
   return typeof v === 'number' ? v : Number(v ?? 0)
 }
 
-const CHANNELS: Array<{ key: ChannelKey; label: string; spendKey: string; clicksKey: string }> = [
-  // Paid Search: Spend key 'cost', Clicks key 'clicks'.
-  { key: 'paid-search', label: 'Paid Search', spendKey: 'cost', clicksKey: 'clicks' },
-  // Meta: Spend key 'spend', Clicks key 'linkClicks' (link clicks — item 2).
+const CHANNELS: Array<{
+  key: ChannelKey
+  label: string
+  spendKey: string
+  clicksKey: string
+  /** KPI key for per-channel leads. Omitted for Meta — no Meta lead data (data gap). */
+  leadsKey?: string
+}> = [
+  // Paid Search: Spend key 'cost', Clicks key 'clicks', Leads key 'leads'.
+  { key: 'paid-search', label: 'Paid Search', spendKey: 'cost', clicksKey: 'clicks', leadsKey: 'leads' },
+  // Meta: Spend key 'spend', Clicks key 'linkClicks' (link clicks — item 2). No leads key (data gap).
   { key: 'meta', label: 'Meta Advertising', spendKey: 'spend', clicksKey: 'linkClicks' },
-  // LinkedIn: Spend key 'spend', Clicks key 'clicks'.
-  { key: 'linkedin', label: 'LinkedIn Advertising', spendKey: 'spend', clicksKey: 'clicks' },
+  // LinkedIn: Spend key 'spend', Clicks key 'clicks', Leads key 'leads' (LinkedIn oneClickLeads).
+  { key: 'linkedin', label: 'LinkedIn Advertising', spendKey: 'spend', clicksKey: 'clicks', leadsKey: 'leads' },
 ]
 
 /**
@@ -68,13 +82,15 @@ export async function getPaidMediaOverview(
   const channels: ChannelMetrics[] = CHANNELS.map((c, i) => {
     const res = settled[i]
     if (res.status !== 'fulfilled') {
-      return { key: c.key, label: c.label, spend: null, clicks: null, ok: false }
+      return { key: c.key, label: c.label, spend: null, clicks: null, leads: null, ok: false }
     }
     return {
       key: c.key,
       label: c.label,
       spend: readKpi(res.value, c.spendKey),
       clicks: readKpi(res.value, c.clicksKey),
+      // Only channels with a leadsKey report leads; Meta has none (data gap) → null → '—'.
+      leads: c.leadsKey ? readKpi(res.value, c.leadsKey) : null,
       ok: true,
     }
   })

@@ -12,12 +12,12 @@ import type { Mock } from 'vitest'
 const mock = getPaidMediaOverview as Mock
 
 describe('PaidMediaOverviewReport', () => {
-  test('missing channel blanks the blended totals; breakdown still shows present channels; Leads/CPL tiles dropped', async () => {
+  test('missing channel blanks the blended totals; per-channel Leads shown where available (Meta blank)', async () => {
     mock.mockResolvedValue({
       channels: [
-        { key: 'paid-search', label: 'Paid Search', spend: 1000, clicks: 200, ok: true },
-        { key: 'meta', label: 'Meta Advertising', spend: 500, clicks: 80, ok: true },
-        { key: 'linkedin', label: 'LinkedIn Advertising', spend: null, clicks: null, ok: false },
+        { key: 'paid-search', label: 'Paid Search', spend: 1000, clicks: 200, leads: 12, ok: true },
+        { key: 'meta', label: 'Meta Advertising', spend: 500, clicks: 80, leads: null, ok: true },
+        { key: 'linkedin', label: 'LinkedIn Advertising', spend: null, clicks: null, leads: null, ok: false },
       ],
       blendedSpend: null,
       blendedClicks: null,
@@ -28,20 +28,23 @@ describe('PaidMediaOverviewReport', () => {
     const ui = await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' })
     render(ui)
 
-    // Per-channel breakdown shows the two channels that reported, in cents.
+    // Per-channel breakdown shows the channels that reported, in cents.
     expect(screen.getByText('$1,000.00')).toBeInTheDocument()
     expect(screen.getByText('$500.00')).toBeInTheDocument()
 
-    // Leads / Cost per Lead tiles are dropped from the Overview (HubSpot lead
-    // path unavailable — Blocker 1 / Task 9 deferred), so their titles never render.
-    expect(screen.queryByText('Leads')).not.toBeInTheDocument()
+    // Per-channel Leads column: Paid Search reports its leads; Meta shows '—'
+    // (lead data gap), not 0.
+    expect(screen.getByText('12')).toBeInTheDocument()
+
+    // No blended Cost per Lead tile on the top line (no all-channel lead source).
     expect(screen.queryByText('Cost per Lead')).not.toBeInTheDocument()
 
-    // The note now only explains the blended-availability rule (no HubSpot note).
+    // Both captions render: the blended-availability rule and the no-blended-leads note.
     expect(screen.getByText(/shown only when all three channels report/i)).toBeInTheDocument()
+    expect(screen.getByText(/no blended leads total/i)).toBeInTheDocument()
 
-    // Blended Spend + Clicks tiles are unavailable (missing channel) and the
-    // LinkedIn breakdown row is blank → 4 '—' placeholders (2 tiles + 2 cells).
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4)
+    // Blended Spend + Clicks tiles blank (missing channel), Meta's leads cell blank,
+    // and the whole LinkedIn row blank → several '—' placeholders.
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(5)
   })
 })

@@ -1,84 +1,68 @@
-# Open Question for Dianna: how to define blended Leads and Cost per Lead on the Paid Media Overview
+# For Dianna: blended Leads and Cost per Lead on the Paid Media Overview
 
-**Status:** open question, needs a decision before the Leads / Cost per Lead metrics can be built.
-**Owner of the answer:** Dianna Gatto.
+**Status:** decision made on how to display leads now; one confirmation requested from Dianna.
+**Owner of the confirmation:** Dianna Gatto.
 **Raised by:** Paul, 2026-08-04.
-**Traces to:** "Decisions for Approval, Paid Media" tab, item 3, comment `[p]`; and the working-feedback spec, Blocker 1 (`docs/superpowers/specs/2026-07-31-paid-media-v2-working-feedback-spec.md`).
+**Traces to:** "Decisions for Approval, Paid Media" tab, item 3, comment `[p]`; working-feedback spec, Blocker 1 (`docs/superpowers/specs/2026-07-31-paid-media-v2-working-feedback-spec.md`).
 
-## Background, in plain terms
+## The short version
 
 The Paid Media Overview shows a blended top line across the three paid channels
-(Paid Search, Meta, LinkedIn). Spend and Clicks are built and working. The doc
-also asks for two more headline numbers on that top line:
+(Paid Search, Meta, LinkedIn). Spend and Clicks work. The doc also asks for
+blended **Leads** and **Cost per Lead** on that line.
 
-- **Leads** (blended across the paid channels)
-- **Cost per Lead** (blended Spend divided by blended Leads)
+We cannot show a blended Leads number honestly right now, for a concrete
+reason: **we have no way to get lead data from Meta.** So instead of a blended
+number built from incomplete data, the Overview now shows **leads per channel**
+in the By-Channel breakdown, for the channels that have them, and no blended
+Leads total. This note explains why and asks Dianna to confirm that approach.
 
-The doc defines Cost per Lead as "spend across all platforms / hubspot leads
-attributed to AVZ" (item 3, comment `[p]`).
+## Why there is no blended Leads number
 
-## Why those two numbers are not built yet
+A blended Leads total has to include every channel that ran, or it understates
+the real number and the matching Cost per Lead overstates. Where each channel
+stands today:
 
-Two separate problems, both real:
+- **Paid Search:** leads are available (Google Ads conversion actions). In use.
+- **LinkedIn:** leads are available (LinkedIn Lead Gen Form leads). In use.
+- **Meta:** **no lead data.** The client's Meta is not tracking lead
+  conversions, so there is nothing for us to pull. This is a data-tracking gap
+  on the Meta side, not something we can fix in code.
 
-1. **The definition is missing.** The doc never says which HubSpot figure counts
-   as "a lead attributed to AVZ." There are several different HubSpot counts in
-   our system (created contacts in the range, contacts at lifecycle stage
-   "lead", ICP contacts), and they do not agree with each other. We cannot build
-   a number without knowing which one is meant.
+Because every Paid Media client runs Meta, a blended Leads number would always
+be missing Meta's contribution. Under the rule we agreed for the blended totals
+(all channels must report, or the number is not shown, so a gap never makes it
+look off), that means a blended Leads number stays unavailable until Meta lead
+tracking exists. This is true regardless of how "a lead" is defined (whether
+from the ad platforms or from HubSpot); the blocker is the missing Meta data.
 
-2. **The HubSpot data is not obtainable right now.** No Paid Media client has
-   HubSpot connected, and our HubSpot integration is currently wired
-   specifically to Avenue Z's own account (a fixed pipeline, fixed audience
-   buckets, fixed date windows). There is no general per-client "how many leads
-   did this client get in this date range" path today. So even with a
-   definition, there is no data to feed it for these clients.
+Note this is separate from the HubSpot question in comment `[p]`. Even the
+HubSpot path is not available (no Paid Media client has HubSpot connected, and
+the integration is wired specifically to Avenue Z's own account), so neither
+route can produce a blended number today.
 
-## What we did in the meantime
+## What we are shipping now
 
-Rather than ship two permanently blank tiles to a client, we **removed the Leads
-and Cost per Lead tiles from the Overview**. The Overview now shows Spend and
-Clicks, which are accurate today. Nothing about the rest of the tab changed.
+- **No blended Leads or Cost per Lead** on the Overview top line. The top line
+  shows Spend and Clicks.
+- **Leads per channel** in the By-Channel breakdown: Paid Search and LinkedIn
+  show their lead counts; Meta shows a dash, with a caption that Meta lead
+  conversions are not currently available.
 
-Note: this does **not** affect the **Paid Search "Total Leads" / "Leads by
-Action"** numbers. Those come from Google Ads conversion actions, not HubSpot,
-and are unaffected and still shown.
+This gives real lead visibility for the channels that have it, with no blended
+number built from partial data and nothing that reads as a Meta zero.
 
-## The proposal we would like a decision on (option 3)
+## What we need from Dianna
 
-Instead of waiting on HubSpot, define the Overview's blended **Leads** as the
-sum of **paid-conversion lead actions** already reported by the ad platforms:
-the same Google Ads lead-action data that powers the Paid Search "Total Leads"
-number today, extended across the paid channels that report conversions. Blended
-**Cost per Lead** would then be blended Spend divided by that leads number.
+1. **Confirm the display:** per-channel Leads in the breakdown now (Paid Search
+   and LinkedIn), no blended Leads or Cost per Lead until Meta lead data exists.
+   Is that acceptable for the client-facing report?
 
-The important caveat: this is a **different metric** than "HubSpot leads
-attributed to AVZ." It counts leads the ad platforms recorded as conversions,
-not leads confirmed in the CRM. It would need to be labeled that way on the
-report so nobody reads it as a CRM-verified number.
+2. **Decide on Meta lead tracking:** a blended Leads number, and Meta's own lead
+   count, only become possible if Meta is set up to track lead conversions. Is
+   that something the account team wants to pursue with the client? If yes, it
+   becomes a separate work item; if no, blended Leads stays off indefinitely and
+   per-channel Leads is the final state.
 
-## The questions
-
-1. **Is a paid-conversion lead an acceptable definition** of "Leads" for the
-   Paid Media Overview, in place of a HubSpot-attributed lead? (This is the one
-   we can actually build today.)
-
-2. **If yes, which conversion actions count** toward the blended lead? Paid
-   Search already has a per-client allowlist of which Google Ads conversion
-   actions are "leads" (`paidSearchConfig.leadActions`). Do Meta and LinkedIn
-   conversion actions count too, and if so, which ones?
-
-3. **If HubSpot attribution is required** as the definition of record, please
-   confirm we **hold Leads and Cost per Lead off the Overview** until a
-   per-client HubSpot lead path exists. There is no such path today, so this
-   would not be a near-term deliverable, and we would keep the two tiles absent
-   until then.
-
-## What each answer unblocks
-
-- **Answer to Q1 = yes** unblocks building blended Leads and Cost per Lead now,
-  from data we already have, with a clear label. This is the fastest path to a
-  complete Overview.
-- **Answer to Q3 = confirmed** keeps the current shipped state (Spend and Clicks
-  only) and formally parks Leads / Cost per Lead until HubSpot is connectable
-  per client.
+3. **Cost per Lead:** it stays off the Overview for the same reason (no complete
+   lead base to divide spend by). Confirm that is fine for now.
