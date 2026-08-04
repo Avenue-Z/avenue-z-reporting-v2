@@ -5,12 +5,13 @@ export interface ReportsDataParams {
   metrics: string[]           // UPPER_SNAKE ids from lib/organic-social/metrics.ts
   startDate: string           // ISO yyyy-mm-dd or TZ-aware (formatted by caller)
   endDate: string
-  reportType?: 'GRAPH' | 'TOTAL_METRIC' | 'TOTAL_GROUPED_METRIC'
+  reportType?: 'GRAPH' | 'TOTAL_METRIC' | 'TOTAL_GROUPED_METRIC' | 'CONTENT'
   timeScale?: 'DAILY' | 'MONTHLY'
   contextStartDate?: string   // TOTAL_METRIC delta window
   contextEndDate?: string
   aggregateBy?: string        // e.g. 'BRAND' for TOTAL_GROUPED_METRIC headlines
   requirePosts?: boolean      // append require_posts=true when set
+  limit?: number              // mandatory for CONTENT (omitted ⇒ 6 posts); harmless elsewhere
 }
 
 // /reports/data is keyed by channel name AND a brand-id entry (data_type:'BRAND')
@@ -44,3 +45,30 @@ export interface MediaV2Post {
   twitter?: Record<string, number | string | null> | null
 }
 export interface MediaV2Response { data: MediaV2Post[]; paging?: { count: number; next: string | null; previous: string | null } }
+
+// /reports/data?report_type=CONTENT returns a FLAT post array under data.content —
+// NOT the channel-keyed ReportsDataResponse shape. Only the active per-platform
+// sub-object is populated. Raw payload only; the normalized model is
+// TopContentPost in lib/organic-social/content-types.ts.
+export interface DashContentPost {
+  id: number
+  source: string             // 'INSTAGRAM' | 'INSTAGRAM_STORY' | 'FACEBOOK' | 'LINKEDIN' | 'TWITTER' | ...
+  type: string               // 'IMAGE' | 'VIDEO' | 'CAROUSEL' | ...
+  source_created_at?: string
+  media_group?: number | null
+  // Creative lives at the POST TOP LEVEL (not the channel sub-object), confirmed via live
+  // probe: image.sizes.{medium_square,original,...}.url and video.sizes.{original}.url (.mp4)
+  // + video.thumbnails.*, on cdn.dashsocial.com / images.dashsocial.com. A carousel carries
+  // its cover frame under `image`. Read defensively in resolveCreative.
+  image?: Record<string, unknown> | null
+  video?: Record<string, unknown> | null
+  variants?: unknown
+  instagram?: Record<string, unknown> | null
+  facebook?: Record<string, unknown> | null
+  linkedin?: Record<string, unknown> | null
+  twitter?: Record<string, unknown> | null
+}
+export interface ContentResponse {
+  data: { content: DashContentPost[] }
+  product_category?: unknown
+}
