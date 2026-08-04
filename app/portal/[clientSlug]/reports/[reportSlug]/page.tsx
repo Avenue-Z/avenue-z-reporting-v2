@@ -84,7 +84,9 @@ function getReportSection(
     case 'request-a-report':
       return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      // Deep-links (/reports/organic-social) are Overview only — platform subpages route via
+      // the SPA route's ?subsection= param (Spec 1 §5.2). channel={null} documents that.
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={null} />
     default:
       return null
   }

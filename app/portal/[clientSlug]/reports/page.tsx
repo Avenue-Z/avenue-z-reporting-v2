@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
-import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -41,6 +41,7 @@ import { DataChat } from '@/components/data-chat'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 import type { ReportSlug } from '@/lib/db/schema'
+import type { DashChannel } from '@/lib/organic-social/metrics'
 
 function SectionSkeleton() {
   return (
@@ -64,7 +65,7 @@ function SectionSkeleton() {
 // gap is exactly why AEO's date/model pickers were missing here until they were
 // hand-ported. TODO: extract a single shared report-render module that both the
 // dashboard and portal routes import, so they can't diverge again.
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null) {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -113,7 +114,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
     case 'ticket-sales':
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'request-a-report':
@@ -199,8 +200,16 @@ export default async function PortalReportPage({
       : defaultSection
   ) as ReportSlug
 
+  // Organic Social: resolve the platform subsection from the RAW param — the resolver does its own
+  // hidden/allowlist filtering and never returns null (unknown/hidden/unconfigured → Overview, §5.1).
+  const organicEntry = activeSection === 'organic-social'
+    ? resolveOrganicSubsection(client, subsectionParam)
+    : null
+
   const pageTitle =
-    (activeSection === 'ga4' && subsection && GA4_SUBSECTION_NAMES[subsection])
+    (activeSection === 'organic-social' && organicEntry)
+      ? (organicEntry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : organicEntry.label)
+    : (activeSection === 'ga4' && subsection && GA4_SUBSECTION_NAMES[subsection])
       ? GA4_SUBSECTION_NAMES[subsection]
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
       ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
@@ -246,8 +255,12 @@ export default async function PortalReportPage({
       <div className="h-8" />
 
       <ReportErrorBoundary sectionName={pageTitle}>
-        <Suspense key={`${activeSection}:${subsection ?? ''}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy)}
+        {/* Organic Social keys on the RESOLVED subsection (organicEntry.id), not the raw
+            param — a disallowed/bogus subsection degrades to Overview and must key
+            identically to a plain Overview visit, or it forces a needless remount
+            (PR #174 review). */}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy, organicEntry?.channel ?? null)}
         </Suspense>
       </ReportErrorBoundary>
 

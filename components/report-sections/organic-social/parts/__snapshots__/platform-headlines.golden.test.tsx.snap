@@ -1,0 +1,130 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
+<div
+  class="space-y-6"
+>
+  <section
+    class="space-y-3"
+  >
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+    />
+    <div
+      class="grid grid-cols-2 gap-3 md:grid-cols-5"
+    >
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+    </div>
+  </section>
+  <section
+    class="space-y-3"
+  >
+    <div
+      class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+    />
+    <div
+      class="grid grid-cols-2 gap-3 md:grid-cols-5"
+    >
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+      <div
+        class="rounded-lg border border-white/[0.06] bg-bg-surface p-4"
+      >
+        <div
+          class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+        />
+        <div
+          class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+        />
+      </div>
+    </div>
+  </section>
+</div>
+`;
