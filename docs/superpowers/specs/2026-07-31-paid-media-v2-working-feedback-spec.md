@@ -59,16 +59,14 @@ Time-critical items are marked. "Owner" is who must answer; it is a stakeholder 
 - **Flag:** taken literally this makes the blended total unavailable for any client not running all three channels. Confirm the intended trigger.
 - **Owner:** Dianna.
 
-### 🟡 VERIFY BEFORE SHIP 3 — Cost/LPV source basis (item 13 / Q&A Req 4)
+### ✅ VERIFIED 3 — Cost/LPV source basis matches (item 13 / Q&A Req 4)
 - **Doc:** Q&A Req 4, comment `[i]` (Greg): Cost/LPV = *Spend ÷ Landing Page Views.*
-- **Gap:** the KPI card and per-ad leaf rows read Supermetrics' native `cost_per_landing_page_view` field; only the aggregate rows literally divide `spend / lpv` (`lib/meta/kpis.ts:50-57`, `lib/meta/creative.ts:23,50`). #180 fixes the rounding but keeps the native-field basis on KPI/leaf. Whether the native field equals `spend ÷ lpv` was never verified (no Supermetrics key in this environment).
-- **Action:** verify against one live Supermetrics pull; if they differ, switch KPI/leaf to compute `spend ÷ lpv` to match Greg's formula.
-- **Owner:** engineering (Paul), needs a live call.
+- **Gap (was):** the KPI card and per-ad leaf rows read Supermetrics' native `cost_per_landing_page_view` field; only the aggregate rows literally divide `spend / lpv` (`lib/meta/kpis.ts:50-57`, `lib/meta/creative.ts:23,50`). #180 fixes the rounding but keeps the native-field basis on KPI/leaf. Whether the native field equals `spend ÷ lpv` was unverified.
+- **Verified (2026-08-04, live pull, Renaissance Meta `act_1480350426850960`, 2026-07 range).** The native `cost_per_landing_page_view` field equals `cost ÷ landing_page_views`. Aggregate: 3091.10 ÷ 4329 = 0.71404 vs native 0.714. Per-ad: across all 9 ads with LPV>0, the worst `|native − cost/lpv|` was **0.000049** (rounding only). **No change needed** — the native-field basis is correct; #180's rounding fix is sufficient.
 
-### 🟡 VERIFY BEFORE SHIP 4 — Region plain-sum double-count (item 9)
+### ✅ VERIFIED 4 — Region plain-sum does not double-count (item 9)
 - **Doc:** item 9 (line 209): *"we'd sum plainly and check it against live data before building"*; comment `[z]`; and Amir (line 237): *"if it is coming from Google Ads, it should only define one DMA per conversion."*
-- **Action:** spot-check live Google Ads data confirms one DMA per conversion before relying on the plain sum. Low risk (Amir confirmed), but the doc explicitly asks for the check.
-- **Owner:** engineering (Paul).
+- **Verified (2026-08-04, live pull, Renaissance Google Ads `4136001852`, 2026-07 range).** Conversions summed over the full Region/Metroarea breakdown = **25**, equal to the ungrouped total = **25**, and every one of the 9 `ConversionTypeName`s matches grouped-vs-ungrouped exactly. Each conversion maps to exactly one DMA (Amir confirmed). **The plain-sum region total is safe** (Task 4).
 
 ### ✅ RESOLVED 5 — #180's lib tests now run in CI
 - PR #180 had added `lib/meta/kpis.test.ts` and `lib/meta/creative.test.ts` as `node:assert` scripts that ran nowhere. **Fixed on this branch (`9ae73e9`):** both converted to vitest suites and added to the `vitest.config.ts` include, so #180's Cost/LPV fix is now fully gated (7 lib tests + the component test). The pre-existing `lib/meta/base.test.ts` / `geo.test.ts` node-assert files are left as-is (out of scope).
