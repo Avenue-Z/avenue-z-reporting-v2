@@ -12,7 +12,7 @@ import type { Mock } from 'vitest'
 const mock = getPaidMediaOverview as Mock
 
 describe('PaidMediaOverviewReport', () => {
-  test('missing channel blanks the blended totals; breakdown still shows present channels; Leads/CPL pending', async () => {
+  test('missing channel blanks the blended totals; breakdown still shows present channels; Leads/CPL tiles dropped', async () => {
     mock.mockResolvedValue({
       channels: [
         { key: 'paid-search', label: 'Paid Search', spend: 1000, clicks: 200, ok: true },
@@ -32,11 +32,16 @@ describe('PaidMediaOverviewReport', () => {
     expect(screen.getByText('$1,000.00')).toBeInTheDocument()
     expect(screen.getByText('$500.00')).toBeInTheDocument()
 
-    // Leads / Cost per lead carry a pending-HubSpot note (Blocker 1).
-    expect(screen.getByText(/pending .*hubspot lead attribution/i)).toBeInTheDocument()
+    // Leads / Cost per Lead tiles are dropped from the Overview (HubSpot lead
+    // path unavailable — Blocker 1 / Task 9 deferred), so their titles never render.
+    expect(screen.queryByText('Leads')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cost per Lead')).not.toBeInTheDocument()
 
-    // Blended Spend + Clicks are unavailable (missing channel), Leads + CPL null,
-    // and the LinkedIn breakdown row is blank → several '—' placeholders.
+    // The note now only explains the blended-availability rule (no HubSpot note).
+    expect(screen.getByText(/shown only when all three channels report/i)).toBeInTheDocument()
+
+    // Blended Spend + Clicks tiles are unavailable (missing channel) and the
+    // LinkedIn breakdown row is blank → 4 '—' placeholders (2 tiles + 2 cells).
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4)
   })
 })
