@@ -52,12 +52,12 @@ Time-critical items are marked. "Owner" is who must answer; it is a stakeholder 
   2. **Eventual answer (option 3).** Source blended Leads from **paid-conversion actions** (Google Ads / Meta / LinkedIn conversion actions — the same lead-action data that already powers Paid Search "Total Leads" / "Leads by Action" in `lib/paid-search/leads.ts`), with blended Cost-per-lead = blended Spend ÷ those leads. This is a *different definition* than "HubSpot leads attributed to AVZ" and needs Dianna's sign-off before build. The definition question is written up in `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`.
 - **Owner:** Dianna. Still gates the headline Leads/CPL metric, but no longer blocks the Overview from shipping (the tiles are simply absent until answered).
 
-### 🟠 NEEDS ANSWER 2 — what counts as a "missing channel" (item 4)
+### ✅ RESOLVED 2 — "missing channel" = any channel not reporting → blank the blended total (item 4)
 - **Doc:** item 4, comment `[r]` (Dianna): *"a missing channel should make the whole total unavailable."* The doc calls a missing channel *"the normal case, not an edge case"* (line 157).
-- **Gap:** "missing" is not defined as (a) a channel that errors/is disconnected vs (b) a channel the client simply does not run.
-- **Interim behavior (literal reading, implemented):** the blended Spend/Clicks total shows `—` unless **all three** channels (Paid Search, Meta, LinkedIn) report. The per-channel breakdown still shows what is present.
-- **Flag:** taken literally this makes the blended total unavailable for any client not running all three channels. Confirm the intended trigger.
-- **Owner:** Dianna.
+- **Decision (2026-08-04, Paul):** **all three channels must report** for a blended Spend/Clicks total to show. The explicit rationale: a blended number must never look *lower* because a connector failed to load or a channel is absent. If any of the three is not reporting, blank the total (`—`) rather than sum only the channels that loaded. This holds whether "missing" means the channel errored/disconnected or the client simply does not run it — both blank the total.
+- **Implemented (matches the decision, no change needed):** `allOk = channels.every(c => c.ok)` in `lib/paid-media/overview.ts`; `blendedSpend`/`blendedClicks` are `null` (→ `—`) unless all three report. A not-configured channel (no `metaConfig`/`linkedinConfig`/`paidSearchConfig` or no `smApiKeyEnvVar`) and a failed/timed-out query both **throw**, so `Promise.allSettled` marks that channel `ok:false` and the total blanks. The per-channel breakdown still lists every channel with its own value or `—`.
+- **Residual edge (low risk, not guarded):** a channel query that *succeeds but returns empty/zero rows* (rather than throwing) reads as `ok:true` with spend 0 and would contribute 0 to the blended total. This is indistinguishable from a channel that genuinely spent nothing in the window, so it is deliberately not treated as "missing." If this ever surfaces in practice, revisit; guarding it risks false-blanking a legitimately paused channel.
+- **Owner:** Dianna (decision relayed by Paul).
 
 ### ✅ VERIFIED 3 — Cost/LPV source basis matches (item 13 / Q&A Req 4)
 - **Doc:** Q&A Req 4, comment `[i]` (Greg): Cost/LPV = *Spend ÷ Landing Page Views.*

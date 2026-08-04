@@ -34,7 +34,7 @@
 **Now DONE (Paul's session, commits `c99df48`, `bf88db3`, `bb9bfd9`, `261e26f`; full suite green: 43 files / 334 tests, `check:rsc` + `tsc` clean):**
 - **✅ Task 2** — cents across ALL Paid Media money (KPI cards, geo cards + region table, campaign table, both creative tables). Approach B: money KPIs keep a NUMERIC value + `format:'money'` (so the Task 6 rollup reads exact spend); `KpiGrid` renders cents. Shared `usd()` untouched. Scope widened from the plan's bullet list to every money figure per spec §4.C + item 11d ("make them all with cents").
 - **✅ Task 5** — keyword data layer uncapped (`getKeywordRows` returned top 50); new `KeywordsTableClient` owns the ≥10-clicks default filter (clearable), totals the full filtered set (CTR/CPL recomputed from summed numerators/denominators), displays top 10, and messages when none reach 10 clicks. Formatters imported from the pure source so no `lib/db` enters the client bundle.
-- **✅ Task 6** — `lib/paid-media/overview.ts` rollup via `Promise.allSettled`; blended totals null unless all three channels report (item 4 literal reading — **NEEDS ANSWER 2 still open**, adjust `allOk` if Dianna redefines "missing"); Leads/CPL always null (Blocker 1).
+- **✅ Task 6** — `lib/paid-media/overview.ts` rollup via `Promise.allSettled`; blended totals null unless all three channels report (item 4 — **RESOLVED 2026-08-04: all three must report; a failed/absent connector blanks the total so the blend never looks lower.** `allOk` unchanged); Leads/CPL always null (Blocker 1).
 - **✅ Task 7** — Overview section filled: combined Spend/Clicks/Leads/CPL top line + per-channel breakdown; null→`—`; Meta link-clicks note; pending-HubSpot note on Leads/CPL; no `SharedPartsHeader`. Renders on dashboard + portal.
 - **⏸ Task 9** — DEFERRED. HubSpot lead path confirmed unavailable (2026-08-04); Leads/CPL tiles dropped from the Overview rather than shown blank. Eventual answer is option 3 (paid-conversion leads), pending Dianna's sign-off — see `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`.
 
@@ -167,7 +167,7 @@ Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change
 
 ## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule  ✅ DONE (`bb9bfd9`)
 
-Satisfies spec items **1, 2, 4, 11a**. `leads`/`costPerLead` stay `null` in the rollup (Task 9 deferred — HubSpot path unavailable; the Overview UI drops the tiles rather than showing them blank). **Confirm NEEDS ANSWER 2 (spec §2) before finalizing the missing-channel rule.**
+Satisfies spec items **1, 2, 4, 11a**. `leads`/`costPerLead` stay `null` in the rollup (Task 9 deferred — HubSpot path unavailable; the Overview UI drops the tiles rather than showing them blank). **Missing-channel rule RESOLVED (spec §2, 2026-08-04):** all three channels must report or the blended total blanks (`allOk = every(ok)`), so a failed/absent connector never makes the blend look lower. Current code already implements this — no change.
 
 **Files:**
 - Create: `lib/paid-media/overview.ts` + Test: `lib/paid-media/overview.test.ts`
@@ -201,7 +201,7 @@ Satisfies spec items **1, 2, 4, 11a**. `leads`/`costPerLead` stay `null` in the 
 - [ ] **Step 4: Run → PASS.**
 - [ ] **Step 5: Commit.** `git commit -m "feat(paid-media): overview rollup (blended spend/clicks, missing-channel rule)"`
 
-> **NEEDS ANSWER 2 (spec §2):** the "missing = all three required" rule is the literal reading of item 4. If Dianna clarifies "missing" means enabled-but-erroring, adjust `allOk` to consider only enabled channels. Do not change it on assumption.
+> **RESOLVED 2 (spec §2, 2026-08-04):** all three channels must report or the blended total blanks. Rationale: a blended number must never look lower because a connector failed to load or a channel is absent. `allOk = every(ok)` already implements this — keep as-is. (A not-configured channel and a failed query both throw → `ok:false` → blank.)
 
 ---
 
