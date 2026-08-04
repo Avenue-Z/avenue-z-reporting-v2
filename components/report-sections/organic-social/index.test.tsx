@@ -49,3 +49,30 @@ test('OrganicSocialBody: happy path resolves with no DB row (code-template fallb
   getClientBySlug.mockResolvedValue({ reportSectionConfig: {} })
   await expect(OrganicSocialBody({ ctx })).resolves.toBeTruthy()
 })
+
+/** Depth-first find of the first element whose component type has the given name. */
+function findByName(node: unknown, name: string): { props: Record<string, unknown> } | null {
+  if (!node || typeof node !== 'object') return null
+  const el = node as { type?: { name?: string }; props?: { children?: unknown } }
+  if (typeof el.type === 'function' && el.type.name === name) return el as never
+  const kids = el.props?.children
+  const arr = Array.isArray(kids) ? kids : kids != null ? [kids] : []
+  for (const k of arr) {
+    const found = findByName(k, name)
+    if (found) return found
+  }
+  return null
+}
+
+test('Overview commentary is keyed to the whole section', () => {
+  const el = OrganicSocialReport({ clientSlug: 'renaissance', channel: null })
+  const header = findByName(el, 'SharedPartsHeader')
+  expect(header?.props.viewKey).toBe('organic-social')
+})
+
+test('a platform subpage keys commentary per channel while opting in via the base config', () => {
+  const el = OrganicSocialReport({ clientSlug: 'renaissance', channel: 'INSTAGRAM' })
+  const header = findByName(el, 'SharedPartsHeader')
+  expect(header?.props.viewKey).toBe('organic-social:instagram')
+  expect(header?.props.configKey).toBe('organic-social')
+})
