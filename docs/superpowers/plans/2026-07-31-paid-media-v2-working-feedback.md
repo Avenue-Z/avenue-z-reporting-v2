@@ -36,7 +36,7 @@
 - **✅ Task 5** — keyword data layer uncapped (`getKeywordRows` returned top 50); new `KeywordsTableClient` owns the ≥10-clicks default filter (clearable), totals the full filtered set (CTR/CPL recomputed from summed numerators/denominators), displays top 10, and messages when none reach 10 clicks. Formatters imported from the pure source so no `lib/db` enters the client bundle.
 - **✅ Task 6** — `lib/paid-media/overview.ts` rollup via `Promise.allSettled`; blended totals null unless all three channels report (item 4 literal reading — **NEEDS ANSWER 2 still open**, adjust `allOk` if Dianna redefines "missing"); Leads/CPL always null (Blocker 1).
 - **✅ Task 7** — Overview section filled: combined Spend/Clicks/Leads/CPL top line + per-channel breakdown; null→`—`; Meta link-clicks note; pending-HubSpot note on Leads/CPL; no `SharedPartsHeader`. Renders on dashboard + portal.
-- **⛔ Task 9** — still BLOCKED (spec Blocker 1 — Dianna).
+- **⏸ Task 9** — DEFERRED. HubSpot lead path confirmed unavailable (2026-08-04); Leads/CPL tiles dropped from the Overview rather than shown blank. Eventual answer is option 3 (paid-conversion leads), pending Dianna's sign-off — see `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`.
 
 **Test-environment note (Task 5/6/7):** the whole `lib/paid-search` chain (and the per-channel KPI fetchers) import `lib/db` → next-auth, which jsdom/vitest cannot resolve. New tests therefore either test pure helpers (`summarizeKeywords`, `money`) or `vi.mock` the fetcher/rollup modules; `DataTable` is mocked where a render pulls in `editable-text` → a server action. `transformKeywords`' no-cap is asserted in the node:assert `lib/paid-search/keywords.test.ts` (the established paid-search convention — not in the vitest include).
 
@@ -167,7 +167,7 @@ Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change
 
 ## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule  ✅ DONE (`bb9bfd9`)
 
-Satisfies spec items **1, 2, 4, 11a**. Leads/CPL are `—` here (Blocker 1); Task 9 fills them once unblocked. **Confirm NEEDS ANSWER 2 (spec §2) before finalizing the missing-channel rule.**
+Satisfies spec items **1, 2, 4, 11a**. `leads`/`costPerLead` stay `null` in the rollup (Task 9 deferred — HubSpot path unavailable; the Overview UI drops the tiles rather than showing them blank). **Confirm NEEDS ANSWER 2 (spec §2) before finalizing the missing-channel rule.**
 
 **Files:**
 - Create: `lib/paid-media/overview.ts` + Test: `lib/paid-media/overview.test.ts`
@@ -240,9 +240,11 @@ Satisfies spec §2 housekeeping + NEEDS ATTENTION 5. #180's two `lib/meta` tests
 
 ---
 
-## Task 9: BLOCKED — blended Leads & Cost-per-lead from HubSpot
+## Task 9: DEFERRED — blended Leads & Cost-per-lead (HubSpot path unavailable; option 3 pending sign-off)
 
-**DO NOT START until Blocker 1 (spec §2) is answered by Dianna.** The doc requires blended CPL = total spend ÷ HubSpot leads attributed to AVZ (item 3, comment `[p]`), but the doc does not define "a HubSpot lead attributed to AVZ," no Paid Media client has HubSpot connected (`scripts/seed.ts:78`), and the HubSpot integration is Avenue-Z-hardwired. When the definition and a data path are provided, this task adds the HubSpot leads fetch to `lib/paid-media/overview.ts`, sets `leads`/`costPerLead` (spend ÷ leads), and updates Task 7's tiles. Requires its own sub-spec.
+**Status (2026-08-04, Paul):** the HubSpot path is confirmed **not obtainable right now** — no Paid Media client has HubSpot connected (`scripts/seed.ts:78`) and the HubSpot integration is Avenue-Z-hardwired, so there is no per-client "leads attributed to AVZ" figure to divide by. Rather than leave two blank headline tiles, the **Leads and Cost-per-lead tiles were dropped from the Overview UI** (Task 7); `getPaidMediaOverview` still returns `leads: null` / `costPerLead: null` so the contract and tests are unchanged and re-adding is UI-only.
+
+**Eventual answer (option 3), pending Dianna's sign-off.** Instead of HubSpot, source blended Leads from **paid-conversion actions** (Google Ads / Meta / LinkedIn conversion actions — the same lead-action data already powering Paid Search "Total Leads" in `lib/paid-search/leads.ts`), with blended Cost-per-lead = blended Spend ÷ those leads. This is a **different definition** than "HubSpot leads attributed to AVZ," so it must be signed off and labeled accordingly before build. The definition question for Dianna is written up in `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`. When answered yes, this task wires the paid-conversion leads into `lib/paid-media/overview.ts`, sets `leads`/`costPerLead`, and re-adds the two tiles to Task 7. Requires its own sub-spec.
 
 ---
 

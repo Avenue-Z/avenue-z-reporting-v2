@@ -25,21 +25,26 @@ export async function PaidMediaOverviewReport({
 
   return (
     <div className="space-y-8">
-      {/* Combined top line — Spend, Clicks, Leads, Cost per Lead in that exact
-          order (item 11a; CTR + Conversions excluded). */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* Combined top line — Spend then Clicks (item 11a; CTR + Conversions
+          excluded). Leads and Cost per Lead are intentionally omitted: they
+          require a HubSpot "lead attributed to AVZ" figure that is both
+          undefined and currently unobtainable (no Paid Media client has HubSpot
+          connected). Rather than ship two permanently blank headline tiles, the
+          Overview shows only the metrics it can source today. The eventual path
+          (source blended Leads from paid-conversion actions) is captured in
+          docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md;
+          getPaidMediaOverview still exposes leads/costPerLead (null) so that
+          answer can populate them without a structural change. */}
+      <div className="grid grid-cols-2 gap-3">
         <KpiCard title="Spend" value={asMoney(o.blendedSpend)} />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
           tooltip="Blended across all three channels. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
         />
-        <KpiCard title="Leads" value={o.leads == null ? dash : num(o.leads)} />
-        <KpiCard title="Cost per Lead" value={o.costPerLead == null ? dash : money(o.costPerLead)} />
       </div>
 
       <p className="text-xs text-text-muted">
-        Leads and Cost per lead are pending a HubSpot lead attribution definition.
         Blended Spend and Clicks are shown only when all three channels report.
       </p>
 
