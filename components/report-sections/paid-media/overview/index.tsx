@@ -25,27 +25,23 @@ export async function PaidMediaOverviewReport({
 
   return (
     <div className="space-y-8">
-      {/* Combined top line — Spend then Clicks (item 11a; CTR + Conversions
-          excluded). Leads and Cost per Lead are intentionally omitted: they
-          require a HubSpot "lead attributed to AVZ" figure that is both
-          undefined and currently unobtainable (no Paid Media client has HubSpot
-          connected). Rather than ship two permanently blank headline tiles, the
-          Overview shows only the metrics it can source today. The eventual path
-          (source blended Leads from paid-conversion actions) is captured in
-          docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md;
-          getPaidMediaOverview still exposes leads/costPerLead (null) so that
-          answer can populate them without a structural change. */}
+      {/* Combined top line — Spend then Clicks only (item 11a; CTR + Conversions
+          excluded). Leads and Cost per Lead are deliberately NOT on the top line:
+          a blended figure would need every channel's leads, but Meta lead
+          conversions are unavailable to us, and the team has dropped anything
+          relating to or influenced by Meta leads. Per-channel Leads (Paid Search
+          + LinkedIn) still show in the By-Channel breakdown below. */}
       <div className="grid grid-cols-2 gap-3">
         <KpiCard title="Spend" value={asMoney(o.blendedSpend)} />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
-          tooltip="Blended across all three channels. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
+          tooltip="Blended across the channels this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
         />
       </div>
 
       <p className="text-xs text-text-muted">
-        Blended Spend and Clicks are shown only when all three channels report.
+        Blended Spend and Clicks are shown only when every channel this client runs reports.
       </p>
 
       {/* Per-channel breakdown (item 11b). */}
@@ -76,9 +72,10 @@ export async function PaidMediaOverviewReport({
           </table>
         </div>
         <p className="mt-2 text-xs text-text-muted">
-          Leads are shown per channel where available. Meta lead conversions are
-          not currently available, so Meta shows &lsquo;—&rsquo;. There is no
-          blended Leads total until leads can be sourced for all channels.
+          Clicks are link clicks for Meta and all clicks for Paid Search and
+          LinkedIn (item 12). Leads are shown per channel where available. Meta
+          lead conversions are not available, so Meta shows &lsquo;—&rsquo;, and
+          there is no blended Leads total.
         </p>
       </div>
     </div>

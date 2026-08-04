@@ -15,14 +15,12 @@ describe('PaidMediaOverviewReport', () => {
   test('missing channel blanks the blended totals; per-channel Leads shown where available (Meta blank)', async () => {
     mock.mockResolvedValue({
       channels: [
-        { key: 'paid-search', label: 'Paid Search', spend: 1000, clicks: 200, leads: 12, ok: true },
-        { key: 'meta', label: 'Meta Advertising', spend: 500, clicks: 80, leads: null, ok: true },
-        { key: 'linkedin', label: 'LinkedIn Advertising', spend: null, clicks: null, leads: null, ok: false },
+        { key: 'paid-search', label: 'Paid Search', configured: true, spend: 1000, clicks: 200, leads: 12, ok: true },
+        { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true },
+        { key: 'linkedin', label: 'LinkedIn Advertising', configured: true, spend: null, clicks: null, leads: null, ok: false },
       ],
       blendedSpend: null,
       blendedClicks: null,
-      leads: null,
-      costPerLead: null,
     })
 
     const ui = await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' })
@@ -39,8 +37,9 @@ describe('PaidMediaOverviewReport', () => {
     // No blended Cost per Lead tile on the top line (no all-channel lead source).
     expect(screen.queryByText('Cost per Lead')).not.toBeInTheDocument()
 
-    // Both captions render: the blended-availability rule and the no-blended-leads note.
-    expect(screen.getByText(/shown only when all three channels report/i)).toBeInTheDocument()
+    // Both captions render: the blended-availability rule (scoped to the channels
+    // the client runs) and the no-blended-leads note.
+    expect(screen.getByText(/shown only when every channel this client runs reports/i)).toBeInTheDocument()
     expect(screen.getByText(/no blended leads total/i)).toBeInTheDocument()
 
     // Blended Spend + Clicks tiles blank (missing channel), Meta's leads cell blank,
