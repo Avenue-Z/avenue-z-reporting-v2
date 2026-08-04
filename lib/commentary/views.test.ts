@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { resolveCommentaryView, COMMENTARY_VIEWS, isCommentaryViewKey } from './views'
+import { resolveCommentaryView, COMMENTARY_VIEWS, isCommentaryViewKey, orgSocialChannelViewKey } from './views'
+import { CHANNELS } from '@/lib/organic-social/metrics'
 
 describe('isCommentaryViewKey', () => {
   test('accepts the 7 canonical keys', () => {
@@ -42,5 +43,25 @@ describe('resolveCommentaryView', () => {
   test('every canonical key has a registry entry', () => {
     const keys = ['peec-ai','peec-ai:pr-influence','peec-ai:content-impact','paid-search','meta-ads','linkedin-ads','organic-social'] as const
     for (const k of keys) expect(COMMENTARY_VIEWS[k]).toBeDefined()
+  })
+})
+
+describe('organic social per-channel commentary keys', () => {
+  test('orgSocialChannelViewKey lowercases the Dash channel', () => {
+    expect(orgSocialChannelViewKey('INSTAGRAM')).toBe('organic-social:instagram')
+    expect(orgSocialChannelViewKey('FACEBOOK')).toBe('organic-social:facebook')
+    expect(orgSocialChannelViewKey('TWITTER')).toBe('organic-social:twitter')
+    expect(orgSocialChannelViewKey('LINKEDIN')).toBe('organic-social:linkedin')
+  })
+  test('every channel has a registry entry the guard accepts', () => {
+    for (const c of CHANNELS) {
+      const k = orgSocialChannelViewKey(c)
+      expect(COMMENTARY_VIEWS[k]).toBeDefined()
+      expect(isCommentaryViewKey(k)).toBe(true)
+    }
+  })
+  test('channel labels use the Dash display name (X for Twitter)', () => {
+    expect(COMMENTARY_VIEWS[orgSocialChannelViewKey('INSTAGRAM')].label).toBe('Organic Social — Instagram')
+    expect(COMMENTARY_VIEWS[orgSocialChannelViewKey('TWITTER')].label).toBe('Organic Social — X')
   })
 })

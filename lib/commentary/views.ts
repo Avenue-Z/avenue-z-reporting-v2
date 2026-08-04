@@ -1,3 +1,9 @@
+import { CHANNELS, CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/metrics'
+
+/** Per-channel Organic Social commentary key, e.g. 'organic-social:instagram'. The Overview
+ *  (all channels) keeps the bare 'organic-social' key; each platform subpage gets its own. */
+export type OrgSocialChannelViewKey = `organic-social:${Lowercase<DashChannel>}`
+
 /** Canonical identity for an in-scope commentary view. Stable across the four
  *  report route files, which address the same report under inconsistent
  *  (slug, subsection) coordinates. */
@@ -9,6 +15,12 @@ export type CommentaryViewKey =
   | 'meta-ads'
   | 'linkedin-ads'
   | 'organic-social'
+  | OrgSocialChannelViewKey
+
+/** The commentary key for a single Organic Social platform subpage. */
+export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelViewKey {
+  return `organic-social:${channel.toLowerCase() as Lowercase<DashChannel>}`
+}
 
 /**
  * Map a route's (slug, subsection) to the canonical commentary view key, or null
@@ -44,6 +56,15 @@ export function resolveCommentaryView(slug: string, subsection?: string | null):
   }
 }
 
+/** Per-channel Organic Social entries, derived from the canonical channel list so a new
+ *  Dash channel gets its commentary view for free. Same owner as the Overview. */
+const ORG_SOCIAL_CHANNEL_VIEWS = Object.fromEntries(
+  CHANNELS.map((c) => [
+    orgSocialChannelViewKey(c),
+    { label: `Organic Social — ${CHANNEL_LABEL[c]}`, owner: 'Jasmine / Kyleah' },
+  ]),
+) as Record<OrgSocialChannelViewKey, { label: string; owner: string }>
+
 /** Display label + service owner per view (owners per the PRD). */
 export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner: string }> = {
   'peec-ai': { label: 'AEO Overview', owner: 'Melena' },
@@ -53,9 +74,10 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'meta-ads': { label: 'Meta Advertising', owner: 'Greg' },
   'linkedin-ads': { label: 'LinkedIn Advertising', owner: 'Greg' },
   'organic-social': { label: 'Organic Social', owner: 'Jasmine / Kyleah' },
+  ...ORG_SOCIAL_CHANNEL_VIEWS,
 }
 
-/** Runtime guard: is this string one of the 7 canonical view keys? Used to reject
+/** Runtime guard: is this string one of the canonical view keys? Used to reject
  *  an unvalidated viewKey on the commentary write path (types are erased at runtime). */
 export function isCommentaryViewKey(v: string): v is CommentaryViewKey {
   return Object.prototype.hasOwnProperty.call(COMMENTARY_VIEWS, v)
