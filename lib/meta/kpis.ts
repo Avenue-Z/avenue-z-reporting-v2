@@ -50,7 +50,9 @@ export function transformMetaKpis(
     {
       key: 'costPerLpv',
       label: 'Cost / LPV',
-      value: Math.round(n(totals, 'cost_per_landing_page_view')),
+      // 2dp like CPM and CPC. Math.round() here collapsed real sub-dollar costs
+      // to $0 (a 42-cent Cost / LPV rendered as $0).
+      value: +n(totals, 'cost_per_landing_page_view').toFixed(2),
       prefix: '$',
       delta: d('cost_per_landing_page_view'),
       invertDelta: true,
