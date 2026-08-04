@@ -108,7 +108,9 @@ export function KeywordsTableClient({ rows }: { rows: KeywordRow[] }) {
 
       {filteredCount === 0 ? (
         <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-center text-sm text-text-muted">
-          No keywords reached 10 clicks in this period.
+          {filterOn
+            ? 'No keywords reached 10 clicks in this period.'
+            : 'No keyword data available for this period.'}
         </div>
       ) : (
         <DataTable columns={COLUMNS} rows={display.map(toTableRow)} defaultSort={{ key: 'leads', dir: 'desc' }} totalsRow={totalsRow} />

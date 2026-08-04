@@ -1,4 +1,4 @@
-import { strict as assert } from 'node:assert'
+import { describe, expect, test } from 'vitest'
 import { transformKeywords } from './keywords'
 
 const cfg = { googleAdsAccountId: '1', leadActions: [{ name: 'broker_group_lead', category: 'broker' as const }] }
@@ -12,21 +12,24 @@ const leads = [
   { Keyword: 'broker benefits',  Matchtype: 'Phrase', ConversionTypeName: 'broker_group_lead', Conversions: '3' },
   { Keyword: 'broker benefits',  Matchtype: 'Phrase', ConversionTypeName: 'ignored_action',    Conversions: '9' },
 ]
-const rows = transformKeywords(metrics, leads, cfg)
 
-assert.equal(rows[0].keyword, 'broker benefits') // 3 leads ranks first
-assert.equal(rows[0].matchType, 'Phrase')
-assert.equal(rows[0].leads, 3)                    // 'ignored_action' excluded
-assert.equal(rows[1].keyword, 'dental insurance') // 2 leads
-assert.equal(rows[1].ctr, 8)                       // 80/1000 = 8%
-assert.equal(rows[2].leads, 0)                     // no qualified leads
+describe('transformKeywords', () => {
+  test('ranks by scoped leads and excludes non-lead actions', () => {
+    const rows = transformKeywords(metrics, leads, cfg)
+    expect(rows[0].keyword).toBe('broker benefits') // 3 leads ranks first
+    expect(rows[0].matchType).toBe('Phrase')
+    expect(rows[0].leads).toBe(3)                    // 'ignored_action' excluded
+    expect(rows[1].keyword).toBe('dental insurance') // 2 leads
+    expect(rows[1].ctr).toBe(8)                      // 80/1000 = 8%
+    expect(rows[2].leads).toBe(0)                    // no qualified leads
+  })
 
-// transformKeywords returns the FULL set — no top-50 cap (item 10). The cap
-// removal lives in getKeywordRows; the transform itself must never truncate.
-const many = Array.from({ length: 60 }, (_, i) => ({
-  Keyword: `kw${i}`, Matchtype: 'Exact', Clicks: '20', Impressions: '1000', Cost: '100',
-}))
-assert.equal(transformKeywords(many, [], cfg).length, 60)
-
-console.log('ok')
-
+  test('returns the FULL keyword set — no top-50 cap (item 10)', () => {
+    // The cap removal lives in getKeywordRows; the transform itself must never
+    // truncate, so the client can total all keywords behind the ≥10-clicks filter.
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      Keyword: `kw${i}`, Matchtype: 'Exact', Clicks: '20', Impressions: '1000', Cost: '100',
+    }))
+    expect(transformKeywords(many, [], cfg).length).toBe(60)
+  })
+})

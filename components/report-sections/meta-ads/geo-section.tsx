@@ -54,6 +54,7 @@ export function MetaGeoSection({ data }: { data: MetaGeoData }) {
             xKey="region"
             yKeys={yKeys}
             height={320}
+            valueFormat="currency-cents"
           />
         ) : (
           <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-center text-sm text-text-muted">

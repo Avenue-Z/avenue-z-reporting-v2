@@ -28,8 +28,10 @@ function campaign(costPerLpv: number): CampaignNode[] {
 test('Cost / LPV renders with cents, not rounded to whole dollars', () => {
   const { container } = render(<CreativeTable campaigns={campaign(0.3)} />)
   const text = container.textContent ?? ''
+  // Concrete cents string. A whole-dollar regression would render 0.30 as "$0"
+  // (no ".30"), so this assertion fails on regression. (The prior
+  // `not.toContain('$0<')` was tautological — textContent has no tags.)
   expect(text).toContain('$0.30')
-  expect(text).not.toContain('$0<')
 })
 
 test('a sub-dollar Cost / LPV never collapses to $0', () => {

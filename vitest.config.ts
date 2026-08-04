@@ -23,6 +23,13 @@ export default defineConfig({
       'lib/ga4/format-speed.test.ts',
       'lib/meta/kpis.test.ts',
       'lib/meta/creative.test.ts',
+      // Paid Search regression guards (converted from node:assert scripts): the
+      // item-10 no-cap keyword guard + the exact-cents CPL (items 11c/11d). The
+      // other lib/paid-search/*.test.ts files are still node-assert tsx scripts,
+      // pinned individually here rather than via a glob so those aren't swept in.
+      'lib/paid-search/kpis.test.ts',
+      'lib/paid-search/keywords.test.ts',
+      'lib/paid-search/campaigns.test.ts',
       'lib/organic-social/**/*.test.{ts,tsx}',
       'lib/dash-social/content.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
