@@ -23,9 +23,11 @@ picker — commentary about June stays about June when someone changes the picke
 Body text is authored in Tiptap, stored as **sanitized HTML** (`sanitize.ts` — the
 XSS boundary), and passes through a `draft → approved` flow before a client can see it.
 
-Seven views are in scope. Labels and service owners live in `COMMENTARY_VIEWS`
+Eleven views are in scope. Labels and service owners live in `COMMENTARY_VIEWS`
 ([views.ts](./views.ts)): AEO Overview, AEO PR Influence, AEO Content Impact, Paid
-Search, Meta, LinkedIn, Organic Social.
+Search, Meta, LinkedIn, Organic Social, and one per Organic Social platform subpage
+(Instagram / Facebook / X / LinkedIn), generated from the canonical `CHANNELS` list so a
+new Dash channel gets its view for free.
 
 ---
 
@@ -63,11 +65,28 @@ pin is how you enable it for anyone else.
 To enable commentary for a client, add the pin to each view's entry in that client's
 `report_section_config`. Use the rollout script as the reference for the shape.
 
-All seven views call `SharedPartsHeader` as the first child of their returned JSX
+**Organic Social is the one exception to per-view opt-in.** Its five views (Overview +
+four platform subpages) opt in *once* under the base `organic-social` config key; the
+per-channel keys (`organic-social:instagram`, …) carry commentary content but are **not**
+read for opt-in. This differs from PEEC AI, where each subsection (`peec-ai`,
+`peec-ai:pr-influence`, `peec-ai:content-impact`) has its own opt-in entry. Consequence:
+adding an `organic-social:instagram` pin to a client's `reportSectionConfig` is a silent
+no-op — the subpage still gates on `configKey="organic-social"` (see the header contract
+just below). The upside is no per-client re-seeding when a channel is added.
+
+Every section calls `SharedPartsHeader` as the first child of its returned JSX
 (`meta-ads/index.tsx:46`, `linkedin-ads/index.tsx:46`, `paid-search/index.tsx:58`,
-`organic-social/index.tsx:48`, `peec-ai/index.tsx:138`, `peec-ai/pr-influence.tsx:447`,
+`organic-social/index.tsx:35`, `peec-ai/index.tsx:138`, `peec-ai/pr-influence.tsx:447`,
 `peec-ai/content-impact.tsx:1020`). The peec-ai Overview call is guarded on
 `{clientSlug && …}` because that component's `clientSlug` prop is optional.
+
+`SharedPartsHeader` separates two identities: `viewKey` is the content identity the
+commentary is keyed by, and `configKey` (defaults to `viewKey`) is where the per-client
+opt-in pin is read from — `reportSectionConfig[configKey].sharedParts`. They match for
+every section except Organic Social, whose one call site computes a per-channel `viewKey`
+for the platform subpages while pinning `configKey="organic-social"`. That is why 7 call
+sites cover 11 views: the five Organic Social views share one opt-in but keep separate
+commentary streams.
 
 > **Orphaned code:** `resolveCommentaryView(slug, subsection)` in [views.ts](./views.ts)
 > is left over from the original page-level design, where the four route files mapped a

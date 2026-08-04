@@ -4,6 +4,7 @@ import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { resolveSection } from '@/lib/report-sections/resolve'
 import { lookup } from '@/lib/report-sections/registry'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
+import { orgSocialChannelViewKey } from '@/lib/commentary/views'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 import type { SectionOverride } from '@/lib/report-sections/types'
 import { ORGANIC_SOCIAL_PARTS } from './parts/registry'
@@ -20,6 +21,10 @@ export function OrganicSocialReport({
   channel?: DashChannel | null
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel })
+  // Commentary is per platform subpage: each channel carries its own content key, while opt-in
+  // stays gated on the base 'organic-social' config (configKey) so a per-channel key never needs
+  // its own opt-in entry. Overview (channel === null) keeps the bare 'organic-social' key.
+  const commentaryViewKey = channel ? orgSocialChannelViewKey(channel) : 'organic-social'
   // The outer component is SYNCHRONOUS so the section's own skeletons paint on first render.
   // Both async dependencies — the viewer-role read (`await auth()`) and the template/config lookup
   // (`getSectionTemplate` is a new critical-path dependency the data sections don't otherwise need)
@@ -27,7 +32,7 @@ export function OrganicSocialReport({
   // first paint no longer waits on either (PR #168 review R1 #6). `getClientBySlug` is React.cache-deduped.
   return (
     <div className="space-y-8">
-      <SharedPartsHeader viewKey="organic-social" clientSlug={clientSlug} />
+      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} />
       <Suspense fallback={<OverviewSkeleton />}>
         <OrganicSocialBody ctx={ctx} />
       </Suspense>
