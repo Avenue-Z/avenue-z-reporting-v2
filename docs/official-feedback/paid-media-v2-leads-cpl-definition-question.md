@@ -1,9 +1,9 @@
 # For Dianna: blended Leads and Cost per Lead on the Paid Media Overview
 
-**Status:** decision made on how to display leads now; one confirmation requested from Dianna.
-**Owner of the confirmation:** Dianna Gatto.
+**Status:** ✅ RESOLVED (2026-08-04, team). Blended Leads / Cost per Lead are **dropped** — we don't have access to Meta lead data, so anything relating to or influenced by Meta leads is dropped. Per-channel Leads (Paid Search + LinkedIn) remain; Meta shows `—`.
+**Decided by:** Dianna Gatto / team.
 **Raised by:** Paul, 2026-08-04.
-**Traces to:** "Decisions for Approval, Paid Media" tab, item 3, comment `[p]`; working-feedback spec, Blocker 1 (`docs/superpowers/specs/2026-07-31-paid-media-v2-working-feedback-spec.md`).
+**Traces to:** "Decisions for Approval, Paid Media" tab, item 3, comment `[p]`; working-feedback spec, RESOLVED 1 (`docs/superpowers/specs/2026-07-31-paid-media-v2-working-feedback-spec.md`).
 
 ## The short version
 
@@ -30,11 +30,11 @@ stands today:
   on the Meta side, not something we can fix in code.
 
 Because every Paid Media client runs Meta, a blended Leads number would always
-be missing Meta's contribution. Under the rule we agreed for the blended totals
-(all channels must report, or the number is not shown, so a gap never makes it
-look off), that means a blended Leads number stays unavailable until Meta lead
-tracking exists. This is true regardless of how "a lead" is defined (whether
-from the ad platforms or from HubSpot); the blocker is the missing Meta data.
+be missing Meta's contribution, so a blended number built from partial channels
+would understate leads and overstate Cost per Lead. That is why blended Leads /
+Cost per Lead are dropped rather than shown. This is true regardless of how "a
+lead" is defined (whether from the ad platforms or from HubSpot); the blocker is
+the missing Meta data.
 
 Note this is separate from the HubSpot question in comment `[p]`. Even the
 HubSpot path is not available (no Paid Media client has HubSpot connected, and
@@ -52,17 +52,20 @@ route can produce a blended number today.
 This gives real lead visibility for the channels that have it, with no blended
 number built from partial data and nothing that reads as a Meta zero.
 
-## What we need from Dianna
+## Decision (2026-08-04, team)
 
-1. **Confirm the display:** per-channel Leads in the breakdown now (Paid Search
-   and LinkedIn), no blended Leads or Cost per Lead until Meta lead data exists.
-   Is that acceptable for the client-facing report?
+The team decided to **drop anything relating to or influenced by Meta leads**,
+because we do not have access to Meta lead conversions. Concretely:
 
-2. **Decide on Meta lead tracking:** a blended Leads number, and Meta's own lead
-   count, only become possible if Meta is set up to track lead conversions. Is
-   that something the account team wants to pursue with the client? If yes, it
-   becomes a separate work item; if no, blended Leads stays off indefinitely and
-   per-channel Leads is the final state.
+1. **Display confirmed:** per-channel Leads in the By-Channel breakdown for Paid
+   Search and LinkedIn; Meta shows `—`. No blended Leads or Cost per Lead on the
+   Overview top line. This is the final state, not an interim one.
 
-3. **Cost per Lead:** it stays off the Overview for the same reason (no complete
-   lead base to divide spend by). Confirm that is fine for now.
+2. **Blended Leads / Cost per Lead: dropped, not parked.** The `leads`/
+   `costPerLead` fields were removed from `PaidMediaOverview`. A blended number
+   would require Meta lead data under either definition (ad-platform conversions
+   or HubSpot), and we don't have it — so it is not shown.
+
+3. **Meta lead tracking** is an account-team question outside this work. If Meta
+   is ever set up to track lead conversions, revisit as a fresh sub-spec; until
+   then per-channel Leads (excluding Meta) is the final state.

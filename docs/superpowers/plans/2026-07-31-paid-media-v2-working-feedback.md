@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the buildable Paid Media v2 stakeholder feedback (new Overview subpage, Paid Search table totals + keyword filter, cents precision, Meta labeling, Cost/LPV fix) with blended Leads/CPL fenced off pending a stakeholder answer.
+**Goal:** Ship the buildable Paid Media v2 stakeholder feedback (new Overview subpage, Paid Search table totals + keyword filter, cents precision, Meta labeling, Cost/LPV fix). Blended Leads/CPL are **dropped** (2026-08-04 team decision — Meta lead data unavailable, so anything relating to or influenced by Meta leads is dropped).
 
 **Architecture:** The Paid Media tab is a `?section=paid-media&subsection=…` surface. We add an Overview subsection (`id:null`) that rolls up the three existing per-channel report-sections, mirroring the AEO/GA4 overview pattern and the `demand-overview` rollup. Paid Search table changes are local edits to existing components plus one data-layer change (uncap the keyword query). Cents is a Paid-Media-scoped formatter, not a change to the shared `usd()`.
 
@@ -34,9 +34,9 @@
 **Now DONE (Paul's session, commits `c99df48`, `bf88db3`, `bb9bfd9`, `261e26f`; full suite green: 43 files / 334 tests, `check:rsc` + `tsc` clean):**
 - **✅ Task 2** — cents across ALL Paid Media money (KPI cards, geo cards + region table, campaign table, both creative tables). Approach B: money KPIs keep a NUMERIC value + `format:'money'` (so the Task 6 rollup reads exact spend); `KpiGrid` renders cents. Shared `usd()` untouched. Scope widened from the plan's bullet list to every money figure per spec §4.C + item 11d ("make them all with cents").
 - **✅ Task 5** — keyword data layer uncapped (`getKeywordRows` returned top 50); new `KeywordsTableClient` owns the ≥10-clicks default filter (clearable), totals the full filtered set (CTR/CPL recomputed from summed numerators/denominators), displays top 10, and messages when none reach 10 clicks. Formatters imported from the pure source so no `lib/db` enters the client bundle.
-- **✅ Task 6** — `lib/paid-media/overview.ts` rollup via `Promise.allSettled`; blended totals null unless all three channels report (item 4 — **RESOLVED 2026-08-04: all three must report; a failed/absent connector blanks the total so the blend never looks lower.** `allOk` unchanged); Leads/CPL always null (Blocker 1).
-- **✅ Task 7** — Overview section filled: combined Spend/Clicks/Leads/CPL top line + per-channel breakdown; null→`—`; Meta link-clicks note; pending-HubSpot note on Leads/CPL; no `SharedPartsHeader`. Renders on dashboard + portal.
-- **⏸ Task 9** — DEFERRED. HubSpot lead path confirmed unavailable (2026-08-04); Leads/CPL tiles dropped from the Overview rather than shown blank. Eventual answer is option 3 (paid-conversion leads), pending Dianna's sign-off — see `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`.
+- **✅ Task 6** — `lib/paid-media/overview.ts` rollup via `Promise.allSettled`; blended totals null unless every *configured* channel reports (item 4 — **RESOLVED 2, scoped reading (Dianna 2026-08-04): only a channel the client runs that fails blanks the total; a channel it doesn't run is excluded.** Reads client config to scope the gate); no blended Leads/CPL (RESOLVED 1 — dropped).
+- **✅ Task 7** — Overview section filled: combined **Spend/Clicks** top line (Leads/CPL are **dropped**, not shown as blank tiles — see Task 9) + per-channel breakdown incl. per-channel Leads; null→`—`; Meta link-clicks note on both the blended Clicks card and the per-channel Clicks column; no `SharedPartsHeader`. Renders on dashboard + portal.
+- **✖ Task 9** — DROPPED (2026-08-04 team decision). Blended Leads/CPL removed entirely: HubSpot lead path is unavailable, and the option-3 fallback (paid-conversion leads) would still need Meta lead data, which we don't have — so the team dropped anything relating to or influenced by Meta leads. The `leads`/`costPerLead` fields were removed from `PaidMediaOverview`. Per-channel Leads (Paid Search + LinkedIn) remain in the breakdown.
 
 **Test-environment note (Task 5/6/7):** the whole `lib/paid-search` chain (and the per-channel KPI fetchers) import `lib/db` → next-auth, which jsdom/vitest cannot resolve. New tests therefore either test pure helpers (`summarizeKeywords`, `money`) or `vi.mock` the fetcher/rollup modules; `DataTable` is mocked where a render pulls in `editable-text` → a server action. `transformKeywords`' no-cap is asserted in the node:assert `lib/paid-search/keywords.test.ts` (the established paid-search convention — not in the vitest include).
 
@@ -167,7 +167,7 @@ Satisfies spec items **10, 11c, 7**. The one task that needs a data-layer change
 
 ## Task 6: Overview rollup lib — blended Spend/Clicks + missing-channel rule  ✅ DONE (`bb9bfd9`)
 
-Satisfies spec items **1, 2, 4, 11a**. `leads`/`costPerLead` stay `null` in the rollup (Task 9 deferred — HubSpot path unavailable; the Overview UI drops the tiles rather than showing them blank). **Missing-channel rule RESOLVED (spec §2, 2026-08-04):** all three channels must report or the blended total blanks (`allOk = every(ok)`), so a failed/absent connector never makes the blend look lower. Current code already implements this — no change.
+Satisfies spec items **1, 2, 4, 11a**. No blended `leads`/`costPerLead` (Task 9 dropped — Meta lead data unavailable; the fields were removed from `PaidMediaOverview`). **Missing-channel rule — RESOLVED 2, scoped reading (Dianna 2026-08-04):** the rollup reads the client's per-channel config, fetches only the channels the client runs, and blanks the blended total only if one of *those* fails; a channel the client doesn't run is excluded (`allOk = runs.every(c => c.ok)` where `runs` = the configured set). For Renaissance (no LinkedIn config) the blend sums Paid Search + Meta instead of forcing `—`.
 
 **Files:**
 - Create: `lib/paid-media/overview.ts` + Test: `lib/paid-media/overview.test.ts`
@@ -181,23 +181,22 @@ Satisfies spec items **1, 2, 4, 11a**. `leads`/`costPerLead` stay `null` in the 
 - Produces:
   ```ts
   type ChannelKey = 'paid-search' | 'meta' | 'linkedin'
-  interface ChannelMetrics { key: ChannelKey; spend: number | null; clicks: number | null; ok: boolean }
+  interface ChannelMetrics { key: ChannelKey; label: string; configured: boolean; spend: number | null; clicks: number | null; leads: number | null; ok: boolean }
   interface PaidMediaOverview {
-    channels: ChannelMetrics[]              // per-channel breakdown (item 11b)
-    blendedSpend: number | null             // null => render '—' (item 4)
+    channels: ChannelMetrics[]              // per-channel breakdown (item 11b) — always all three
+    blendedSpend: number | null             // null => render '—'; blank unless every configured channel reports (RESOLVED 2)
     blendedClicks: number | null            // null => render '—'; Meta contributes link clicks (item 2)
-    leads: null                             // Blocker 1 — always null until Task 9
-    costPerLead: null                       // Blocker 1
+    // No blended leads/costPerLead — dropped (RESOLVED 1, Meta lead data unavailable).
   }
   export async function getPaidMediaOverview(clientSlug: string, dateRange: string): Promise<PaidMediaOverview>
   ```
 
-- [ ] **Step 1: Failing tests** (`overview.test.ts`), mocking the three channel fetchers:
-  - all three report → `blendedSpend` = sum of spends, `blendedClicks` = PS clicks + Meta link clicks + LinkedIn clicks;
-  - one channel throws/absent → `blendedSpend === null` AND `blendedClicks === null` (item 4 literal rule), but `channels` still lists the two that reported with `ok: true` and the absent one `ok: false`;
-  - `leads === null` and `costPerLead === null` always (Blocker 1).
+- [ ] **Step 1: Failing tests** (`overview.test.ts`), mocking the three channel fetchers + `getClientBySlug`:
+  - all configured channels report → `blendedSpend` = sum of spends, `blendedClicks` = PS clicks + Meta link clicks + LinkedIn clicks;
+  - a *configured* channel throws → `blendedSpend === null` AND `blendedClicks === null` (RESOLVED 2), but `channels` still lists the ones that reported with `ok: true` and the failed one `ok: false`;
+  - a *non-configured* channel → excluded from the blend (blend sums only the channels the client runs, not blanked), still listed in the breakdown as `configured: false`, `ok: false`.
 - [ ] **Step 2: Run → FAIL.**
-- [ ] **Step 3: Implement `getPaidMediaOverview`** using `Promise.allSettled` over the three fetchers (pattern: `demand-overview/index.tsx:68-122`, `paid-search/index.tsx:16-31` `safe()`). Build `channels`; set `ok=false` on rejection. `const allOk = channels.every(c => c.ok)`; `blendedSpend = allOk ? sum(spend) : null`; `blendedClicks = allOk ? sum(clicks) : null`; `leads = null`, `costPerLead = null`.
+- [ ] **Step 3: Implement `getPaidMediaOverview`** using `Promise.allSettled` over the fetchers (pattern: `demand-overview/index.tsx:68-122`, `paid-search/index.tsx:16-31` `safe()`). Read the client config to scope which channels to fetch; set `ok=false` on rejection or non-config. `const runs = channels.filter(c => c.configured); const allOk = runs.length > 0 && runs.every(c => c.ok)`; `blendedSpend = allOk ? sum(runs.spend) : null`; `blendedClicks = allOk ? sum(runs.clicks) : null`.
 - [ ] **Step 4: Run → PASS.**
 - [ ] **Step 5: Commit.** `git commit -m "feat(paid-media): overview rollup (blended spend/clicks, missing-channel rule)"`
 
@@ -216,12 +215,12 @@ Satisfies spec items **1, 2, 11a, 11b, 11d**. Fills the shell at `components/rep
 **Interfaces:**
 - Consumes: `getPaidMediaOverview` (Task 6), `money` (Task 2).
 
-- [ ] **Step 1: Failing test.** Render with a mocked overview where LinkedIn is missing: assert the combined Spend/Clicks tiles show `—`, the per-channel breakdown shows Paid Search and Meta values, and Leads / Cost-per-lead tiles show `—` with a "pending HubSpot lead attribution" note.
+- [ ] **Step 1: Failing test.** Render with a mocked overview where a configured channel failed: assert the combined Spend/Clicks tiles show `—`, and the per-channel breakdown shows the reporting channels' values plus per-channel Leads (Meta `—`). No blended Leads / Cost-per-lead tiles (RESOLVED 1 — dropped).
 - [ ] **Step 2: Run → FAIL.**
-- [ ] **Step 3: Implement** modeled on `demand-overview/index.tsx`: a combined KPI row in order Spend, Clicks, Leads, Cost-per-lead (item 11a; CTR/Conversions excluded); null→`—`; money via `money`. Below it, a per-channel breakdown (cards or a small table) for Spend + Clicks (item 11b). Label the combined Clicks noting Meta counts link clicks (item 2). No `SharedPartsHeader` (item 6). Wrap in the section error boundary.
+- [ ] **Step 3: Implement** modeled on `demand-overview/index.tsx`: a combined KPI row of Spend + Clicks only (item 11a; CTR/Conversions excluded; Leads/CPL dropped per RESOLVED 1); null→`—`; money via `money`. Below it, a per-channel breakdown table for Spend + Clicks + per-channel Leads (item 11b). Label the Clicks (blended card + per-channel column) noting Meta counts link clicks (item 2/12). No `SharedPartsHeader` (item 6). Wrap in the section error boundary.
 - [ ] **Step 4: Run → PASS;** `npm run check:rsc` green.
-- [ ] **Step 5: Manual.** Overview renders on dashboard + portal; missing channel blanks the blended total; Leads/CPL show `—` with the note.
-- [ ] **Step 6: Commit.** `git commit -m "feat(paid-media): Overview section (combined + per-channel), Leads/CPL pending"`
+- [ ] **Step 5: Manual.** Overview renders on dashboard + portal; a failed configured channel blanks the blended total; per-channel Leads show for Paid Search + LinkedIn (Meta `—`).
+- [ ] **Step 6: Commit.** `git commit -m "feat(paid-media): Overview section (combined + per-channel)"`
 
 ---
 
@@ -240,11 +239,11 @@ Satisfies spec §2 housekeeping + NEEDS ATTENTION 5. #180's two `lib/meta` tests
 
 ---
 
-## Task 9: DEFERRED — blended Leads & Cost-per-lead (HubSpot path unavailable; option 3 pending sign-off)
+## Task 9: DROPPED — blended Leads & Cost-per-lead (team decision 2026-08-04)
 
-**Status (2026-08-04, Paul):** the HubSpot path is confirmed **not obtainable right now** — no Paid Media client has HubSpot connected (`scripts/seed.ts:78`) and the HubSpot integration is Avenue-Z-hardwired, so there is no per-client "leads attributed to AVZ" figure to divide by. Rather than leave two blank headline tiles, the **Leads and Cost-per-lead tiles were dropped from the Overview UI** (Task 7); `getPaidMediaOverview` still returns `leads: null` / `costPerLead: null` so the contract and tests are unchanged and re-adding is UI-only.
+**Status (2026-08-04, Dianna/team) — DROPPED.** The team has decided to drop **anything relating to or influenced by Meta leads**, because we do not have access to Meta lead conversions. Both candidate definitions for a blended figure fail: the HubSpot path is unavailable (no Paid Media client has HubSpot connected — `scripts/seed.ts:78` — and the integration is Avenue-Z-hardwired), and the option-3 fallback (paid-conversion leads across Google Ads / Meta / LinkedIn) would still require Meta lead data we don't have. So blended **Leads / Cost-per-lead are removed entirely** — the `leads`/`costPerLead` fields were deleted from `PaidMediaOverview`, and there are no blended Leads/CPL tiles.
 
-**Eventual answer (option 3), pending Dianna's sign-off.** Instead of HubSpot, source blended Leads from **paid-conversion actions** (Google Ads / Meta / LinkedIn conversion actions — the same lead-action data already powering Paid Search "Total Leads" in `lib/paid-search/leads.ts`), with blended Cost-per-lead = blended Spend ÷ those leads. This is a **different definition** than "HubSpot leads attributed to AVZ," so it must be signed off and labeled accordingly before build. The definition question for Dianna is written up in `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`. When answered yes, this task wires the paid-conversion leads into `lib/paid-media/overview.ts`, sets `leads`/`costPerLead`, and re-adds the two tiles to Task 7. Requires its own sub-spec.
+**What remains:** per-channel Leads in the By-Channel breakdown for Paid Search + LinkedIn (these don't depend on Meta); Meta renders `—`. If Meta lead tracking ever becomes available, revisit as a fresh sub-spec — this is not a parked task, it's a closed decision.
 
 ---
 
@@ -257,4 +256,4 @@ Satisfies spec §2 housekeeping + NEEDS ATTENTION 5. #180's two `lib/meta` tests
 
 ## Self-review (spec coverage)
 
-- Items 1,5,6,11b → Tasks 1,6,7. Item 2 → Tasks 6,7. Item 4 → Task 6. Item 3 → Task 9 (blocked). Item 7 → Tasks 3,4,5. Item 8 → Task 4. Item 9 → Task 4 (+VERIFY 4). Item 10,11c → Task 5. Item 11a → Tasks 6,7. Item 11d → Task 2. Item 11e → Task 1 (both surfaces). Item 13 → #180 done (+VERIFY 3, Task 8 wiring). Every buildable spec item maps to a task; the only unmapped-to-shippable item is item 3, correctly fenced as blocked.
+- Items 1,5,6,11b → Tasks 1,6,7. Item 2 → Tasks 6,7. Item 4 → Task 6. Item 3 → Task 9 (dropped — Meta lead data unavailable). Item 7 → Tasks 3,4,5. Item 8 → Task 4. Item 9 → Task 4 (+VERIFY 4). Item 10,11c → Task 5. Item 11a → Tasks 6,7. Item 11d → Task 2. Item 11e → Task 1 (both surfaces). Item 13 → #180 done (+VERIFY 3, Task 8 wiring). Every buildable spec item maps to a task; item 3 (blended CPL) is dropped by team decision, not shipped.
