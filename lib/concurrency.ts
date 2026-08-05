@@ -11,6 +11,9 @@
  * window keeps peak concurrency flat while still overlapping work.
  *
  * A rejected `fn` rejects the whole call, matching Promise.all semantics.
+ * Note: like raw Promise.all, in-flight siblings are NOT cancelled on rejection
+ * — they run to completion, and a second rejection surfaces as an unhandled
+ * rejection. Current callers can't reject (they try/catch internally).
  * `limit` is clamped to at least 1 so a zero/negative value can't deadlock.
  */
 export async function mapWithConcurrency<T, R>(
