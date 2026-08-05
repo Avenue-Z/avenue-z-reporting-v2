@@ -73,7 +73,7 @@ export async function PaidMediaOverviewReport({
         </div>
         <p className="mt-2 text-xs text-text-muted">
           Clicks are link clicks for Meta and all clicks for Paid Search and
-          LinkedIn (item 12). Leads are shown per channel where available. Meta
+          LinkedIn. Leads are shown per channel where available. Meta
           lead conversions are not available, so Meta shows &lsquo;—&rsquo;, and
           there is no blended Leads total.
         </p>
