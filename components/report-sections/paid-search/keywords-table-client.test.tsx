@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { KeywordsTableClient, summarizeKeywords } from './keywords-table-client'
+import { KeywordsTableClient } from './keywords-table-client'
 import type { KeywordRow } from '@/lib/paid-search/types'
+import type { KeywordsData, KeywordsView } from '@/lib/paid-search/keywords'
 
 // DataTable pulls in editable-text → a server action → next-auth, which jsdom
 // can't resolve. Mock it to render just the cells we assert on (rows + total).
@@ -20,9 +21,6 @@ vi.mock('@/components/charts/data-table', () => ({
   ),
 }))
 
-// A keyword fixture. clicks drive the ≥10 filter; leads drive sort.
-// (transformKeywords' no-cap behavior is exercised by lib/paid-search/keywords.test.ts,
-// which must run under tsx — importing it here would drag lib/db into jsdom.)
 function kw(keyword: string, clicks: number, impressions: number, cost: number, leads: number): KeywordRow {
   return {
     keyword,
@@ -36,52 +34,28 @@ function kw(keyword: string, clicks: number, impressions: number, cost: number, 
   }
 }
 
-describe('summarizeKeywords (≥10-clicks filter + total over filtered set)', () => {
-  const rows: KeywordRow[] = [
-    ...Array.from({ length: 25 }, (_, i) => kw(`hi${i}`, 10 + i, 1000, 100, 2)), // 25 with clicks ≥10
-    ...Array.from({ length: 8 }, (_, i) => kw(`lo${i}`, i + 1, 100, 5, 0)), // 8 with clicks <10
-  ]
-
-  test('default filter keeps only ≥10-clicks keywords; total sums all filtered, not just the 10 shown', () => {
-    const { display, total, filteredCount } = summarizeKeywords(rows, true)
-    expect(filteredCount).toBe(25)
-    expect(display.length).toBe(10) // top 10 displayed
-    // Total covers all 25 filtered keywords: clicks = sum(10..34), cost = 25*100.
-    const expectedClicks = Array.from({ length: 25 }, (_, i) => 10 + i).reduce((a, b) => a + b, 0)
-    expect(total.clicks).toBe(expectedClicks)
-    expect(total.cost).toBe(2500)
-    expect(total.leads).toBe(50)
-  })
-
-  test('derived metrics (CTR, CPL) are recomputed from summed numerators/denominators, not summed', () => {
-    const { total } = summarizeKeywords(rows, true)
-    // CPL = total cost / total leads = 2500 / 50 = 50 (not the sum of per-row CPLs).
-    expect(total.cpl).toBe(2500 / 50)
-    // CTR = total clicks / total impressions * 100.
-    expect(total.ctr).toBeCloseTo((total.clicks / (25 * 1000)) * 100, 5)
-  })
-
-  test('clearing the filter totals over ALL keywords and still displays top 10', () => {
-    const { display, total, filteredCount } = summarizeKeywords(rows, false)
-    expect(filteredCount).toBe(33)
-    expect(display.length).toBe(10)
-    expect(total.cost).toBe(2500 + 8 * 5)
-  })
-})
+// The server hands the client a bounded, pre-aggregated shape (top-N + totals),
+// so the component test builds that shape directly. The aggregation itself is
+// covered by lib/paid-search/keywords.test.ts (buildKeywordsData).
+function view(top: KeywordRow[], count: number, totalCost: number): KeywordsView {
+  return { top, count, total: { clicks: 0, impressions: 0, cost: totalCost, leads: 0, ctr: 0, cpl: 0 } }
+}
+function data(filtered: KeywordsView, all: KeywordsView = view([], 0, 0)): KeywordsData {
+  return { filtered, all }
+}
 
 describe('KeywordsTableClient render', () => {
   test('money figures show cents; total row reflects the filtered set', () => {
-    const rows = Array.from({ length: 12 }, (_, i) => kw(`k${i}`, 15, 1000, 123.5, 1))
-    render(<KeywordsTableClient rows={rows} />)
+    const top = Array.from({ length: 10 }, (_, i) => kw(`k${i}`, 15, 1000, 123.5, 1))
+    render(<KeywordsTableClient data={data(view(top, 12, 123.5))} />)
     // Per-row and total cost render in cents.
     expect(screen.getAllByText('$123.50').length).toBeGreaterThan(0)
-    // Total row present.
-    expect(screen.getByText(/Total/)).toBeInTheDocument()
+    // Total row present, reflecting the full filtered count (12), not just the 10 shown.
+    expect(screen.getByText(/Total \(12 keywords\)/)).toBeInTheDocument()
   })
 
   test('when no keyword reaches 10 clicks, a message renders instead of an empty table', () => {
-    const rows = Array.from({ length: 5 }, (_, i) => kw(`k${i}`, i + 1, 100, 5, 0)) // all <10 clicks
-    render(<KeywordsTableClient rows={rows} />)
+    render(<KeywordsTableClient data={data(view([], 0, 0))} />)
     expect(screen.getByText(/no keywords? .*10 clicks/i)).toBeInTheDocument()
     // No data table rendered.
     expect(screen.queryByRole('table')).not.toBeInTheDocument()

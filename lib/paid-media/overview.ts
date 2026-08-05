@@ -38,10 +38,18 @@ export interface PaidMediaOverview {
   blendedClicks: number | null
 }
 
-/** Read a KPI value by key and coerce to a number (values may be number | string). */
-function readKpi(kpis: Kpi[], key: string): number {
-  const v = kpis.find((k) => k.key === key)?.value
-  return typeof v === 'number' ? v : Number(v ?? 0)
+/**
+ * Read a KPI value by key (values may be number | string), or `null` when the
+ * key is ABSENT. A missing key means the channel's KPI shape drifted from what
+ * this rollup expects (e.g. a metric was renamed) — the caller must treat that
+ * as a channel failure and blank the blend rather than silently contributing 0,
+ * which would understate the top line (item 4). A present-but-empty value still
+ * coerces to 0 — that's genuine data, not a shape mismatch.
+ */
+function readKpi(kpis: Kpi[], key: string): number | null {
+  const entry = kpis.find((k) => k.key === key)
+  if (!entry) return null
+  return typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0)
 }
 
 const CHANNELS: Array<{
@@ -99,19 +107,21 @@ export async function getPaidMediaOverview(
       return { key: c.key, label: c.label, configured: false, spend: null, clicks: null, leads: null, ok: false }
     }
     const res = settled[i]
+    const failed = { key: c.key, label: c.label, configured: true, spend: null, clicks: null, leads: null, ok: false }
     if (res.status !== 'fulfilled' || res.value == null) {
-      return { key: c.key, label: c.label, configured: true, spend: null, clicks: null, leads: null, ok: false }
+      return failed
     }
-    return {
-      key: c.key,
-      label: c.label,
-      configured: true,
-      spend: readKpi(res.value, c.spendKey),
-      clicks: readKpi(res.value, c.clicksKey),
-      // Only channels with a leadsKey report leads; Meta has none (data gap) → null → '—'.
-      leads: c.leadsKey ? readKpi(res.value, c.leadsKey) : null,
-      ok: true,
+    const spend = readKpi(res.value, c.spendKey)
+    const clicks = readKpi(res.value, c.clicksKey)
+    // Only channels with a leadsKey report leads; Meta has none (data gap) → null → '—'.
+    const leads = c.leadsKey ? readKpi(res.value, c.leadsKey) : null
+    // A channel that reported but is missing one of its expected KPI keys is a
+    // shape drift — fail it (blank the blend) rather than reading a silent 0. A
+    // Meta null-leads is expected (no leadsKey), so it is not a drift.
+    if (spend === null || clicks === null || (c.leadsKey != null && leads === null)) {
+      return failed
     }
+    return { key: c.key, label: c.label, configured: true, spend, clicks, leads, ok: true }
   })
 
   // Blend over the configured channels only; blank if any configured channel failed.

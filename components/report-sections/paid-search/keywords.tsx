@@ -1,9 +1,9 @@
 import { KeywordsTableClient } from './keywords-table-client'
-import type { KeywordRow } from '@/lib/paid-search/types'
+import type { KeywordsData } from '@/lib/paid-search/keywords'
 
-// RSC: the server fetch (getKeywordRows) now returns the FULL keyword set; the
-// client wrapper owns the ≥10-clicks filter, the total over the filtered set,
-// and the top-10 display. Only serializable data crosses the boundary.
-export function KeywordsTable({ rows }: { rows: KeywordRow[] }) {
-  return <KeywordsTableClient rows={rows} />
+// RSC: the server fetch (getKeywordsData) aggregates both views (≥10-clicks
+// filtered + all) and sends only the top-10 rows + totals per view — never the
+// full long tail. The client wrapper just toggles between the two views.
+export function KeywordsTable({ data }: { data: KeywordsData }) {
+  return <KeywordsTableClient data={data} />
 }

@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { usd } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 
 interface BarChartProps {
   data: Record<string, string | number>[]
@@ -27,7 +28,7 @@ export function BarChart({ data, xKey, yKeys, height = 300, valueFormat }: BarCh
     valueFormat === 'currency'
       ? (n: number) => usd(n)
       : valueFormat === 'currency-cents'
-        ? (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        ? (n: number) => money(n)
         : undefined
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">

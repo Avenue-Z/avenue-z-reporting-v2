@@ -6,56 +6,22 @@ import { DataTable } from '@/components/charts/data-table'
 import { num, pct } from '@/lib/supermetrics/format'
 import { money } from '@/lib/paid-media/format'
 import type { KeywordRow } from '@/lib/paid-search/types'
+import type { KeywordsData } from '@/lib/paid-search/keywords'
 
-const MIN_CLICKS = 10
-
+// A fixed top-10-by-leads ranking — not a sortable table. Only these 10 rows
+// reach the client (the total covers the full set, computed server-side), so
+// marking the other columns sortable would only reorder these 10 and imply a
+// global ranking the client can't actually perform. See PR #188 review.
 const COLUMNS = [
   { key: 'keyword', label: 'Keyword', align: 'left' as const },
   { key: 'matchType', label: 'Match Type', align: 'left' as const },
-  { key: 'clicks', label: 'Clicks', align: 'right' as const, sortable: true, sortKey: '_clicks' },
-  { key: 'impressions', label: 'Impressions', align: 'right' as const, sortable: true, sortKey: '_impressions' },
-  { key: 'ctr', label: 'CTR', align: 'right' as const, sortable: true, sortKey: '_ctr' },
-  { key: 'cost', label: 'Cost', align: 'right' as const, sortable: true, sortKey: '_cost' },
-  { key: 'leads', label: 'Leads', align: 'right' as const, sortable: true, sortKey: '_leads' },
-  { key: 'cpl', label: 'CPL', align: 'right' as const, sortable: true, sortKey: '_cpl' },
+  { key: 'clicks', label: 'Clicks', align: 'right' as const },
+  { key: 'impressions', label: 'Impressions', align: 'right' as const },
+  { key: 'ctr', label: 'CTR', align: 'right' as const },
+  { key: 'cost', label: 'Cost', align: 'right' as const },
+  { key: 'leads', label: 'Leads', align: 'right' as const },
+  { key: 'cpl', label: 'CPL', align: 'right' as const },
 ]
-
-interface KeywordTotal {
-  clicks: number
-  impressions: number
-  cost: number
-  leads: number
-  ctr: number
-  cpl: number
-}
-
-/**
- * Apply the ≥10-clicks filter, total the FULL filtered set (item 10), and take
- * the top 10 for display. Derived metrics (CTR, CPL) are recomputed from summed
- * numerators/denominators — NOT summed — mirroring campaign-table.tsx.
- */
-export function summarizeKeywords(
-  rows: KeywordRow[],
-  filterOn: boolean,
-): { display: KeywordRow[]; total: KeywordTotal; filteredCount: number } {
-  const filtered = filterOn ? rows.filter((r) => r.clicks >= MIN_CLICKS) : rows
-  const agg = filtered.reduce(
-    (a, r) => {
-      a.clicks += r.clicks
-      a.impressions += r.impressions
-      a.cost += r.cost
-      a.leads += r.leads
-      return a
-    },
-    { clicks: 0, impressions: 0, cost: 0, leads: 0 },
-  )
-  const total: KeywordTotal = {
-    ...agg,
-    ctr: agg.impressions ? (agg.clicks / agg.impressions) * 100 : 0,
-    cpl: agg.leads ? agg.cost / agg.leads : 0,
-  }
-  return { display: filtered.slice(0, 10), total, filteredCount: filtered.length }
-}
 
 function toTableRow(r: KeywordRow): Record<string, React.ReactNode> {
   return {
@@ -67,24 +33,17 @@ function toTableRow(r: KeywordRow): Record<string, React.ReactNode> {
     cost: money(r.cost),
     leads: num(r.leads),
     cpl: money(r.cpl),
-    // raw numeric values for sort — prefixed with _ to avoid column key collision
-    _clicks: r.clicks,
-    _impressions: r.impressions,
-    _ctr: r.ctr,
-    _cost: r.cost,
-    _leads: r.leads,
-    _cpl: r.cpl,
   }
 }
 
-export function KeywordsTableClient({ rows }: { rows: KeywordRow[] }) {
+export function KeywordsTableClient({ data }: { data: KeywordsData }) {
   // Default view: only keywords with ≥10 clicks (item 11c). Clearable.
   const [filterOn, setFilterOn] = useState(true)
-  const { display, total, filteredCount } = summarizeKeywords(rows, filterOn)
+  const { top, total, count } = filterOn ? data.filtered : data.all
 
-  const noun = filteredCount === 1 ? 'keyword' : 'keywords'
+  const noun = count === 1 ? 'keyword' : 'keywords'
   const totalsRow: Record<string, React.ReactNode> = {
-    keyword: `Total (${num(filteredCount)} ${noun})`,
+    keyword: `Total (${num(count)} ${noun})`,
     matchType: '',
     clicks: num(total.clicks),
     impressions: num(total.impressions),
@@ -106,14 +65,14 @@ export function KeywordsTableClient({ rows }: { rows: KeywordRow[] }) {
         </button>
       </div>
 
-      {filteredCount === 0 ? (
+      {count === 0 ? (
         <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-center text-sm text-text-muted">
           {filterOn
             ? 'No keywords reached 10 clicks in this period.'
             : 'No keyword data available for this period.'}
         </div>
       ) : (
-        <DataTable columns={COLUMNS} rows={display.map(toTableRow)} defaultSort={{ key: 'leads', dir: 'desc' }} totalsRow={totalsRow} />
+        <DataTable columns={COLUMNS} rows={top.map(toTableRow)} totalsRow={totalsRow} />
       )}
     </div>
   )

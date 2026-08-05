@@ -109,6 +109,24 @@ describe('getPaidMediaOverview', () => {
     expect(linkedin.leads).toBeNull()
   })
 
+  test('a configured channel missing an expected KPI key fails (ok:false) and blanks the blend, not a silent 0', async () => {
+    // Meta reports successfully but its KPI shape drifted — the `linkClicks` key
+    // the rollup reads is gone (e.g. renamed upstream). This must blank the blend,
+    // NOT let Meta contribute 0 clicks and understate the confident-looking total.
+    clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 12))
+    metaMock.mockResolvedValue([{ key: 'spend', label: 'Spend', value: 500, format: 'money' }]) // no linkClicks
+    liMock.mockResolvedValue(li(300, 40, 5))
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.blendedSpend).toBeNull()
+    expect(o.blendedClicks).toBeNull()
+    const meta = o.channels.find((c) => c.key === 'meta')!
+    expect(meta.ok).toBe(false)
+    expect(meta.spend).toBeNull()
+    expect(meta.clicks).toBeNull()
+  })
+
   test('the breakdown always lists all three channels, even a non-configured one', async () => {
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: false }))
     psMock.mockResolvedValue(ps(1000, 200))
