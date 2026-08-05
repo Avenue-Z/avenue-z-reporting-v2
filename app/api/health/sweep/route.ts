@@ -8,6 +8,12 @@
  * Auth: requires `Authorization: Bearer <CRON_SECRET>` (Vercel Cron sends it).
  * Self-fetch auth: a synthetic INTERNAL_ADMIN session cookie (1h) — copied
  * from app/api/cache-warm/route.ts.
+ *
+ * Concurrency: probes run through a bounded rolling window (CONCURRENCY at a
+ * time), not an unbounded Promise.all. Each probe self-fetches a full report
+ * render (?health=1) that fans out several Neon queries; firing all units at
+ * once spiked Function CPU Duration and tripped Neon errors. Bounding keeps
+ * peak load flat and under the 60s function ceiling.
  */
 import { NextResponse } from 'next/server'
 import { getAllClients, getAllHealthState, upsertHealthState } from '@/lib/db/queries'
@@ -15,10 +21,15 @@ import { mintServiceCookie } from '@/lib/auth/service-cookie'
 import { deriveStatus } from '@/lib/health/derive'
 import { diffHealth, formatTransitions } from '@/lib/health/diff'
 import { postHealthChanges } from '@/lib/health/slack'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import type { ProbeResult, Surface } from '@/lib/health/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+// Max probe renders in flight at once. Balances peak Neon load against the 60s
+// maxDuration ceiling (wall time ≈ ceil(units / CONCURRENCY) × render).
+const CONCURRENCY = 8
 
 interface Unit {
   url: string
@@ -70,7 +81,7 @@ export async function GET(req: Request) {
     }
   }
 
-  const observed = await Promise.all(units.map((u) => probe(u, cookieHeader)))
+  const observed = await mapWithConcurrency(units, CONCURRENCY, (u) => probe(u, cookieHeader))
   const stored = await getAllHealthState()
   const { transitions, upserts } = diffHealth(stored, observed)
 
