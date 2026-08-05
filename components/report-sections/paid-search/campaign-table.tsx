@@ -1,6 +1,7 @@
 import { DataTable } from '@/components/charts/data-table'
 import { campaignTotals } from '@/lib/paid-search/campaigns'
-import { usd, num, pct } from '@/lib/paid-search/base'
+import { num, pct } from '@/lib/paid-search/base'
+import { money } from '@/lib/paid-media/format'
 import type { CampaignRow } from '@/lib/paid-search/types'
 
 const columns = [
@@ -18,13 +19,13 @@ const columns = [
 function toTableRow(r: CampaignRow): Record<string, React.ReactNode> {
   return {
     campaign: r.campaign,
-    cost: usd(r.cost),
+    cost: money(r.cost),
     clicks: num(r.clicks),
     impressions: num(r.impressions),
     ctr: pct(r.ctr),
-    cpc: usd(r.cpc),
+    cpc: money(r.cpc),
     leads: num(r.leads),
-    cpl: usd(r.cpl),
+    cpl: money(r.cpl),
     convRate: pct(r.convRate),
     // raw numeric shadow fields for sortValue
     _cost: r.cost,
@@ -42,13 +43,13 @@ export function CampaignTable({ rows }: { rows: CampaignRow[] }) {
   const totals = campaignTotals(rows)
   const totalsRow: Record<string, React.ReactNode> = {
     campaign: 'Total',
-    cost: usd(totals.cost),
+    cost: money(totals.cost),
     clicks: num(totals.clicks),
     impressions: num(totals.impressions),
     ctr: pct(totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0),
-    cpc: usd(totals.clicks ? totals.cost / totals.clicks : 0),
+    cpc: money(totals.clicks ? totals.cost / totals.clicks : 0),
     leads: num(totals.leads),
-    cpl: usd(totals.leads ? Math.round(totals.cost / totals.leads) : 0),
+    cpl: money(totals.leads ? totals.cost / totals.leads : 0),
     convRate: pct(totals.clicks ? (totals.leads / totals.clicks) * 100 : 0),
   }
 

@@ -27,7 +27,8 @@ export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelV
  * when the view is not in scope (→ no commentary block).
  *
  * Alias sources (verified in the route files):
- *   Paid Search : 'google-ads' (deep-link)      | 'paid-media' no-sub (SPA)
+ *   Overview    : 'paid-media' no-sub (SPA) → no commentary (item 6)
+ *   Paid Search : 'google-ads' (deep-link)      | 'paid-media'+'paid-search'
  *   Meta        : 'meta-ads' (deep-link/portal)  | 'paid-media'+'meta'
  *   LinkedIn    : 'linkedin-ads' (deep-link/portal) | 'paid-media'+'linkedin'
  */
@@ -47,7 +48,10 @@ export function resolveCommentaryView(slug: string, subsection?: string | null):
     case 'google-ads':
       return 'paid-search'
     case 'paid-media':
-      if (!subsection) return 'paid-search'
+      // No subsection = the Overview (default landing, item 5). It has no
+      // commentary box (item 6). Paid Search now has its own subsection id.
+      if (!subsection) return null
+      if (subsection === 'paid-search') return 'paid-search'
       if (subsection === 'meta') return 'meta-ads'
       if (subsection === 'linkedin') return 'linkedin-ads'
       return null

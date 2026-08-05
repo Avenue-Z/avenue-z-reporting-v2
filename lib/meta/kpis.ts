@@ -20,7 +20,7 @@ export function transformMetaKpis(
   const d = (id: string) => delta(n(totals, id), compare ? n(compare, id) : undefined)
 
   return [
-    { key: 'spend', label: 'Spend', value: Math.round(n(totals, 'cost')), prefix: '$', delta: d('cost') },
+    { key: 'spend', label: 'Spend', value: n(totals, 'cost'), format: 'money', delta: d('cost') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
     { key: 'reach', label: 'Reach', value: n(totals, 'reach'), delta: d('reach') },
     {
@@ -39,8 +39,8 @@ export function transformMetaKpis(
     },
     // Meta returns CTR as a 0-1 fraction — scale to percent.
     { key: 'ctr', label: 'CTR', value: +(n(totals, 'CTR') * 100).toFixed(1), suffix: '%', delta: d('CTR') },
-    { key: 'cpm', label: 'CPM', value: +n(totals, 'CPM').toFixed(2), prefix: '$', delta: d('CPM'), invertDelta: true },
-    { key: 'cpc', label: 'CPC', value: +n(totals, 'CPC').toFixed(2), prefix: '$', delta: d('CPC'), invertDelta: true },
+    { key: 'cpm', label: 'CPM', value: n(totals, 'CPM'), format: 'money', delta: d('CPM'), invertDelta: true },
+    { key: 'cpc', label: 'CPC', value: n(totals, 'CPC'), format: 'money', delta: d('CPC'), invertDelta: true },
     {
       key: 'lpv',
       label: 'Landing Page Views',
@@ -50,8 +50,10 @@ export function transformMetaKpis(
     {
       key: 'costPerLpv',
       label: 'Cost / LPV',
-      value: Math.round(n(totals, 'cost_per_landing_page_view')),
-      prefix: '$',
+      // Cents via money(); Math.round() here previously collapsed real sub-dollar
+      // costs to $0 (a 42-cent Cost / LPV rendered as $0).
+      value: n(totals, 'cost_per_landing_page_view'),
+      format: 'money',
       delta: d('cost_per_landing_page_view'),
       invertDelta: true,
     },
