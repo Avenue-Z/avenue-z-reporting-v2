@@ -1,7 +1,7 @@
 'use client'
 import { useState, type ReactNode } from 'react'
 import { num, pct } from '@/lib/supermetrics/format'
-import { money } from '@/lib/paid-media/format'
+import { money, DASH } from '@/lib/paid-media/format'
 import type {
   LinkedInCampaignGroupNode,
   LinkedInCampaignNode,
@@ -16,7 +16,7 @@ type MetricKey =
 interface Col {
   key: MetricKey
   label: string
-  fmt: (n: number) => string
+  fmt: (n: number, row?: LinkedInCreativeMetrics) => string
 }
 
 const COLS: Col[] = [
@@ -26,7 +26,7 @@ const COLS: Col[] = [
   { key: 'ctr', label: 'CTR', fmt: pct },
   { key: 'cpc', label: 'CPC', fmt: money },
   { key: 'leads', label: 'Leads', fmt: num },
-  { key: 'costPerLead', label: 'Cost / Lead', fmt: money },
+  { key: 'costPerLead', label: 'Cost / Lead', fmt: (n, row) => (row && row.leads > 0 ? money(n) : DASH) },
   { key: 'leadFormOpens', label: 'LF Opens', fmt: num },
   { key: 'leadFormCompletionRate', label: 'LF Compl. Rate', fmt: pct },
   { key: 'landingPageClicks', label: 'LP Clicks', fmt: num },
@@ -77,7 +77,7 @@ export function CreativeTableClient({
   const metricCells = (m: LinkedInCreativeMetrics) =>
     COLS.map((c) => (
       <td key={c.key} className="px-5 py-3 text-right text-white">
-        {c.fmt(m[c.key])}
+        {c.fmt(m[c.key], m)}
       </td>
     ))
 
