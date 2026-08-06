@@ -54,16 +54,17 @@ beforeEach(() => {
 })
 
 describe('getPaidMediaOverview', () => {
-  test('all configured channels report → blended spend and clicks sum across them', async () => {
+  test('blended spend and clicks sum Paid Search + LinkedIn only (Meta excluded)', async () => {
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
     psMock.mockResolvedValue(ps(1000, 200, 12))
-    metaMock.mockResolvedValue(meta(500, 80)) // Meta contributes LINK clicks (item 2)
+    metaMock.mockResolvedValue(meta(500, 80)) // Meta runs, but is excluded from the blend
     liMock.mockResolvedValue(li(300, 40, 5))
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
-    expect(o.blendedSpend).toBe(1800)
-    expect(o.blendedClicks).toBe(320) // 200 + 80 + 40
+    expect(o.blendedSpend).toBe(1300) // 1000 + 300 — Meta's 500 excluded
+    expect(o.blendedClicks).toBe(240) // 200 + 40 — Meta's 80 excluded
     expect(o.channels.every((c) => c.ok)).toBe(true)
+    // Meta still reports its own clicks in the per-channel breakdown (just not the blend).
     expect(o.channels.find((c) => c.key === 'meta')!.clicks).toBe(80)
     // Per-channel leads: Paid Search + LinkedIn report; Meta has no leads key (data
     // gap) so it stays null → '—', NOT 0.
@@ -72,33 +73,34 @@ describe('getPaidMediaOverview', () => {
     expect(o.channels.find((c) => c.key === 'meta')!.leads).toBeNull()
   })
 
-  test('a CONFIGURED channel that fails blanks the whole blended total (Dianna, scoped reading)', async () => {
+  test('a failed Meta does NOT blank the blend (Meta is excluded from it)', async () => {
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
     psMock.mockResolvedValue(ps(1000, 200))
     metaMock.mockRejectedValue(new Error('meta query failed'))
     liMock.mockResolvedValue(li(300, 40))
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
-    expect(o.blendedSpend).toBeNull()
-    expect(o.blendedClicks).toBeNull()
-    // The per-channel breakdown still lists what reported.
+    // Meta failing no longer blanks the blend — the blend is Paid Search + LinkedIn only.
+    expect(o.blendedSpend).toBe(1300)
+    expect(o.blendedClicks).toBe(240)
+    // The per-channel breakdown still shows Meta failed.
     expect(o.channels.find((c) => c.key === 'paid-search')!.ok).toBe(true)
-    expect(o.channels.find((c) => c.key === 'paid-search')!.spend).toBe(1000)
     expect(o.channels.find((c) => c.key === 'meta')!.ok).toBe(false)
     expect(o.channels.find((c) => c.key === 'meta')!.spend).toBeNull()
   })
 
-  test('a channel the client does NOT run is excluded from the blend, not treated as missing', async () => {
-    // Renaissance case: no LinkedIn config. The blend sums the channels the client
-    // actually runs (Paid Search + Meta) and must NOT blank just because LinkedIn
-    // is absent — only a *configured* channel failing blanks the total.
+  test('a lead-bearing channel the client does NOT run is excluded from the blend, not treated as missing', async () => {
+    // Renaissance-style case: no LinkedIn config. The blend is Paid Search + LinkedIn;
+    // with LinkedIn not run and Meta excluded, the blend is Paid Search alone — and it
+    // must NOT blank just because LinkedIn is absent (only a *configured* lead-bearing
+    // channel failing blanks it).
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: false }))
     psMock.mockResolvedValue(ps(1000, 200, 12))
     metaMock.mockResolvedValue(meta(500, 80))
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
-    expect(o.blendedSpend).toBe(1500) // 1000 + 500, LinkedIn excluded
-    expect(o.blendedClicks).toBe(280) // 200 + 80
+    expect(o.blendedSpend).toBe(1000) // Paid Search only — Meta excluded, LinkedIn not run
+    expect(o.blendedClicks).toBe(200)
     // A non-configured channel is never fetched.
     expect(liMock).not.toHaveBeenCalled()
     // …but it is still listed in the breakdown, rendered as '—'.
@@ -109,22 +111,26 @@ describe('getPaidMediaOverview', () => {
     expect(linkedin.leads).toBeNull()
   })
 
-  test('a configured channel missing an expected KPI key fails (ok:false) and blanks the blend, not a silent 0', async () => {
-    // Meta reports successfully but its KPI shape drifted — the `linkClicks` key
-    // the rollup reads is gone (e.g. renamed upstream). This must blank the blend,
-    // NOT let Meta contribute 0 clicks and understate the confident-looking total.
+  test('a blend-feeding channel missing an expected KPI key fails (ok:false) and blanks the blend, not a silent 0', async () => {
+    // LinkedIn reports successfully but its KPI shape drifted — the `clicks` key the
+    // rollup reads is gone (e.g. renamed upstream). Because LinkedIn feeds the blend,
+    // this must blank the blend, NOT let LinkedIn contribute 0 and understate the total.
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
     psMock.mockResolvedValue(ps(1000, 200, 12))
-    metaMock.mockResolvedValue([{ key: 'spend', label: 'Spend', value: 500, format: 'money' }]) // no linkClicks
-    liMock.mockResolvedValue(li(300, 40, 5))
+    metaMock.mockResolvedValue(meta(500, 80))
+    liMock.mockResolvedValue([
+      { key: 'spend', label: 'Spend', value: 300, format: 'money' },
+      { key: 'leads', label: 'Leads', value: 5 },
+    ]) // no `clicks` key → shape drift
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
     expect(o.blendedSpend).toBeNull()
     expect(o.blendedClicks).toBeNull()
-    const meta = o.channels.find((c) => c.key === 'meta')!
-    expect(meta.ok).toBe(false)
-    expect(meta.spend).toBeNull()
-    expect(meta.clicks).toBeNull()
+    expect(o.blendedLeads).toBeNull()
+    const linkedin = o.channels.find((c) => c.key === 'linkedin')!
+    expect(linkedin.ok).toBe(false)
+    expect(linkedin.spend).toBeNull()
+    expect(linkedin.clicks).toBeNull()
   })
 
   test('the breakdown always lists all three channels, even a non-configured one', async () => {
@@ -147,24 +153,29 @@ describe('getPaidMediaOverview', () => {
     expect(o.blendedCostPerLead).toBeCloseTo((1000 + 300) / 20, 6) // (PS+LI spend) / (PS+LI leads)
   })
 
-  test('a failed Meta does NOT blank blended Leads/CPL (Meta is not lead-bearing)', async () => {
+  test('a failed Meta blanks nothing — the blend is Paid Search + LinkedIn only', async () => {
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
     psMock.mockResolvedValue(ps(1000, 200, 12))
     metaMock.mockRejectedValue(new Error('meta failed'))
     liMock.mockResolvedValue(li(300, 40, 8))
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
+    // All four blended figures stay populated — Meta isn't part of the blend.
+    expect(o.blendedSpend).toBe(1300)
+    expect(o.blendedClicks).toBe(240)
     expect(o.blendedLeads).toBe(20)
-    expect(o.blendedSpend).toBeNull()             // Spend/Clicks gate still blanks on Meta failure
+    expect(o.blendedCostPerLead).toBeCloseTo(1300 / 20, 6) // reconciles: Spend ÷ Leads
   })
 
-  test('a failed lead-bearing channel (LinkedIn) blanks blended Leads/CPL', async () => {
+  test('a failed lead-bearing channel (LinkedIn) blanks the entire blend', async () => {
     clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
     psMock.mockResolvedValue(ps(1000, 200, 12))
     metaMock.mockResolvedValue(meta(500, 80))
     liMock.mockRejectedValue(new Error('li failed'))
 
     const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.blendedSpend).toBeNull()
+    expect(o.blendedClicks).toBeNull()
     expect(o.blendedLeads).toBeNull()
     expect(o.blendedCostPerLead).toBeNull()
   })

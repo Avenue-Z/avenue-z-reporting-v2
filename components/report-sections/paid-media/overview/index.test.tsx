@@ -46,9 +46,9 @@ describe('PaidMediaOverviewReport', () => {
     // (lead data gap), not 0.
     expect(screen.getByText('12')).toBeInTheDocument()
 
-    // Both captions render: the blended-availability rule (scoped to the channels
-    // the client runs) and the caption text.
-    expect(screen.getByText(/shown only when every channel this client runs reports/i)).toBeInTheDocument()
+    // The caption states the blend is Paid Search + LinkedIn only and reconciles.
+    expect(screen.getByText(/cover Paid Search . LinkedIn only/i)).toBeInTheDocument()
+    expect(screen.getByText(/Cost per Lead equals blended Spend/i)).toBeInTheDocument()
 
     // Blended Spend + Clicks tiles blank (missing channel), Meta's leads cell blank,
     // and the whole LinkedIn row blank → several '—' placeholders.
@@ -59,10 +59,7 @@ describe('PaidMediaOverviewReport', () => {
     expect(screen.getByText('Cost per Lead')).toBeInTheDocument()
     // "Leads" appears as both a tile title and the breakdown column header → use getAllByText.
     expect(screen.getAllByText('Leads').length).toBeGreaterThanOrEqual(2)
-    // The scoping caption is explicit about which channels are blended.
-    expect(screen.getByText(/Paid Search and LinkedIn only/i)).toBeInTheDocument()
-    // Reconciliation caveats (findings 3/4/5): CPL won't equal Spend ÷ Leads, and a 0-lead
-    // channel still contributes its spend to the blend.
+    // The caption still notes a 0-lead channel contributes its spend to the blend.
     expect(screen.getByText(/contributes its spend to the blend/i)).toBeInTheDocument()
 
     // By-channel is now per-channel card sections, not a table.

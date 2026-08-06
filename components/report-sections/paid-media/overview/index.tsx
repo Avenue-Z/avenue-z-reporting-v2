@@ -40,20 +40,18 @@ export async function PaidMediaOverviewReport({
           value={asNum(o.blendedClicks)}
           delta={o.blendedClicksDelta}
           comparisonExpected
-          tooltip="Blended across the channels this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
+          tooltip="Blended across Paid Search + LinkedIn (Meta is excluded from the blend)."
         />
         <KpiCard title="Leads" value={asNum(o.blendedLeads)} delta={o.blendedLeadsDelta} comparisonExpected />
         <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} delta={o.blendedCostPerLeadDelta} comparisonExpected invertDelta />
       </div>
 
       <p className="text-xs text-text-muted">
-        Blended Spend and Clicks are shown only when every channel this client runs reports.
-        Leads and Cost per Lead are blended across Paid Search and LinkedIn only — Meta lead
-        conversions aren&rsquo;t tracked, so Meta is excluded from those two figures. Because
-        Spend includes every channel but Cost per Lead uses only Paid Search + LinkedIn spend,
-        Cost per Lead won&rsquo;t equal Spend &divide; Leads; a channel currently reporting 0 leads
-        still contributes its spend to the blend. Spend/Clicks and Leads/Cost per Lead are gated
-        independently, so one pair may show a value while the other shows &lsquo;—&rsquo;.
+        Blended figures cover Paid Search + LinkedIn only. Meta is shown per channel below but
+        excluded from the blend (no lead data, and its reporting is handled separately), so the
+        tiles reconcile: Cost per Lead equals blended Spend &divide; Leads. Blended figures are
+        shown only when every one of those channels the client runs reports; a channel currently
+        reporting 0 leads still contributes its spend to the blend.
       </p>
 
       <PaidMediaTrendChart trend={trend} />
