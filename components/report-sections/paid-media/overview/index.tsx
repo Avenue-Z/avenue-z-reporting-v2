@@ -7,8 +7,10 @@
 
 import { KpiCard } from '@/components/charts/kpi-card'
 import { getPaidMediaOverview } from '@/lib/paid-media/overview'
+import { getPaidMediaTrend } from '@/lib/paid-media/trend'
 import { money } from '@/lib/paid-media/format'
 import { num } from '@/lib/supermetrics/format'
+import { PaidMediaTrendChart } from './trend'
 
 const dash = '—'
 const asMoney = (n: number | null) => (n == null ? dash : money(n))
@@ -21,7 +23,10 @@ export async function PaidMediaOverviewReport({
   clientSlug: string
   dateRange?: string
 }) {
-  const o = await getPaidMediaOverview(clientSlug, dateRange)
+  const [o, trend] = await Promise.all([
+    getPaidMediaOverview(clientSlug, dateRange),
+    getPaidMediaTrend(clientSlug, dateRange),
+  ])
 
   return (
     <div className="space-y-8">
@@ -43,37 +48,24 @@ export async function PaidMediaOverviewReport({
         conversions aren&rsquo;t tracked, so Meta is excluded from those two figures.
       </p>
 
+      <PaidMediaTrendChart trend={trend} />
+
       {/* Per-channel breakdown (item 11b). */}
-      <div>
-        <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted">
-          By Channel
-        </p>
-        <div className="overflow-hidden rounded-lg border border-white/[0.06]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-wider text-text-muted">
-                <th className="px-4 py-2 text-left font-bold">Channel</th>
-                <th className="px-4 py-2 text-right font-bold">Spend</th>
-                <th className="px-4 py-2 text-right font-bold">Clicks</th>
-                <th className="px-4 py-2 text-right font-bold">Leads</th>
-              </tr>
-            </thead>
-            <tbody>
-              {o.channels.map((c) => (
-                <tr key={c.key} className="border-b border-white/[0.04] last:border-b-0">
-                  <td className="px-4 py-2.5 text-left font-medium text-white">{c.label}</td>
-                  <td className="px-4 py-2.5 text-right text-white/80">{asMoney(c.spend)}</td>
-                  <td className="px-4 py-2.5 text-right text-white/80">{asNum(c.clicks)}</td>
-                  <td className="px-4 py-2.5 text-right text-white/80">{asNum(c.leads)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-2 text-xs text-text-muted">
-          Clicks are link clicks for Meta and all clicks for Paid Search and
-          LinkedIn. Leads are shown per channel where available. Meta
-          lead conversions are not available, so Meta shows &lsquo;—&rsquo;.
+      <div className="space-y-6">
+        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">By Channel</p>
+        {o.channels.map((c) => (
+          <section key={c.key} className="space-y-3">
+            <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{c.label}</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <KpiCard title="Spend" value={asMoney(c.spend)} />
+              <KpiCard title="Clicks" value={asNum(c.clicks)} />
+              <KpiCard title="Leads" value={asNum(c.leads)} />
+            </div>
+          </section>
+        ))}
+        <p className="text-xs text-text-muted">
+          Clicks are link clicks for Meta and all clicks for Paid Search and LinkedIn. Leads are shown
+          per channel where available. Meta lead conversions are not available, so Meta shows &lsquo;—&rsquo;.
         </p>
       </div>
     </div>

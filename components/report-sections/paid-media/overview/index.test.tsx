@@ -4,12 +4,18 @@ import { render, screen } from '@testing-library/react'
 // Mock the rollup lib so its real module (which imports the per-channel fetchers
 // → lib/db → next-auth) never loads under jsdom.
 vi.mock('@/lib/paid-media/overview', () => ({ getPaidMediaOverview: vi.fn() }))
+// Mock the trend lib for the same reason (it imports the channel bases → next-auth).
+vi.mock('@/lib/paid-media/trend', () => ({ getPaidMediaTrend: vi.fn() }))
+// Mock the trend CHART component so Recharts doesn't load.
+vi.mock('./trend', () => ({ PaidMediaTrendChart: () => <div data-testid="trend" /> }))
 
 import { PaidMediaOverviewReport } from './index'
 import { getPaidMediaOverview } from '@/lib/paid-media/overview'
+import { getPaidMediaTrend } from '@/lib/paid-media/trend'
 import type { Mock } from 'vitest'
 
 const mock = getPaidMediaOverview as Mock
+;(getPaidMediaTrend as Mock).mockResolvedValue({ channels: [], points: [] })
 
 describe('PaidMediaOverviewReport', () => {
   test('missing channel blanks the blended totals; per-channel Leads shown where available (Meta blank)', async () => {
@@ -51,6 +57,14 @@ describe('PaidMediaOverviewReport', () => {
     expect(screen.getAllByText('Leads').length).toBeGreaterThanOrEqual(2)
     // The scoping caption is explicit about which channels are blended.
     expect(screen.getByText(/Paid Search and LinkedIn only/i)).toBeInTheDocument()
+
+    // By-channel is now per-channel card sections, not a table.
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    // Each channel renders as a heading section.
+    expect(screen.getByRole('heading', { name: 'Paid Search' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Meta Advertising' })).toBeInTheDocument()
+    // The trend chart is mounted between the tiles and the by-channel sections.
+    expect(screen.getByTestId('trend')).toBeInTheDocument()
   })
 
   test('blended Cost per Lead renders — when blendedCostPerLead is null', async () => {
