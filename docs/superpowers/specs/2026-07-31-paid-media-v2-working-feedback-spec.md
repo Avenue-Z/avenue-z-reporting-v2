@@ -43,6 +43,8 @@ Buckets:
 Time-critical items are marked. "Owner" is who must answer; it is a stakeholder question, not the builder's call.
 
 ### ✅ RESOLVED 1 — blended Leads & Cost-per-lead dropped (Meta lead data unavailable; team decision 2026-08-04)
+> **SUPERSEDED (2026-08-06):** blended Leads/CPL re-added scoped to Paid Search + LinkedIn (Meta excluded). See `docs/superpowers/specs/2026-08-06-paid-media-blended-leads-design.md`.
+
 - **Doc:** item 3, comment `[p]` (Dianna): blended Cost per lead = *"spend across all platforms / hubspot leads attributed to AVZ."*
 - **Gap:** the doc never defines which HubSpot figure counts as "a lead attributed to AVZ." The code exposes several non-equivalent candidates (`getContactStatsForRange` created-contacts, `getLifecyclestageCounts` `lifecyclestage='lead'`, ICP contacts) in `lib/hubspot/client.ts:881-926,1087-1125`. Separately, **no Paid Media client has HubSpot connected** (`renaissance.hubspotTokenEnvVar = null`, `scripts/seed.ts:78`), and the HubSpot integration is hardwired to Avenue Z (pipeline `714699412`, ICP/MCP buckets, fixed 2025/26 windows), so there is no generic per-client "leads in range" path.
 - **Effect:** blended **Leads** and **Cost-per-lead** cannot be built until this is answered. The doc itself acknowledges this state (item 1: *"the Overview can't show Leads or Cost per lead ... until it's answered"*).
