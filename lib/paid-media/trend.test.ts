@@ -88,4 +88,19 @@ describe('getPaidMediaTrend', () => {
     expect(t.points[0].channels.meta).toBeUndefined()
     expect(t.points[0].channels.linkedin).toEqual({ spend: 30, clicks: 3 })
   })
+
+  test('a malformed-date row is dropped, not counted, and never throws (best-effort)', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: null, linkedinConfig: null })
+    aw.mockResolvedValue([
+      { Date: '2026-08-06', Cost: '100', Clicks: '10' },
+      { Date: 'not-a-date', Cost: '5', Clicks: '1' },
+    ])
+
+    await expect(getPaidMediaTrend('acme', 'last_30_days')).resolves.toBeDefined()
+    const t = await getPaidMediaTrend('acme', 'last_30_days')
+    expect(t.channels).toEqual(['paid-search'])
+    expect(t.points).toHaveLength(1)
+    expect(t.points[0].week).toBe('2026-08-03')
+    expect(t.points[0].channels['paid-search']).toEqual({ spend: 100, clicks: 10 })
+  })
 })

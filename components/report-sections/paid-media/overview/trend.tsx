@@ -37,6 +37,7 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
           {(['spend', 'clicks'] as const).map((m) => (
             <button
               key={m}
+              type="button"
               onClick={() => setMetric(m)}
               className={
                 metric === m

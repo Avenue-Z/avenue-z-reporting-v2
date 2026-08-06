@@ -49,8 +49,10 @@ import { metaQuery } from '@/lib/meta/base'
 import { linkedinQuery } from '@/lib/linkedin/base'
 import { getClientBySlug } from '@/lib/db/queries'
 
+const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/
+
 const toPoints = (rows: Record<string, string>[], spendKey: string, clicksKey: string): ChannelSeriesPoint[] =>
-  rows.map((r) => ({ date: r.Date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => p.date)
+  rows.map((r) => ({ date: r.Date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => DATE_SHAPE.test(p.date))
 
 async function getPaidSearchSeries(slug: string, dateRange: string): Promise<ChannelSeriesPoint[]> {
   return toPoints(await awQuery(slug, ['Date', 'Cost', 'Clicks'], dateRange), 'Cost', 'Clicks')
