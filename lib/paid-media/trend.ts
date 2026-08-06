@@ -43,3 +43,46 @@ export function blendTrend(perChannel: Array<{ key: ChannelKey; weeks: Map<strin
       return { week, label: weekLabel(week), channels }
     })
 }
+
+import { awQuery } from '@/lib/paid-search/base'
+import { metaQuery } from '@/lib/meta/base'
+import { linkedinQuery } from '@/lib/linkedin/base'
+import { getClientBySlug } from '@/lib/db/queries'
+
+const toPoints = (rows: Record<string, string>[], spendKey: string, clicksKey: string): ChannelSeriesPoint[] =>
+  rows.map((r) => ({ date: r.Date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => p.date)
+
+async function getPaidSearchSeries(slug: string, dateRange: string): Promise<ChannelSeriesPoint[]> {
+  return toPoints(await awQuery(slug, ['Date', 'Cost', 'Clicks'], dateRange), 'Cost', 'Clicks')
+}
+async function getMetaSeries(slug: string, dateRange: string): Promise<ChannelSeriesPoint[]> {
+  // Meta clicks = link clicks (inline_link_clicks) — consistent with the KPI blend.
+  return toPoints(await metaQuery(slug, ['Date', 'cost', 'inline_link_clicks'], dateRange), 'cost', 'inline_link_clicks')
+}
+async function getLinkedInSeries(slug: string, dateRange: string): Promise<ChannelSeriesPoint[]> {
+  return toPoints(await linkedinQuery(slug, ['Date', 'spend', 'clicks'], dateRange), 'spend', 'clicks')
+}
+
+export async function getPaidMediaTrend(clientSlug: string, dateRange: string): Promise<PaidMediaTrend> {
+  const client = await getClientBySlug(clientSlug)
+  const order: ChannelKey[] = ['paid-search', 'meta', 'linkedin']
+  const configured: Record<ChannelKey, boolean> = {
+    'paid-search': !!client?.paidSearchConfig,
+    meta: !!client?.metaConfig,
+    linkedin: !!client?.linkedinConfig,
+  }
+  const settled = await Promise.allSettled([
+    configured['paid-search'] ? getPaidSearchSeries(clientSlug, dateRange) : Promise.resolve(null),
+    configured.meta ? getMetaSeries(clientSlug, dateRange) : Promise.resolve(null),
+    configured.linkedin ? getLinkedInSeries(clientSlug, dateRange) : Promise.resolve(null),
+  ])
+  const perChannel = order
+    .map((key, i) => {
+      const res = settled[i]
+      if (res.status !== 'fulfilled' || res.value == null) return null
+      return { key, weeks: bucketToWeeks(res.value) }
+    })
+    .filter((c): c is { key: ChannelKey; weeks: Map<string, { spend: number; clicks: number }> } => c !== null)
+
+  return { points: blendTrend(perChannel), channels: perChannel.map((c) => c.key) }
+}

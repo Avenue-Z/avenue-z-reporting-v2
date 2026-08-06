@@ -1,6 +1,21 @@
-import { describe, expect, test } from 'vitest'
-import { weekStart, bucketToWeeks, blendTrend } from './trend'
+import { describe, expect, test, vi, beforeEach } from 'vitest'
+import type { Mock } from 'vitest'
+import { weekStart, bucketToWeeks, blendTrend, getPaidMediaTrend } from './trend'
 import type { ChannelSeriesPoint } from './trend'
+
+vi.mock('@/lib/paid-search/base', () => ({ awQuery: vi.fn() }))
+vi.mock('@/lib/meta/base', () => ({ metaQuery: vi.fn() }))
+vi.mock('@/lib/linkedin/base', () => ({ linkedinQuery: vi.fn() }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
+
+import { awQuery } from '@/lib/paid-search/base'
+import { metaQuery } from '@/lib/meta/base'
+import { linkedinQuery } from '@/lib/linkedin/base'
+import { getClientBySlug } from '@/lib/db/queries'
+
+const aw = awQuery as Mock, meta = metaQuery as Mock, li = linkedinQuery as Mock, client = getClientBySlug as Mock
+
+beforeEach(() => { aw.mockReset(); meta.mockReset(); li.mockReset(); client.mockReset() })
 
 describe('weekStart (Monday, UTC)', () => {
   test('maps every day of a week to that week Monday', () => {
@@ -45,5 +60,32 @@ describe('blendTrend (align by week key, not index)', () => {
     expect(points[1].channels['paid-search']).toEqual({ spend: 300, clicks: 30 })
     expect(points[1].channels.meta).toEqual({ spend: 50, clicks: 5 })
     expect(points[1].label).toBeTruthy()
+  })
+})
+
+describe('getPaidMediaTrend', () => {
+  test('blends configured channels; Meta clicks come from link clicks', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    aw.mockResolvedValue([{ Date: '2026-08-06', Cost: '100', Clicks: '10' }])
+    meta.mockResolvedValue([{ Date: '2026-08-06', cost: '50', inline_link_clicks: '4' }])
+
+    const t = await getPaidMediaTrend('acme', 'last_30_days')
+    expect(t.channels).toEqual(['paid-search', 'meta']) // LinkedIn not configured → absent
+    expect(li).not.toHaveBeenCalled()
+    const wk = t.points.find((p) => p.week === '2026-08-03')!
+    expect(wk.channels['paid-search']).toEqual({ spend: 100, clicks: 10 })
+    expect(wk.channels.meta).toEqual({ spend: 50, clicks: 4 }) // 4 = inline_link_clicks
+  })
+
+  test('a configured channel that fails is omitted (best-effort), never throws', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: {} })
+    aw.mockResolvedValue([{ Date: '2026-08-06', Cost: '100', Clicks: '10' }])
+    meta.mockRejectedValue(new Error('meta series failed'))
+    li.mockResolvedValue([{ Date: '2026-08-06', spend: '30', clicks: '3' }])
+
+    const t = await getPaidMediaTrend('acme', 'last_30_days')
+    expect(t.channels).toEqual(['paid-search', 'linkedin']) // meta dropped
+    expect(t.points[0].channels.meta).toBeUndefined()
+    expect(t.points[0].channels.linkedin).toEqual({ spend: 30, clicks: 3 })
   })
 })
