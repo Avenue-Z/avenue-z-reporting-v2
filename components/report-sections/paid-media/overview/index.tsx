@@ -25,23 +25,22 @@ export async function PaidMediaOverviewReport({
 
   return (
     <div className="space-y-8">
-      {/* Combined top line — Spend then Clicks only (item 11a; CTR + Conversions
-          excluded). Leads and Cost per Lead are deliberately NOT on the top line:
-          a blended figure would need every channel's leads, but Meta lead
-          conversions are unavailable to us, and the team has dropped anything
-          relating to or influenced by Meta leads. Per-channel Leads (Paid Search
-          + LinkedIn) still show in the By-Channel breakdown below. */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Combined top line — Spend, Clicks, Leads, Cost per Lead (item 11a order). */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard title="Spend" value={asMoney(o.blendedSpend)} />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
           tooltip="Blended across the channels this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
         />
+        <KpiCard title="Leads" value={asNum(o.blendedLeads)} />
+        <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} />
       </div>
 
       <p className="text-xs text-text-muted">
         Blended Spend and Clicks are shown only when every channel this client runs reports.
+        Leads and Cost per Lead are blended across Paid Search and LinkedIn only — Meta lead
+        conversions aren&rsquo;t tracked, so Meta is excluded from those two figures.
       </p>
 
       {/* Per-channel breakdown (item 11b). */}
@@ -74,8 +73,7 @@ export async function PaidMediaOverviewReport({
         <p className="mt-2 text-xs text-text-muted">
           Clicks are link clicks for Meta and all clicks for Paid Search and
           LinkedIn. Leads are shown per channel where available. Meta
-          lead conversions are not available, so Meta shows &lsquo;—&rsquo;, and
-          there is no blended Leads total.
+          lead conversions are not available, so Meta shows &lsquo;—&rsquo;.
         </p>
       </div>
     </div>

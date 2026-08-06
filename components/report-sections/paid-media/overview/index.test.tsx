@@ -21,6 +21,8 @@ describe('PaidMediaOverviewReport', () => {
       ],
       blendedSpend: null,
       blendedClicks: null,
+      blendedLeads: 20,
+      blendedCostPerLead: 65,
     })
 
     const ui = await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' })
@@ -34,16 +36,34 @@ describe('PaidMediaOverviewReport', () => {
     // (lead data gap), not 0.
     expect(screen.getByText('12')).toBeInTheDocument()
 
-    // No blended Cost per Lead tile on the top line (no all-channel lead source).
-    expect(screen.queryByText('Cost per Lead')).not.toBeInTheDocument()
-
     // Both captions render: the blended-availability rule (scoped to the channels
-    // the client runs) and the no-blended-leads note.
+    // the client runs) and the caption text.
     expect(screen.getByText(/shown only when every channel this client runs reports/i)).toBeInTheDocument()
-    expect(screen.getByText(/no blended leads total/i)).toBeInTheDocument()
 
     // Blended Spend + Clicks tiles blank (missing channel), Meta's leads cell blank,
     // and the whole LinkedIn row blank → several '—' placeholders.
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(5)
+
+    // Top line now shows a Cost per Lead tile (unique text — the By-Channel table
+    // has a "Leads" column header but no "Cost per Lead" one, so this is unambiguous).
+    expect(screen.getByText('Cost per Lead')).toBeInTheDocument()
+    // "Leads" appears as both a tile title and the breakdown column header → use getAllByText.
+    expect(screen.getAllByText('Leads').length).toBeGreaterThanOrEqual(2)
+    // The scoping caption is explicit about which channels are blended.
+    expect(screen.getByText(/Paid Search and LinkedIn only/i)).toBeInTheDocument()
+  })
+
+  test('blended Cost per Lead renders — when blendedCostPerLead is null', async () => {
+    mock.mockResolvedValue({
+      channels: [
+        { key: 'paid-search', label: 'Paid Search', configured: true, spend: 1000, clicks: 200, leads: 0, ok: true },
+        { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true },
+        { key: 'linkedin', label: 'LinkedIn Advertising', configured: true, spend: 300, clicks: 40, leads: 0, ok: true },
+      ],
+      blendedSpend: 1800, blendedClicks: 320, blendedLeads: 0, blendedCostPerLead: null,
+    })
+    render(await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' }))
+    expect(screen.getByText('Cost per Lead')).toBeInTheDocument()
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
   })
 })
