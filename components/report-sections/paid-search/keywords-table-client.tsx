@@ -4,7 +4,7 @@ import { DataTable } from '@/components/charts/data-table'
 // Import formatters from the pure source, NOT lib/paid-search/base — base pulls
 // in lib/db and must never enter a client bundle.
 import { num, pct } from '@/lib/supermetrics/format'
-import { money } from '@/lib/paid-media/format'
+import { money, costPerLead } from '@/lib/paid-media/format'
 import type { KeywordRow } from '@/lib/paid-search/types'
 import type { KeywordsData } from '@/lib/paid-search/keywords'
 
@@ -32,7 +32,7 @@ function toTableRow(r: KeywordRow): Record<string, React.ReactNode> {
     ctr: pct(r.ctr),
     cost: money(r.cost),
     leads: num(r.leads),
-    cpl: money(r.cpl),
+    cpl: costPerLead(r.cost, r.leads),
   }
 }
 
@@ -50,7 +50,7 @@ export function KeywordsTableClient({ data }: { data: KeywordsData }) {
     ctr: pct(total.ctr),
     cost: money(total.cost),
     leads: num(total.leads),
-    cpl: money(total.cpl),
+    cpl: costPerLead(total.cost, total.leads),
   }
 
   return (
