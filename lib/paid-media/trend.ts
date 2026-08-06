@@ -50,9 +50,11 @@ import { linkedinQuery } from '@/lib/linkedin/base'
 import { getClientBySlug } from '@/lib/db/queries'
 
 const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/
+const isValidDate = (date: string): boolean =>
+  DATE_SHAPE.test(date) && Number.isFinite(new Date(date + 'T00:00:00Z').getTime())
 
 const toPoints = (rows: Record<string, string>[], spendKey: string, clicksKey: string): ChannelSeriesPoint[] =>
-  rows.map((r) => ({ date: r.Date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => DATE_SHAPE.test(p.date))
+  rows.map((r) => ({ date: r.Date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => isValidDate(p.date))
 
 async function getPaidSearchSeries(slug: string, dateRange: string): Promise<ChannelSeriesPoint[]> {
   return toPoints(await awQuery(slug, ['Date', 'Cost', 'Clicks'], dateRange), 'Cost', 'Clicks')
