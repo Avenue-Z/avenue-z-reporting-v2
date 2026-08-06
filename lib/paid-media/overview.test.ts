@@ -135,4 +135,48 @@ describe('getPaidMediaOverview', () => {
     const o = await getPaidMediaOverview('acme', 'last_30_days')
     expect(o.channels.map((c) => c.key)).toEqual(['paid-search', 'meta', 'linkedin'])
   })
+
+  test('blended Leads = Paid Search + LinkedIn; CPL = their spend / their leads; Meta excluded', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 12))   // 12 leads
+    metaMock.mockResolvedValue(meta(500, 80))     // no leads key
+    liMock.mockResolvedValue(li(300, 40, 8))      // 8 leads
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.blendedLeads).toBe(20)               // 12 + 8, Meta excluded
+    expect(o.blendedCostPerLead).toBeCloseTo((1000 + 300) / 20, 6) // (PS+LI spend) / (PS+LI leads)
+  })
+
+  test('a failed Meta does NOT blank blended Leads/CPL (Meta is not lead-bearing)', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 12))
+    metaMock.mockRejectedValue(new Error('meta failed'))
+    liMock.mockResolvedValue(li(300, 40, 8))
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.blendedLeads).toBe(20)
+    expect(o.blendedSpend).toBeNull()             // Spend/Clicks gate still blanks on Meta failure
+  })
+
+  test('a failed lead-bearing channel (LinkedIn) blanks blended Leads/CPL', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 12))
+    metaMock.mockResolvedValue(meta(500, 80))
+    liMock.mockRejectedValue(new Error('li failed'))
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.blendedLeads).toBeNull()
+    expect(o.blendedCostPerLead).toBeNull()
+  })
+
+  test('0 blended leads → CPL is null (renders —)', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 0))
+    metaMock.mockResolvedValue(meta(500, 80))
+    liMock.mockResolvedValue(li(300, 40, 0))
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.blendedLeads).toBe(0)
+    expect(o.blendedCostPerLead).toBeNull()
+  })
 })

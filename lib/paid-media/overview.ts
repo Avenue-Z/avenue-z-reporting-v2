@@ -36,6 +36,16 @@ export interface PaidMediaOverview {
   blendedSpend: number | null
   /** null → render '—'. Meta contributes link clicks, not all clicks (item 2). */
   blendedClicks: number | null
+  /**
+   * null → render '—'. Blended over the lead-bearing channels only (Paid Search +
+   * LinkedIn — those with a `leadsKey`). Meta has no leads data and is excluded
+   * entirely, so a failed or non-configured Meta never blanks this. Gated
+   * independently of blendedSpend/blendedClicks: blank unless every *configured*
+   * lead-bearing channel reports.
+   */
+  blendedLeads: number | null
+  /** null → render '—'. (Lead-bearing channels' spend) / blendedLeads. Null when blendedLeads is 0. */
+  blendedCostPerLead: number | null
 }
 
 /**
@@ -69,7 +79,8 @@ const CHANNELS: Array<{
 ]
 
 /**
- * Roll up blended Spend and Clicks across the Paid Media channels the client runs.
+ * Roll up blended Spend, Clicks, Leads, and Cost-per-lead across the Paid Media
+ * channels the client runs.
  *
  * Missing-channel rule (item 4, comment [r] — Dianna's scoped reading): the
  * blended Spend/Clicks totals are unavailable ('—' → null) unless every channel
@@ -78,10 +89,11 @@ const CHANNELS: Array<{
  * lowers the total; only a configured channel that fails to load blanks it. The
  * per-channel breakdown still lists all three (non-run channels render '—').
  *
- * There is no blended Leads / Cost-per-lead: those would need Meta lead data,
- * which is unavailable, and the team has dropped anything relating to or
- * influenced by Meta leads. Per-channel Leads are still shown for Paid Search and
- * LinkedIn in the breakdown; Meta shows '—'.
+ * Blended Leads / Cost-per-lead are gated independently, scoped to the
+ * lead-bearing channels only (Paid Search + LinkedIn — those with a `leadsKey`).
+ * Meta has no leads data (data gap) and is excluded entirely, so a failed or
+ * non-configured Meta never blanks Leads/CPL. Per-channel Leads are still shown
+ * for Paid Search and LinkedIn in the breakdown; Meta shows '—'.
  */
 export async function getPaidMediaOverview(
   clientSlug: string,
@@ -130,5 +142,15 @@ export async function getPaidMediaOverview(
   const blendedSpend = allOk ? runs.reduce((s, c) => s + (c.spend ?? 0), 0) : null
   const blendedClicks = allOk ? runs.reduce((s, c) => s + (c.clicks ?? 0), 0) : null
 
-  return { channels, blendedSpend, blendedClicks }
+  // Lead-bearing channels are those with a leadsKey (Paid Search, LinkedIn).
+  // Meta has none → excluded from Leads/CPL entirely (never blanks them).
+  const leadKeys = new Set(CHANNELS.filter((c) => c.leadsKey).map((c) => c.key))
+  const leadRuns = channels.filter((c) => c.configured && leadKeys.has(c.key))
+  const leadsOk = leadRuns.length > 0 && leadRuns.every((c) => c.ok)
+  const blendedLeads = leadsOk ? leadRuns.reduce((s, c) => s + (c.leads ?? 0), 0) : null
+  const leadSpend = leadsOk ? leadRuns.reduce((s, c) => s + (c.spend ?? 0), 0) : null
+  const blendedCostPerLead =
+    leadsOk && blendedLeads != null && blendedLeads > 0 ? (leadSpend as number) / blendedLeads : null
+
+  return { channels, blendedSpend, blendedClicks, blendedLeads, blendedCostPerLead }
 }
