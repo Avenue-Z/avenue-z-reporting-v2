@@ -10,15 +10,21 @@ import {
   Tooltip,
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
+import { money } from '@/lib/paid-media/format'
 
 interface AreaChartProps {
   data: Record<string, string | number>[]
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
   height?: number
+  /** Stack the areas (blended contribution view). */
+  stacked?: boolean
+  /** 'currency-cents' formats the Y axis + tooltip via money(); default = raw number. */
+  valueFormat?: 'currency-cents'
 }
 
-export function AreaChart({ data, xKey, yKeys, height = 300 }: AreaChartProps) {
+export function AreaChart({ data, xKey, yKeys, height = 300, stacked, valueFormat }: AreaChartProps) {
+  const fmt = valueFormat === 'currency-cents' ? (v?: number | string) => v !== undefined ? money(Number(v)) : '' : undefined
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>
@@ -52,6 +58,7 @@ export function AreaChart({ data, xKey, yKeys, height = 300 }: AreaChartProps) {
             tick={{ fill: '#8A8A8A', fontSize: 12 }}
             axisLine={false}
             tickLine={false}
+            tickFormatter={fmt}
           />
           <Tooltip
             contentStyle={{
@@ -61,6 +68,7 @@ export function AreaChart({ data, xKey, yKeys, height = 300 }: AreaChartProps) {
               color: '#FFFFFF',
               fontSize: '13px',
             }}
+            formatter={fmt}
           />
           {yKeys.map((series, i) => (
             <Area
@@ -71,6 +79,7 @@ export function AreaChart({ data, xKey, yKeys, height = 300 }: AreaChartProps) {
               stroke={series.color ?? CHART_COLORS.primary}
               fill={`url(#gradient-${i})`}
               strokeWidth={2}
+              stackId={stacked ? '1' : undefined}
             />
           ))}
         </RechartsAreaChart>
