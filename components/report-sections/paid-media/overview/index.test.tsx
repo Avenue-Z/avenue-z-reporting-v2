@@ -61,6 +61,9 @@ describe('PaidMediaOverviewReport', () => {
     expect(screen.getAllByText('Leads').length).toBeGreaterThanOrEqual(2)
     // The scoping caption is explicit about which channels are blended.
     expect(screen.getByText(/Paid Search and LinkedIn only/i)).toBeInTheDocument()
+    // Reconciliation caveats (findings 3/4/5): CPL won't equal Spend ÷ Leads, and a 0-lead
+    // channel still contributes its spend to the blend.
+    expect(screen.getByText(/contributes its spend to the blend/i)).toBeInTheDocument()
 
     // By-channel is now per-channel card sections, not a table.
     expect(screen.queryByRole('table')).not.toBeInTheDocument()

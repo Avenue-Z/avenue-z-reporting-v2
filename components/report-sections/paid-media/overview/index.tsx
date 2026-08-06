@@ -49,7 +49,11 @@ export async function PaidMediaOverviewReport({
       <p className="text-xs text-text-muted">
         Blended Spend and Clicks are shown only when every channel this client runs reports.
         Leads and Cost per Lead are blended across Paid Search and LinkedIn only — Meta lead
-        conversions aren&rsquo;t tracked, so Meta is excluded from those two figures.
+        conversions aren&rsquo;t tracked, so Meta is excluded from those two figures. Because
+        Spend includes every channel but Cost per Lead uses only Paid Search + LinkedIn spend,
+        Cost per Lead won&rsquo;t equal Spend &divide; Leads; a channel currently reporting 0 leads
+        still contributes its spend to the blend. Spend/Clicks and Leads/Cost per Lead are gated
+        independently, so one pair may show a value while the other shows &lsquo;—&rsquo;.
       </p>
 
       <PaidMediaTrendChart trend={trend} />
