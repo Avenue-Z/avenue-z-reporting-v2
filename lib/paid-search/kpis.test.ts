@@ -55,4 +55,12 @@ describe('transformKpis', () => {
       expect(kpis.find((k) => k.key === key)!.delta).toBeUndefined()
     }
   })
+
+  test('CPL is null (renders —) when there are no leads', () => {
+    const noLeadTotals = { Cost: '500', Clicks: '100', Impressions: '2000' }
+    const k = transformKpis(noLeadTotals, [], null, null, cfg)
+    const cpl = k.find((c) => c.key === 'cpl')!
+    expect(cpl.value).toBeNull()
+    expect(cpl.delta).toBeUndefined()
+  })
 })
