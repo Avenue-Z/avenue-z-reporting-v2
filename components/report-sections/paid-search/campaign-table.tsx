@@ -1,7 +1,7 @@
 import { DataTable } from '@/components/charts/data-table'
 import { campaignTotals } from '@/lib/paid-search/campaigns'
 import { num, pct } from '@/lib/paid-search/base'
-import { money } from '@/lib/paid-media/format'
+import { money, costPerLead } from '@/lib/paid-media/format'
 import type { CampaignRow } from '@/lib/paid-search/types'
 
 const columns = [
@@ -25,7 +25,7 @@ function toTableRow(r: CampaignRow): Record<string, React.ReactNode> {
     ctr: pct(r.ctr),
     cpc: money(r.cpc),
     leads: num(r.leads),
-    cpl: money(r.cpl),
+    cpl: costPerLead(r.cost, r.leads),
     convRate: pct(r.convRate),
     // raw numeric shadow fields for sortValue
     _cost: r.cost,
@@ -49,7 +49,7 @@ export function CampaignTable({ rows }: { rows: CampaignRow[] }) {
     ctr: pct(totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0),
     cpc: money(totals.clicks ? totals.cost / totals.clicks : 0),
     leads: num(totals.leads),
-    cpl: money(totals.leads ? totals.cost / totals.leads : 0),
+    cpl: costPerLead(totals.cost, totals.leads),
     convRate: pct(totals.clicks ? (totals.leads / totals.clicks) * 100 : 0),
   }
 
