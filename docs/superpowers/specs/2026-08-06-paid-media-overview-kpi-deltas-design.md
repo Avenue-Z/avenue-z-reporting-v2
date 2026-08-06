@@ -26,9 +26,19 @@ per-channel breakdown cards (Spend / Clicks / Leads).
   standalone sections pass `effectiveCompare = compareRange ?? 'previous_period'`.
 - **`getPaidMediaOverview`** currently calls each `getXKpis(..., null)` — "no
   compare period needed for totals" — and discards deltas. It reads each channel
-  KPI value by key via `readKpi` and sums the configured channels under an
-  all-or-nothing gate (a *configured* channel that fails blanks the blend; a
-  channel the client doesn't run never blanks it).
+  KPI value by key via `readKpi` and sums the **lead-bearing** channels (Paid
+  Search + LinkedIn) under an all-or-nothing gate (a *configured* lead-bearing
+  channel that fails blanks the blend; a channel the client doesn't run — and Meta,
+  which is excluded from every blended figure — never blanks it). See the amendment
+  in `2026-08-06-paid-media-blended-leads-design.md` §A for the Meta-exclusion decision.
+
+> **Amended 2026-08-06:** As implemented, the Overview does **not** force
+> `previous_period`. It fetches a compare period (and shows deltas) **only when the
+> viewer selects a comparison** in the date picker — `getPaidMediaOverview(slug,
+> dateRange, compareRange)` passes `compareRange` straight through (null = 'No
+> Comparison' → no compare query, no deltas). This diverges from the standalone
+> sections, which still auto-default to `previous_period`; left intentionally
+> unchanged.
 
 The one thing missing: the `Kpi` objects expose only the delta **percentage**,
 not the prior **absolute** value. Blended deltas are computed over *sums*, so

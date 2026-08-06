@@ -63,8 +63,8 @@ Extend `PaidMediaOverview`:
 ```ts
 export interface PaidMediaOverview {
   channels: ChannelMetrics[]
-  blendedSpend: number | null        // unchanged (all configured channels gate)
-  blendedClicks: number | null       // unchanged
+  blendedSpend: number | null        // Paid Search + LinkedIn only (see amendment)
+  blendedClicks: number | null       // Paid Search + LinkedIn only (see amendment)
   blendedLeads: number | null        // NEW — lead-bearing channels only
   blendedCostPerLead: number | null  // NEW — null => render '—'
 }
@@ -97,7 +97,19 @@ const blendedCostPerLead =
   Meta spend is **not** in the numerator.
 - `blendedLeads === 0` (both channels ran, produced 0 leads) → `blendedCostPerLead`
   is `null` → renders `—` (the §B rule at the blended level).
-- `blendedSpend`/`blendedClicks` gate and values are **untouched**.
+- `blendedSpend`/`blendedClicks` — see the amendment below. (This bullet originally
+  read "gate and values are **untouched**"; superseded during implementation.)
+
+> **Amended 2026-08-06 (implemented in PR #204, commit `539f69b`):** Meta is excluded
+> from **all four** blended figures — Spend and Clicks as well as Leads/CPL — not just
+> Leads/CPL as this section originally scoped. The blend base is uniformly the
+> lead-bearing channels (Paid Search + LinkedIn) so the four tiles reconcile
+> (`Cost per Lead = blendedSpend ÷ blendedLeads`); Meta appears only in the
+> per-channel breakdown and the trend chart, captioned accordingly. This reverses the
+> "blendedSpend/blendedClicks untouched" invariant above and means **"Blended Spend"
+> no longer equals total paid spend** for a client running Meta. **Requires Dianna/team
+> sign-off** (they owned the original all-channel blend decision) — tracked in
+> `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`.
 
 ### B. Overview UI — `components/report-sections/paid-media/overview/index.tsx`
 

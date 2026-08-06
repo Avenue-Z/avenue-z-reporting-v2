@@ -30,20 +30,24 @@ export async function PaidMediaOverviewReport({
     getPaidMediaTrend(clientSlug, dateRange),
   ])
 
+  // Deltas (and the greyed "— vs prior period" placeholder) only appear when the
+  // viewer selected a comparison period; with 'No Comparison' the tiles show values alone.
+  const comparing = compareRange != null
+
   return (
     <div className="space-y-8">
       {/* Combined top line — Spend, Clicks, Leads, Cost per Lead (item 11a order). */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard title="Spend" value={asMoney(o.blendedSpend)} delta={o.blendedSpendDelta} comparisonExpected />
+        <KpiCard title="Spend" value={asMoney(o.blendedSpend)} delta={o.blendedSpendDelta} comparisonExpected={comparing} />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
           delta={o.blendedClicksDelta}
-          comparisonExpected
+          comparisonExpected={comparing}
           tooltip="Blended across Paid Search + LinkedIn (Meta is excluded from the blend)."
         />
-        <KpiCard title="Leads" value={asNum(o.blendedLeads)} delta={o.blendedLeadsDelta} comparisonExpected />
-        <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} delta={o.blendedCostPerLeadDelta} comparisonExpected invertDelta />
+        <KpiCard title="Leads" value={asNum(o.blendedLeads)} delta={o.blendedLeadsDelta} comparisonExpected={comparing} />
+        <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} delta={o.blendedCostPerLeadDelta} comparisonExpected={comparing} invertDelta />
       </div>
 
       <p className="text-xs text-text-muted">
@@ -63,9 +67,9 @@ export async function PaidMediaOverviewReport({
           <section key={c.key} className="space-y-3">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{c.label}</h3>
             <div className="grid grid-cols-3 gap-3">
-              <KpiCard title="Spend" value={asMoney(c.spend)} delta={c.spendDelta} comparisonExpected />
-              <KpiCard title="Clicks" value={asNum(c.clicks)} delta={c.clicksDelta} comparisonExpected />
-              <KpiCard title="Leads" value={asNum(c.leads)} delta={c.leadsDelta} comparisonExpected />
+              <KpiCard title="Spend" value={asMoney(c.spend)} delta={c.spendDelta} comparisonExpected={comparing} />
+              <KpiCard title="Clicks" value={asNum(c.clicks)} delta={c.clicksDelta} comparisonExpected={comparing} />
+              <KpiCard title="Leads" value={asNum(c.leads)} delta={c.leadsDelta} comparisonExpected={comparing} />
             </div>
           </section>
         ))}

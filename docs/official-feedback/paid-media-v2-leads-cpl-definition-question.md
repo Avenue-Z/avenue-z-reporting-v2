@@ -7,6 +7,16 @@
 
 > **SUPERSEDED (2026-08-06):** Blended Leads and Cost per Lead are now **shown on the Overview, scoped to Paid Search + LinkedIn only.** The narrative below describes the earlier 2026-08-04 decision (dropped entirely) and is retained for historical record only.
 
+> **⚠️ NEEDS DIANNA/TEAM CONFIRMATION (2026-08-06, PR #204).** During implementation the
+> blend base was made uniform: **Meta is now excluded from blended Spend and Clicks too**,
+> not just Leads/CPL. So all four top-line tiles (Spend · Clicks · Leads · Cost per Lead)
+> cover **Paid Search + LinkedIn only**, and they reconcile (`Cost per Lead = blended Spend
+> ÷ blended Leads`). The trade-off: **"Blended Spend" no longer equals a client's total
+> paid spend** — Meta spend appears only in the per-channel breakdown and the trend chart.
+> This reverses the earlier behavior where blended Spend/Clicks summed *all* configured
+> channels including Meta. Dianna/team owned the original all-channel decision, so this
+> needs an explicit OK before it promotes past staging. Code review: `docs/qa/paid-media-blended-leads-code-review.md` (finding F1).
+
 ## The short version
 
 The Paid Media Overview shows a blended top line across the three paid channels

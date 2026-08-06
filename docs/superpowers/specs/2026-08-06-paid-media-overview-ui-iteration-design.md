@@ -28,7 +28,10 @@ Three refinements to the Paid Media Overview shipped in PR #204:
 **Out of scope / non-goals:**
 - A Leads trend view (toggle is Spend + Clicks only; Leads stays on the tiles/cards).
 - Daily granularity on the chart (weekly ISO buckets — see §3B).
-- Changing the blended KPI tiles or the rollup logic from PR #204.
+- Changing the blended KPI tiles or the rollup logic from PR #204. (Note: the rollup
+  *was* subsequently changed on this branch to exclude Meta from blended Spend/Clicks
+  too — see the amendment in `2026-08-06-paid-media-blended-leads-design.md` §A. That
+  change came from the blended-leads work, not this UI iteration.)
 
 ## 3. Design detail
 

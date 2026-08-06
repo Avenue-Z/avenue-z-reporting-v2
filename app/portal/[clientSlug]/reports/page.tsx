@@ -90,7 +90,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       if (subsection === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       if (subsection === 'linkedin')    return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-      return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'snapchat-ads':
       return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':

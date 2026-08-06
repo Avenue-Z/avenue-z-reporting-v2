@@ -35,7 +35,8 @@ describe('PaidMediaOverviewReport', () => {
       blendedCostPerLeadDelta: -3,
     })
 
-    const ui = await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' })
+    // A comparison period is selected, so deltas (and the greyed placeholder) render.
+    const ui = await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days', compareRange: 'previous_period' })
     render(ui)
 
     // Per-channel breakdown shows the channels that reported, in cents.
