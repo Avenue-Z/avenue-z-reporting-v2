@@ -50,8 +50,14 @@ import { linkedinQuery } from '@/lib/linkedin/base'
 import { getClientBySlug } from '@/lib/db/queries'
 
 const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/
-const isValidDate = (date: string): boolean =>
-  DATE_SHAPE.test(date) && Number.isFinite(new Date(date + 'T00:00:00Z').getTime())
+const isValidDate = (date: string): boolean => {
+  if (!DATE_SHAPE.test(date)) return false
+  // Round-trip: JS Date ROLLS impossible dates over ('2026-02-30' → Mar 2, still
+  // finite), so a finiteness check alone accepts them. Re-serialising and comparing
+  // rejects any date the parser silently shifted.
+  const d = new Date(date + 'T00:00:00Z')
+  return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === date
+}
 
 const toPoints = (rows: Record<string, string>[], spendKey: string, clicksKey: string): ChannelSeriesPoint[] =>
   // LinkedIn's Supermetrics connector returns the day dimension keyed lowercase `date`,

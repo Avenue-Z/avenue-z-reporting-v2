@@ -35,14 +35,21 @@ const COLS: Col[] = [
 
 type SortKey = MetricKey | 'name'
 
-function sortItems<T extends LinkedInCreativeMetrics & { name?: string; ad?: string }>(
+// Cost/Lead for a leadless row is stored as 0 (see lib/linkedin/creative.ts), but a
+// creative with 0 leads has NO cost-per-lead, not the cheapest one. Rank those rows as
+// the most expensive so they sort to the bottom of an ascending Cost/Lead sort (and the
+// top of a descending one) — matching the "—" the column already displays for them.
+const sortValue = <T extends LinkedInCreativeMetrics>(item: T, key: MetricKey): number =>
+  key === 'costPerLead' && item.leads === 0 ? Infinity : (item[key] as number)
+
+export function sortItems<T extends LinkedInCreativeMetrics & { name?: string; ad?: string }>(
   items: T[],
   key: SortKey,
   dir: 'asc' | 'desc',
 ): T[] {
   const sorted = [...items].sort((a, b) => {
-    const av = key === 'name' ? (a.name ?? a.ad ?? '') : (a[key] as number)
-    const bv = key === 'name' ? (b.name ?? b.ad ?? '') : (b[key] as number)
+    const av = key === 'name' ? (a.name ?? a.ad ?? '') : sortValue(a, key)
+    const bv = key === 'name' ? (b.name ?? b.ad ?? '') : sortValue(b, key)
     if (av < bv) return -1
     if (av > bv) return 1
     return 0

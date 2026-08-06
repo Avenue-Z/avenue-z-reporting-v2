@@ -120,6 +120,22 @@ describe('getPaidMediaTrend', () => {
     expect(t.points[0].channels['paid-search']).toEqual({ spend: 100, clicks: 10 })
   })
 
+  test('a rolled-over impossible date (e.g. 2026-02-30) is dropped, not silently mis-bucketed', async () => {
+    // JS rolls '2026-02-30' → Mar 2 (finite), so a finiteness-only check would keep it
+    // and bucket it into the wrong week. The round-trip validity check must drop it.
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: null, linkedinConfig: null })
+    aw.mockResolvedValue([
+      { Date: '2026-08-06', Cost: '100', Clicks: '10' },
+      { Date: '2026-02-30', Cost: '5', Clicks: '1' }, // shape-valid but Feb 30 doesn't exist
+    ])
+
+    const t = await getPaidMediaTrend('acme', 'last_30_days')
+    expect(t.channels).toEqual(['paid-search'])
+    expect(t.points).toHaveLength(1) // only the valid Aug week; the rolled-over row is dropped
+    expect(t.points[0].week).toBe('2026-08-03')
+    expect(t.points[0].channels['paid-search']).toEqual({ spend: 100, clicks: 10 })
+  })
+
   test('a calendar-invalid but shape-valid date row is dropped, not counted, and never throws (best-effort)', async () => {
     client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: null, linkedinConfig: null })
     aw.mockResolvedValue([

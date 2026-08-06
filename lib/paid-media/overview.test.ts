@@ -42,8 +42,8 @@ const li = (spend: number, clicks: number, leads = 0, prior?: { spend: number; c
 // Which channels the client is configured for — only presence matters to the rollup.
 const client = (opts: { ps?: boolean; meta?: boolean; li?: boolean }) => ({
   paidSearchConfig: opts.ps ? { googleAdsAccountId: '1' } : null,
-  metaConfig: opts.meta ? { metaAccountId: '1' } : null,
-  linkedinConfig: opts.li ? { linkedinAccountId: '1' } : null,
+  metaConfig: opts.meta ? { metaAdAccountId: '1' } : null,
+  linkedinConfig: opts.li ? { linkedinAdAccountId: '1' } : null,
 })
 
 beforeEach(() => {

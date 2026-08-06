@@ -8,7 +8,13 @@ export function KpiGrid({ kpis }: { kpis: Kpi[] }) {
       {kpis.map((k) => {
         // Money KPIs render cents; a null money value is an undefined ratio → dash.
         const isMoney = k.format === 'money'
-        const display = isMoney ? (k.value == null ? DASH : money(k.value as number)) : (k.value as string | number)
+        const display = isMoney
+          ? k.value == null
+            ? DASH
+            : typeof k.value === 'number'
+              ? money(k.value)
+              : String(k.value)
+          : (k.value as string | number)
         return (
           <KpiCard
             key={k.key}
