@@ -21,14 +21,18 @@ describe('PaidMediaOverviewReport', () => {
   test('missing channel blanks the blended totals; per-channel Leads shown where available (Meta blank)', async () => {
     mock.mockResolvedValue({
       channels: [
-        { key: 'paid-search', label: 'Paid Search', configured: true, spend: 1000, clicks: 200, leads: 12, ok: true },
-        { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true },
+        { key: 'paid-search', label: 'Paid Search', configured: true, spend: 1000, clicks: 200, leads: 12, ok: true, spendDelta: 25, clicksDelta: 10, leadsDelta: 5 },
+        { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true, spendDelta: -8, clicksDelta: 4 },
         { key: 'linkedin', label: 'LinkedIn Advertising', configured: true, spend: null, clicks: null, leads: null, ok: false },
       ],
       blendedSpend: null,
       blendedClicks: null,
       blendedLeads: 20,
       blendedCostPerLead: 65,
+      blendedSpendDelta: undefined,
+      blendedClicksDelta: undefined,
+      blendedLeadsDelta: 12,
+      blendedCostPerLeadDelta: -3,
     })
 
     const ui = await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' })
@@ -65,6 +69,13 @@ describe('PaidMediaOverviewReport', () => {
     expect(screen.getByRole('heading', { name: 'Meta Advertising' })).toBeInTheDocument()
     // The trend chart is mounted between the tiles and the by-channel sections.
     expect(screen.getByTestId('trend')).toBeInTheDocument()
+
+    // Per-channel delta renders (Paid Search Spend +25%).
+    expect(screen.getByText(/25\.0% vs prior period/i)).toBeInTheDocument()
+    // Blended Leads delta renders (+12%).
+    expect(screen.getByText(/12\.0% vs prior period/i)).toBeInTheDocument()
+    // A blended tile with an undefined delta shows the greyed placeholder.
+    expect(screen.getAllByText(/^— vs prior period$/i).length).toBeGreaterThanOrEqual(1)
   })
 
   test('blended Cost per Lead renders — when blendedCostPerLead is null', async () => {

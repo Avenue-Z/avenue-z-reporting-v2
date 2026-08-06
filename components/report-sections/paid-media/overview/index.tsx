@@ -19,12 +19,14 @@ const asNum = (n: number | null) => (n == null ? dash : num(n))
 export async function PaidMediaOverviewReport({
   clientSlug,
   dateRange = 'last_30_days',
+  compareRange = null,
 }: {
   clientSlug: string
   dateRange?: string
+  compareRange?: string | null
 }) {
   const [o, trend] = await Promise.all([
-    getPaidMediaOverview(clientSlug, dateRange),
+    getPaidMediaOverview(clientSlug, dateRange, compareRange),
     getPaidMediaTrend(clientSlug, dateRange),
   ])
 
@@ -32,14 +34,16 @@ export async function PaidMediaOverviewReport({
     <div className="space-y-8">
       {/* Combined top line — Spend, Clicks, Leads, Cost per Lead (item 11a order). */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard title="Spend" value={asMoney(o.blendedSpend)} />
+        <KpiCard title="Spend" value={asMoney(o.blendedSpend)} delta={o.blendedSpendDelta} comparisonExpected />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
+          delta={o.blendedClicksDelta}
+          comparisonExpected
           tooltip="Blended across the channels this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
         />
-        <KpiCard title="Leads" value={asNum(o.blendedLeads)} />
-        <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} />
+        <KpiCard title="Leads" value={asNum(o.blendedLeads)} delta={o.blendedLeadsDelta} comparisonExpected />
+        <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} delta={o.blendedCostPerLeadDelta} comparisonExpected invertDelta />
       </div>
 
       <p className="text-xs text-text-muted">
@@ -57,9 +61,9 @@ export async function PaidMediaOverviewReport({
           <section key={c.key} className="space-y-3">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{c.label}</h3>
             <div className="grid grid-cols-3 gap-3">
-              <KpiCard title="Spend" value={asMoney(c.spend)} />
-              <KpiCard title="Clicks" value={asNum(c.clicks)} />
-              <KpiCard title="Leads" value={asNum(c.leads)} />
+              <KpiCard title="Spend" value={asMoney(c.spend)} delta={c.spendDelta} comparisonExpected />
+              <KpiCard title="Clicks" value={asNum(c.clicks)} delta={c.clicksDelta} comparisonExpected />
+              <KpiCard title="Leads" value={asNum(c.leads)} delta={c.leadsDelta} comparisonExpected />
             </div>
           </section>
         ))}
