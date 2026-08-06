@@ -23,20 +23,20 @@ const liMock = getLinkedInKpis as Mock
 const clientMock = getClientBySlug as Mock
 
 // Minimal KPI arrays keyed the way the rollup reads them.
-const ps = (cost: number, clicks: number, leads = 0): Kpi[] => [
-  { key: 'cost', label: 'Cost', value: cost, format: 'money' },
-  { key: 'clicks', label: 'Clicks', value: clicks },
-  { key: 'leads', label: 'Leads', value: leads },
+const ps = (cost: number, clicks: number, leads = 0, prior?: { cost: number; clicks: number; leads: number }): Kpi[] => [
+  { key: 'cost', label: 'Cost', value: cost, format: 'money', delta: prior ? ((cost - prior.cost) / prior.cost) * 100 : undefined, compareValue: prior?.cost },
+  { key: 'clicks', label: 'Clicks', value: clicks, delta: prior ? ((clicks - prior.clicks) / prior.clicks) * 100 : undefined, compareValue: prior?.clicks },
+  { key: 'leads', label: 'Leads', value: leads, delta: prior ? ((leads - prior.leads) / prior.leads) * 100 : undefined, compareValue: prior?.leads },
 ]
 // Meta exposes no `leads` key — Meta lead conversions are unavailable (data gap).
 const meta = (spend: number, linkClicks: number): Kpi[] => [
   { key: 'spend', label: 'Spend', value: spend, format: 'money' },
   { key: 'linkClicks', label: 'Link Clicks', value: linkClicks },
 ]
-const li = (spend: number, clicks: number, leads = 0): Kpi[] => [
-  { key: 'spend', label: 'Spend', value: spend, format: 'money' },
-  { key: 'clicks', label: 'Clicks', value: clicks },
-  { key: 'leads', label: 'Leads', value: leads },
+const li = (spend: number, clicks: number, leads = 0, prior?: { spend: number; clicks: number; leads: number }): Kpi[] => [
+  { key: 'spend', label: 'Spend', value: spend, format: 'money', delta: prior ? ((spend - prior.spend) / prior.spend) * 100 : undefined, compareValue: prior?.spend },
+  { key: 'clicks', label: 'Clicks', value: clicks, delta: prior ? ((clicks - prior.clicks) / prior.clicks) * 100 : undefined, compareValue: prior?.clicks },
+  { key: 'leads', label: 'Leads', value: leads, delta: prior ? ((leads - prior.leads) / prior.leads) * 100 : undefined, compareValue: prior?.leads },
 ]
 
 // Which channels the client is configured for — only presence matters to the rollup.
@@ -178,5 +178,43 @@ describe('getPaidMediaOverview', () => {
     const o = await getPaidMediaOverview('acme', 'last_30_days')
     expect(o.blendedLeads).toBe(0)
     expect(o.blendedCostPerLead).toBeNull()
+  })
+})
+
+describe('getPaidMediaOverview — deltas', () => {
+  test('per-channel and blended deltas compute from summed priors', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, li: true })) // no Meta
+    // Paid Search: spend 100 (prior 80), clicks 10 (prior 8), leads 5 (prior 4)
+    psMock.mockResolvedValue(ps(100, 10, 5, { cost: 80, clicks: 8, leads: 4 }))
+    // LinkedIn: spend 300 (prior 200), clicks 30 (prior 20), leads 15 (prior 10)
+    liMock.mockResolvedValue(li(300, 30, 15, { spend: 200, clicks: 20, leads: 10 }))
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+
+    // Per-channel deltas come straight from each Kpi.delta.
+    const psRow = o.channels.find((c) => c.key === 'paid-search')!
+    expect(psRow.spendDelta).toBeCloseTo(25) // (100-80)/80
+    expect(psRow.clicksDelta).toBeCloseTo(25)
+    expect(psRow.leadsDelta).toBeCloseTo(25)
+
+    // Blended = delta(sumCurrent, sumPrior): spend (400 vs 280), clicks (40 vs 28), leads (20 vs 14).
+    expect(o.blendedSpendDelta).toBeCloseTo(((400 - 280) / 280) * 100)
+    expect(o.blendedClicksDelta).toBeCloseTo(((40 - 28) / 28) * 100)
+    expect(o.blendedLeadsDelta).toBeCloseTo(((20 - 14) / 14) * 100)
+    // Blended CPL: cur 400/20=20, prior 280/14=20 → 0% (invert handled in UI).
+    expect(o.blendedCostPerLeadDelta).toBeCloseTo(0)
+  })
+
+  test('a configured channel missing its prior blanks the blended delta (all-or-nothing)', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, li: true }))
+    psMock.mockResolvedValue(ps(100, 10, 5, { cost: 80, clicks: 8, leads: 4 }))
+    liMock.mockResolvedValue(li(300, 30, 15)) // no prior → compareValue undefined
+
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
+    expect(o.channels.find((c) => c.key === 'linkedin')!.spendDelta).toBeUndefined()
+    expect(o.blendedSpendDelta).toBeUndefined()
+    expect(o.blendedClicksDelta).toBeUndefined()
+    expect(o.blendedLeadsDelta).toBeUndefined()
+    expect(o.blendedCostPerLeadDelta).toBeUndefined()
   })
 })

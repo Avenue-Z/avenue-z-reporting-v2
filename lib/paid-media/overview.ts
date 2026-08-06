@@ -22,6 +22,10 @@ export interface ChannelMetrics {
    */
   leads: number | null
   ok: boolean
+  /** Per-channel % change vs the prior period (undefined = no comparison). */
+  spendDelta?: number
+  clicksDelta?: number
+  leadsDelta?: number
 }
 
 export interface PaidMediaOverview {
@@ -46,6 +50,11 @@ export interface PaidMediaOverview {
   blendedLeads: number | null
   /** null → render '—'. (Lead-bearing channels' spend) / blendedLeads. Null when blendedLeads is 0. */
   blendedCostPerLead: number | null
+  /** Blended % change vs the prior period; undefined unless every channel feeding the blend has a prior (same all-or-nothing gate as the value). */
+  blendedSpendDelta?: number
+  blendedClicksDelta?: number
+  blendedLeadsDelta?: number
+  blendedCostPerLeadDelta?: number
 }
 
 /**
@@ -60,6 +69,18 @@ function readKpi(kpis: Kpi[], key: string): number | null {
   const entry = kpis.find((k) => k.key === key)
   if (!entry) return null
   return typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0)
+}
+
+function readKpiDelta(kpis: Kpi[], key: string): number | undefined {
+  return kpis.find((k) => k.key === key)?.delta
+}
+function readKpiCompare(kpis: Kpi[], key: string): number | undefined {
+  return kpis.find((k) => k.key === key)?.compareValue
+}
+/** % change vs prior; undefined when prior is 0 or absent (matches the channels' rule). */
+function pct(cur: number, prev: number | undefined): number | undefined {
+  if (prev == null || prev === 0) return undefined
+  return ((cur - prev) / prev) * 100
 }
 
 const CHANNELS: Array<{
@@ -98,6 +119,7 @@ const CHANNELS: Array<{
 export async function getPaidMediaOverview(
   clientSlug: string,
   dateRange: string,
+  compareRange: string | null = null,
 ): Promise<PaidMediaOverview> {
   const client = await getClientBySlug(clientSlug)
   const configured: Record<ChannelKey, boolean> = {
@@ -106,11 +128,13 @@ export async function getPaidMediaOverview(
     linkedin: !!client?.linkedinConfig,
   }
 
-  // Fetch only the channels the client runs. No compare period needed for totals.
+  const effectiveCompare = compareRange ?? 'previous_period'
+
+  // Fetch only the channels the client runs.
   const settled = await Promise.allSettled([
-    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, null) : Promise.resolve(null),
-    configured.meta ? getMetaKpis(clientSlug, dateRange, null) : Promise.resolve(null),
-    configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, null) : Promise.resolve(null),
+    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured.meta ? getMetaKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
   ])
 
   const channels: ChannelMetrics[] = CHANNELS.map((c, i) => {
@@ -133,8 +157,27 @@ export async function getPaidMediaOverview(
     if (spend === null || clicks === null || (c.leadsKey != null && leads === null)) {
       return failed
     }
-    return { key: c.key, label: c.label, configured: true, spend, clicks, leads, ok: true }
+    return {
+      key: c.key, label: c.label, configured: true, spend, clicks, leads, ok: true,
+      spendDelta: readKpiDelta(res.value, c.spendKey),
+      clicksDelta: readKpiDelta(res.value, c.clicksKey),
+      leadsDelta: c.leadsKey ? readKpiDelta(res.value, c.leadsKey) : undefined,
+    }
   })
+
+  // Prior-period absolutes per channel, for blended deltas. Only for channels that
+  // reported (ok) with a defined compareValue on the blended key; undefined otherwise.
+  const priorOf = (key: ChannelKey) => {
+    const i = CHANNELS.findIndex((c) => c.key === key)
+    const cfg = CHANNELS[i]
+    const res = settled[i]
+    if (!configured[key] || res.status !== 'fulfilled' || res.value == null) return null
+    return {
+      spend: readKpiCompare(res.value, cfg.spendKey),
+      clicks: readKpiCompare(res.value, cfg.clicksKey),
+      leads: cfg.leadsKey ? readKpiCompare(res.value, cfg.leadsKey) : undefined,
+    }
+  }
 
   // Blend over the configured channels only; blank if any configured channel failed.
   const runs = channels.filter((c) => c.configured)
@@ -152,5 +195,31 @@ export async function getPaidMediaOverview(
   const blendedCostPerLead =
     leadsOk && blendedLeads != null && blendedLeads > 0 ? (leadSpend as number) / blendedLeads : null
 
-  return { channels, blendedSpend, blendedClicks, blendedLeads, blendedCostPerLead }
+  // Blended deltas: sum priors over the same channels feeding each blended value.
+  // Blank (undefined) unless the value itself is available AND every contributing
+  // channel has a defined prior for that metric.
+  const priorsFor = (rows: ChannelMetrics[], field: 'spend' | 'clicks' | 'leads') => {
+    const vals = rows.map((c) => priorOf(c.key)?.[field])
+    return vals.every((v) => v != null) ? (vals as number[]).reduce((s, v) => s + v, 0) : undefined
+  }
+
+  const blendedSpendPrior = allOk ? priorsFor(runs, 'spend') : undefined
+  const blendedClicksPrior = allOk ? priorsFor(runs, 'clicks') : undefined
+  const blendedLeadsPrior = leadsOk ? priorsFor(leadRuns, 'leads') : undefined
+  const leadSpendPrior = leadsOk ? priorsFor(leadRuns, 'spend') : undefined
+
+  const blendedSpendDelta = blendedSpend != null ? pct(blendedSpend, blendedSpendPrior) : undefined
+  const blendedClicksDelta = blendedClicks != null ? pct(blendedClicks, blendedClicksPrior) : undefined
+  const blendedLeadsDelta = blendedLeads != null ? pct(blendedLeads, blendedLeadsPrior) : undefined
+  const priorCpl =
+    leadSpendPrior != null && blendedLeadsPrior != null && blendedLeadsPrior > 0
+      ? leadSpendPrior / blendedLeadsPrior
+      : undefined
+  const blendedCostPerLeadDelta =
+    blendedCostPerLead != null ? pct(blendedCostPerLead, priorCpl) : undefined
+
+  return {
+    channels, blendedSpend, blendedClicks, blendedLeads, blendedCostPerLead,
+    blendedSpendDelta, blendedClicksDelta, blendedLeadsDelta, blendedCostPerLeadDelta,
+  }
 }
