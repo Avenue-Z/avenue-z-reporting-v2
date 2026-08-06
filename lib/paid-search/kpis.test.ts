@@ -63,4 +63,17 @@ describe('transformKpis', () => {
     expect(cpl.value).toBeNull()
     expect(cpl.delta).toBeUndefined()
   })
+
+  test('attaches prior-period compareValue on cost, clicks and leads', () => {
+    const k = transformKpis(
+      { Cost: '100', Clicks: '10', Impressions: '1000' },
+      [{ ConversionTypeName: 'contact_individual_lead', Conversions: '5' }],
+      { Cost: '80', Clicks: '8', Impressions: '900' },
+      [{ ConversionTypeName: 'contact_individual_lead', Conversions: '4' }],
+      cfg,
+    )
+    expect(k.find((x) => x.key === 'cost')!.compareValue).toBe(80)
+    expect(k.find((x) => x.key === 'clicks')!.compareValue).toBe(8)
+    expect(k.find((x) => x.key === 'leads')!.compareValue).toBe(4)
+  })
 })

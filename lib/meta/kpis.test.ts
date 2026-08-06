@@ -57,4 +57,18 @@ describe('transformMetaKpis', () => {
       expect(kpi.prefix).toBeUndefined()
     }
   })
+
+  test('attaches prior-period compareValue on spend and linkClicks', () => {
+    const k = transformMetaKpis(
+      { cost: '100', inline_link_clicks: '10' },
+      { cost: '80', inline_link_clicks: '8' },
+    )
+    expect(k.find((x) => x.key === 'spend')!.compareValue).toBe(80)
+    expect(k.find((x) => x.key === 'linkClicks')!.compareValue).toBe(8)
+  })
+
+  test('compareValue is undefined when there is no compare period', () => {
+    const k = transformMetaKpis({ cost: '100', inline_link_clicks: '10' }, null)
+    expect(k.find((x) => x.key === 'spend')!.compareValue).toBeUndefined()
+  })
 })

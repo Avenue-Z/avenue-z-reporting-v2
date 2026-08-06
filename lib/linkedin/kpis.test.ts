@@ -56,4 +56,14 @@ assert.equal(freq.delta, undefined)
 // a real zero reach ('0') is NOT treated as unavailable
 const zeroReach = transformLinkedInKpis({ ...totals, approximateUniqueImpressions: '0' }, null)
 assert.equal(zeroReach.find((c) => c.key === 'reach')!.value, 0)
+
+// compareValue attaches prior-period absolutes on spend, clicks and leads
+const k4 = transformLinkedInKpis(
+  { spend: '100', clicks: '10', oneClickLeads: '5' },
+  { spend: '80', clicks: '8', oneClickLeads: '4' },
+)
+assert.equal(k4.find((x) => x.key === 'spend')!.compareValue, 80)
+assert.equal(k4.find((x) => x.key === 'clicks')!.compareValue, 8)
+assert.equal(k4.find((x) => x.key === 'leads')!.compareValue, 4)
+
 console.log('ok')

@@ -37,12 +37,12 @@ export function transformKpis(
   const cConvRate = cClicks && cLeads !== undefined ? (cLeads / cClicks) * 100 : undefined
 
   return [
-    { key: 'cost', label: 'Cost', value: cost, format: 'money', delta: delta(cost, cCost) },
-    { key: 'clicks', label: 'Clicks', value: clicks, delta: delta(clicks, cClicks) },
+    { key: 'cost', label: 'Cost', value: cost, format: 'money', delta: delta(cost, cCost), compareValue: cCost },
+    { key: 'clicks', label: 'Clicks', value: clicks, delta: delta(clicks, cClicks), compareValue: cClicks },
     { key: 'impressions', label: 'Impressions', value: impressions, delta: delta(impressions, cImpr) },
     { key: 'ctr', label: 'CTR', value: ctr, suffix: '%', delta: delta(ctr, cCtr) },
     { key: 'cpc', label: 'Avg. CPC', value: cpc, format: 'money', delta: delta(cpc, cCpc), invertDelta: true },
-    { key: 'leads', label: 'Leads', value: leads, delta: delta(leads, cLeads) },
+    { key: 'leads', label: 'Leads', value: leads, delta: delta(leads, cLeads), compareValue: cLeads },
     { key: 'cpl', label: 'Cost / Lead', value: cpl, format: 'money', delta: cpl != null ? delta(cpl, cCpl) : undefined, invertDelta: true },
     { key: 'convRate', label: 'Conversion Rate', value: convRate, suffix: '%', delta: delta(convRate, cConvRate) },
   ]

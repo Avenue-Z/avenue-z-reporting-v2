@@ -18,9 +18,10 @@ export function transformMetaKpis(
     n(t, 'impressions') ? (n(t, 'action_post_engagement') / n(t, 'impressions')) * 100 : 0
 
   const d = (id: string) => delta(n(totals, id), compare ? n(compare, id) : undefined)
+  const cv = (id: string) => (compare ? n(compare, id) : undefined)
 
   return [
-    { key: 'spend', label: 'Spend', value: n(totals, 'cost'), format: 'money', delta: d('cost') },
+    { key: 'spend', label: 'Spend', value: n(totals, 'cost'), format: 'money', delta: d('cost'), compareValue: cv('cost') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
     { key: 'reach', label: 'Reach', value: n(totals, 'reach'), delta: d('reach') },
     {
@@ -36,6 +37,7 @@ export function transformMetaKpis(
       label: 'Link Clicks',
       value: n(totals, 'inline_link_clicks'),
       delta: d('inline_link_clicks'),
+      compareValue: cv('inline_link_clicks'),
     },
     // Meta returns CTR as a 0-1 fraction — scale to percent.
     { key: 'ctr', label: 'CTR', value: +(n(totals, 'CTR') * 100).toFixed(1), suffix: '%', delta: d('CTR') },
