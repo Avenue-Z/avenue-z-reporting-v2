@@ -29,6 +29,8 @@ export function transformLinkedInKpis(
   const reachAvailable = reachRaw != null && reachRaw !== ''
   const reachNote = 'LinkedIn only reports Reach for date ranges up to ~90 days.'
 
+  const liLeads = n(totals, 'oneClickLeads')
+
   return [
     { key: 'spend', label: 'Spend', value: n(totals, 'spend'), format: 'money', delta: d('spend') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
@@ -63,7 +65,7 @@ export function transformLinkedInKpis(
       invertDelta: true,
     },
     { key: 'leads', label: 'Leads', value: n(totals, 'oneClickLeads'), delta: d('oneClickLeads') },
-    { key: 'costPerLead', label: 'Cost / Lead', value: n(totals, 'oneClickLeadsCost'), format: 'money', delta: d('oneClickLeadsCost'), invertDelta: true },
+    { key: 'costPerLead', label: 'Cost / Lead', value: liLeads > 0 ? n(totals, 'oneClickLeadsCost') : null, format: 'money', delta: liLeads > 0 ? d('oneClickLeadsCost') : undefined, invertDelta: true },
     { key: 'leadFormOpens', label: 'Lead Form Opens', value: n(totals, 'oneClickLeadFormOpens'), delta: d('oneClickLeadFormOpens') },
     { key: 'leadFormCompletionRate', label: 'Lead Form Completion Rate', value: +(n(totals, 'leadFormCompletionRate') * 100).toFixed(1), suffix: '%', delta: d('leadFormCompletionRate') },
   ]
