@@ -40,6 +40,12 @@ per-channel breakdown cards (Spend / Clicks / Leads).
 > Period" / "Previous Year") overrides the default — that selection is threaded from the
 > page through `PaidMediaOverviewReport`'s `compareRange` prop (the page previously
 > dropped it, so the picker had no effect on the Overview; now it does).
+>
+> **Also amended:** blended Leads/CPL were scrapped (see the blended-leads spec), so the
+> only **blended** deltas are `blendedSpendDelta` / `blendedClicksDelta`, summed over **all
+> configured** channels (not the PS+LinkedIn subset). `blendedLeadsDelta` /
+> `blendedCostPerLeadDelta` are gone. Per-channel Spend/Clicks/**Leads** deltas in the
+> by-channel breakdown are unchanged.
 
 The one thing missing: the `Kpi` objects expose only the delta **percentage**,
 not the prior **absolute** value. Blended deltas are computed over *sums*, so

@@ -32,27 +32,18 @@ export interface PaidMediaOverview {
   /** Per-channel breakdown — always lists all three (item 11b). */
   channels: ChannelMetrics[]
   /**
-   * null → render '—'. Blended over the lead-bearing channels (Paid Search +
-   * LinkedIn) only — Meta is excluded from every blended figure. Blank unless
-   * every *configured* lead-bearing channel reports; a channel the client does
-   * not run (or Meta, ever) never blanks or lowers the blend.
+   * null → render '—'. Blended Spend over every channel the client runs (Paid
+   * Search + Meta + LinkedIn), so it equals total paid spend. Blank unless every
+   * *configured* channel reports; a channel the client does not run never blanks
+   * or lowers the blend. (Blended Leads / Cost-per-lead were scrapped — see the
+   * rollup doc comment below.)
    */
   blendedSpend: number | null
-  /** null → render '—'. Blended over Paid Search + LinkedIn (Meta excluded). */
+  /** null → render '—'. Blended Clicks over every configured channel. */
   blendedClicks: number | null
-  /**
-   * null → render '—'. Blended over Paid Search + LinkedIn (the lead-bearing
-   * channels). Meta has no leads data and is excluded. Same gate/base as
-   * blendedSpend/blendedClicks, so the tiles reconcile.
-   */
-  blendedLeads: number | null
-  /** null → render '—'. blendedSpend / blendedLeads (both PS+LinkedIn). Null when blendedLeads is 0. */
-  blendedCostPerLead: number | null
   /** Blended % change vs the prior period; undefined unless every channel feeding the blend has a prior (same all-or-nothing gate as the value). */
   blendedSpendDelta?: number
   blendedClicksDelta?: number
-  blendedLeadsDelta?: number
-  blendedCostPerLeadDelta?: number
 }
 
 /**
@@ -98,8 +89,7 @@ const CHANNELS: Array<{
 ]
 
 /**
- * Roll up blended Spend, Clicks, Leads, and Cost-per-lead across the Paid Media
- * channels the client runs.
+ * Roll up blended Spend and Clicks across the Paid Media channels the client runs.
  *
  * Missing-channel rule (item 4, comment [r] — Dianna's scoped reading): the
  * blended Spend/Clicks totals are unavailable ('—' → null) unless every channel
@@ -108,11 +98,11 @@ const CHANNELS: Array<{
  * lowers the total; only a configured channel that fails to load blanks it. The
  * per-channel breakdown still lists all three (non-run channels render '—').
  *
- * Blended Leads / Cost-per-lead are gated independently, scoped to the
- * lead-bearing channels only (Paid Search + LinkedIn — those with a `leadsKey`).
- * Meta has no leads data (data gap) and is excluded entirely, so a failed or
- * non-configured Meta never blanks Leads/CPL. Per-channel Leads are still shown
- * for Paid Search and LinkedIn in the breakdown; Meta shows '—'.
+ * There is NO blended Leads / Cost-per-lead (scrapped 2026-08-06, re-affirming the
+ * 2026-08-04 team decision): Meta has no lead data and LinkedIn reports 0 leads
+ * today (landing-page traffic), so any blended lead figure would be misleading and
+ * a blended CPL would charge lead-less spend against Paid Search's leads. Per-channel
+ * Leads are still shown for Paid Search and LinkedIn in the breakdown; Meta shows '—'.
  */
 export async function getPaidMediaOverview(
   clientSlug: string,
@@ -163,8 +153,8 @@ export async function getPaidMediaOverview(
     }
   })
 
-  // Prior-period absolutes per channel, for blended deltas. Only for channels that
-  // reported (ok) with a defined compareValue on the blended key; undefined otherwise.
+  // Prior-period Spend/Clicks absolutes per channel, for the blended deltas. Only for
+  // channels that reported (ok) with a defined compareValue; undefined otherwise.
   const priorOf = (key: ChannelKey) => {
     const i = CHANNELS.findIndex((c) => c.key === key)
     const cfg = CHANNELS[i]
@@ -173,50 +163,30 @@ export async function getPaidMediaOverview(
     return {
       spend: readKpiCompare(res.value, cfg.spendKey),
       clicks: readKpiCompare(res.value, cfg.clicksKey),
-      leads: cfg.leadsKey ? readKpiCompare(res.value, cfg.leadsKey) : undefined,
     }
   }
 
-  // The blended top line covers the LEAD-BEARING channels only (Paid Search +
-  // LinkedIn — those with a leadsKey). Meta is excluded from EVERY blended figure:
-  // it has no lead data and the team wants the blend to aggregate just these two
-  // channels (Meta's reporting is handled separately). Meta still appears in the
-  // per-channel breakdown. Because Spend, Clicks, Leads and CPL all use the same
-  // PS+LinkedIn base, the tiles reconcile (Spend ÷ Leads = Cost per Lead).
-  // Gate: blank the blend unless every CONFIGURED lead-bearing channel reports; a
-  // channel the client doesn't run (or Meta, ever) never blanks or lowers it.
-  const blendKeys = new Set(CHANNELS.filter((c) => c.leadsKey).map((c) => c.key))
-  const blendRuns = channels.filter((c) => c.configured && blendKeys.has(c.key))
-  const blendOk = blendRuns.length > 0 && blendRuns.every((c) => c.ok)
-  const blendedSpend = blendOk ? blendRuns.reduce((s, c) => s + (c.spend ?? 0), 0) : null
-  const blendedClicks = blendOk ? blendRuns.reduce((s, c) => s + (c.clicks ?? 0), 0) : null
-  const blendedLeads = blendOk ? blendRuns.reduce((s, c) => s + (c.leads ?? 0), 0) : null
-  const blendedCostPerLead =
-    blendOk && blendedLeads != null && blendedLeads > 0 ? (blendedSpend as number) / blendedLeads : null
+  // Blend Spend + Clicks over EVERY channel the client runs (Paid Search + Meta +
+  // LinkedIn), so "Blended Spend" equals total paid spend. Blank the blend unless
+  // every configured channel reports; a channel the client doesn't run is excluded
+  // from the gate, so its absence never blanks or lowers the total. (No blended Leads
+  // / Cost-per-lead — see the rollup doc comment above.)
+  const runs = channels.filter((c) => c.configured)
+  const allOk = runs.length > 0 && runs.every((c) => c.ok)
+  const blendedSpend = allOk ? runs.reduce((s, c) => s + (c.spend ?? 0), 0) : null
+  const blendedClicks = allOk ? runs.reduce((s, c) => s + (c.clicks ?? 0), 0) : null
 
-  // Blended deltas: sum priors over the same PS+LinkedIn base. Blank (undefined)
+  // Blended deltas: sum priors over the same all-configured base. Blank (undefined)
   // unless the value is available AND every contributing channel has a defined prior.
-  const priorsFor = (rows: ChannelMetrics[], field: 'spend' | 'clicks' | 'leads') => {
+  const priorsFor = (rows: ChannelMetrics[], field: 'spend' | 'clicks') => {
     const vals = rows.map((c) => priorOf(c.key)?.[field])
     return vals.every((v) => v != null) ? (vals as number[]).reduce((s, v) => s + v, 0) : undefined
   }
 
-  const blendedSpendPrior = blendOk ? priorsFor(blendRuns, 'spend') : undefined
-  const blendedClicksPrior = blendOk ? priorsFor(blendRuns, 'clicks') : undefined
-  const blendedLeadsPrior = blendOk ? priorsFor(blendRuns, 'leads') : undefined
-
+  const blendedSpendPrior = allOk ? priorsFor(runs, 'spend') : undefined
+  const blendedClicksPrior = allOk ? priorsFor(runs, 'clicks') : undefined
   const blendedSpendDelta = blendedSpend != null ? pct(blendedSpend, blendedSpendPrior) : undefined
   const blendedClicksDelta = blendedClicks != null ? pct(blendedClicks, blendedClicksPrior) : undefined
-  const blendedLeadsDelta = blendedLeads != null ? pct(blendedLeads, blendedLeadsPrior) : undefined
-  const priorCpl =
-    blendedSpendPrior != null && blendedLeadsPrior != null && blendedLeadsPrior > 0
-      ? blendedSpendPrior / blendedLeadsPrior
-      : undefined
-  const blendedCostPerLeadDelta =
-    blendedCostPerLead != null ? pct(blendedCostPerLead, priorCpl) : undefined
 
-  return {
-    channels, blendedSpend, blendedClicks, blendedLeads, blendedCostPerLead,
-    blendedSpendDelta, blendedClicksDelta, blendedLeadsDelta, blendedCostPerLeadDelta,
-  }
+  return { channels, blendedSpend, blendedClicks, blendedSpendDelta, blendedClicksDelta }
 }

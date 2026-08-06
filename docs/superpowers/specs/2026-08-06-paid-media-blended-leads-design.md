@@ -1,9 +1,18 @@
 # Paid Media — Blended Leads/CPL (lead-bearing channels) + null-safe Cost per Lead — Design
 
-**Status:** design for approval
+**Status:** ⛔ PART A (blended Leads/CPL) REVERTED — PART B/C (null-safe CPL) SHIPPED
 **Branch:** `feat/paid-media-blended-leads` (off `dev`, stacks on merged PR #188)
 **Author:** Paul (with Claude)
 **Date:** 2026-08-06
+
+> **REVERTED 2026-08-06 — the blended Leads/CPL (Part A / §A) is scrapped**, re-affirming
+> the 2026-08-04 team decision. Meta has no lead data and LinkedIn reports 0 leads today, so
+> the blended lead figure was misleading and the blended CPL charged lead-less spend against
+> Paid Search's leads (Thomas's review, PR #204). The Overview top line is **blended Spend +
+> Clicks only, over every configured channel** (not the PS+LinkedIn subset this spec proposed).
+> **Part B/C — the null-safe cost-per-lead (`—` instead of `$0.00`) at every per-channel site
+> — SHIPPED and stays** (uncontroversial correctness). Governance record:
+> `docs/official-feedback/paid-media-v2-leads-cpl-definition-question.md`.
 
 ## 1. Motivation
 

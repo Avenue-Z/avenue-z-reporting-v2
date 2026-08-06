@@ -32,26 +32,23 @@ export async function PaidMediaOverviewReport({
 
   return (
     <div className="space-y-8">
-      {/* Combined top line — Spend, Clicks, Leads, Cost per Lead (item 11a order). */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* Combined top line — Spend + Clicks (item 11a). Blended Leads / Cost per Lead were
+          scrapped: Meta has no lead data and LinkedIn reports 0 leads today, so a blended lead
+          figure would mislead. Per-channel Leads stay in the breakdown below. */}
+      <div className="grid grid-cols-2 gap-3">
         <KpiCard title="Spend" value={asMoney(o.blendedSpend)} delta={o.blendedSpendDelta} comparisonExpected />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
           delta={o.blendedClicksDelta}
           comparisonExpected
-          tooltip="Blended across Paid Search + LinkedIn (Meta is excluded from the blend)."
+          tooltip="Blended across every channel this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
         />
-        <KpiCard title="Leads" value={asNum(o.blendedLeads)} delta={o.blendedLeadsDelta} comparisonExpected />
-        <KpiCard title="Cost per Lead" value={asMoney(o.blendedCostPerLead)} delta={o.blendedCostPerLeadDelta} comparisonExpected invertDelta />
       </div>
 
       <p className="text-xs text-text-muted">
-        Blended figures cover Paid Search + LinkedIn only. Meta is shown per channel below but
-        excluded from the blend (no lead data, and its reporting is handled separately), so the
-        tiles reconcile: Cost per Lead equals blended Spend &divide; Leads. Blended figures are
-        shown only when every one of those channels the client runs reports; a channel currently
-        reporting 0 leads still contributes its spend to the blend.
+        Blended Spend and Clicks cover every paid channel this client runs, and are shown only
+        when all of them report for the period.
       </p>
 
       <PaidMediaTrendChart trend={trend} />

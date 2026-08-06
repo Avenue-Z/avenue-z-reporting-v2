@@ -1,21 +1,19 @@
 # For Dianna: blended Leads and Cost per Lead on the Paid Media Overview
 
-**Status:** ✅ UPDATED (2026-08-06, Paul). Blended Leads / Cost per Lead are **re-added on the Overview, scoped to Paid Search + LinkedIn only** (the two lead-bearing channels). Meta is excluded — Meta lead conversions are genuinely untracked. Rationale: LinkedIn lead tracking is valid (native `oneClickLeads`); it currently reads 0 because Renaissance runs landing-page traffic, and the LinkedIn buyer confirmed a planned move to native Lead Gen Forms, at which point it populates. Supersedes the 2026-08-04 "drop entirely" decision (RESOLVED 1).
-**Decided by:** Dianna Gatto / team.
+**Status:** ✅ RESOLVED — blended Leads / Cost per Lead **stay dropped** (re-affirming the 2026-08-04 team decision). The Paid Media Overview top line shows **blended Spend + Clicks only**, summed across **every channel the client runs** (so "Blended Spend" = total paid spend). Per-channel Leads remain in the by-channel breakdown (Paid Search + LinkedIn where available; Meta shows '—'). No blended lead metric ships.
+**Decided by:** Dianna Gatto / team (2026-08-04), re-affirmed by Paul 2026-08-06.
 **Raised by:** Paul, 2026-08-04.
 **Traces to:** "Decisions for Approval, Paid Media" tab, item 3, comment `[p]`; working-feedback spec, RESOLVED 1 (`docs/superpowers/specs/2026-07-31-paid-media-v2-working-feedback-spec.md`).
 
-> **SUPERSEDED (2026-08-06):** Blended Leads and Cost per Lead are now **shown on the Overview, scoped to Paid Search + LinkedIn only.** The narrative below describes the earlier 2026-08-04 decision (dropped entirely) and is retained for historical record only.
-
-> **⚠️ NEEDS DIANNA/TEAM CONFIRMATION (2026-08-06, PR #204).** During implementation the
-> blend base was made uniform: **Meta is now excluded from blended Spend and Clicks too**,
-> not just Leads/CPL. So all four top-line tiles (Spend · Clicks · Leads · Cost per Lead)
-> cover **Paid Search + LinkedIn only**, and they reconcile (`Cost per Lead = blended Spend
-> ÷ blended Leads`). The trade-off: **"Blended Spend" no longer equals a client's total
-> paid spend** — Meta spend appears only in the per-channel breakdown and the trend chart.
-> This reverses the earlier behavior where blended Spend/Clicks summed *all* configured
-> channels including Meta. Dianna/team owned the original all-channel decision, so this
-> needs an explicit OK before it promotes past staging. Code review: `docs/qa/paid-media-blended-leads-code-review.md` (finding F1).
+> **History (2026-08-06):** PR #204 briefly *re-added* blended Leads/CPL scoped to Paid
+> Search + LinkedIn (Meta excluded). On review that was reversed: Meta has no lead data
+> and LinkedIn reports 0 leads today (landing-page traffic), so the blended lead figure was
+> misleading and a blended CPL charged lead-less spend against Paid Search's leads. **The
+> blended Leads/CPL is scrapped again**, which also clears the two governance gates it
+> raised (re-adding a dropped client-facing metric; sourcing leads from ad platforms rather
+> than HubSpot per item 3 `[p]`). Blended Spend/Clicks revert to summing **all** configured
+> channels. The narrative below describes the original 2026-08-04 decision and remains the
+> current state. Code review: `docs/qa/paid-media-blended-leads-code-review.md`.
 
 ## The short version
 
