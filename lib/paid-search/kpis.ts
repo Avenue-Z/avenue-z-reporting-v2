@@ -55,8 +55,8 @@ export async function getPaidSearchKpis(slug: string, dateRange: string, compare
   const [totals, actionRows, cTotals, cActions] = await Promise.all([
     awQuery(slug, ['Cost', 'Clicks', 'Impressions'], dateRange).then((r) => r[0] ?? {}),
     awQuery(slug, ['ConversionTypeName', 'Conversions'], dateRange),
-    compareIso ? awQuery(slug, ['Cost', 'Clicks', 'Impressions'], compareIso).then((r) => r[0] ?? {}) : Promise.resolve(null),
-    compareIso ? awQuery(slug, ['ConversionTypeName', 'Conversions'], compareIso) : Promise.resolve(null),
+    compareIso ? awQuery(slug, ['Cost', 'Clicks', 'Impressions'], compareIso).then((r) => r[0] ?? {}).catch(() => null) : Promise.resolve(null),
+    compareIso ? awQuery(slug, ['ConversionTypeName', 'Conversions'], compareIso).catch(() => null) : Promise.resolve(null),
   ])
   return transformKpis(totals, actionRows, cTotals, cActions, cfg)
 }

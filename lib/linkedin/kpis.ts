@@ -96,7 +96,7 @@ export async function getLinkedInKpis(
 
   const [main, cmp] = await Promise.all([
     linkedinQuery(slug, fields, dateRange).then((r) => r[0] ?? {}),
-    compareIso ? linkedinQuery(slug, fields, compareIso).then((r) => r[0] ?? {}) : Promise.resolve(null),
+    compareIso ? linkedinQuery(slug, fields, compareIso).then((r) => r[0] ?? {}).catch(() => null) : Promise.resolve(null),
   ])
 
   return transformLinkedInKpis(main, cmp)

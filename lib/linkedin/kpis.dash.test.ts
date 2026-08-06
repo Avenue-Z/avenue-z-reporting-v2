@@ -1,7 +1,8 @@
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi, type Mock } from 'vitest'
 // kpis.ts imports ./base (→ lib/db → next-auth); mock it so jsdom can load the module.
 vi.mock('@/lib/linkedin/base', () => ({ linkedinQuery: vi.fn(), resolveCompareIso: vi.fn() }))
-import { transformLinkedInKpis } from './kpis'
+import { getLinkedInKpis, transformLinkedInKpis } from './kpis'
+import { linkedinQuery, resolveCompareIso } from './base'
 
 describe('LinkedIn Cost / Lead dash', () => {
   test('costPerLead is null (renders —) when there are 0 leads', () => {
@@ -22,5 +23,18 @@ describe('LinkedIn Cost / Lead dash', () => {
     expect(k.find((x) => x.key === 'spend')!.compareValue).toBe(80)
     expect(k.find((x) => x.key === 'clicks')!.compareValue).toBe(8)
     expect(k.find((x) => x.key === 'leads')!.compareValue).toBe(4)
+  })
+  test('compare-period fetch failure degrades to no-delta, current values preserved', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue('2026-07-01,2026-07-31')
+    ;(linkedinQuery as Mock).mockImplementation((_slug: string, _fields: string[], range: string) =>
+      range === '2026-07-01,2026-07-31'
+        ? Promise.reject(new Error('compare timeout'))
+        : Promise.resolve([{ spend: '100', clicks: '10', oneClickLeads: '5' }]),
+    )
+    const k = await getLinkedInKpis('acme', 'last_30_days', 'previous_period')
+    const spend = k.find((x) => x.key === 'spend')!
+    expect(spend.value).toBe(100) // current value preserved
+    expect(spend.delta).toBeUndefined() // compare failed → no delta
+    expect(spend.compareValue).toBeUndefined()
   })
 })

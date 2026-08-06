@@ -98,7 +98,7 @@ export async function getMetaKpis(
 
   const [main, cmp] = await Promise.all([
     metaQuery(slug, fields, dateRange).then((r) => r[0] ?? {}),
-    compareIso ? metaQuery(slug, fields, compareIso).then((r) => r[0] ?? {}) : Promise.resolve(null),
+    compareIso ? metaQuery(slug, fields, compareIso).then((r) => r[0] ?? {}).catch(() => null) : Promise.resolve(null),
   ])
 
   return transformMetaKpis(main, cmp)
