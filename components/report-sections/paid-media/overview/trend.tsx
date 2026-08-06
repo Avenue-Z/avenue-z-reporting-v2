@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { AreaChart } from '@/components/charts/area-chart'
+import { LineChart } from '@/components/charts/line-chart'
 import { CHART_COLORS } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import type { ChannelKey } from '@/lib/paid-media/overview'
 import type { PaidMediaTrend } from '@/lib/paid-media/trend'
 
@@ -13,6 +14,7 @@ const CHANNEL_META: Record<ChannelKey, { label: string; color: string }> = {
 
 export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
   const [metric, setMetric] = useState<'spend' | 'clicks'>('spend')
+  const [active, setActive] = useState<Set<ChannelKey>>(() => new Set(trend.channels))
 
   if (trend.points.length === 0) {
     return (
@@ -22,12 +24,22 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
     )
   }
 
+  const toggleChannel = (key: ChannelKey) =>
+    setActive((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
   const data = trend.points.map((p) => {
     const row: Record<string, string | number> = { week: p.label }
     for (const key of trend.channels) row[CHANNEL_META[key].label] = p.channels[key]?.[metric] ?? 0
     return row
   })
-  const yKeys = trend.channels.map((key) => ({ key: CHANNEL_META[key].label, color: CHANNEL_META[key].color, label: CHANNEL_META[key].label }))
+  const yKeys = trend.channels
+    .filter((key) => active.has(key))
+    .map((key) => ({ key: CHANNEL_META[key].label, color: CHANNEL_META[key].color, label: CHANNEL_META[key].label }))
 
   return (
     <div className="space-y-3">
@@ -50,15 +62,39 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
           ))}
         </div>
       </div>
-      <AreaChart
-        stacked
+      <div className="flex flex-wrap gap-2">
+        {trend.channels.map((key) => {
+          const on = active.has(key)
+          const { label, color } = CHANNEL_META[key]
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleChannel(key)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
+                on
+                  ? 'border-white/20 bg-white/[0.06] text-white'
+                  : 'border-white/[0.08] text-text-muted hover:text-white',
+              )}
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: on ? color : 'transparent', border: `1px solid ${color}` }}
+              />
+              {label}
+            </button>
+          )
+        })}
+      </div>
+      <LineChart
         data={data}
         xKey="week"
         yKeys={yKeys}
         valueFormat={metric === 'spend' ? 'currency-cents' : undefined}
       />
       <p className="text-xs text-text-muted">
-        Stacked by channel. Clicks are link clicks for Meta and all clicks for Paid Search and LinkedIn.
+        One line per channel. Clicks are link clicks for Meta and all clicks for Paid Search and LinkedIn.
       </p>
     </div>
   )

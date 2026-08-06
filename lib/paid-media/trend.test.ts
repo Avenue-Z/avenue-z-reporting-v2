@@ -77,6 +77,22 @@ describe('getPaidMediaTrend', () => {
     expect(wk.channels.meta).toEqual({ spend: 50, clicks: 4 }) // 4 = inline_link_clicks
   })
 
+  test('LinkedIn day field arrives lowercase as `date` (its SM connector) and is still read', async () => {
+    // Live-verified: linkedinQuery returns the day dimension keyed `date` (lowercase),
+    // not `Date` like Paid Search/Meta. Reading only `r.Date` dropped every LinkedIn row,
+    // flatlining the channel at 0. toPoints must fall back to `r.date`.
+    client.mockResolvedValue({ paidSearchConfig: null, metaConfig: null, linkedinConfig: {} })
+    li.mockResolvedValue([
+      { date: '2026-08-06', spend: '271.46', clicks: '52' },
+      { date: '2026-08-07', spend: '271.45', clicks: '60' },
+    ])
+
+    const t = await getPaidMediaTrend('acme', 'last_30_days')
+    expect(t.channels).toEqual(['linkedin'])
+    const wk = t.points.find((p) => p.week === '2026-08-03')!
+    expect(wk.channels.linkedin).toEqual({ spend: 542.91, clicks: 112 })
+  })
+
   test('a configured channel that fails is omitted (best-effort), never throws', async () => {
     client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: {} })
     aw.mockResolvedValue([{ Date: '2026-08-06', Cost: '100', Clicks: '10' }])

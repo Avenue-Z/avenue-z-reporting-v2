@@ -54,7 +54,9 @@ const isValidDate = (date: string): boolean =>
   DATE_SHAPE.test(date) && Number.isFinite(new Date(date + 'T00:00:00Z').getTime())
 
 const toPoints = (rows: Record<string, string>[], spendKey: string, clicksKey: string): ChannelSeriesPoint[] =>
-  rows.map((r) => ({ date: r.Date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => isValidDate(p.date))
+  // LinkedIn's Supermetrics connector returns the day dimension keyed lowercase `date`,
+  // whereas Paid Search and Meta return `Date`. Fall back so no channel silently flatlines.
+  rows.map((r) => ({ date: r.Date ?? r.date, spend: Number(r[spendKey] || 0), clicks: Number(r[clicksKey] || 0) })).filter((p) => isValidDate(p.date))
 
 async function getPaidSearchSeries(slug: string, dateRange: string): Promise<ChannelSeriesPoint[]> {
   return toPoints(await awQuery(slug, ['Date', 'Cost', 'Clicks'], dateRange), 'Cost', 'Clicks')
