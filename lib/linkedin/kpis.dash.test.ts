@@ -14,4 +14,13 @@ describe('LinkedIn Cost / Lead dash', () => {
     const k = transformLinkedInKpis({ spend: '5000', oneClickLeads: '10', oneClickLeadsCost: '80' }, null)
     expect(k.find((c) => c.key === 'costPerLead')!.value).toBe(80)
   })
+  test('attaches prior-period compareValue on spend, clicks and leads', () => {
+    const k = transformLinkedInKpis(
+      { spend: '100', clicks: '10', oneClickLeads: '5' },
+      { spend: '80', clicks: '8', oneClickLeads: '4' },
+    )
+    expect(k.find((x) => x.key === 'spend')!.compareValue).toBe(80)
+    expect(k.find((x) => x.key === 'clicks')!.compareValue).toBe(8)
+    expect(k.find((x) => x.key === 'leads')!.compareValue).toBe(4)
+  })
 })
