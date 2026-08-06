@@ -193,23 +193,14 @@ describe('getPaidMediaOverview', () => {
 })
 
 describe('getPaidMediaOverview — deltas', () => {
-  // Faithful to getXKpis: a prior (compareValue/delta) exists only when a compare
-  // period is passed. With no comparison the channel returns values but no priors.
-  const psComparing = () =>
-    psMock.mockImplementation((_s: string, _d: string, compare: string | null) =>
-      Promise.resolve(compare ? ps(100, 10, 5, { cost: 80, clicks: 8, leads: 4 }) : ps(100, 10, 5)))
-  const liComparing = () =>
-    liMock.mockImplementation((_s: string, _d: string, compare: string | null) =>
-      Promise.resolve(compare ? li(300, 30, 15, { spend: 200, clicks: 20, leads: 10 }) : li(300, 30, 15)))
-
-  test('per-channel and blended deltas compute from summed priors when a comparison is selected', async () => {
+  test('per-channel and blended deltas compute from summed priors', async () => {
     clientMock.mockResolvedValue(client({ ps: true, li: true })) // no Meta
     // Paid Search: spend 100 (prior 80), clicks 10 (prior 8), leads 5 (prior 4)
+    psMock.mockResolvedValue(ps(100, 10, 5, { cost: 80, clicks: 8, leads: 4 }))
     // LinkedIn: spend 300 (prior 200), clicks 30 (prior 20), leads 15 (prior 10)
-    psComparing()
-    liComparing()
+    liMock.mockResolvedValue(li(300, 30, 15, { spend: 200, clicks: 20, leads: 10 }))
 
-    const o = await getPaidMediaOverview('acme', 'last_30_days', 'previous_period')
+    const o = await getPaidMediaOverview('acme', 'last_30_days')
 
     // Per-channel deltas come straight from each Kpi.delta.
     const psRow = o.channels.find((c) => c.key === 'paid-search')!
@@ -230,30 +221,8 @@ describe('getPaidMediaOverview — deltas', () => {
     psMock.mockResolvedValue(ps(100, 10, 5, { cost: 80, clicks: 8, leads: 4 }))
     liMock.mockResolvedValue(li(300, 30, 15)) // no prior → compareValue undefined
 
-    const o = await getPaidMediaOverview('acme', 'last_30_days', 'previous_period')
-    expect(o.channels.find((c) => c.key === 'linkedin')!.spendDelta).toBeUndefined()
-    expect(o.blendedSpendDelta).toBeUndefined()
-    expect(o.blendedClicksDelta).toBeUndefined()
-    expect(o.blendedLeadsDelta).toBeUndefined()
-    expect(o.blendedCostPerLeadDelta).toBeUndefined()
-  })
-
-  test('no comparison selected → no compare query, values shown without deltas', async () => {
-    clientMock.mockResolvedValue(client({ ps: true, li: true }))
-    psComparing()
-    liComparing()
-
-    // null compareRange = 'No Comparison' in the date picker.
     const o = await getPaidMediaOverview('acme', 'last_30_days')
-
-    // Each channel is queried with a null compare period — no extra compare-period call.
-    expect(psMock).toHaveBeenCalledWith('acme', 'last_30_days', null)
-    expect(liMock).toHaveBeenCalledWith('acme', 'last_30_days', null)
-    // Values still present…
-    expect(o.blendedSpend).toBe(400)
-    expect(o.blendedLeads).toBe(20)
-    // …but every delta is absent (nothing to compare against).
-    expect(o.channels.find((c) => c.key === 'paid-search')!.spendDelta).toBeUndefined()
+    expect(o.channels.find((c) => c.key === 'linkedin')!.spendDelta).toBeUndefined()
     expect(o.blendedSpendDelta).toBeUndefined()
     expect(o.blendedClicksDelta).toBeUndefined()
     expect(o.blendedLeadsDelta).toBeUndefined()

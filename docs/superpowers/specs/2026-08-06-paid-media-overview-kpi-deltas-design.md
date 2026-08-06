@@ -32,13 +32,14 @@ per-channel breakdown cards (Spend / Clicks / Leads).
   which is excluded from every blended figure — never blanks it). See the amendment
   in `2026-08-06-paid-media-blended-leads-design.md` §A for the Meta-exclusion decision.
 
-> **Amended 2026-08-06:** As implemented, the Overview does **not** force
-> `previous_period`. It fetches a compare period (and shows deltas) **only when the
-> viewer selects a comparison** in the date picker — `getPaidMediaOverview(slug,
-> dateRange, compareRange)` passes `compareRange` straight through (null = 'No
-> Comparison' → no compare query, no deltas). This diverges from the standalone
-> sections, which still auto-default to `previous_period`; left intentionally
-> unchanged.
+> **Amended 2026-08-06:** Deltas are **on by default** — the Overview auto-defaults to
+> `previous_period` (`effectiveCompare = compareRange ?? 'previous_period'`), matching
+> Organic Social (`organic-social/ctx.ts`) and the standalone Paid Search/Meta/LinkedIn
+> sections. So the KPI tiles always show a "vs prior period" delta even without an
+> explicit comparison. An explicit selection in the date picker's "Compare To" ("Previous
+> Period" / "Previous Year") overrides the default — that selection is threaded from the
+> page through `PaidMediaOverviewReport`'s `compareRange` prop (the page previously
+> dropped it, so the picker had no effect on the Overview; now it does).
 
 The one thing missing: the `Kpi` objects expose only the delta **percentage**,
 not the prior **absolute** value. Blended deltas are computed over *sums*, so

@@ -126,14 +126,13 @@ export async function getPaidMediaOverview(
     linkedin: !!client?.linkedinConfig,
   }
 
-  // Only fetch a compare period when the viewer actually selected one. 'No Comparison'
-  // in the date picker → compareRange null → each channel skips its compare query and
-  // returns undefined deltas, so the tiles show values without a "vs prior" line.
+  const effectiveCompare = compareRange ?? 'previous_period'
+
   // Fetch only the channels the client runs.
   const settled = await Promise.allSettled([
-    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, compareRange) : Promise.resolve(null),
-    configured.meta ? getMetaKpis(clientSlug, dateRange, compareRange) : Promise.resolve(null),
-    configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, compareRange) : Promise.resolve(null),
+    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured.meta ? getMetaKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
   ])
 
   const channels: ChannelMetrics[] = CHANNELS.map((c, i) => {
