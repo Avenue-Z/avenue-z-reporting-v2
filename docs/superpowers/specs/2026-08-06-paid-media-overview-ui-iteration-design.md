@@ -53,13 +53,23 @@ of `KpiCard`s.
 - The existing null→`—` helpers (`asMoney`/`asNum`) are reused verbatim.
 - Keep the by-channel caption (Meta link-clicks note); no `(item N)` text.
 
-### B. Blended trend — stacked area by channel, Spend/Clicks toggle
+### B. Blended trend — line per channel, Spend/Clicks toggle
 
-**Why daily fetch → weekly buckets:** Paid Search has a series fetcher; Meta and
-LinkedIn do not. Rather than fight three Supermetrics sources' differing *weekly*
-field formats, each channel is queried by **daily `YYYY-MM-DD`** (uniform across
-sources) and bucketed to ISO weeks by one shared in-app function — guaranteeing
-the three channels' buckets align. Alignment is keyed by **week string, never by
+> **Amended 2026-08-06:** Two changes to what this section originally specced:
+> (1) the chart is a **multi-line** `LineChart` with channel-toggle pills, not a
+> stacked area (`components/report-sections/paid-media/overview/trend.tsx`); and
+> (2) the series is plotted at **daily** granularity keyed by `date` (`xKey="date"`),
+> **not** rolled up to weekly buckets. This matches Organic Social's trend
+> (`organic-social/trends.tsx` → `LineChart xKey="date"` over daily points), so the
+> x-axis label density tracks the date range instead of being capped by the weekly
+> rollup. `lib/paid-media/trend.ts` now exposes `blendDaily` (align by **date**
+> string) in place of `weekStart`/`bucketToWeeks`/`blendTrend`; the round-trip
+> `isValidDate` guard is unchanged.
+
+**Why daily fetch (original rationale, still applies to the fetch):** Paid Search has
+a series fetcher; Meta and LinkedIn do not. Rather than fight three Supermetrics
+sources' differing *weekly* field formats, each channel is queried by **daily
+`YYYY-MM-DD`** (uniform across sources). Points are aligned by **date string, never by
 array index** (the codebase's `alignSeries` join-by-index bug is a known hazard —
 CLAUDE.md open follow-ups).
 

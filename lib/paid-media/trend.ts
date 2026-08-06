@@ -1,47 +1,30 @@
 import type { ChannelKey } from './overview'
 
 export interface ChannelSeriesPoint { date: string; spend: number; clicks: number } // 'YYYY-MM-DD'
-export interface TrendPoint { week: string; label: string; channels: Partial<Record<ChannelKey, { spend: number; clicks: number }>> }
+export interface TrendPoint { date: string; channels: Partial<Record<ChannelKey, { spend: number; clicks: number }>> } // 'YYYY-MM-DD'
 export interface PaidMediaTrend { points: TrendPoint[]; channels: ChannelKey[] }
 
-/** Monday (UTC) of the week containing `date`, as 'YYYY-MM-DD'. */
-export function weekStart(date: string): string {
-  const d = new Date(date + 'T00:00:00Z')
-  const day = d.getUTCDay() // 0=Sun … 6=Sat
-  d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day))
-  return d.toISOString().slice(0, 10)
-}
-
-function weekLabel(weekKey: string): string {
-  return new Date(weekKey + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-}
-
-export function bucketToWeeks(points: ChannelSeriesPoint[]): Map<string, { spend: number; clicks: number }> {
-  const weeks = new Map<string, { spend: number; clicks: number }>()
-  for (const p of points) {
-    if (!p.date) continue
-    const key = weekStart(p.date)
-    const acc = weeks.get(key) ?? { spend: 0, clicks: 0 }
-    acc.spend += p.spend
-    acc.clicks += p.clicks
-    weeks.set(key, acc)
+/**
+ * Merge per-channel daily series into date-keyed points — one row per day, with a
+ * `{spend, clicks}` per channel that reported that day. Daily granularity (no weekly
+ * rollup) so the x-axis label density tracks the date range, matching Organic Social's
+ * trend chart. Aligned by **date string**, never array index (the codebase's
+ * join-by-index hazard — CLAUDE.md open follow-ups). A channel with more than one row
+ * for a date is summed defensively; normally each channel has one row per day.
+ */
+export function blendDaily(perChannel: Array<{ key: ChannelKey; points: ChannelSeriesPoint[] }>): TrendPoint[] {
+  const byDate = new Map<string, TrendPoint>()
+  for (const { key, points } of perChannel) {
+    for (const p of points) {
+      const row = byDate.get(p.date) ?? { date: p.date, channels: {} }
+      const prev = row.channels[key]
+      row.channels[key] = prev
+        ? { spend: prev.spend + p.spend, clicks: prev.clicks + p.clicks }
+        : { spend: p.spend, clicks: p.clicks }
+      byDate.set(p.date, row)
+    }
   }
-  return weeks
-}
-
-export function blendTrend(perChannel: Array<{ key: ChannelKey; weeks: Map<string, { spend: number; clicks: number }> }>): TrendPoint[] {
-  const allWeeks = new Set<string>()
-  for (const c of perChannel) for (const w of c.weeks.keys()) allWeeks.add(w)
-  return [...allWeeks]
-    .sort((a, b) => a.localeCompare(b))
-    .map((week) => {
-      const channels: TrendPoint['channels'] = {}
-      for (const c of perChannel) {
-        const v = c.weeks.get(week)
-        if (v) channels[c.key] = v
-      }
-      return { week, label: weekLabel(week), channels }
-    })
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
 import { awQuery } from '@/lib/paid-search/base'
@@ -92,9 +75,9 @@ export async function getPaidMediaTrend(clientSlug: string, dateRange: string): 
     .map((key, i) => {
       const res = settled[i]
       if (res.status !== 'fulfilled' || res.value == null) return null
-      return { key, weeks: bucketToWeeks(res.value) }
+      return { key, points: res.value }
     })
-    .filter((c): c is { key: ChannelKey; weeks: Map<string, { spend: number; clicks: number }> } => c !== null)
+    .filter((c): c is { key: ChannelKey; points: ChannelSeriesPoint[] } => c !== null)
 
-  return { points: blendTrend(perChannel), channels: perChannel.map((c) => c.key) }
+  return { points: blendDaily(perChannel), channels: perChannel.map((c) => c.key) }
 }

@@ -33,7 +33,7 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
     })
 
   const data = trend.points.map((p) => {
-    const row: Record<string, string | number> = { week: p.label }
+    const row: Record<string, string | number> = { date: p.date }
     for (const key of trend.channels) row[CHANNEL_META[key].label] = p.channels[key]?.[metric] ?? 0
     return row
   })
@@ -89,7 +89,7 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
       </div>
       <LineChart
         data={data}
-        xKey="week"
+        xKey="date"
         yKeys={yKeys}
         valueFormat={metric === 'spend' ? 'currency-cents' : undefined}
       />
