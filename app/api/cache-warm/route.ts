@@ -15,16 +15,25 @@
  * for an `cache-warm@avenuez.com` INTERNAL_ADMIN principal. The cookie is
  * scoped to this run (1h expiry).
  *
- * Concurrency: all URLs fire in parallel via Promise.all — total wall
- * time is the slowest single page render (typically ≤10s cold), well
- * under the Vercel Pro 60s function ceiling.
+ * Concurrency: URLs are warmed through a bounded rolling window
+ * (CONCURRENCY at a time), not an unbounded Promise.all. Each self-fetch
+ * renders a full report that fans out several Neon queries, so firing every
+ * URL at once produced a burst of concurrent DB requests that spiked Function
+ * CPU Duration and tripped Neon errors — worst at :30, where this cron
+ * overlapped the health sweep. Bounding keeps peak load flat; the window is
+ * sized to stay well under the Vercel Pro 60s function ceiling.
  */
 import { NextResponse } from 'next/server'
 import { getAllClients } from '@/lib/db/queries'
 import { mintServiceCookie } from '@/lib/auth/service-cookie'
+import { mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+// Max self-fetch renders in flight at once. Balances peak Neon load against
+// the 60s maxDuration ceiling (wall time ≈ ceil(urls / CONCURRENCY) × render).
+const CONCURRENCY = 8
 
 // peec-ai subsections that call cached fetchers (getAgentAnalytics) the
 // base /peec-ai page doesn't exercise. ga4 and inbound-funnel subsections
@@ -109,7 +118,7 @@ export async function GET(req: Request) {
     }
   }
 
-  const results = await Promise.all(urls.map((u) => warmOne(u, cookieHeader)))
+  const results = await mapWithConcurrency(urls, CONCURRENCY, (u) => warmOne(u, cookieHeader))
   const ok = results.filter((r) => r.ok).length
   const failed = results.length - ok
 

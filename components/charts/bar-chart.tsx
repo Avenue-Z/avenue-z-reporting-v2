@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { usd } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 
 interface BarChartProps {
   data: Record<string, string | number>[]
@@ -18,11 +19,17 @@ interface BarChartProps {
   yKeys: { key: string; color?: string; label?: string }[]
   height?: number
   // String descriptor (not a function) so this works when rendered from a Server Component.
-  valueFormat?: 'currency'
+  // 'currency' = whole dollars (usd); 'currency-cents' = two-decimal cents, for Paid Media.
+  valueFormat?: 'currency' | 'currency-cents'
 }
 
 export function BarChart({ data, xKey, yKeys, height = 300, valueFormat }: BarChartProps) {
-  const fmt = valueFormat === 'currency' ? (n: number) => usd(n) : undefined
+  const fmt =
+    valueFormat === 'currency'
+      ? (n: number) => usd(n)
+      : valueFormat === 'currency-cents'
+        ? (n: number) => money(n)
+        : undefined
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>

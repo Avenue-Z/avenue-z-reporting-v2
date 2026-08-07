@@ -1,5 +1,4 @@
-// Run: npx tsx --env-file=.env.local lib/paid-search/campaigns.test.ts
-import { strict as assert } from 'node:assert'
+import { describe, expect, test } from 'vitest'
 import { transformCampaigns, campaignTotals } from './campaigns'
 import { isLeadAction } from './base'
 
@@ -23,23 +22,34 @@ const leadRows = [
   { Campaignname: 'REN | AVZ | SEM | Non-Brand | Brokers | Select Geos', ConversionTypeName: 'contact_employee_lead', Conversions: '4' },
   { Campaignname: 'REN | AVZ | SEM | Non-Brand | Brokers | Select Geos', ConversionTypeName: 'broker_group_lead', Conversions: '1' },
 ]
-const rows = transformCampaigns(metricRows, leadRows, cfg)
-// Brokers campaign: 5 scoped leads (4 + 1), Calls excluded.
-const brokers = rows.find((r) => r.campaign.includes('Brokers'))!
-assert.equal(brokers.leads, 5)
-assert.equal(brokers.cpl, Math.round((8824.99 / 5)))
-// Brand campaign: 10 scoped leads (Calls from ads excluded).
-// Note: 'Non-Brand' contains 'Brand' as a substring, so we exclude it explicitly.
-const brand = rows.find((r) => r.campaign.includes('Brand') && !r.campaign.includes('Non-Brand'))!
-assert.equal(brand.leads, 10)
-// Default sort: cost desc → Brokers first.
-assert.equal(rows[0].campaign.includes('Brokers'), true)
-// Totals reconcile: sum of scoped leads = 15.
-assert.equal(campaignTotals(rows).leads, 15)
-// §10 acceptance: the KPI scoped-leads total (computed the account-level way —
-// filter the same lead rows by isLeadAction) must equal the campaign-totals leads.
-const kpiScopedLeads = leadRows
-  .filter((r) => isLeadAction(r.ConversionTypeName, cfg))
-  .reduce((s, r) => s + Number(r.Conversions), 0)
-assert.equal(kpiScopedLeads, campaignTotals(rows).leads)
-console.log('ok')
+
+describe('transformCampaigns', () => {
+  const rows = transformCampaigns(metricRows, leadRows, cfg)
+
+  test('scopes leads per campaign and excludes non-lead actions', () => {
+    // Brokers campaign: 5 scoped leads (4 + 1), Calls excluded.
+    const brokers = rows.find((r) => r.campaign.includes('Brokers'))!
+    expect(brokers.leads).toBe(5)
+    // Brand campaign: 10 scoped leads (Calls from ads excluded).
+    // Note: 'Non-Brand' contains 'Brand' as a substring, so we exclude it explicitly.
+    const brand = rows.find((r) => r.campaign.includes('Brand') && !r.campaign.includes('Non-Brand'))!
+    expect(brand.leads).toBe(10)
+  })
+
+  test('CPL is exact cents — cost / leads, not rounded (item 11d)', () => {
+    const brokers = rows.find((r) => r.campaign.includes('Brokers'))!
+    expect(brokers.cpl).toBeCloseTo(8824.99 / 5, 6)
+  })
+
+  test('sorts by cost desc', () => {
+    expect(rows[0].campaign.includes('Brokers')).toBe(true)
+  })
+
+  test('totals reconcile with the account-level scoped-leads sum (§10 acceptance)', () => {
+    expect(campaignTotals(rows).leads).toBe(15)
+    const kpiScopedLeads = leadRows
+      .filter((r) => isLeadAction(r.ConversionTypeName, cfg))
+      .reduce((s, r) => s + Number(r.Conversions), 0)
+    expect(kpiScopedLeads).toBe(campaignTotals(rows).leads)
+  })
+})

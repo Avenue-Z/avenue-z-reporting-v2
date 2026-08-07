@@ -1,7 +1,7 @@
 import { BarChart } from '@/components/charts/bar-chart'
 import { KpiCard } from '@/components/charts/kpi-card'
 import type { LinkedInGeoRow } from '@/lib/linkedin/types'
-import { usd } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 
 export function LinkedInGeoSection({ rows }: { rows: LinkedInGeoRow[] }) {
   const top10 = rows.slice(0, 10)
@@ -14,7 +14,7 @@ export function LinkedInGeoSection({ rows }: { rows: LinkedInGeoRow[] }) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <KpiCard title="Top Region" value={topRegion?.region ?? '—'} />
-        <KpiCard title="Spend (Top Region)" value={topRegion ? usd(topRegion.spend) : '—'} />
+        <KpiCard title="Spend (Top Region)" value={topRegion ? money(topRegion.spend) : '—'} />
         <KpiCard title="Total Regions" value={totalGeos} />
       </div>
 
@@ -23,7 +23,7 @@ export function LinkedInGeoSection({ rows }: { rows: LinkedInGeoRow[] }) {
           Top Regions by Spend
         </p>
         {top10.length > 0 ? (
-          <BarChart data={chartData} xKey="region" yKeys={yKeys} height={320} valueFormat="currency" />
+          <BarChart data={chartData} xKey="region" yKeys={yKeys} height={320} valueFormat="currency-cents" />
         ) : (
           <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-center text-sm text-text-muted">
             No geo data available for this period.

@@ -20,7 +20,7 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
         ctr: +(num(r, 'CTR') * 100).toFixed(1), // Meta CTR is a 0-1 fraction
         cpc: +num(r, 'CPC').toFixed(2),
         lpv: num(r, 'landing_page_views'),
-        costPerLpv: Math.round(num(r, 'cost_per_landing_page_view')),
+        costPerLpv: +num(r, 'cost_per_landing_page_view').toFixed(2),
         engagements: num(r, 'action_post_engagement'),
         shareOfSpend: total ? +((spend / total) * 100).toFixed(1) : 0,
       }
@@ -47,7 +47,7 @@ function aggregate(items: CreativeMetrics[], grandTotalSpend: number): CreativeM
     frequency: reach ? +(impressions / reach).toFixed(1) : 0,
     ctr: impressions ? +((linkClicks / impressions) * 100).toFixed(1) : 0,
     cpc: linkClicks ? +(spend / linkClicks).toFixed(2) : 0,
-    costPerLpv: lpv ? Math.round(spend / lpv) : 0,
+    costPerLpv: lpv ? +(spend / lpv).toFixed(2) : 0,
     shareOfSpend: grandTotalSpend ? +((spend / grandTotalSpend) * 100).toFixed(1) : 0,
   }
 }
