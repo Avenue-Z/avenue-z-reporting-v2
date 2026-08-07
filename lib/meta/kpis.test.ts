@@ -1,5 +1,8 @@
-import { describe, expect, test } from 'vitest'
-import { transformMetaKpis } from './kpis'
+import { describe, expect, test, vi, type Mock } from 'vitest'
+// kpis.ts imports ./base (→ lib/db → next-auth); mock it so jsdom can load the module.
+vi.mock('@/lib/meta/base', () => ({ metaQuery: vi.fn(), resolveCompareIso: vi.fn() }))
+import { getMetaKpis, transformMetaKpis } from './kpis'
+import { metaQuery, resolveCompareIso } from './base'
 import { money } from '@/lib/paid-media/format'
 
 const totals = {
@@ -70,5 +73,21 @@ describe('transformMetaKpis', () => {
   test('compareValue is undefined when there is no compare period', () => {
     const k = transformMetaKpis({ cost: '100', inline_link_clicks: '10' }, null)
     expect(k.find((x) => x.key === 'spend')!.compareValue).toBeUndefined()
+  })
+
+  test('compare-period fetch failure degrades to no-delta, current values preserved', async () => {
+    // getMetaKpis's compare fetch is best-effort (.catch(() => null)); a failed
+    // compare query must drop the delta + compareValue but keep the current values.
+    ;(resolveCompareIso as Mock).mockReturnValue('2026-07-01,2026-07-31')
+    ;(metaQuery as Mock).mockImplementation((_slug: string, _fields: string[], range: string) =>
+      range === '2026-07-01,2026-07-31'
+        ? Promise.reject(new Error('compare timeout'))
+        : Promise.resolve([{ cost: '100', inline_link_clicks: '10' }]),
+    )
+    const k = await getMetaKpis('acme', 'last_30_days', 'previous_period')
+    const spend = k.find((x) => x.key === 'spend')!
+    expect(spend.value).toBe(100) // current value preserved
+    expect(spend.delta).toBeUndefined() // compare failed → no delta
+    expect(spend.compareValue).toBeUndefined()
   })
 })

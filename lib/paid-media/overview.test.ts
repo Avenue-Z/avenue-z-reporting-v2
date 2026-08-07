@@ -180,5 +180,8 @@ describe('getPaidMediaOverview — deltas', () => {
     expect(o.channels.find((c) => c.key === 'linkedin')!.spendDelta).toBeUndefined()
     expect(o.blendedSpendDelta).toBeUndefined()
     expect(o.blendedClicksDelta).toBeUndefined()
+    // …but the blended VALUE still shows — the value-shows / delta-hides contract.
+    expect(o.blendedSpend).toBe(400) // 100 + 300 summed regardless of the missing prior
+    expect(o.blendedClicks).toBe(40) // 10 + 30
   })
 })
