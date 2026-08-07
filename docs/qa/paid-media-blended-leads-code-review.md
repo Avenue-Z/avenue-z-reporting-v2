@@ -7,11 +7,12 @@
 > trend chart. Reads first: spec `docs/superpowers/specs/2026-08-06-paid-media-blended-leads-design.md`,
 > plan `docs/superpowers/plans/2026-08-06-paid-media-blended-leads.md`.
 >
-> **Diff range under review:** `440167d..b2ba3fa` (39 files). Key commits: `374d725`/`9a59634`
+> **Diff range under review:** `440167d..db69c8c` (39 files). Key commits: `374d725`/`9a59634`
 > costPerLead + money-KPI null convention · `2d19330`/`e83f627`/`ca88c77` per-channel `—` · the
 > blended-leads add (`3307c98`/`7f40610`) then its **revert** (`b2ba3fa`) · `b7e5764` CPL-sort /
 > date-validity / KpiGrid guard fixes · `539f69b`/`b77dac8` compare-gating · the KPI-delta
-> (`99ec728`/`a79109a`/`d6f15a5`) and UI-iteration/trend (`b006c7d`/`351f0fd`/`8c9d848`) stacks.
+> (`99ec728`/`a79109a`/`d6f15a5`) and UI-iteration/trend (`b006c7d`/`351f0fd`/`8c9d848`) stacks ·
+> `db69c8c` review-nit test coverage (compare-failure + blended-value) landed on top of the revert.
 >
 > **This document changes no code.** Reviewer: **Thomas** (adversarial 4-dimension pass +
 > per-finding hand-verification, rounds 3–4; round 4 **APPROVED**). Paul co-reviewing.
@@ -79,7 +80,7 @@ a per-channel breakdown; a separate daily trend chart plots each channel over ti
 ## §3 Findings
 
 Sev: **●** correctness / governance · **○** cleanup/convention.
-Status: RESOLVED / FIXED (proven in-tree at `b2ba3fa`) · OPEN · CONFIRMED · PLAUSIBLE.
+Status: RESOLVED / FIXED (proven in-tree at `b2ba3fa`; #12 tests at `db69c8c`) · OPEN · CONFIRMED · PLAUSIBLE.
 
 | # | Sev | Status | Location | Finding |
 |---|-----|--------|----------|---------|
@@ -94,7 +95,7 @@ Status: RESOLVED / FIXED (proven in-tree at `b2ba3fa`) · OPEN · CONFIRMED · P
 | 9 | ○ | OPEN | `scripts/seed.ts:114` | **Seed reconciliation half-done.** Renaissance `linkedinConfig` added, but `enabledReports` (`paid-media`) reconciliation deferred to a manual live-DB check. Once LinkedIn is configured the Overview fetches it (0 leads today) — and a LinkedIn *fetch failure* would blank the whole blend (finding 5's gate). **Confirm the LinkedIn connection returns data before enabling.** |
 | 10 | ○ | RESOLVED | `paid-search/kpi-grid.tsx:11-17` | **KpiGrid string guard.** The money path keeps `k.value == null ? DASH : typeof number ? money() : String()`, so a string-valued money KPI is not passed to `money()` and mangled. |
 | 11 | ○ | RESOLVED | `lib/paid-media/overview.test.ts` | **Test mock field names** aligned to the real `paidSearchConfig`/`metaConfig`/`linkedinConfig` shapes. |
-| 12 | ○ | OPEN → addressed in follow-up | `lib/meta/kpis.test.ts`, `lib/paid-search/kpis.test.ts`, `lib/paid-media/overview.test.ts` | **Round-4 optional test coverage.** (a) The best-effort compare-failure path was tested for LinkedIn only, though Meta + Paid Search carry the same `.catch`; (b) the all-or-nothing prior test asserted the delta hides but not that the blended **value** survives. Non-blocking. Implemented in follow-up `fix/pr-204-review-followups` (`db69c8c`). |
+| 12 | ○ | FIXED | `lib/meta/kpis.test.ts`, `lib/paid-search/kpis.test.ts`, `lib/paid-media/overview.test.ts` | **Round-4 optional test coverage.** (a) The best-effort compare-failure path was tested for LinkedIn only, though Meta + Paid Search carry the same `.catch`; (b) the all-or-nothing prior test asserted the delta hides but not that the blended **value** survives. Non-blocking. **Fixed in-PR** at `db69c8c` (on top of the revert) — full suite green (560). |
 
 ## §4 Detail
 
@@ -125,7 +126,7 @@ confirm the LinkedIn query returns rows — a failure would null the blend for R
 **#12 (test coverage).** *Fix:* mirror the LinkedIn compare-failure test in `lib/meta/kpis.test.ts`
 and `lib/paid-search/kpis.test.ts` (reject the compare query; assert current values present,
 delta/`compareValue` undefined), and assert `blendedSpend`/`blendedClicks` survive in the
-all-or-nothing prior test. Done in the follow-up commit; both suites green.
+all-or-nothing prior test. Landed in-PR at `db69c8c`; full suite green (560 passed, 88 files).
 
 ## §5 Follow-ups
 
@@ -143,4 +144,4 @@ all-or-nothing prior test. Done in the follow-up commit; both suites green.
 
 **Cleanup (non-blocking):**
 - **#12** — Meta + Paid Search compare-failure tests and the blended-value assertion
-  (implemented in `fix/pr-204-review-followups` `db69c8c`).
+  (landed in this PR at `db69c8c`, on top of the revert).
