@@ -1,5 +1,14 @@
-import { describe, expect, test } from 'vitest'
-import { transformKpis } from './kpis'
+import { describe, expect, test, vi, type Mock } from 'vitest'
+// Mock the DB lookup + the SM query, but keep the real isLeadAction so the pure
+// transformKpis tests still scope leads correctly.
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
+vi.mock('./base', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./base')>()
+  return { ...actual, awQuery: vi.fn(), resolveCompareIso: vi.fn() }
+})
+import { getPaidSearchKpis, transformKpis } from './kpis'
+import { awQuery, resolveCompareIso } from './base'
+import { getClientBySlug } from '@/lib/db/queries'
 
 const cfg = { googleAdsAccountId: '4136001852', leadActions: [{ name: 'contact_individual_lead', category: 'contact' as const }] }
 const totals = { Cost: '18915.79', Clicks: '10409', Impressions: '113718', Ctr: '9.15', CPC: '1.81' }
@@ -54,5 +63,47 @@ describe('transformKpis', () => {
     for (const key of ['impressions', 'ctr', 'cpc', 'cpl', 'convRate']) {
       expect(kpis.find((k) => k.key === key)!.delta).toBeUndefined()
     }
+  })
+
+  test('CPL is null (renders —) when there are no leads', () => {
+    const noLeadTotals = { Cost: '500', Clicks: '100', Impressions: '2000' }
+    const k = transformKpis(noLeadTotals, [], null, null, cfg)
+    const cpl = k.find((c) => c.key === 'cpl')!
+    expect(cpl.value).toBeNull()
+    expect(cpl.delta).toBeUndefined()
+  })
+
+  test('attaches prior-period compareValue on cost, clicks and leads', () => {
+    const k = transformKpis(
+      { Cost: '100', Clicks: '10', Impressions: '1000' },
+      [{ ConversionTypeName: 'contact_individual_lead', Conversions: '5' }],
+      { Cost: '80', Clicks: '8', Impressions: '900' },
+      [{ ConversionTypeName: 'contact_individual_lead', Conversions: '4' }],
+      cfg,
+    )
+    expect(k.find((x) => x.key === 'cost')!.compareValue).toBe(80)
+    expect(k.find((x) => x.key === 'clicks')!.compareValue).toBe(8)
+    expect(k.find((x) => x.key === 'leads')!.compareValue).toBe(4)
+  })
+
+  test('compare-period fetch failure degrades to no-delta, current values preserved', async () => {
+    // getPaidSearchKpis's compare totals + actions fetches are best-effort
+    // (.catch(() => null)); a failed compare must drop delta + compareValue while
+    // the current-period values remain intact.
+    ;(getClientBySlug as Mock).mockResolvedValue({ paidSearchConfig: cfg })
+    ;(resolveCompareIso as Mock).mockReturnValue('2026-07-01,2026-07-31')
+    ;(awQuery as Mock).mockImplementation((_slug: string, fields: string[], range: string) => {
+      if (range === '2026-07-01,2026-07-31') return Promise.reject(new Error('compare timeout'))
+      if (fields.includes('ConversionTypeName'))
+        return Promise.resolve([{ ConversionTypeName: 'contact_individual_lead', Conversions: '14' }])
+      return Promise.resolve([{ Cost: '18915.79', Clicks: '10409', Impressions: '113718' }])
+    })
+    const k = await getPaidSearchKpis('acme', 'last_30_days', 'previous_period')
+    const cost = k.find((x) => x.key === 'cost')!
+    expect(cost.value).toBe(18915.79) // current value preserved
+    expect(cost.delta).toBeUndefined() // compare failed → no delta
+    expect(cost.compareValue).toBeUndefined()
+    // Current-period leads still scope correctly off the successful main fetch.
+    expect(k.find((x) => x.key === 'leads')!.value).toBe(14)
   })
 })

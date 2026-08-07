@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { money } from './format'
+import { money, costPerLead, DASH } from './format'
 
 describe('money (Paid Media cents formatter)', () => {
   test('always shows two decimals', () => {
@@ -13,5 +13,17 @@ describe('money (Paid Media cents formatter)', () => {
   })
   test('rounds to the cent', () => {
     expect(money(3.456)).toBe('$3.46')
+  })
+})
+
+describe('costPerLead (undefined ratio → dash)', () => {
+  test('computes cents when leads > 0', () => {
+    expect(costPerLead(100, 4)).toBe(money(25))
+    expect(costPerLead(8824.99, 5)).toBe(money(8824.99 / 5))
+  })
+  test('returns the dash when there are no leads (undefined ratio, not $0)', () => {
+    expect(costPerLead(100, 0)).toBe(DASH)
+    expect(costPerLead(0, 0)).toBe(DASH)
+    expect(costPerLead(50, -1)).toBe(DASH)
   })
 })

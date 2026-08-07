@@ -22,20 +22,28 @@ export interface ChannelMetrics {
    */
   leads: number | null
   ok: boolean
+  /** Per-channel % change vs the prior period (undefined = no comparison). */
+  spendDelta?: number
+  clicksDelta?: number
+  leadsDelta?: number
 }
 
 export interface PaidMediaOverview {
   /** Per-channel breakdown — always lists all three (item 11b). */
   channels: ChannelMetrics[]
   /**
-   * null → render '—'. Blended over the channels the client actually runs, and
-   * blank unless every *configured* channel reports (item 4, Dianna's scoped
-   * reading: only a configured channel that fails blanks the total — a channel
-   * the client does not run never blanks or lowers the blend).
+   * null → render '—'. Blended Spend over every channel the client runs (Paid
+   * Search + Meta + LinkedIn), so it equals total paid spend. Blank unless every
+   * *configured* channel reports; a channel the client does not run never blanks
+   * or lowers the blend. (Blended Leads / Cost-per-lead were scrapped — see the
+   * rollup doc comment below.)
    */
   blendedSpend: number | null
-  /** null → render '—'. Meta contributes link clicks, not all clicks (item 2). */
+  /** null → render '—'. Blended Clicks over every configured channel. */
   blendedClicks: number | null
+  /** Blended % change vs the prior period; undefined unless every channel feeding the blend has a prior (same all-or-nothing gate as the value). */
+  blendedSpendDelta?: number
+  blendedClicksDelta?: number
 }
 
 /**
@@ -50,6 +58,18 @@ function readKpi(kpis: Kpi[], key: string): number | null {
   const entry = kpis.find((k) => k.key === key)
   if (!entry) return null
   return typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0)
+}
+
+function readKpiDelta(kpis: Kpi[], key: string): number | undefined {
+  return kpis.find((k) => k.key === key)?.delta
+}
+function readKpiCompare(kpis: Kpi[], key: string): number | undefined {
+  return kpis.find((k) => k.key === key)?.compareValue
+}
+/** % change vs prior; undefined when prior is 0 or absent (matches the channels' rule). */
+function pct(cur: number, prev: number | undefined): number | undefined {
+  if (prev == null || prev === 0) return undefined
+  return ((cur - prev) / prev) * 100
 }
 
 const CHANNELS: Array<{
@@ -78,14 +98,16 @@ const CHANNELS: Array<{
  * lowers the total; only a configured channel that fails to load blanks it. The
  * per-channel breakdown still lists all three (non-run channels render '—').
  *
- * There is no blended Leads / Cost-per-lead: those would need Meta lead data,
- * which is unavailable, and the team has dropped anything relating to or
- * influenced by Meta leads. Per-channel Leads are still shown for Paid Search and
- * LinkedIn in the breakdown; Meta shows '—'.
+ * There is NO blended Leads / Cost-per-lead (scrapped 2026-08-06, re-affirming the
+ * 2026-08-04 team decision): Meta has no lead data and LinkedIn reports 0 leads
+ * today (landing-page traffic), so any blended lead figure would be misleading and
+ * a blended CPL would charge lead-less spend against Paid Search's leads. Per-channel
+ * Leads are still shown for Paid Search and LinkedIn in the breakdown; Meta shows '—'.
  */
 export async function getPaidMediaOverview(
   clientSlug: string,
   dateRange: string,
+  compareRange: string | null = null,
 ): Promise<PaidMediaOverview> {
   const client = await getClientBySlug(clientSlug)
   const configured: Record<ChannelKey, boolean> = {
@@ -94,11 +116,13 @@ export async function getPaidMediaOverview(
     linkedin: !!client?.linkedinConfig,
   }
 
-  // Fetch only the channels the client runs. No compare period needed for totals.
+  const effectiveCompare = compareRange ?? 'previous_period'
+
+  // Fetch only the channels the client runs.
   const settled = await Promise.allSettled([
-    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, null) : Promise.resolve(null),
-    configured.meta ? getMetaKpis(clientSlug, dateRange, null) : Promise.resolve(null),
-    configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, null) : Promise.resolve(null),
+    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured.meta ? getMetaKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
   ])
 
   const channels: ChannelMetrics[] = CHANNELS.map((c, i) => {
@@ -121,14 +145,48 @@ export async function getPaidMediaOverview(
     if (spend === null || clicks === null || (c.leadsKey != null && leads === null)) {
       return failed
     }
-    return { key: c.key, label: c.label, configured: true, spend, clicks, leads, ok: true }
+    return {
+      key: c.key, label: c.label, configured: true, spend, clicks, leads, ok: true,
+      spendDelta: readKpiDelta(res.value, c.spendKey),
+      clicksDelta: readKpiDelta(res.value, c.clicksKey),
+      leadsDelta: c.leadsKey ? readKpiDelta(res.value, c.leadsKey) : undefined,
+    }
   })
 
-  // Blend over the configured channels only; blank if any configured channel failed.
+  // Prior-period Spend/Clicks absolutes per channel, for the blended deltas. Only for
+  // channels that reported (ok) with a defined compareValue; undefined otherwise.
+  const priorOf = (key: ChannelKey) => {
+    const i = CHANNELS.findIndex((c) => c.key === key)
+    const cfg = CHANNELS[i]
+    const res = settled[i]
+    if (!configured[key] || res.status !== 'fulfilled' || res.value == null) return null
+    return {
+      spend: readKpiCompare(res.value, cfg.spendKey),
+      clicks: readKpiCompare(res.value, cfg.clicksKey),
+    }
+  }
+
+  // Blend Spend + Clicks over EVERY channel the client runs (Paid Search + Meta +
+  // LinkedIn), so "Blended Spend" equals total paid spend. Blank the blend unless
+  // every configured channel reports; a channel the client doesn't run is excluded
+  // from the gate, so its absence never blanks or lowers the total. (No blended Leads
+  // / Cost-per-lead — see the rollup doc comment above.)
   const runs = channels.filter((c) => c.configured)
   const allOk = runs.length > 0 && runs.every((c) => c.ok)
   const blendedSpend = allOk ? runs.reduce((s, c) => s + (c.spend ?? 0), 0) : null
   const blendedClicks = allOk ? runs.reduce((s, c) => s + (c.clicks ?? 0), 0) : null
 
-  return { channels, blendedSpend, blendedClicks }
+  // Blended deltas: sum priors over the same all-configured base. Blank (undefined)
+  // unless the value is available AND every contributing channel has a defined prior.
+  const priorsFor = (rows: ChannelMetrics[], field: 'spend' | 'clicks') => {
+    const vals = rows.map((c) => priorOf(c.key)?.[field])
+    return vals.every((v) => v != null) ? (vals as number[]).reduce((s, v) => s + v, 0) : undefined
+  }
+
+  const blendedSpendPrior = allOk ? priorsFor(runs, 'spend') : undefined
+  const blendedClicksPrior = allOk ? priorsFor(runs, 'clicks') : undefined
+  const blendedSpendDelta = blendedSpend != null ? pct(blendedSpend, blendedSpendPrior) : undefined
+  const blendedClicksDelta = blendedClicks != null ? pct(blendedClicks, blendedClicksPrior) : undefined
+
+  return { channels, blendedSpend, blendedClicks, blendedSpendDelta, blendedClicksDelta }
 }

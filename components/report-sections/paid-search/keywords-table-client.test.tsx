@@ -11,10 +11,10 @@ vi.mock('@/components/charts/data-table', () => ({
     <table>
       <tbody>
         {rows.map((r, i) => (
-          <tr key={i}><td>{r.cost}</td></tr>
+          <tr key={i}><td>{r.cost}</td><td>{r.cpl}</td></tr>
         ))}
         {totalsRow && (
-          <tr><td>{totalsRow.keyword}</td><td>{totalsRow.cost}</td></tr>
+          <tr><td>{totalsRow.keyword}</td><td>{totalsRow.cost}</td><td>{totalsRow.cpl}</td></tr>
         )}
       </tbody>
     </table>
@@ -59,5 +59,13 @@ describe('KeywordsTableClient render', () => {
     expect(screen.getByText(/no keywords? .*10 clicks/i)).toBeInTheDocument()
     // No data table rendered.
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  test('Cost/Lead shows — for a 0-lead total instead of $0.00', () => {
+    const top = [kw('k0', 15, 1000, 500, 0)] // 0 leads
+    render(<KeywordsTableClient data={data(view(top, 1, 500))} />)
+    expect(screen.getByText(/Total \(1 keyword\)/)).toBeInTheDocument()
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument()
   })
 })

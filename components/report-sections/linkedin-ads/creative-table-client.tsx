@@ -1,7 +1,7 @@
 'use client'
 import { useState, type ReactNode } from 'react'
 import { num, pct } from '@/lib/supermetrics/format'
-import { money } from '@/lib/paid-media/format'
+import { money, DASH } from '@/lib/paid-media/format'
 import type {
   LinkedInCampaignGroupNode,
   LinkedInCampaignNode,
@@ -16,7 +16,7 @@ type MetricKey =
 interface Col {
   key: MetricKey
   label: string
-  fmt: (n: number) => string
+  fmt: (n: number, row?: LinkedInCreativeMetrics) => string
 }
 
 const COLS: Col[] = [
@@ -26,7 +26,7 @@ const COLS: Col[] = [
   { key: 'ctr', label: 'CTR', fmt: pct },
   { key: 'cpc', label: 'CPC', fmt: money },
   { key: 'leads', label: 'Leads', fmt: num },
-  { key: 'costPerLead', label: 'Cost / Lead', fmt: money },
+  { key: 'costPerLead', label: 'Cost / Lead', fmt: (n, row) => (row && row.leads > 0 ? money(n) : DASH) },
   { key: 'leadFormOpens', label: 'LF Opens', fmt: num },
   { key: 'leadFormCompletionRate', label: 'LF Compl. Rate', fmt: pct },
   { key: 'landingPageClicks', label: 'LP Clicks', fmt: num },
@@ -35,14 +35,21 @@ const COLS: Col[] = [
 
 type SortKey = MetricKey | 'name'
 
-function sortItems<T extends LinkedInCreativeMetrics & { name?: string; ad?: string }>(
+// Cost/Lead for a leadless row is stored as 0 (see lib/linkedin/creative.ts), but a
+// creative with 0 leads has NO cost-per-lead, not the cheapest one. Rank those rows as
+// the most expensive so they sort to the bottom of an ascending Cost/Lead sort (and the
+// top of a descending one) — matching the "—" the column already displays for them.
+const sortValue = <T extends LinkedInCreativeMetrics>(item: T, key: MetricKey): number =>
+  key === 'costPerLead' && item.leads === 0 ? Infinity : (item[key] as number)
+
+export function sortItems<T extends LinkedInCreativeMetrics & { name?: string; ad?: string }>(
   items: T[],
   key: SortKey,
   dir: 'asc' | 'desc',
 ): T[] {
   const sorted = [...items].sort((a, b) => {
-    const av = key === 'name' ? (a.name ?? a.ad ?? '') : (a[key] as number)
-    const bv = key === 'name' ? (b.name ?? b.ad ?? '') : (b[key] as number)
+    const av = key === 'name' ? (a.name ?? a.ad ?? '') : sortValue(a, key)
+    const bv = key === 'name' ? (b.name ?? b.ad ?? '') : sortValue(b, key)
     if (av < bv) return -1
     if (av > bv) return 1
     return 0
@@ -77,7 +84,7 @@ export function CreativeTableClient({
   const metricCells = (m: LinkedInCreativeMetrics) =>
     COLS.map((c) => (
       <td key={c.key} className="px-5 py-3 text-right text-white">
-        {c.fmt(m[c.key])}
+        {c.fmt(m[c.key], m)}
       </td>
     ))
 

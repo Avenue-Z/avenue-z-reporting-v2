@@ -19,4 +19,14 @@ describe('KpiGrid money formatting (Paid Media cents, item 11d)', () => {
     // Non-money numeric KPI is unaffected (no dollar sign, integer formatting).
     expect(screen.getByText('1,234')).toBeInTheDocument()
   })
+
+  test('a money KPI with a null value renders the dash, not $0.00 or $NaN', () => {
+    const kpis: Kpi[] = [
+      { key: 'cpl', label: 'Cost / Lead', value: null, format: 'money', invertDelta: true },
+      { key: 'cost', label: 'Cost', value: 0, format: 'money' }, // a real zero stays $0.00
+    ]
+    render(<KpiGrid kpis={kpis} />)
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getByText('$0.00')).toBeInTheDocument()
+  })
 })

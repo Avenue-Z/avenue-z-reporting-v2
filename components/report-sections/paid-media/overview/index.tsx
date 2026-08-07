@@ -7,8 +7,10 @@
 
 import { KpiCard } from '@/components/charts/kpi-card'
 import { getPaidMediaOverview } from '@/lib/paid-media/overview'
+import { getPaidMediaTrend } from '@/lib/paid-media/trend'
 import { money } from '@/lib/paid-media/format'
 import { num } from '@/lib/supermetrics/format'
+import { PaidMediaTrendChart } from './trend'
 
 const dash = '—'
 const asMoney = (n: number | null) => (n == null ? dash : money(n))
@@ -17,65 +19,56 @@ const asNum = (n: number | null) => (n == null ? dash : num(n))
 export async function PaidMediaOverviewReport({
   clientSlug,
   dateRange = 'last_30_days',
+  compareRange = null,
 }: {
   clientSlug: string
   dateRange?: string
+  compareRange?: string | null
 }) {
-  const o = await getPaidMediaOverview(clientSlug, dateRange)
+  const [o, trend] = await Promise.all([
+    getPaidMediaOverview(clientSlug, dateRange, compareRange),
+    getPaidMediaTrend(clientSlug, dateRange),
+  ])
 
   return (
     <div className="space-y-8">
-      {/* Combined top line — Spend then Clicks only (item 11a; CTR + Conversions
-          excluded). Leads and Cost per Lead are deliberately NOT on the top line:
-          a blended figure would need every channel's leads, but Meta lead
-          conversions are unavailable to us, and the team has dropped anything
-          relating to or influenced by Meta leads. Per-channel Leads (Paid Search
-          + LinkedIn) still show in the By-Channel breakdown below. */}
+      {/* Combined top line — Spend + Clicks (item 11a). Blended Leads / Cost per Lead were
+          scrapped: Meta has no lead data and LinkedIn reports 0 leads today, so a blended lead
+          figure would mislead. Per-channel Leads stay in the breakdown below. */}
       <div className="grid grid-cols-2 gap-3">
-        <KpiCard title="Spend" value={asMoney(o.blendedSpend)} />
+        <KpiCard title="Spend" value={asMoney(o.blendedSpend)} delta={o.blendedSpendDelta} comparisonExpected />
         <KpiCard
           title="Clicks"
           value={asNum(o.blendedClicks)}
-          tooltip="Blended across the channels this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
+          delta={o.blendedClicksDelta}
+          comparisonExpected
+          tooltip="Blended across every channel this client runs. Meta contributes link clicks; Paid Search and LinkedIn contribute all clicks."
         />
       </div>
 
       <p className="text-xs text-text-muted">
-        Blended Spend and Clicks are shown only when every channel this client runs reports.
+        Blended Spend and Clicks cover every paid channel this client runs, and are shown only
+        when all of them report for the period.
       </p>
 
+      <PaidMediaTrendChart trend={trend} />
+
       {/* Per-channel breakdown (item 11b). */}
-      <div>
-        <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted">
-          By Channel
-        </p>
-        <div className="overflow-hidden rounded-lg border border-white/[0.06]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-wider text-text-muted">
-                <th className="px-4 py-2 text-left font-bold">Channel</th>
-                <th className="px-4 py-2 text-right font-bold">Spend</th>
-                <th className="px-4 py-2 text-right font-bold">Clicks</th>
-                <th className="px-4 py-2 text-right font-bold">Leads</th>
-              </tr>
-            </thead>
-            <tbody>
-              {o.channels.map((c) => (
-                <tr key={c.key} className="border-b border-white/[0.04] last:border-b-0">
-                  <td className="px-4 py-2.5 text-left font-medium text-white">{c.label}</td>
-                  <td className="px-4 py-2.5 text-right text-white/80">{asMoney(c.spend)}</td>
-                  <td className="px-4 py-2.5 text-right text-white/80">{asNum(c.clicks)}</td>
-                  <td className="px-4 py-2.5 text-right text-white/80">{asNum(c.leads)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-2 text-xs text-text-muted">
-          Clicks are link clicks for Meta and all clicks for Paid Search and
-          LinkedIn. Leads are shown per channel where available. Meta
-          lead conversions are not available, so Meta shows &lsquo;—&rsquo;, and
-          there is no blended Leads total.
+      <div className="space-y-6">
+        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">By Channel</p>
+        {o.channels.map((c) => (
+          <section key={c.key} className="space-y-3">
+            <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{c.label}</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <KpiCard title="Spend" value={asMoney(c.spend)} delta={c.spendDelta} comparisonExpected />
+              <KpiCard title="Clicks" value={asNum(c.clicks)} delta={c.clicksDelta} comparisonExpected />
+              <KpiCard title="Leads" value={asNum(c.leads)} delta={c.leadsDelta} comparisonExpected />
+            </div>
+          </section>
+        ))}
+        <p className="text-xs text-text-muted">
+          Clicks are link clicks for Meta and all clicks for Paid Search and LinkedIn. Leads are shown
+          per channel where available. Meta lead conversions are not available, so Meta shows &lsquo;—&rsquo;.
         </p>
       </div>
     </div>
