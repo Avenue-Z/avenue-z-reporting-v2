@@ -24,7 +24,7 @@ export function transformCampaigns(
       ctr: impressions ? (clicks / impressions) * 100 : 0,
       cpc: clicks ? cost / clicks : 0,
       leads,
-      cpl: leads ? Math.round(cost / leads) : 0,
+      cpl: leads ? cost / leads : 0,
       convRate: clicks ? (leads / clicks) * 100 : 0,
     }
   })

@@ -21,8 +21,8 @@ export function transformKpis(
   const cost = Number(totals.Cost || 0), clicks = Number(totals.Clicks || 0), impressions = Number(totals.Impressions || 0)
   const leads = scopedLeads(actionRows, cfg)
   const ctr = impressions ? +((clicks / impressions) * 100).toFixed(1) : 0
-  const cpc = clicks ? +(cost / clicks).toFixed(2) : 0
-  const cpl = leads ? Math.round(cost / leads) : 0
+  const cpc = clicks ? cost / clicks : 0
+  const cpl = leads ? cost / leads : null
   const convRate = clicks ? +((leads / clicks) * 100).toFixed(1) : 0
 
   // Comparison-period values. Each derived value is undefined when there is no
@@ -37,13 +37,13 @@ export function transformKpis(
   const cConvRate = cClicks && cLeads !== undefined ? (cLeads / cClicks) * 100 : undefined
 
   return [
-    { key: 'cost', label: 'Cost', value: Math.round(cost), prefix: '$', delta: delta(cost, cCost) },
-    { key: 'clicks', label: 'Clicks', value: clicks, delta: delta(clicks, cClicks) },
+    { key: 'cost', label: 'Cost', value: cost, format: 'money', delta: delta(cost, cCost), compareValue: cCost },
+    { key: 'clicks', label: 'Clicks', value: clicks, delta: delta(clicks, cClicks), compareValue: cClicks },
     { key: 'impressions', label: 'Impressions', value: impressions, delta: delta(impressions, cImpr) },
     { key: 'ctr', label: 'CTR', value: ctr, suffix: '%', delta: delta(ctr, cCtr) },
-    { key: 'cpc', label: 'Avg. CPC', value: cpc, prefix: '$', delta: delta(cpc, cCpc), invertDelta: true },
-    { key: 'leads', label: 'Leads', value: leads, delta: delta(leads, cLeads) },
-    { key: 'cpl', label: 'Cost / Lead', value: cpl, prefix: '$', delta: delta(cpl, cCpl), invertDelta: true },
+    { key: 'cpc', label: 'Avg. CPC', value: cpc, format: 'money', delta: delta(cpc, cCpc), invertDelta: true },
+    { key: 'leads', label: 'Leads', value: leads, delta: delta(leads, cLeads), compareValue: cLeads },
+    { key: 'cpl', label: 'Cost / Lead', value: cpl, format: 'money', delta: cpl != null ? delta(cpl, cCpl) : undefined, invertDelta: true },
     { key: 'convRate', label: 'Conversion Rate', value: convRate, suffix: '%', delta: delta(convRate, cConvRate) },
   ]
 }
@@ -55,8 +55,8 @@ export async function getPaidSearchKpis(slug: string, dateRange: string, compare
   const [totals, actionRows, cTotals, cActions] = await Promise.all([
     awQuery(slug, ['Cost', 'Clicks', 'Impressions'], dateRange).then((r) => r[0] ?? {}),
     awQuery(slug, ['ConversionTypeName', 'Conversions'], dateRange),
-    compareIso ? awQuery(slug, ['Cost', 'Clicks', 'Impressions'], compareIso).then((r) => r[0] ?? {}) : Promise.resolve(null),
-    compareIso ? awQuery(slug, ['ConversionTypeName', 'Conversions'], compareIso) : Promise.resolve(null),
+    compareIso ? awQuery(slug, ['Cost', 'Clicks', 'Impressions'], compareIso).then((r) => r[0] ?? {}).catch(() => null) : Promise.resolve(null),
+    compareIso ? awQuery(slug, ['ConversionTypeName', 'Conversions'], compareIso).catch(() => null) : Promise.resolve(null),
   ])
   return transformKpis(totals, actionRows, cTotals, cActions, cfg)
 }

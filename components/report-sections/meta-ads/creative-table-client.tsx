@@ -1,6 +1,7 @@
 'use client'
 import { useState, type ReactNode } from 'react'
-import { usd, num, pct } from '@/lib/supermetrics/format'
+import { num, pct } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 import type { CampaignNode, AdSetNode, CreativeRow, CreativeMetrics } from '@/lib/meta/types'
 
 type MetricKey =
@@ -14,11 +15,10 @@ interface Col {
   tooltip?: string
 }
 
-const usd2 = (n: number) => '$' + n.toFixed(2)
 const freq = (n: number) => n.toFixed(1) + 'x'
 
 const COLS: Col[] = [
-  { key: 'spend', label: 'Spend', fmt: usd },
+  { key: 'spend', label: 'Spend', fmt: money },
   { key: 'impressions', label: 'Impressions', fmt: num },
   { key: 'reach', label: 'Reach', fmt: num },
   {
@@ -30,9 +30,11 @@ const COLS: Col[] = [
   },
   { key: 'linkClicks', label: 'Link Clicks', fmt: num },
   { key: 'ctr', label: 'CTR', fmt: pct },
-  { key: 'cpc', label: 'CPC', fmt: usd2 },
+  { key: 'cpc', label: 'CPC', fmt: money },
   { key: 'lpv', label: 'LPV', fmt: num },
-  { key: 'costPerLpv', label: 'Cost / LPV', fmt: usd },
+  // money(): Cost / LPV is a per-unit cost and is routinely sub-dollar, so it
+  // needs cents (item 11d). Matches CPC above and LinkedIn's Cost / Lead.
+  { key: 'costPerLpv', label: 'Cost / LPV', fmt: money },
   { key: 'engagements', label: 'Engagements', fmt: num },
   { key: 'shareOfSpend', label: 'Share of Spend', fmt: pct },
 ]

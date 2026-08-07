@@ -21,8 +21,12 @@ describe('resolveCommentaryView', () => {
     expect(resolveCommentaryView('peec-ai', 'technical-audit')).toBeNull() // out of scope
   })
   test('paid search aliases collapse to one key', () => {
-    expect(resolveCommentaryView('google-ads')).toBe('paid-search')       // deep-link route
-    expect(resolveCommentaryView('paid-media')).toBe('paid-search')       // SPA route, no subsection
+    expect(resolveCommentaryView('google-ads')).toBe('paid-search')                 // deep-link route
+    expect(resolveCommentaryView('paid-media', 'paid-search')).toBe('paid-search')  // SPA route, Paid Search subsection
+  })
+  test('paid media overview has no commentary box', () => {
+    // Overview is the new default landing (item 5) and has no commentary box (item 6).
+    expect(resolveCommentaryView('paid-media')).toBeNull()
   })
   test('meta aliases collapse to one key', () => {
     expect(resolveCommentaryView('meta-ads')).toBe('meta-ads')            // deep-link + portal SPA
