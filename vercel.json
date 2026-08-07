@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/health/sweep",
-      "schedule": "*/15 * * * *"
+      "schedule": "15,45 * * * *"
     }
   ]
 }
