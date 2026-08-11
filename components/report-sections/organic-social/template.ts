@@ -6,6 +6,7 @@ export const ORGANIC_SOCIAL_TEMPLATE: SectionTemplate = {
     { id: 'platform-headlines', version: 1 },
     { id: 'engagement-trend', version: 1 },
     { id: 'top-content', version: 2 },
+    { id: 'top-ai-retrieved', version: 1 },
   ],
   labels: {},
   thresholds: {},

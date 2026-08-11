@@ -142,6 +142,7 @@ export const clients = pgTable('clients', {
   metaConfig: jsonb('meta_config').$type<MetaConfig>(),
   linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
   dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
+  ownedLinkedinHandle: text('owned_linkedin_handle'),   // e.g. 'renaissancebenefits' — owned-ness for AI Retrievals
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
   sharedPasswordHash: text('shared_password_hash'),
@@ -298,6 +299,18 @@ export const postDesignations = pgTable('post_designations', {
 
 export type PostDesignation = typeof postDesignations.$inferSelect
 export type NewPostDesignation = typeof postDesignations.$inferInsert
+
+// Immutable LinkedIn page resolutions for AI Retrievals. One row per source URL:
+// canonicalUrl (posts: /feed/update ugcPost -> public /posts activity URL) and/or
+// authorUrl (pulse: JSON-LD author profile/company). Resolved once, reused forever.
+export const linkedinUrlResolutions = pgTable('linkedin_url_resolutions', {
+  urlKey: text('url_key').primaryKey(),          // urlJoinKey of the SOURCE url (Dash ugcPost or a pulse url)
+  canonicalUrl: text('canonical_url'),           // null until/unless resolved (posts)
+  authorUrl: text('author_url'),                 // null until/unless resolved (pulse author)
+  status: text('status').notNull(),              // 'ok' | 'unresolved'
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull().defaultNow(),
+})
+export type LinkedinUrlResolution = typeof linkedinUrlResolutions.$inferSelect
 
 // One row per (client, channel, resolved window, post). Freezes Dash-sourced facts for a
 // CLOSED period; the creative still pulls live from the URLs in `payload` (no media bytes).
