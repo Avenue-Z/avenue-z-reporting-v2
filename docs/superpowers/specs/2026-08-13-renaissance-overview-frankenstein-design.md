@@ -5,7 +5,7 @@
 **Branch:** `Executive-Overview-Duplicate-Ren` off `dev` · **PR:** #207 (draft → dev)
 **Wireframe:** `Executive Dashboard Demo.pdf`
 
-**Revision note.** This document was rewritten after three independent adversarial passes: a citation audit, a completeness audit, and a safety audit. The first two rounds concentrated on what must not break and under-specified what must render. Sections 4.4 through 4.8 are the result of closing that gap. No decision changed; the architecture survived all three passes.
+**Revision note.** Rewritten after three adversarial passes (citations, completeness, safety), then revised again after a second sweep of three specialists plus a lead synthesis. The early rounds concentrated on what must not break and under-specified what must render; §§4.4-4.8 close that gap. One decision was reversed along the way and is flagged where it sits (§5.4). The architecture held through every pass.
 
 ---
 
@@ -13,9 +13,9 @@
 
 Renaissance has no overview page. Avenue Z has the pieces for one, spread across four separate report sections. This assembles those pieces into a single new page on the Renaissance side, laid out per the wireframe.
 
-It is assembly, not construction. Every block already exists and runs on Avenue Z today.
+It is assembly rather than construction: roughly 80% of the code is transplanted from components running on Avenue Z today. The new code is the orchestrator, the needs-connection treatment, and the variant that lets an unconnected card sit in the journey row.
 
-**Hard constraint:** Avenue Z's rendered pages must be byte-identical after this ships.
+**Hard constraint:** Avenue Z's rendered output must be unchanged after this ships. Strictly this means the rendered DOM, not the literal bytes: App Router HTML embeds a build id and content-hashed chunk URLs that move on any deploy. §5.1 names the two places output does change.
 
 ---
 
@@ -38,7 +38,7 @@ It is assembly, not construction. Every block already exists and runs on Avenue 
 - **Mobile.** `DemandJourney`'s flow row is `flex items-start gap-0` with no breakpoint (`demand-journey.tsx:53`). §3's single-row layout claim is a desktop claim.
 
 **Resolved, previously listed as a risk:**
-- **Permissions.** Confirmed against the dev database: Renaissance has one `CLIENT_ADMIN` and two `CLIENT_VIEWER` accounts on an `@renaissance.test` domain, plus two internal admins. The client-facing portal is testable end to end and the page is genuinely reachable by client-role users. That makes the portal the surface where a wrong number or an "Avenue Z" label would actually be seen by a client, which is why §4.3 puts the header and brand-lookup corrections in the new code.
+- **Permissions.** Confirmed against the dev database: Renaissance has one `CLIENT_ADMIN` and two `CLIENT_VIEWER` accounts on an `@renaissance.test` domain, plus two internal admins. The client-facing portal is testable end to end and the page is genuinely reachable by client-role users. That makes the portal the surface where a wrong number or an "Avenue Z" label would actually be seen by a client, which is why §4.3 puts the brand-lookup correction in the new code.
 
 ---
 
@@ -60,7 +60,7 @@ Renaissance's live config, read from the dev database: `ga4_property_id` set, `p
 | Card | Source | Derivation |
 |---|---|---|
 | AEO / AI Visibility | Peec `getPeecOverview` | `(visibility_count / visibility_total) × 100` for the latest ISO week |
-| ↳ share of voice | Peec `brandRankings` | mean of per-row `share_of_voice`, raw field being a fraction scaled by 100 |
+| ↳ share of voice | Peec `brandRankings` | mean of per-row `share_of_voice` **for the client's own brand**, raw field being a fraction scaled by 100 |
 | Web Analytics / Site Sessions | GA4 | raw `sessions`; sub-metric is GA4-native `sessionConversionRate` |
 | Inbound Funnel / Online Contacts | CRM | needs-connection |
 | Pipeline / Open Pipeline | CRM | needs-connection |
@@ -121,8 +121,11 @@ Accepted cost: six duplicated UI files plus ~233 lines of reshaping. They will d
 Three things it does differently from Avenue Z's version, written correctly here rather than fixed there:
 
 - **Brand lookup** reads `BrandRanking.isYou`, computed from `clients.peec_your_brand` (`lib/peec/client.ts:132`, `:381`, `:472`), instead of matching the literal string "avenue z". Without this, share of voice blanks for every client but Avenue Z.
-- **Header** renders `client.name`, not a hardcoded literal.
 - **Ranges are resolved internally**, per §4.4.
+
+It renders **no header of its own**. See §4.7.
+
+**Journey card 1 (AEO) is reshaped from Peec, not GA4**, so §4.5's reshaping table does not cover it. Its source is `demand-overview/index.tsx:194-205`: visibility is the last entry of `weeklyVisibility`, and the delta is derived from the last two entries. Copy that block, substituting the `isYou` lookup above. Note §10 records a known bug in that derivation (the current week is incomplete), inherited not introduced.
 
 **Peec range: `year_to_date`**, matching Avenue Z's Overview (`demand-overview/index.tsx:110`), so the AEO card means the same thing on both pages. This makes that one card year-to-date while the other three are 30-day. Inherited, not introduced, and recorded in §10.
 
@@ -167,6 +170,14 @@ The journey sparkline reuses query 3 rather than issuing `demand-overview`'s sep
 
 **The reshaping that turns these rows into props is copied, not extracted.** Roughly 233 lines of it live inline in `components/report-sections/ga4/index.tsx` rather than in `lib/`. Extracting would be cleaner and would leave one copy; it would also edit Avenue Z's file, so we duplicate.
 
+**Adapt every result access when you copy it.** `ga4/index.tsx` fetches with `Promise.all` (`:118`), so its reshaping dereferences results directly: `totalsRes.rows[0]` (`:261`), `trendRes.rows` (`:316`), `channelRes.rows` (`:348`), `audienceRes.rows` (`:468`). §4.8 mandates `Promise.allSettled`, under which every one of those is a `PromiseSettledResult` with no `.rows`. Each needs unwrapping before use, following the idiom already in `demand-overview/index.tsx:125`:
+
+```ts
+const ga4 = ga4Res.status === 'fulfilled' ? ga4Res.value : null
+```
+
+This is the single most likely way a verbatim copy goes wrong. `strict: true` catches the bare cases, but the ranges also contain optional-chained forms (`compareChannelRes?.rows ?? []`, `channelSMRes?.rows ?? []`) which compile fine against a settled result and yield **silently empty compare bars and an empty drill-down**. `tsc` is in no CI workflow, so nothing catches it automatically.
+
 | Consumer | Lines in `ga4/index.tsx` |
 |---|---|
 | 8 KPI cards | `:261-314`, plus `KPI_METRICS` at `:78-87` |
@@ -183,9 +194,20 @@ Three things that bite when copying:
 
 ### 4.6 Needs-connection state
 
-Zeros are the failure mode being avoided: absent CRM identifiers produce plausible `$0` figures with no error. Nothing here renders `0`, a dash, or an error card in place of missing data.
+Zeros are the failure mode being avoided: absent CRM identifiers produce plausible `$0` figures with no error. **No block renders `0` or a dash to mean "we have no source for this."**
 
-**The component.** `components/report-sections/empty-state.tsx` is the existing precedent and is copied to `executive-overview/needs-connection.tsx`. The original takes `{ platformName, clientSlug, isPortal }` and renders a dashed-border card reading "{platformName} not connected" with a CTA to the auth hub.
+That rule is about *absent configuration*, not about *failed fetches*, and the two must be handled differently:
+
+| Situation | Treatment |
+|---|---|
+| Source not configured for this client (CRM, today) | needs-connection card |
+| Source configured but the fetch failed or returned empty | the copied components' own empty behavior: dashes on KPIs, empty charts |
+
+The distinction matters because the copied reshaping produces dashes on failure by design (`fmtNum`, `fmtPct` and `fmtDuration` each return a dash on null, `ga4/index.tsx:34`, `:39`, `:44`). Do not try to route GA4 failures into the needs-connection card. A dash there is honest: the source exists and this render did not get data.
+
+One consequence worth stating, because staging and production GA4 credentials are not yet available (§7): if `ga4_property_id` is unset or the service account lacks access, `ga4Query` throws (`lib/ga4/client.ts:92`) and Block 2 renders eight dashes and three empty charts rather than a needs-connection card. That is correct behavior under the table above, and it is what the first render outside this machine will look like if credentials are wrong.
+
+**The component.** `components/report-sections/empty-state.tsx` is the closest existing thing and is copied to `executive-overview/needs-connection.tsx`. Note it has zero call sites today, so it is an unused component being adapted rather than a proven pattern being reused. The original takes `{ platformName, clientSlug, isPortal }` and renders a dashed-border card reading "{platformName} not connected" with a CTA to the auth hub.
 
 Two changes in our copy:
 
@@ -194,19 +216,35 @@ Two changes in our copy:
 
 **Blocks 3 and 4** render it at block scale beneath their section heading.
 
-**Block 1's two cards** render the same two strings at card scale, inside the flow row. Our `DemandStage` copy makes `metric` and `stats` optional and adds `connected?: boolean`:
+**Block 1's two cards** need a card-scale treatment, not the block component. `empty-state.tsx` is a centered full-width panel (`px-8 py-12`, `text-lg`) and cannot drop into a `flex-1` quarter-width card. Render inside the existing card frame, in place of the metric and stat rows: the source eyebrow stays, the metric slot shows `Not connected` at the card's normal muted body size rather than the `text-3xl` hero size, and a single line reads `Connect Salesforce to see this`. No border, no CTA; the card frame and connector already provide the container.
+
+Our `DemandStage` copy makes `metric` and `stats` optional and adds `connected?: boolean`:
 
 ```ts
 connected?: boolean   // omitted or true renders exactly as the original
 ```
 
-When `false`, the card renders the needs-connection treatment in place of the metric and stat rows, keeping the connector, the source label and the card frame. `stage.delta != null` already guards the delta (`demand-journey.tsx:140`), so no false arrow appears. Hover-expand is disabled for unconnected cards; expanding into an empty panel is worse than not expanding.
+When `false`, the card renders the treatment above in place of the metric and stat rows, keeping the connector, the source label and the card frame. `stage.delta != null` already guards the delta (`demand-journey.tsx:140`), so no false arrow appears. Hover-expand is disabled for unconnected cards; expanding into an empty panel is worse than not expanding.
+
+Three places in the copy need a branch, and one is a hard compile error rather than a choice:
+
+| Location | Change |
+|---|---|
+| `demand-journey.tsx:115-117` | hero metric slot: branch on `connected` |
+| `demand-journey.tsx:192` | `stage.stats.length` becomes `stage.stats?.length`. **Required under `strict` the moment `stats` is optional**, independent of the variant |
+| `demand-journey.tsx:69-70` | `onMouseEnter` / `onMouseLeave`: no-op when `connected === false` |
+
+Nothing else in that component reads `metric` or `stats`.
 
 ### 4.7 Page composition
 
 The route already renders `StickyReportHeader title={pageTitle} subtitle={client.name}`, where `pageTitle` falls through to `REPORT_NAMES[activeSection]` (`app/portal/[clientSlug]/reports/page.tsx:220-224`). Once §6 item 2 lands that reads **"Overview" over "Renaissance"**.
 
-**The section therefore renders no header of its own.** Adding one would print the client name twice. This supersedes the earlier draft's "header renders `client.name`" instruction, which assumed the section owned the header.
+**The section therefore renders no header of its own.** Adding one would print the client name twice.
+
+Note the order that component actually renders: `subtitle` sits in a `<p>` **above** the `<h1>{title}` (`components/layout/sticky-report-header.tsx:102-107`). So the page reads **"RENAISSANCE" over "OVERVIEW"**, client name first. That is the existing convention on every report page, and it is what §8 checks for.
+
+Routes #3 and #4 use different header components (`Header` and hand-rolled markup respectively) but reach the same conclusion: the route owns the header, the section does not.
 
 Consequences for the wireframe's masthead: the eyebrow, the large "DEMAND OVERVIEW" title and the gradient treatment are all provided by the sticky header in plainer form. The rest of that masthead is mock chrome and is out of scope per §2.
 
@@ -233,7 +271,7 @@ The trend chart's "7d avg" toggle, the Traffic by Channel tab switching and the 
 
 Accepted consequence: one skeleton until the slowest of nine GA4 queries and one Peec call returns. No progressive loading. Recorded in §10.
 
-Worth knowing: `allSettled` does not hide failures from monitoring. `recordFetch({ok:false})` fires inside the `cached()` wrapper (`lib/cache.ts:95`) regardless of how the caller settles, so a degraded block still reports `down`.
+Worth knowing: `allSettled` does not hide failures from monitoring. `recordFetch({ok:false})` fires inside the `cached()` wrapper (`lib/cache.ts:96`) regardless of how the caller settles, so a degraded block still reports `down`.
 
 ---
 
@@ -244,7 +282,7 @@ Worth knowing: `allSettled` does not hide failures from monitoring. `recordFetch
 Avenue Z's `enabled_reports` will not contain `executive-overview`. Every registration is additive and filters out:
 
 - Sidebar filters group slugs and returns `null` before producing DOM for an empty group (`sidebar.tsx:421-424`), so the React key never reaches the document.
-- Landing cards filter `NAV_SLUG_ORDER`; filtering preserves relative order (`app/dashboard/[clientSlug]/page.tsx:53-55`).
+- Landing cards filter `NAV_SLUG_ORDER`; filtering preserves relative order (`app/dashboard/[clientSlug]/page.tsx:54-56`).
 - `defaultSection` is `NAV_SLUG_ORDER.find(...)` over a predicate that is false for an absent slug, so insertion position is irrelevant (`app/dashboard/[clientSlug]/reports/page.tsx:134`, portal `:180`).
 - **All four dispatchers gate on `enabledReports`, not just the two deep-link ones.** The tab routes fall back to `defaultSection` for a section the client lacks (`:152-155`, portal `:196-200`), so `/dashboard/avenue-z/reports?section=executive-overview` renders Avenue Z's own Overview.
 - Cache keys include call arguments (`lib/cache.ts:65-83`), so Renaissance fetches cannot collide with Avenue Z's entries.
@@ -258,9 +296,9 @@ The **client JS bundle is not byte-identical**. Four of the six copied component
 
 ### 5.2 NAV_GROUPS and ALL_REPORT_SLUGS insertion
 
-**Index 1 in both arrays**, immediately after `demand-overview`.
+**The invariant is `NAV_SLUG_ORDER[1] === 'executive-overview'`**, immediately after `demand-overview`, and the same position in `ALL_REPORT_SLUGS`. State it that way rather than as an index, because `NAV_GROUPS` is an array of groups rather than slugs: appending to group 0's `slugs` and splicing a new group at position 1 both satisfy it.
 
-The general rule, stated properly: **index 1 is safe for every client lacking `executive-overview`, and changes the landing section for exactly those clients that have `executive-overview` and lack `demand-overview`.** Today that is Renaissance alone. Verified against all seven rows in the dev database, including `begin-health`, which has `demand-overview` and is therefore unaffected.
+The general rule, stated properly: **index 1 is safe for every client lacking `executive-overview`, and changes the landing section for exactly those clients that have `executive-overview` and lack `demand-overview`.** Today that is Renaissance alone. Verified against all seven rows in the dev database. `avenue-z` and `begin-health` both hold `demand-overview`, so their `find()` still returns it from index 0. The remaining four (`elix`, `elix-healing`, `kind-patches`, `love-bug`) have an empty `enabled_reports`, so `defaultSection` resolves to `undefined` both before and after and the redirect never fires. None of the seven changes.
 
 Index 0 is rejected because it would order the slug ahead of `demand-overview` for any future client holding both. (An earlier draft also cited React key shifts. That reasoning was wrong: inserting at index 1 shifts keys too, and `NAV_GROUPS` is a module constant so the keys never differ between server and client. The ordering argument is the real one.)
 
@@ -272,19 +310,19 @@ Index 0 is rejected because it would order the slug ahead of `demand-overview` f
 
 `portal-sidebar.tsx:65` iterates `ALL_REPORT_SLUGS` for **every** client, and returns `null` for slugs a client lacks only because `SHOW_LOCKED_REPORT_TEASERS` is `false` (`lib/constants.ts:221`, filter at `portal-sidebar.tsx:93-95`). The comment above the flag advertises flipping it as needing "no other change."
 
-Flip it and "Overview" appears as a locked upsell entry in every other client's portal sidebar. Worse, `REPORT_NAMES['demand-overview']` is already the string `'Overview'`, so Avenue Z and Begin Health would show two adjacent entries both reading "Overview", one live and one locked.
+Flip it and "Overview" appears as a locked upsell entry in every other client's portal sidebar, and in Renaissance's own: they would see a locked `demand-overview` directly above their live `executive-overview`, both labelled "Overview". Worse, `REPORT_NAMES['demand-overview']` is already the string `'Overview'`, so Avenue Z and Begin Health would show two adjacent entries both reading "Overview", one live and one locked.
 
 Adding to `ALL_REPORT_SLUGS` is still required, since it is what gives Renaissance a portal sidebar entry at all. This is recorded so that whoever flips that flag knows to check it, not to block the change.
 
-### 5.4 Cron concurrency: no change
+### 5.4 Cron concurrency: no change (reverses an explicit instruction)
 
-An earlier draft raised `CONCURRENCY` from 8 to 10 in the two cron routes. **Dropped.** All three premises were wrong:
+I asked for `CONCURRENCY` to be raised from 8 to 10 in the two cron routes, on the strength of an earlier draft's argument. **That is reversed here**, because review showed all three premises behind it were wrong:
 
 - **The Avenue Z risk ran the other way.** `getAllClientsImpl` orders by `asc(c.name)` (`lib/db/queries.ts:83-88`) and workers pull in order, so Avenue Z is first and the *tail* is dropped. Renaissance sorts last of seven.
 - **There are no waves.** `mapWithConcurrency` is a rolling worker pool (`lib/concurrency.ts:28-33`), no barrier between groups. The `ceil(units / CONCURRENCY) × render` formula is an upper bound, not a threshold.
 - **Raising it contradicts why the bound exists.** It was introduced because unbounded fan-out spiked CPU and tripped Neon errors (`lib/concurrency.ts:5-12`), and the cron review says to validate before changing and to *lower* it if Neon strains (`docs/qa/cron-fanout-concurrency-code-review.md:154-157`).
 
-**But the risk model in that draft was also wrong, and the corrected version is worth stating.** `diffHealth`, `upsertHealthState` and the Slack post all run *after* the fan-out completes (`app/api/health/sweep/route.ts:96-108`). If the function hits its 60s ceiling, nothing is written and no transition posts **for any client**, so a genuine Avenue Z outage goes unannounced. The question is not which units get dropped; it is whether the sweep finishes at all.
+**But the risk model in that draft was also wrong, and the corrected version is worth stating.** `diffHealth`, `upsertHealthState` and the Slack post all run *after* the fan-out completes (`app/api/health/sweep/route.ts:85-99`). If the function hits its 60s ceiling, nothing is written and no transition posts **for any client**, so a genuine Avenue Z outage goes unannounced. The question is not which units get dropped; it is whether the sweep finishes at all.
 
 This page adds exactly 2 units per cron (sweep 40→42, cache-warm 49→51; verified, and §6.2's no-picker decision generates no subsection URLs). It is also one of the heavier renders on the sweep: nine GA4 queries plus a Peec call behind a single await point.
 
@@ -339,7 +377,16 @@ The sweep probes only #1 and #4 (`app/api/health/sweep/route.ts:73-81`), so #2 a
 
 Both tab-navigation routes gate their date control on an allow-list of `activeSection` (`app/dashboard/[clientSlug]/reports/page.tsx:204-226`, `app/portal/[clientSlug]/reports/page.tsx:225-246`). Both deep-link routes render one unconditionally.
 
-**No picker.** The wireframe specifies a fixed 30-day period, and both comparable pages (`demand-overview`, `hubspot-performance`) omit it. Nothing is added to either allow-list. §4.4 explains why this makes internal range resolution mandatory rather than optional.
+**No picker on the two tab-navigation routes.** The wireframe specifies a fixed 30-day period, and both comparable pages (`demand-overview`, `hubspot-performance`) omit it. Nothing is added to either allow-list. §4.4 explains why this makes internal range resolution mandatory rather than optional.
+
+**The two deep-link routes render a picker unconditionally**, and that is a real defect, not cosmetic. `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:143-145` renders `PortalReportDateRange` with no allow-list, and route #3 does the same. Since §4.4 makes the orchestrator ignore `dateRange`, a client on `/portal/renaissance/reports/executive-overview` can select "last 7 days", watch the URL change and the page remount, and see identical numbers. A control that moves and changes nothing is worse than no control.
+
+**Decision: the page displays its period as static text and the deep-link picker is left alone.** Adding an allow-list to routes #3 and #4 would mean editing shared route code to suppress a control for one slug, which is the conditional-in-a-shared-branch pattern §4.1 rejects. Instead:
+
+- The section renders `Last 30 days` as a small muted label above Block 1, matching the wireframe's period indication.
+- The mismatch on routes #3 and #4 is recorded in §10. Those routes are deep-link only; no navigation in the product produces them.
+
+This also closes a gap the wireframe cares about: without the label the page shows four blocks of 30-day numbers with nothing on screen naming the period, next to an AEO card that is year-to-date (§4.3).
 
 ---
 
@@ -368,7 +415,7 @@ Verified correct, idempotent and scoped: `enabled_reports` is `NOT NULL` with no
 
 Note `array_append` puts the slug **last**, so the portal landing card grid (which uses raw array order) shows Overview at the bottom. If that matters, write the ordered array explicitly instead.
 
-**Do not use `npm run db:seed`.** It upserts every client over 22 columns including `enabled_reports`, `hidden_reports` and `hubspot_token_env_var`, plus a users upsert that rewrites `role` (`scripts/seed.ts:131-177`). It is stale in both directions: its Avenue Z row would un-hide Paid Media, and its Renaissance row would strip `linkedin-ads`, `organic-social` and `paid-media`. The blast radius of that one command is larger than this entire PR.
+**Do not use `npm run db:seed`.** It upserts each of its two seeded clients over 22 columns including `enabled_reports`, `hidden_reports` and `hubspot_token_env_var`, plus a users upsert that rewrites `role` (`scripts/seed.ts:131-177`). It is stale in both directions: its Avenue Z row would un-hide Paid Media, and its Renaissance row would strip `linkedin-ads`, `organic-social` and `paid-media`. The blast radius of that one command is larger than this entire PR.
 
 `getClientBySlug` and `getAllClients` are cached 5 minutes with tag `db`. A raw SQL update bypasses `revalidateTag`, so expect a lag. That is the only consequence; no additional invalidation is needed.
 
@@ -385,7 +432,8 @@ Credential values go into the local gitignored `.env.local`, never into chat, a 
 - The channel drill-down expands. Empty means query 7 was not issued.
 - Traffic by Channel shares will not match GA4 above ten channel groups, because the denominator is the top-10 sum. Compare raw per-channel counts instead.
 - Share of voice renders a value. A blank means the brand lookup regressed to string matching.
-- The header reads "Overview" over "Renaissance", once, not twice.
+- The header reads "RENAISSANCE" over "OVERVIEW", in that order, once. Two client names means the section rendered its own header.
+- A period label reading "Last 30 days" is visible above Block 1.
 - Blocks 3 and 4 read "Salesforce not connected", never `$0` and never a dash.
 - Open route #2 (portal tab navigation) by hand. The sweep never probes it and a blank page there reports green.
 - Avenue Z's four pages are visually identical before and after.
@@ -410,7 +458,7 @@ Credential values go into the local gitignored `.env.local`, never into chat, a 
 
 ## 10. Follow-ups, not addressed here
 
-All pre-existing, none introduced by this work.
+Most are pre-existing and were found during investigation. The items marked **[introduced]** are consequences of decisions in this document, accepted deliberately rather than discovered.
 
 **Correctness**
 - The AEO card's delta compares the current incomplete ISO week against a full one, so it reads negative early in any week regardless of performance. Affects Avenue Z today.
@@ -424,17 +472,22 @@ All pre-existing, none introduced by this work.
 - `begin-health` has `demand-overview` and `peec-ai` enabled with `peec_customer_project_id` NULL, and `lib/peec/client.ts:380` falls back to `process.env.PEEC_AI_PROJECT_ID`, which is Avenue Z's project. That is the same class of bug §4.3 fixes for this page, live on another client today.
 
 **Convention and hygiene**
-- `NewReturning` renders an "AI" badge over deterministic string templating, ungated by `SHOW_AI_NARRATIVE` unlike every other narrative block. It ships on this page. Decide before merge whether that is acceptable client-facing.
+- **[introduced on this surface]** `NewReturning` renders an "AI" badge over deterministic string templating, ungated by `SHOW_AI_NARRATIVE` unlike every other narrative block. Since that flag is `false` globally (`lib/constants.ts:229`), this page would be the **only** surface where AI-labelled copy reaches a client. Needs a yes or no before merge, not a follow-up.
 - `ENGINEERS.md:412` documents two dispatchers where there are four, and names the wrong two.
 - The health sweep cannot detect a missing dispatcher case, and probes only two of four routes.
 - `tsc` runs in no CI workflow.
 - Route #3 has no `demand-overview` case, so that URL already renders blank for Avenue Z.
+- Both deep-link routes are missing far more than one case. Route #3 lacks `demand-overview`, `peec-ai`, `paid-media` and `request-a-report`; route #4 lacks `paid-media` and several others. Whoever adds `executive-overview` to all four will notice the neighbours are missing. Fixing them is out of scope here.
+- **[introduced]** Routes #3 and #4 render a date control this page ignores, so a selection there changes the URL and nothing else. §6.2 explains why suppressing it would mean editing shared route code for one slug. Deep-link only; no navigation in the product produces those URLs.
+- `ExportPdfButton` on the portal tab route is `window.print()`. This page's journey cards keep their stats and sparkline collapsed until hover, so a printed copy shows four collapsed cards plus three charts. The Asana ticket says "PDF mockup" and the button sits in the header, so someone will click it early. Scope it or set expectations.
+- Two slugs now map to the display name `Overview` (`demand-overview` and `executive-overview`). Nothing breaks, but any future reverse lookup from display name to slug is ambiguous.
+- `components/report-sections/empty-state.tsx` has zero call sites and has never rendered.
 - `ChannelTabsChart.compareLabel` and `ChannelVolumeRow.pct` are declared but never read.
 - Contact email addresses are written to server logs from a production path.
 - `demand-overview/signal-card.tsx` and `hubspot-performance`'s `CLOSED_STAGE_IDS` are unreferenced.
 
 **Structural**
 - HubSpot is the only integration without a per-client config object. Pipeline id, stage ids, the ICP property and the portal id are hardcoded in shared code, so any second CRM client renders silent zeros rather than an error.
-- The GA4 reshaping this page duplicates should eventually live in `lib/`, with both pages reading it.
-- **Copy drift.** Six UI files and ~233 lines of reshaping now exist twice, and nothing warns when one side is fixed. Whoever changes `ga4/sessions-trend-chart.tsx`, `ga4/new-returning.tsx`, `ga4/channel-tabs-chart.tsx`, `charts/kpi-card.tsx`, `demand-overview/demand-journey.tsx` or `empty-state.tsx` should grep `executive-overview/` for the same filename. Worth a note in `ENGINEERS.md` once this ships.
-- No progressive loading: one skeleton until all ten fetches settle. Splitting into independently-suspended blocks is an option if the page feels slow.
+- **[introduced]** The GA4 reshaping this page duplicates should eventually live in `lib/`, with both pages reading it.
+- **[introduced] Copy drift.** Six UI files and ~233 lines of reshaping now exist twice, and nothing warns when one side is fixed. Whoever changes `ga4/sessions-trend-chart.tsx`, `ga4/new-returning.tsx`, `ga4/channel-tabs-chart.tsx`, `charts/kpi-card.tsx`, `demand-overview/demand-journey.tsx` or `empty-state.tsx` should grep `executive-overview/` for the same filename. Worth a note in `ENGINEERS.md` once this ships.
+- **[introduced]** No progressive loading: one skeleton until all ten fetches settle. Splitting into independently-suspended blocks is an option if the page feels slow.
