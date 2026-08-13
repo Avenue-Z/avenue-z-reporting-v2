@@ -259,7 +259,17 @@ Left alone, the page would have a picker on the deep-link routes and none on the
 
 ## 7. Enablement
 
-`enabled_reports` is data, not code. It does not travel with a git merge and must be set separately in the dev, staging, and production databases.
+`enabled_reports` is data, not code. It does not travel with a git merge and must be run separately against each environment's database.
+
+| Environment | Neon endpoint | Run the UPDATE when |
+|---|---|---|
+| dev | `ep-still-tree` | building, credentials in place |
+| staging | `ep-restless-union` | the branch reaches staging for team review. **Credentials not yet available locally** |
+| production | `ep-green-violet` | after sign-off, with Thomas's explicit go-ahead. **Credentials not yet available locally** |
+
+Only the dev credentials exist on the working machine today. Staging and production credentials are needed at their respective promotion steps and not before. **If the staging UPDATE is skipped, the page will simply not appear for the team reviewing on staging, which reads as a broken build rather than a missing data step.** That is the most likely way this goes wrong.
+
+Credential values go straight into the local gitignored `.env.local`, never into chat, a commit, or a doc.
 
 **Use a targeted update scoped to the one client:**
 
