@@ -32,7 +32,7 @@ It is assembly, not construction. Every block already exists and runs on Avenue 
 
 **Deliberately deferred, and named so they are not mistaken for oversights:**
 - **Tests.** This adds none. `npm test` runs on every PR (`.github/workflows/checks.yml:35`), so there is a place for them. The needs-connection path is the one behavior the whole design is organized around and is the obvious first case to cover. Decide before merge whether to add it here or track it.
-- **Permissions.** Renaissance's seeded users are both `INTERNAL_ADMIN` (`scripts/seed.ts:122-125`), so there may be no `CLIENT_ADMIN` or `CLIENT_VIEWER` who can reach the portal surface at all. Confirm against the live DB before treating the portal route as delivered.
+- **Permissions — resolved, no longer a risk.** Confirmed against the dev database: Renaissance has one `CLIENT_ADMIN` and two `CLIENT_VIEWER` accounts on an `@renaissance.test` domain, alongside two internal admins. The client-facing portal is therefore testable end to end, and the new page is genuinely reachable by client-role users. That makes the portal the surface where a wrong number or an "Avenue Z" label would actually be seen by a client, which is why §4.3 puts the header and brand-lookup corrections in the new code rather than inheriting them. (`scripts/seed.ts` shows only the two internal admins and is stale here, as it is elsewhere.)
 - **Mobile.** `DemandJourney`'s flow row is `flex items-start gap-0` with no breakpoint (`demand-journey.tsx:57`). The "renders cleanly" claim in §3 is a desktop claim. Four cards, two of them placeholders, on a phone is unverified.
 
 ---
@@ -216,10 +216,7 @@ Compounding this: `tsc` cannot catch a missing case (no exhaustiveness assertion
 | 2 | `REPORT_NAMES` → `'executive-overview': 'Overview'`, `lib/constants.ts` | yes |
 | 3 | `NAV_GROUPS`, `lib/constants.ts` (drives dashboard sidebar + cards + default) | yes |
 | 4 | `ALL_REPORT_SLUGS`, `lib/constants.ts` (drives **portal** sidebar; portal does not read NAV_GROUPS) | yes |
-| 5 | Dashboard SPA dispatcher, `app/dashboard/[clientSlug]/reports/page.tsx` | yes |
-| 6 | Portal SPA dispatcher, `app/portal/[clientSlug]/reports/page.tsx` | yes |
-| 7 | Dashboard MPA dispatcher, `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx` | yes |
-| 8 | Portal MPA dispatcher, `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx` | yes (health sweep renders through this one) |
+| 5-8 | **All four route dispatchers.** See §6.1 — do not rely on `ENGINEERS.md` for this | yes, all four |
 | 9 | `NON_CHANNEL_SLUGS` in `components/report-sections/report-generator/index.tsx` | yes, or the page is offered as a data channel |
 | 10 | `clients.enabled_reports` for `renaissance` | yes, per environment |
 | 11 | Date-picker allow-list in **both** SPA routes | see §6.1 |
@@ -227,7 +224,32 @@ Compounding this: `tsc` cannot catch a missing case (no exhaustiveness assertion
 
 `ai-summaries` needs no entry: its `NON_CHANNEL_SLUGS` is double-gated by `&& CHANNEL_META[slug]` (`components/report-sections/ai-summaries/index.tsx:280`), so an unknown slug is already excluded. `report-generator`'s copy is single-gated (`:27`), so item 9 is required.
 
-### 6.1 Date picker: the page has none
+### 6.1 The four route dispatchers
+
+A "dispatcher" is the `switch` that turns a report slug into a component. **There are four of them and a new page must be added to all four.**
+
+`ENGINEERS.md:412` states there are two and names only the two deep-link routes. That is wrong, and the two it omits are the two that real users actually hit. Following the documented process ships a page that is blank everywhere it matters. Do not trust that section; use this table.
+
+| # | File | Serves | Reached by |
+|---|---|---|---|
+| 1 | `app/dashboard/[clientSlug]/reports/page.tsx` | internal dashboard, tab navigation (`?section=`) | **staff clicking the sidebar or a landing card.** Also the health sweep's dashboard probe |
+| 2 | `app/portal/[clientSlug]/reports/page.tsx` | client portal, tab navigation (`?section=`) | **clients clicking their sidebar. Real client traffic.** Not probed by the health sweep |
+| 3 | `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx` | internal dashboard, direct link | deep links only. Not probed by the health sweep |
+| 4 | `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx` | client portal, direct link | deep links, and the health sweep's portal probe |
+
+Adding a `case` to each is purely additive. Every `case` returns unconditionally, there is no fallthrough in any of the four, and the `default` arms return `null` and are unreachable for a handled slug.
+
+**Nothing catches a missed one.** Three compounding reasons:
+
+- **`tsc` cannot see it.** No `Record<ReportSlug, …>` exists anywhere, there is no exhaustiveness assertion, `noImplicitReturns` is off, and the portal tab route (#2) has no `default` arm at all. All four switches are already non-exhaustive over `ReportSlug`.
+- **`tsc` is not in CI either.** No workflow runs a type check. `check:rsc` and `npm test` do run on every PR (`.github/workflows/checks.yml:23`, `:35`).
+- **The health sweep reports a miss as green.** The route returns an empty Fragment, `HealthProbe` skips it because a Fragment's type is a Symbol rather than a function, the beacon emits with an empty `sources` array, and `deriveStatus` finds no failed source and returns `'ok'` (`lib/health/derive.ts:32-33`). A blank page monitors as healthy.
+
+The sweep also only probes #1 and #4 (`app/api/health/sweep/route.ts:73-81`), so #2 and #3 must be opened by hand during verification. #2 is the one that matters most: it is what Renaissance's client users will actually load.
+
+**Evidence this is a real failure mode, not a hypothetical:** the dashboard deep-link route (#3) has no `demand-overview` case today, so `/dashboard/avenue-z/reports/demand-overview` already renders a blank page with a header. Pre-existing, harmless because nothing links there, and recorded in §10.
+
+### 6.2 Date picker: the page has none
 
 Both SPA dispatchers gate `GA4DatePicker` on an explicit allow-list of `activeSection` (`app/dashboard/[clientSlug]/reports/page.tsx:204-230`, `app/portal/[clientSlug]/reports/page.tsx:225-251`). Both MPA routes render one unconditionally.
 
