@@ -86,21 +86,29 @@ New folder `components/report-sections/executive-overview/` with a single orches
 
 The alternative considered was reusing the `demand-overview` slug with a `clientSlug === 'renaissance'` conditional in the dispatchers. Rejected: that conditional sits inside the branch Avenue Z executes on every render of the page they land on by default, and the branch would need duplicating across all four dispatchers, which the repo has already drifted on once (noted in the header comment at `app/portal/[clientSlug]/reports/page.tsx:62-67`).
 
-### 4.2 Leaf components are imported, never copied or edited
+### 4.2 Leaf components are copied into the new folder
 
-These are pure, data-passed, free of context and providers, free of client-specific values, and free of import-time side effects. Importing them changes nothing about them.
+Every visual component this page uses gets its own copy under `components/report-sections/executive-overview/`. Nothing is imported from an Avenue Z section.
 
-| Component | Path |
+| Source | Copied to |
 |---|---|
-| `DemandJourney` | `components/report-sections/demand-overview/demand-journey.tsx` |
-| `KpiCard` | `components/charts/kpi-card.tsx` |
-| `SessionsTrendChart` | `components/report-sections/ga4/sessions-trend-chart.tsx` |
-| `NewReturning` | `components/report-sections/ga4/new-returning.tsx` |
-| `ChannelTabsChart` | `components/report-sections/ga4/channel-tabs-chart.tsx` |
+| `components/report-sections/demand-overview/demand-journey.tsx` | `executive-overview/demand-journey.tsx` |
+| `components/charts/kpi-card.tsx` | `executive-overview/kpi-card.tsx` |
+| `components/report-sections/ga4/sessions-trend-chart.tsx` | `executive-overview/sessions-trend-chart.tsx` |
+| `components/report-sections/ga4/new-returning.tsx` | `executive-overview/new-returning.tsx` |
+| `components/report-sections/ga4/channel-tabs-chart.tsx` | `executive-overview/channel-tabs-chart.tsx` |
 
-Cross-section imports are established precedent (`linkedin-ads/index.tsx:4` imports from `paid-search`; `profound-ai` imports from `peec-ai`).
+Importing them would also have been safe, since importing modifies nothing and Avenue Z's pages render identically either way. Copying is chosen for a different reason: **one rule with no exceptions.** "This page copies everything" is a rule nobody has to remember the shape of. "This page copies logic but shares five specific primitives" is a rule that has to be re-derived every time someone touches it. The duplication is the price of not carrying that exception around.
 
-Two components are deliberately **not** imported: `LeadSourceChart` hardcodes Avenue Z's HubSpot portal id in every deal link, and `WeeklyPerformance` requires a live HubSpot connection to produce its prop. Both belong to needs-connection blocks, so neither is needed. This also avoids the process-wide HubSpot rate limiter, which is a singleton shared with Avenue Z's live sections.
+Three things this buys beyond consistency:
+
+- **It resolves §4.5.** Owning the `DemandJourney` copy means adding a proper needs-connection variant to `DemandStage` instead of overloading `metric` with placeholder text. That was the weakest part of the previous draft and it goes away.
+- **Prop types stop being friction.** `TrendRow`, `KpiCardProps` and `ChannelTabsChartProps` are unexported in the originals, so duplicated reshaping could not be typed against them. In our own copies we export them, and `tsc` catches drift between the reshaping and the components it feeds.
+- **Full isolation going forward.** A future redesign of Avenue Z's KPI card cannot reach this page.
+
+The accepted cost is five duplicated UI files plus the reshaping in §4.4. They will drift. That is recorded in §10.
+
+`LeadSourceChart` and `WeeklyPerformance` are not copied either, because they are not used at all: both belong to needs-connection blocks. `LeadSourceChart` additionally hardcodes Avenue Z's HubSpot portal id in every deal link, and `WeeklyPerformance` requires a live CRM to produce its prop. Skipping them also avoids the process-wide HubSpot rate limiter, a singleton shared with Avenue Z's live sections.
 
 ### 4.3 The orchestrator is new code
 
@@ -127,21 +135,25 @@ Three details when copying:
 - `channelConvData` depends on `channelColorMap` which depends on `channelData`, so `:336-403` must be copied as one block or the two tabs' colors desynchronize.
 - **`compareDateLabel` sits at `:537-539`, outside every range listed above**, and feeds `compareLabel` on both `SessionsTrendChart` (`:558`) and `ChannelTabsChart` (`:572`). Copy only the listed ranges and both charts silently lose their compare-period label. `fmtISODate` is already inside `:33-76`; only the three-line derivation is missing.
 
-Typing friction worth planning for: `TrendRow` is not exported (`sessions-trend-chart.tsx:16`), nor are `KpiCardProps` or `ChannelTabsChartProps`. The duplicated reshaping cannot be annotated against the components' own contracts, which is precisely how two copies drift without `tsc` noticing. `ChannelVolumeRow`, `ChannelConvRow`, `AudienceRow` and `DemandStage` are exported and should be used where available.
+Typing: `TrendRow`, `KpiCardProps` and `ChannelTabsChartProps` are unexported in the originals. Because §4.2 copies the components, our copies export every prop type, so the duplicated reshaping is annotated against the contracts it feeds and `tsc` catches drift between them.
 
 ### 4.5 Needs-connection state
 
 Zeros are the failure mode being avoided: absent or mismatched CRM identifiers produce plausible `$0` figures with no error anywhere. Nothing here renders `0`, `—`, or an error card in place of missing data.
 
-**Blocks 3 and 4** get a new local block-level component: a card naming the source and stating it is not connected.
+**Blocks 3 and 4** get a new block-level component: a card naming the source and stating it is not connected.
 
-**Block 1 is different and needs its own answer.** The two dead cards live *inside* `DemandJourney`, which renders its own cards from `DemandStage[]`. `DemandStage` requires `metric: string` and `stats: {label,value}[]` and has no variant slot (`demand-journey.tsx:8-20`). Three options, and only one is viable:
+**Block 1's two dead cards render inside `DemandJourney`.** In the original, `DemandStage` requires `metric: string` and `stats: {label,value}[]` with no variant slot (`demand-journey.tsx:8-20`), which would have forced placeholder text into the `text-3xl font-extrabold` hero slot — a placeholder wearing a metric's clothes.
 
-- Edit `DemandJourney` to add a variant. **Forbidden by §4.2.**
-- Drop to a 2-card row and render the dead cards outside the component. **Breaks the wireframe's single 4-card flow.**
-- **Chosen:** pass `metric: 'Not connected'`, `stats: []`, and omit `delta`. `stage.delta != null` guards the delta (`:139`), so an omitted delta renders nothing rather than a false green arrow.
+Because §4.2 copies the component, this is no longer a constraint. Our copy's `DemandStage` gains an explicit variant:
 
-This is the weakest part of the design and is named as such: the copy lands in the `text-3xl font-extrabold` hero slot (`:113-116`) inside full card chrome, so it is a placeholder wearing a metric's clothes. It is still strictly better than `$0`, and it is the only option that neither edits Avenue Z's component nor breaks the wireframe. Revisit if `DemandJourney` ever gains a variant slot for reasons of its own.
+```ts
+connected?: false        // absent or true renders exactly as today
+```
+
+When false the card renders the needs-connection treatment in place of the metric and stat rows, keeping the four-card flow, the connectors and the source label intact. `stage.delta != null` already guards the delta (`:139`), so no false green arrow appears.
+
+The wireframe's single 4-card row survives, and nothing about Avenue Z's copy changes.
 
 ### 4.6 Failure handling
 
@@ -269,7 +281,7 @@ Assertions checkable against each vendor's own reporting:
 | Risk | Mitigation |
 |---|---|
 | A missed dispatcher renders blank and reports green | All four are in the checklist. The health sweep probes only the portal MPA and dashboard SPA routes (`app/api/health/sweep/route.ts:73-81`), so **the portal SPA and dashboard MPA are both unprobed** and must be checked by hand |
-| Duplicated GA4 reshaping diverges from Avenue Z's | Accepted cost of the zero-blast-radius constraint; several of its prop types are unexported, so `tsc` will not catch drift. Recorded as a follow-up in §10 |
+| Copied components and reshaping diverge from Avenue Z's over time | Accepted, and the reason is deliberate: one copy-everything rule beats a rule with remembered exceptions. Our copies export their prop types so `tsc` catches drift *within* this page; drift *from* Avenue Z's originals is silent and is recorded in §10 |
 | Someone enables via `db:seed` and clobbers client config | §7 states the targeted UPDATE and the prohibition explicitly |
 | Cron units grow by 2 per cron | No change ships; observe both functions' durations after deploy. The `CONCURRENCY = 8` bound has still never been validated against production numbers, which remains an open item owned by the cron review, not by this PR |
 | Block 1's needs-connection cards read as metrics | Named openly in §4.5 as the design's weakest point; the only alternative edits Avenue Z's component |
@@ -304,3 +316,4 @@ Found during investigation. All pre-existing, none introduced by this work.
 **Structural**
 - HubSpot is the only integration without a per-client config object. Pipeline id, ten stage ids, the ICP property name, the lead-source property and the portal id are all hardcoded in shared code. Any second CRM client renders silent zeros rather than an error.
 - The GA4 reshaping this page duplicates should eventually live in `lib/`, with both pages reading it.
+- **Copy drift.** Five UI components and ~226 lines of reshaping now exist twice. A bug fixed on Avenue Z's copy will not reach this page, and nothing warns about it. This is the accepted cost of copy-only, taken deliberately in §4.2. Whoever fixes a bug in `ga4/sessions-trend-chart.tsx`, `ga4/new-returning.tsx`, `ga4/channel-tabs-chart.tsx`, `charts/kpi-card.tsx` or `demand-overview/demand-journey.tsx` should grep `executive-overview/` for the same file name. Worth a note in `ENGINEERS.md` once this ships.
