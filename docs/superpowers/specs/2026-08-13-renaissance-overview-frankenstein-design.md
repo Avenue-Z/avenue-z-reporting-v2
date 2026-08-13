@@ -28,6 +28,12 @@ It is assembly, not construction. Every block already exists and runs on Avenue 
 - Any change to Avenue Z's report components or their data.
 - Any CRM integration work. Renaissance uses Salesforce; no Salesforce code exists in this repo and none is written here.
 - Fixing the pre-existing bugs found during investigation. They are recorded in §10 as follow-ups, not addressed here.
+- PDF export. `ExportPdfButton` renders only on the portal SPA route; the new page inherits whatever that route does and nothing is built for it.
+
+**Deliberately deferred, and named so they are not mistaken for oversights:**
+- **Tests.** This adds none. `npm test` runs on every PR (`.github/workflows/checks.yml:35`), so there is a place for them. The needs-connection path is the one behavior the whole design is organized around and is the obvious first case to cover. Decide before merge whether to add it here or track it.
+- **Permissions.** Renaissance's seeded users are both `INTERNAL_ADMIN` (`scripts/seed.ts:122-125`), so there may be no `CLIENT_ADMIN` or `CLIENT_VIEWER` who can reach the portal surface at all. Confirm against the live DB before treating the portal route as delivered.
+- **Mobile.** `DemandJourney`'s flow row is `flex items-start gap-0` with no breakpoint (`demand-journey.tsx:57`). The "renders cleanly" claim in §3 is a desktop claim. Four cards, two of them placeholders, on a phone is unverified.
 
 ---
 
@@ -105,23 +111,47 @@ It fetches GA4 and Peec, reshapes into the props the leaf components expect, and
 - **Brand lookup** reads `BrandRanking.isYou`, computed from `clients.peec_your_brand`, instead of matching the literal string "avenue z". Without this, share of voice blanks for every client but Avenue Z.
 - **Header** renders `client.name`, not a hardcoded literal.
 
+**Peec date range: `year_to_date`.** `getPeecOverview` is range-parameterized and `weeklyVisibility` / `brandRankings` are both bound to the range passed (`lib/peec/client.ts:371`, `:685`). Avenue Z's Overview passes `year_to_date` (`demand-overview/index.tsx:110`). We match it, so the AEO card means the same thing on both pages and a client asking "why is this number different" has an answer. Note this makes the AEO card year-to-date while the other three cards are 30-day, which is inherited from Avenue Z rather than introduced here, and is recorded in §10.
+
+Share of voice is the mean of per-row `share_of_voice` across the client's own brand rows (`lib/peec/client.ts:274-277`), where the raw field is a fraction scaled by 100.
+
 ### 4.4 GA4 reshaping is duplicated, deliberately
 
 Roughly 226 lines of logic turning raw GA4 rows into chart props live inline in `components/report-sections/ga4/index.tsx`, not in `lib/`. Line ranges: KPI cards `:261-314` (+ `KPI_METRICS :78-87`), trend `:316-334`, channels `:336-403`, audience `:464-501`, shared formatters `:33-76`.
 
 Extracting them to `lib/ga4/` would be cleaner and would leave one copy. It would also edit Avenue Z's file. **We duplicate.** Two copies that can diverge is the accepted cost of the zero-blast-radius constraint.
 
-Two details when copying: `returningUserCount` is computed inline in JSX at `:564` and must be extracted to a variable; and `channelConvData` depends on `channelColorMap` which depends on `channelData`, so `:336-403` must be copied as one block or the two tabs' colors desynchronize.
+Three details when copying:
+
+- `returningUserCount` is computed inline in JSX at `:564` and must be extracted to a variable.
+- `channelConvData` depends on `channelColorMap` which depends on `channelData`, so `:336-403` must be copied as one block or the two tabs' colors desynchronize.
+- **`compareDateLabel` sits at `:537-539`, outside every range listed above**, and feeds `compareLabel` on both `SessionsTrendChart` (`:558`) and `ChannelTabsChart` (`:572`). Copy only the listed ranges and both charts silently lose their compare-period label. `fmtISODate` is already inside `:33-76`; only the three-line derivation is missing.
+
+Typing friction worth planning for: `TrendRow` is not exported (`sessions-trend-chart.tsx:16`), nor are `KpiCardProps` or `ChannelTabsChartProps`. The duplicated reshaping cannot be annotated against the components' own contracts, which is precisely how two copies drift without `tsc` noticing. `ChannelVolumeRow`, `ChannelConvRow`, `AudienceRow` and `DemandStage` are exported and should be used where available.
 
 ### 4.5 Needs-connection state
 
-A new local component renders a block-level card explaining that the source is not connected. It never renders zeros, dashes, or an error. Zeros are the failure mode we are specifically avoiding: wrong or absent CRM identifiers produce plausible-looking `$0` figures with no error anywhere.
+Zeros are the failure mode being avoided: absent or mismatched CRM identifiers produce plausible `$0` figures with no error anywhere. Nothing here renders `0`, `—`, or an error card in place of missing data.
+
+**Blocks 3 and 4** get a new local block-level component: a card naming the source and stating it is not connected.
+
+**Block 1 is different and needs its own answer.** The two dead cards live *inside* `DemandJourney`, which renders its own cards from `DemandStage[]`. `DemandStage` requires `metric: string` and `stats: {label,value}[]` and has no variant slot (`demand-journey.tsx:8-20`). Three options, and only one is viable:
+
+- Edit `DemandJourney` to add a variant. **Forbidden by §4.2.**
+- Drop to a 2-card row and render the dead cards outside the component. **Breaks the wireframe's single 4-card flow.**
+- **Chosen:** pass `metric: 'Not connected'`, `stats: []`, and omit `delta`. `stage.delta != null` guards the delta (`:139`), so an omitted delta renders nothing rather than a false green arrow.
+
+This is the weakest part of the design and is named as such: the copy lands in the `text-3xl font-extrabold` hero slot (`:113-116`) inside full card chrome, so it is a placeholder wearing a metric's clothes. It is still strictly better than `$0`, and it is the only option that neither edits Avenue Z's component nor breaks the wireframe. Revisit if `DemandJourney` ever gains a variant slot for reasons of its own.
 
 ### 4.6 Failure handling
 
 Data fetching uses `Promise.allSettled`, following `demand-overview/index.tsx:73`. Not `Promise.all`, which `ga4/index.tsx:117` uses and which kills the entire section on any single query rejection.
 
-Each block gets its own error boundary, following the per-block pattern at `components/dashboard/block-grid.tsx:123-125` rather than the single page-level boundary used by the report routes. A page aggregating three vendors has independent failure domains and one dead vendor must not blank the page.
+**Per-block error boundaries were in an earlier draft and are dropped.** Review established they buy nothing here: the orchestrator awaits `allSettled` up front, so every vendor rejection is already a settled result before any block renders, and blocks then render synchronously from resolved data. One await point means one failure domain. The comparison to `components/dashboard/block-grid.tsx:120-127` does not hold, because those blocks each fetch independently.
+
+`allSettled` plus the route-level `ReportErrorBoundary` is the correct combination. A vendor failure degrades that block; only a bug in our own render code reaches the boundary.
+
+**Known consequence, accepted:** a single await point means one skeleton until the slower of GA4 (four-plus queries) and Peec returns. There is no progressive loading. Splitting into independently-suspended blocks is a real option if the page feels slow, and is recorded as a follow-up rather than built speculatively.
 
 ---
 
@@ -138,19 +168,27 @@ Avenue Z's `enabled_reports` will not contain `executive-overview`. Every regist
 
 Their components are imported, never edited. No `Record<ReportSlug, …>` exists anywhere, so extending the union breaks no mapped type. No test enumerates the slug list.
 
-### 5.2 NAV_GROUPS insertion
+### 5.2 NAV_GROUPS insertion, and what Renaissance lands on
 
-Append to the existing `Reports` group, or append a new group after `Tools`. **Not index 0** — that position would change Renaissance's own default landing section, and prepending a new group object shifts the React keys of every existing group.
+`defaultSection` is `NAV_SLUG_ORDER.find(s => enabledReports.includes(s))`. `NAV_SLUG_ORDER[0]` is `demand-overview`, which **Avenue Z has and Renaissance does not**. That asymmetry is what makes this safe to reason about per-client.
 
-### 5.3 The one shared change: cron concurrency
+- **Index 0** — rejected. Prepending a group object shifts the React keys of every existing group (`sidebar.tsx:396`, `:422`), and it would place the slug ahead of `demand-overview` for any future client that has both.
+- **Index 1**, a new label-less group immediately after `demand-overview`'s — **chosen.** Avenue Z's `find()` still returns `demand-overview` from index 0, so nothing about them changes. Renaissance, lacking `demand-overview`, gets `executive-overview` as their landing section and as their first sidebar item above the Reports heading. That is the correct outcome for a page whose entire purpose is to be the overview.
+- **Appending after `Tools`** — rejected. It buries the Overview below AEO, Paid Media and Organic Social in the sidebar and leaves Renaissance landing on AEO, which contradicts the wireframe's intent.
 
-Both `app/api/health/sweep/route.ts` and `app/api/cache-warm/route.ts` fan out over every client × every enabled report × 2 surfaces, bounded by `CONCURRENCY = 8` under a 60s `maxDuration`. Enabling one slug for one client adds exactly 2 units to each.
+**Stated explicitly: Renaissance's landing section changes from `peec-ai` (AEO) to `executive-overview`.** That is intended. Avenue Z's landing section is unchanged.
 
-The repo's own review records the sizing basis as roughly 40 units ≈ 50s against that 60s ceiling, and flags validation against production metrics as open (`docs/qa/cron-fanout-concurrency-code-review.md:63-66`, `:154-157`). Two more units crosses into another wave, about +20% wall time.
+### 5.3 Cron concurrency: no change (reversed after review)
 
-If either function is killed at 60s the consequences reach Avenue Z: the health sweep never writes state or posts transitions, so monitoring stops silently for every client; and cache-warm drops URLs off the end in `getAllClients()` order, which can leave Avenue Z pages cold and measurably slower.
+An earlier draft raised `CONCURRENCY` from 8 to 10 in `app/api/health/sweep/route.ts` and `app/api/cache-warm/route.ts`. **That change is dropped.** Adversarial review invalidated all three premises behind it, verified in source:
 
-**Decision: raise `CONCURRENCY` from 8 to 10 in both routes, in this PR.** Two one-line constant changes. They touch no rendering code and no client data, so Avenue Z's pages remain byte-identical, but this is an edit to shared operational files and is called out rather than glossed.
+- **The Avenue Z risk runs the other way.** `getAllClientsImpl` orders by `asc(c.name)` (`lib/db/queries.ts:83-88`) and workers pull indices in order, so "Avenue Z" is warmed at the front. A 60s truncation drops the *tail*, which is late-alphabet clients including Renaissance. Avenue Z is the least exposed client, not the most.
+- **There are no waves.** `mapWithConcurrency` is a rolling worker pool: long-lived loops each pulling `next++` until exhausted (`lib/concurrency.ts:20-38`). There is no barrier between groups of 8, so 2 extra units on ~40 adds roughly 2 renders of work spread across 8 workers, not a step change. The `ceil(units / CONCURRENCY) × render` formula in the cron review is an upper bound, not a threshold.
+- **Raising it contradicts why the bound exists.** The limit was introduced because unbounded fan-out spiked Function CPU Duration and tripped Neon errors (`lib/concurrency.ts:5-12`). The cron review names validating `8` against production as the blocking follow-up and says to *lower* it if Neon strains (`docs/qa/cron-fanout-concurrency-code-review.md:154-157`). Raising it 25% with no production numbers, while monitoring only function duration and never Neon error rate, is a change aimed at every client to solve a problem we have not measured.
+
+Enabling the slug still adds 2 units to each cron. That is accepted as-is and watched after deploy.
+
+**Consequence: this PR touches zero shared operational files. Blast radius is now genuinely zero.**
 
 ---
 
@@ -172,6 +210,18 @@ Compounding this: `tsc` cannot catch a missing case (no exhaustiveness assertion
 | 8 | Portal MPA dispatcher, `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx` | yes (health sweep renders through this one) |
 | 9 | `NON_CHANNEL_SLUGS` in `components/report-sections/report-generator/index.tsx` | yes, or the page is offered as a data channel |
 | 10 | `clients.enabled_reports` for `renaissance` | yes, per environment |
+| 11 | Date-picker allow-list in **both** SPA routes | see §6.1 |
+| 12 | Settings-page exclusion array, `app/dashboard/settings/page.tsx:170-172` | cosmetic; otherwise the slug shows as an "Enabled Platform" chip |
+
+`ai-summaries` needs no entry: its `NON_CHANNEL_SLUGS` is double-gated by `&& CHANNEL_META[slug]` (`components/report-sections/ai-summaries/index.tsx:280`), so an unknown slug is already excluded. `report-generator`'s copy is single-gated (`:27`), so item 9 is required.
+
+### 6.1 Date picker: the page has none
+
+Both SPA dispatchers gate `GA4DatePicker` on an explicit allow-list of `activeSection` (`app/dashboard/[clientSlug]/reports/page.tsx:204-230`, `app/portal/[clientSlug]/reports/page.tsx:225-251`). Both MPA routes render one unconditionally.
+
+Left alone, the page would have a picker on the deep-link routes and none on the two routes users actually hit, which is exactly the drift §4.1 cites as the reason to avoid the conditional approach.
+
+**Decision: no date picker.** The wireframe specifies a fixed "Period: Last 30 days", and both comparable pages (`demand-overview`, `hubspot-performance`) already omit the picker. The orchestrator takes `dateRange` for signature parity with its siblings but resolves `last_30_days` internally. Nothing is added to either allow-list, and the MPA routes are deep-link-only so their unconditional picker is cosmetic there.
 
 ---
 
@@ -188,7 +238,11 @@ WHERE slug = 'renaissance'
   AND NOT ('executive-overview' = ANY(enabled_reports));
 ```
 
-**Do not use `npm run db:seed`.** It upserts every client with `onConflictDoUpdate` over roughly 17 columns including `enabled_reports`, `hidden_reports`, `hubspot_token_env_var`, and user role assignments. It is already stale against production: its Avenue Z row has `hiddenReports: ['exec-summary']` while production has `["exec-summary","paid-media"]`. Running it would un-hide Paid Media for Avenue Z, which is a direct change to their rendered pages.
+**Do not use `npm run db:seed`.** It upserts every client with `onConflictDoUpdate` over 22 columns including `enabled_reports`, `hidden_reports` and `hubspot_token_env_var`, plus a users upsert that rewrites `role` (`scripts/seed.ts:131-175`).
+
+It is stale against the live database in both directions. Its Avenue Z row has `hiddenReports: ['exec-summary']` where dev has `["exec-summary","paid-media"]`, so running it un-hides Paid Media for Avenue Z. And its Renaissance row sets `enabledReports` to `['google-ads','meta-ads','peec-ai','request-a-report']` (`:115-120`), where dev has seven entries including `organic-social`, `paid-media` and `linkedin-ads`. Running it would strip three live sections from Renaissance.
+
+The blast radius of that one command is larger than this entire PR.
 
 Note that `getClientBySlug` and `getAllClients` are cached for 5 minutes. Expect a lag after the update before the page appears; that is not a failed write.
 
@@ -205,8 +259,8 @@ Assertions checkable against each vendor's own reporting:
 - The header reads "Renaissance", never "Avenue Z".
 - Blocks 3 and 4 read "needs connection", never `$0` or `—`.
 - Avenue Z's Overview, Web Analytics, Inbound Funnel and Pipeline Performance pages are visually identical before and after.
-- `npm run check:rsc` passes. It enforces that a server component may not pass a function prop to a `'use client'` component, is invisible to `tsc` and `next build`, and is not wired into CI.
-- Both cron routes complete inside 60s after the concurrency change.
+- `npm run check:rsc` passes. It runs automatically on every pull request (`.github/workflows/checks.yml:23`) alongside `npm test` (`:35`), and enforces that a server component may not pass a function prop to a `'use client'` component. **`tsc` is not in any workflow**, so type errors are caught only locally. Run it by hand before pushing.
+- Both cron routes still complete inside 60s. No concurrency change ships, so this is observation rather than validation of a change.
 
 ---
 
@@ -214,10 +268,11 @@ Assertions checkable against each vendor's own reporting:
 
 | Risk | Mitigation |
 |---|---|
-| A missed dispatcher renders blank and reports green | All four are in the checklist and in the verification steps; check the portal SPA route explicitly since the health sweep never probes it |
-| Duplicated GA4 reshaping diverges from Avenue Z's | Accepted cost of the zero-blast-radius constraint; recorded as a follow-up in §10 |
-| Someone enables via `db:seed` and clobbers Avenue Z | §7 states the targeted UPDATE and the prohibition explicitly |
-| Cron still exceeds 60s after the bump | Watch both functions' durations after deploy; the sizing has never been validated against production numbers |
+| A missed dispatcher renders blank and reports green | All four are in the checklist. The health sweep probes only the portal MPA and dashboard SPA routes (`app/api/health/sweep/route.ts:73-81`), so **the portal SPA and dashboard MPA are both unprobed** and must be checked by hand |
+| Duplicated GA4 reshaping diverges from Avenue Z's | Accepted cost of the zero-blast-radius constraint; several of its prop types are unexported, so `tsc` will not catch drift. Recorded as a follow-up in §10 |
+| Someone enables via `db:seed` and clobbers client config | §7 states the targeted UPDATE and the prohibition explicitly |
+| Cron units grow by 2 per cron | No change ships; observe both functions' durations after deploy. The `CONCURRENCY = 8` bound has still never been validated against production numbers, which remains an open item owned by the cron review, not by this PR |
+| Block 1's needs-connection cards read as metrics | Named openly in §4.5 as the design's weakest point; the only alternative edits Avenue Z's component |
 
 ---
 
@@ -234,10 +289,14 @@ Found during investigation. All pre-existing, none introduced by this work.
 - Prior-year pacing shifts by calendar date rather than weekday, misaligning the week by one to two days, and returns 0 on any error, making a failure indistinguishable from a quiet week.
 - The dashboard MPA route drops `dateRange`, so Inbound Funnel shows different numbers depending on which route reached it.
 
+- The AEO card is year-to-date while the three cards beside it are 30-day. Inherited from Avenue Z's Overview, not introduced here, but the row reads as one time period and is not.
+
 **Convention and hygiene**
-- `NewReturning` renders an "AI" badge over deterministic string templating and is not gated by `SHOW_AI_NARRATIVE`, unlike every other narrative block.
+- `NewReturning` renders an "AI" badge over deterministic string templating and is not gated by `SHOW_AI_NARRATIVE`, unlike every other narrative block. This ships on the new page; decide before merge whether that is acceptable on a client-facing Overview.
 - `ENGINEERS.md:412` documents two dispatchers where there are four, and names the wrong two.
-- The health sweep cannot detect a missing dispatcher case; a blank page reports green.
+- The health sweep cannot detect a missing dispatcher case; a blank page reports green. It also probes only two of the four routes, leaving the portal SPA (real client traffic) unmonitored.
+- `tsc` runs in no CI workflow. `check:rsc` and `npm test` do.
+- The dashboard MPA route has no `demand-overview` case at all today, so that deep link already renders a blank page for Avenue Z.
 - `ChannelTabsChart.compareLabel` and `ChannelVolumeRow.pct` are declared but never read.
 - Contact email addresses are written to server logs from a production path in the forms debug logging.
 - `demand-overview/signal-card.tsx` and `hubspot-performance`'s `CLOSED_STAGE_IDS` are unreferenced.
