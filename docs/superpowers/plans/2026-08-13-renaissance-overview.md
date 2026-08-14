@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Never modify any file under `components/report-sections/demand-overview/`, `components/report-sections/ga4/`, `components/report-sections/inbound-funnel/`, `components/report-sections/hubspot-performance/`, or `components/charts/`.** These are the copy sources. Read them, copy from them, never edit them.
-- **No em dashes or en dashes** in any code comment, commit message, or copy. Use a period, comma, parentheses, or colon.
+- **No em dashes or en dashes in prose**: code comments, commit messages, and any sentence a reader sees. Use a period, comma, parentheses, or colon. The one exception is the date-range separator inside `buildCompareLabel`, which is a typographic convention rather than prose and is copied as-is.
 - **No AI-generated or AI-labelled commentary on this page.** The `AiBadge` and the engagement-gap callout are deleted from our copy of `new-returning.tsx`.
 - **The orchestrator takes `{ clientSlug }` only.** It never accepts `dateRange` or `compareRange` as props.
 - **`tsc` is not in CI.** Run `npx tsc --noEmit` locally before every commit.
@@ -187,7 +187,7 @@ test('names the source that is not connected', () => {
 
 test('tells the reader what connecting would give them', () => {
   render(<NeedsConnection sourceName="CRM" />)
-  expect(screen.getByText(/Connect CRM/)).toBeInTheDocument()
+  expect(screen.getByText(/Connect your CRM/)).toBeInTheDocument()
 })
 
 test('renders no number and no dash, which would read as real data', () => {
@@ -234,7 +234,7 @@ export function NeedsConnection({ sourceName }: NeedsConnectionProps) {
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-bg-surface/50 px-8 py-12 text-center">
       <p className="text-lg font-bold text-white">{sourceName} not connected</p>
       <p className="mt-1 text-sm text-text-muted">
-        Connect {sourceName} to see this data in the report.
+        Connect your {sourceName} to see this data in the report.
       </p>
     </div>
   )
@@ -296,7 +296,7 @@ Create `components/report-sections/executive-overview/demand-journey.test.tsx`:
 ```tsx
 import { expect, test } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { DemandJourney } from './demand-journey'
+import { DemandJourney, type DemandStage } from './demand-journey'
 
 const live: DemandStage = {
   key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
@@ -382,7 +382,7 @@ Find the element rendering `{stage.metric}` in the large `text-3xl font-extrabol
 {stage.connected === false ? (
   <>
     <p className="text-sm font-bold text-white">Not connected</p>
-    <p className="mt-1 text-xs text-text-muted">Connect a CRM to see this</p>
+    <p className="mt-1 text-xs text-text-muted">Connect your CRM to see this</p>
   </>
 ) : (
   <p className="text-3xl font-extrabold text-white">{stage.metric}</p>
@@ -446,7 +446,7 @@ The source file does this inline under `Promise.all`, so every access assumes a 
 
 **Interfaces:**
 - Consumes: `TrendRow`, `AudienceRow`, `ChannelVolumeRow`, `ChannelConvRow`, `SourceMediumEntry` from Task 1
-- Produces: `fmtNum`, `fmtPct`, `fmtDuration`, `fmtDate`, `fmtISODate`, `pct`, `buildTrendRows`, `buildAudienceRows`, `buildChannelData`
+- Produces: `fmtNum`, `fmtPct`, `fmtDuration`, `fmtDate`, `fmtISODate`, `pct`, `buildTrendRows`, `buildAudienceRows`, `buildChannelData`, `buildCompareLabel`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -531,7 +531,7 @@ Port from these ranges in `components/report-sections/ga4/index.tsx`:
 | Function | Port from |
 |---|---|
 | formatters | `:33-76` |
-| `buildKpis` | `:261-314`, plus `KPI_METRICS` at `:78-87` |
+| KPI card values | `:261-314`. Port the formatting only. Task 7 builds the eight cards inline, so no `buildKpis` function is needed. `KPI_METRICS` at `:78-87` is declared in Task 7, not here |
 | `buildTrendRows` | `:316-334` |
 | `buildChannelData` | `:336-403`, as one block |
 | `buildAudienceRows` | `:464-501` |
@@ -540,7 +540,7 @@ Three details the source will not hand you:
 
 1. `returningUserCount` is computed inline in JSX at `:564` as active users minus new users, floored at zero. Lift it into `buildAudienceRows`'s return.
 2. `buildChannelData` must port `:336-403` as a single unit. `channelConvData` depends on `channelColorMap`, which depends on `channelData`. Splitting them desynchronizes the two tabs' colors.
-3. `compareDateLabel` is derived at `:537-539`, outside every range above, and feeds both charts' `compareLabel`. Port it as `buildCompareLabel(compare)`.
+3. `compareDateLabel` is derived at `:537-539`, outside every range above. Port it as `buildCompareLabel(compare)`. It feeds the trend chart's `compareLabel` (`:558`), which is the only consumer that renders it. `ChannelTabsChart` declares and destructures the same prop but never reads it in its body, so Task 7 does not pass it there.
 
 Every function must accept `null` for a failed query and return an empty structure rather than throwing. Signatures:
 
@@ -678,6 +678,7 @@ Expected: FAIL, cannot resolve `./stages`.
 Create `components/report-sections/executive-overview/stages.ts`. It takes already-unwrapped data and returns exactly four stages. The two CRM stages carry `connected: false` and no metric, which is what makes the row render the needs-connection treatment.
 
 ```ts
+import { CHART_COLORS } from '@/lib/constants'
 import type { DemandStage } from './demand-journey'
 import type { TrendRow } from './sessions-trend-chart'
 import { fmtNum, fmtPct, pct } from './reshape'
@@ -740,14 +741,14 @@ export function buildStages({ totals, cmpTotals, peec, trendRows }: StageInput):
     },
     {
       key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
-      color: CHART_COLORS.warning,
+      color: CHART_COLORS.neutral,
       connected: false,
     },
   ]
 }
 ```
 
-If a `CHART_COLORS` key named above does not exist, substitute the nearest existing key. `lib/constants.ts` is shared and this task does not modify it.
+The keys used above (`primary`, `ga4`, `positive`, `neutral`) all exist in `lib/constants.ts`. That file is shared and this task does not modify it.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -791,7 +792,6 @@ fetch degrades to a dash instead of claiming zero."
 ```tsx
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { getPeecOverview } from '@/lib/peec/client'
-import { getClientBySlug } from '@/lib/db/queries'
 import { CHART_COLORS } from '@/lib/constants'
 import { KpiCard } from './kpi-card'
 import { NeedsConnection } from './needs-connection'
@@ -816,8 +816,6 @@ interface ExecutiveOverviewProps {
 }
 
 export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewProps) {
-  const client = await getClientBySlug(clientSlug)
-
   // Ranges are resolved here, never taken from props. Every route passes
   // compareRange as null for a section with no date picker, and a default
   // parameter does not fire for null. Taking it from the caller renders every

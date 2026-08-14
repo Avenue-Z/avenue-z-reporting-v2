@@ -310,7 +310,7 @@ Four things that bite:
 - **Adapt every result access.** The source fetches with `Promise.all`, so its reshaping dereferences results directly (`totalsRes.rows[0]`, `trendRes.rows`, `channelRes.rows`, `audienceRes.rows`). Under `allSettled` each needs unwrapping first: `const ga4 = ga4Res.status === 'fulfilled' ? ga4Res.value : null`. `strict` catches the bare cases, but some accesses are optional-chained and will compile against a settled result while producing **silently empty compare bars and an empty drill-down**. `tsc` is in no CI workflow.
 - `returningUserCount` is computed inline in JSX at `:564` and must be lifted to a variable.
 - `channelConvData` depends on `channelColorMap`, which depends on `channelData`, so `:336-403` must move as one block or the two channel tabs' colors desynchronize.
-- **`compareDateLabel` sits at `:537-539`, outside every range above**, and feeds both charts' compare labels. Miss it and both silently lose their compare-period label.
+- **`compareDateLabel` sits at `:537-539`, outside every range above**, and feeds the trend chart's `compareLabel` (`:558`). Miss it and that chart silently loses its compare-period label. `ChannelTabsChart` is handed the same prop at `:572` but never reads it in its body, so this page does not pass it there. Recorded in §10 as an inherited dead prop.
 
 Journey card 1 is Peec, not GA4, so none of the above covers it. Its derivation is at `demand-overview/index.tsx:194-205`; copy that, substituting the `isYou` lookup from §2.
 
@@ -432,9 +432,11 @@ Two independent reasons. The label is false: that sentence is deterministic stri
 
 **Cron concurrency: no change.** I asked for `CONCURRENCY` to be raised from 8 to 10, on the strength of an earlier draft's argument. That is reversed, because all three premises behind it were wrong: the truncation risk runs toward the end of the alphabet rather than toward the first client, the fan-out is a rolling pool with no wave boundary to cross, and the bound exists specifically because unbounded fan-out tripped database errors. The corrected risk model is that a 60s timeout means nothing is written and no alert posts for **any** client, so the question is whether the job finishes at all, not which units get dropped. This page adds 2 units per cron. Ship and watch the durations.
 
-### Open
+### Also decided
 
-**Tests.** This adds none. `npm test` runs on every PR, so there is a place for them. The needs-connection path is the obvious first case, since the whole design hangs on it. Decide before merge whether to add here or track.
+**Tests ship with this PR.** The implementation plan runs under TDD, and four of its tasks carry a real red-green cycle: the needs-connection card, the unconnected-card variant, the GA4 reshaping, and the stage builder. Together those cover every piece of logic on this page. The needs-connection card is tested for the thing that actually matters, that it renders no digit, no dash and no currency symbol.
+
+Copying a file and deleting a component are not tested, because you cannot write a failing test for either first. Both are verified by `tsc` plus a diff proving no original changed.
 
 ### Nothing else breaks
 
