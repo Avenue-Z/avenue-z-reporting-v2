@@ -22,7 +22,7 @@ These four blocks already exist and work on Avenue Z's dashboard, spread across 
 | Contact Creation | contact pacing and form quality | CRM |
 | Pipeline Performance | pipeline KPIs and lead source | CRM |
 
-Renaissance has GA4 and Peec connected. They use Salesforce, and this product has no Salesforce integration, so **the two CRM blocks and two of the four journey cards have no data source**. Those render an explicit needs-connection state rather than zeros. Zeros are the failure being avoided: a missing CRM identifier produces a plausible `$0` with no error, which reads as a client with no pipeline.
+Renaissance has GA4 and Peec connected. Their CRM is Salesforce, this product integrates only HubSpot, and they may move to HubSpot at some point, so **the two CRM blocks and two of the four journey cards have no data source today**. Vendor names appear in this document because it explains why; they never appear on the page (§4). Those render an explicit needs-connection state rather than zeros. Zeros are the failure being avoided: a missing CRM identifier produces a plausible `$0` with no error, which reads as a client with no pipeline.
 
 It becomes Renaissance's landing page, replacing AEO.
 
@@ -84,9 +84,11 @@ The distinction matters because our formatters return a dash on null by design. 
 
 Consequence worth stating, since staging and production GA4 credentials are not yet in hand (§8): if `ga4_property_id` is unset or the service account lacks access, `ga4Query` throws and Block 2 renders eight dashes and three empty charts. That is correct under the table above, and it is what a first render with wrong credentials looks like.
 
-**Block-level card** (blocks 3 and 4): a dashed-border card naming the source and stating it is not connected. Props are `{ sourceName: string }`, passed `'Salesforce'`. No call to action, because Salesforce has no auth route in this product and a link would go nowhere.
+**Block-level card** (blocks 3 and 4): a dashed-border card stating the source is not connected. Props are `{ sourceName: string }`, passed **`'CRM'`**. No call to action, because there is no auth route to send anyone to.
 
-**Card-level treatment** (journey cards 3 and 4): the block card is a centered full-width panel and cannot drop into a quarter-width flow card. Render inside the existing card frame instead: source eyebrow stays, the metric slot reads `Not connected` at normal body size rather than the `text-3xl` hero size, and one line reads `Connect Salesforce to see this`. No border, no CTA; the card frame and connector are the container.
+**On-screen copy never names a vendor.** The card reads "CRM not connected", not "Salesforce not connected". Renaissance is on Salesforce today and may move to HubSpot, so naming either one dates the page and would need changing again on migration. Vendor names belong in internal conversation about why data is missing, not on a client-facing report. The component takes a `sourceName` prop rather than hardcoding the string, so this is a one-word change if that ever reverses.
+
+**Card-level treatment** (journey cards 3 and 4): the block card is a centered full-width panel and cannot drop into a quarter-width flow card. Render inside the existing card frame instead: source eyebrow stays, the metric slot reads `Not connected` at normal body size rather than the `text-3xl` hero size, and one line reads `Connect a CRM to see this`. No border, no CTA; the card frame and connector are the container.
 
 Our `DemandStage` type makes `metric` and `stats` optional and adds `connected?: boolean`. Omitted or `true` renders normally. Three places need a branch:
 
@@ -411,7 +413,7 @@ The two deep-link routes render a picker unconditionally, which this page ignore
 - The header reads "RENAISSANCE" over "OVERVIEW", in that order, once. Two client names means the section rendered its own header.
 - A period label reading "Last 30 days" is visible above Block 1.
 - No "AI" badge and no generated-sounding sentence appears anywhere.
-- Blocks 3 and 4 read "Salesforce not connected", never `$0` and never a dash.
+- Blocks 3 and 4 read "CRM not connected", never `$0`, never a dash, and never a vendor name.
 - Open route #2 by hand. The sweep never probes it and a blank page there reports green.
 - `npm run check:rsc` passes; it runs on every PR. **`tsc` is in no workflow**, so run it locally before pushing.
 - No other client's pages change. §10 names the two internal pages where a count does.

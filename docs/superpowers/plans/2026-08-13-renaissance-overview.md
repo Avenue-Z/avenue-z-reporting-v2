@@ -181,26 +181,26 @@ import { render, screen } from '@testing-library/react'
 import { NeedsConnection } from './needs-connection'
 
 test('names the source that is not connected', () => {
-  render(<NeedsConnection sourceName="Salesforce" />)
-  expect(screen.getByText('Salesforce not connected')).toBeInTheDocument()
+  render(<NeedsConnection sourceName="CRM" />)
+  expect(screen.getByText('CRM not connected')).toBeInTheDocument()
 })
 
 test('tells the reader what connecting would give them', () => {
-  render(<NeedsConnection sourceName="Salesforce" />)
-  expect(screen.getByText(/Connect Salesforce/)).toBeInTheDocument()
+  render(<NeedsConnection sourceName="CRM" />)
+  expect(screen.getByText(/Connect CRM/)).toBeInTheDocument()
 })
 
 test('renders no number and no dash, which would read as real data', () => {
-  const { container } = render(<NeedsConnection sourceName="Salesforce" />)
+  const { container } = render(<NeedsConnection sourceName="CRM" />)
   const text = container.textContent ?? ''
   expect(text).not.toMatch(/\d/)
   expect(text).not.toContain('—')
   expect(text).not.toContain('$')
 })
 
-test('works for any source name, not just Salesforce', () => {
-  render(<NeedsConnection sourceName="HubSpot" />)
-  expect(screen.getByText('HubSpot not connected')).toBeInTheDocument()
+test('takes the label as a prop, so no vendor name is hardcoded', () => {
+  render(<NeedsConnection sourceName="Analytics" />)
+  expect(screen.getByText('Analytics not connected')).toBeInTheDocument()
 })
 ```
 
@@ -222,8 +222,11 @@ interface NeedsConnectionProps {
  * data meaning "none", which is the failure this page exists to avoid.
  *
  * Adapted from components/report-sections/empty-state.tsx with the call to
- * action removed, since Salesforce has no auth route in this product and the
- * link would go nowhere. Dropping it also drops the clientSlug and isPortal
+ * action removed, since there is no auth route to send anyone to.
+ *
+ * sourceName is passed 'CRM' on this page. On-screen copy deliberately does
+ * not name a vendor: the client is on one CRM today and may move to another,
+ * and a client-facing report should not need editing when they do. Dropping it also drops the clientSlug and isPortal
  * props, neither of which a report section can obtain.
  */
 export function NeedsConnection({ sourceName }: NeedsConnectionProps) {
@@ -254,8 +257,12 @@ Expected: PASS.
 git add components/report-sections/executive-overview/needs-connection.tsx components/report-sections/executive-overview/needs-connection.test.tsx
 git commit -m "feat(exec-overview): add the needs-connection card
 
-Adapted from empty-state.tsx without its call to action, because
-Salesforce has no auth route and the link would go nowhere.
+Adapted from empty-state.tsx without its call to action, because there
+is no auth route to send anyone to.
+
+On-screen copy is vendor-neutral: the card reads CRM not connected. The
+client is on one CRM today and may move to another, and a client-facing
+report should not need editing when they do.
 
 Tested for the thing that actually matters: it renders no digit, no
 dash and no currency symbol. A zero or a dash here would read as real
@@ -375,7 +382,7 @@ Find the element rendering `{stage.metric}` in the large `text-3xl font-extrabol
 {stage.connected === false ? (
   <>
     <p className="text-sm font-bold text-white">Not connected</p>
-    <p className="mt-1 text-xs text-text-muted">Connect Salesforce to see this</p>
+    <p className="mt-1 text-xs text-text-muted">Connect a CRM to see this</p>
   </>
 ) : (
   <p className="text-3xl font-extrabold text-white">{stage.metric}</p>
@@ -897,12 +904,12 @@ Replace the placeholder return with:
 
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Contact Creation</h2>
-        <NeedsConnection sourceName="Salesforce" />
+        <NeedsConnection sourceName="CRM" />
       </section>
 
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Pipeline Performance</h2>
-        <NeedsConnection sourceName="Salesforce" />
+        <NeedsConnection sourceName="CRM" />
       </section>
     </div>
   )
@@ -1173,7 +1180,7 @@ Open `/dashboard/renaissance/reports?section=executive-overview` and confirm eac
 - The channel drill-down expands and has entries. Empty means the source/medium query was not issued.
 - Share of voice shows a value on the AEO card. Blank means the brand lookup is not reading `isYou`.
 - No "AI" badge and no generated-sounding sentence anywhere.
-- Contact Creation and Pipeline Performance read "Salesforce not connected", never `$0` and never a dash.
+- Contact Creation and Pipeline Performance read "CRM not connected", never `$0`, never a dash, and never a vendor name.
 
 - [ ] **Step 5: Verify the client-facing route**
 
@@ -1190,7 +1197,7 @@ git commit --allow-empty -m "chore(exec-overview): verified on dev
 
 Enabled for renaissance on the dev database and checked both surfaces.
 Deltas render, the conversion tab and drill-down have rows, share of
-voice resolves, both CRM blocks read Salesforce not connected, and no AI
+voice resolves, both CRM blocks read CRM not connected, and no AI
 badge appears. Avenue Z's pages are unchanged."
 ```
 
