@@ -13,6 +13,8 @@
 
 Renaissance gets an Overview page: one screen, four blocks, matching the wireframe.
 
+These four blocks already exist and work on Avenue Z's dashboard, spread across four separate tabs. **Avenue Z is the reference for what each block looks like and what it contains, and the source we copy from. That is its entire role here.** We open those files once to take copies, and after that this page has nothing to do with Avenue Z. Nothing we build touches their pages, their components or their data.
+
 | Block | Contents | Data |
 |---|---|---|
 | Demand Journey | 4 linked cards across the funnel | Peec, GA4, CRM ×2 |
