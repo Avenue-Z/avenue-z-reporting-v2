@@ -453,6 +453,28 @@ One latent dependency worth knowing: the portal sidebar iterates `ALL_REPORT_SLU
 - **The reshaping should eventually live in `lib/`**, with both pages reading it.
 - Routes #3 and #4 render a date control this page ignores, so a selection there changes the URL and nothing else. Deep-link only.
 
+### CRM data: confirmed available, second PR
+
+The two unconnected blocks have a source. Supermetrics now carries Salesforce, and a read-only probe confirmed Renaissance's connection works.
+
+| | |
+|---|---|
+| Data source | `SF` |
+| Account | `00D15000000Em4GEAS`, "Renaissance Life and Health" |
+| Connections visible to our key | exactly one, Renaissance's |
+| Field catalog | 727 fields across 18 report types |
+
+**Pin that account ID. Never use `list.all_accounts`.** It resolves today only because one connection exists; a second one added later would silently widen the query.
+
+**Storage follows the existing pattern**, the same shape as Meta and LinkedIn: a typed config interface in `lib/db/schema.ts`, a `salesforce_config` jsonb column added by its own migration, a `DS_IDS` entry, and a `lib/salesforce/base.ts` reading the account from the client row. The ID never appears in a component.
+
+**Two findings that would otherwise surface late:**
+
+- Salesforce returns **records, not aggregates**. Totals are computed by us. That matches how the HubSpot sections already work but differs from every other Supermetrics source here.
+- Supermetrics infers the object from field names, so no report type needs passing. Mixing objects in one query is untested.
+
+Full metric-by-metric mapping, including four gaps in Contact Creation and a probability-scale trap worth 100x on Weighted Pipeline, is in `docs/superpowers/specs/2026-08-13-crm-parity-scorecard.md`.
+
 ### Known issues, inherited
 
 Found during investigation, all pre-existing, none in scope here.
