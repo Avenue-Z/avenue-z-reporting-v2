@@ -131,6 +131,21 @@ The wireframe's "DEMO DATA" pill, its "Prepared for … sample view" line and it
 
 ## 6. Data
 
+This page stands alone. Its date ranges, its reshaping and its components are its own. Nothing about what it renders is derived from another page at runtime.
+
+### 6.1 What is copied and what is called
+
+| | |
+|---|---|
+| **Copied into this page's folder** | every component it renders, every line that turns raw API rows into props, and its date-range logic |
+| **Called, not copied** | the app's vendor clients: `lib/ga4/client.ts`, `lib/peec/client.ts`, and the cache wrapper |
+
+The vendor clients are the product's integration layer, shared by every section for every client. They are not Avenue Z's code and copying them would mean forking the app's GA4 and Peec integrations. Every one of them takes a `clientSlug` and resolves that client's own configuration.
+
+**Data isolation is by construction.** `ga4Query` reads `clients.ga4_property_id` for the slug it is given; `getPeecOverview` reads `clients.peec_customer_project_id` and `clients.peec_your_brand`. Cache keys include the call arguments, so a Renaissance fetch can never return an Avenue Z cached result. Renaissance's GA4 property and Peec project are different records from Avenue Z's, verified in the dev database.
+
+### 6.2 Fetches
+
 Ten fetches, all issued together with `Promise.allSettled` so one vendor failing degrades its block instead of killing the page.
 
 **Ranges are resolved inside the page, not taken from props:**
@@ -162,6 +177,63 @@ This is load-bearing. Every route passes `compareRange` as `null` for a section 
 **Query 7 is easy to drop.** The drill-down builder is embedded in the channel reshaping, so copying that code without issuing this query yields a silently empty drill-down.
 
 The journey sparkline reuses query 3 rather than issuing its own; shapes match after date formatting.
+
+### 6.3 Scorecard: every displayed number, traced
+
+Use this to verify the page once it renders. Every value on screen appears here with the query that produced it, the field it reads and what we do to that field.
+
+`Q1`-`Q9` and `QP` refer to §6.2. Config column names the `clients` row value the fetch resolves.
+
+**Block 1: Demand Journey**
+
+| Displayed | Query | Field | Transform | Window | Config |
+|---|---|---|---|---|---|
+| AI Visibility % | QP | `visibility_count / visibility_total` | × 100, latest ISO week, all models | year to date | `peec_customer_project_id` |
+| share of voice | QP | `share_of_voice` on the client's own brand rows | mean of rows, field is a fraction scaled by 100 | year to date | `peec_your_brand` |
+| AEO delta | QP | last two `weeklyVisibility` entries | `(latest - prev) / prev × 100` | week over week | |
+| Site Sessions | Q1 | `sessions` | round and localize | 30 days ending yesterday | `ga4_property_id` |
+| conversion rate | Q1 | `sessionConversionRate` | × 100, one decimal | same | |
+| sessions delta | Q1, Q2 | `sessions` both ranges | `(current - prior) / prior × 100` | vs previous period | |
+| Online Contacts, Open Pipeline | none | | needs connection | | no CRM |
+
+**Block 2: eight KPI cards, all from Q1 with deltas from Q2**
+
+| Displayed | GA4 metric | Transform |
+|---|---|---|
+| Sessions | `sessions` | round, localize |
+| Active Users | `activeUsers` | round, localize |
+| New Users | `newUsers` | round, localize |
+| Bounce Rate | `bounceRate` | × 100, one decimal. Delta inverted, so a rise renders red |
+| Avg Session Duration | `averageSessionDuration` | seconds to `Xm Ys` |
+| Pages / Session | `screenPageViewsPerSession` | one decimal |
+| Conversions | `conversions` | round, localize |
+| Conversion Rate | `sessionConversionRate` | × 100, one decimal |
+
+Every one of these is a GA4-native metric requested by name. **We compute none of them.** Only the deltas are ours, and every delta is `(current - prior) / prior × 100`.
+
+**Block 2: three charts**
+
+| Displayed | Query | Dimension | Notes |
+|---|---|---|---|
+| Sessions & Users Over Time | Q3, Q4 | `date`, limit 90 | 7-day rolling mean when toggled. Compare series joined by array position, not by date |
+| New vs Returning | Q8, Q9 | `newVsReturning` | Engagement and duration are session-weighted: `Σ(rate × sessions) / Σsessions`. Any bucket not containing "new" folds into returning |
+| Traffic by Channel, volume | Q5, Q6 | `sessionDefaultChannelGroup`, limit 10 | Share % divides by the sum of the ten returned rows, not by total site sessions |
+| Traffic by Channel, conversion | Q5 | same | Rows with fewer than 20 sessions excluded, sorted by conversion rate, top five |
+| channel drill-down | Q7 | `+ sessionSource, sessionMedium`, limit 150 | Top entries per channel |
+
+**Blocks 3 and 4:** no fetches. Needs connection.
+
+**What to expect when a number looks wrong:**
+
+| Symptom | Cause |
+|---|---|
+| No deltas anywhere | §6's ranges were taken from props instead of resolved internally |
+| Share of voice blank | brand lookup fell back to string matching instead of `isYou` |
+| By Conversion tab empty | Q5 issued without its full metric list |
+| Drill-down empty | Q7 not issued |
+| Channel shares do not match GA4 | expected above ten channel groups; compare raw session counts |
+| Compare overlay shifted | the known array-position join, §10 |
+| All eight KPIs show a dash | GA4 threw, most likely a property id or service-account access problem |
 
 Failure handling: `allSettled` plus the route-level error boundary. No per-block boundaries, because everything is awaited at one point, so there is one failure domain. Consequence accepted: one skeleton until the slowest of ten fetches settles, no progressive loading. Note that `allSettled` does not hide failures from health monitoring; a failed fetch is recorded inside the cache wrapper regardless of how the caller settles.
 
