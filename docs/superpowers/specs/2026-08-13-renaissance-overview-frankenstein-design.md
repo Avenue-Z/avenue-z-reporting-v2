@@ -158,17 +158,24 @@ Probed read-only against Renaissance's real configuration, issuing the same call
 | GA4 Q5 channels | **confirmed live** | 9 channel groups |
 | GA4 Q7 drill-down | **confirmed live** | 126 rows |
 | GA4 Q8 audience | **confirmed live** | 4 buckets |
-| Peec QP | **UNVERIFIED** | every Peec credential on the build machine is rejected with `401 Invalid API Key` |
+| Peec QP | **confirmed live in deployed environments** | Renaissance's existing AEO page renders Peec data. See below |
 
 **GA4 is proven for Renaissance.** Block 2 and journey card 2 will populate, and the channel drill-down has real data behind it.
 
-**Peec is unproven, and it is the only source behind journey card 1.** Two different Peec tokens exist locally and both return 401. That is a credentials problem on this machine, not evidence that Peec is broken for Renaissance in production, but it does mean three things cannot be confirmed until a working token is in hand:
+**Peec is proven in deployed environments, but not testable locally.** Every Peec token on the build machine returns `401 Invalid API Key`, and there are two different ones. That is a stale local credential, nothing more: deployed environments read their own `PEEC_AI_CUSTOMER_TOKEN` from Vercel's Preview or Production scope, never from a developer's `.env.local`.
 
-1. whether Renaissance's Peec project returns data at all,
-2. whether `weeklyVisibility` has enough weeks for a week-over-week delta,
-3. **whether any brand in `brandRankings` matches `peec_your_brand`.** If none does, `isYou` is false everywhere and share of voice blanks even with the correct lookup in place. This is the specific failure §2 exists to prevent, and it is the one thing about that card that cannot be verified from the code.
+Renaissance's existing Answer Engine Optimization page settles it. That page is live and calls `getPeecOverview` with the same client record and the same project id this page will use. It renders roughly thirty weekly visibility buckets from January onward, labels the series "Renaissance" and separates it from a competitor average, and shows per-model share of voice. That confirms all three things the local 401 left open:
 
-Get a valid Peec token before treating journey card 1 as deliverable. If Peec turns out to be unavailable for Renaissance, that card falls under §4's needs-connection rule like the CRM cards, which is a scope change worth raising rather than absorbing.
+1. the project returns data,
+2. `weeklyVisibility` has far more than the two entries a week-over-week delta needs,
+3. **`peec_your_brand` resolves against the returned rows.** The AEO page's brand filtering reads the same configured value that `isYou` is computed from, so a correctly-written `isYou` lookup will match.
+
+**Practical consequence:** journey card 1 cannot be previewed on this machine and its first real render happens on a deploy. Everything else on the page is testable locally. Getting a valid local Peec token is a convenience, not a blocker.
+
+**Verification anchors**, taken from that page on 2026-08-13. Use these to sanity-check the card once it renders; they will drift as new weeks land:
+
+- AI Visibility sat in the low-to-high twenties percent over recent weeks. A card showing a wildly different figure means the wrong week is being read.
+- Per-model share of voice ranged from roughly three to fifteen percent. Since the card averages across rows, expect something in the high single digits to low teens, not a figure matching any single model.
 
 ### 6.2 Fetches
 
