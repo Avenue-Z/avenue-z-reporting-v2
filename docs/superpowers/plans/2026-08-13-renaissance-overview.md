@@ -35,6 +35,7 @@
 | `components/report-sections/executive-overview/new-returning.tsx` | New vs returning visitors |
 | `components/report-sections/executive-overview/channel-tabs-chart.tsx` | Traffic by channel, two tabs plus drill-down |
 | `components/report-sections/executive-overview/reshape.ts` | Pure functions turning raw GA4 rows into component props |
+| `components/report-sections/executive-overview/stages.ts` | Pure builder for the four journey cards, including which are unconnected |
 | `components/report-sections/executive-overview/index.tsx` | Orchestrator: fetches, reshapes, renders four blocks |
 
 **Modified, additively only**
@@ -160,14 +161,55 @@ Avenue Z's copy keeps rendering it. Only ours changes."
 
 ## Task 3: Build the needs-connection card
 
+This is the behavior the whole design exists to protect, so it gets a real red-green cycle. The failure being guarded against is a card that renders a zero or a dash, which reads as real data meaning "none".
+
 **Files:**
+- Create: `components/report-sections/executive-overview/needs-connection.test.tsx`
 - Create: `components/report-sections/executive-overview/needs-connection.tsx`
 
 **Interfaces:**
 - Consumes: nothing
 - Produces: `NeedsConnection` taking `{ sourceName: string }`
 
-- [ ] **Step 1: Create the component**
+- [ ] **Step 1: Write the failing test**
+
+Create `components/report-sections/executive-overview/needs-connection.test.tsx`:
+
+```tsx
+import { expect, test } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { NeedsConnection } from './needs-connection'
+
+test('names the source that is not connected', () => {
+  render(<NeedsConnection sourceName="Salesforce" />)
+  expect(screen.getByText('Salesforce not connected')).toBeInTheDocument()
+})
+
+test('tells the reader what connecting would give them', () => {
+  render(<NeedsConnection sourceName="Salesforce" />)
+  expect(screen.getByText(/Connect Salesforce/)).toBeInTheDocument()
+})
+
+test('renders no number and no dash, which would read as real data', () => {
+  const { container } = render(<NeedsConnection sourceName="Salesforce" />)
+  const text = container.textContent ?? ''
+  expect(text).not.toMatch(/\d/)
+  expect(text).not.toContain('—')
+  expect(text).not.toContain('$')
+})
+
+test('works for any source name, not just Salesforce', () => {
+  render(<NeedsConnection sourceName="HubSpot" />)
+  expect(screen.getByText('HubSpot not connected')).toBeInTheDocument()
+})
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx vitest run components/report-sections/executive-overview/needs-connection.test.tsx`
+Expected: FAIL, cannot resolve `./needs-connection`.
+
+- [ ] **Step 3: Create the component**
 
 ```tsx
 interface NeedsConnectionProps {
@@ -196,20 +238,29 @@ export function NeedsConnection({ sourceName }: NeedsConnectionProps) {
 }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `npx vitest run components/report-sections/executive-overview/needs-connection.test.tsx`
+Expected: PASS, four tests green.
+
+- [ ] **Step 5: Verify types**
 
 Run: `npx tsc --noEmit`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add components/report-sections/executive-overview/needs-connection.tsx
+git add components/report-sections/executive-overview/needs-connection.tsx components/report-sections/executive-overview/needs-connection.test.tsx
 git commit -m "feat(exec-overview): add the needs-connection card
 
 Adapted from empty-state.tsx without its call to action, because
-Salesforce has no auth route and the link would go nowhere. Renders no
-number by design: a zero or dash would read as real data meaning none."
+Salesforce has no auth route and the link would go nowhere.
+
+Tested for the thing that actually matters: it renders no digit, no
+dash and no currency symbol. A zero or a dash here would read as real
+data meaning none, which is the failure this whole page is organized
+around avoiding."
 ```
 
 ---
@@ -218,6 +269,7 @@ number by design: a zero or dash would read as real data meaning none."
 
 **Files:**
 - Create: `components/report-sections/executive-overview/demand-journey.tsx`
+- Create: `components/report-sections/executive-overview/demand-journey.test.tsx`
 
 **Interfaces:**
 - Consumes: nothing
@@ -230,7 +282,61 @@ cp components/report-sections/demand-overview/demand-journey.tsx \
    components/report-sections/executive-overview/demand-journey.tsx
 ```
 
-- [ ] **Step 2: Loosen the type and add the variant flag**
+- [ ] **Step 2: Write the failing test**
+
+Create `components/report-sections/executive-overview/demand-journey.test.tsx`:
+
+```tsx
+import { expect, test } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { DemandJourney } from './demand-journey'
+
+const live: DemandStage = {
+  key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
+  metric: '89,234', subMetric: '2.1% conv. rate', delta: 15.4,
+  color: '#4285F4',
+  stats: [{ label: 'Active Users', value: '62,108' }],
+}
+
+const unconnected: DemandStage = {
+  key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
+  color: '#F5A623',
+  connected: false,
+}
+
+test('a connected stage renders its metric', () => {
+  render(<DemandJourney stages={[live]} />)
+  expect(screen.getByText('89,234')).toBeInTheDocument()
+})
+
+test('an unconnected stage renders the needs-connection treatment instead of a metric', () => {
+  render(<DemandJourney stages={[unconnected]} />)
+  expect(screen.getByText(/Not connected/i)).toBeInTheDocument()
+})
+
+test('an unconnected stage still shows its source label, so the row reads as a funnel', () => {
+  render(<DemandJourney stages={[unconnected]} />)
+  expect(screen.getByText('Pipeline')).toBeInTheDocument()
+})
+
+test('an unconnected stage renders no delta, so no false arrow appears', () => {
+  const { container } = render(<DemandJourney stages={[unconnected]} />)
+  expect(container.textContent ?? '').not.toMatch(/%/)
+})
+
+test('all four stages render together in one row', () => {
+  const stages = [live, { ...live, key: 'aeo', source: 'AEO' }, unconnected, { ...unconnected, key: 'inbound', source: 'Inbound Funnel' }]
+  render(<DemandJourney stages={stages} />)
+  expect(screen.getAllByText(/Not connected/i)).toHaveLength(2)
+})
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `npx vitest run components/report-sections/executive-overview/demand-journey.test.tsx`
+Expected: FAIL. The copy still requires `metric` and `stats`, so the unconnected fixture will not type-check, and nothing renders "Not connected".
+
+- [ ] **Step 4: Loosen the type and add the variant flag**
 
 In the copy, change the `DemandStage` interface so `metric` and `stats` are optional and a `connected` flag exists:
 
@@ -257,11 +363,11 @@ export interface DemandJourneyProps {
 }
 ```
 
-- [ ] **Step 3: Delete the built-in card header**
+- [ ] **Step 5: Delete the built-in card header**
 
 The wireframe shows a bare four-card panel. Delete the `<div className="mb-6">` block containing the "Full-Funnel View" eyebrow, the "Demand Journey" heading and the "From AI visibility to closed pipeline" subtitle. Keep the outer card frame and the flow row beneath it.
 
-- [ ] **Step 4: Branch the hero metric slot**
+- [ ] **Step 6: Branch the hero metric slot**
 
 Find the element rendering `{stage.metric}` in the large `text-3xl font-extrabold` slot. Replace it with:
 
@@ -278,11 +384,11 @@ Find the element rendering `{stage.metric}` in the large `text-3xl font-extrabol
 
 Match the surrounding element type and class names exactly as they appear in the copy; the snippet above shows the branch shape, not a replacement for the file's own wrapper.
 
-- [ ] **Step 5: Make the stats guard null-safe**
+- [ ] **Step 7: Make the stats guard null-safe**
 
 Find `stage.stats.length` and change it to `stage.stats?.length`. This is required the moment `stats` is optional, independent of the variant, and `strict` will fail the build without it.
 
-- [ ] **Step 6: Disable hover-expand on unconnected cards**
+- [ ] **Step 8: Disable hover-expand on unconnected cards**
 
 Find the `onMouseEnter` and `onMouseLeave` handlers on the card. Guard both so an unconnected card does not expand into an empty panel:
 
@@ -293,15 +399,20 @@ onMouseLeave={() => { if (stage.connected !== false) setHov(null) }}
 
 Use whatever state setter name the copy already uses.
 
-- [ ] **Step 7: Verify it compiles and the original is untouched**
+- [ ] **Step 9: Run the test to verify it passes**
+
+Run: `npx vitest run components/report-sections/executive-overview/demand-journey.test.tsx`
+Expected: PASS, five tests green.
+
+- [ ] **Step 10: Verify types and that the original is untouched**
 
 Run: `npx tsc --noEmit && git diff --stat components/report-sections/demand-overview/demand-journey.tsx`
 Expected: tsc passes, diff against the original is empty.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add components/report-sections/executive-overview/demand-journey.tsx
+git add components/report-sections/executive-overview/demand-journey.tsx components/report-sections/executive-overview/demand-journey.test.tsx
 git commit -m "feat(exec-overview): journey row with an unconnected-card variant
 
 metric and stats become optional and a connected flag is added. When
@@ -469,13 +580,203 @@ outside every derivation range while feeding both charts."
 
 ---
 
-## Task 6: Build the orchestrator
+## Task 6: Build the journey stages as a tested pure function
+
+The orchestrator's one piece of real logic is deciding which cards are live and which are unconnected. That is worth a red-green cycle on its own, separately from the async component that calls it.
+
+**Files:**
+- Create: `components/report-sections/executive-overview/stages.test.ts`
+- Create: `components/report-sections/executive-overview/stages.ts`
+
+**Interfaces:**
+- Consumes: `DemandStage` from Task 4, `fmtNum`, `fmtPct`, `pct` from Task 5
+- Produces: `buildStages(input: StageInput): DemandStage[]`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `components/report-sections/executive-overview/stages.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest'
+import { buildStages } from './stages'
+
+const totals = { sessions: 89234, activeUsers: 62108, newUsers: 34872, conversions: 1847, bounceRate: 0.384, sessionConversionRate: 0.021 }
+const cmpTotals = { sessions: 77300 }
+const peec = {
+  weeklyVisibility: [{ visibility: 22.1 }, { visibility: 24.8 }],
+  brandRankings: [{ name: 'Competitor', sov: 30, isYou: false }, { name: 'Renaissance', sov: 11.3, isYou: true }],
+  trackedPrompts: [{}, {}, {}],
+}
+
+describe('buildStages', () => {
+  it('always returns four stages in funnel order', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    expect(s.map(x => x.key)).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+  })
+
+  it('marks the two CRM stages unconnected and gives them no metric', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
+    expect(crm).toHaveLength(2)
+    for (const stage of crm) {
+      expect(stage.connected).toBe(false)
+      expect(stage.metric).toBeUndefined()
+      expect(stage.delta).toBeUndefined()
+    }
+  })
+
+  it('never marks the GA4 or AEO stages unconnected', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    expect(s.find(x => x.key === 'ga4')?.connected).not.toBe(false)
+    expect(s.find(x => x.key === 'aeo')?.connected).not.toBe(false)
+  })
+
+  it('reads AI visibility from the latest week and the delta from the prior one', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    const aeo = s.find(x => x.key === 'aeo')!
+    expect(aeo.metric).toBe('24.8%')
+    expect(aeo.delta).toBeCloseTo(12.2, 0)
+  })
+
+  it('finds share of voice by the isYou flag, not by brand name', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    expect(s.find(x => x.key === 'aeo')?.subMetric).toContain('11.3%')
+  })
+
+  it('leaves share of voice out when no brand is flagged isYou', () => {
+    const noMatch = { ...peec, brandRankings: [{ name: 'Competitor', sov: 30, isYou: false }] }
+    const s = buildStages({ totals, cmpTotals, peec: noMatch, trendRows: [] })
+    expect(s.find(x => x.key === 'aeo')?.subMetric).toBeUndefined()
+  })
+
+  it('degrades to a dash when GA4 failed, rather than claiming zero', () => {
+    const s = buildStages({ totals: null, cmpTotals: null, peec, trendRows: [] })
+    expect(s.find(x => x.key === 'ga4')?.metric).toBe('—')
+  })
+
+  it('still returns four stages when every source failed', () => {
+    const s = buildStages({ totals: null, cmpTotals: null, peec: null, trendRows: [] })
+    expect(s).toHaveLength(4)
+  })
+})
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx vitest run components/report-sections/executive-overview/stages.test.ts`
+Expected: FAIL, cannot resolve `./stages`.
+
+- [ ] **Step 3: Write the stage builder**
+
+Create `components/report-sections/executive-overview/stages.ts`. It takes already-unwrapped data and returns exactly four stages. The two CRM stages carry `connected: false` and no metric, which is what makes the row render the needs-connection treatment.
+
+```ts
+import type { DemandStage } from './demand-journey'
+import type { TrendRow } from './sessions-trend-chart'
+import { fmtNum, fmtPct, pct } from './reshape'
+
+export interface StageInput {
+  totals: Record<string, unknown> | null
+  cmpTotals: Record<string, unknown> | null
+  peec: {
+    weeklyVisibility?: { visibility: number }[]
+    brandRankings?: { name: string; sov: number; isYou?: boolean }[]
+    trackedPrompts?: unknown[]
+  } | null
+  trendRows: TrendRow[]
+}
+
+export function buildStages({ totals, cmpTotals, peec, trendRows }: StageInput): DemandStage[] {
+  const weekly   = peec?.weeklyVisibility ?? []
+  const latest   = weekly.at(-1)?.visibility ?? null
+  const previous = weekly.at(-2)?.visibility ?? null
+  // isYou is computed from clients.peec_your_brand. Matching on a literal brand
+  // name here would blank share of voice for every client but the one hardcoded.
+  const aeoSov   = peec?.brandRankings?.find((b) => b.isYou)?.sov ?? null
+
+  return [
+    {
+      key: 'aeo', source: 'AEO', label: 'AI Visibility',
+      metric: latest != null ? `${latest.toFixed(1)}%` : '—',
+      subMetric: aeoSov != null ? `${aeoSov.toFixed(1)}% share of voice` : undefined,
+      delta: latest != null && previous != null ? pct(latest, previous) : undefined,
+      color: CHART_COLORS.primary,
+      connector: 'drives\ndiscovery',
+      heroLabel: 'visibility rate across tracked prompts',
+      stats: [
+        { label: 'Share of Voice',  value: aeoSov != null ? `${aeoSov.toFixed(1)}%` : '—' },
+        { label: 'Tracked Brands',  value: peec?.brandRankings?.length?.toLocaleString() ?? '—' },
+        { label: 'Tracked Prompts', value: peec?.trackedPrompts?.length?.toLocaleString() ?? '—' },
+      ],
+    },
+    {
+      key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
+      metric: fmtNum(totals?.sessions as number),
+      subMetric: `${fmtPct(totals?.sessionConversionRate as number)} conv. rate`,
+      delta: pct(Number(totals?.sessions ?? 0), Number(cmpTotals?.sessions ?? 0)),
+      color: CHART_COLORS.ga4,
+      connector: 'converts\nto leads',
+      heroLabel: 'sessions in the last 30 days',
+      spark: trendRows.map((r) => ({ date: r.date, sessions: r.sessions })),
+      stats: [
+        { label: 'Active Users', value: fmtNum(totals?.activeUsers as number) },
+        { label: 'New Users',    value: fmtNum(totals?.newUsers as number) },
+        { label: 'Conversions',  value: fmtNum(totals?.conversions as number) },
+        { label: 'Bounce Rate',  value: fmtPct(totals?.bounceRate as number) },
+      ],
+    },
+    {
+      key: 'inbound', source: 'Inbound Funnel', label: 'Online Contacts',
+      color: CHART_COLORS.positive,
+      connector: 'becomes\npipeline',
+      connected: false,
+    },
+    {
+      key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
+      color: CHART_COLORS.warning,
+      connected: false,
+    },
+  ]
+}
+```
+
+If a `CHART_COLORS` key named above does not exist, substitute the nearest existing key. `lib/constants.ts` is shared and this task does not modify it.
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `npx vitest run components/report-sections/executive-overview/stages.test.ts`
+Expected: PASS, eight tests green.
+
+- [ ] **Step 5: Verify types**
+
+Run: `npx tsc --noEmit`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add components/report-sections/executive-overview/stages.ts components/report-sections/executive-overview/stages.test.ts
+git commit -m "feat(exec-overview): tested stage builder for the journey row
+
+The orchestrator's only real logic is deciding which cards are live and
+which are unconnected, so it lives in a pure function with its own
+tests rather than inline in an async component nobody can run.
+
+Covered: the two CRM stages always carry connected false with no metric
+and no delta, the GA4 and AEO stages never do, share of voice is found
+by the isYou flag rather than a brand-name match, and a failed GA4
+fetch degrades to a dash instead of claiming zero."
+```
+
+---
+
+## Task 7: Build the orchestrator
 
 **Files:**
 - Create: `components/report-sections/executive-overview/index.tsx`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1 to 5
+- Consumes: everything from Tasks 1 to 6
 - Produces: `ExecutiveOverviewReport` taking `{ clientSlug: string }`
 
 - [ ] **Step 1: Write the component skeleton with internal range resolution**
@@ -495,6 +796,7 @@ import {
   fmtNum, fmtPct, fmtDuration, pct,
   buildTrendRows, buildAudienceRows, buildChannelData, buildCompareLabel,
 } from './reshape'
+import { buildStages } from './stages'
 
 const KPI_METRICS = [
   'sessions', 'activeUsers', 'newUsers', 'bounceRate',
@@ -559,58 +861,11 @@ Insert after `cmpIso`:
 
 - [ ] **Step 3: Build the journey stages**
 
+Insert after the unwrapping block. The logic lives in the tested builder from Task 6, so this is a single call.
+
 ```tsx
-  const weekly   = peec?.weeklyVisibility ?? []
-  const latest   = weekly.at(-1)?.visibility ?? null
-  const previous = weekly.at(-2)?.visibility ?? null
-  const ownBrand = peec?.brandRankings?.find((b) => b.isYou)
-  const aeoSov   = ownBrand?.sov ?? null
-
-  const stages: DemandStage[] = [
-    {
-      key: 'aeo', source: 'AEO', label: 'AI Visibility',
-      metric: latest != null ? `${latest.toFixed(1)}%` : '—',
-      subMetric: aeoSov != null ? `${aeoSov.toFixed(1)}% share of voice` : undefined,
-      delta: pct(latest ?? 0, previous ?? 0),
-      color: CHART_COLORS.primary,
-      connector: 'drives\ndiscovery',
-      heroLabel: 'visibility rate across tracked prompts',
-      stats: [
-        { label: 'Share of Voice',  value: aeoSov != null ? `${aeoSov.toFixed(1)}%` : '—' },
-        { label: 'Tracked Brands',  value: peec?.brandRankings?.length?.toLocaleString() ?? '—' },
-        { label: 'Tracked Prompts', value: peec?.trackedPrompts?.length?.toLocaleString() ?? '—' },
-      ],
-    },
-    {
-      key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
-      metric: fmtNum(totals?.sessions as number),
-      subMetric: `${fmtPct(totals?.sessionConversionRate as number)} conv. rate`,
-      delta: pct(Number(totals?.sessions ?? 0), Number(cmpTotals?.sessions ?? 0)),
-      color: CHART_COLORS.ga4,
-      connector: 'converts\nto leads',
-      heroLabel: 'sessions in the last 30 days',
-      spark: trendRows.map((r) => ({ date: r.date, sessions: r.sessions })),
-      stats: [
-        { label: 'Active Users', value: fmtNum(totals?.activeUsers as number) },
-        { label: 'New Users',    value: fmtNum(totals?.newUsers as number) },
-        { label: 'Conversions',  value: fmtNum(totals?.conversions as number) },
-        { label: 'Bounce Rate',  value: fmtPct(totals?.bounceRate as number) },
-      ],
-    },
-    {
-      key: 'inbound', source: 'Inbound Funnel', label: 'Online Contacts',
-      color: CHART_COLORS.positive, connector: 'becomes\npipeline',
-      connected: false,
-    },
-    {
-      key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
-      color: CHART_COLORS.warning,
-      connected: false,
-    },
-  ]
+  const stages = buildStages({ totals, cmpTotals, peec, trendRows })
 ```
-
-If a `CHART_COLORS` key named above does not exist, substitute the nearest existing key rather than adding one; `lib/constants.ts` is a shared file and this task does not modify it.
 
 - [ ] **Step 4: Render the four blocks**
 
@@ -685,7 +940,7 @@ No section header: the route renders one already."
 
 ---
 
-## Task 7: Register the slug
+## Task 8: Register the slug
 
 **Files:**
 - Modify: `lib/db/schema.ts`
@@ -768,7 +1023,7 @@ below three other sections for exactly that audience."
 
 ---
 
-## Task 8: Wire all four dispatchers
+## Task 9: Wire all four dispatchers
 
 `ENGINEERS.md:412` says there are two and names the wrong two. A missed case is invisible to `tsc` and reports green in the health sweep while rendering a blank page.
 
@@ -779,7 +1034,7 @@ below three other sections for exactly that audience."
 - Modify: `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx`
 
 **Interfaces:**
-- Consumes: `ExecutiveOverviewReport` from Task 6
+- Consumes: `ExecutiveOverviewReport` from Task 7
 - Produces: the page reachable on all four routes
 
 - [ ] **Step 1: Add the import and case to the dashboard tab route**
@@ -836,14 +1091,14 @@ this is purely additive for every other client."
 
 ---
 
-## Task 9: Keep the page out of the channel and settings lists
+## Task 10: Keep the page out of the channel and settings lists
 
 **Files:**
 - Modify: `components/report-sections/report-generator/index.tsx`
 - Modify: `app/dashboard/settings/page.tsx`
 
 **Interfaces:**
-- Consumes: the registered slug from Task 7
+- Consumes: the registered slug from Task 8
 - Produces: the page excluded from data-channel listings
 
 - [ ] **Step 1: Exclude from the report generator's channel list**
@@ -873,7 +1128,7 @@ outside Renaissance's own row."
 
 ---
 
-## Task 10: Enable for Renaissance on dev and verify
+## Task 11: Enable for Renaissance on dev and verify
 
 Code first, then data. The portal landing page maps enabled reports raw and falls through to the bare slug when no display name exists, so enabling before deploying puts a card reading `executive-overview` on Renaissance's client-facing page.
 
@@ -881,7 +1136,7 @@ Code first, then data. The portal landing page maps enabled reports raw and fall
 - None. This task runs SQL against the dev database and verifies in a browser.
 
 **Interfaces:**
-- Consumes: everything from Tasks 1 to 9
+- Consumes: everything from Tasks 1 to 10
 - Produces: a rendering page
 
 - [ ] **Step 1: Confirm the code is committed and typechecks**
@@ -941,13 +1196,13 @@ badge appears. Avenue Z's pages are unchanged."
 
 ---
 
-## Task 11: Mark the PR ready and hand off for review
+## Task 12: Mark the PR ready and hand off for review
 
 **Files:**
 - None.
 
 **Interfaces:**
-- Consumes: Tasks 1 to 10
+- Consumes: Tasks 1 to 11
 - Produces: a reviewable PR
 
 - [ ] **Step 1: Confirm the branch is synced**
@@ -978,10 +1233,18 @@ Per the branch flow, this is reviewed by Paul and Thomas on PR #207 before it me
 
 ## Self-Review
 
-**Spec coverage.** Every section maps to a task: the four blocks and their sources (Tasks 4, 6), the copy boundary (Tasks 1 to 5), internal range resolution (Task 6 Step 1), the ten fetches (Task 6 Step 2), the reshaping and its three traps (Task 5 Step 3), needs-connection at both block and card scale (Tasks 3, 4), page composition and the absent header (Task 6 Step 4), the period label (Task 6 Step 4), no AI commentary (Task 2), all twelve registration points (Tasks 7, 8, 9), enablement ordering (Task 10), and the verification list (Task 10 Steps 4 to 6).
+**TDD coverage.** Four tasks carry a real red-green-commit cycle: Task 3 (needs-connection), Task 4 (the unconnected card variant), Task 5 (GA4 reshaping) and Task 6 (stage assembly). Together those cover every piece of logic on this page.
 
-**Known gap, deliberate.** The spec leaves one decision open: whether tests ship with this PR. Task 5 includes tests for the reshaping because that code is pure and the traps are real. No test covers the needs-connection render path, which the spec names as the obvious first case. If the answer is "tests ship here", add a task before Task 11 covering that path; if it is "track separately", the plan is complete as written.
+Tasks 1 and 2 have no test and should not. Copying a file verbatim and deleting a component are not behaviors you can write a failing test for first; both are verified by `tsc` plus a diff proving no original changed.
 
-**Type consistency.** `DemandStage` is defined once in Task 4 and consumed in Task 6 with `connected: false` on two stages. `buildTrendRows`, `buildAudienceRows`, `buildChannelData` and `buildCompareLabel` are declared with signatures in Task 5 Step 3 and called with matching arguments in Task 6 Step 2. `ExecutiveOverviewReport` takes `{ clientSlug }` in Task 6 and is called with exactly that prop in all four dispatchers in Task 8. `NeedsConnection` takes `{ sourceName }` in Task 3 and is called with it twice in Task 6 Step 4.
+Task 7 is the async orchestrator. It is deliberately thin: fetch, unwrap, call tested functions, render. Every decision it used to make now lives in `stages.ts` or `reshape.ts` behind tests. What remains is wiring, verified by the manual pass in Task 11.
 
-**Placeholder scan.** No TBDs. Every code step carries the code. Where a snippet shows a branch shape rather than a full replacement (Task 4 Step 4), the step says so explicitly and names what to match against.
+Tasks 8 to 10 are registration. There is nothing to test beyond the type system and the runtime check in Task 8 Step 5.
+
+**Spec coverage.** Every section maps to a task: the four blocks and their sources (Tasks 4, 6, 7), the copy boundary (Tasks 1 to 6), internal range resolution (Task 7 Step 1), the ten fetches (Task 7 Step 2), the reshaping and its three traps (Task 5 Step 3), needs-connection at both block and card scale (Tasks 3, 4, 6), page composition and the absent header (Task 7 Step 4), the period label (Task 7 Step 4), no AI commentary (Task 2), all twelve registration points (Tasks 8, 9, 10), enablement ordering (Task 11), and the verification list (Task 11 Steps 4 to 6).
+
+**The open question is now closed.** The spec left it undecided whether tests ship with this PR. Running this plan under TDD answers it: they ship here. Tasks 3, 4, 5 and 6 each add a test file, and `npm test` runs on every PR.
+
+**Type consistency.** `DemandStage` is defined once in Task 4 and consumed in Task 6's builder with `connected: false` on two stages. `buildStages` is declared with a signature in Task 6 Step 3 and called with exactly those four fields in Task 7 Step 3. `buildTrendRows`, `buildAudienceRows`, `buildChannelData` and `buildCompareLabel` are declared in Task 5 Step 3 and called with matching arguments in Task 7 Step 2. `ExecutiveOverviewReport` takes `{ clientSlug }` in Task 7 and is called with exactly that prop in all four dispatchers in Task 9. `NeedsConnection` takes `{ sourceName }` in Task 3 and is called with it twice in Task 7 Step 4.
+
+**Placeholder scan.** No TBDs. Every code step carries the code. Where a snippet shows a branch shape rather than a full replacement (Task 4 Step 6), the step says so and names what to match against.
