@@ -144,6 +144,32 @@ The vendor clients are the product's integration layer, shared by every section 
 
 **Data isolation is by construction.** `ga4Query` reads `clients.ga4_property_id` for the slug it is given; `getPeecOverview` reads `clients.peec_customer_project_id` and `clients.peec_your_brand`. Cache keys include the call arguments, so a Renaissance fetch can never return an Avenue Z cached result. Renaissance's GA4 property and Peec project are different records from Avenue Z's, verified in the dev database.
 
+### 6.1.1 Live connection status
+
+Probed read-only against Renaissance's real configuration, issuing the same calls this page will issue.
+
+| Source | Status | Evidence |
+|---|---|---|
+| Client row | **confirmed** | GA4 property set, Peec project set, brand "Renaissance", no CRM |
+| Date resolution | **confirmed** | main and compare ranges both resolve to 30-day windows |
+| GA4 Q1 KPI totals | **confirmed live** | all 8 metrics returned |
+| GA4 Q2 compare totals | **confirmed live** | returns a row |
+| GA4 Q3 trend | **confirmed live** | 30 day buckets |
+| GA4 Q5 channels | **confirmed live** | 9 channel groups |
+| GA4 Q7 drill-down | **confirmed live** | 126 rows |
+| GA4 Q8 audience | **confirmed live** | 4 buckets |
+| Peec QP | **UNVERIFIED** | every Peec credential on the build machine is rejected with `401 Invalid API Key` |
+
+**GA4 is proven for Renaissance.** Block 2 and journey card 2 will populate, and the channel drill-down has real data behind it.
+
+**Peec is unproven, and it is the only source behind journey card 1.** Two different Peec tokens exist locally and both return 401. That is a credentials problem on this machine, not evidence that Peec is broken for Renaissance in production, but it does mean three things cannot be confirmed until a working token is in hand:
+
+1. whether Renaissance's Peec project returns data at all,
+2. whether `weeklyVisibility` has enough weeks for a week-over-week delta,
+3. **whether any brand in `brandRankings` matches `peec_your_brand`.** If none does, `isYou` is false everywhere and share of voice blanks even with the correct lookup in place. This is the specific failure §2 exists to prevent, and it is the one thing about that card that cannot be verified from the code.
+
+Get a valid Peec token before treating journey card 1 as deliverable. If Peec turns out to be unavailable for Renaissance, that card falls under §4's needs-connection rule like the CRM cards, which is a scope change worth raising rather than absorbing.
+
 ### 6.2 Fetches
 
 Ten fetches, all issued together with `Promise.allSettled` so one vendor failing degrades its block instead of killing the page.
