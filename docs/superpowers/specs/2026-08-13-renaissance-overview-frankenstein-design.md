@@ -142,7 +142,11 @@ A TypeScript default parameter does not fire for `null`, only for `undefined`. S
 ```ts
 const resolved = parseDateRange('last_30_days')
 const compare  = deriveCompareRange('last_30_days', 'previous_period')
+const mainIso  = `${resolved.startDate},${resolved.endDate}`
+const cmpIso   = compare ? `${compare.startDate},${compare.endDate}` : null
 ```
+
+The last two lines are not optional. `ga4Query` takes `dateRange` as a single comma-joined string, so the join is what actually reaches the API.
 
 ### 4.5 Data fetching: nine GA4 queries and one Peec call
 
