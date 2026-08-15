@@ -176,11 +176,7 @@ export function buildChannelData(
   return { volumeData, convData, compareMap, sourceMediumMap }
 }
 
-// ── Audience — ported from ga4/index.tsx:464-483. returningUserCount is
-// computed inline in JSX at :564 from the totals query (activeUsers minus
-// newUsers, floored at 0) — a different query than the audience rows bucketed
-// below, so it takes the totals row as an optional second argument rather
-// than being derived from `rows`. Omitted when totals are unavailable.
+// ── Audience — ported from ga4/index.tsx:464-483. ──
 
 function bucketAudience(rows: Ga4Row[]): AudienceRow[] {
   const map: Record<string, { sessions: number; engRate: number; dur: number }> = {}
@@ -202,17 +198,8 @@ function bucketAudience(rows: Ga4Row[]): AudienceRow[] {
   })).sort((a, b) => b.sessions - a.sessions)
 }
 
-export function buildAudienceRows(
-  rows: Ga4Row[] | null,
-  totals?: Ga4Row | null,
-): { rows: AudienceRow[]; returningUserCount?: number } {
-  const audienceRows = rows ? bucketAudience(rows) : []
-
-  const returningUserCount = totals
-    ? Math.max(0, Number(totals.activeUsers ?? 0) - Number(totals.newUsers ?? 0))
-    : undefined
-
-  return { rows: audienceRows, returningUserCount }
+export function buildAudienceRows(rows: Ga4Row[] | null): { rows: AudienceRow[] } {
+  return { rows: rows ? bucketAudience(rows) : [] }
 }
 
 // ── Compare label — ported from ga4/index.tsx:537-539 ──

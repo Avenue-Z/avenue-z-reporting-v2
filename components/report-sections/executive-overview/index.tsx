@@ -56,10 +56,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const cmpTotals   = val(cmpTotalsRes)?.rows?.[0] ?? null
   const trendRows   = buildTrendRows(val(trendRes)?.rows ?? null, val(cmpTrendRes)?.rows ?? null)
   const channel     = buildChannelData(val(channelRes)?.rows ?? null, val(cmpChannelRes)?.rows ?? null, val(channelSMRes)?.rows ?? null)
-  // totals is passed here (not to the compare call) because returningUserCount
-  // is a single current-period figure, derived from activeUsers minus newUsers
-  // on the KPI totals row, not something the compare period needs.
-  const audience    = buildAudienceRows(val(audienceRes)?.rows ?? null, totals)
+  const audience    = buildAudienceRows(val(audienceRes)?.rows ?? null)
   const cmpAudience = buildAudienceRows(val(cmpAudienceRes)?.rows ?? null)
   const peec        = val(peecRes)
   const cmpLabel    = buildCompareLabel(compare)
@@ -75,17 +72,17 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Web Analytics</h2>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-          <KpiCard title="Sessions"             value={fmtNum(totals?.sessions as number)}                    delta={pct(Number(totals?.sessions ?? 0), Number(cmpTotals?.sessions ?? 0))} />
-          <KpiCard title="Active Users"         value={fmtNum(totals?.activeUsers as number)}                 delta={pct(Number(totals?.activeUsers ?? 0), Number(cmpTotals?.activeUsers ?? 0))} />
-          <KpiCard title="New Users"            value={fmtNum(totals?.newUsers as number)}                    delta={pct(Number(totals?.newUsers ?? 0), Number(cmpTotals?.newUsers ?? 0))} />
-          <KpiCard title="Bounce Rate"          value={fmtPct(totals?.bounceRate as number)}                  delta={pct(Number(totals?.bounceRate ?? 0), Number(cmpTotals?.bounceRate ?? 0))} invertDelta />
-          <KpiCard title="Avg Session Duration" value={fmtDuration(totals?.averageSessionDuration as number)} delta={pct(Number(totals?.averageSessionDuration ?? 0), Number(cmpTotals?.averageSessionDuration ?? 0))} />
-          <KpiCard title="Pages / Session"      value={Number(totals?.screenPageViewsPerSession ?? 0).toFixed(1)} delta={pct(Number(totals?.screenPageViewsPerSession ?? 0), Number(cmpTotals?.screenPageViewsPerSession ?? 0))} />
-          <KpiCard title="Conversions"          value={fmtNum(totals?.conversions as number)}                 delta={pct(Number(totals?.conversions ?? 0), Number(cmpTotals?.conversions ?? 0))} />
-          <KpiCard title="Conversion Rate"      value={fmtPct(totals?.sessionConversionRate as number)}       delta={pct(Number(totals?.sessionConversionRate ?? 0), Number(cmpTotals?.sessionConversionRate ?? 0))} />
+          <KpiCard title="Sessions"             value={fmtNum(totals?.sessions as number)}                    delta={pct(totals?.sessions as number, cmpTotals?.sessions as number)} tooltip="Total number of sessions in the selected period." />
+          <KpiCard title="Active Users"         value={fmtNum(totals?.activeUsers as number)}                 delta={pct(totals?.activeUsers as number, cmpTotals?.activeUsers as number)} tooltip="Users who had at least one engaged session." />
+          <KpiCard title="New Users"            value={fmtNum(totals?.newUsers as number)}                    delta={pct(totals?.newUsers as number, cmpTotals?.newUsers as number)} tooltip="First-time visitors in the selected period." />
+          <KpiCard title="Bounce Rate"          value={fmtPct(totals?.bounceRate as number)}                  delta={pct(totals?.bounceRate as number, cmpTotals?.bounceRate as number)} invertDelta tooltip="Sessions that ended with no engagement. Lower is better." />
+          <KpiCard title="Avg Session Duration" value={fmtDuration(totals?.averageSessionDuration as number)} delta={pct(totals?.averageSessionDuration as number, cmpTotals?.averageSessionDuration as number)} tooltip="Average time users spend per session. Higher = more engaged." />
+          <KpiCard title="Pages / Session"      value={totals?.screenPageViewsPerSession != null ? Number(totals.screenPageViewsPerSession).toFixed(1) : '—'} delta={pct(totals?.screenPageViewsPerSession as number, cmpTotals?.screenPageViewsPerSession as number)} tooltip="Average number of pages viewed per session." />
+          <KpiCard title="Conversions"          value={fmtNum(totals?.conversions as number)}                 delta={pct(totals?.conversions as number, cmpTotals?.conversions as number)} tooltip="Total conversion events fired in the selected period." />
+          <KpiCard title="Conversion Rate"      value={fmtPct(totals?.sessionConversionRate as number)}       delta={pct(totals?.sessionConversionRate as number, cmpTotals?.sessionConversionRate as number)} tooltip="Percentage of sessions that resulted in a conversion." />
         </div>
         <SessionsTrendChart data={trendRows} compareLabel={cmpLabel} />
-        <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} returningUserCount={audience.returningUserCount} />
+        <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} />
         <ChannelTabsChart volumeData={channel.volumeData} convData={channel.convData} compareMap={channel.compareMap} sourceMediumMap={channel.sourceMediumMap} />
       </section>
 

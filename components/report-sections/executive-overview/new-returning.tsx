@@ -13,7 +13,6 @@ export interface AudienceRow {
 export interface NewReturningProps {
   rows: AudienceRow[]
   compareRows?: AudienceRow[]
-  returningUserCount?: number
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -51,7 +50,7 @@ function DeltaBadge({ value }: { value: number | null }) {
   )
 }
 
-export function NewReturning({ rows, compareRows, returningUserCount }: NewReturningProps) {
+export function NewReturning({ rows, compareRows }: NewReturningProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const total = rows.reduce((s, r) => s + r.sessions, 0) || 1
 

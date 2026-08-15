@@ -30,6 +30,9 @@ export function buildStages({ totals, cmpTotals, peec, trendRows }: StageInput):
       delta: latest != null && previous != null ? pct(latest, previous) : undefined,
       color: CHART_COLORS.primary,
       connector: 'drives\ndiscovery',
+      // This card is year to date while the page label reads "Last 30 days",
+      // so the badge is the honest marker of the mismatch.
+      badge: 'YTD',
       heroLabel: 'visibility rate across tracked prompts',
       stats: [
         { label: 'Share of Voice',  value: aeoSov != null ? `${aeoSov.toFixed(1)}%` : '—' },
@@ -41,7 +44,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows }: StageInput):
       key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
       metric: fmtNum(totals?.sessions as number),
       subMetric: `${fmtPct(totals?.sessionConversionRate as number)} conv. rate`,
-      delta: pct(Number(totals?.sessions ?? 0), Number(cmpTotals?.sessions ?? 0)),
+      delta: pct(totals?.sessions as number, cmpTotals?.sessions as number),
       color: CHART_COLORS.ga4,
       connector: 'converts\nto leads',
       heroLabel: 'sessions in the last 30 days',

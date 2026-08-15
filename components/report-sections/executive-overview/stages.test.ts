@@ -59,4 +59,9 @@ describe('buildStages', () => {
     const s = buildStages({ totals: null, cmpTotals: null, peec: null, trendRows: [] })
     expect(s).toHaveLength(4)
   })
+
+  it('a failed totals query yields no delta, not minus one hundred percent', () => {
+    const s = buildStages({ totals: null, cmpTotals, peec, trendRows: [] })
+    expect(s.find(x => x.key === 'ga4')?.delta).toBeUndefined()
+  })
 })
