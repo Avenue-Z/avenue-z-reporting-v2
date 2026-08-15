@@ -121,8 +121,14 @@ export function buildChannelData(
       (r.sessions as number) ?? 0
   }
 
-  const volumeData = [...current]
-    .sort((a, b) => ((b.sessions as number) ?? 0) - ((a.sessions as number) ?? 0))
+  // Sorted once, by sessions desc. The source sorts channelRes.rows in place
+  // and both the volume and conversion derivations read that same mutated
+  // array, so ties in conversion rate resolve by session volume (stable
+  // sort). Deriving both from one sessions-sorted array here reproduces that,
+  // instead of each starting from raw API order.
+  const sortedBySessions = [...current].sort((a, b) => (Number(b.sessions) || 0) - (Number(a.sessions) || 0))
+
+  const volumeData = sortedBySessions
     .map((r, i) => ({
       name:     String(r.sessionDefaultChannelGroup ?? 'Other'),
       sessions: (r.sessions as number) ?? 0,
@@ -135,7 +141,7 @@ export function buildChannelData(
 
   // Channels by conversion rate — same rows, sorted by conv rate, top 5 with ≥20 sessions
   const channelColorMap = Object.fromEntries(volumeData.map((c) => [c.name, c.color]))
-  const convData = [...current]
+  const convData = sortedBySessions
     .filter((r) => ((r.sessions as number) ?? 0) >= 20)
     .sort((a, b) => ((b.sessionConversionRate as number) ?? 0) - ((a.sessionConversionRate as number) ?? 0))
     .slice(0, 5)

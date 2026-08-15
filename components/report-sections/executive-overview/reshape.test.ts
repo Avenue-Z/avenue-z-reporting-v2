@@ -59,6 +59,23 @@ describe('buildChannelData', () => {
     const out = buildChannelData(rows, null, null)
     expect(out.convData.map(r => r.name)).toEqual(['Organic Search'])
   })
+
+  it('tied conversion rates resolve by session volume, matching the source', () => {
+    // Raw API order deliberately scrambled — C, D, A, E, B — so the test only
+    // passes if the function itself sorts by sessions before the tie-break,
+    // rather than happening to preserve an already-sorted fixture.
+    const rows = [
+      { sessionDefaultChannelGroup: 'C', sessions: 30,  sessionConversionRate: 0 },
+      { sessionDefaultChannelGroup: 'D', sessions: 50,  sessionConversionRate: 0.10 },
+      { sessionDefaultChannelGroup: 'A', sessions: 700, sessionConversionRate: 0 },
+      { sessionDefaultChannelGroup: 'E', sessions: 60,  sessionConversionRate: 0.05 },
+      { sessionDefaultChannelGroup: 'B', sessions: 300, sessionConversionRate: 0 },
+    ]
+    const out = buildChannelData(rows, null, null)
+    // D and E have nonzero rates and sort first; A, B, C tie at 0 and must
+    // resolve by sessions desc (700, 300, 30), not raw API order (C, A, B).
+    expect(out.convData.map(r => r.name)).toEqual(['D', 'E', 'A', 'B', 'C'])
+  })
 })
 
 describe('buildAudienceRows', () => {
