@@ -35,6 +35,11 @@ test('an unconnected stage renders no delta, so no false arrow appears', () => {
   expect(container.textContent ?? '').not.toMatch(/%/)
 })
 
+test('an unconnected stage with a stale delta still renders no arrow', () => {
+  const { container } = render(<DemandJourney stages={[{ ...unconnected, delta: 5.2 }]} />)
+  expect(container.textContent ?? '').not.toMatch(/%/)
+})
+
 test('all four stages render together in one row', () => {
   const stages = [live, { ...live, key: 'aeo', source: 'AEO' }, unconnected, { ...unconnected, key: 'inbound', source: 'Inbound Funnel' }]
   render(<DemandJourney stages={stages} />)
