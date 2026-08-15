@@ -88,7 +88,7 @@ Consequence worth stating, since staging and production GA4 credentials are not 
 
 **On-screen copy never names a vendor.** The card reads "CRM not connected", not "Salesforce not connected". Renaissance is on Salesforce today and may move to HubSpot, so naming either one dates the page and would need changing again on migration. Vendor names belong in internal conversation about why data is missing, not on a client-facing report. The component takes a `sourceName` prop rather than hardcoding the string, so this is a one-word change if that ever reverses.
 
-**Card-level treatment** (journey cards 3 and 4): the block card is a centered full-width panel and cannot drop into a quarter-width flow card. Render inside the existing card frame instead: source eyebrow stays, the metric slot reads `Not connected` at normal body size rather than the `text-3xl` hero size, and one line reads `Connect a CRM to see this`. No border, no CTA; the card frame and connector are the container.
+**Card-level treatment** (journey cards 3 and 4): the block card is a centered full-width panel and cannot drop into a quarter-width flow card. Render inside the existing card frame instead: source eyebrow stays, the metric slot reads `Not connected` at normal body size rather than the `text-3xl` hero size, and one line reads `Connect your CRM to see this`. No border, no CTA; the card frame and connector are the container.
 
 Our `DemandStage` type makes `metric` and `stats` optional and adds `connected?: boolean`. Omitted or `true` renders normally. Three places need a branch:
 
@@ -302,13 +302,13 @@ Roughly 233 lines turning raw GA4 rows into props live inline in `ga4/index.tsx`
 | 8 KPI cards | `:261-314`, plus `KPI_METRICS` at `:78-87` |
 | trend chart | `:316-334` |
 | channel chart, both tabs and drill-down | `:336-403` |
-| New vs Returning | `:464-501` |
+| New vs Returning | `:464-483` |
 | shared formatters | `:33-76` |
 
 Four things that bite:
 
 - **Adapt every result access.** The source fetches with `Promise.all`, so its reshaping dereferences results directly (`totalsRes.rows[0]`, `trendRes.rows`, `channelRes.rows`, `audienceRes.rows`). Under `allSettled` each needs unwrapping first: `const ga4 = ga4Res.status === 'fulfilled' ? ga4Res.value : null`. `strict` catches the bare cases, but some accesses are optional-chained and will compile against a settled result while producing **silently empty compare bars and an empty drill-down**. `tsc` is in no CI workflow.
-- `returningUserCount` is computed inline in JSX at `:564` and must be lifted to a variable.
+- returningUserCount and its consumer were removed entirely: the only thing that ever read it was the AI callout this page deletes, so the port drops the plumbing rather than carrying dead output.
 - `channelConvData` depends on `channelColorMap`, which depends on `channelData`, so `:336-403` must move as one block or the two channel tabs' colors desynchronize.
 - **`compareDateLabel` sits at `:537-539`, outside every range above**, and feeds the trend chart's `compareLabel` (`:558`). Miss it and that chart silently loses its compare-period label. `ChannelTabsChart` is handed the same prop at `:572` but never reads it in its body, so this page does not pass it there. Recorded in §10 as an inherited dead prop.
 
@@ -386,7 +386,7 @@ WHERE slug = 'renaissance'
   AND NOT ('executive-overview' = ANY(enabled_reports));
 ```
 
-Idempotent and scoped to one row. `array_append` puts the slug last, so the portal landing card grid (which uses raw array order) shows Overview at the bottom; write the ordered array explicitly if that matters.
+Idempotent and scoped to one row. `array_append` puts the slug last, so the portal landing card grid (which uses raw array order) shows Overview at the bottom; write the ordered array explicitly if that matters. Re-verify at each enablement that renaissance still lacks demand-overview in enabled_reports; if both slugs were ever enabled, the landing section reverts to demand-overview and the sidebar shows two entries labelled Overview.
 
 **Do not run `npm run db:seed`.** It upserts each of its two seeded clients over 22 columns including `enabled_reports`, `hidden_reports` and `hubspot_token_env_var`, plus a users upsert that rewrites `role`, and it is stale against the live database in both directions. Its blast radius is larger than this entire PR.
 
