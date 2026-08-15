@@ -170,13 +170,11 @@ export function buildChannelData(
   return { volumeData, convData, compareMap, sourceMediumMap }
 }
 
-// ── Audience — ported from ga4/index.tsx:464-483. The source computes
-// returningUserCount inline in JSX (:564) from the totals row (activeUsers
-// minus newUsers, floored at 0) — a value this function has no access to
-// under its single-argument signature. Since every row here is already
-// bucketed into exactly 'new' or 'returning', the returning bucket's own
-// session count is the equivalent figure available from these rows, and is
-// floored at 0 the same way. ──
+// ── Audience — ported from ga4/index.tsx:464-483. returningUserCount is
+// computed inline in JSX at :564 from the totals query (activeUsers minus
+// newUsers, floored at 0) — a different query than the audience rows bucketed
+// below, so it takes the totals row as an optional second argument rather
+// than being derived from `rows`. Omitted when totals are unavailable.
 
 function bucketAudience(rows: Ga4Row[]): AudienceRow[] {
   const map: Record<string, { sessions: number; engRate: number; dur: number }> = {}
@@ -198,11 +196,15 @@ function bucketAudience(rows: Ga4Row[]): AudienceRow[] {
   })).sort((a, b) => b.sessions - a.sessions)
 }
 
-export function buildAudienceRows(rows: Ga4Row[] | null): { rows: AudienceRow[]; returningUserCount?: number } {
-  if (!rows) return { rows: [] }
+export function buildAudienceRows(
+  rows: Ga4Row[] | null,
+  totals?: Ga4Row | null,
+): { rows: AudienceRow[]; returningUserCount?: number } {
+  const audienceRows = rows ? bucketAudience(rows) : []
 
-  const audienceRows = bucketAudience(rows)
-  const returningUserCount = Math.max(0, audienceRows.find((r) => r.type === 'returning')?.sessions ?? 0)
+  const returningUserCount = totals
+    ? Math.max(0, Number(totals.activeUsers ?? 0) - Number(totals.newUsers ?? 0))
+    : undefined
 
   return { rows: audienceRows, returningUserCount }
 }

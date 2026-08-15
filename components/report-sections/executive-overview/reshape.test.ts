@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtNum, fmtPct, fmtDuration, pct, buildTrendRows, buildChannelData } from './reshape'
+import { fmtNum, fmtPct, fmtDuration, pct, buildTrendRows, buildChannelData, buildAudienceRows } from './reshape'
 
 describe('formatters', () => {
   it('renders a dash for a missing number', () => {
@@ -58,5 +58,22 @@ describe('buildChannelData', () => {
     ]
     const out = buildChannelData(rows, null, null)
     expect(out.convData.map(r => r.name)).toEqual(['Organic Search'])
+  })
+})
+
+describe('buildAudienceRows', () => {
+  const rows = [
+    { newVsReturning: 'new',       sessions: 100, engagementRate: 0.5, averageSessionDuration: 60 },
+    { newVsReturning: 'returning', sessions: 200, engagementRate: 0.7, averageSessionDuration: 120 },
+  ]
+
+  it('computes returningUserCount from the totals row when provided', () => {
+    const out = buildAudienceRows(rows, { activeUsers: 62108, newUsers: 34872 })
+    expect(out.returningUserCount).toBe(27236)
+  })
+
+  it('omits returningUserCount when totals are unavailable', () => {
+    const out = buildAudienceRows(rows, null)
+    expect(out.returningUserCount).toBeUndefined()
   })
 })
