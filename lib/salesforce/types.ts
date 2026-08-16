@@ -37,3 +37,19 @@ export interface PipelineData extends PipelineKpis {
   /** True when the by-owner query hit maxRows, so the list may be truncated. */
   ownersTruncated: boolean
 }
+
+export interface WeekBucket {
+  /** ISO year and week, e.g. '2026-W33'. Normalized from the API's 'YYYY|WW'. */
+  week: string
+  contacts: number
+}
+
+export interface WeeklyContacts {
+  weeks: WeekBucket[]
+  currentWeek: number
+  previousWeek: number
+  /** Same ISO week last year, or undefined when the compare query failed or had no matching week. */
+  priorYearWeek?: number
+  /** Percent change current vs previous week, undefined when previous is 0. */
+  weekOverWeek?: number
+}
