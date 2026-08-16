@@ -11,6 +11,12 @@ const rows = [
   { opportunity_stage_name: 'Set Up',            opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 5,   opportunity_count: 11,   opportunity_amount: 123238.68 },
   // The trap: Closed Won appears twice when probability is a dimension.
   { opportunity_stage_name: 'Closed Won',        opportunity_is_won: true,  opportunity_is_closed: true,  opportunity_probability: 25,  opportunity_count: 1,    opportunity_amount: 15297.6 },
+  // Deliberately hypothetical: in the live data, renewal stages always carry a $0
+  // amount, so this row can't happen today. It guards the case where the CRM
+  // starts populating renewal amounts, at which point the is_won flag would
+  // silently absorb them into closed won if the implementation ever keyed off
+  // it instead of the Closed Won stage literal.
+  { opportunity_stage_name: 'Renewed Pending Payment', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 26, opportunity_amount: 250000 },
 ] as unknown as Record<string, string>[]
 
 describe('transformPipeline', () => {
@@ -27,6 +33,10 @@ describe('transformPipeline', () => {
   it('identifies won by the Closed Won stage literal, not the won flag', () => {
     const p = transformPipeline(rows, null)
     // Renewed is won=true but is NOT counted: it carries $0 and is not new business.
+    // Renewed Pending Payment is also won=true, IS closed, and carries a non-zero
+    // amount, but its stage is not Closed Won, so it is not counted either. This
+    // second case is the one a stage === CLOSED_WON check catches and a naive
+    // r.isWon check would not: swap the implementation to r.isWon and this fails.
     expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
   })
 
@@ -58,12 +68,23 @@ describe('transformPipeline', () => {
     expect(p.openDeals.value).toBe(0)
     expect(p.closedWon.value).toBe(0)
   })
+
+  it('does not let one unparseable amount NaN-poison a tile', () => {
+    const badRows = [
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10, opportunity_amount: '1,234.56' },
+      { opportunity_stage_name: 'Set Up',             opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 5,  opportunity_count: 5,  opportunity_amount: 1000 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(badRows, null)
+    // The unparseable amount coerces to 0, not NaN, so the tile still reads a real number.
+    expect(Number.isFinite(p.totalPipeline.value)).toBe(true)
+    expect(p.totalPipeline.value).toBe(1000)
+  })
 })
 
 describe('transformByOwner', () => {
   const owners = [
-    { opportunity_owner: 'Owner A', opportunity_count: 10, opportunity_amount: 500 },
-    { opportunity_owner: 'Owner B', opportunity_count: 30, opportunity_amount: 100 },
+    { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 10, opportunity_amount: 500 },
+    { opportunity_owner: 'Owner B', opportunity_is_closed: false, opportunity_count: 30, opportunity_amount: 100 },
   ] as unknown as Record<string, string>[]
 
   it('sorts by count descending', () => {
@@ -74,5 +95,40 @@ describe('transformByOwner', () => {
   it('flags truncation when the row count hits maxRows', () => {
     expect(transformByOwner(owners, 2).truncated).toBe(true)
     expect(transformByOwner(owners, 500).truncated).toBe(false)
+  })
+
+  it('excludes closed rows from the open-deals owner breakdown', () => {
+    const withClosed = [
+      ...owners,
+      { opportunity_owner: 'Owner A', opportunity_is_closed: true, opportunity_count: 999, opportunity_amount: 999999 },
+    ] as unknown as Record<string, string>[]
+    const out = transformByOwner(withClosed, 500)
+    // Owner A's closed row must not inflate her open count/amount.
+    expect(out.rows.find(r => r.owner === 'Owner A')).toEqual({ owner: 'Owner A', count: 10, amount: 500 })
+  })
+
+  it('sums two open rows for the same owner into one entry', () => {
+    const split = [
+      { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 10, opportunity_amount: 500 },
+      { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 5,  opportunity_amount: 250 },
+    ] as unknown as Record<string, string>[]
+    const out = transformByOwner(split, 500)
+    expect(out.rows).toEqual([{ owner: 'Owner A', count: 15, amount: 750 }])
+  })
+
+  it('falls back to Unassigned for a blank owner, not just a missing one', () => {
+    const blank = [
+      { opportunity_owner: '', opportunity_is_closed: false, opportunity_count: 3, opportunity_amount: 90 },
+    ] as unknown as Record<string, string>[]
+    const out = transformByOwner(blank, 500)
+    expect(out.rows).toEqual([{ owner: 'Unassigned', count: 3, amount: 90 }])
+  })
+
+  it('does not let one unparseable amount NaN-poison an owner total', () => {
+    const badAmount = [
+      { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 4, opportunity_amount: 'not-a-number' },
+    ] as unknown as Record<string, string>[]
+    const out = transformByOwner(badAmount, 500)
+    expect(out.rows).toEqual([{ owner: 'Owner A', count: 4, amount: 0 }])
   })
 })
