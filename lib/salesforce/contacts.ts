@@ -48,6 +48,11 @@ export function transformWeeklyContacts(
 ): WeeklyContacts {
   const weeks = toWeekBuckets(rows)
   const currentWeek = weeks.at(-1)?.contacts ?? 0
+  // previousWeek is the previous PRESENT bucket (the second-to-last after empty
+  // weeks are already absent from the API response), not necessarily the
+  // immediately preceding calendar week. If a week had zero contacts, it never
+  // appears as a row, so weekOverWeek can end up comparing two non-adjacent
+  // weeks. This is a consequence of the API omitting empty periods, by design.
   const previousWeek = weeks.at(-2)?.contacts ?? 0
   const weekOverWeek = previousWeek > 0 ? ((currentWeek - previousWeek) / previousWeek) * 100 : undefined
   return { weeks, currentWeek, previousWeek, priorYearWeek, weekOverWeek }
@@ -60,6 +65,11 @@ export function transformWeeklyContacts(
  * contact created date, so these are genuinely new contacts per week.
  */
 export async function getSalesforceWeeklyContacts(slug: string): Promise<WeeklyContacts> {
+  // Under year_to_date the latest bucket is usually an in-progress, partial
+  // week (whatever days have elapsed so far), compared against previousWeek,
+  // a complete prior week. weekOverWeek and priorYearWeek are therefore a
+  // partial-vs-complete comparison, not partial-vs-partial. By design: the
+  // API has no notion of "week so far" to fetch instead.
   const dateRange = 'year_to_date'
   const cmpIso = resolveCompareIso(dateRange, 'previous_year')
   const [rows, cmpRows] = await Promise.all([

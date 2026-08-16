@@ -133,6 +133,7 @@ describe('getSalesforceWeeklyContacts', () => {
   })
 
   it('degrades to no prior-year figure, not a thrown error, when the compare fetch fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
     ;(salesforceQuery as Mock).mockImplementation((_slug: string, _fields: string[], dateRange: string) => {
       if (dateRange === '2025-01-01,2025-12-31') return Promise.reject(new Error('timeout'))
@@ -141,6 +142,68 @@ describe('getSalesforceWeeklyContacts', () => {
     const w = await getSalesforceWeeklyContacts('acme')
     expect(w.priorYearWeek).toBeUndefined()
     expect(w.currentWeek).toBe(131)
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[salesforce] contacts compare fetch failed'), expect.any(Error),
+    )
+    errorSpy.mockRestore()
+  })
+
+  it('derives the latest week from chronological order, not the raw last API row', async () => {
+    // Current-set rows arrive raw-last = W31 but chronologically-latest = W33 (the
+    // API gives no order guarantee). The compare set has different figures for the
+    // two candidate weeks, so matching against the wrong "latest" is observable: a
+    // fetcher that looks up latestWeek from rows.at(-1) instead of the sorted
+    // buckets would report 50 (W31) here instead of the correct 77 (W33).
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, _fields: string[], dateRange: string) => {
+      if (dateRange === '2025-01-01,2025-12-31') {
+        return Promise.resolve([
+          { yearWeekIso_created: '2025|31', contact_count: 50 },
+          { yearWeekIso_created: '2025|33', contact_count: 77 },
+        ])
+      }
+      return Promise.resolve([
+        { yearWeekIso_created: '2026|33', contact_count: 131 },
+        { yearWeekIso_created: '2026|31', contact_count: 132 },
+      ])
+    })
+    const w = await getSalesforceWeeklyContacts('acme')
+    expect(w.priorYearWeek).toBe(77)
+  })
+
+  it('passes previous_year to resolveCompareIso for the year-to-date window', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockResolvedValue([{ yearWeekIso_created: '2026|33', contact_count: 131 }])
+    await getSalesforceWeeklyContacts('acme')
+    expect(resolveCompareIso).toHaveBeenCalledWith('year_to_date', 'previous_year')
+  })
+
+  it('does not throw when the current fetch is empty but the compare fetch succeeds', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, _fields: string[], dateRange: string) => {
+      if (dateRange === '2025-01-01,2025-12-31') {
+        return Promise.resolve([{ yearWeekIso_created: '2025|10', contact_count: 999 }])
+      }
+      return Promise.resolve([])
+    })
+    const w = await getSalesforceWeeklyContacts('acme')
+    expect(w.priorYearWeek).toBeUndefined()
+    expect(w.currentWeek).toBe(0)
+  })
+
+  it('keeps compare-set rows out of the returned weeks series', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, _fields: string[], dateRange: string) => {
+      if (dateRange === '2025-01-01,2025-12-31') {
+        return Promise.resolve([{ yearWeekIso_created: '2025|33', contact_count: 77 }])
+      }
+      return Promise.resolve([
+        { yearWeekIso_created: '2026|31', contact_count: 132 },
+        { yearWeekIso_created: '2026|33', contact_count: 131 },
+      ])
+    })
+    const w = await getSalesforceWeeklyContacts('acme')
+    expect(w.weeks.map((b) => b.week)).toEqual(['2026-W31', '2026-W33'])
   })
 
   it('skips the compare fetch entirely when resolveCompareIso returns null', async () => {
