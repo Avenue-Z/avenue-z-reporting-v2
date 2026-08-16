@@ -65,34 +65,38 @@ describe('transformPipeline', () => {
     expect(p.weightedPipeline.value).toBeLessThan(10_000_000)
   })
 
-  it('computes deltas against a compare set and omits them without one', () => {
+  it('suppresses delta on the three open tiles even with a healthy nonzero compare set', () => {
+    // A compare set with a large, plainly nonzero prior for every open-pipeline
+    // field. If openDeals/totalPipeline/weightedPipeline ever got re-wired back
+    // to their priors (the bug being fixed here), this is exactly the fixture
+    // that would produce a visible, wrong percentage instead of staying silent.
     const cmp = [
       { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 200, opportunity_amount: 10_000_000 },
+      { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 50, opportunity_amount: 20_000_000 },
     ] as unknown as Record<string, string>[]
     const withCmp = transformPipeline(rows, cmp)
-    expect(withCmp.openDeals.delta).toBeCloseTo(((281 - 200) / 200) * 100, 1)
+    expect(withCmp.openDeals.delta).toBeUndefined()
+    expect(withCmp.totalPipeline.delta).toBeUndefined()
+    expect(withCmp.weightedPipeline.delta).toBeUndefined()
     const noCmp = transformPipeline(rows, null)
     expect(noCmp.openDeals.delta).toBeUndefined()
+    expect(noCmp.totalPipeline.delta).toBeUndefined()
+    expect(noCmp.weightedPipeline.delta).toBeUndefined()
   })
 
-  it('wires each tile delta to its own prior, not a cross-wired one', () => {
-    // Four mutually distinct priors, so a cross-wired delta (e.g. weightedPipeline
-    // reading closedWon's prior, or totalPipeline reading openDeals') shows up as
-    // a wrong number instead of a coincidental match.
+  it('still computes closedWon delta from its own prior, not a cross-wired one', () => {
+    // Two distinct nonzero priors so a cross-wired closedWon (e.g. reading
+    // totalPipeline's prior instead of its own) shows up as a wrong number
+    // rather than a coincidental match.
     const cmp = [
-      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 20,  opportunity_count: 50, opportunity_amount: 200000 },
-      { opportunity_stage_name: 'Set Up',             opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 50,  opportunity_count: 30, opportunity_amount: 100000 },
-      { opportunity_stage_name: 'Closed Won',         opportunity_is_won: true,  opportunity_is_closed: true,  opportunity_probability: 100, opportunity_count: 5,  opportunity_amount: 999999 },
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 20, opportunity_count: 50, opportunity_amount: 200000 },
+      { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 5, opportunity_amount: 999999 },
     ] as unknown as Record<string, string>[]
-    const priorOpenDeals = 80          // 50 + 30
-    const priorTotalPipeline = 300000  // 200000 + 100000
-    const priorWeighted = 200000 * 0.2 + 100000 * 0.5 // 90000
     const priorClosedWon = 999999
     const p = transformPipeline(rows, cmp)
-    expect(p.openDeals.delta).toBeCloseTo(((p.openDeals.value - priorOpenDeals) / priorOpenDeals) * 100, 4)
-    expect(p.totalPipeline.delta).toBeCloseTo(((p.totalPipeline.value - priorTotalPipeline) / priorTotalPipeline) * 100, 4)
     expect(p.closedWon.delta).toBeCloseTo(((p.closedWon.value - priorClosedWon) / priorClosedWon) * 100, 4)
-    expect(p.weightedPipeline.delta).toBeCloseTo(((p.weightedPipeline.value - priorWeighted) / priorWeighted) * 100, 4)
+    const noCmp = transformPipeline(rows, null)
+    expect(noCmp.closedWon.delta).toBeUndefined()
   })
 
   it('returns zeros, not throws, on empty input', () => {

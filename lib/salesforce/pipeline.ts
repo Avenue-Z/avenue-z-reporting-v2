@@ -52,6 +52,11 @@ function kpi(value: number, prior?: number): PipelineKpi {
   return { value, delta: pct(value, prior) }
 }
 
+/** A tile with delta deliberately withheld. See the comment in transformPipeline for why. */
+function kpiNoDelta(value: number): PipelineKpi {
+  return { value }
+}
+
 /**
  * Aggregates a stage breakdown into the four pipeline tiles.
  * Sums by stage rather than finding a row: when probability is a dimension,
@@ -75,10 +80,25 @@ export function transformPipeline(
   const cur = agg(toStageRows(rows))
   const prev = cmpRows ? agg(toStageRows(cmpRows)) : null
   return {
-    openDeals:        kpi(cur.openDeals,     prev?.openDeals),
-    totalPipeline:    kpi(cur.totalPipeline, prev?.totalPipeline),
-    closedWon:        kpi(cur.closedWon,     prev?.closedWon),
-    weightedPipeline: kpi(cur.weighted,      prev?.weighted),
+    // openDeals, totalPipeline, and weightedPipeline never carry a year-over-year
+    // delta, on purpose. Openness is evaluated as of now, not as of the historical
+    // window: a deal whose close date fell in the prior-year window has had a full
+    // year to close, so the prior window's open pipeline trends to zero by
+    // construction. Verified against live data: 297 open deals in the 2026 YTD
+    // window versus 1 in the same window a year earlier (and that lone survivor is
+    // a single $0 Renewal Released). Comparing this year's ~$18M open pipeline to a
+    // prior window that has almost nothing left open is not a stale or missing
+    // comparison, it is a structurally invalid one, so these three tiles suppress
+    // delta unconditionally, even when a compare set with real nonzero values is
+    // supplied. Do not "fix" this by wiring prev back in: the near-zero prior
+    // makes the percent swing look enormous (was +29,600% before this was caught).
+    openDeals:        kpiNoDelta(cur.openDeals),
+    totalPipeline:    kpiNoDelta(cur.totalPipeline),
+    // closedWon is unaffected: closed-won is a historical fact recorded at close
+    // time, it does not change with the passage of time, so comparing this year's
+    // closed-won to last year's closed-won is a sound comparison and keeps its delta.
+    closedWon:        kpi(cur.closedWon, prev?.closedWon),
+    weightedPipeline: kpiNoDelta(cur.weighted),
   }
 }
 

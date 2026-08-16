@@ -10,7 +10,19 @@ export interface StageRow {
 
 export interface PipelineKpi {
   value: number
-  /** Percent change vs the compare window, undefined when no baseline. */
+  /**
+   * Percent change vs the compare window. Undefined covers two different
+   * situations: no baseline was available (compare fetch failed or the prior
+   * value was 0), or the comparison is withheld on purpose because it would be
+   * structurally invalid, as pipeline.ts does for openDeals, totalPipeline, and
+   * weightedPipeline (openness is measured as of now, so a prior-year window has
+   * had a year to close and trends to ~0 open by construction). The two cases
+   * are not distinguished in the type: the only current consumer is not yet
+   * built, so there is nothing to prove a richer shape against yet. If a
+   * consumer needs to render these differently (e.g. "no comparison available"
+   * vs. "not comparable"), add a discriminant then, once real UI requirements
+   * exist to design it against.
+   */
   delta?: number
 }
 

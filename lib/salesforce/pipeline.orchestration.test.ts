@@ -60,6 +60,32 @@ describe('getSalesforcePipeline', () => {
     expect(data.weightedPipeline.delta).toBeUndefined()
   })
 
+  test('open tiles suppress delta while closedWon still computes one, end to end through a fetched compare set', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === '2025-01-01,2025-12-31') {
+        // The compare window: a healthy, nonzero prior for every field, same
+        // shape as the live 2025 data before deals had a year to close. If
+        // suppression were bypassed at this layer (e.g. by not passing cmpRows
+        // through), these nonzero priors would surface as real percentages.
+        return Promise.resolve([
+          stageRow('Proposal Released', 200, 10_000_000, 25),
+          stageRow('Closed Won', 50, 20_000_000, 100, true),
+        ])
+      }
+      return Promise.resolve([
+        stageRow('Proposal Released', 10, 1000, 25),
+        stageRow('Closed Won', 4, 40_000, 100, true),
+      ])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.openDeals.delta).toBeUndefined()
+    expect(data.totalPipeline.delta).toBeUndefined()
+    expect(data.weightedPipeline.delta).toBeUndefined()
+    expect(data.closedWon.delta).toBeCloseTo(((40_000 - 20_000_000) / 20_000_000) * 100, 4)
+  })
+
   test('a successful path composes all four tiles plus owners, querying stages at STAGE_MAX_ROWS', async () => {
     ;(resolveCompareIso as Mock).mockReturnValue(null)
     ;(salesforceQuery as Mock).mockImplementation(
