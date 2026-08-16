@@ -13,8 +13,10 @@ const STAGE_FIELDS = [
 const OWNER_FIELDS = ['opportunity_owner', 'opportunity_is_closed', 'opportunity_count', 'opportunity_amount']
 // About 39 owners, open and closed, well under this cap.
 const OWNER_MAX_ROWS = 500
-// The live stage breakdown is about 18 rows, so this is ample headroom. That is
-// also why the stage query carries no truncation flag of its own.
+// Live cardinality is about 18 rows, well under this cap, but only because
+// probability is currently a per-stage default. A client setting probability
+// per deal makes cardinality stage times probability, so this still needs its
+// own truncation flag: see stageTruncated below.
 const STAGE_MAX_ROWS = 500
 
 /** The only stage that means new-business won. Never use is_won: it also covers renewals carrying $0. */
@@ -140,7 +142,15 @@ export async function getSalesforcePipeline(slug: string): Promise<PipelineData>
   const cmpIso = resolveCompareIso(dateRange, 'previous_year')
   const [stageRows, cmpStageRows, ownerRows] = await Promise.all([
     salesforceQuery(slug, STAGE_FIELDS, dateRange, { maxRows: STAGE_MAX_ROWS }),
-    cmpIso ? salesforceQuery(slug, STAGE_FIELDS, cmpIso, { maxRows: STAGE_MAX_ROWS }).catch(() => null) : Promise.resolve(null),
+    cmpIso
+      ? salesforceQuery(slug, STAGE_FIELDS, cmpIso, { maxRows: STAGE_MAX_ROWS }).catch((e) => {
+          // Same degrade-not-fail contract as the owner fetch below: a persistently
+          // failing compare fetch silently drops the closed-won year-over-year
+          // delta, so it needs the same operational signal before it swallows it.
+          console.error(`[salesforce] pipeline compare fetch failed for ${slug}:`, e)
+          return null
+        })
+      : Promise.resolve(null),
     salesforceQuery(slug, OWNER_FIELDS, dateRange, { maxRows: OWNER_MAX_ROWS }).catch((e) => {
       // A failed fetch must surface as byOwner: null, never as an empty list, so
       // it never reads as "this client has no owners". Log before swallowing.
@@ -154,5 +164,8 @@ export async function getSalesforcePipeline(slug: string): Promise<PipelineData>
     ...kpis,
     byOwner: owner ? owner.rows : null,
     ownersTruncated: owner ? owner.truncated : false,
+    // Drives all four headline tiles, unlike the owner breakdown, so a silent
+    // truncation here would corrupt client-facing numbers rather than just a chart.
+    stageTruncated: stageRows.length >= STAGE_MAX_ROWS,
   }
 }

@@ -25,15 +25,27 @@ function normalizeWeek(key: string): string {
   return `${year}-W${String(week ?? '').padStart(2, '0')}`
 }
 
+/** A normalized week key looks like '2026-W33'. Anything else (e.g. a missing or
+ * malformed yearWeekIso_created normalizes to '-W00') is not a real week. */
+const WEEK_KEY_RE = /^\d{4}-W\d{2}$/
+
 /** Rows into normalized, chronologically sorted buckets. Shared by the transform and
- * the fetcher, so both agree on which bucket is "latest" (see getSalesforceWeeklyContacts). */
+ * the fetcher, so both agree on which bucket is "latest" (see getSalesforceWeeklyContacts).
+ * A malformed key is dropped rather than kept: '-W00' sorts first so it can never
+ * become the current week, but with exactly two buckets it would become
+ * previousWeek and produce a nonsense weekOverWeek. */
 function toWeekBuckets(rows: Record<string, string>[]): WeekBucket[] {
-  return rows
-    .map((r) => ({
-      week: normalizeWeek(String(r.yearWeekIso_created ?? '')),
-      contacts: toNumber(r.contact_count),
-    }))
-    .sort((a, b) => a.week.localeCompare(b.week))
+  const buckets: WeekBucket[] = []
+  for (const r of rows) {
+    const raw = String(r.yearWeekIso_created ?? '')
+    const week = normalizeWeek(raw)
+    if (!WEEK_KEY_RE.test(week)) {
+      console.warn(`[salesforce] dropping malformed week key:`, raw)
+      continue
+    }
+    buckets.push({ week, contacts: toNumber(r.contact_count) })
+  }
+  return buckets.sort((a, b) => a.week.localeCompare(b.week))
 }
 
 /**
@@ -86,6 +98,18 @@ export async function getSalesforceWeeklyContacts(slug: string): Promise<WeeklyC
   // row order is not guaranteed to line up with the current set's), and against the
   // chronologically latest bucket, not just the last row the API happened to return
   // (the API does not guarantee row order, only that the shape is one row per week).
+  //
+  // Known artifact: matching by ISO week number does not mean matching an equal
+  // number of days. The compare window ends on the same calendar date a year
+  // earlier, which almost never falls on the same weekday, so the two windows
+  // that share a week number are not the same length. Worked example: today
+  // 2026-08-16 is a Sunday, so the current 2026-W33 bucket covers a full 7 days,
+  // but 2025-08-16 (a year earlier) is a Saturday, so 2025-W33 is clipped to 6
+  // days by the window boundary. The prior-year figure is understated by roughly
+  // a seventh right now. The drift ranges 0 to 6 days and reverses direction
+  // between years depending on where the anniversary date falls in its week, so
+  // there is no fixed correction to apply here: this is why the figure can look
+  // low even when nothing is actually down.
   let priorYearWeek: number | undefined
   const latestWeek = toWeekBuckets(rows).at(-1)?.week
   if (cmpRows && latestWeek) {

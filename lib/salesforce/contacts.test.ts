@@ -82,6 +82,24 @@ describe('transformWeeklyContacts', () => {
     expect(w.weekOverWeek).toBeUndefined()
   })
 
+  it('drops a malformed week key rather than letting it become a bogus previous week', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const withMalformed = [
+      // A missing yearWeekIso_created normalizes to '-W00', which sorts first.
+      // With exactly two buckets left, it would become previousWeek and produce
+      // a nonsense weekOverWeek if it were not dropped.
+      { yearWeekIso_created: '', contact_count: 999 },
+      { yearWeekIso_created: '2026|33', contact_count: 131 },
+    ] as unknown as Record<string, string>[]
+    const w = transformWeeklyContacts(withMalformed, undefined)
+    expect(w.weeks).toEqual([{ week: '2026-W33', contacts: 131 }])
+    expect(w.currentWeek).toBe(131)
+    expect(w.previousWeek).toBe(0)
+    expect(w.weekOverWeek).toBeUndefined()
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), '')
+    warnSpy.mockRestore()
+  })
+
   it('does not let one unparseable contact_count NaN-poison the bucket', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const bad = [
@@ -105,10 +123,15 @@ describe('getSalesforceWeeklyContacts', () => {
     ;(salesforceQuery as Mock).mockImplementation((_slug: string, _fields: string[], dateRange: string) => {
       if (dateRange === '2025-01-01,2025-12-31') {
         return Promise.resolve([
-          // Out of position order, plus a decoy week, so a positional (same-index)
-          // match would pick the wrong bucket instead of matching by week number.
-          { yearWeekIso_created: '2025|10', contact_count: 999 },
+          // The correct match by week number (33, matching the current set's
+          // latest week below).
           { yearWeekIso_created: '2025|33', contact_count: 77 },
+          // Decoy with a HIGHER week number than the correct match: it is both
+          // the raw array's last element and, after sorting, the chronologically
+          // latest bucket. An implementation that picked the last row (by raw
+          // position or by sorted position) instead of matching on week number
+          // would return 999 here instead of 77.
+          { yearWeekIso_created: '2025|40', contact_count: 999 },
         ])
       }
       return Promise.resolve([

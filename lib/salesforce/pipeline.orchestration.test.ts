@@ -46,6 +46,7 @@ describe('getSalesforcePipeline', () => {
   })
 
   test('a failed compare fetch still resolves, with deltas absent rather than the section failing', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
     ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[], dateRange: string) => {
       if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
@@ -58,6 +59,10 @@ describe('getSalesforcePipeline', () => {
     expect(data.totalPipeline.delta).toBeUndefined()
     expect(data.closedWon.delta).toBeUndefined()
     expect(data.weightedPipeline.delta).toBeUndefined()
+    // The failure is logged, same convention as the owner-fetch failure below, not
+    // just silently swallowed.
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce] pipeline compare fetch failed'), expect.any(Error))
+    errorSpy.mockRestore()
   })
 
   test('open tiles suppress delta while closedWon still computes one, end to end through a fetched compare set', async () => {
@@ -106,5 +111,51 @@ describe('getSalesforcePipeline', () => {
     expect(data.weightedPipeline.value).toBeCloseTo(250, 2) // 1000 * 0.25
     expect(data.byOwner).toEqual([{ owner: 'Owner A', count: 5, amount: 500 }])
     expect(data.ownersTruncated).toBe(false)
+    expect(data.stageTruncated).toBe(false)
+  })
+
+  test('flags stage truncation when the stage query hits its cap', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    const cappedStageRows = Array.from({ length: 500 }, (_, i) => stageRow(`Stage ${i}`, 1, 100))
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve(cappedStageRows)
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.stageTruncated).toBe(true)
+  })
+
+  test('does not flag stage truncation when the stage query is under its cap', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.stageTruncated).toBe(false)
+  })
+
+  test('owner query uses the main date range and OWNER_MAX_ROWS cap, and flags truncation end to end when it hits that cap', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    const cappedOwners = Array.from({ length: 500 }, (_, i) => ownerRow(`Owner ${i}`, 1, 10))
+    ;(salesforceQuery as Mock).mockImplementation(
+      (_slug: string, fields: string[], dateRange: string, opts: { maxRows?: number }) => {
+        if (fields.includes('opportunity_owner')) {
+          // Pins the owner query to the main range and its own cap: a reverted
+          // implementation pointing it at cmpIso instead, or passing the wrong
+          // maxRows, would fail these rather than passing silently against a
+          // one-row fixture like the earlier tests use.
+          expect(dateRange).toBe('year_to_date')
+          expect(opts?.maxRows).toBe(500) // OWNER_MAX_ROWS
+          return Promise.resolve(cappedOwners)
+        }
+        if (dateRange === '2025-01-01,2025-12-31') return Promise.resolve([])
+        return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+      },
+    )
+    const data = await getSalesforcePipeline('acme')
+    // ownersTruncated: true is never produced anywhere else in this file: without
+    // this case, a truncation flag that was always false would pass every other test.
+    expect(data.ownersTruncated).toBe(true)
   })
 })

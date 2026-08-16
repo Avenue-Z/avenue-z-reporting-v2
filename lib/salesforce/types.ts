@@ -48,6 +48,13 @@ export interface PipelineData extends PipelineKpis {
   byOwner: OwnerRow[] | null
   /** True when the by-owner query hit maxRows, so the list may be truncated. */
   ownersTruncated: boolean
+  /**
+   * True when the stage query hit maxRows, so the four headline tiles derived
+   * from it (openDeals, totalPipeline, closedWon, weightedPipeline) may be
+   * undercounted. Parallel to ownersTruncated, but higher stakes: this one
+   * drives the client-facing headline numbers, not just a supporting chart.
+   */
+  stageTruncated: boolean
 }
 
 export interface WeekBucket {

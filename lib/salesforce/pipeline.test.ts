@@ -99,6 +99,17 @@ describe('transformPipeline', () => {
     expect(noCmp.closedWon.delta).toBeUndefined()
   })
 
+  it('guards against Infinity when the prior closedWon is zero', () => {
+    // A compare set that succeeds but has no Closed Won row: prior is 0, and only
+    // the prior === 0 guard in pct() stops (current - 0) / 0 from producing
+    // Infinity instead of an absent delta. Remove that guard and this fails.
+    const cmpNoWon = [
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 5, opportunity_amount: 1000 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(rows, cmpNoWon)
+    expect(p.closedWon.delta).toBeUndefined()
+  })
+
   it('returns zeros, not throws, on empty input', () => {
     const p = transformPipeline([], null)
     expect(p.openDeals.value).toBe(0)
