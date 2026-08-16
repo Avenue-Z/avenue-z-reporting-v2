@@ -23,6 +23,7 @@ Do not attempt to cherry-pick or merge the Overview branch into this one to skip
 - **Account resolution always pins the Salesforce org id from `clients.salesforce_config`.** The literal string `list.all_accounts` must never appear anywhere in this codebase.
 - **The org id lives in the database row, never in code.** This is the exact mistake that made the HubSpot sections unusable for any second client. Do not repeat it.
 - **`opportunity_probability` is 0 to 100. Divide by 100 before multiplying by amount.** Porting the HubSpot formula unchanged overstates Weighted Pipeline by 100x. A test pins this.
+- **CORRECTION, recorded after Half A shipped: `openDeals`, `totalPipeline`, and `weightedPipeline` never carry a year-over-year delta.** Openness is evaluated as of now, not as of the historical window, so a deal whose close date fell in the prior-year window has had a full year to close. Live check on 2026-08-16: the 2026 year-to-date window held 297 open deals; the same window in 2025 held exactly one still-open deal, carrying $0. Left unfixed, the open-deals tile rendered +29,600 percent. These three tiles suppress delta unconditionally, by design, even when the compare set has healthy nonzero values, because the comparison itself is structurally invalid, not because the data is missing. Only `closedWon` keeps a delta (it read +15.7 percent live), because closed-won is recorded at close time and does not decay with elapsed time. Half B must not build any UI expecting all four tiles to have a comparison.
 - **On-screen copy never names a CRM vendor.** Labels say CRM, not Salesforce or HubSpot. The `NeedsConnection` card keeps `sourceName="CRM"`.
 - **"Won" means the stage literal `Closed Won` exactly** (capital C, capital W, one space, no hyphen). Never `opportunity_is_won`, which also covers 1,848+ renewals carrying $0.
 - **Sum by stage after fetching; never `find()` a stage row.** When `opportunity_probability` is in the field list, Supermetrics returns one row per (stage, probability) pair, so `Closed Won` appears twice. A `find()` silently drops the second row.
@@ -287,7 +288,14 @@ export interface StageRow {
 
 export interface PipelineKpi {
   value: number
-  /** Percent change vs the compare window, undefined when no baseline. */
+  /**
+   * Percent change vs the compare window. Undefined covers two different
+   * cases: no baseline was available (compare fetch failed, or the prior
+   * value was 0), or the comparison is withheld on purpose because it would
+   * be structurally invalid, as it is for openDeals, totalPipeline, and
+   * weightedPipeline (see Global Constraints). The two cases are not
+   * distinguished in this type yet; see the note in Task 8.
+   */
   delta?: number
 }
 
@@ -358,14 +366,26 @@ describe('transformPipeline', () => {
     expect(p.weightedPipeline.value).toBeLessThan(10_000_000)
   })
 
-  it('computes deltas against a compare set and omits them without one', () => {
+  it('suppresses delta on openDeals, totalPipeline, and weightedPipeline even with a healthy nonzero compare set', () => {
     const cmp = [
       { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 200, opportunity_amount: 10_000_000 },
     ] as unknown as Record<string, string>[]
     const withCmp = transformPipeline(rows, cmp)
-    expect(withCmp.openDeals.delta).toBeCloseTo(((281 - 200) / 200) * 100, 1)
+    expect(withCmp.openDeals.delta).toBeUndefined()
+    expect(withCmp.totalPipeline.delta).toBeUndefined()
+    expect(withCmp.weightedPipeline.delta).toBeUndefined()
     const noCmp = transformPipeline(rows, null)
     expect(noCmp.openDeals.delta).toBeUndefined()
+  })
+
+  it('still computes closedWon delta from its own prior, not a cross-wired one', () => {
+    const cmp = [
+      { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 500, opportunity_amount: 25_000_000 },
+    ] as unknown as Record<string, string>[]
+    const withCmp = transformPipeline(rows, cmp)
+    expect(withCmp.closedWon.delta).toBeCloseTo(((30367525.74 - 25_000_000) / 25_000_000) * 100, 1)
+    const noCmp = transformPipeline(rows, null)
+    expect(noCmp.closedWon.delta).toBeUndefined()
   })
 
   it('returns zeros, not throws, on empty input', () => {
@@ -448,6 +468,11 @@ function kpi(value: number, prior?: number): PipelineKpi {
   return { value, delta: pct(value, prior) }
 }
 
+/** A tile with delta deliberately withheld. See the comment in transformPipeline for why. */
+function kpiNoDelta(value: number): PipelineKpi {
+  return { value }
+}
+
 /**
  * Aggregates a stage breakdown into the four pipeline tiles.
  * Sums by stage rather than finding a row: when probability is a dimension,
@@ -471,10 +496,18 @@ export function transformPipeline(
   const cur = agg(toStageRows(rows))
   const prev = cmpRows ? agg(toStageRows(cmpRows)) : null
   return {
-    openDeals:        kpi(cur.openDeals,     prev?.openDeals),
-    totalPipeline:    kpi(cur.totalPipeline, prev?.totalPipeline),
-    closedWon:        kpi(cur.closedWon,     prev?.closedWon),
-    weightedPipeline: kpi(cur.weighted,      prev?.weighted),
+    // openDeals, totalPipeline, and weightedPipeline never carry a year-over-year
+    // delta, on purpose, unconditionally, even when prev has healthy nonzero
+    // values. Openness is evaluated as of now, so a prior-year window has had a
+    // full year to close and trends toward zero open by construction; comparing
+    // this year's open pipeline against that is not a missing comparison, it is
+    // an invalid one. See Global Constraints for the live figures.
+    openDeals:        kpiNoDelta(cur.openDeals),
+    totalPipeline:    kpiNoDelta(cur.totalPipeline),
+    // closedWon is unaffected: closed-won is a historical fact recorded at close
+    // time, so comparing this year's to last year's is a sound comparison.
+    closedWon:        kpi(cur.closedWon, prev?.closedWon),
+    weightedPipeline: kpiNoDelta(cur.weighted),
     byOwner:          [],
     ownersTruncated:  false,
   }
@@ -520,7 +553,7 @@ export async function getSalesforcePipeline(slug: string): Promise<PipelineData>
 - [ ] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run lib/salesforce/pipeline.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 10 tests.
 
 - [ ] **Step 7: Verify types**
 
@@ -715,55 +748,23 @@ contacts a year, steady since 2016, no gaps."
 
 ---
 
-### Task 5: Live smoke test against dev
+### Task 5: Live verification against Supermetrics, no dev database round trip
 
-No files change. This proves the data layer works end to end before any UI depends on it.
+**CORRECTION, recorded after the fact.** This task originally instructed applying migration `0021` to dev, then running the `UPDATE` below, then probing the fetchers. I did neither the migration nor the `UPDATE`. This section now records what I actually did and why, instead of steps that were never taken.
 
-**Files:**
-- None committed. A throwaway probe under the scratchpad, deleted after.
+**Why I skipped the dev migration and the UPDATE.** Dev's drizzle bookkeeping already disagrees with the repository journal: 25 migrations recorded as applied against 22 entries in `drizzle/meta/_journal.json` (see Enablement, per environment, below, for the durable record of this). Running `db:migrate` against dev would apply more than this change intends on top of drift that already exists there. That is a landmine for whoever next runs `db:migrate` against dev without knowing the counts disagree, so I left it recorded here and in the commit rather than running it blind.
 
-- [ ] **Step 1: Confirm the config column exists on dev**
+**What I verified instead.** Zero database access. I ran the real `transformPipeline`, `transformByOwner`, and `transformWeeklyContacts` (the pure functions) over real Renaissance responses pulled from the live Supermetrics API against real Salesforce data, querying with the org id supplied directly rather than through `getClientBySlug`. That covers strictly more risk surface than a dev round trip would have: it exercises the actual transform logic against actual live data shapes, not a mocked fixture, and it is what caught the bug below. What it does not exercise: the roughly six lines inside `salesforceQuery` in `lib/salesforce/base.ts` that read the org id off the client row and resolve the env var naming the API key, since this verification never called that wrapper. Those lines are a character-for-character clone of the equivalent lines in `lib/meta/base.ts`, which run in production daily. Also unexercised: the migration SQL applying at all, a single additive nullable jsonb column.
 
-Run this against the dev database (`ep-still-tree`), read-only:
+**It found a real bug.** By-owner deal count matched the open-deals tile exactly at 297, confirming the open-deals filter is correct rather than merely plausible. Weighted pipeline landed at 4.3M against 18.0M total, confirming the probability divide-by-100. Weekly contacts returned a full 33-bucket year-to-date series, sorted, no malformed keys. And the open-deals tile rendered +29,600 percent before the fix: see the Pipeline year-over-year note in Global Constraints for the live figures (297 open deals in 2026 YTD versus 1 in the same window a year earlier). Fixed in the commit immediately before the verification commit.
 
-```sql
-SELECT column_name FROM information_schema.columns
-WHERE table_name = 'clients' AND column_name = 'salesforce_config';
-```
+- [x] **Step 1: Run the real transforms against real Supermetrics data for renaissance**
 
-If it returns no row, the coordinator applies `drizzle/0021_*.sql` to dev first (`npm run db:migrate` with dev's `DATABASE_URL_UNPOOLED`). This is the only place in the plan a migration is applied, and only on dev.
+No SQL, no migration, no UPDATE, no `getClientBySlug`. Real Salesforce data fetched from the live Supermetrics API with the org id supplied directly, then fed through the real `transformPipeline`, `transformByOwner`, and `transformWeeklyContacts`.
 
-- [ ] **Step 2: Set the config for renaissance on dev**
+- [x] **Step 2: Record the result**
 
-Idempotent, one row:
-
-```sql
-UPDATE clients
-SET salesforce_config = '{"salesforceAccountId":"00D15000000Em4GEAS"}'::jsonb
-WHERE slug = 'renaissance' AND salesforce_config IS NULL;
-```
-
-Confirm avenue-z's row is unchanged afterward.
-
-- [ ] **Step 3: Probe the two fetchers**
-
-Write a throwaway `probe.tmp.ts` in the repo root that imports `getSalesforcePipeline` and `getSalesforceWeeklyContacts`, calls each with `'renaissance'`, and prints the resulting shapes (values only, no owner names). Run: `CACHE_DISABLE=1 npx tsx --env-file=.env.local probe.tmp.ts`.
-
-Expected: `openDeals.value` in the low hundreds, `closedWon.value` around 30 million, `weightedPipeline.value` under 10 million (if it is in the hundreds of millions, the divide-by-100 is missing), `byOwner` non-empty with `ownersTruncated: false`, `weeks.length` around 33 with the last week ending in the current ISO week.
-
-Delete `probe.tmp.ts`. Confirm `git status` is clean.
-
-- [ ] **Step 4: Record the result**
-
-```bash
-git commit --allow-empty -m "chore(salesforce): data layer verified live on dev
-
-Both fetchers run against Renaissance's real Salesforce through
-Supermetrics with the org id read from the client row. Pipeline tiles
-land in the expected ranges, weighted pipeline is in the millions rather
-than the hundreds of millions, by-owner returns unflagged, and weekly
-contacts give a full year-to-date series."
-```
+Actual commit: `chore(salesforce): data layer verified against live Salesforce` (`e7db8e2`), not "verified live on dev". That original wording would misstate what happened: no dev database was read or written for this. The commit body carries the 25-versus-22 journal drift and the bug found.
 
 ---
 
@@ -841,10 +842,13 @@ import { render, screen } from '@testing-library/react'
 import { PipelinePerformance } from './pipeline-performance'
 import type { PipelineData } from '@/lib/salesforce/types'
 
+// openDeals, totalPipeline, and weightedPipeline never carry a delta (see Global
+// Constraints); only closedWon does, and the fixture reflects that rather than
+// pretending all four have one.
 const data: PipelineData = {
-  openDeals:        { value: 281,     delta: 12.4 },
-  totalPipeline:    { value: 16456371, delta: 8.1 },
-  closedWon:        { value: 30367525, delta: undefined },
+  openDeals:        { value: 281 },
+  totalPipeline:    { value: 16456371 },
+  closedWon:        { value: 30367525, delta: 15.7 },
   weightedPipeline: { value: 4089445 },
   byOwner: [{ owner: 'Owner A', count: 30, amount: 100 }, { owner: 'Owner B', count: 10, amount: 500 }],
   ownersTruncated: false,
@@ -884,7 +888,9 @@ Expected: FAIL, cannot resolve.
 
 - [ ] **Step 3: Write the component**
 
-A server component (no `'use client'`): four `KpiCard`s in a `grid grid-cols-2 gap-5 lg:grid-cols-4` using the executive-overview `KpiCard` copy, then a "Open Deals by Owner" `h3` and a plain list of horizontal bars (a `div` per owner with a width proportional to `count / max`, label left, `count` right). USD via `toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })`. Deltas passed straight through as `delta`, with `deltaLabel="vs same period last year"` and `comparisonExpected`. When `ownersTruncated`, render a muted line: `Owner list may be incomplete.` No vendor name anywhere.
+A server component (no `'use client'`): four `KpiCard`s in a `grid grid-cols-2 gap-5 lg:grid-cols-4` using the executive-overview `KpiCard` copy, then a "Open Deals by Owner" `h3` and a plain list of horizontal bars (a `div` per owner with a width proportional to `count / max`, label left, `count` right). USD via `toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })`. Deltas passed straight through as `delta`, with `deltaLabel="vs same period last year"`. Only the closedWon tile sets `comparisonExpected`: openDeals, totalPipeline, and weightedPipeline never carry a delta by design (see Global Constraints), so their cards must not render as if a comparison is coming. When `ownersTruncated`, render a muted line: `Owner list may be incomplete.` No vendor name anywhere.
+
+**Open item, not resolved here:** `delta: undefined` on a `PipelineKpi` currently cannot be distinguished from "the compare fetch failed." For openDeals, totalPipeline, and weightedPipeline that ambiguity does not matter today (they are always undefined, deliberately). It will matter the moment any future tile's delta is *supposed* to be data-dependent and the UI needs to tell "no comparison exists" apart from "the comparison failed to load." Half B should decide how that distinction renders, if at all, rather than carry the ambiguity forward silently.
 
 - [ ] **Step 4: Run to green, tsc, rsc**
 
@@ -985,12 +991,14 @@ In `stages.test.ts`, every existing `buildStages({...})` call gains `pipeline: n
 
 ```ts
 it('populates the pipeline stage when CRM data is present', () => {
-  const pipeline = { openDeals: { value: 281 }, totalPipeline: { value: 16456371, delta: 8.1 }, closedWon: { value: 30367525 }, weightedPipeline: { value: 4089445 }, byOwner: [], ownersTruncated: false }
+  // totalPipeline never carries a delta (see Global Constraints), so the
+  // journey card's delta is undefined even though closedWon has a real one.
+  const pipeline = { openDeals: { value: 281 }, totalPipeline: { value: 16456371 }, closedWon: { value: 30367525, delta: 15.7 }, weightedPipeline: { value: 4089445 }, byOwner: [], ownersTruncated: false }
   const s = buildStages({ totals, cmpTotals, peec, trendRows: [], pipeline, contacts: null })
   const p = s.find(x => x.key === 'pipeline')!
   expect(p.connected).toBeUndefined()
   expect(p.metric).toBe('$16,456,371')
-  expect(p.delta).toBeCloseTo(8.1, 1)
+  expect(p.delta).toBeUndefined()
 })
 
 it('populates the inbound stage from weekly contacts when present', () => {
@@ -1035,7 +1043,11 @@ Add `pipeline: PipelineData | null` and `contacts: WeeklyContacts | null` to `St
       key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
       metric: fmtUsd(pipeline.totalPipeline.value),
       subMetric: `${fmtNum(pipeline.openDeals.value)} open deals`,
-      delta: pipeline.totalPipeline.delta,
+      // No delta: totalPipeline carries no valid year-over-year comparison (see
+      // Global Constraints). Naming it explicitly rather than reading
+      // pipeline.totalPipeline.delta, which would always be undefined anyway
+      // but would read like a live wire waiting to be "fixed."
+      delta: undefined,
       color: CHART_COLORS.neutral,
       heroLabel: `across ${fmtNum(pipeline.openDeals.value)} open deals`,
       stats: [
@@ -1094,6 +1106,8 @@ Two data changes per environment, both after that environment's deploy, both ide
 2. `UPDATE clients SET salesforce_config = '{"salesforceAccountId":"00D15000000Em4GEAS"}'::jsonb WHERE slug='renaissance' AND salesforce_config IS NULL;`
 
 Never `db:seed`. Staging and production credentials are still needed for their steps.
+
+**Before running step 1 against dev specifically:** dev's drizzle bookkeeping already disagrees with the repository journal, 25 migrations recorded as applied against 22 entries in `drizzle/meta/_journal.json`. This is why `db:migrate` was deliberately not run against dev for Task 5's verification (see that task). Confirm what the 3 extra recorded migrations actually are before running `db:migrate` against dev, or this step could apply more than it intends.
 
 ## Follow-ups, out of scope
 

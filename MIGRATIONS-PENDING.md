@@ -24,4 +24,5 @@ above is intentionally still separate and unapplied.
 
 - Migration: `drizzle/0021_old_silver_centurion.sql`
 - Adds one nullable jsonb column. No data change, no backfill.
-- Apply per environment with `npm run db:migrate` against that environment's DATABASE_URL_UNPOOLED, then set the value for renaissance with a targeted UPDATE (see the CRM parity scorecard, enablement section). Never via db:seed.
+- Apply per environment with `npm run db:migrate` against that environment's DATABASE_URL_UNPOOLED, then set the value for renaissance with a targeted UPDATE (see `docs/superpowers/plans/2026-08-16-renaissance-crm-pipeline.md`, "Enablement, per environment").
+- `scripts/seed.ts` does set `salesforceConfig` now (Task 6 of that plan), so the field is not absent from the seed. The reason not to run `db:seed` against a real database is that the seed is stale against live data in both directions and would clobber real client rows, not that it lacks the field.
