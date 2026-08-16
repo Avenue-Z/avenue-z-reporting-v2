@@ -1,12 +1,13 @@
 import type { Granularity } from '@/lib/dashboard/types'
 
-/** Supermetrics data-source ids. Verified live: AW, FA, LIA, SHP. */
+/** Supermetrics data-source ids. Verified live: AW, FA, LIA, SHP, SF. */
 export const DS_IDS = {
   GA4: 'GAWA',
   GOOGLE_ADS: 'AW',
   META: 'FA',
   LINKEDIN: 'LIA',
   SHOPIFY: 'SHP',
+  SALESFORCE: 'SF',
 } as const
 export type DsId = (typeof DS_IDS)[keyof typeof DS_IDS]
 

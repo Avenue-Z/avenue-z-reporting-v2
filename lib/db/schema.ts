@@ -65,6 +65,11 @@ export interface LinkedInConfig {
   linkedinAdAccountId: string
 }
 
+export interface SalesforceConfig {
+  /** Salesforce org id, 18 chars, e.g. '00D15000000Em4GEAS'. Passed as the Supermetrics ds_accounts value. */
+  salesforceAccountId: string
+}
+
 export interface DashSocialConfig {
   /** Dash Social brand id (digits), e.g. 24350. Selects the brand for the shared DASH_API_TOKEN. */
   brandId: number
@@ -141,6 +146,7 @@ export const clients = pgTable('clients', {
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
   metaConfig: jsonb('meta_config').$type<MetaConfig>(),
   linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
+  salesforceConfig: jsonb('salesforce_config').$type<SalesforceConfig>(),
   dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
