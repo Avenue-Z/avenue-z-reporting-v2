@@ -87,11 +87,38 @@ Three options, and this is a business decision rather than a technical one:
 
 ---
 
+## Decisions taken during the build
+
+### Year over year is suppressed on the three open-pipeline tiles. Reversible.
+
+**Decided 2026-08-16. Applies to Open Deals, Total Pipeline, and Weighted Pipeline. Closed Won keeps its delta.**
+
+Avenue Z shows a delta on all four tiles, labelled "vs 2025", so this is a deliberate divergence from the thing we are copying. The mechanism is not different: Avenue Z buckets deals by close-date year and treats "open deals with a 2025 close date, still open right now" as the prior-year figure. I do the same. The flaw is inherent to that approach and Avenue Z's code does not work around it either. Openness is evaluated as of now, so a window a year old has had a full year for its deals to close.
+
+The difference is the data, not the design. Avenue Z's HubSpot carries stale 2025 deals still sitting open, so their comparison has a real baseline. Renaissance closes their deals, so the same window a year back holds exactly one still-open opportunity, a $0 Renewal Released.
+
+What that means concretely, running Avenue Z's own logic unmodified against Renaissance:
+
+| Tile | Avenue Z's logic on Renaissance data | What we ship |
+|---|---|---|
+| Open Deals | **+29,600%** | no delta |
+| Total Pipeline | no delta (prior is $0, their zero guard fires) | no delta |
+| Weighted Pipeline | no delta (prior is $0, their zero guard fires) | no delta |
+| Closed Won | +15.7% | +15.7% |
+
+So three of the four tiles already behave identically, because Avenue Z guards a zero baseline exactly the way we do. The divergence is one tile, Open Deals, and it exists only to stop an absurd number reaching a client.
+
+**To reverse it:** the suppression lives in `transformPipeline` in `lib/salesforce/pipeline.ts`, where the three tiles call `kpiNoDelta` instead of `kpi`. Swap those three calls and the deltas come back. Tests pin the current behavior, so they will fail and need updating too, which is intentional: it should not be possible to flip this by accident.
+
+**When reversing would make sense:** if Renaissance starts carrying meaningful open pipeline on prior-year close dates, or if we replace the proxy with a real point-in-time snapshot (which needs pipeline history we do not have today), or if Nick tells us the comparison is wanted regardless and a large percentage is acceptable in context.
+
+---
+
 ## Open questions
 
 1. Does Renaissance's Salesforce carry a lead-quality field equivalent to ICP/MCP? If yes, is it exposed through Supermetrics?
 2. Is there form or campaign attribution on their contacts, or does that concept not exist for them?
-3. Is `opportunity_probability` 0 to 100? One record settles it and prevents a 100x error.
+3. ~~Is `opportunity_probability` 0 to 100?~~ **Answered: yes, 0 to 100.** Confirmed against live data. The code divides by 100 before weighting and a test pins it, so the 100x error is prevented.
 4. Should Contact Creation ship reduced, showing volume and pacing only, or wait for the gaps to close?
 
 ## Technical notes for the build
