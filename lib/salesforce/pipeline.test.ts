@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { transformPipeline, transformByOwner } from './pipeline'
 
 // Shaped exactly like parseSmRows output for the stage query. Values are numbers
@@ -45,6 +45,18 @@ describe('transformPipeline', () => {
     expect(p.closedWon.value).toBeGreaterThan(30352228.14)
   })
 
+  it('excludes a stage that merely contains "won" but is not the exact literal', () => {
+    const withFuzzyWon = [
+      ...rows,
+      // A plausible wrong implementation is stage.toLowerCase().includes('won'),
+      // which would wrongly absorb this row. It is won=true, closed, and carries
+      // a real amount, but its stage is not the exact "Closed Won" literal.
+      { opportunity_stage_name: 'Closed Won - Renewal', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 3, opportunity_amount: 500000 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(withFuzzyWon, null)
+    expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
+  })
+
   it('divides probability by 100 before weighting', () => {
     const p = transformPipeline(rows, null)
     // 16333132.59 * 0.25 + 123238.68 * 0.05
@@ -63,6 +75,26 @@ describe('transformPipeline', () => {
     expect(noCmp.openDeals.delta).toBeUndefined()
   })
 
+  it('wires each tile delta to its own prior, not a cross-wired one', () => {
+    // Four mutually distinct priors, so a cross-wired delta (e.g. weightedPipeline
+    // reading closedWon's prior, or totalPipeline reading openDeals') shows up as
+    // a wrong number instead of a coincidental match.
+    const cmp = [
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 20,  opportunity_count: 50, opportunity_amount: 200000 },
+      { opportunity_stage_name: 'Set Up',             opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 50,  opportunity_count: 30, opportunity_amount: 100000 },
+      { opportunity_stage_name: 'Closed Won',         opportunity_is_won: true,  opportunity_is_closed: true,  opportunity_probability: 100, opportunity_count: 5,  opportunity_amount: 999999 },
+    ] as unknown as Record<string, string>[]
+    const priorOpenDeals = 80          // 50 + 30
+    const priorTotalPipeline = 300000  // 200000 + 100000
+    const priorWeighted = 200000 * 0.2 + 100000 * 0.5 // 90000
+    const priorClosedWon = 999999
+    const p = transformPipeline(rows, cmp)
+    expect(p.openDeals.delta).toBeCloseTo(((p.openDeals.value - priorOpenDeals) / priorOpenDeals) * 100, 4)
+    expect(p.totalPipeline.delta).toBeCloseTo(((p.totalPipeline.value - priorTotalPipeline) / priorTotalPipeline) * 100, 4)
+    expect(p.closedWon.delta).toBeCloseTo(((p.closedWon.value - priorClosedWon) / priorClosedWon) * 100, 4)
+    expect(p.weightedPipeline.delta).toBeCloseTo(((p.weightedPipeline.value - priorWeighted) / priorWeighted) * 100, 4)
+  })
+
   it('returns zeros, not throws, on empty input', () => {
     const p = transformPipeline([], null)
     expect(p.openDeals.value).toBe(0)
@@ -70,6 +102,7 @@ describe('transformPipeline', () => {
   })
 
   it('does not let one unparseable amount NaN-poison a tile', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const badRows = [
       { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10, opportunity_amount: '1,234.56' },
       { opportunity_stage_name: 'Set Up',             opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 5,  opportunity_count: 5,  opportunity_amount: 1000 },
@@ -78,6 +111,9 @@ describe('transformPipeline', () => {
     // The unparseable amount coerces to 0, not NaN, so the tile still reads a real number.
     expect(Number.isFinite(p.totalPipeline.value)).toBe(true)
     expect(p.totalPipeline.value).toBe(1000)
+    // The bad value is logged, not swallowed silently.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), '1,234.56')
+    warnSpy.mockRestore()
   })
 })
 
@@ -125,10 +161,27 @@ describe('transformByOwner', () => {
   })
 
   it('does not let one unparseable amount NaN-poison an owner total', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const badAmount = [
       { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 4, opportunity_amount: 'not-a-number' },
     ] as unknown as Record<string, string>[]
     const out = transformByOwner(badAmount, 500)
     expect(out.rows).toEqual([{ owner: 'Owner A', count: 4, amount: 0 }])
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), 'not-a-number')
+    warnSpy.mockRestore()
+  })
+
+  it('judges truncation on raw row count, not the aggregated output row count', () => {
+    const raw = [
+      { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 10, opportunity_amount: 500 },
+      { opportunity_owner: 'Owner A', opportunity_is_closed: false, opportunity_count: 5,  opportunity_amount: 250 },
+      { opportunity_owner: 'Owner X', opportunity_is_closed: true,  opportunity_count: 999, opportunity_amount: 999999 },
+    ] as unknown as Record<string, string>[]
+    // 3 raw rows: two open rows for the same owner (aggregate to one output row)
+    // plus a closed row (filtered out entirely). Raw count (3) and output count
+    // (1) diverge, so this is the case that pins truncation to the raw count.
+    const out = transformByOwner(raw, 3)
+    expect(out.rows).toHaveLength(1)
+    expect(out.truncated).toBe(true)
   })
 })

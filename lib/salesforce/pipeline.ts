@@ -27,7 +27,9 @@ const CLOSED_WON = 'Closed Won'
  */
 function toNumber(v: unknown): number {
   const n = Number(v ?? 0)
-  return Number.isFinite(n) ? n : 0
+  if (Number.isFinite(n)) return n
+  console.warn(`[salesforce] unparseable numeric value, defaulting to 0:`, v)
+  return 0
 }
 
 function toStageRows(rows: Record<string, string>[]): StageRow[] {
