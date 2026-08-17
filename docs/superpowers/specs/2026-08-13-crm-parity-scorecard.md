@@ -35,15 +35,15 @@ Avenue Z pulls every deal in one HubSpot pipeline and does all filtering in the 
 |---|---|---|---|
 | Open Deals | count of deals whose stage is not in a 3-id exclusion set, closing this calendar year | `opportunity_stage_name` + `opportunity_close_date` | **Close.** Salesforce exposes `opportunity_is_won` and stage names rather than opaque stage IDs, which is more portable |
 | Total Pipeline | sum of `amount` over that same set | `opportunity_amount` | **Clean** |
-| Closed Won | sum of `amount` where stage ID equals one specific value | `opportunity_amount_closed_won`, or `opportunity_is_won` as a filter | **Clean, and better.** Salesforce has a real won flag. HubSpot matches a hardcoded stage ID |
+| Closed Won | sum of `amount` where stage ID equals one specific value | `opportunity_stage_name` filtered to the `Closed Won` literal, never `opportunity_is_won` | **Close.** Salesforce's won flag looks like the cleaner filter but is not: it also covers roughly 1,822 renewals carrying $0. The stage literal is the correct filter, same shape as HubSpot's hardcoded stage ID |
 | Weighted Pipeline | sum of `amount × hs_deal_stage_probability` | `opportunity_amount × opportunity_probability` | **Close. See the scale warning below** |
-| Open Deals by Lead Source | groups by custom property `deal_source_1`, raw value as the bucket | `opportunity_lead_source` | **Close.** Standard Salesforce field rather than a custom one. Bucket labels will differ from Avenue Z's |
+| Open Deals by Lead Source | groups by custom property `deal_source_1`, raw value as the bucket | `opportunity_lead_source` | **Gap.** The field exists but is blank on 99.99 percent of Renaissance's records. Replaced by the by-owner breakdown instead |
 
 ### The one that will bite
 
-**Probability scale.** HubSpot returns `hs_deal_stage_probability` as a decimal between 0 and 1, and the code multiplies directly. Salesforce's `opportunity_probability` is labelled "Probability (%)", so it is almost certainly 0 to 100.
+**Probability scale.** HubSpot returns `hs_deal_stage_probability` as a decimal between 0 and 1, and the code multiplies directly. Salesforce's `opportunity_probability` is labelled "Probability (%)", so it looked like it would be 0 to 100 but needed confirming before anything was built on it.
 
-Port the formula unchanged and Weighted Pipeline comes out **100 times too large**. It will look like a plausible number, just wrong by two orders of magnitude, which is the worst kind of wrong. Confirm the scale on a single record before trusting the tile.
+Porting the formula unchanged would have made Weighted Pipeline come out **100 times too large**: a plausible-looking number, wrong by two orders of magnitude, the worst kind of wrong. **Resolved:** confirmed 0 to 100 against live data (see Open questions below). The code divides by 100 before weighting, and a test pins it.
 
 ### Also worth noting
 
@@ -78,10 +78,10 @@ Three options, and this is a business decision rather than a technical one:
 
 | Section | Clean | Close | Gap |
 |---|---|---|---|
-| Pipeline Performance | 2 | 3 | 0 |
+| Pipeline Performance | 1 | 3 | 1 |
 | Contact Creation | 2 | 0 | 4 |
 
-**Pipeline Performance is buildable now.** Every tile has a Salesforce equivalent, and two are arguably better sourced than Avenue Z's because Salesforce exposes real flags where HubSpot relies on hardcoded IDs.
+**Pipeline Performance is buildable now.** Four of the five rows have a working Salesforce equivalent; the one gap, Lead Source, is covered by substituting the by-owner breakdown, which has a clean Salesforce field of its own.
 
 **Contact Creation is half buildable.** Volume and pacing work. Everything depending on lead quality or form attribution needs a decision first.
 
@@ -111,6 +111,16 @@ So three of the four tiles already behave identically, because Avenue Z guards a
 **To reverse it:** the suppression lives in `transformPipeline` in `lib/salesforce/pipeline.ts`, where the three tiles call `kpiNoDelta` instead of `kpi`. Swap those three calls and the deltas come back. Tests pin the current behavior, so they will fail and need updating too, which is intentional: it should not be possible to flip this by accident.
 
 **When reversing would make sense:** if Renaissance starts carrying meaningful open pipeline on prior-year close dates, or if we replace the proxy with a real point-in-time snapshot (which needs pipeline history we do not have today), or if Nick tells us the comparison is wanted regardless and a large percentage is acceptable in context.
+
+### "Open Pipeline" means overdue deals, not forward-looking pipeline. Confirmed live.
+
+**Confirmed 2026-08-16.**
+
+The date range on the pipeline queries filters on close date, not on when a deal was created or entered a stage. I confirmed live that the Supermetrics connection cannot return deals with a future close date: extending the query window through 2027 returns zero additional deals, and a window that only covers future dates returns nothing at all. So the 297 open deals and roughly $18M in the current tiles are not forward-looking pipeline in the usual sense. They are deals that are past their close date and have not yet been closed out, i.e. overdue.
+
+This is the same root cause as the delta-suppression decision above, not a separate issue. Comparing this year's overdue deals against last year's overdue deals is comparing two different kinds of thing: a fresh batch of deals that just became overdue versus a batch that has had a full extra year to get closed out. That mismatch is what produced the +29,600 percent figure on Open Deals before I suppressed the delta.
+
+A question is out to the client contact about whether Renaissance needs genuine forward-looking pipeline (deals with a future close date, tracked as they move through stages). If they do, that is a different data path than what this build queries, since the current query structurally excludes future-dated deals. I am not building that here; this is a decision for Nick and the client contact, not a technical call.
 
 ---
 
