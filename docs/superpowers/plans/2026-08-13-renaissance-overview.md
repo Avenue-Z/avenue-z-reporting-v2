@@ -30,12 +30,16 @@
 |---|---|
 | `components/report-sections/executive-overview/kpi-card.tsx` | Single KPI tile. Server component |
 | `components/report-sections/executive-overview/needs-connection.tsx` | Block-scale "source not connected" card |
+| `components/report-sections/executive-overview/needs-connection.test.tsx` | Tests for the needs-connection card |
 | `components/report-sections/executive-overview/demand-journey.tsx` | The 4-card funnel row, with a `connected` variant |
+| `components/report-sections/executive-overview/demand-journey.test.tsx` | Tests for the unconnected-card variant |
 | `components/report-sections/executive-overview/sessions-trend-chart.tsx` | Sessions and users over time |
 | `components/report-sections/executive-overview/new-returning.tsx` | New vs returning visitors |
 | `components/report-sections/executive-overview/channel-tabs-chart.tsx` | Traffic by channel, two tabs plus drill-down |
 | `components/report-sections/executive-overview/reshape.ts` | Pure functions turning raw GA4 rows into component props |
+| `components/report-sections/executive-overview/reshape.test.ts` | Tests for the reshaping functions |
 | `components/report-sections/executive-overview/stages.ts` | Pure builder for the four journey cards, including which are unconnected |
+| `components/report-sections/executive-overview/stages.test.ts` | Tests for the stage builder |
 | `components/report-sections/executive-overview/index.tsx` | Orchestrator: fetches, reshapes, renders four blocks |
 
 **Modified, additively only**
@@ -409,7 +413,7 @@ Use whatever state setter name the copy already uses.
 - [ ] **Step 9: Run the test to verify it passes**
 
 Run: `npx vitest run components/report-sections/executive-overview/demand-journey.test.tsx`
-Expected: PASS, five tests green.
+Expected: PASS, six tests green.
 
 - [ ] **Step 10: Verify types and that the original is untouched**
 
@@ -534,11 +538,11 @@ Port from these ranges in `components/report-sections/ga4/index.tsx`:
 | KPI card values | `:261-314`. Port the formatting only. Task 7 builds the eight cards inline, so no `buildKpis` function is needed. `KPI_METRICS` at `:78-87` is declared in Task 7, not here |
 | `buildTrendRows` | `:316-334` |
 | `buildChannelData` | `:336-403`, as one block |
-| `buildAudienceRows` | `:464-501` |
+| `buildAudienceRows` | `:464-483` |
 
 Three details the source will not hand you:
 
-1. `returningUserCount` is computed inline in JSX at `:564` as active users minus new users, floored at zero. Lift it into `buildAudienceRows`'s return.
+1. `returningUserCount` is computed inline in JSX at `:564` as active users minus new users, floored at zero. Its only consumer is the AI callout this page deletes (Task 2), so the port drops it entirely rather than carrying dead plumbing into `buildAudienceRows`'s return.
 2. `buildChannelData` must port `:336-403` as a single unit. `channelConvData` depends on `channelColorMap`, which depends on `channelData`. Splitting them desynchronizes the two tabs' colors.
 3. `compareDateLabel` is derived at `:537-539`, outside every range above. Port it as `buildCompareLabel(compare)`. It feeds the trend chart's `compareLabel` (`:558`), which is the only consumer that renders it. `ChannelTabsChart` declares and destructures the same prop but never reads it in its body, so Task 7 does not pass it there.
 
@@ -548,7 +552,7 @@ Every function must accept `null` for a failed query and return an empty structu
 export type Ga4Row = Record<string, string | number | null | undefined>
 
 export function buildTrendRows(current: Ga4Row[] | null, compare: Ga4Row[] | null): TrendRow[]
-export function buildAudienceRows(rows: Ga4Row[] | null): { rows: AudienceRow[]; returningUserCount?: number }
+export function buildAudienceRows(rows: Ga4Row[] | null): { rows: AudienceRow[] }
 export function buildChannelData(
   current: Ga4Row[] | null,
   compare: Ga4Row[] | null,
@@ -579,10 +583,12 @@ under allSettled, so every function takes already-unwrapped rows and
 accepts null for a failed query, returning an empty structure rather
 than throwing.
 
-Carries the three things a naive copy drops: returningUserCount is
-computed inline in JSX at the source, the channel block must move as one
-unit or the two tabs' colors desynchronize, and compareDateLabel sits
-outside every derivation range while feeding both charts."
+Carries the two things a naive copy drops: the channel block must move
+as one unit or the two tabs' colors desynchronize, and compareDateLabel
+sits outside every derivation range while feeding both charts.
+returningUserCount, computed inline in JSX at the source, is dropped
+entirely rather than lifted: its only consumer was the AI callout this
+page deletes."
 ```
 
 ---
@@ -753,7 +759,7 @@ The keys used above (`primary`, `ga4`, `positive`, `neutral`) all exist in `lib/
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run components/report-sections/executive-overview/stages.test.ts`
-Expected: PASS, eight tests green.
+Expected: PASS, nine tests green.
 
 - [ ] **Step 5: Verify types**
 
@@ -886,17 +892,17 @@ Replace the placeholder return with:
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Web Analytics</h2>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-          <KpiCard title="Sessions"             value={fmtNum(totals?.sessions as number)}                    delta={pct(Number(totals?.sessions ?? 0), Number(cmpTotals?.sessions ?? 0))} />
-          <KpiCard title="Active Users"         value={fmtNum(totals?.activeUsers as number)}                 delta={pct(Number(totals?.activeUsers ?? 0), Number(cmpTotals?.activeUsers ?? 0))} />
-          <KpiCard title="New Users"            value={fmtNum(totals?.newUsers as number)}                    delta={pct(Number(totals?.newUsers ?? 0), Number(cmpTotals?.newUsers ?? 0))} />
-          <KpiCard title="Bounce Rate"          value={fmtPct(totals?.bounceRate as number)}                  delta={pct(Number(totals?.bounceRate ?? 0), Number(cmpTotals?.bounceRate ?? 0))} invertDelta />
-          <KpiCard title="Avg Session Duration" value={fmtDuration(totals?.averageSessionDuration as number)} delta={pct(Number(totals?.averageSessionDuration ?? 0), Number(cmpTotals?.averageSessionDuration ?? 0))} />
-          <KpiCard title="Pages / Session"      value={Number(totals?.screenPageViewsPerSession ?? 0).toFixed(1)} delta={pct(Number(totals?.screenPageViewsPerSession ?? 0), Number(cmpTotals?.screenPageViewsPerSession ?? 0))} />
-          <KpiCard title="Conversions"          value={fmtNum(totals?.conversions as number)}                 delta={pct(Number(totals?.conversions ?? 0), Number(cmpTotals?.conversions ?? 0))} />
-          <KpiCard title="Conversion Rate"      value={fmtPct(totals?.sessionConversionRate as number)}       delta={pct(Number(totals?.sessionConversionRate ?? 0), Number(cmpTotals?.sessionConversionRate ?? 0))} />
+          <KpiCard title="Sessions"             value={fmtNum(totals?.sessions as number)}                    delta={pct(totals?.sessions as number, cmpTotals?.sessions as number)} comparisonExpected tooltip="Total number of sessions in the selected period." />
+          <KpiCard title="Active Users"         value={fmtNum(totals?.activeUsers as number)}                 delta={pct(totals?.activeUsers as number, cmpTotals?.activeUsers as number)} comparisonExpected tooltip="Users who had at least one engaged session." />
+          <KpiCard title="New Users"            value={fmtNum(totals?.newUsers as number)}                    delta={pct(totals?.newUsers as number, cmpTotals?.newUsers as number)} comparisonExpected tooltip="First-time visitors in the selected period." />
+          <KpiCard title="Bounce Rate"          value={fmtPct(totals?.bounceRate as number)}                  delta={pct(totals?.bounceRate as number, cmpTotals?.bounceRate as number)} invertDelta comparisonExpected tooltip="Sessions that ended with no engagement. Lower is better." />
+          <KpiCard title="Avg Session Duration" value={fmtDuration(totals?.averageSessionDuration as number)} delta={pct(totals?.averageSessionDuration as number, cmpTotals?.averageSessionDuration as number)} comparisonExpected tooltip="Average time users spend per session. Higher = more engaged." />
+          <KpiCard title="Pages / Session"      value={totals?.screenPageViewsPerSession != null ? Number(totals.screenPageViewsPerSession).toFixed(1) : '—'} delta={pct(totals?.screenPageViewsPerSession as number, cmpTotals?.screenPageViewsPerSession as number)} comparisonExpected tooltip="Average number of pages viewed per session." />
+          <KpiCard title="Conversions"          value={fmtNum(totals?.conversions as number)}                 delta={pct(totals?.conversions as number, cmpTotals?.conversions as number)} comparisonExpected tooltip="Total conversion events fired in the selected period." />
+          <KpiCard title="Conversion Rate"      value={fmtPct(totals?.sessionConversionRate as number)}       delta={pct(totals?.sessionConversionRate as number, cmpTotals?.sessionConversionRate as number)} comparisonExpected tooltip="Percentage of sessions that resulted in a conversion." />
         </div>
         <SessionsTrendChart data={trendRows} compareLabel={cmpLabel} />
-        <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} returningUserCount={audience.returningUserCount} />
+        <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} />
         <ChannelTabsChart volumeData={channel.volumeData} convData={channel.convData} compareMap={channel.compareMap} sourceMediumMap={channel.sourceMediumMap} />
       </section>
 

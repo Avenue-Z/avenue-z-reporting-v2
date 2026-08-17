@@ -2,7 +2,7 @@
 
 **Asana:** Frankenstein the Executive Overview PDF mockup from pieces of the Ave Z dashboard and configure for the Ren dashboard
 
-**Branch:** `Executive-Overview-Duplicate-Ren` off `dev` · **PR:** #207 (draft → dev)
+**Branch:** `Executive-Overview-Duplicate-Ren` off `dev` · **PR:** #207 (ready for review → dev)
 **Wireframe:** `Executive Dashboard Demo.pdf`
 
 **How to read this.** §§1-6 describe Renaissance's Overview page: what it shows, where its numbers come from, and how it behaves. §§7-9 are build mechanics: where each piece was copied from, how the page gets wired into the app, and how to verify it. §10 records decisions and known issues.
@@ -19,10 +19,12 @@ These four blocks already exist and work on Avenue Z's dashboard, spread across 
 |---|---|---|
 | Demand Journey | 4 linked cards across the funnel | Peec, GA4, CRM ×2 |
 | Web Analytics | 8 KPI cards, 3 charts | GA4 |
-| Contact Creation | contact pacing and form quality | CRM |
-| Pipeline Performance | pipeline KPIs and lead source | CRM |
+| Contact Creation | contact pacing | CRM |
+| Pipeline Performance | pipeline KPIs and breakdown by owner | CRM |
 
 Renaissance has GA4 and Peec connected. Their CRM is Salesforce, this product integrates only HubSpot, and they may move to HubSpot at some point, so **the two CRM blocks and two of the four journey cards have no data source today**. Vendor names appear in this document because it explains why; they never appear on the page (§4). Those render an explicit needs-connection state rather than zeros. Zeros are the failure being avoided: a missing CRM identifier produces a plausible `$0` with no error, which reads as a client with no pipeline.
+
+Contact Creation and Pipeline Performance above are narrower than Avenue Z's HubSpot version. That is a CRM-parity finding, not a build choice: `docs/superpowers/specs/2026-08-13-crm-parity-scorecard.md` on the Salesforce branch traced every metric against Renaissance's live Salesforce fields and found lead source blank on 99.99% of their records (replaced by a by-owner breakdown, which has a clean field of its own) and form quality with no field equivalent at all (dropped, confirmed gap). Both blocks render the needs-connection card on this page regardless (§4); the scorecard describes what the CRM follow-up PR fills in.
 
 It becomes Renaissance's landing page, replacing AEO.
 
@@ -38,7 +40,7 @@ Four cards in a single flow row, laid out `flex-1`, with connectors between them
 |---|---|---|---|
 | AEO | AI Visibility | share of voice | Peec |
 | Web Analytics | Site Sessions | conversion rate | GA4 |
-| Inbound Funnel | Online Contacts | ICP count | CRM, not connected |
+| Inbound Funnel | Online Contacts | this week | CRM, not connected |
 | Pipeline | Open Pipeline | open deal count | CRM, not connected |
 
 **AI Visibility** is `(visibility_count / visibility_total) × 100` for the latest ISO week, from `getPeecOverview`. **Share of voice** is the mean of per-row `share_of_voice` for Renaissance's own brand. The brand is identified by `BrandRanking.isYou`, computed from `clients.peec_your_brand` (`lib/peec/client.ts:132`, `:381`, `:472`). The delta is week over week, from the last two entries of `weeklyVisibility`.
@@ -46,6 +48,8 @@ Four cards in a single flow row, laid out `flex-1`, with connectors between them
 The Peec call uses `year_to_date`. That makes this card year-to-date while the other three are 30-day, which is why §5 puts a period label on the page.
 
 **Site Sessions** is raw GA4 `sessions`; the sub-metric is GA4-native `sessionConversionRate` with no local arithmetic.
+
+**Inbound Funnel's sub-metric is `this week`, not an ICP count.** Avenue Z's HubSpot version reads a custom `profile` property to classify contacts as ICP or MCP; the parity scorecard (`docs/superpowers/specs/2026-08-13-crm-parity-scorecard.md` on the Salesforce branch) found no Salesforce equivalent and calls it the biggest gap on the page. The CRM follow-up PR substitutes a plain weekly-pacing label instead of dropping the sub-metric entirely.
 
 The two unconnected cards keep their frame, connector and source label, and show the needs-connection treatment in place of the metric and stat rows (§4).
 
@@ -404,7 +408,7 @@ The two deep-link routes render a picker unconditionally, which this page ignore
 
 ## 9. Verification
 
-- **Every KPI shows a delta.** A page of bare numbers means §6's range resolution was not followed.
+- **Every KPI shows a delta, not a greyed placeholder.** All eight cards pass `comparisonExpected`, so a missing delta renders as a visible placeholder rather than a bare number. A page of placeholders where a delta should be means §6's range resolution was not followed.
 - Sessions equals GA4's Sessions for a 30-day window ending **yesterday**. Today is deliberately excluded.
 - Bounce rate, pages/session, conversion rate and average session duration match GA4 to the decimal. We format but never compute these.
 - Traffic by Channel's **By Conversion** tab has rows. Empty means query 5 was issued without its full metric list.
@@ -478,5 +482,5 @@ Found during investigation, all pre-existing, none in scope here.
 - `ChannelTabsChart.compareLabel` and `ChannelVolumeRow.pct` are declared but never read. `empty-state.tsx`, `demand-overview/signal-card.tsx` and `hubspot-performance`'s `CLOSED_STAGE_IDS` are unreferenced.
 - Contact email addresses are written to server logs from a production path.
 - Two slugs now map to the display name `Overview`. Nothing breaks, but a reverse lookup from display name to slug is ambiguous.
-- The CRM integration has no per-client config object: pipeline id, stage ids, the ICP property and the portal id are hardcoded in shared code, so any second CRM client renders silent zeros rather than an error. This is why Renaissance could not simply be pointed at Salesforce even if the integration existed.
+- The CRM integration has no per-client config object: pipeline id, stage ids, the ICP property and the portal id are hardcoded in shared code, so any second CRM client renders silent zeros rather than an error. This is why Renaissance could not simply be pointed at Salesforce even if the integration existed. **Addressed:** PR #208 ships a per-client `SalesforceConfig` (`lib/db/schema.ts:68`) plus a `salesforce_config` jsonb column (`lib/db/schema.ts:149`), following the same pattern already in place for Meta and LinkedIn.
 - Another client has `demand-overview` and `peec-ai` enabled with no Peec project configured, and the Peec client falls back to an environment default, so they are rendering someone else's data today. Same bug class this page's `isYou` fix avoids.
