@@ -11,6 +11,7 @@ import { GoogleSearchConsoleReport } from '@/components/report-sections/google-s
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
 import { PaidSearchReport } from '@/components/report-sections/paid-search'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
+import { PaidMediaOverviewReport } from '@/components/report-sections/paid-media/overview'
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
@@ -72,9 +73,10 @@ function getReportComponent(
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
       return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
     case 'paid-media':
-      if (subsection === 'meta')     return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-      if (subsection === 'linkedin') return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
-      return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'linkedin')    return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+      return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
     case 'organic-social':
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} />
     default:
@@ -99,8 +101,9 @@ const AEO_SUBSECTION_NAMES: Record<string, string> = {
 }
 
 const PAID_MEDIA_SUBSECTION_NAMES: Record<string, string> = {
-  'meta':     'Meta Advertising',
-  'linkedin': 'LinkedIn Advertising',
+  'paid-search': 'Paid Search',
+  'meta':        'Meta Advertising',
+  'linkedin':    'LinkedIn Advertising',
 }
 
 export default async function ReportPage({
@@ -177,7 +180,7 @@ export default async function ReportPage({
     : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
       ? AEO_SUBSECTION_NAMES[subsection]
     : (activeSection === 'paid-media')
-      ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Paid Search')
+      ? (subsection && PAID_MEDIA_SUBSECTION_NAMES[subsection] ? PAID_MEDIA_SUBSECTION_NAMES[subsection] : 'Overview')
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
   // Health mode is an internal-only probe surface (the cron sweep self-fetches

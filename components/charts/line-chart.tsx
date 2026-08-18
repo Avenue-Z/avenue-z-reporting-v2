@@ -11,12 +11,15 @@ import {
   Legend,
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
+import { money } from '@/lib/paid-media/format'
 
 interface LineChartProps {
   data: Record<string, string | number>[]
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
   height?: number
+  /** 'currency-cents' formats the Y axis + tooltip via money(); default = raw number. */
+  valueFormat?: 'currency-cents'
 }
 
 // Auto-scale the Y axis to the data instead of pinning the baseline to 0.
@@ -72,8 +75,10 @@ export function niceYDomain(
   return [lo, hi]
 }
 
-export function LineChart({ data, xKey, yKeys, height = 300 }: LineChartProps) {
+export function LineChart({ data, xKey, yKeys, height = 300, valueFormat }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
+  const fmt =
+    valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>
@@ -91,8 +96,10 @@ export function LineChart({ data, xKey, yKeys, height = 300 }: LineChartProps) {
             tick={{ fill: '#8A8A8A', fontSize: 12 }}
             axisLine={false}
             tickLine={false}
+            tickFormatter={fmt}
           />
           <Tooltip
+            formatter={fmt}
             contentStyle={{
               background: '#272727',
               border: '1px solid rgba(255,255,255,0.08)',

@@ -33,6 +33,15 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-text-muted">
           Leads by Action
         </h3>
+        {/* Total Leads at the top — sum of the category subtotals (Req 2). Uses
+            the already-computed total; unaffected by the keyword ≥10 filter,
+            which lives on a separate table and data path (comment [e]/[f]). */}
+        <div className="mb-4 flex items-center justify-between border-b border-white/[0.12] pb-3">
+          <span className="text-sm font-bold text-white">Total Leads</span>
+          <span className="tabular-nums text-base font-bold text-white">
+            {data.totalLeads.toLocaleString('en-US')}
+          </span>
+        </div>
         <div className="space-y-6">
           {CATEGORIES.map((category) => {
             const actions = data.byAction.filter((a) => a.category === category)

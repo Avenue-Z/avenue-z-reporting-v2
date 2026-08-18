@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import { ComboChart } from '@/components/charts/combo-chart'
 import { CHART_COLORS } from '@/lib/constants'
-import { usd, num } from '@/lib/supermetrics/format'
+import { num } from '@/lib/supermetrics/format'
+import { money } from '@/lib/paid-media/format'
 import { bucketLabel } from '@/lib/paid-search/week-label'
 import type { HeroPoint } from '@/lib/paid-search/types'
 
@@ -36,7 +37,7 @@ export function Hero({ points }: { points: HeroPoint[] }) {
         data={points}
         xKey="week"
         xFormatter={bucketLabel}
-        valueFormatter={metric === 'cost' ? usd : num}
+        valueFormatter={metric === 'cost' ? money : num}
         bar={{
           key: metric,
           color: CHART_COLORS.googleAds,

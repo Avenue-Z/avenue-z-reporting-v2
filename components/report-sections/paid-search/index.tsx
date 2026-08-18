@@ -3,7 +3,7 @@ import { getHeroSeries } from '@/lib/paid-search/hero'
 import { getCampaignRows } from '@/lib/paid-search/campaigns'
 import { getLeadBreakdown } from '@/lib/paid-search/leads'
 import { getGeoRows } from '@/lib/paid-search/geo'
-import { getKeywordRows } from '@/lib/paid-search/keywords'
+import { getKeywordsData } from '@/lib/paid-search/keywords'
 import { Hero } from './hero'
 import { KpiGrid } from './kpi-grid'
 import { CampaignTable } from './campaign-table'
@@ -50,7 +50,7 @@ export async function PaidSearchReport({
     safe(getCampaignRows(clientSlug, dateRange)),
     safe(getLeadBreakdown(clientSlug, dateRange)),
     safe(getGeoRows(clientSlug, dateRange)),
-    safe(getKeywordRows(clientSlug, dateRange)),
+    safe(getKeywordsData(clientSlug, dateRange)),
   ])
 
   return (
@@ -61,7 +61,7 @@ export async function PaidSearchReport({
       {campaigns.data ? <CampaignTable rows={campaigns.data} /> : <Fallback kind={campaigns.error!} />}
       {leads.data ? <LeadsSection data={leads.data} /> : <Fallback kind={leads.error!} />}
       {geo.data ? <GeoSection rows={geo.data} /> : <Fallback kind={geo.error!} />}
-      {keywords.data ? <KeywordsTable rows={keywords.data} /> : <Fallback kind={keywords.error!} />}
+      {keywords.data ? <KeywordsTable data={keywords.data} /> : <Fallback kind={keywords.error!} />}
     </div>
   )
 }
