@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { DemandJourney, type DemandStage } from './demand-journey'
 
 const live: DemandStage = {
@@ -44,4 +44,21 @@ test('all four stages render together in one row', () => {
   const stages = [live, { ...live, key: 'aeo', source: 'AEO' }, unconnected, { ...unconnected, key: 'inbound', source: 'Inbound Funnel' }]
   render(<DemandJourney stages={stages} />)
   expect(screen.getAllByText(/Not connected/i)).toHaveLength(2)
+})
+
+test('an unconnected sibling does not dim while another card is hovered', () => {
+  render(<DemandJourney stages={[live, unconnected]} />)
+  const liveCard = screen.getByText('Site Sessions').closest('.cursor-default')!
+  fireEvent.mouseEnter(liveCard)
+  const unconnectedCard = screen.getByText('Not connected').closest('.cursor-default')!
+  expect(unconnectedCard.className).not.toContain('opacity-25')
+})
+
+test('a connected sibling still dims while another card is hovered', () => {
+  const other = { ...live, key: 'aeo', source: 'AEO', label: 'AI Visibility' }
+  render(<DemandJourney stages={[live, other]} />)
+  const liveCard = screen.getByText('Site Sessions').closest('.cursor-default')!
+  fireEvent.mouseEnter(liveCard)
+  const otherCard = screen.getByText('AI Visibility').closest('.cursor-default')!
+  expect(otherCard.className).toContain('opacity-25')
 })

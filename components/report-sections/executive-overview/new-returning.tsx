@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { CHART_COLORS } from '@/lib/constants'
 
 export interface AudienceRow {
   type: string        // 'new' | 'returning'
@@ -15,9 +16,18 @@ export interface NewReturningProps {
   compareRows?: AudienceRow[]
 }
 
+// Routed through CHART_COLORS (CLAUDE.md) instead of inlined hex. 'new' reuses the
+// hubspot token, which is the same orange already used for "New Users" in the
+// sessions trend chart above this card on the page. 'returning' was previously an
+// inlined '#22D3EE' that matched no CHART_COLORS token and read as a near-duplicate
+// of CHART_COLORS.primary ('#60FDFF', this page's "Active Users" cyan): cyan then
+// meant three different things on one page. metaAds' purple is a distinct hue from
+// every other fixed color on this page (cyan, blue, green, red, orange) and isn't
+// reused elsewhere in this component or in stages.ts, so it was picked over adding
+// a new token.
 const TYPE_COLORS: Record<string, string> = {
-  new:       '#FF7A59',
-  returning: '#22D3EE',
+  new:       CHART_COLORS.hubspot,
+  returning: CHART_COLORS.metaAds,
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -43,7 +53,7 @@ function DeltaBadge({ value }: { value: number | null }) {
   return (
     <span
       className="ml-1.5 text-[11px] font-bold"
-      style={{ color: positive ? '#60FF80' : '#FF4444' }}
+      style={{ color: positive ? CHART_COLORS.positive : CHART_COLORS.negative }}
     >
       {positive ? '↑' : '↓'} {Math.abs(value).toFixed(1)}%
     </span>
@@ -56,6 +66,17 @@ export function NewReturning({ rows, compareRows }: NewReturningProps) {
 
   const newRow       = rows.find((r) => r.type === 'new')
   const returningRow = rows.find((r) => r.type === 'returning')
+
+  // Fixed order (not sorted by sessions) so the split bar and the stat cards below
+  // always read in the same left-to-right order. An established site with
+  // returning > new used to sort the bar returning-first while the cards stayed
+  // new-first, so the bar read one order and the cards read the other.
+  const orderedRows: AudienceRow[] = [newRow, returningRow].filter((r): r is AudienceRow => !!r)
+
+  // The first segment's share is rounded independently; the second is derived as
+  // the remainder so the two always sum to 100 (two independent Math.round calls
+  // could each round up, e.g. 33.5% and 66.5% rendering as 34% and 67%).
+  const firstShare = orderedRows.length > 0 ? Math.round((orderedRows[0].sessions / total) * 100) : 0
 
   // Build compare lookup
   const compareMap = new Map((compareRows ?? []).map((r) => [r.type, r]))
@@ -74,35 +95,34 @@ export function NewReturning({ rows, compareRows }: NewReturningProps) {
       </div>
       <p className="mb-1 text-xs text-text-muted">Sessions by visitor type</p>
 
-      {/* Split bar */}
+      {/* Split bar: uses orderedRows (fixed new/returning order), not sorted by
+          sessions, so the segment order always matches the stat cards below. */}
       <div className="mb-4 mt-3 flex h-1.5 overflow-hidden rounded-full">
-        {rows
-          .slice()
-          .sort((a, b) => b.sessions - a.sessions)
-          .map((r, i) => {
-            const color = TYPE_COLORS[r.type] ?? '#8A8A8A'
-            return (
-              <div
-                key={r.type}
-                className={cn('transition-all duration-500', i > 0 ? 'ml-0.5' : '')}
-                style={{
-                  width:           `${(r.sessions / total) * 100}%`,
-                  backgroundColor: color,
-                  borderRadius:    i === 0 ? '9999px 0 0 9999px' : '0 9999px 9999px 0',
-                  opacity:         hovered === null || hovered === r.type ? 0.85 : 0.2,
-                }}
-              />
-            )
-          })}
+        {orderedRows.map((r, i) => {
+          const color = TYPE_COLORS[r.type] ?? CHART_COLORS.neutral
+          return (
+            <div
+              key={r.type}
+              className={cn('transition-all duration-500', i > 0 ? 'ml-0.5' : '')}
+              style={{
+                width:           `${(r.sessions / total) * 100}%`,
+                backgroundColor: color,
+                borderRadius:    i === 0 ? '9999px 0 0 9999px' : '0 9999px 9999px 0',
+                opacity:         hovered === null || hovered === r.type ? 0.85 : 0.2,
+              }}
+            />
+          )
+        })}
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards: same orderedRows so the cards always match the bar's left-to-right order.
+          share is firstShare for the first card and the remainder for the second, so the two
+          always sum to 100 instead of each independently rounding. */}
       <div className="grid grid-cols-2 gap-3">
-        {[newRow, returningRow].map((r) => {
-          if (!r) return null
-          const color    = TYPE_COLORS[r.type] ?? '#8A8A8A'
+        {orderedRows.map((r, i) => {
+          const color    = TYPE_COLORS[r.type] ?? CHART_COLORS.neutral
           const label    = TYPE_LABELS[r.type] ?? r.type
-          const share    = Math.round((r.sessions / total) * 100)
+          const share    = i === 0 ? firstShare : 100 - firstShare
           const isHov    = hovered === r.type
           const isDimmed = hovered !== null && !isHov
           const prior    = compareMap.get(r.type)

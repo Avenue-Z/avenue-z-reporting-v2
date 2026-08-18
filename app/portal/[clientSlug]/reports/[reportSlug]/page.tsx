@@ -144,9 +144,13 @@ export default async function PortalReportPage({
             {reportName}
           </h1>
         </div>
-        <Suspense fallback={null}>
-          <PortalReportDateRange value={dateRange} />
-        </Suspense>
+        {/* executive-overview resolves its own fixed range internally, so the picker
+            here would be a dead control for that slug only. */}
+        {reportSlug !== 'executive-overview' && (
+          <Suspense fallback={null}>
+            <PortalReportDateRange value={dateRange} />
+          </Suspense>
+        )}
       </div>
 
       <div className="divider-full mb-8" />

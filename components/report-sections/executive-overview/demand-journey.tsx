@@ -41,10 +41,14 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-bg-surface p-6">
       {/* Flow row */}
-      <div className="flex items-start gap-0">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:items-start lg:gap-0">
         {stages.map((stage, i) => {
           const isHov    = hovered === stage.key
-          const isDimmed = hovered !== null && !isHov
+          // Cards that can't be hovered (connected: false) never received a hover
+          // handler, so they must never take the dimmed treatment either. Otherwise
+          // they drop to opacity-25 whenever a sibling is hovered and become
+          // near-invisible with no way to "win back" focus.
+          const isDimmed = stage.connected !== false && hovered !== null && !isHov
           const isLast   = i === stages.length - 1
           const up       = (stage.delta ?? 0) >= 0
 
@@ -109,7 +113,7 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                       <p className="mt-1 text-xs text-text-muted">Connect your CRM to see this</p>
                     </>
                   ) : (
-                    <p className="text-3xl font-extrabold tracking-tight text-white">
+                    <p className="text-xl font-extrabold tracking-tight text-white sm:text-2xl lg:text-3xl">
                       {stage.metric}
                     </p>
                   )}
@@ -203,9 +207,9 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                 </div>
               </div>
 
-              {/* ── Connector arrow ── */}
+              {/* ── Connector arrow (desktop flow row only: the grid stack below lg has no row to connect) ── */}
               {!isLast && (
-                <div className="flex w-10 shrink-0 flex-col items-center gap-1 pt-10">
+                <div className="hidden w-10 shrink-0 flex-col items-center gap-1 pt-10 lg:flex">
                   <div className="h-px w-full bg-white/[0.08]" />
                   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                     <path

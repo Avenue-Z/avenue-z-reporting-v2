@@ -102,9 +102,13 @@ export default async function ReportPage({
   return (
     <>
       <Header title={reportName} subtitle={client.name}>
-        <Suspense fallback={null}>
-          <ReportDateRange value={dateRange} compareValue={compareRange} />
-        </Suspense>
+        {/* executive-overview resolves its own fixed range internally (no compareRange
+            support), so the picker here would be a dead control for that slug only. */}
+        {reportSlug !== 'executive-overview' && (
+          <Suspense fallback={null}>
+            <ReportDateRange value={dateRange} compareValue={compareRange} />
+          </Suspense>
+        )}
       </Header>
 
       <div className="divider-full mb-8" />

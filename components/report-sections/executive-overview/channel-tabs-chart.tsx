@@ -44,7 +44,7 @@ const TABS: { id: Tab; label: string; tooltip: string }[] = [
   {
     id:      'conversion',
     label:   'By Conversion',
-    tooltip: 'The same channels ranked by conversion rate instead of session volume. Reveals which sources bring the highest-quality traffic — a channel driving fewer sessions but converting at 3× the rate is often more valuable.',
+    tooltip: 'Channels ranked by conversion rate instead of session volume, limited to the top 5 channels with at least 20 sessions in the period. Reveals which sources bring the highest-quality traffic: a channel driving fewer sessions but converting at 3× the rate is often more valuable.',
   },
 ]
 
@@ -126,6 +126,11 @@ export function ChannelTabsChart({
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">Traffic by Channel</h3>
           <Tooltip text={activeTab.tooltip} />
+          {tab === 'conversion' && (
+            <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted">
+              Top 5 · ≥20 sessions
+            </span>
+          )}
         </div>
 
         <div className="flex gap-1 rounded-lg bg-white/[0.04] p-1">
@@ -155,11 +160,11 @@ export function ChannelTabsChart({
       <div className="mb-1 flex items-center gap-3 px-2">
         <div className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
         <div className="hidden flex-1 sm:block" />
-        <div className="flex shrink-0 items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           <button
             onClick={() => handleSort('sessions')}
             className={cn(
-              'w-16 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:w-20',
+              'w-14 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:w-20',
               sortBy === 'sessions' ? 'font-bold text-white' : 'font-bold text-text-muted hover:text-white/60'
             )}
           >
@@ -186,7 +191,7 @@ export function ChannelTabsChart({
             const isHovered     = hovered === row.name
             const isDimmed      = hovered !== null && !isHovered
             const smEntries     = sourceMediumMap[row.name] ?? []
-            const smMax         = smEntries[0]?.sessions ?? 1
+            const smMax         = smEntries[0]?.sessions || 1
 
             return (
               <div
@@ -214,39 +219,52 @@ export function ChannelTabsChart({
                     />
                   </div>
 
-                  <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-                    {isHovered && hasCompare ? (
-                      <>
-                        <div className="text-right">
-                          <p className="text-[10px] text-text-muted">Prior period</p>
-                          <p className="tabular-nums text-xs font-medium text-white/50">
-                            {priorSessions.toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="hidden h-6 w-px bg-white/10 sm:block" />
-                        <div className="text-right">
-                          <Delta current={row.sessions} prior={priorSessions} />
-                          <p className="tabular-nums text-sm font-semibold text-white">
-                            {row.sessions.toLocaleString()}
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <span className={cn(
-                          'w-14 text-right tabular-nums sm:w-20',
-                          sortBy === 'sessions' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
-                        )}>
+                  {/* Fixed-size box: both layouts are always mounted and stacked via absolute
+                      positioning, so hovering swaps opacity/content only, never the box's own
+                      width or height. That keeps the flex-1 bar's available space constant.
+                      Before this, the wider/taller hover layout shrank the bar and "pumped" it
+                      on every hover, and a channel with no prior period (Delta renders null)
+                      collapsed to one line while its neighbours stayed two. */}
+                  <div className="relative h-9 w-36 shrink-0 sm:w-44">
+                    <div
+                      className={cn(
+                        'absolute inset-0 flex items-center justify-end gap-2 transition-opacity duration-150 sm:gap-3',
+                        isHovered && hasCompare ? 'pointer-events-none opacity-0' : 'opacity-100'
+                      )}
+                    >
+                      <span className={cn(
+                        'w-14 text-right tabular-nums sm:w-20',
+                        sortBy === 'sessions' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
+                      )}>
+                        {row.sessions.toLocaleString()}
+                      </span>
+                      <span className={cn(
+                        'hidden w-16 text-right tabular-nums sm:block',
+                        sortBy === 'cvr' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
+                      )}>
+                        {(row.convRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div
+                      className={cn(
+                        'absolute inset-0 flex items-center justify-end gap-2 transition-opacity duration-150 sm:gap-3',
+                        isHovered && hasCompare ? 'opacity-100' : 'pointer-events-none opacity-0'
+                      )}
+                    >
+                      <div className="text-right">
+                        <p className="text-[10px] text-text-muted">Prior period</p>
+                        <p className="tabular-nums text-xs font-medium text-white/50">
+                          {priorSessions.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="hidden h-6 w-px bg-white/10 sm:block" />
+                      <div className="text-right">
+                        <Delta current={row.sessions} prior={priorSessions} />
+                        <p className="tabular-nums text-sm font-semibold text-white">
                           {row.sessions.toLocaleString()}
-                        </span>
-                        <span className={cn(
-                          'hidden w-16 text-right tabular-nums sm:block',
-                          sortBy === 'cvr' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
-                        )}>
-                          {(row.convRate * 100).toFixed(1)}%
-                        </span>
-                      </>
-                    )}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -287,7 +305,7 @@ export function ChannelTabsChart({
             const isHov     = hovered === d.name
             const isDimmed  = hovered !== null && !isHov
             const smEntries = sourceMediumMap[d.name] ?? []
-            const smMax     = smEntries[0]?.sessions ?? 1
+            const smMax     = smEntries[0]?.sessions || 1
 
             return (
               <div
