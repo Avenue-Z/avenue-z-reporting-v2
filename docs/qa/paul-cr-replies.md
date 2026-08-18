@@ -35,7 +35,7 @@ reads from config. Two I left on purpose and flagged inline. I also closed one y
 didn't catch: after the date-join fix a leading zero-session day could still shift
 the overlay, fixed in 1b7a6d3. Two findings I first missed (chart empty states and the
 channel share-of-total render) are closed in 0457a6e. Full
-disposition in docs/qa/paul-cr-disposition.md. Tests 606 green, tsc + rsc clean.
+disposition in docs/qa/paul-cr-disposition.md. Tests 616 green, tsc + rsc clean.
 
 ### 207 inline replies
 - index.tsx:49 (Peec leak, ship-blocker): fixed. Resolve the client first, gate
