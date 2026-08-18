@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { NoData } from './no-data'
 
 export interface TrendRow {
   date: string
@@ -210,6 +211,13 @@ export function SessionsTrendChart({ data, compareLabel }: SessionsTrendChartPro
   // legitimately leave a null prior on some rows (a genuinely missing
   // compare day) while the rest of the period still has compare data.
   const hasCompare = data.some((row) => row.prevSessions != null)
+
+  // A failed GA4 query resolves to an empty array (see index.tsx / reshape.ts), which
+  // would otherwise render the header, toggles, and axes around an empty chart. Show
+  // an explicit empty state instead of chart chrome with nothing behind it.
+  if (data.length === 0) {
+    return <NoData />
+  }
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CHART_COLORS } from '@/lib/constants'
+import { NoData } from './no-data'
 
 export interface AudienceRow {
   type: string        // 'new' | 'returning'
@@ -62,6 +63,14 @@ function DeltaBadge({ value }: { value: number | null }) {
 
 export function NewReturning({ rows, compareRows }: NewReturningProps) {
   const [hovered, setHovered] = useState<string | null>(null)
+
+  // A failed GA4 query resolves to an empty array (see index.tsx / reshape.ts), which
+  // would otherwise render the title and an empty split bar with nothing in it. Show
+  // an explicit empty state instead of chart chrome with nothing behind it.
+  if (rows.length === 0) {
+    return <NoData />
+  }
+
   const total = rows.reduce((s, r) => s + r.sessions, 0) || 1
 
   const newRow       = rows.find((r) => r.type === 'new')

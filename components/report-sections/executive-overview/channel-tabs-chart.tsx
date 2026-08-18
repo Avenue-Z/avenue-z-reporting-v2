@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { NoData } from './no-data'
 
 // ── Shared types ────────────────────────────────────────────────────────────
 
@@ -119,6 +120,14 @@ export function ChannelTabsChart({
   const volMax  = Math.max(...volumeData.map((r) => r.sessions), 1)
   const convMax = Math.max(...convData.map((r) => r.convRate), 0.001)
 
+  // A failed GA4 query resolves to an empty array (see index.tsx / reshape.ts). Both
+  // tabs derive from the same underlying channel query, so an empty volumeData means
+  // convData is empty too — otherwise this renders tabs and column headers above no
+  // rows. Show an explicit empty state instead of chart chrome with nothing behind it.
+  if (volumeData.length === 0) {
+    return <NoData />
+  }
+
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
       {/* Header */}
@@ -232,11 +241,20 @@ export function ChannelTabsChart({
                         isHovered && hasCompare ? 'pointer-events-none opacity-0' : 'opacity-100'
                       )}
                     >
-                      <span className={cn(
-                        'w-14 text-right tabular-nums sm:w-20',
-                        sortBy === 'sessions' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
-                      )}>
-                        {row.sessions.toLocaleString()}
+                      {/* Session count + share of total. The share line sits inside this
+                          span's own reserved width (w-14 sm:w-20) rather than widening it,
+                          so it cannot push into the CVR column or resize the fixed h-9/w-36
+                          hover box that swaps content on hover. */}
+                      <span className="w-14 text-right tabular-nums sm:w-20">
+                        <span className={cn(
+                          'block',
+                          sortBy === 'sessions' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
+                        )}>
+                          {row.sessions.toLocaleString()}
+                        </span>
+                        <span className="block text-[10px] leading-tight text-white/30">
+                          {row.pct}%
+                        </span>
                       </span>
                       <span className={cn(
                         'hidden w-16 text-right tabular-nums sm:block',
