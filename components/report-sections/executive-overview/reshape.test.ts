@@ -34,6 +34,46 @@ describe('buildTrendRows', () => {
     const cur = [{ date: '20260801', sessions: 10, activeUsers: 8, newUsers: 5 }]
     expect(buildTrendRows(cur, null)[0].prevSessions).toBeUndefined()
   })
+
+  it('aligns prior values by calendar day offset, not array position, when a compare day is missing', () => {
+    // Compare period is missing Jul 2 (GA4 omits zero-session days rather than
+    // returning a zero row), so the compare array only has 3 of the 4 days.
+    // An index join (compareRows[i]) would slide every row after the gap by
+    // one: Aug 2 -> Jul 3, Aug 3 -> Jul 4, Aug 4 -> out of bounds.
+    const cur = [
+      { date: '20260801', sessions: 10, activeUsers: 8, newUsers: 5 },
+      { date: '20260802', sessions: 20, activeUsers: 16, newUsers: 9 },
+      { date: '20260803', sessions: 30, activeUsers: 24, newUsers: 13 },
+      { date: '20260804', sessions: 40, activeUsers: 32, newUsers: 17 },
+    ]
+    const cmp = [
+      { date: '20260701', sessions: 1, activeUsers: 1, newUsers: 1 },
+      // 20260702 missing
+      { date: '20260703', sessions: 3, activeUsers: 3, newUsers: 3 },
+      { date: '20260704', sessions: 4, activeUsers: 4, newUsers: 4 },
+    ]
+    const rows = buildTrendRows(cur, cmp)
+    expect(rows).toHaveLength(4)
+    expect(rows[0].prevSessions).toBe(1) // Aug 1 -> Jul 1
+    expect(rows[1].prevSessions).toBeUndefined() // Aug 2 -> Jul 2 missing, must not fall back to Jul 3
+    expect(rows[2].prevSessions).toBe(3) // Aug 3 -> Jul 3
+    expect(rows[3].prevSessions).toBe(4) // Aug 4 -> Jul 4
+  })
+
+  it('a current day with no compare match yields a null prior, not the next day pulled forward', () => {
+    const cur = [
+      { date: '20260801', sessions: 10, activeUsers: 8, newUsers: 5 },
+      { date: '20260802', sessions: 20, activeUsers: 16, newUsers: 9 },
+    ]
+    const cmp = [
+      { date: '20260701', sessions: 1, activeUsers: 1, newUsers: 1 },
+      // 20260702 missing entirely, nothing should be pulled forward into it
+    ]
+    const rows = buildTrendRows(cur, cmp)
+    expect(rows[0].prevSessions).toBe(1)
+    expect(rows[1].prevSessions).toBeUndefined()
+    expect(rows[1].prevDate).toBeUndefined()
+  })
 })
 
 describe('buildChannelData', () => {
@@ -58,6 +98,22 @@ describe('buildChannelData', () => {
     ]
     const out = buildChannelData(rows, null, null)
     expect(out.convData.map(r => r.name)).toEqual(['Organic Search'])
+  })
+
+  it('computes a share of total that sums sensibly across an uneven split', () => {
+    const rows = [
+      { sessionDefaultChannelGroup: 'Organic Search', sessions: 41, sessionConversionRate: 0.03 },
+      { sessionDefaultChannelGroup: 'Direct',          sessions: 33, sessionConversionRate: 0.02 },
+      { sessionDefaultChannelGroup: 'Paid Search',     sessions: 26, sessionConversionRate: 0.05 },
+    ]
+    const out = buildChannelData(rows, null, null)
+    const total = out.volumeData.reduce((s, r) => s + r.pct, 0)
+    // Rounding each share independently can land a point or two off 100.
+    // It should never be wildly off (proof the math is share-of-total, not
+    // e.g. share-of-max or an unnormalized raw count).
+    expect(total).toBeGreaterThanOrEqual(98)
+    expect(total).toBeLessThanOrEqual(102)
+    expect(out.volumeData.find(r => r.name === 'Organic Search')?.pct).toBe(41)
   })
 
   it('tied conversion rates resolve by session volume, matching the source', () => {

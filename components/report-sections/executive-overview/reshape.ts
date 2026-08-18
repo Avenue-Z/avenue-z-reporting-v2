@@ -59,14 +59,40 @@ export function pct(current: number | null | undefined, baseline: number | null 
 
 // ── Trend — ported from ga4/index.tsx:316-334 ──
 
+/** GA4 "date" dimension as an 8-digit string ("20260801") -> whole days since the Unix epoch. */
+function toEpochDay(yyyymmdd: string): number | null {
+  if (!yyyymmdd || yyyymmdd.length !== 8) return null
+  const year  = parseInt(yyyymmdd.slice(0, 4), 10)
+  const month = parseInt(yyyymmdd.slice(4, 6), 10) - 1
+  const day   = parseInt(yyyymmdd.slice(6, 8), 10)
+  return Math.floor(Date.UTC(year, month, day) / 86_400_000)
+}
+
 export function buildTrendRows(current: Ga4Row[] | null, compare: Ga4Row[] | null): TrendRow[] {
   if (!current) return []
 
   const currentRows = [...current].sort((a, b) => String(a.date).localeCompare(String(b.date)))
   const compareRows = [...(compare ?? [])].sort((a, b) => String(a.date).localeCompare(String(b.date)))
 
-  return currentRows.map((r, i) => {
-    const prev = compareRows[i] ?? null
+  // Join by calendar-day offset from each period's own first returned row,
+  // not by array index. GA4 omits zero-session days rather than returning a
+  // zero row, so an interior gap in either array (most often the compare
+  // period) would otherwise slide every later row's join by one position.
+  const currentAnchor = currentRows.length ? toEpochDay(String(currentRows[0].date ?? '')) : null
+  const compareAnchor = compareRows.length ? toEpochDay(String(compareRows[0].date ?? '')) : null
+
+  const compareByOffset = new Map<number, Ga4Row>()
+  if (compareAnchor != null) {
+    for (const r of compareRows) {
+      const day = toEpochDay(String(r.date ?? ''))
+      if (day != null) compareByOffset.set(day - compareAnchor, r)
+    }
+  }
+
+  return currentRows.map((r) => {
+    const day    = toEpochDay(String(r.date ?? ''))
+    const offset = day != null && currentAnchor != null ? day - currentAnchor : null
+    const prev   = offset != null ? compareByOffset.get(offset) ?? null : null
     return {
       date:         fmtDate(String(r.date ?? '')),
       sessions:     (r.sessions    as number) ?? 0,
@@ -98,15 +124,20 @@ export function buildChannelData(
     return { volumeData: [], convData: [], compareMap: {}, sourceMediumMap: {} }
   }
 
+  // 10 entries to cover the channel query's `limit: 10` without a color
+  // repeating (index i % length). The three warm hues (orange, pink,
+  // red-orange) are kept non-adjacent so two neighboring channels never
+  // read as "the same-ish color."
   const CHANNEL_COLORS = [
     CHART_COLORS.ga4,      // blue
     CHART_COLORS.positive, // green
-    CHART_COLORS.primary,  // cyan
-    CHART_COLORS.email,    // yellow
     '#FF7A59',             // orange
+    CHART_COLORS.primary,  // cyan
     CHART_COLORS.tiktok,   // pink
     CHART_COLORS.metaAds,  // purple
     CHART_COLORS.reddit,   // red-orange
+    CHART_COLORS.email,    // yellow
+    CHART_COLORS.shopify,  // yellow-green
     CHART_COLORS.neutral,  // grey (fallback)
   ]
 

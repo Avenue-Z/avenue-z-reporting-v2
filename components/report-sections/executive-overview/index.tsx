@@ -1,5 +1,6 @@
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { getPeecOverview } from '@/lib/peec/client'
+import { getClientBySlug } from '@/lib/db/queries'
 import { KpiCard } from './kpi-card'
 import { NeedsConnection } from './needs-connection'
 import { DemandJourney } from './demand-journey'
@@ -32,6 +33,14 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const mainIso  = `${resolved.startDate},${resolved.endDate}`
   const cmpIso   = compare ? `${compare.startDate},${compare.endDate}` : null
 
+  // Same guard pattern as peec-ai/index.tsx: only call Peec when this client
+  // actually has a Peec project configured. Calling it unconditionally would
+  // fall back to the env-default project and render another client's AEO
+  // numbers as if they were this client's.
+  const client        = await getClientBySlug(clientSlug)
+  const peecConfigured = !!client?.peecCustomerProjectId
+  const crmConnected   = !!client?.hubspotTokenEnvVar
+
   const [
     totalsRes, cmpTotalsRes, trendRes, cmpTrendRes,
     channelRes, cmpChannelRes, channelSMRes,
@@ -46,7 +55,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup', 'sessionSource', 'sessionMedium'], limit: 150 }),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }) : Promise.resolve(null),
-    getPeecOverview(clientSlug, 'year_to_date'),
+    peecConfigured ? getPeecOverview(clientSlug, 'year_to_date') : Promise.resolve(null),
   ])
 
   const val = <T,>(r: PromiseSettledResult<T>): T | null =>
@@ -61,7 +70,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const peec        = val(peecRes)
   const cmpLabel    = buildCompareLabel(compare)
 
-  const stages = buildStages({ totals, cmpTotals, peec, trendRows })
+  const stages = buildStages({ totals, cmpTotals, peec, trendRows, crmConnected })
 
   return (
     <div className="space-y-8">

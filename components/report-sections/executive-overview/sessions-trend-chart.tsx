@@ -100,12 +100,12 @@ function delta(current: number, prior: number | undefined): number | null {
 }
 
 function ChartTooltip({
-  active, payload, label, compareLabel,
+  active, payload, label, smoothed,
 }: {
   active?: boolean
   payload?: TooltipEntry[]
   label?: string
-  compareLabel?: string
+  smoothed?: boolean
 }) {
   if (!active || !payload?.length) return null
 
@@ -122,6 +122,7 @@ function ChartTooltip({
     <div className="rounded-lg border border-white/[0.08] bg-[#1e1e1e] px-3.5 py-3 shadow-2xl">
       <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted">
         {label}
+        {smoothed && <span className="ml-1.5 normal-case text-white/40">· 7-day avg</span>}
       </p>
 
       {mainEntries.map((entry) => {
@@ -205,7 +206,10 @@ export function SessionsTrendChart({ data, compareLabel }: SessionsTrendChartPro
     })
   }, [data, smoothed])
 
-  const hasCompare = data.length > 0 && data[0].prevSessions != null
+  // Any row with a prior value counts, not just row 0. The date join can
+  // legitimately leave a null prior on some rows (a genuinely missing
+  // compare day) while the rest of the period still has compare data.
+  const hasCompare = data.some((row) => row.prevSessions != null)
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
@@ -301,7 +305,7 @@ export function SessionsTrendChart({ data, compareLabel }: SessionsTrendChartPro
             width={40}
           />
           <Tooltip
-            content={<ChartTooltip compareLabel={compareLabel} />}
+            content={<ChartTooltip smoothed={smoothed} />}
             cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
           />
 
@@ -320,6 +324,7 @@ export function SessionsTrendChart({ data, compareLabel }: SessionsTrendChartPro
                 dot={false}
                 activeDot={false}
                 isAnimationActive={false}
+                connectNulls
               />
             ) : null
           )}

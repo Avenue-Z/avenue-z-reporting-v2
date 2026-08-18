@@ -15,7 +15,7 @@ describe('buildStages', () => {
     expect(s.map(x => x.key)).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
   })
 
-  it('marks the two CRM stages unconnected and gives them no metric', () => {
+  it('marks the two CRM stages unconnected and gives them no metric when the client has no CRM configured', () => {
     const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
     const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
     expect(crm).toHaveLength(2)
@@ -24,6 +24,28 @@ describe('buildStages', () => {
       expect(stage.metric).toBeUndefined()
       expect(stage.delta).toBeUndefined()
     }
+  })
+
+  it('marks the two CRM stages connected when the client has a CRM configured', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [], crmConnected: true })
+    const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
+    expect(crm).toHaveLength(2)
+    for (const stage of crm) {
+      expect(stage.connected).toBe(true)
+    }
+  })
+
+  it('defaults the CRM stages to unconnected when crmConnected is omitted', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
+    for (const stage of crm) {
+      expect(stage.connected).toBe(false)
+    }
+  })
+
+  it('marks the AEO stage unconnected when Peec is not configured for the client', () => {
+    const s = buildStages({ totals, cmpTotals, peec: null, trendRows: [] })
+    expect(s.find(x => x.key === 'aeo')?.connected).toBe(false)
   })
 
   it('never marks the GA4 or AEO stages unconnected', () => {
