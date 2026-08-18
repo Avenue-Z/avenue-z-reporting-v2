@@ -82,6 +82,24 @@ describe('transformWeeklyContacts', () => {
     expect(w.weekOverWeek).toBeUndefined()
   })
 
+  it('drops a year-only key (missing the |WW component) rather than keeping it as W00', () => {
+    // normalizeWeek('2026') has no '|', so week is undefined and pads to '00'.
+    // ISO weeks run 01-53, never 00, so '2026-W00' must be treated as malformed,
+    // not as a legitimate bucket that could become previousWeek.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const yearOnly = [
+      { yearWeekIso_created: '2026', contact_count: 999 },
+      { yearWeekIso_created: '2026|33', contact_count: 131 },
+    ] as unknown as Record<string, string>[]
+    const w = transformWeeklyContacts(yearOnly, undefined)
+    expect(w.weeks).toEqual([{ week: '2026-W33', contacts: 131 }])
+    expect(w.currentWeek).toBe(131)
+    expect(w.previousWeek).toBe(0)
+    expect(w.weekOverWeek).toBeUndefined()
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), '2026')
+    warnSpy.mockRestore()
+  })
+
   it('drops a malformed week key rather than letting it become a bogus previous week', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const withMalformed = [

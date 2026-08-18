@@ -57,6 +57,22 @@ describe('transformPipeline', () => {
     expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
   })
 
+  it('selects a client-configured won-stage label instead of the hardcoded default', () => {
+    const custom = [
+      // Under a custom wonStage, this row counts and the literal 'Closed Won'
+      // row (still present, unrelated) does not.
+      { opportunity_stage_name: 'Won - Custom', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 2, opportunity_amount: 5000 },
+      { opportunity_stage_name: 'Closed Won',   opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 999999 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(custom, null, 'Won - Custom')
+    expect(p.closedWon.value).toBe(5000)
+  })
+
+  it('still defaults to the Closed Won literal when no wonStage argument is passed', () => {
+    const p = transformPipeline(rows, null)
+    expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
+  })
+
   it('divides probability by 100 before weighting', () => {
     const p = transformPipeline(rows, null)
     // 16333132.59 * 0.25 + 123238.68 * 0.05

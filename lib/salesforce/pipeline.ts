@@ -1,10 +1,14 @@
 import { salesforceQuery, resolveCompareIso } from './base'
+import { toNumber } from './num'
+import { getClientBySlug } from '@/lib/db/queries'
 import type { PipelineKpis, PipelineData, PipelineKpi, StageRow, OwnerRow } from './types'
 
-// opportunity_is_won is still fetched (and kept in fixtures) because it mirrors the
-// API shape, but it is deliberately not read below: see CLOSED_WON.
+// opportunity_is_won is deliberately not requested: nothing below reads it (won
+// is decided by the stage literal, see DEFAULT_WON_STAGE), and it is a
+// dimension, so keeping it in the query multiplies row cardinality against
+// STAGE_MAX_ROWS for no benefit.
 const STAGE_FIELDS = [
-  'opportunity_stage_name', 'opportunity_is_won', 'opportunity_is_closed',
+  'opportunity_stage_name', 'opportunity_is_closed',
   'opportunity_probability', 'opportunity_count', 'opportunity_amount',
 ]
 // is_closed lets the owner breakdown filter down to open deals client-side. A
@@ -19,20 +23,11 @@ const OWNER_MAX_ROWS = 500
 // own truncation flag: see stageTruncated below.
 const STAGE_MAX_ROWS = 500
 
-/** The only stage that means new-business won. Never use is_won: it also covers renewals carrying $0. */
-const CLOSED_WON = 'Closed Won'
-
-/**
- * Coerces a Supermetrics numeric field to a finite number. Number(x) returns NaN
- * on something like a stringified '1,234.56', and one NaN propagates through an
- * entire reduce, turning a whole tile into NaN. Falls back to 0 instead.
- */
-function toNumber(v: unknown): number {
-  const n = Number(v ?? 0)
-  if (Number.isFinite(n)) return n
-  console.warn(`[salesforce] unparseable numeric value, defaulting to 0:`, v)
-  return 0
-}
+/** The default stage that means new-business won, when a client has not customized
+ * it. Never use is_won: it also covers renewals carrying $0. Overridable per client
+ * via salesforceConfig.wonStageName, so a renamed or customized stage label does not
+ * silently zero out the closedWon tile. */
+const DEFAULT_WON_STAGE = 'Closed Won'
 
 function toStageRows(rows: Record<string, string>[]): StageRow[] {
   return rows.map((r) => ({
@@ -67,10 +62,11 @@ function kpiNoDelta(value: number): PipelineKpi {
 export function transformPipeline(
   rows: Record<string, string>[],
   cmpRows: Record<string, string>[] | null,
+  wonStage: string = DEFAULT_WON_STAGE,
 ): PipelineKpis {
   const agg = (input: StageRow[]) => {
     const open = input.filter((r) => !r.isClosed)
-    const won  = input.filter((r) => r.stage === CLOSED_WON)
+    const won  = input.filter((r) => r.stage === wonStage)
     return {
       openDeals:     open.reduce((s, r) => s + r.count, 0),
       totalPipeline: open.reduce((s, r) => s + r.amount, 0),
@@ -140,6 +136,8 @@ export function transformByOwner(
 export async function getSalesforcePipeline(slug: string): Promise<PipelineData> {
   const dateRange = 'year_to_date'
   const cmpIso = resolveCompareIso(dateRange, 'previous_year')
+  const client = await getClientBySlug(slug)
+  const wonStage = client?.salesforceConfig?.wonStageName ?? DEFAULT_WON_STAGE
   const [stageRows, cmpStageRows, ownerRows] = await Promise.all([
     salesforceQuery(slug, STAGE_FIELDS, dateRange, { maxRows: STAGE_MAX_ROWS }),
     cmpIso
@@ -158,7 +156,7 @@ export async function getSalesforcePipeline(slug: string): Promise<PipelineData>
       return null
     }),
   ])
-  const kpis = transformPipeline(stageRows, cmpStageRows)
+  const kpis = transformPipeline(stageRows, cmpStageRows, wonStage)
   const owner = ownerRows ? transformByOwner(ownerRows, OWNER_MAX_ROWS) : null
   return {
     ...kpis,
@@ -166,6 +164,9 @@ export async function getSalesforcePipeline(slug: string): Promise<PipelineData>
     ownersTruncated: owner ? owner.truncated : false,
     // Drives all four headline tiles, unlike the owner breakdown, so a silent
     // truncation here would corrupt client-facing numbers rather than just a chart.
-    stageTruncated: stageRows.length >= STAGE_MAX_ROWS,
+    // Checks both fetches: a truncated compare set undercounts prev.closedWon just
+    // as badly as a truncated current set undercounts cur.closedWon, and would
+    // otherwise silently overstate the closedWon year-over-year delta.
+    stageTruncated: stageRows.length >= STAGE_MAX_ROWS || (cmpStageRows?.length ?? 0) >= STAGE_MAX_ROWS,
   }
 }

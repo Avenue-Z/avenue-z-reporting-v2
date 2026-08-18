@@ -68,6 +68,8 @@ export interface LinkedInConfig {
 export interface SalesforceConfig {
   /** Salesforce org id, 18 chars, e.g. '00D15000000Em4GEAS'. Passed as the Supermetrics ds_accounts value. */
   salesforceAccountId: string
+  /** The exact stage label that counts as new-business won for the closedWon tile; defaults to 'Closed Won'. */
+  wonStageName?: string
 }
 
 export interface DashSocialConfig {

@@ -1,10 +1,16 @@
-import { describe, expect, test, vi, type Mock } from 'vitest'
+import { describe, expect, test, vi, beforeEach, type Mock } from 'vitest'
 // pipeline.ts imports ./base (-> lib/db -> next-auth); mock it so jsdom can load
 // the module, same pattern as lib/linkedin/kpis.dash.test.ts. Kept in a separate
 // file from pipeline.test.ts so this mock never touches the pure-function tests.
 vi.mock('@/lib/salesforce/base', () => ({ salesforceQuery: vi.fn(), resolveCompareIso: vi.fn() }))
+// pipeline.ts also reads the client directly (for salesforceConfig.wonStageName),
+// separately from base.ts's own internal getClientBySlug call for the account id.
+// The real getClientBySlug hits Next.js's unstable_cache, which throws outside a
+// request context, so it must be mocked here too.
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 import { getSalesforcePipeline } from './pipeline'
 import { salesforceQuery, resolveCompareIso } from './base'
+import { getClientBySlug } from '@/lib/db/queries'
 
 const stageRow = (
   stage: string,
@@ -29,6 +35,14 @@ const ownerRow = (owner: string, count: number, amount: number) => ({
 })
 
 describe('getSalesforcePipeline', () => {
+  beforeEach(() => {
+    // Default: no client row (or no salesforceConfig), so wonStage falls back to
+    // the default 'Closed Won' unless a test overrides this. Every stageRow fixture
+    // below already uses 'Closed Won' as its won stage, so this default keeps all
+    // the pre-existing tests passing while it flows through unmocked.
+    ;(getClientBySlug as Mock).mockResolvedValue(null)
+  })
+
   test('a failed owner fetch yields byOwner null, never an empty array', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     ;(resolveCompareIso as Mock).mockReturnValue(null)
@@ -157,5 +171,53 @@ describe('getSalesforcePipeline', () => {
     // ownersTruncated: true is never produced anywhere else in this file: without
     // this case, a truncation flag that was always false would pass every other test.
     expect(data.ownersTruncated).toBe(true)
+  })
+
+  test('uses the client-configured won-stage label, end to end, instead of the hardcoded default', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      salesforceConfig: { salesforceAccountId: '00D000000000000EAA', wonStageName: 'Won - Custom' },
+    })
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve([
+        // Under the client's custom label, this row is the won one and the literal
+        // 'Closed Won' row is not. A default-only implementation that ignores
+        // wonStageName would count 400 (the 'Closed Won' row) instead of 900.
+        stageRow('Won - Custom', 2, 900, 100, true),
+        stageRow('Closed Won', 4, 400, 100, true),
+      ])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.closedWon.value).toBe(900)
+  })
+
+  test('falls back to the Closed Won default when the client has no wonStageName configured', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      salesforceConfig: { salesforceAccountId: '00D000000000000EAA' },
+    })
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.closedWon.value).toBe(400)
+  })
+
+  test('flags stage truncation when only the compare-window fetch hits its cap', async () => {
+    // Current-period fetch is well under the cap; the compare fetch alone hits it.
+    // Before the fix, stageTruncated only looked at the current-period length, so
+    // this case (a truncated prior period undercounting prev.closedWon and
+    // overstating the closedWon delta) shipped with no warning flag at all.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    const cappedCmpStageRows = Array.from({ length: 500 }, (_, i) => stageRow(`Stage ${i}`, 1, 100))
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === '2025-01-01,2025-12-31') return Promise.resolve(cappedCmpStageRows)
+      return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.stageTruncated).toBe(true)
   })
 })

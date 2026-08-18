@@ -1,4 +1,5 @@
 import { salesforceQuery, resolveCompareIso } from './base'
+import { toNumber } from './num'
 import type { WeeklyContacts, WeekBucket } from './types'
 
 const WEEK_FIELDS = ['yearWeekIso_created', 'contact_count']
@@ -6,28 +7,16 @@ const WEEK_FIELDS = ['yearWeekIso_created', 'contact_count']
 // headroom, same reasoning as the stage/owner caps in pipeline.ts.
 const WEEK_MAX_ROWS = 100
 
-/**
- * Coerces a Supermetrics numeric field to a finite number. Number(x) returns NaN
- * on something like a stringified '1,234.56', and one NaN would poison currentWeek
- * / previousWeek / weekOverWeek. Falls back to 0 instead. Same convention as
- * pipeline.ts's toNumber.
- */
-function toNumber(v: unknown): number {
-  const n = Number(v ?? 0)
-  if (Number.isFinite(n)) return n
-  console.warn(`[salesforce] unparseable numeric value, defaulting to 0:`, v)
-  return 0
-}
-
 /** The API returns 'YYYY|WW'. Normalize to 'YYYY-Www' so it sorts and reads as ISO. */
 function normalizeWeek(key: string): string {
   const [year, week] = String(key).split('|')
   return `${year}-W${String(week ?? '').padStart(2, '0')}`
 }
 
-/** A normalized week key looks like '2026-W33'. Anything else (e.g. a missing or
- * malformed yearWeekIso_created normalizes to '-W00') is not a real week. */
-const WEEK_KEY_RE = /^\d{4}-W\d{2}$/
+/** A normalized week key looks like '2026-W33'. ISO weeks run 01 to 53, never 00,
+ * so a missing or malformed yearWeekIso_created (which normalizes to '-W00' or
+ * '2026-W00') is rejected rather than admitted as a real week. */
+const WEEK_KEY_RE = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/
 
 /** Rows into normalized, chronologically sorted buckets. Shared by the transform and
  * the fetcher, so both agree on which bucket is "latest" (see getSalesforceWeeklyContacts).
