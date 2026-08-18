@@ -41,3 +41,6 @@ with reason. Verified against code 2026-08-18; all of Paul's claims confirmed re
 | 19 | index.tsx:91 | ○ | PARTIAL. FIX the real bug (isDimmed drops unhoverable journey cards to opacity-25). LEAVE the 3x "CRM not connected" count: 208 fills two of them with real data. |
 | 20 | app/dashboard/.../page.tsx:46 | ○ | FIX. Hide the date picker for this slug (section resolves range internally). |
 | 21 | app/portal/.../page.tsx:56 | ○ | FIX. Same, portal route. |
+
+> Post-verification (2026-08-18): items 207 #2 (empty states) and #7 (pct render) were
+> found unimplemented during a reply-vs-code audit and closed in commit 0457a6e.
