@@ -63,7 +63,17 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
 
   const totals      = val(totalsRes)?.rows?.[0] ?? null
   const cmpTotals   = val(cmpTotalsRes)?.rows?.[0] ?? null
-  const trendRows   = buildTrendRows(val(trendRes)?.rows ?? null, val(cmpTrendRes)?.rows ?? null)
+  // Pass the true resolved period-start dates (converted from ISO
+  // "YYYY-MM-DD" to GA4's row "date" format "YYYYMMDD") so buildTrendRows can
+  // anchor the compare join on the actual start of each period, not on
+  // whichever row GA4 happened to return first (it omits zero-session days,
+  // including a period's own first day).
+  const trendRows   = buildTrendRows(
+    val(trendRes)?.rows ?? null,
+    val(cmpTrendRes)?.rows ?? null,
+    resolved.startDate.replace(/-/g, ''),
+    compare ? compare.startDate.replace(/-/g, '') : undefined,
+  )
   const channel     = buildChannelData(val(channelRes)?.rows ?? null, val(cmpChannelRes)?.rows ?? null, val(channelSMRes)?.rows ?? null)
   const audience    = buildAudienceRows(val(audienceRes)?.rows ?? null)
   const cmpAudience = buildAudienceRows(val(cmpAudienceRes)?.rows ?? null)

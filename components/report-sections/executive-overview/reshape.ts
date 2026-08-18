@@ -68,18 +68,35 @@ function toEpochDay(yyyymmdd: string): number | null {
   return Math.floor(Date.UTC(year, month, day) / 86_400_000)
 }
 
-export function buildTrendRows(current: Ga4Row[] | null, compare: Ga4Row[] | null): TrendRow[] {
+export function buildTrendRows(
+  current: Ga4Row[] | null,
+  compare: Ga4Row[] | null,
+  currentStart?: string,
+  compareStart?: string,
+): TrendRow[] {
   if (!current) return []
 
   const currentRows = [...current].sort((a, b) => String(a.date).localeCompare(String(b.date)))
   const compareRows = [...(compare ?? [])].sort((a, b) => String(a.date).localeCompare(String(b.date)))
 
-  // Join by calendar-day offset from each period's own first returned row,
-  // not by array index. GA4 omits zero-session days rather than returning a
-  // zero row, so an interior gap in either array (most often the compare
-  // period) would otherwise slide every later row's join by one position.
-  const currentAnchor = currentRows.length ? toEpochDay(String(currentRows[0].date ?? '')) : null
-  const compareAnchor = compareRows.length ? toEpochDay(String(compareRows[0].date ?? '')) : null
+  // Join by calendar-day offset, not by array index. GA4 omits zero-session
+  // days rather than returning a zero row, so an interior gap in either array
+  // (most often the compare period) would otherwise slide every later row's
+  // join by one position.
+  //
+  // The offset is measured from each period's TRUE start date, passed in by
+  // the caller as currentStart / compareStart (same "date" format as GA4
+  // rows). A leading zero-session day is omitted by GA4 just like an interior
+  // one, so anchoring on the first RETURNED row instead of the true start
+  // would shift every offset by one whenever the period's first day itself
+  // had zero sessions. When the true start dates are not supplied, fall back
+  // to each array's own first returned row (prior behavior).
+  const currentAnchor = currentStart
+    ? toEpochDay(currentStart)
+    : (currentRows.length ? toEpochDay(String(currentRows[0].date ?? '')) : null)
+  const compareAnchor = compareStart
+    ? toEpochDay(compareStart)
+    : (compareRows.length ? toEpochDay(String(compareRows[0].date ?? '')) : null)
 
   const compareByOffset = new Map<number, Ga4Row>()
   if (compareAnchor != null) {

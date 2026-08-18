@@ -74,6 +74,30 @@ describe('buildTrendRows', () => {
     expect(rows[1].prevSessions).toBeUndefined()
     expect(rows[1].prevDate).toBeUndefined()
   })
+
+  it('anchors on the true period-start dates so a missing leading day does not shift every offset', () => {
+    // The current period truly starts Aug 1, but Aug 1 had zero sessions so
+    // GA4 omitted the row entirely — the array's first returned row is Aug 2.
+    // The compare period starts Jul 1 and is complete except Jul 4 is missing.
+    // Without the true start dates, the old code anchored on each array's own
+    // first row (Aug 2 <-> Jul 1), sliding every offset by one day.
+    const cur = [
+      { date: '20260802', sessions: 20, activeUsers: 16, newUsers: 9 }, // offset 1 from true start Aug 1
+      { date: '20260803', sessions: 30, activeUsers: 24, newUsers: 13 }, // offset 2
+      { date: '20260804', sessions: 40, activeUsers: 32, newUsers: 17 }, // offset 3
+    ]
+    const cmp = [
+      { date: '20260701', sessions: 1, activeUsers: 1, newUsers: 1 }, // offset 0
+      { date: '20260702', sessions: 2, activeUsers: 2, newUsers: 2 }, // offset 1
+      { date: '20260703', sessions: 3, activeUsers: 3, newUsers: 3 }, // offset 2
+      // 20260704 (offset 3) missing entirely
+    ]
+    const rows = buildTrendRows(cur, cmp, '20260801', '20260701')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].prevSessions).toBe(2) // Aug 2 (offset 1) -> Jul 2 (offset 1), not Jul 1
+    expect(rows[1].prevSessions).toBe(3) // Aug 3 (offset 2) -> Jul 3 (offset 2)
+    expect(rows[2].prevSessions).toBeUndefined() // Aug 4 (offset 3) -> no compare row at offset 3
+  })
 })
 
 describe('buildChannelData', () => {
