@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach, type Mock } from 'vitest'
+import { describe, expect, test, vi, beforeEach, afterEach, type Mock } from 'vitest'
 // pipeline.ts imports ./base (-> lib/db -> next-auth); mock it so jsdom can load
 // the module, same pattern as lib/linkedin/kpis.dash.test.ts. Kept in a separate
 // file from pipeline.test.ts so this mock never touches the pure-function tests.
@@ -8,7 +8,15 @@ vi.mock('@/lib/salesforce/base', () => ({ salesforceQuery: vi.fn(), resolveCompa
 // The real getClientBySlug hits Next.js's unstable_cache, which throws outside a
 // request context, so it must be mocked here too.
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
-import { getSalesforcePipeline } from './pipeline'
+// getSalesforcePipeline (the public export) is wrapped in cached(), which calls
+// Next's unstable_cache under the hood. unstable_cache throws
+// ("Invariant: incrementalCache missing") outside a real request context, which
+// is exactly what every test here is. These tests import the internal
+// ...Impl directly instead, per the pattern cached() is built around (see
+// lib/hubspot/client.ts): the wrapper is a thin cache/perf/health shell around
+// the impl, so exercising the impl directly tests the same orchestration logic
+// without needing to fake a request context.
+import { getSalesforcePipelineImpl as getSalesforcePipeline } from './pipeline'
 import { salesforceQuery, resolveCompareIso } from './base'
 import { getClientBySlug } from '@/lib/db/queries'
 
@@ -35,12 +43,27 @@ const ownerRow = (owner: string, count: number, amount: number) => ({
 })
 
 describe('getSalesforcePipeline', () => {
+  // Most fixtures in this file are orchestration fixtures (truncation, compare
+  // degrade, owner fetch failure, etc.) that don't bother including a stage
+  // matching the default 'Closed Won' literal, so the no-match warn added for
+  // FIX 2 fires incidentally in several tests here. That warn is legitimate
+  // (it is not what these tests are asserting on), so it is silenced rather
+  // than asserted, keeping suite output pristine without weakening any
+  // existing assertion. transformPipeline's own no-match warn behavior is
+  // covered directly in pipeline.test.ts.
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     // Default: no client row (or no salesforceConfig), so wonStage falls back to
     // the default 'Closed Won' unless a test overrides this. Every stageRow fixture
     // below already uses 'Closed Won' as its won stage, so this default keeps all
     // the pre-existing tests passing while it flows through unmocked.
     ;(getClientBySlug as Mock).mockResolvedValue(null)
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
   })
 
   test('a failed owner fetch yields byOwner null, never an empty array', async () => {

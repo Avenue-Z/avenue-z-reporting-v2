@@ -1,6 +1,8 @@
 import { salesforceQuery, resolveCompareIso } from './base'
-import { toNumber } from './num'
+import { toNumber, toBool } from './num'
 import { getClientBySlug } from '@/lib/db/queries'
+import { cached } from '@/lib/cache'
+import { byClient } from '@/lib/perf'
 import type { PipelineKpis, PipelineData, PipelineKpi, StageRow, OwnerRow } from './types'
 
 // opportunity_is_won is deliberately not requested: nothing below reads it (won
@@ -32,8 +34,10 @@ const DEFAULT_WON_STAGE = 'Closed Won'
 function toStageRows(rows: Record<string, string>[]): StageRow[] {
   return rows.map((r) => ({
     stage:       String(r.opportunity_stage_name ?? ''),
-    // Booleans arrive as real booleans despite the string typing.
-    isClosed:    (r.opportunity_is_closed as unknown) === true,
+    // Booleans arrive as real booleans despite the string typing, in the common
+    // case, but that is an unguaranteed API detail, not a promise Supermetrics
+    // makes, so this goes through toBool() rather than a bare === true check.
+    isClosed:    toBool(r.opportunity_is_closed),
     probability: toNumber(r.opportunity_probability),
     count:       toNumber(r.opportunity_count),
     amount:      toNumber(r.opportunity_amount),
@@ -64,9 +68,20 @@ export function transformPipeline(
   cmpRows: Record<string, string>[] | null,
   wonStage: string = DEFAULT_WON_STAGE,
 ): PipelineKpis {
-  const agg = (input: StageRow[]) => {
+  const agg = (input: StageRow[], warnOnNoMatch: boolean) => {
     const open = input.filter((r) => !r.isClosed)
     const won  = input.filter((r) => r.stage === wonStage)
+    // A renamed won stage (differing by punctuation, casing, or trailing
+    // whitespace from wonStage) collapses this tile to $0 with nothing to
+    // distinguish it from a client who genuinely won nothing. Warn with the
+    // stages actually present so an operator can see the correct label
+    // immediately, rather than having to go dig through the CRM.
+    if (warnOnNoMatch && input.length > 0 && won.length === 0) {
+      console.warn(
+        `[salesforce] no rows matched won stage "${wonStage}"; stages present:`,
+        [...new Set(input.map((r) => r.stage))],
+      )
+    }
     return {
       openDeals:     open.reduce((s, r) => s + r.count, 0),
       totalPipeline: open.reduce((s, r) => s + r.amount, 0),
@@ -75,8 +90,14 @@ export function transformPipeline(
       weighted:      open.reduce((s, r) => s + r.amount * (r.probability / 100), 0),
     }
   }
-  const cur = agg(toStageRows(rows))
-  const prev = cmpRows ? agg(toStageRows(cmpRows)) : null
+  // Warn only for the current window. A legitimately empty or differently-labeled
+  // compare window is common (a client with no closed-won a year ago, or a won
+  // stage that was renamed partway through last year) and closedWon's delta
+  // already degrades cleanly to undefined via pct()'s prior-is-0 guard, so a
+  // second warn here would just be noise on top of a non-issue. The current
+  // window is the one that renders a live, client-facing $0 with no other signal.
+  const cur = agg(toStageRows(rows), true)
+  const prev = cmpRows ? agg(toStageRows(cmpRows), false) : null
   return {
     // openDeals, totalPipeline, and weightedPipeline never carry a year-over-year
     // delta, on purpose. Openness is evaluated as of now, not as of the historical
@@ -109,7 +130,7 @@ export function transformByOwner(
   rows: Record<string, string>[],
   maxRows: number,
 ): { rows: OwnerRow[]; truncated: boolean } {
-  const open = rows.filter((r) => (r.opportunity_is_closed as unknown) !== true)
+  const open = rows.filter((r) => !toBool(r.opportunity_is_closed))
   const byOwner = new Map<string, OwnerRow>()
   for (const r of open) {
     // '' is falsy, so a blank owner falls back to Unassigned too, not just a missing one.
@@ -133,7 +154,13 @@ export function transformByOwner(
  * breakdown, and returns the assembled tile data. Compare failure degrades to
  * no deltas rather than failing the section.
  */
-export async function getSalesforcePipeline(slug: string): Promise<PipelineData> {
+// Exported (not module-private) so pipeline.orchestration.test.ts can call it
+// directly: the public getSalesforcePipeline below is wrapped in cached(),
+// which invokes Next's unstable_cache and throws outside a real request
+// context, which every vitest run is. Testing the impl directly is the
+// intended use of the ...Impl pattern (see lib/hubspot/client.ts), not a
+// workaround: it is the plain, uncached orchestration this wraps.
+export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineData> {
   const dateRange = 'year_to_date'
   const cmpIso = resolveCompareIso(dateRange, 'previous_year')
   const client = await getClientBySlug(slug)
@@ -170,3 +197,13 @@ export async function getSalesforcePipeline(slug: string): Promise<PipelineData>
     stageTruncated: stageRows.length >= STAGE_MAX_ROWS || (cmpStageRows?.length ?? 0) >= STAGE_MAX_ROWS,
   }
 }
+
+// Cached the same way the HubSpot fetchers this block replaces are (1-hour TTL,
+// see lib/hubspot/client.ts): five Supermetrics queries per render, any of which
+// can take the async schedule/poll path, is too much live-render latency for a
+// client-facing page. Wrapping also routes this fetch through recordFetch (inside
+// cached()), so a Salesforce outage becomes visible on the health probe the same
+// way a HubSpot outage already is.
+export const getSalesforcePipeline = cached('salesforce', 'getSalesforcePipeline', getSalesforcePipelineImpl, {
+  extractTags: byClient,
+})

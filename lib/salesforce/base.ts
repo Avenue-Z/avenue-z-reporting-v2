@@ -9,8 +9,12 @@ import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
  * Callers set maxRows comfortably above expected cardinality and treat
  * rows.length === maxRows as a warning.
  *
- * Field values arrive as JS numbers and booleans even though parseSmRows types
- * them as strings. Compare booleans with === true, never with 'True'.
+ * Field values arrive as JS numbers and booleans in practice even though
+ * parseSmRows types them as strings, but that is an unguaranteed API detail,
+ * not a promise Supermetrics makes. Coerce a boolean-shaped field with
+ * toBool() (lib/salesforce/num.ts), never with a bare === true check: a
+ * stringified 'True'/'False' would silently pass through a bare check as
+ * "not strictly true" and overstate open pipeline.
  */
 export async function salesforceQuery(
   slug: string,

@@ -1,5 +1,7 @@
 import { salesforceQuery, resolveCompareIso } from './base'
 import { toNumber } from './num'
+import { cached } from '@/lib/cache'
+import { byClient } from '@/lib/perf'
 import type { WeeklyContacts, WeekBucket } from './types'
 
 const WEEK_FIELDS = ['yearWeekIso_created', 'contact_count']
@@ -65,7 +67,13 @@ export function transformWeeklyContacts(
  * figure rather than failing the block. The Contacts report type filters on
  * contact created date, so these are genuinely new contacts per week.
  */
-export async function getSalesforceWeeklyContacts(slug: string): Promise<WeeklyContacts> {
+// Exported (not module-private) so contacts.test.ts can call it directly: the
+// public getSalesforceWeeklyContacts below is wrapped in cached(), which
+// invokes Next's unstable_cache and throws outside a real request context,
+// which every vitest run is. Testing the impl directly is the intended use of
+// the ...Impl pattern (see lib/hubspot/client.ts), not a workaround: it is the
+// plain, uncached orchestration this wraps.
+export async function getSalesforceWeeklyContactsImpl(slug: string): Promise<WeeklyContacts> {
   // Under year_to_date the latest bucket is usually an in-progress, partial
   // week (whatever days have elapsed so far), compared against previousWeek,
   // a complete prior week. weekOverWeek and priorYearWeek are therefore a
@@ -108,3 +116,13 @@ export async function getSalesforceWeeklyContacts(slug: string): Promise<WeeklyC
   }
   return transformWeeklyContacts(rows, priorYearWeek)
 }
+
+// Cached the same way the HubSpot fetchers this block replaces are (1-hour TTL,
+// see lib/hubspot/client.ts): two Supermetrics queries per render, either of
+// which can take the async schedule/poll path, is too much live-render latency
+// for a client-facing page. Wrapping also routes this fetch through recordFetch
+// (inside cached()), so a Salesforce outage becomes visible on the health probe
+// the same way a HubSpot outage already is.
+export const getSalesforceWeeklyContacts = cached(
+  'salesforce', 'getSalesforceWeeklyContacts', getSalesforceWeeklyContactsImpl, { extractTags: byClient },
+)

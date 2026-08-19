@@ -146,6 +146,108 @@ describe('transformPipeline', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), '1,234.56')
     warnSpy.mockRestore()
   })
+
+  it('does not let a missing (undefined) amount silently read as a real zero', () => {
+    // parseSmRows keys rows by the field_id Supermetrics echoes back. A renamed,
+    // dropped, or subtly wrong field_id leaves the key absent from the row
+    // entirely, which is a DIFFERENT failure than an unparseable string: Number(v
+    // ?? 0) evaluates undefined to a real, finite 0, so the old
+    // !Number.isFinite(n) guard never fired. A wrong implementation that still
+    // does `Number(v ?? 0)` with no separate undefined check passes this
+    // fixture's tile-value assertion (it still reads 0) but fails the warn
+    // assertion, which is the only thing that would tell an operator the field
+    // id broke rather than the client genuinely having no pipeline.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const missingField = [
+      // opportunity_amount is entirely absent, not '' or null.
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(missingField, null)
+    expect(p.totalPipeline.value).toBe(0)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('missing'), undefined)
+    warnSpy.mockRestore()
+  })
+
+  it('boolean identity: string "true"/"false" produce the same tiles as real booleans', () => {
+    // Paul's live-shaped probe: parseSmRows types every value as a string, so a
+    // real boolean arriving is an unguaranteed API detail. A wrong implementation
+    // comparing with === true only recognizes the real boolean and treats every
+    // string form as "not strictly true" -> open, which INFLATES every open tile.
+    const stringBooleanRows = rows.map((r) => ({
+      ...r,
+      opportunity_is_closed: String((r as unknown as { opportunity_is_closed: boolean }).opportunity_is_closed),
+    })) as unknown as Record<string, string>[]
+    const withBooleans = transformPipeline(rows, null)
+    const withStrings = transformPipeline(stringBooleanRows, null)
+    expect(withStrings.openDeals.value).toBe(withBooleans.openDeals.value)
+    expect(withStrings.totalPipeline.value).toBe(withBooleans.totalPipeline.value)
+    expect(withStrings.weightedPipeline.value).toBeCloseTo(withBooleans.weightedPipeline.value, 6)
+    expect(withStrings.closedWon.value).toBeCloseTo(withBooleans.closedWon.value, 6)
+  })
+
+  it('an unrecognised is_closed value warns and excludes the row from open tiles, never inflates them', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const unrecognised = [
+      // A plausible wrong fallback direction defaults an unrecognised value to
+      // "open" (not closed), which would add this row's count/amount into the
+      // open tiles. The safe direction is the opposite: exclude it.
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: 'maybe', opportunity_probability: 25, opportunity_count: 1000, opportunity_amount: 999_999_999 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(unrecognised, null)
+    expect(p.openDeals.value).toBe(0)
+    expect(p.totalPipeline.value).toBe(0)
+    expect(p.weightedPipeline.value).toBe(0)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), 'maybe')
+    warnSpy.mockRestore()
+  })
+
+  it('warns with the stages actually present when nothing matches the configured won stage', () => {
+    // A single row whose amount would otherwise render as a real closedWon
+    // figure, but under a stage label that doesn't match wonStage (simulating a
+    // renamed/re-punctuated stage in the CRM).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const renamed = [
+      { opportunity_stage_name: 'Closed - Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 5_000_000 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(renamed, null)
+    expect(p.closedWon.value).toBe(0)
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('no rows matched won stage'),
+      ['Closed - Won'],
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('does not warn about a won-stage mismatch when a match exists', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    transformPipeline(rows, null) // `rows` includes a real 'Closed Won' row
+    const noMatchCalls = warnSpy.mock.calls.filter((c) => String(c[0]).includes('no rows matched won stage'))
+    expect(noMatchCalls).toHaveLength(0)
+    warnSpy.mockRestore()
+  })
+
+  it('does not warn about a won-stage mismatch on empty input', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    transformPipeline([], null)
+    const noMatchCalls = warnSpy.mock.calls.filter((c) => String(c[0]).includes('no rows matched won stage'))
+    expect(noMatchCalls).toHaveLength(0)
+    warnSpy.mockRestore()
+  })
+
+  it('warns only for the current window, not the compare window, when the prior year has no won stage', () => {
+    // A legitimately differently-labelled or empty prior year is normal and must
+    // stay silent. The current set matches, the compare set does not; exactly one
+    // no-match warn (the current window) must fire, never two. This fails if the
+    // compare aggregation is ever passed warnOnNoMatch: true.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const cmpNoWon = [
+      { opportunity_stage_name: 'Closed - Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 9_000_000 },
+    ] as unknown as Record<string, string>[]
+    transformPipeline(rows, cmpNoWon) // `rows` has a real 'Closed Won'; cmp does not
+    const noMatchCalls = warnSpy.mock.calls.filter((c) => String(c[0]).includes('no rows matched won stage'))
+    expect(noMatchCalls).toHaveLength(0)
+    warnSpy.mockRestore()
+  })
 })
 
 describe('transformByOwner', () => {
@@ -214,5 +316,29 @@ describe('transformByOwner', () => {
     const out = transformByOwner(raw, 3)
     expect(out.rows).toHaveLength(1)
     expect(out.truncated).toBe(true)
+  })
+
+  it('excludes a closed row expressed as the string "true", not just the real boolean', () => {
+    // A wrong implementation comparing with !== true (bare identity) treats a
+    // stringified 'true' as "not strictly true" and keeps the row as open,
+    // inflating Owner A's count/amount. Real booleans and string forms must
+    // agree on the same result.
+    const withStringClosed = [
+      ...owners,
+      { opportunity_owner: 'Owner A', opportunity_is_closed: 'true', opportunity_count: 999, opportunity_amount: 999999 },
+    ] as unknown as Record<string, string>[]
+    const out = transformByOwner(withStringClosed, 500)
+    expect(out.rows.find(r => r.owner === 'Owner A')).toEqual({ owner: 'Owner A', count: 10, amount: 500 })
+  })
+
+  it('an unrecognised is_closed value warns and excludes the owner row, never inflates the breakdown', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const unrecognised = [
+      { opportunity_owner: 'Owner A', opportunity_is_closed: 'unknown', opportunity_count: 500, opportunity_amount: 50000 },
+    ] as unknown as Record<string, string>[]
+    const out = transformByOwner(unrecognised, 500)
+    expect(out.rows).toEqual([])
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), 'unknown')
+    warnSpy.mockRestore()
   })
 })

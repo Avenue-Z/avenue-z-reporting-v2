@@ -7,7 +7,16 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 // touch transformWeeklyContacts, which never imports it.
 vi.mock('@/lib/salesforce/base', () => ({ salesforceQuery: vi.fn(), resolveCompareIso: vi.fn() }))
 
-import { transformWeeklyContacts, getSalesforceWeeklyContacts } from './contacts'
+// getSalesforceWeeklyContacts (the public export) is wrapped in cached(), which
+// calls Next's unstable_cache under the hood and throws
+// ("Invariant: incrementalCache missing") outside a real request context,
+// which is exactly what every test below is. The 'getSalesforceWeeklyContacts'
+// describe block imports the internal ...Impl directly instead, per the
+// pattern cached() is built around (see lib/hubspot/client.ts): the wrapper is
+// a thin cache/perf/health shell around the impl, so exercising the impl
+// directly tests the same orchestration logic without needing to fake a
+// request context.
+import { transformWeeklyContacts, getSalesforceWeeklyContactsImpl as getSalesforceWeeklyContacts } from './contacts'
 import { salesforceQuery, resolveCompareIso } from './base'
 
 // Real key format from the API: pipe-separated, zero-padded week.
@@ -127,6 +136,22 @@ describe('transformWeeklyContacts', () => {
     expect(w.weeks[0].contacts).toBe(0)
     expect(Number.isFinite(w.currentWeek)).toBe(true)
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), 'not-a-number')
+    warnSpy.mockRestore()
+  })
+
+  it('warns distinctly when contact_count is entirely absent, not just unparseable', () => {
+    // A renamed/dropped field_id leaves the key missing from the row rather than
+    // present-but-garbled. Number(undefined ?? 0) is a real, finite 0, so a
+    // fix that only re-checks Number.isFinite would stay silent here even
+    // though this is the worse failure: every week reads a plausible-looking 0
+    // with nothing pointing an operator at the broken field id.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const missingField = [
+      { yearWeekIso_created: '2026|10' },
+    ] as unknown as Record<string, string>[]
+    const w = transformWeeklyContacts(missingField, undefined)
+    expect(w.weeks[0].contacts).toBe(0)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('missing'), undefined)
     warnSpy.mockRestore()
   })
 })
