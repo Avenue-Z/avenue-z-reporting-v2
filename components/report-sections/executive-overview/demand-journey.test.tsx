@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DemandJourney, type DemandStage } from './demand-journey'
+import { buildStages } from './stages'
 
 const live: DemandStage = {
   key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
@@ -61,4 +62,69 @@ test('a connected sibling still dims while another card is hovered', () => {
   fireEvent.mouseEnter(liveCard)
   const otherCard = screen.getByText('AI Visibility').closest('.cursor-default')!
   expect(otherCard.className).toContain('opacity-25')
+})
+
+// Paul CR2 (207) finding: the unconnected-state hero line hardcoded "Connect
+// your CRM to see this" for every stage with connected === false, including
+// the AEO stage, so a Peec outage told the client to connect a CRM, naming
+// the wrong data source entirely.
+
+test('an unconnected stage with a vendor-neutral hint never mentions CRM', () => {
+  const aeoUnconnected: DemandStage = {
+    key: 'aeo', source: 'AEO', label: 'AI Visibility',
+    color: '#00D9FF',
+    connected: false,
+    unconnectedHint: 'Connect AI visibility tracking to see this',
+  }
+  render(<DemandJourney stages={[aeoUnconnected]} />)
+  const card = screen.getByText('AI Visibility').closest('.cursor-default')!
+  expect(card.textContent ?? '').not.toContain('CRM')
+  expect(screen.getByText('Connect AI visibility tracking to see this')).toBeInTheDocument()
+})
+
+test('an unconnected CRM stage still mentions CRM via its own hint', () => {
+  const crmUnconnected: DemandStage = {
+    ...unconnected,
+    unconnectedHint: 'Connect your CRM to see this',
+  }
+  render(<DemandJourney stages={[crmUnconnected]} />)
+  const card = screen.getByText('Pipeline').closest('.cursor-default')!
+  expect(card.textContent ?? '').toContain('CRM')
+})
+
+test('an unconnected stage with no hint at all falls back to vendor-neutral copy, not CRM wording', () => {
+  render(<DemandJourney stages={[unconnected]} />)
+  const card = screen.getByText('Pipeline').closest('.cursor-default')!
+  expect(card.textContent ?? '').not.toContain('CRM')
+})
+
+// Paul CR2 (207) finding: `connected: crm` was set on the two CRM stages
+// without ever giving them a `metric`, so a CRM-configured client saw a
+// label rendered above a blank hero line. The fix removed the flag, but this
+// is the general guard against the whole class of bug: any stage marked
+// connected must render a non-empty hero metric, not just carry the right
+// boolean.
+test('every stage in the real built set shows either the not-connected treatment or a non-empty hero metric', () => {
+  const fullTotals = { sessions: 89234, activeUsers: 62108, newUsers: 34872, conversions: 1847, bounceRate: 0.384, sessionConversionRate: 0.021 }
+  const cmpTotals = { sessions: 77300 }
+  const peec = {
+    weeklyVisibility: [{ weekStart: '2020-01-06', visibility: 22.1 }, { weekStart: '2020-01-13', visibility: 24.8 }],
+    brandRankings: [{ name: 'Renaissance', sov: 11.3, isYou: true }],
+    trackedPrompts: [{}],
+  }
+  const stages = buildStages({ totals: fullTotals, cmpTotals, peec, trendRows: [] })
+  const { container } = render(<DemandJourney stages={stages} />)
+  const cards = container.querySelectorAll('.cursor-default')
+  expect(cards.length).toBe(stages.length)
+  cards.forEach((card) => {
+    const showsNotConnected = card.textContent?.includes('Not connected')
+    // '.font-extrabold' is the hero metric <p>. It only renders on the
+    // connected branch, never alongside the "Not connected" treatment.
+    const hero = card.querySelector('.font-extrabold')
+    if (showsNotConnected) {
+      expect(hero).toBeNull()
+    } else {
+      expect(hero?.textContent?.trim()).toBeTruthy()
+    }
+  })
 })

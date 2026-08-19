@@ -30,7 +30,6 @@ export interface ChannelTabsChartProps {
   volumeData: ChannelVolumeRow[]
   convData: ChannelConvRow[]
   compareMap?: Record<string, number>
-  compareLabel?: string
   sourceMediumMap?: Record<string, SourceMediumEntry[]>
 }
 
@@ -82,7 +81,6 @@ export function ChannelTabsChart({
   volumeData,
   convData,
   compareMap = {},
-  compareLabel,
   sourceMediumMap = {},
 }: ChannelTabsChartProps) {
   const [tab,     setTab]     = useState<Tab>('volume')

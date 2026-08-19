@@ -19,6 +19,15 @@ const KPI_METRICS = [
   'conversions', 'sessionConversionRate',
 ]
 
+// ga4Query never sets an order by default, so GA4 returns rows in an
+// unspecified order. The three channel queries below use `limit` to cap row
+// count, which is only a "top N by sessions" cap when the rows are actually
+// sorted that way first, otherwise it truncates an arbitrary N, which can
+// drop a client's biggest channel (e.g. Organic Search) and skew the
+// share-of-total percentage in reshape.ts, whose denominator is the sum of
+// exactly these truncated rows.
+const SESSIONS_DESC_ORDER = [{ metric: { metricName: 'sessions' }, desc: true }]
+
 interface ExecutiveOverviewProps {
   clientSlug: string
 }
@@ -39,7 +48,6 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   // numbers as if they were this client's.
   const client        = await getClientBySlug(clientSlug)
   const peecConfigured = !!client?.peecCustomerProjectId
-  const crmConnected   = !!client?.hubspotTokenEnvVar
 
   const [
     totalsRes, cmpTotalsRes, trendRes, cmpTrendRes,
@@ -50,9 +58,9 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: KPI_METRICS }) : Promise.resolve(null),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'activeUsers', 'newUsers'], dimensions: ['date'], limit: 90 }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'activeUsers', 'newUsers'], dimensions: ['date'], limit: 90 }) : Promise.resolve(null),
-    ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'conversions', 'sessionConversionRate'], dimensions: ['sessionDefaultChannelGroup'], limit: 10 }),
-    cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup'], limit: 10 }) : Promise.resolve(null),
-    ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup', 'sessionSource', 'sessionMedium'], limit: 150 }),
+    ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'conversions', 'sessionConversionRate'], dimensions: ['sessionDefaultChannelGroup'], limit: 10, orderBys: SESSIONS_DESC_ORDER }),
+    cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup'], limit: 10, orderBys: SESSIONS_DESC_ORDER }) : Promise.resolve(null),
+    ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup', 'sessionSource', 'sessionMedium'], limit: 150, orderBys: SESSIONS_DESC_ORDER }),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }) : Promise.resolve(null),
     peecConfigured ? getPeecOverview(clientSlug, 'year_to_date') : Promise.resolve(null),
@@ -80,7 +88,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const peec        = val(peecRes)
   const cmpLabel    = buildCompareLabel(compare)
 
-  const stages = buildStages({ totals, cmpTotals, peec, trendRows, crmConnected })
+  const stages = buildStages({ totals, cmpTotals, peec, trendRows })
 
   return (
     <div className="space-y-8">

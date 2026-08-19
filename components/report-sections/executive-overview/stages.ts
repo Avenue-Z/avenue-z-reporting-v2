@@ -7,23 +7,51 @@ export interface StageInput {
   totals: Record<string, unknown> | null
   cmpTotals: Record<string, unknown> | null
   peec: {
-    weeklyVisibility?: { visibility: number }[]
+    weeklyVisibility?: { weekStart: string; visibility: number }[]
     brandRankings?: { name: string; sov: number; isYou?: boolean }[]
     trackedPrompts?: unknown[]
   } | null
   trendRows: TrendRow[]
-  /** Derived from the client's CRM configuration (e.g. hubspotTokenEnvVar). Defaults to false. */
-  crmConnected?: boolean
+  /**
+   * Injectable "current time" for the partial-week detection below. Defaults
+   * to the real current time; tests pass a fixed Date so the AI Visibility
+   * delta assertions are not time-dependent.
+   */
+  now?: Date
 }
 
-export function buildStages({ totals, cmpTotals, peec, trendRows, crmConnected }: StageInput): DemandStage[] {
-  const weekly   = peec?.weeklyVisibility ?? []
-  const latest   = weekly.at(-1)?.visibility ?? null
-  const previous = weekly.at(-2)?.visibility ?? null
+/** ISO date (UTC) of the Monday that starts the week containing `date`. Mirrors
+ *  the Monday key computed by groupByWeek in lib/peec/client.ts, so the two
+ *  stay in lockstep, this must keep matching that function's math exactly. */
+function isoWeekStart(date: Date): string {
+  const day  = date.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(date)
+  monday.setUTCDate(date.getUTCDate() + diff)
+  return monday.toISOString().split('T')[0]
+}
+
+/**
+ * Drops the final bucket of a weeklyVisibility series when it is the current,
+ * still-accumulating ISO week. The last bucket from Peec's weekly grouping is
+ * the in-progress week (e.g. two days of data on a Tuesday), so comparing it
+ * to a full prior week understates or inflates the delta depending on the day
+ * it's read. A no-op when the final bucket is not the current week (Peec may
+ * already exclude it).
+ */
+function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date): T[] {
+  if (weekly.length === 0) return weekly
+  const last = weekly[weekly.length - 1]
+  return last.weekStart === isoWeekStart(now) ? weekly.slice(0, -1) : weekly
+}
+
+export function buildStages({ totals, cmpTotals, peec, trendRows, now = new Date() }: StageInput): DemandStage[] {
+  const completeWeeks = dropPartialWeek(peec?.weeklyVisibility ?? [], now)
+  const latest   = completeWeeks.at(-1)?.visibility ?? null
+  const previous = completeWeeks.at(-2)?.visibility ?? null
   // isYou is computed from clients.peec_your_brand. Matching on a literal brand
   // name here would blank share of voice for every client but the one hardcoded.
   const aeoSov   = peec?.brandRankings?.find((b) => b.isYou)?.sov ?? null
-  const crm      = !!crmConnected
 
   return [
     {
@@ -46,6 +74,11 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, crmConnected }
       // when the fetch failed. Either way there is nothing to show, so the
       // card renders the same "not connected" treatment as the CRM stages.
       connected: peec != null,
+      // Vendor-neutral: this is an AI-visibility-tracking outage/non-config,
+      // not a CRM issue. The generic "Not connected" branch used to hardcode
+      // CRM wording for every unconnected stage, which told a client with a
+      // Peec outage to go connect a CRM that has nothing to do with it.
+      unconnectedHint: 'Connect AI visibility tracking to see this',
     },
     {
       key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
@@ -64,15 +97,24 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, crmConnected }
       ],
     },
     {
+      // This page has no CRM data source: index.tsx fetches only GA4 and
+      // Peec. A CRM-configured client still has nothing to show here, so
+      // this stays hardcoded unconnected rather than following the client's
+      // hubspotTokenEnvVar flag (which previously claimed a connection this
+      // page could not honor, rendering an empty hero line). The follow-up
+      // PR that wires in CRM data flips this to a real connection check.
       key: 'inbound', source: 'Inbound Funnel', label: 'Online Contacts',
       color: CHART_COLORS.positive,
       connector: 'becomes pipeline',
-      connected: crm,
+      connected: false,
+      unconnectedHint: 'Connect your CRM to see this',
     },
     {
+      // Same as 'inbound' above: no CRM data source on this page yet.
       key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
       color: CHART_COLORS.neutral,
-      connected: crm,
+      connected: false,
+      unconnectedHint: 'Connect your CRM to see this',
     },
   ]
 }

@@ -3,8 +3,11 @@ import { buildStages } from './stages'
 
 const totals = { sessions: 89234, activeUsers: 62108, newUsers: 34872, conversions: 1847, bounceRate: 0.384, sessionConversionRate: 0.021 }
 const cmpTotals = { sessions: 77300 }
+// weekStart values are both in the past relative to the default `buildStages`
+// `now` (real current time), so none of these fixtures accidentally trip the
+// partial-week drop in the tests below that don't pass a fixed `now`.
 const peec = {
-  weeklyVisibility: [{ visibility: 22.1 }, { visibility: 24.8 }],
+  weeklyVisibility: [{ weekStart: '2020-01-06', visibility: 22.1 }, { weekStart: '2020-01-13', visibility: 24.8 }],
   brandRankings: [{ name: 'Competitor', sov: 30, isYou: false }, { name: 'Renaissance', sov: 11.3, isYou: true }],
   trackedPrompts: [{}, {}, {}],
 }
@@ -15,7 +18,12 @@ describe('buildStages', () => {
     expect(s.map(x => x.key)).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
   })
 
-  it('marks the two CRM stages unconnected and gives them no metric when the client has no CRM configured', () => {
+  it('always marks the two CRM stages unconnected and gives them no metric: this page has no CRM data source', () => {
+    // Not gated on any client config flag. index.tsx fetches only GA4 and
+    // Peec, so there is nothing a CRM-configured client could see here either
+    // A prior version derived this from the client's hubspotTokenEnvVar,
+    // which claimed a connection this page could not honor and rendered an
+    // empty hero line for any CRM-configured client.
     const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
     const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
     expect(crm).toHaveLength(2)
@@ -23,29 +31,20 @@ describe('buildStages', () => {
       expect(stage.connected).toBe(false)
       expect(stage.metric).toBeUndefined()
       expect(stage.delta).toBeUndefined()
-    }
-  })
-
-  it('marks the two CRM stages connected when the client has a CRM configured', () => {
-    const s = buildStages({ totals, cmpTotals, peec, trendRows: [], crmConnected: true })
-    const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
-    expect(crm).toHaveLength(2)
-    for (const stage of crm) {
-      expect(stage.connected).toBe(true)
-    }
-  })
-
-  it('defaults the CRM stages to unconnected when crmConnected is omitted', () => {
-    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
-    const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
-    for (const stage of crm) {
-      expect(stage.connected).toBe(false)
+      expect(stage.unconnectedHint).toContain('CRM')
     }
   })
 
   it('marks the AEO stage unconnected when Peec is not configured for the client', () => {
     const s = buildStages({ totals, cmpTotals, peec: null, trendRows: [] })
     expect(s.find(x => x.key === 'aeo')?.connected).toBe(false)
+  })
+
+  it('gives the unconnected AEO stage an AI-visibility hint, never CRM wording', () => {
+    // A Peec outage or an unconfigured Peec project must never tell the
+    // reader to connect a CRM, which names the wrong data source.
+    const s = buildStages({ totals, cmpTotals, peec: null, trendRows: [] })
+    expect(s.find(x => x.key === 'aeo')?.unconnectedHint).not.toContain('CRM')
   })
 
   it('never marks the GA4 or AEO stages unconnected', () => {
@@ -85,5 +84,58 @@ describe('buildStages', () => {
   it('a failed totals query yields no delta, not minus one hundred percent', () => {
     const s = buildStages({ totals: null, cmpTotals, peec, trendRows: [] })
     expect(s.find(x => x.key === 'ga4')?.delta).toBeUndefined()
+  })
+})
+
+// Wednesday. Its ISO week (Monday-start, UTC) is 2026-08-17.
+const NOW = new Date('2026-08-19T12:00:00Z')
+
+describe('buildStages: AI Visibility partial-week handling', () => {
+  it('drops the last bucket when it is the current, still-accumulating week, for both the hero metric and the delta', () => {
+    const peecData = {
+      weeklyVisibility: [
+        { weekStart: '2026-08-03', visibility: 20.0 },
+        { weekStart: '2026-08-10', visibility: 22.1 },
+        { weekStart: '2026-08-17', visibility: 5.0 }, // partial: only 2 days of the current week so far
+      ],
+      brandRankings: [],
+      trackedPrompts: [],
+    }
+    const s = buildStages({ totals, cmpTotals, peec: peecData, trendRows: [], now: NOW })
+    const aeo = s.find(x => x.key === 'aeo')!
+    // Hero comes from the last COMPLETE week (Aug 10), not the partial Aug 17 bucket.
+    expect(aeo.metric).toBe('22.1%')
+    // Delta compares the two complete weeks (22.1 vs 20.0), not the partial vs a full week.
+    expect(aeo.delta).toBeCloseTo(10.5, 1)
+  })
+
+  it('does nothing when the last bucket is not the current week (Peec already excludes it)', () => {
+    const peecData = {
+      weeklyVisibility: [
+        { weekStart: '2026-08-03', visibility: 20.0 },
+        { weekStart: '2026-08-10', visibility: 22.1 },
+      ],
+      brandRankings: [],
+      trackedPrompts: [],
+    }
+    const s = buildStages({ totals, cmpTotals, peec: peecData, trendRows: [], now: NOW })
+    const aeo = s.find(x => x.key === 'aeo')!
+    expect(aeo.metric).toBe('22.1%')
+    expect(aeo.delta).toBeCloseTo(10.5, 1)
+  })
+
+  it('falls back to no delta, not a crash, when only one complete week remains after dropping the partial one', () => {
+    const peecData = {
+      weeklyVisibility: [
+        { weekStart: '2026-08-10', visibility: 22.1 },
+        { weekStart: '2026-08-17', visibility: 5.0 }, // partial, dropped
+      ],
+      brandRankings: [],
+      trackedPrompts: [],
+    }
+    const s = buildStages({ totals, cmpTotals, peec: peecData, trendRows: [], now: NOW })
+    const aeo = s.find(x => x.key === 'aeo')!
+    expect(aeo.metric).toBe('22.1%')
+    expect(aeo.delta).toBeUndefined()
   })
 })

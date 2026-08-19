@@ -20,6 +20,14 @@ export interface DemandStage {
   spark?:      { date: string; sessions: number }[]
   /** false renders the needs-connection treatment. Omitted or true renders normally. */
   connected?:  boolean
+  /**
+   * Copy shown under "Not connected" when connected is false. Per-stage
+   * because the unconnected reason differs by source (AEO: the AI visibility
+   * tracker; inbound/pipeline: the CRM). A single hardcoded "Connect your
+   * CRM" line here previously named the wrong source for a non-CRM stage.
+   * Falls back to a vendor-neutral message when omitted.
+   */
+  unconnectedHint?: string
 }
 
 export interface DemandJourneyProps {
@@ -110,7 +118,9 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                   {stage.connected === false ? (
                     <>
                       <p className="text-sm font-bold text-white">Not connected</p>
-                      <p className="mt-1 text-xs text-text-muted">Connect your CRM to see this</p>
+                      <p className="mt-1 text-xs text-text-muted">
+                        {stage.unconnectedHint ?? 'Connect this data source to see this'}
+                      </p>
                     </>
                   ) : (
                     <p className="text-xl font-extrabold tracking-tight text-white sm:text-2xl lg:text-3xl">
