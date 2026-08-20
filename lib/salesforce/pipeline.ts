@@ -99,46 +99,51 @@ function kpiNoDelta(value: number): PipelineKpi {
 }
 
 /**
- * Sums the won-stage rows in one row set (Task 2's isClosed AND stage === wonStage
- * partition) and returns the summed amount. warnOnNoMatch gates the two
- * operator-facing warns (a won-stage row not flagged closed; no row matches
- * wonStage at all) so they fire once, for the current window only. A legitimately
- * empty or differently-labeled prior window is common and closedWon's delta
- * already degrades cleanly to undefined via pct()'s non-positive-prior guard, so
- * warning on the prior would just be noise on top of a non-issue.
+ * Sums the won-stage rows in one row set (isClosed AND stage === wonStage) and
+ * reports whether the window produced no won rows at all despite carrying data.
+ * `unmatched` is the client-facing caveat: closedWon renders $0 either because
+ * the stage was renamed in the CRM or because every won-stage row is still
+ * flagged open, and neither is distinguishable from "won nothing" in a dollar
+ * figure alone.
+ *
+ * warnOnNoMatch gates the operator-facing warns so they fire once, for the
+ * current window only. A legitimately empty or differently-labeled prior window
+ * is common and closedWon's delta already degrades cleanly to undefined via
+ * pct()'s non-positive-prior guard, so warning on the prior would be noise.
  */
 function wonRowsFor(
   rows: Record<string, string>[],
   wonStage: string,
   warnOnNoMatch: boolean,
-): number {
+): { amount: number; unmatched: boolean } {
   const input = toStageRows(rows)
   // Won requires BOTH the won stage AND is_closed: a row whose stage says
   // Closed Won but whose is_closed flag is still false (a mid-migration or
   // data-entry state) is not actually closed yet, so it belongs in open, not
   // in won.
   const won = input.filter((r) => r.isClosed && r.stage === wonStage)
+  const mislabeled = input.filter((r) => !r.isClosed && r.stage === wonStage)
+  // A window that returned nothing at all is missing data, not a stage
+  // mismatch; only a window that carried rows and still matched none is.
+  const unmatched = input.length > 0 && won.length === 0
   if (warnOnNoMatch) {
-    const mislabeled = input.filter((r) => !r.isClosed && r.stage === wonStage)
     if (mislabeled.length > 0) {
       console.warn(
-        `[salesforce] ${mislabeled.length} row(s) in won stage but not closed; excluded from closedWon:`,
+        `[salesforce] ${mislabeled.length} row(s) in the closed-won window are in won stage but not closed; excluded from closedWon (they reach the open tiles through the separate open query):`,
         mislabeled.map((r) => r.stage),
       )
     }
-    // A renamed won stage (differing by punctuation, casing, or trailing
-    // whitespace from wonStage) collapses this tile to $0 with nothing to
-    // distinguish it from a client who genuinely won nothing. Warn with the
-    // stages actually present so an operator can see the correct label
-    // immediately, rather than having to go dig through the CRM.
-    if (input.length > 0 && won.length === 0) {
+    // Only claim the stage is absent when it really is. Emitting this alongside
+    // the mislabel warn produced a contradictory pair, naming the same stage as
+    // both missing and present in consecutive lines.
+    if (unmatched && mislabeled.length === 0) {
       console.warn(
         `[salesforce] no rows matched won stage "${wonStage}"; stages present:`,
         [...new Set(input.map((r) => r.stage))],
       )
     }
   }
-  return won.reduce((s, r) => s + r.amount, 0)
+  return { amount: won.reduce((s, r) => s + r.amount, 0), unmatched }
 }
 
 /**
@@ -156,7 +161,7 @@ export function transformPipeline(
   wonRowsCurrent: Record<string, string>[],
   wonRowsPrior: Record<string, string>[] | null,
   wonStage: string = DEFAULT_WON_STAGE,
-): PipelineKpis {
+): PipelineKpis & { wonStageUnmatched: boolean } {
   const open = toStageRows(openRows).filter((r) => !r.isClosed)
   const wonCur = wonRowsFor(wonRowsCurrent, wonStage, true)
   const wonPrior = wonRowsPrior ? wonRowsFor(wonRowsPrior, wonStage, false) : undefined
@@ -165,7 +170,8 @@ export function transformPipeline(
     totalPipeline:    kpiNoDelta(open.reduce((s, r) => s + r.amount, 0)),
     // Probability is 0 to 100. Divide by 100 or the result is 100x too large.
     weightedPipeline: kpiNoDelta(open.reduce((s, r) => s + r.amount * (r.probability / 100), 0)),
-    closedWon:        kpi(wonCur, wonPrior),
+    closedWon:        kpi(wonCur.amount, wonPrior?.amount),
+    wonStageUnmatched: wonCur.unmatched,
   }
 }
 

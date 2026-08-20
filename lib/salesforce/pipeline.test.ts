@@ -410,3 +410,46 @@ describe('countUnrecognizedClosed', () => {
     expect(countUnrecognizedClosed(set)).toBe(0)
   })
 })
+
+describe('wonStageUnmatched', () => {
+  const wonRow = (stage: string, isClosed: boolean) => ({
+    opportunity_stage_name: stage, opportunity_is_closed: isClosed,
+    opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 400,
+  }) as unknown as Record<string, string>
+
+  it('flags a renamed won stage, so a structural $0 is distinguishable from winning nothing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const p = transformPipeline([], [wonRow('Closed Wonn', true)], null)
+    expect(p.closedWon.value).toBe(0)
+    expect(p.wonStageUnmatched).toBe(true)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('no rows matched won stage'),
+      expect.anything(),
+    )
+    warn.mockRestore()
+  })
+
+  it('flags a won-stage row that is not flagged closed, and does not also claim the stage is absent', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const p = transformPipeline([], [wonRow('Closed Won', false)], null)
+    expect(p.closedWon.value).toBe(0)
+    expect(p.wonStageUnmatched).toBe(true)
+    // The stage IS present, so the "no rows matched" warn must stay quiet: emitting
+    // both produced a contradictory pair naming the same stage as absent and present.
+    const messages = warn.mock.calls.map((c) => String(c[0]))
+    expect(messages.some((m) => m.includes('won stage but not closed'))).toBe(true)
+    expect(messages.some((m) => m.includes('no rows matched won stage'))).toBe(false)
+    warn.mockRestore()
+  })
+
+  it('does not flag a healthy won window', () => {
+    const p = transformPipeline([], [wonRow('Closed Won', true)], null)
+    expect(p.closedWon.value).toBe(400)
+    expect(p.wonStageUnmatched).toBe(false)
+  })
+
+  it('does not flag an empty won window, which is missing data rather than a mismatch', () => {
+    const p = transformPipeline([], [], null)
+    expect(p.wonStageUnmatched).toBe(false)
+  })
+})

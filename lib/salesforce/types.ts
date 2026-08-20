@@ -70,6 +70,15 @@ export interface PipelineData extends PipelineKpis {
    * never as "N deals are affected".
    */
   unrecognizedClosedFlags: number
+  /**
+   * True when the closed-won window returned rows but none of them counted as
+   * won, either because the configured won stage was renamed in the CRM or
+   * because every won-stage row is still flagged open. closedWon then renders
+   * $0, which is indistinguishable from a genuine "won nothing this period"
+   * unless the UI reads this flag and says so. False for an empty window: that
+   * is missing data, a different problem.
+   */
+  wonStageUnmatched: boolean
 }
 
 export interface WeekBucket {
