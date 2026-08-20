@@ -141,6 +141,7 @@ export async function GA4Report({ clientSlug, dateRange = 'last_30_days', compar
         metrics: ['sessions', 'conversions', 'sessionConversionRate'],
         dimensions: ['sessionDefaultChannelGroup'],
         limit: 10,
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       }),
       compareIso
         ? ga4Query({
@@ -149,6 +150,7 @@ export async function GA4Report({ clientSlug, dateRange = 'last_30_days', compar
             metrics: ['sessions'],
             dimensions: ['sessionDefaultChannelGroup'],
             limit: 10,
+            orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           })
         : Promise.resolve(null),
       ga4Query({
@@ -210,6 +212,7 @@ export async function GA4Report({ clientSlug, dateRange = 'last_30_days', compar
         metrics: ['sessions'],
         dimensions: ['sessionDefaultChannelGroup', 'sessionSource', 'sessionMedium'],
         limit: 150,
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       }),
       // Compare period — top pages (for delta arrows)
       compareIso
