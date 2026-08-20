@@ -93,7 +93,7 @@ export function aiSourceModel(source: unknown): AEOModel | null {
 /** Report display names */
 export const REPORT_NAMES: Record<string, string> = {
   'demand-overview': 'Overview',
-  'executive-overview': 'Overview',
+  'executive-overview': 'Executive Overview',
   'exec-summary': 'Executive Summary',
   ga4: 'Web Analytics',
   'meta-ads': 'Meta Advertising',
