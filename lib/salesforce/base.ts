@@ -9,6 +9,11 @@ import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
  * Callers set maxRows comfortably above expected cardinality and treat
  * rows.length === maxRows as a warning.
  *
+ * No filters parameter on purpose: server-side filtering is avoided for this
+ * source because a typo'd filter field returns HTTP 200 with empty data and no
+ * error, which is indistinguishable from a legitimate zero result. Filtering
+ * happens in the transforms, where a mistake is visible in a test.
+ *
  * Field values arrive as JS numbers and booleans in practice even though
  * parseSmRows types them as strings, but that is an unguaranteed API detail,
  * not a promise Supermetrics makes. Coerce a boolean-shaped field with
@@ -20,7 +25,7 @@ export async function salesforceQuery(
   slug: string,
   fields: string[],
   dateRange: string,
-  opts: { filters?: string; settings?: Record<string, unknown>; maxRows?: number } = {},
+  opts: { settings?: Record<string, unknown>; maxRows?: number } = {},
 ): Promise<Record<string, string>[]> {
   const client = await getClientBySlug(slug)
   const accountId = client?.salesforceConfig?.salesforceAccountId
@@ -35,7 +40,6 @@ export async function salesforceQuery(
     dsAccounts: accountId,
     fields,
     dateRange: `${startDate},${endDate}`,
-    filters: opts.filters,
     settings: opts.settings,
     maxRows: opts.maxRows ?? 500,
   })

@@ -25,6 +25,7 @@ export default defineConfig({
       'lib/meta/kpis.test.ts',
       'lib/meta/creative.test.ts',
       'lib/salesforce/num.test.ts',
+      'lib/salesforce/resolve-compare-iso.test.ts',
       'lib/salesforce/pipeline.test.ts',
       'lib/salesforce/pipeline.orchestration.test.ts',
       'lib/salesforce/contacts.test.ts',

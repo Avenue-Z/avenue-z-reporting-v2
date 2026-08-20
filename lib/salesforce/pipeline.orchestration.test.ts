@@ -28,7 +28,6 @@ const stageRow = (
   isClosed = false,
 ) => ({
   opportunity_stage_name: stage,
-  opportunity_is_won: false,
   opportunity_is_closed: isClosed,
   opportunity_probability: probability,
   opportunity_count: count,

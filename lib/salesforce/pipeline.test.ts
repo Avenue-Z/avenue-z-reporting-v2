@@ -4,19 +4,19 @@ import { transformPipeline, transformByOwner, countUnrecognizedClosed } from './
 // Shaped exactly like parseSmRows output for the stage query. Values are numbers
 // and booleans at runtime despite the string typing, so fixtures use real types.
 const rows = [
-  { opportunity_stage_name: 'Closed Lost',       opportunity_is_won: false, opportunity_is_closed: true,  opportunity_probability: 0,   opportunity_count: 5314, opportunity_amount: 407918882.38 },
-  { opportunity_stage_name: 'Renewed',           opportunity_is_won: true,  opportunity_is_closed: true,  opportunity_probability: 100, opportunity_count: 1822, opportunity_amount: 0 },
-  { opportunity_stage_name: 'Closed Won',        opportunity_is_won: true,  opportunity_is_closed: true,  opportunity_probability: 100, opportunity_count: 624,  opportunity_amount: 30352228.14 },
-  { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25,  opportunity_count: 270,  opportunity_amount: 16333132.59 },
-  { opportunity_stage_name: 'Set Up',            opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 5,   opportunity_count: 11,   opportunity_amount: 123238.68 },
+  { opportunity_stage_name: 'Closed Lost', opportunity_is_closed: true,  opportunity_probability: 0,   opportunity_count: 5314, opportunity_amount: 407918882.38 },
+  { opportunity_stage_name: 'Renewed',  opportunity_is_closed: true,  opportunity_probability: 100, opportunity_count: 1822, opportunity_amount: 0 },
+  { opportunity_stage_name: 'Closed Won',  opportunity_is_closed: true,  opportunity_probability: 100, opportunity_count: 624,  opportunity_amount: 30352228.14 },
+  { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 25,  opportunity_count: 270,  opportunity_amount: 16333132.59 },
+  { opportunity_stage_name: 'Set Up', opportunity_is_closed: false, opportunity_probability: 5,   opportunity_count: 11,   opportunity_amount: 123238.68 },
   // The trap: Closed Won appears twice when probability is a dimension.
-  { opportunity_stage_name: 'Closed Won',        opportunity_is_won: true,  opportunity_is_closed: true,  opportunity_probability: 25,  opportunity_count: 1,    opportunity_amount: 15297.6 },
+  { opportunity_stage_name: 'Closed Won',  opportunity_is_closed: true,  opportunity_probability: 25,  opportunity_count: 1,    opportunity_amount: 15297.6 },
   // Deliberately hypothetical: in the live data, renewal stages always carry a $0
   // amount, so this row can't happen today. It guards the case where the CRM
   // starts populating renewal amounts, at which point the is_won flag would
   // silently absorb them into closed won if the implementation ever keyed off
   // it instead of the Closed Won stage literal.
-  { opportunity_stage_name: 'Renewed Pending Payment', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 26, opportunity_amount: 250000 },
+  { opportunity_stage_name: 'Renewed Pending Payment', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 26, opportunity_amount: 250000 },
 ] as unknown as Record<string, string>[]
 
 describe('transformPipeline', () => {
@@ -51,7 +51,7 @@ describe('transformPipeline', () => {
       // A plausible wrong implementation is stage.toLowerCase().includes('won'),
       // which would wrongly absorb this row. It is won=true, closed, and carries
       // a real amount, but its stage is not the exact "Closed Won" literal.
-      { opportunity_stage_name: 'Closed Won - Renewal', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 3, opportunity_amount: 500000 },
+      { opportunity_stage_name: 'Closed Won - Renewal', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 3, opportunity_amount: 500000 },
     ] as unknown as Record<string, string>[]
     const p = transformPipeline(withFuzzyWon, withFuzzyWon, null)
     expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
@@ -61,8 +61,8 @@ describe('transformPipeline', () => {
     const custom = [
       // Under a custom wonStage, this row counts and the literal 'Closed Won'
       // row (still present, unrelated) does not.
-      { opportunity_stage_name: 'Won - Custom', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 2, opportunity_amount: 5000 },
-      { opportunity_stage_name: 'Closed Won',   opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 999999 },
+      { opportunity_stage_name: 'Won - Custom', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 2, opportunity_amount: 5000 },
+      { opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 999999 },
     ] as unknown as Record<string, string>[]
     const p = transformPipeline(custom, custom, null, 'Won - Custom')
     expect(p.closedWon.value).toBe(5000)
@@ -105,8 +105,8 @@ describe('transformPipeline', () => {
     // to their priors (the bug being fixed here), this is exactly the fixture
     // that would produce a visible, wrong percentage instead of staying silent.
     const cmp = [
-      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 200, opportunity_amount: 10_000_000 },
-      { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 50, opportunity_amount: 20_000_000 },
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 200, opportunity_amount: 10_000_000 },
+      { opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 50, opportunity_amount: 20_000_000 },
     ] as unknown as Record<string, string>[]
     const withCmp = transformPipeline(rows, rows, cmp)
     expect(withCmp.openDeals.delta).toBeUndefined()
@@ -123,8 +123,8 @@ describe('transformPipeline', () => {
     // totalPipeline's prior instead of its own) shows up as a wrong number
     // rather than a coincidental match.
     const cmp = [
-      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 20, opportunity_count: 50, opportunity_amount: 200000 },
-      { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 5, opportunity_amount: 999999 },
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 20, opportunity_count: 50, opportunity_amount: 200000 },
+      { opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 5, opportunity_amount: 999999 },
     ] as unknown as Record<string, string>[]
     const priorClosedWon = 999999
     const p = transformPipeline(rows, rows, cmp)
@@ -138,7 +138,7 @@ describe('transformPipeline', () => {
     // the prior === 0 guard in pct() stops (current - 0) / 0 from producing
     // Infinity instead of an absent delta. Remove that guard and this fails.
     const cmpNoWon = [
-      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 5, opportunity_amount: 1000 },
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 5, opportunity_amount: 1000 },
     ] as unknown as Record<string, string>[]
     const p = transformPipeline(rows, rows, cmpNoWon)
     expect(p.closedWon.delta).toBeUndefined()
@@ -153,8 +153,8 @@ describe('transformPipeline', () => {
   it('does not let one unparseable amount NaN-poison a tile', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const badRows = [
-      { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10, opportunity_amount: '1,234.56' },
-      { opportunity_stage_name: 'Set Up',             opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 5,  opportunity_count: 5,  opportunity_amount: 1000 },
+      { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10, opportunity_amount: '1,234.56' },
+      { opportunity_stage_name: 'Set Up', opportunity_is_closed: false, opportunity_probability: 5,  opportunity_count: 5,  opportunity_amount: 1000 },
     ] as unknown as Record<string, string>[]
     const p = transformPipeline(badRows, badRows, null)
     // The unparseable amount coerces to 0, not NaN, so the tile still reads a real number.
