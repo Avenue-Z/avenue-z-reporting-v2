@@ -131,6 +131,16 @@ export function buildChannelData(
   current: Ga4Row[] | null,
   compare: Ga4Row[] | null,
   sourceMedium: Ga4Row[] | null,
+  /**
+   * The true, untruncated session total for the period (from the page's
+   * undimensioned totals query). `current` is capped at the channel query's
+   * `limit`, so summing just these rows would compute share-of-top-N, not
+   * share of total traffic, whenever any sessions exist outside the
+   * returned row set. Falls back to the row-sum when absent or zero (e.g.
+   * the totals query itself failed), which reproduces the old behavior
+   * rather than dividing by zero.
+   */
+  trueTotal?: number | null,
 ): {
   volumeData: ChannelVolumeRow[]
   convData: ChannelConvRow[]
@@ -158,9 +168,10 @@ export function buildChannelData(
     CHART_COLORS.neutral,  // grey (fallback)
   ]
 
-  const channelTotal = current.reduce(
+  const rowSum = current.reduce(
     (sum, r) => sum + ((r.sessions as number) ?? 0), 0
   )
+  const channelTotal = trueTotal != null && trueTotal > 0 ? trueTotal : rowSum
 
   // Map compare period sessions by channel name for O(1) lookup
   const compareMap: Record<string, number> = {}

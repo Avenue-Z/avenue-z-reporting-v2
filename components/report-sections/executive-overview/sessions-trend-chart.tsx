@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { NoData } from './no-data'
+import { NoData, LoadFailed } from './no-data'
 
 export interface TrendRow {
   date: string
@@ -171,9 +171,14 @@ function ChartTooltip({
 export interface SessionsTrendChartProps {
   data: TrendRow[]
   compareLabel?: string
+  /** True when the primary (current-period) GA4 query REJECTED, as opposed to
+   *  succeeding with zero rows. Selects the "couldn't load" empty state
+   *  instead of NoData so an outage never reads as a claim the period itself
+   *  had no traffic. */
+  failed?: boolean
 }
 
-export function SessionsTrendChart({ data, compareLabel }: SessionsTrendChartProps) {
+export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrendChartProps) {
   const [active, setActive] = useState<Record<SeriesKey, boolean>>({
     sessions: true,
     users:    true,
@@ -212,11 +217,13 @@ export function SessionsTrendChart({ data, compareLabel }: SessionsTrendChartPro
   // compare day) while the rest of the period still has compare data.
   const hasCompare = data.some((row) => row.prevSessions != null)
 
-  // A failed GA4 query resolves to an empty array (see index.tsx / reshape.ts), which
-  // would otherwise render the header, toggles, and axes around an empty chart. Show
-  // an explicit empty state instead of chart chrome with nothing behind it.
+  // An empty array here means either a query that succeeded with zero rows or
+  // one that REJECTED (see index.tsx / reshape.ts, both collapse to []).
+  // `failed` disambiguates which empty state is honest: chart chrome around
+  // nothing either way, but the copy must not claim the period was empty
+  // when the real story is an outage.
   if (data.length === 0) {
-    return <NoData />
+    return failed ? <LoadFailed /> : <NoData />
   }
 
   return (

@@ -57,13 +57,19 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, now = new Date
     {
       key: 'aeo', source: 'AEO', label: 'AI Visibility',
       metric: latest != null ? `${latest.toFixed(1)}%` : '—',
-      subMetric: aeoSov != null ? `${aeoSov.toFixed(1)}% share of voice` : undefined,
+      // Share of voice is genuinely year-to-date (it comes from the same
+      // year_to_date-scoped brandRankings query), while the hero metric above
+      // is the last complete week. Naming the window inline keeps the card
+      // honest instead of implying both numbers share one window.
+      subMetric: aeoSov != null ? `${aeoSov.toFixed(1)}% share of voice, year to date` : undefined,
       delta: latest != null && previous != null ? pct(latest, previous) : undefined,
       color: CHART_COLORS.primary,
       connector: 'drives discovery',
-      // This card is year to date while the page label reads "Last 30 days",
-      // so the badge is the honest marker of the mismatch.
-      badge: 'YTD',
+      // The hero metric is the latest COMPLETE week's visibility (see
+      // dropPartialWeek above), not a year-to-date figure, so the badge names
+      // that window instead of claiming YTD.
+      badge: 'LAST FULL WEEK',
+      deltaLabel: 'vs prior week',
       heroLabel: 'visibility rate across tracked prompts',
       stats: [
         { label: 'Share of Voice',  value: aeoSov != null ? `${aeoSov.toFixed(1)}%` : '—' },

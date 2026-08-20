@@ -13,6 +13,13 @@ export interface DemandStage {
   delta?:      number
   color:       string
   connector?:  string
+  /**
+   * Copy shown under the delta badge. Per-stage because the comparison window
+   * differs by source (AEO compares the last two complete weeks, GA4 compares
+   * the prior 30-day period). Falls back to "vs prior period" when omitted,
+   * which stays correct for every stage except AEO.
+   */
+  deltaLabel?: string
   // Expanded card content
   heroLabel?:  string
   badge?:      string
@@ -160,7 +167,7 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                       >
                         {up ? '↑' : '↓'} {Math.abs(stage.delta).toFixed(1)}%
                       </span>
-                      <p className="mt-0.5 text-[9px] text-text-muted/60">vs prior period</p>
+                      <p className="mt-0.5 text-[9px] text-text-muted/60">{stage.deltaLabel ?? 'vs prior period'}</p>
                     </div>
                   )}
                 </div>

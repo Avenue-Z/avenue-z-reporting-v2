@@ -59,7 +59,14 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'activeUsers', 'newUsers'], dimensions: ['date'], limit: 90 }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'activeUsers', 'newUsers'], dimensions: ['date'], limit: 90 }) : Promise.resolve(null),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'conversions', 'sessionConversionRate'], dimensions: ['sessionDefaultChannelGroup'], limit: 10, orderBys: SESSIONS_DESC_ORDER }),
-    cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup'], limit: 10, orderBys: SESSIONS_DESC_ORDER }) : Promise.resolve(null),
+    // 25, not 10: this is the COMPARE period's ranking, and a channel that
+    // ranks in the current top 10 can rank outside the compare top 10 while
+    // still being present further down. Capping the compare fetch at the
+    // same 10 as the display limit truncated it out of compareMap entirely,
+    // which rendered a grown channel as "Prior period 0" (see reshape.ts /
+    // channel-tabs-chart.tsx). Channel groups are a small, bounded dimension,
+    // so a wider compare fetch costs nothing.
+    cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup'], limit: 25, orderBys: SESSIONS_DESC_ORDER }) : Promise.resolve(null),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionDefaultChannelGroup', 'sessionSource', 'sessionMedium'], limit: 150, orderBys: SESSIONS_DESC_ORDER }),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }) : Promise.resolve(null),
@@ -68,6 +75,16 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
 
   const val = <T,>(r: PromiseSettledResult<T>): T | null =>
     r.status === 'fulfilled' ? r.value : null
+
+  // A REJECTED primary query (an outage, not an empty-but-successful result)
+  // must render a distinct "couldn't load" state, never NoData. val() above
+  // flattens both cases to null/[], which is right for the numbers themselves
+  // but loses the outage signal each chart needs to pick the honest empty
+  // state. Only the PRIMARY (current-period) query per chart is tracked here;
+  // a failed compare-only query still lets the current-period data render.
+  const trendFailed    = trendRes.status === 'rejected'
+  const audienceFailed = audienceRes.status === 'rejected'
+  const channelFailed  = channelRes.status === 'rejected'
 
   const totals      = val(totalsRes)?.rows?.[0] ?? null
   const cmpTotals   = val(cmpTotalsRes)?.rows?.[0] ?? null
@@ -82,7 +99,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     resolved.startDate.replace(/-/g, ''),
     compare ? compare.startDate.replace(/-/g, '') : undefined,
   )
-  const channel     = buildChannelData(val(channelRes)?.rows ?? null, val(cmpChannelRes)?.rows ?? null, val(channelSMRes)?.rows ?? null)
+  const channel     = buildChannelData(val(channelRes)?.rows ?? null, val(cmpChannelRes)?.rows ?? null, val(channelSMRes)?.rows ?? null, totals?.sessions as number | undefined)
   const audience    = buildAudienceRows(val(audienceRes)?.rows ?? null)
   const cmpAudience = buildAudienceRows(val(cmpAudienceRes)?.rows ?? null)
   const peec        = val(peecRes)
@@ -108,9 +125,9 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
           <KpiCard title="Conversions"          value={fmtNum(totals?.conversions as number)}                 delta={pct(totals?.conversions as number, cmpTotals?.conversions as number)} comparisonExpected tooltip="Total conversion events fired in the selected period." />
           <KpiCard title="Conversion Rate"      value={fmtPct(totals?.sessionConversionRate as number)}       delta={pct(totals?.sessionConversionRate as number, cmpTotals?.sessionConversionRate as number)} comparisonExpected tooltip="Percentage of sessions that resulted in a conversion." />
         </div>
-        <SessionsTrendChart data={trendRows} compareLabel={cmpLabel} />
-        <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} />
-        <ChannelTabsChart volumeData={channel.volumeData} convData={channel.convData} compareMap={channel.compareMap} sourceMediumMap={channel.sourceMediumMap} />
+        <SessionsTrendChart data={trendRows} compareLabel={cmpLabel} failed={trendFailed} />
+        <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} failed={audienceFailed} />
+        <ChannelTabsChart volumeData={channel.volumeData} convData={channel.convData} compareMap={channel.compareMap} sourceMediumMap={channel.sourceMediumMap} failed={channelFailed} />
       </section>
 
       <section className="space-y-6">

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CHART_COLORS } from '@/lib/constants'
-import { NoData } from './no-data'
+import { NoData, LoadFailed } from './no-data'
 
 export interface AudienceRow {
   type: string        // 'new' | 'returning'
@@ -15,6 +15,11 @@ export interface AudienceRow {
 export interface NewReturningProps {
   rows: AudienceRow[]
   compareRows?: AudienceRow[]
+  /** True when the primary (current-period) GA4 query REJECTED, as opposed to
+   *  succeeding with zero rows. Selects the "couldn't load" empty state
+   *  instead of NoData so an outage never reads as a claim the period itself
+   *  had no traffic. */
+  failed?: boolean
 }
 
 // Routed through CHART_COLORS (CLAUDE.md) instead of inlined hex. 'new' reuses the
@@ -61,14 +66,16 @@ function DeltaBadge({ value }: { value: number | null }) {
   )
 }
 
-export function NewReturning({ rows, compareRows }: NewReturningProps) {
+export function NewReturning({ rows, compareRows, failed }: NewReturningProps) {
   const [hovered, setHovered] = useState<string | null>(null)
 
-  // A failed GA4 query resolves to an empty array (see index.tsx / reshape.ts), which
-  // would otherwise render the title and an empty split bar with nothing in it. Show
-  // an explicit empty state instead of chart chrome with nothing behind it.
+  // An empty array here means either a query that succeeded with zero rows or
+  // one that REJECTED (see index.tsx / reshape.ts, both collapse to []).
+  // `failed` disambiguates which empty state is honest: chart chrome around
+  // nothing either way, but the copy must not claim the period was empty
+  // when the real story is an outage.
   if (rows.length === 0) {
-    return <NoData />
+    return failed ? <LoadFailed /> : <NoData />
   }
 
   const total = rows.reduce((s, r) => s + r.sessions, 0) || 1

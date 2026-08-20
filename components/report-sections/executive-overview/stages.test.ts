@@ -65,6 +65,34 @@ describe('buildStages', () => {
     expect(s.find(x => x.key === 'aeo')?.subMetric).toContain('11.3%')
   })
 
+  // Paul CR3 (207) finding: the AEO card badged "YTD" over a hero metric that
+  // is actually the last complete week (see the partial-week tests below),
+  // and every card's delta caption hardcoded "vs prior period" even though
+  // the AEO delta compares two complete weeks, not a 30-day period.
+  it('badges the AEO stage with its real hero window, never YTD', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    const aeo = s.find(x => x.key === 'aeo')!
+    expect(aeo.badge).not.toBe('YTD')
+    expect(aeo.badge).toBe('LAST FULL WEEK')
+  })
+
+  it('gives the AEO stage its own delta label, "vs prior week", not the default', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    expect(s.find(x => x.key === 'aeo')?.deltaLabel).toBe('vs prior week')
+  })
+
+  it('leaves the GA4 stage without a deltaLabel override, so it falls back to "vs prior period"', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    expect(s.find(x => x.key === 'ga4')?.deltaLabel).toBeUndefined()
+  })
+
+  it('gives the year-to-date share-of-voice subMetric its own time qualifier, since the hero is last-full-week', () => {
+    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+    const subMetric = s.find(x => x.key === 'aeo')?.subMetric ?? ''
+    expect(subMetric).toContain('11.3%')
+    expect(subMetric.toLowerCase()).toContain('year to date')
+  })
+
   it('leaves share of voice out when no brand is flagged isYou', () => {
     const noMatch = { ...peec, brandRankings: [{ name: 'Competitor', sov: 30, isYou: false }] }
     const s = buildStages({ totals, cmpTotals, peec: noMatch, trendRows: [] })

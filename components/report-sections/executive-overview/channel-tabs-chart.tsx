@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { NoData } from './no-data'
+import { NoData, LoadFailed } from './no-data'
 
 // ── Shared types ────────────────────────────────────────────────────────────
 
@@ -31,6 +31,11 @@ export interface ChannelTabsChartProps {
   convData: ChannelConvRow[]
   compareMap?: Record<string, number>
   sourceMediumMap?: Record<string, SourceMediumEntry[]>
+  /** True when the primary (current-period) GA4 query REJECTED, as opposed to
+   *  succeeding with zero rows. Selects the "couldn't load" empty state
+   *  instead of NoData so an outage never reads as a claim the period itself
+   *  had no traffic. */
+  failed?: boolean
 }
 
 type Tab = 'volume' | 'conversion'
@@ -82,6 +87,7 @@ export function ChannelTabsChart({
   convData,
   compareMap = {},
   sourceMediumMap = {},
+  failed,
 }: ChannelTabsChartProps) {
   const [tab,     setTab]     = useState<Tab>('volume')
   const [hovered, setHovered] = useState<string | null>(null)
@@ -118,12 +124,14 @@ export function ChannelTabsChart({
   const volMax  = Math.max(...volumeData.map((r) => r.sessions), 1)
   const convMax = Math.max(...convData.map((r) => r.convRate), 0.001)
 
-  // A failed GA4 query resolves to an empty array (see index.tsx / reshape.ts). Both
-  // tabs derive from the same underlying channel query, so an empty volumeData means
-  // convData is empty too — otherwise this renders tabs and column headers above no
-  // rows. Show an explicit empty state instead of chart chrome with nothing behind it.
+  // An empty volumeData means either a query that succeeded with zero rows or one
+  // that REJECTED (see index.tsx / reshape.ts, both collapse to []). Both tabs
+  // derive from the same underlying channel query, so this also covers convData.
+  // `failed` disambiguates which empty state is honest: chart chrome around
+  // nothing either way, but the copy must not claim the period was empty when
+  // the real story is an outage.
   if (volumeData.length === 0) {
-    return <NoData />
+    return failed ? <LoadFailed /> : <NoData />
   }
 
   return (
@@ -194,6 +202,13 @@ export function ChannelTabsChart({
         <div className="space-y-1">
           {sortedVolumeData.map((row) => {
             const barWidth      = (row.sessions / volMax) * 100
+            // A channel absent from compareMap (outside the compare period's
+            // ranking, not merely a real zero) must read as "no prior data,"
+            // not "Prior period 0": the two mean very different things and
+            // coalescing them with `?? 0` presented a channel that actually
+            // grew as if it were brand new. `in` distinguishes "key never
+            // set" from "key set to 0" (a real, observed zero prior).
+            const hasPrior       = row.name in compareMap
             const priorSessions = compareMap[row.name] ?? 0
             const isHovered     = hovered === row.name
             const isDimmed      = hovered !== null && !isHovered
@@ -270,12 +285,12 @@ export function ChannelTabsChart({
                       <div className="text-right">
                         <p className="text-[10px] text-text-muted">Prior period</p>
                         <p className="tabular-nums text-xs font-medium text-white/50">
-                          {priorSessions.toLocaleString()}
+                          {hasPrior ? priorSessions.toLocaleString() : '—'}
                         </p>
                       </div>
                       <div className="hidden h-6 w-px bg-white/10 sm:block" />
                       <div className="text-right">
-                        <Delta current={row.sessions} prior={priorSessions} />
+                        {hasPrior && <Delta current={row.sessions} prior={priorSessions} />}
                         <p className="tabular-nums text-sm font-semibold text-white">
                           {row.sessions.toLocaleString()}
                         </p>

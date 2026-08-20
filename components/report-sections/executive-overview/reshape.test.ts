@@ -140,6 +140,42 @@ describe('buildChannelData', () => {
     expect(out.volumeData.find(r => r.name === 'Organic Search')?.pct).toBe(41)
   })
 
+  // Paul CR3 (207) finding: channelTotal summed only the (capped, top-N)
+  // returned rows, so `pct` was share-of-top-10, not share of total traffic,
+  // even though the tooltip promises "share of total traffic" and the number
+  // renders under the page's true, untruncated Sessions KPI.
+  it('uses the true untruncated session total as the pct denominator when provided, so shares sum to less than 100', () => {
+    const rows = [
+      { sessionDefaultChannelGroup: 'Organic Search', sessions: 60, sessionConversionRate: 0.03 },
+      { sessionDefaultChannelGroup: 'Direct',          sessions: 20, sessionConversionRate: 0.02 },
+    ]
+    // True total (200) is larger than the summed row set (80): traffic exists
+    // outside this capped/sorted top-N row set.
+    const out = buildChannelData(rows, null, null, 200)
+    expect(out.volumeData.find(r => r.name === 'Organic Search')?.pct).toBe(30) // 60 / 200
+    expect(out.volumeData.find(r => r.name === 'Direct')?.pct).toBe(10)         // 20 / 200
+    const total = out.volumeData.reduce((s, r) => s + r.pct, 0)
+    expect(total).toBeLessThan(100)
+  })
+
+  it('falls back to the row-sum denominator when the true total is absent', () => {
+    const rows = [
+      { sessionDefaultChannelGroup: 'Organic Search', sessions: 75, sessionConversionRate: 0.04 },
+      { sessionDefaultChannelGroup: 'Direct',          sessions: 25, sessionConversionRate: 0.02 },
+    ]
+    const out = buildChannelData(rows, null, null)
+    expect(out.volumeData.find(r => r.name === 'Organic Search')?.pct).toBe(75)
+  })
+
+  it('falls back to the row-sum denominator when the true total is zero, rather than dividing by zero', () => {
+    const rows = [
+      { sessionDefaultChannelGroup: 'Organic Search', sessions: 75, sessionConversionRate: 0.04 },
+      { sessionDefaultChannelGroup: 'Direct',          sessions: 25, sessionConversionRate: 0.02 },
+    ]
+    const out = buildChannelData(rows, null, null, 0)
+    expect(out.volumeData.find(r => r.name === 'Organic Search')?.pct).toBe(75)
+  })
+
   it('tied conversion rates resolve by session volume, matching the source', () => {
     // Raw API order deliberately scrambled — C, D, A, E, B — so the test only
     // passes if the function itself sorts by sessions before the tie-break,

@@ -15,3 +15,18 @@ export function NoData({ message = 'No data for this period.' }: { message?: str
     </div>
   )
 }
+
+/**
+ * Sibling of NoData for the opposite situation: the underlying query
+ * REJECTED (an outage or fetch failure), not a query that succeeded and
+ * returned zero rows. Reuses the same card frame so the two read as one
+ * visual family, but never says "No data for this period" for a failure,
+ * since that reads as a claim that the period itself was empty.
+ */
+export function LoadFailed({ message = "Couldn't load this data." }: { message?: string }) {
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-sm text-text-muted">
+      {message}
+    </div>
+  )
+}

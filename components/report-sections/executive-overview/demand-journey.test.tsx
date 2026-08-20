@@ -64,6 +64,30 @@ test('a connected sibling still dims while another card is hovered', () => {
   expect(otherCard.className).toContain('opacity-25')
 })
 
+// Paul CR3 (207) finding: every card's delta caption hardcoded "vs prior
+// period", even for the AEO card, whose delta compares the last two complete
+// weeks, not a 30-day period.
+
+test('a stage with its own deltaLabel renders that label, not the default', () => {
+  const aeo: DemandStage = { ...live, key: 'aeo', source: 'AEO', deltaLabel: 'vs prior week' }
+  render(<DemandJourney stages={[aeo]} />)
+  expect(screen.getByText('vs prior week')).toBeInTheDocument()
+  expect(screen.queryByText('vs prior period')).not.toBeInTheDocument()
+})
+
+test('a stage with no deltaLabel falls back to "vs prior period"', () => {
+  render(<DemandJourney stages={[live]} />)
+  expect(screen.getByText('vs prior period')).toBeInTheDocument()
+})
+
+test('the GA4 cards still read "vs prior period" alongside an AEO card reading "vs prior week"', () => {
+  const aeo: DemandStage = { ...live, key: 'aeo', source: 'AEO', label: 'AI Visibility', deltaLabel: 'vs prior week' }
+  const ga4: DemandStage = { ...live, key: 'ga4', source: 'Web Analytics', label: 'Site Sessions' }
+  render(<DemandJourney stages={[aeo, ga4]} />)
+  expect(screen.getByText('vs prior week')).toBeInTheDocument()
+  expect(screen.getByText('vs prior period')).toBeInTheDocument()
+})
+
 // Paul CR2 (207) finding: the unconnected-state hero line hardcoded "Connect
 // your CRM to see this" for every stage with connected === false, including
 // the AEO stage, so a Peec outage told the client to connect a CRM, naming
