@@ -2,6 +2,7 @@ import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { SessionsTrendChart } from './sessions-trend-chart'
 import { ChannelTabsChart } from './channel-tabs-chart'
+import { channelShareDenominator } from './channel-share'
 import { DeviceBreakdown } from './device-breakdown'
 import { NewReturning } from './new-returning'
 import { TopEvents } from './top-events'
@@ -149,7 +150,14 @@ export async function GA4Report({ clientSlug, dateRange = 'last_30_days', compar
             dateRange: compareIso,
             metrics: ['sessions'],
             dimensions: ['sessionDefaultChannelGroup'],
-            limit: 10,
+            // 25, not 10: this is the COMPARE period's ranking, and a channel
+            // that ranks in the current top 10 can rank outside the compare top
+            // 10 while still being present further down. Capping the compare
+            // fetch at the same 10 as the display limit truncates it out of
+            // compareChannelMap entirely, rendering a channel that grew as if
+            // it had no prior traffic. Channel groups are a small, bounded
+            // dimension, so a wider compare fetch costs nothing.
+            limit: 25,
             orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           })
         : Promise.resolve(null),
@@ -348,9 +356,10 @@ export async function GA4Report({ clientSlug, dateRange = 'last_30_days', compar
     CHART_COLORS.neutral,  // grey (fallback)
   ]
 
-  const channelTotal = (channelRes.rows ?? []).reduce(
-    (sum, r) => sum + ((r.sessions as number) ?? 0), 0
-  )
+  // `t.sessions` is the untruncated period total from the undimensioned totals
+  // query; the channel rows are capped at the query's `limit`, so summing them
+  // would yield share-of-top-N. Falls back to the row sum if totals failed.
+  const channelTotal = channelShareDenominator(channelRes.rows ?? [], t.sessions as number)
 
   // Map compare period sessions by channel name for O(1) lookup
   const compareChannelMap: Record<string, number> = {}
