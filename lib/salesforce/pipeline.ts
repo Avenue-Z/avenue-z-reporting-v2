@@ -37,10 +37,10 @@ function toStageRows(rows: Record<string, string>[]): StageRow[] {
     // Booleans arrive as real booleans despite the string typing, in the common
     // case, but that is an unguaranteed API detail, not a promise Supermetrics
     // makes, so this goes through toBool() rather than a bare === true check.
-    isClosed:    toBool(r.opportunity_is_closed),
-    probability: toNumber(r.opportunity_probability),
-    count:       toNumber(r.opportunity_count),
-    amount:      toNumber(r.opportunity_amount),
+    isClosed:    toBool(r.opportunity_is_closed, 'opportunity_is_closed'),
+    probability: toNumber(r.opportunity_probability, 'opportunity_probability'),
+    count:       toNumber(r.opportunity_count, 'opportunity_count'),
+    amount:      toNumber(r.opportunity_amount, 'opportunity_amount'),
   }))
 }
 
@@ -130,13 +130,13 @@ export function transformByOwner(
   rows: Record<string, string>[],
   maxRows: number,
 ): { rows: OwnerRow[]; truncated: boolean } {
-  const open = rows.filter((r) => !toBool(r.opportunity_is_closed))
+  const open = rows.filter((r) => !toBool(r.opportunity_is_closed, 'opportunity_is_closed'))
   const byOwner = new Map<string, OwnerRow>()
   for (const r of open) {
     // '' is falsy, so a blank owner falls back to Unassigned too, not just a missing one.
     const owner = String(r.opportunity_owner || 'Unassigned')
-    const count = toNumber(r.opportunity_count)
-    const amount = toNumber(r.opportunity_amount)
+    const count = toNumber(r.opportunity_count, 'opportunity_count')
+    const amount = toNumber(r.opportunity_amount, 'opportunity_amount')
     const existing = byOwner.get(owner)
     if (existing) {
       existing.count += count

@@ -34,7 +34,7 @@ function toWeekBuckets(rows: Record<string, string>[]): WeekBucket[] {
       console.warn(`[salesforce] dropping malformed week key:`, raw)
       continue
     }
-    buckets.push({ week, contacts: toNumber(r.contact_count) })
+    buckets.push({ week, contacts: toNumber(r.contact_count, 'contact_count') })
   }
   return buckets.sort((a, b) => a.week.localeCompare(b.week))
 }
