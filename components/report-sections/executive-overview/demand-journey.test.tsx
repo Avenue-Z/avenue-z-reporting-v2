@@ -26,6 +26,18 @@ test('an unconnected stage renders the needs-connection treatment instead of a m
   expect(screen.getByText(/Not connected/i)).toBeInTheDocument()
 })
 
+test('a configured AEO stage whose fetch failed renders a dash, never "Not connected" or a connect prompt', () => {
+  // Getting ahead of a round-4 finding: a configured client with an
+  // AI-visibility outage must not be told to connect a working source.
+  const aeoFailed = buildStages({
+    totals: {}, cmpTotals: {}, peec: null, peecConnected: true, trendRows: [],
+  }).find((s) => s.key === 'aeo')!
+  render(<DemandJourney stages={[aeoFailed]} />)
+  expect(screen.queryByText(/Not connected/i)).toBeNull()
+  expect(screen.queryByText(/Connect AI visibility tracking/i)).toBeNull()
+  expect(screen.getAllByText('—').length).toBeGreaterThan(0) // dashes, not a connect prompt
+})
+
 test('an unconnected stage still shows its source label, so the row reads as a funnel', () => {
   render(<DemandJourney stages={[unconnected]} />)
   expect(screen.getByText('Pipeline')).toBeInTheDocument()

@@ -13,6 +13,14 @@ export interface StageInput {
   } | null
   trendRows: TrendRow[]
   /**
+   * Whether the client is CONFIGURED for AI-visibility tracking (has a Peec
+   * project), independent of whether this fetch returned data. A configured
+   * client whose fetch failed or came back empty must NOT read "not connected";
+   * it dashes like the GA4 hero card. Only a genuinely unconfigured client is
+   * unconnected. When omitted, falls back to `peec != null` for older callers.
+   */
+  peecConnected?: boolean
+  /**
    * Injectable "current time" for the partial-week detection below. Defaults
    * to the real current time; tests pass a fixed Date so the AI Visibility
    * delta assertions are not time-dependent.
@@ -45,7 +53,7 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
   return last.weekStart === isoWeekStart(now) ? weekly.slice(0, -1) : weekly
 }
 
-export function buildStages({ totals, cmpTotals, peec, trendRows, now = new Date() }: StageInput): DemandStage[] {
+export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, now = new Date() }: StageInput): DemandStage[] {
   const completeWeeks = dropPartialWeek(peec?.weeklyVisibility ?? [], now)
   const latest   = completeWeeks.at(-1)?.visibility ?? null
   const previous = completeWeeks.at(-2)?.visibility ?? null
@@ -76,14 +84,18 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, now = new Date
         { label: 'Tracked Brands',  value: peec?.brandRankings?.length?.toLocaleString() ?? '—' },
         { label: 'Tracked Prompts', value: peec?.trackedPrompts?.length?.toLocaleString() ?? '—' },
       ],
-      // peec is null both when the client has no Peec project configured and
-      // when the fetch failed. Either way there is nothing to show, so the
-      // card renders the same "not connected" treatment as the CRM stages.
-      connected: peec != null,
-      // Vendor-neutral: this is an AI-visibility-tracking outage/non-config,
-      // not a CRM issue. The generic "Not connected" branch used to hardcode
-      // CRM wording for every unconnected stage, which told a client with a
-      // Peec outage to go connect a CRM that has nothing to do with it.
+      // Connected reflects whether the source is CONFIGURED, not whether this
+      // fetch returned data. A configured client whose fetch failed or came
+      // back empty dashes (metric falls back to the null glyph above), the same
+      // as the GA4 hero card on a GA4 outage, rather than being told to connect
+      // a source that is already connected. Only a genuinely unconfigured
+      // client is unconnected. Falls back to the old peec-presence check for
+      // callers that do not pass the flag.
+      connected: peecConnected ?? (peec != null),
+      // Vendor-neutral: this is AI-visibility tracking, not a CRM. The generic
+      // "Not connected" branch used to hardcode CRM wording for every
+      // unconnected stage, which told an unconfigured AEO client to go connect
+      // a CRM that has nothing to do with it.
       unconnectedHint: 'Connect AI visibility tracking to see this',
     },
     {

@@ -105,7 +105,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const peec        = val(peecRes)
   const cmpLabel    = buildCompareLabel(compare)
 
-  const stages = buildStages({ totals, cmpTotals, peec, trendRows })
+  const stages = buildStages({ totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured })
 
   return (
     <div className="space-y-8">

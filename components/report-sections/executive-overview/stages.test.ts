@@ -35,9 +35,20 @@ describe('buildStages', () => {
     }
   })
 
-  it('marks the AEO stage unconnected when Peec is not configured for the client', () => {
-    const s = buildStages({ totals, cmpTotals, peec: null, trendRows: [] })
+  it('marks the AEO stage unconnected only when the client is NOT configured for AI visibility', () => {
+    const s = buildStages({ totals, cmpTotals, peec: null, peecConnected: false, trendRows: [] })
     expect(s.find(x => x.key === 'aeo')?.connected).toBe(false)
+  })
+
+  it('keeps the AEO stage connected (dashes, never "not connected") when configured but the fetch failed or returned empty', () => {
+    // A configured client whose AI-visibility fetch rejected must not be told
+    // to connect a source that is already connected. It dashes like the GA4
+    // hero card on a GA4 outage. This is the outage-vs-not-configured
+    // distinction, the same one the charts already make with LoadFailed.
+    const aeo = buildStages({ totals, cmpTotals, peec: null, peecConnected: true, trendRows: [] })
+      .find(x => x.key === 'aeo')!
+    expect(aeo.connected).not.toBe(false) // takes the metric branch, not "Not connected"
+    expect(aeo.metric).toBe('—')          // dashes rather than claiming a value
   })
 
   it('gives the unconnected AEO stage an AI-visibility hint, never CRM wording', () => {
