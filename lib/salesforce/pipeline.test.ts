@@ -21,17 +21,17 @@ const rows = [
 
 describe('transformPipeline', () => {
   it('counts open deals as not-closed only', () => {
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     expect(p.openDeals.value).toBe(281) // 270 + 11
   })
 
   it('sums open pipeline amount', () => {
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     expect(p.totalPipeline.value).toBeCloseTo(16456371.27, 2)
   })
 
   it('identifies won by the Closed Won stage literal, not the won flag', () => {
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     // Renewed is won=true but is NOT counted: it carries $0 and is not new business.
     // Renewed Pending Payment is also won=true, IS closed, and carries a non-zero
     // amount, but its stage is not Closed Won, so it is not counted either. This
@@ -41,7 +41,7 @@ describe('transformPipeline', () => {
   })
 
   it('sums both Closed Won rows rather than finding the first', () => {
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     expect(p.closedWon.value).toBeGreaterThan(30352228.14)
   })
 
@@ -53,7 +53,7 @@ describe('transformPipeline', () => {
       // a real amount, but its stage is not the exact "Closed Won" literal.
       { opportunity_stage_name: 'Closed Won - Renewal', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 3, opportunity_amount: 500000 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(withFuzzyWon, null)
+    const p = transformPipeline(withFuzzyWon, withFuzzyWon, null)
     expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
   })
 
@@ -64,17 +64,35 @@ describe('transformPipeline', () => {
       { opportunity_stage_name: 'Won - Custom', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 2, opportunity_amount: 5000 },
       { opportunity_stage_name: 'Closed Won',   opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 999999 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(custom, null, 'Won - Custom')
+    const p = transformPipeline(custom, custom, null, 'Won - Custom')
     expect(p.closedWon.value).toBe(5000)
   })
 
   it('still defaults to the Closed Won literal when no wonStage argument is passed', () => {
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     expect(p.closedWon.value).toBeCloseTo(30352228.14 + 15297.6, 2)
   })
 
+  it('derives open tiles from the open rows and closedWon from the won rows, independently', () => {
+    const openRows = [
+      { opportunity_stage_name: 'Proposal', opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10, opportunity_amount: 1000000 },
+    ] as unknown as Record<string, string>[]
+    const wonCur = [
+      { opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 4, opportunity_amount: 400000 },
+    ] as unknown as Record<string, string>[]
+    const wonPrior = [
+      { opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 2, opportunity_amount: 200000 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(openRows, wonCur, wonPrior)
+    expect(p.openDeals.value).toBe(10)
+    expect(p.totalPipeline.value).toBe(1000000)
+    expect(p.weightedPipeline.value).toBeCloseTo(250000, 0) // 1,000,000 * 0.25
+    expect(p.closedWon.value).toBe(400000)
+    expect(p.closedWon.delta).toBeCloseTo(100, 1) // 400k vs 200k prior
+  })
+
   it('divides probability by 100 before weighting', () => {
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     // 16333132.59 * 0.25 + 123238.68 * 0.05
     expect(p.weightedPipeline.value).toBeCloseTo(4083283.15 + 6161.93, 0)
     // The 100x trap: if not divided, this would be ~408 million.
@@ -90,11 +108,11 @@ describe('transformPipeline', () => {
       { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 200, opportunity_amount: 10_000_000 },
       { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 50, opportunity_amount: 20_000_000 },
     ] as unknown as Record<string, string>[]
-    const withCmp = transformPipeline(rows, cmp)
+    const withCmp = transformPipeline(rows, rows, cmp)
     expect(withCmp.openDeals.delta).toBeUndefined()
     expect(withCmp.totalPipeline.delta).toBeUndefined()
     expect(withCmp.weightedPipeline.delta).toBeUndefined()
-    const noCmp = transformPipeline(rows, null)
+    const noCmp = transformPipeline(rows, rows, null)
     expect(noCmp.openDeals.delta).toBeUndefined()
     expect(noCmp.totalPipeline.delta).toBeUndefined()
     expect(noCmp.weightedPipeline.delta).toBeUndefined()
@@ -109,9 +127,9 @@ describe('transformPipeline', () => {
       { opportunity_stage_name: 'Closed Won', opportunity_is_won: true, opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 5, opportunity_amount: 999999 },
     ] as unknown as Record<string, string>[]
     const priorClosedWon = 999999
-    const p = transformPipeline(rows, cmp)
+    const p = transformPipeline(rows, rows, cmp)
     expect(p.closedWon.delta).toBeCloseTo(((p.closedWon.value - priorClosedWon) / priorClosedWon) * 100, 4)
-    const noCmp = transformPipeline(rows, null)
+    const noCmp = transformPipeline(rows, rows, null)
     expect(noCmp.closedWon.delta).toBeUndefined()
   })
 
@@ -122,12 +140,12 @@ describe('transformPipeline', () => {
     const cmpNoWon = [
       { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 5, opportunity_amount: 1000 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(rows, cmpNoWon)
+    const p = transformPipeline(rows, rows, cmpNoWon)
     expect(p.closedWon.delta).toBeUndefined()
   })
 
   it('returns zeros, not throws, on empty input', () => {
-    const p = transformPipeline([], null)
+    const p = transformPipeline([], [], null)
     expect(p.openDeals.value).toBe(0)
     expect(p.closedWon.value).toBe(0)
   })
@@ -138,7 +156,7 @@ describe('transformPipeline', () => {
       { opportunity_stage_name: 'Proposal Released', opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10, opportunity_amount: '1,234.56' },
       { opportunity_stage_name: 'Set Up',             opportunity_is_won: false, opportunity_is_closed: false, opportunity_probability: 5,  opportunity_count: 5,  opportunity_amount: 1000 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(badRows, null)
+    const p = transformPipeline(badRows, badRows, null)
     // The unparseable amount coerces to 0, not NaN, so the tile still reads a real number.
     expect(Number.isFinite(p.totalPipeline.value)).toBe(true)
     expect(p.totalPipeline.value).toBe(1000)
@@ -162,7 +180,7 @@ describe('transformPipeline', () => {
       // opportunity_amount is entirely absent, not '' or null.
       { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: false, opportunity_probability: 25, opportunity_count: 10 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(missingField, null)
+    const p = transformPipeline(missingField, missingField, null)
     expect(p.totalPipeline.value).toBe(0)
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('missing'), undefined)
     warnSpy.mockRestore()
@@ -177,8 +195,8 @@ describe('transformPipeline', () => {
       ...r,
       opportunity_is_closed: String((r as unknown as { opportunity_is_closed: boolean }).opportunity_is_closed),
     })) as unknown as Record<string, string>[]
-    const withBooleans = transformPipeline(rows, null)
-    const withStrings = transformPipeline(stringBooleanRows, null)
+    const withBooleans = transformPipeline(rows, rows, null)
+    const withStrings = transformPipeline(stringBooleanRows, stringBooleanRows, null)
     expect(withStrings.openDeals.value).toBe(withBooleans.openDeals.value)
     expect(withStrings.totalPipeline.value).toBe(withBooleans.totalPipeline.value)
     expect(withStrings.weightedPipeline.value).toBeCloseTo(withBooleans.weightedPipeline.value, 6)
@@ -193,7 +211,7 @@ describe('transformPipeline', () => {
       // open tiles. The safe direction is the opposite: exclude it.
       { opportunity_stage_name: 'Proposal Released', opportunity_is_closed: 'maybe', opportunity_probability: 25, opportunity_count: 1000, opportunity_amount: 999_999_999 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(unrecognised, null)
+    const p = transformPipeline(unrecognised, unrecognised, null)
     expect(p.openDeals.value).toBe(0)
     expect(p.totalPipeline.value).toBe(0)
     expect(p.weightedPipeline.value).toBe(0)
@@ -209,7 +227,7 @@ describe('transformPipeline', () => {
     const renamed = [
       { opportunity_stage_name: 'Closed - Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 5_000_000 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(renamed, null)
+    const p = transformPipeline(renamed, renamed, null)
     expect(p.closedWon.value).toBe(0)
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('no rows matched won stage'),
@@ -220,7 +238,7 @@ describe('transformPipeline', () => {
 
   it('does not warn about a won-stage mismatch when a match exists', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    transformPipeline(rows, null) // `rows` includes a real 'Closed Won' row
+    transformPipeline(rows, rows, null) // `rows` includes a real 'Closed Won' row
     const noMatchCalls = warnSpy.mock.calls.filter((c) => String(c[0]).includes('no rows matched won stage'))
     expect(noMatchCalls).toHaveLength(0)
     warnSpy.mockRestore()
@@ -228,7 +246,7 @@ describe('transformPipeline', () => {
 
   it('does not warn about a won-stage mismatch on empty input', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    transformPipeline([], null)
+    transformPipeline([], [], null)
     const noMatchCalls = warnSpy.mock.calls.filter((c) => String(c[0]).includes('no rows matched won stage'))
     expect(noMatchCalls).toHaveLength(0)
     warnSpy.mockRestore()
@@ -243,7 +261,7 @@ describe('transformPipeline', () => {
     const cmpNoWon = [
       { opportunity_stage_name: 'Closed - Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 9_000_000 },
     ] as unknown as Record<string, string>[]
-    transformPipeline(rows, cmpNoWon) // `rows` has a real 'Closed Won'; cmp does not
+    transformPipeline(rows, rows, cmpNoWon) // `rows` has a real 'Closed Won'; cmp does not
     const noMatchCalls = warnSpy.mock.calls.filter((c) => String(c[0]).includes('no rows matched won stage'))
     expect(noMatchCalls).toHaveLength(0)
     warnSpy.mockRestore()
@@ -255,7 +273,7 @@ describe('transformPipeline', () => {
     const rows = [
       { opportunity_stage_name: 'Closed Won', opportunity_is_closed: false, opportunity_probability: 100, opportunity_count: 3, opportunity_amount: 500000 },
     ] as unknown as Record<string, string>[]
-    const p = transformPipeline(rows, null)
+    const p = transformPipeline(rows, rows, null)
     // It is open (not closed), so it counts toward open tiles...
     expect(p.openDeals.value).toBe(3)
     // ...but must NOT also count as closed-won.
@@ -270,7 +288,7 @@ describe('transformPipeline', () => {
   it('withholds the closedWon delta when the prior is negative, not just zero', () => {
     const cur = [{ opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 100000 }] as unknown as Record<string, string>[]
     const prior = [{ opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: -50000 }] as unknown as Record<string, string>[]
-    const p = transformPipeline(cur, prior)
+    const p = transformPipeline(cur, cur, prior)
     expect(p.closedWon.delta).toBeUndefined()
   })
 })

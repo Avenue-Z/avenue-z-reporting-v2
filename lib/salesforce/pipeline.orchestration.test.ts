@@ -66,6 +66,50 @@ describe('getSalesforcePipeline', () => {
     warnSpy.mockRestore()
   })
 
+  test('open and owner queries use the wide created-date window and settings, never year_to_date on the close-date basis', async () => {
+    // The regression this guards: the open tiles were windowed by close-date
+    // year_to_date (the connector default), showing only the overdue subset. This
+    // asserts every call's dateRange and settings directly, rather than relying on
+    // a fixture value that would pass either way.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    const calls: Array<{ fields: string[]; dateRange: string; opts: { settings?: Record<string, unknown>; maxRows?: number } }> = []
+    ;(salesforceQuery as Mock).mockImplementation(
+      (_slug: string, fields: string[], dateRange: string, opts: { settings?: Record<string, unknown>; maxRows?: number }) => {
+        calls.push({ fields, dateRange, opts })
+        if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+        return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+      },
+    )
+    await getSalesforcePipeline('acme')
+    expect(calls).toHaveLength(4) // open, won-current, won-prior, owner
+
+    const openCall = calls.find((c) => !c.fields.includes('opportunity_owner') && c.dateRange === '2016-08-20,2035-12-31')
+    expect(openCall).toBeDefined()
+    expect(openCall!.opts.settings).toEqual({ deal_date_field: 'deal_created', convert_to_default_currency: false })
+
+    const ownerCall = calls.find((c) => c.fields.includes('opportunity_owner'))
+    expect(ownerCall!.dateRange).toBe('2016-08-20,2035-12-31')
+    expect(ownerCall!.opts.settings).toEqual({ deal_date_field: 'deal_created', convert_to_default_currency: false })
+
+    const wonCurCall = calls.find((c) => !c.fields.includes('opportunity_owner') && c.dateRange === 'year_to_date')
+    expect(wonCurCall).toBeDefined()
+    expect(wonCurCall!.opts.settings).toEqual({ deal_date_field: 'deal_closed', convert_to_default_currency: false })
+
+    const wonPriorCall = calls.find((c) => !c.fields.includes('opportunity_owner') && c.dateRange === '2025-01-01,2025-12-31')
+    expect(wonPriorCall).toBeDefined()
+    expect(wonPriorCall!.opts.settings).toEqual({ deal_date_field: 'deal_closed', convert_to_default_currency: false })
+
+    // No stage-fields call may combine year_to_date with the created-date open
+    // settings: that is exactly the bug (open tiles windowed by close-date YTD).
+    const openWindowedByYtd = calls.find(
+      (c) =>
+        !c.fields.includes('opportunity_owner') &&
+        c.dateRange === 'year_to_date' &&
+        c.opts?.settings?.deal_date_field === 'deal_created',
+    )
+    expect(openWindowedByYtd).toBeUndefined()
+  })
+
   test('a failed owner fetch yields byOwner null, never an empty array', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     ;(resolveCompareIso as Mock).mockReturnValue(null)
@@ -98,7 +142,7 @@ describe('getSalesforcePipeline', () => {
     expect(data.weightedPipeline.delta).toBeUndefined()
     // The failure is logged, same convention as the owner-fetch failure below, not
     // just silently swallowed.
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce] pipeline compare fetch failed'), expect.any(Error))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce] pipeline won-prior fetch failed'), expect.any(Error))
     errorSpy.mockRestore()
   })
 
@@ -172,17 +216,17 @@ describe('getSalesforcePipeline', () => {
     expect(data.stageTruncated).toBe(false)
   })
 
-  test('owner query uses the main date range and OWNER_MAX_ROWS cap, and flags truncation end to end when it hits that cap', async () => {
+  test('owner query uses the open scope wide window and OWNER_MAX_ROWS cap, and flags truncation end to end when it hits that cap', async () => {
     ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
     const cappedOwners = Array.from({ length: 500 }, (_, i) => ownerRow(`Owner ${i}`, 1, 10))
     ;(salesforceQuery as Mock).mockImplementation(
       (_slug: string, fields: string[], dateRange: string, opts: { maxRows?: number }) => {
         if (fields.includes('opportunity_owner')) {
-          // Pins the owner query to the main range and its own cap: a reverted
-          // implementation pointing it at cmpIso instead, or passing the wrong
-          // maxRows, would fail these rather than passing silently against a
-          // one-row fixture like the earlier tests use.
-          expect(dateRange).toBe('year_to_date')
+          // Pins the owner query to the open scope's wide window and its own cap:
+          // a reverted implementation pointing it at year_to_date or cmpIso
+          // instead, or passing the wrong maxRows, would fail these rather than
+          // passing silently against a one-row fixture like the earlier tests use.
+          expect(dateRange).toBe('2016-08-20,2035-12-31') // OPEN_WINDOW
           expect(opts?.maxRows).toBe(500) // OWNER_MAX_ROWS
           return Promise.resolve(cappedOwners)
         }

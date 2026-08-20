@@ -122,6 +122,32 @@ This is the same root cause as the delta-suppression decision above, not a separ
 
 A question is out to the client contact about whether Renaissance needs genuine forward-looking pipeline (deals with a future close date, tracked as they move through stages). If they do, that is a different data path than what this build queries, since the current query structurally excludes future-dated deals. I am not building that here; this is a decision for Nick and the client contact, not a technical call.
 
+### Open tiles moved from close date to created date. Supersedes the "overdue deals" framing above.
+
+**Decided 2026-08-20, from Paul's PR 208 review.**
+
+The two entries above describe the shipped behavior honestly for what it was: open pipeline windowed by close date, so it only ever showed the overdue subset, and comparing that subset year over year is structurally invalid. Paul's review caught the deeper problem I missed: windowing open pipeline by close date at all is wrong, not just its delta. Openness is a property of right now (is the deal still open, yes or no), not of a date range. Filtering by `opportunity_close_date` before checking `is_closed` throws away every open deal whose close date has not yet arrived, i.e. most of them.
+
+I moved `openDeals`, `totalPipeline`, and `weightedPipeline` off the close-date basis entirely. They now query `deal_date_field: deal_created` over a wide, static window (`2016-08-20` through `2035-12-31`) and filter to `is_closed = false` ourselves, so a deal counts as open if it is open today, independent of when it closes. `closedWon` is unaffected: it keeps the close-date year-to-date window with prior-year for its delta, because closed-won is a historical fact recorded at close time, not something openness applies to.
+
+**Probe figures, both live on 2026-08-20, same account:**
+
+| Basis | Open deals | Total pipeline |
+|---|---|---|
+| Close date, year-to-date (the bug) | 296 | $18.0M |
+| Created date, wide window (the fix), reproduced against the shipped code | 3,819 | $152.6M |
+
+The shipped code understated open pipeline by roughly 8x on deal count and dollar amount. The three-open-tiles delta suppression from the entry above still stands, on different grounds: these tiles no longer fetch a comparable prior window at all (the function signature only takes one row set for them), so there is nothing to compare against, not a comparison being discarded as invalid.
+
+**Two things the fix itself needed correcting once probed live, distinct from the framing change above:**
+
+1. **`convert_to_default_currency: true` breaks the query outright on this account.** I initially pinned it `true`, on the assumption from Paul's review that pinning explicitly (rather than leaving Supermetrics' default) was inert today since the org has no second currency. Live, it is not inert: requesting `true` gets a synchronous 500, `"Currency conversion failed. The organization does not have multi-currency enabled. Please disable currency conversion setting."` Renaissance has no default currency configured to convert into, so asking for the conversion fails the whole request rather than being a no-op. Pinned `false` instead. This is still an explicit pin, not a left-on-default; a future multi-currency org needs this revisited deliberately when it happens, not flipped silently, same intent as before, just the correct value.
+2. **The open window's start date cannot go back to 2015.** A `2015-01-01` start 400s with `START_DATE_HISTORICAL`, `"Earliest supported historical start date for Salesforce is 2016-08-20"`, a Supermetrics-side floor on this connector, not a Renaissance-specific limit. `OPEN_WINDOW` starts at `2016-08-20` instead, the exact confirmed floor, so no earlier open deal can exist to miss. The far end (`2035-12-31`) is not a problem: the connector silently clamps the effective end date to today, confirmed by the query it echoes back in the response.
+
+**Single-currency, reconfirmed a second way.** The scorecard's original single-currency finding was `opportunity_currency_iso_code` reading blank on every row. The `convert_to_default_currency: true` failure above is a second, independent confirmation from the connector itself: it would not refuse a currency conversion request with "multi-currency not enabled" if the org had one configured. No dollar figure on this dashboard is a mixed-currency sum today, and the connector is now positioned to fail loud (via the explicit `false`, revisited when a real multi-currency client shows up) rather than silently converting through an unconfigured rate.
+
+**On `opportunity_amount_closed_won`.** Salesforce exposes this as a native field, which looks like a cleaner source for the Closed Won tile than filtering `opportunity_stage_name` to the `Closed Won` literal. I kept the stage-literal filter. Two reasons, both already established earlier in this doc and unchanged by this fix: it is the only way to honor a client's custom `wonStageName` override (a native field can't take a per-client parameter), and `opportunity_is_won` (which `opportunity_amount_closed_won` most likely keys off, unconfirmed without a live schema dig) also covers roughly 1,822 $0 renewals that are not new-business wins. The stage-literal filter with `is_closed` (Task 2) already excludes both problems in one place. Revisiting this would need confirming what `opportunity_amount_closed_won` actually keys off live, which nothing in this fix required.
+
 ---
 
 ## Open questions
