@@ -55,7 +55,10 @@ describe('buildTrendRows', () => {
     const rows = buildTrendRows(cur, cmp)
     expect(rows).toHaveLength(4)
     expect(rows[0].prevSessions).toBe(1) // Aug 1 -> Jul 1
-    expect(rows[1].prevSessions).toBeUndefined() // Aug 2 -> Jul 2 missing, must not fall back to Jul 3
+    // Jul 2 is INSIDE the compare period's span, so its omission means a real
+    // zero-session day, filled as 0. The point of this test is the alignment:
+    // it must not fall back to Jul 3's value of 3.
+    expect(rows[1].prevSessions).toBe(0)
     expect(rows[2].prevSessions).toBe(3) // Aug 3 -> Jul 3
     expect(rows[3].prevSessions).toBe(4) // Aug 4 -> Jul 4
   })
@@ -93,10 +96,53 @@ describe('buildTrendRows', () => {
       // 20260704 (offset 3) missing entirely
     ]
     const rows = buildTrendRows(cur, cmp, '20260801', '20260701')
-    expect(rows).toHaveLength(3)
-    expect(rows[0].prevSessions).toBe(2) // Aug 2 (offset 1) -> Jul 2 (offset 1), not Jul 1
-    expect(rows[1].prevSessions).toBe(3) // Aug 3 (offset 2) -> Jul 3 (offset 2)
-    expect(rows[2].prevSessions).toBeUndefined() // Aug 4 (offset 3) -> no compare row at offset 3
+    // 4 rows, not 3: the omitted Aug 1 is now gap-filled as a real zero-session
+    // day rather than dropped, so the series is a true calendar series.
+    expect(rows).toHaveLength(4)
+    expect(rows[0].sessions).toBe(0)     // Aug 1 (offset 0), omitted by GA4
+    expect(rows[0].prevSessions).toBe(1) // -> Jul 1 (offset 0)
+    expect(rows[1].prevSessions).toBe(2) // Aug 2 (offset 1) -> Jul 2 (offset 1), not Jul 1
+    expect(rows[2].prevSessions).toBe(3) // Aug 3 (offset 2) -> Jul 3 (offset 2)
+    expect(rows[3].prevSessions).toBeUndefined() // Aug 4 (offset 3) -> past the compare span
+  })
+})
+
+// Paul CR4 (207) finding: GA4 omits zero-session days entirely, and
+// buildTrendRows mapped only the rows it was given. The 7-day rolling average
+// in sessions-trend-chart therefore averaged "the last 7 RETURNED days", not
+// the last 7 calendar days, on both series — so whichever period had more
+// omitted days was silently inflated and the delta between them was wrong.
+// Gap-filling here fixes both series at the source.
+
+describe('buildTrendRows gap-filling', () => {
+  const day = (d: string, sessions: number) => ({ date: d, sessions, activeUsers: 0, newUsers: 0 })
+
+  it('emits a zero row for a current-period day GA4 omitted', () => {
+    const cur = [day('20260701', 100), day('20260703', 100)] // 20260702 omitted
+    const out = buildTrendRows(cur, null, '20260701')
+    expect(out).toHaveLength(3)
+    expect(out[1].sessions).toBe(0)
+  })
+
+  it('fills a compare-period day GA4 omitted with zero, not null, so it counts in a rolling average', () => {
+    const cur = [day('20260701', 100), day('20260702', 100), day('20260703', 100)]
+    const cmp = [day('20260601', 100), /* 20260602 omitted */ day('20260603', 100)]
+    const out = buildTrendRows(cur, cmp, '20260701', '20260601')
+    expect(out.map(r => r.prevSessions)).toEqual([100, 0, 100])
+  })
+
+  it('leaves the prior undefined past the compare period, rather than inventing zeros', () => {
+    // Compare period is only 2 days; the current period runs 3.
+    const cur = [day('20260701', 100), day('20260702', 100), day('20260703', 100)]
+    const cmp = [day('20260601', 100), day('20260602', 100)]
+    const out = buildTrendRows(cur, cmp, '20260701', '20260601')
+    expect(out[2].prevSessions).toBeUndefined()
+  })
+
+  it('a fully-omitted compare period still yields no prior values', () => {
+    const cur = [day('20260701', 100), day('20260702', 100)]
+    const out = buildTrendRows(cur, [], '20260701', '20260601')
+    expect(out.every(r => r.prevSessions === undefined)).toBe(true)
   })
 })
 
@@ -191,5 +237,40 @@ describe('buildChannelData', () => {
     // D and E have nonzero rates and sort first; A, B, C tie at 0 and must
     // resolve by sessions desc (700, 300, 30), not raw API order (C, A, B).
     expect(out.convData.map(r => r.name)).toEqual(['D', 'E', 'A', 'B', 'C'])
+  })
+
+  // Paul CR4 (207) finding: the primary channel query capped at 10 rows, and
+  // convData ranks BY CONVERSION RATE from whatever that volume-ordered fetch
+  // returned. A channel ranked 11th by sessions but 1st by conversion rate was
+  // therefore invisible on the By Conversion tab, contradicting its tooltip.
+  // The fetch is now widened past the display cap, so the ranking pool is wider
+  // than the volume tab's list.
+  it('ranks the conversion tab from the full fetched pool, not just the channels the volume tab displays', () => {
+    // 11 channels. The 11th by volume has by far the best conversion rate.
+    const rows = Array.from({ length: 10 }, (_, i) => ({
+      sessionDefaultChannelGroup: `Channel ${i}`,
+      sessions: 1000 - i * 10,
+      sessionConversionRate: 0.01,
+    }))
+    rows.push({ sessionDefaultChannelGroup: 'Tiny But Mighty', sessions: 25, sessionConversionRate: 0.9 })
+
+    const out = buildChannelData(rows, null, null)
+
+    // The volume tab still shows only the top 10 by sessions.
+    expect(out.volumeData).toHaveLength(10)
+    expect(out.volumeData.map(r => r.name)).not.toContain('Tiny But Mighty')
+
+    // But the conversion tab ranks it first: it clears the 20-session floor
+    // and converts at 90%.
+    expect(out.convData[0].name).toBe('Tiny But Mighty')
+  })
+
+  it('caps the volume tab at 10 rows even when the fetch returns more', () => {
+    const rows = Array.from({ length: 18 }, (_, i) => ({
+      sessionDefaultChannelGroup: `Channel ${i}`,
+      sessions: 1000 - i,
+      sessionConversionRate: 0.01,
+    }))
+    expect(buildChannelData(rows, null, null).volumeData).toHaveLength(10)
   })
 })

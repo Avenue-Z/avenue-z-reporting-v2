@@ -164,3 +164,18 @@ test('every stage in the real built set shows either the not-connected treatment
     }
   })
 })
+
+// Paul CR4 (207) finding: the badge pill rendered above the connected check,
+// so an unconfigured client saw a window label ("LAST FULL WEEK") stacked on
+// top of "Not connected" — a time window for a number that isn't there.
+
+test('an unconnected stage does not render its badge', () => {
+  render(<DemandJourney stages={[{ ...unconnected, badge: 'LAST FULL WEEK' }]} />)
+  expect(screen.getByText(/Not connected/i)).toBeInTheDocument()
+  expect(screen.queryByText('LAST FULL WEEK')).not.toBeInTheDocument()
+})
+
+test('a connected stage still renders its badge', () => {
+  render(<DemandJourney stages={[{ ...live, badge: 'LAST FULL WEEK' }]} />)
+  expect(screen.getByText('LAST FULL WEEK')).toBeInTheDocument()
+})

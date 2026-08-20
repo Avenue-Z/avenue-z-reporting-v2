@@ -8,6 +8,14 @@ export interface StageInput {
   cmpTotals: Record<string, unknown> | null
   peec: {
     weeklyVisibility?: { weekStart: string; visibility: number }[]
+    /**
+     * False when lib/peec/client.ts could not determine which tracked brand is
+     * the client (no peec_your_brand column and no PEEC_AI_YOUR_BRAND env
+     * fallback). In that state filterYou keeps every brand, so weeklyVisibility
+     * is an all-brands average rather than the client's own visibility. Absent
+     * on older callers, which are treated as resolved.
+     */
+    yourBrandResolved?: boolean
     brandRankings?: { name: string; sov: number; isYou?: boolean }[]
     trackedPrompts?: unknown[]
   } | null
@@ -54,7 +62,13 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
 }
 
 export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, now = new Date() }: StageInput): DemandStage[] {
-  const completeWeeks = dropPartialWeek(peec?.weeklyVisibility ?? [], now)
+  // With no resolvable "your brand", weeklyVisibility is an average across every
+  // tracked brand (filterYou degrades to a pass-through), which is emphatically
+  // not this client's visibility rate. Dash instead of publishing a number that
+  // means something else. Share of Voice already dashes in this state, since
+  // isYou is false for every brand, so this also keeps the card self-consistent.
+  const brandResolved = peec?.yourBrandResolved !== false
+  const completeWeeks = brandResolved ? dropPartialWeek(peec?.weeklyVisibility ?? [], now) : []
   const latest   = completeWeeks.at(-1)?.visibility ?? null
   const previous = completeWeeks.at(-2)?.visibility ?? null
   // isYou is computed from clients.peec_your_brand. Matching on a literal brand

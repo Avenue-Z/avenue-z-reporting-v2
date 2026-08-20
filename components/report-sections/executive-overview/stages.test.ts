@@ -178,3 +178,30 @@ describe('buildStages: AI Visibility partial-week handling', () => {
     expect(aeo.delta).toBeUndefined()
   })
 })
+
+describe('buildStages: AI Visibility brand resolution', () => {
+  // Paul CR4 (207) finding: peecConfigured gates only on peecCustomerProjectId,
+  // but the visibility number also needs peecYourBrand to identify which brand
+  // is "you". With the brand unresolved, filterYou in lib/peec/client.ts keeps
+  // EVERY tracked brand, so weeklyVisibility becomes an all-brands average that
+  // the hero card presented as the client's own visibility rate. Share of Voice
+  // already dashed in that state (isYou is false for every brand), so the card
+  // contradicted itself.
+  it('dashes the AI Visibility hero when Peec could not resolve which brand is the client', () => {
+    const unresolved = { ...peec, yourBrandResolved: false }
+    const aeo = buildStages({ totals, cmpTotals, peec: unresolved, trendRows: [] })[0]
+    expect(aeo.metric).toBe('—')
+    expect(aeo.delta).toBeUndefined()
+  })
+
+  it('still reads as connected when the brand is unresolved, since the project IS configured', () => {
+    const unresolved = { ...peec, yourBrandResolved: false }
+    const aeo = buildStages({ totals, cmpTotals, peec: unresolved, trendRows: [], peecConnected: true })[0]
+    expect(aeo.connected).toBe(true)
+  })
+
+  it('renders the visibility number when the brand did resolve', () => {
+    const aeo = buildStages({ totals, cmpTotals, peec: { ...peec, yourBrandResolved: true }, trendRows: [] })[0]
+    expect(aeo.metric).toBe('24.8%')
+  })
+})

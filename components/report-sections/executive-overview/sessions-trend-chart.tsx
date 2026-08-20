@@ -289,7 +289,11 @@ export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrend
             <svg width="20" height="2" className="overflow-visible">
               <line x1="0" y1="1" x2="20" y2="1" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeDasharray="4 3" />
             </svg>
-            <span>Previous Period</span>
+            {/* The label carries the actual compare window. Printing a bare
+                "Previous Period" left the dashed series unnamed anywhere on
+                the page, since this section has no date picker to infer it
+                from. */}
+            <span>Previous Period ({compareLabel})</span>
           </div>
         </div>
       )}

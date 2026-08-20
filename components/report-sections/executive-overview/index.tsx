@@ -58,7 +58,14 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: KPI_METRICS }) : Promise.resolve(null),
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'activeUsers', 'newUsers'], dimensions: ['date'], limit: 90 }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'activeUsers', 'newUsers'], dimensions: ['date'], limit: 90 }) : Promise.resolve(null),
-    ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'conversions', 'sessionConversionRate'], dimensions: ['sessionDefaultChannelGroup'], limit: 10, orderBys: SESSIONS_DESC_ORDER }),
+    // 25, not 10: the By Conversion tab ranks this row set by CONVERSION RATE,
+    // so capping the fetch at the volume tab's display limit meant a channel
+    // ranked 11th by sessions but first by conversion rate could never appear,
+    // contradicting that tab's own tooltip. buildChannelData slices the volume
+    // tab back to its top 10; only the conversion ranking sees the wider pool.
+    // Same reasoning as the compare fetch below, and the same cost argument:
+    // channel groups are a small, bounded dimension.
+    ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'conversions', 'sessionConversionRate'], dimensions: ['sessionDefaultChannelGroup'], limit: 25, orderBys: SESSIONS_DESC_ORDER }),
     // 25, not 10: this is the COMPARE period's ranking, and a channel that
     // ranks in the current top 10 can rank outside the compare top 10 while
     // still being present further down. Capping the compare fetch at the

@@ -111,7 +111,10 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                         {stage.source}
                       </p>
                     </div>
-                    {stage.badge && (
+                    {/* Gated on connected: a badge names the window of the hero
+                        metric, so above "Not connected" it labels a number that
+                        isn't there. */}
+                    {stage.badge && stage.connected !== false && (
                       <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted">
                         {stage.badge}
                       </span>

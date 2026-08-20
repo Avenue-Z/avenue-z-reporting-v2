@@ -36,3 +36,14 @@ test('non-empty data renders the chart regardless of the failed flag', () => {
   render(<SessionsTrendChart data={[row]} failed={false} />)
   expect(screen.getByText('Sessions & Users Over Time')).toBeInTheDocument()
 })
+
+// Paul CR4 (207) finding: compareLabel carried the real compare window
+// ("Jun 1 - Jun 30") all the way from index.tsx but was only used as a
+// truthiness gate — the legend printed a bare "Previous Period", so the
+// dashed line on the chart named no date range anywhere on the page.
+
+test('the legend names the compare window rather than a bare "Previous Period"', () => {
+  const withPrior: TrendRow = { ...row, prevDate: 'Jul 1', prevSessions: 90, prevUsers: 70, prevNewUsers: 30 }
+  render(<SessionsTrendChart data={[withPrior]} compareLabel="Jul 1 – Jul 30" />)
+  expect(screen.getByText(/Jul 1 – Jul 30/)).toBeInTheDocument()
+})

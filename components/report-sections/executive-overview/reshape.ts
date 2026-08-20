@@ -60,6 +60,16 @@ export function pct(current: number | null | undefined, baseline: number | null 
 // ── Trend — ported from ga4/index.tsx:316-334 ──
 
 /** GA4 "date" dimension as an 8-digit string ("20260801") -> whole days since the Unix epoch. */
+/** Inverse of toEpochDay: epoch day number -> "YYYYMMDD". Used to name the
+ *  days GA4 omitted, which have no row to read a date off. */
+function fromEpochDay(epochDay: number): string {
+  const d = new Date(epochDay * 86_400_000)
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}${m}${day}`
+}
+
 function toEpochDay(yyyymmdd: string): number | null {
   if (!yyyymmdd || yyyymmdd.length !== 8) return null
   const year  = parseInt(yyyymmdd.slice(0, 4), 10)
@@ -98,34 +108,68 @@ export function buildTrendRows(
     ? toEpochDay(compareStart)
     : (compareRows.length ? toEpochDay(String(compareRows[0].date ?? '')) : null)
 
-  const compareByOffset = new Map<number, Ga4Row>()
-  if (compareAnchor != null) {
-    for (const r of compareRows) {
-      const day = toEpochDay(String(r.date ?? ''))
-      if (day != null) compareByOffset.set(day - compareAnchor, r)
+  const byOffset = (rows: Ga4Row[], anchor: number | null) => {
+    const map = new Map<number, Ga4Row>()
+    let max = -1
+    if (anchor != null) {
+      for (const r of rows) {
+        const day = toEpochDay(String(r.date ?? ''))
+        if (day == null) continue
+        const offset = day - anchor
+        map.set(offset, r)
+        if (offset > max) max = offset
+      }
     }
+    return { map, max }
   }
 
-  return currentRows.map((r) => {
-    const day    = toEpochDay(String(r.date ?? ''))
-    const offset = day != null && currentAnchor != null ? day - currentAnchor : null
-    const prev   = offset != null ? compareByOffset.get(offset) ?? null : null
-    return {
-      date:         fmtDate(String(r.date ?? '')),
-      sessions:     (r.sessions    as number) ?? 0,
-      users:        (r.activeUsers as number) ?? 0,
-      newUsers:     (r.newUsers    as number) ?? 0,
-      prevDate:     prev ? fmtDate(String(prev.date ?? '')) : undefined,
-      prevSessions: prev ? ((prev.sessions    as number) ?? 0) : undefined,
-      prevUsers:    prev ? ((prev.activeUsers as number) ?? 0) : undefined,
-      prevNewUsers: prev ? ((prev.newUsers    as number) ?? 0) : undefined,
-    }
-  })
+  const { map: compareByOffset, max: maxCompareOffset } = byOffset(compareRows, compareAnchor)
+  const { map: currentByOffset, max: maxCurrentOffset } = byOffset(currentRows, currentAnchor)
+
+  if (currentAnchor == null) return []
+
+  // Emit one row per CALENDAR day across the current period's observed span,
+  // not one row per returned day. GA4 omits a zero-session day entirely rather
+  // than returning a zero row, so mapping the response directly produced a
+  // series with holes in it. Anything downstream that treats consecutive
+  // entries as consecutive days then silently spans a longer window: the
+  // 7-day rolling average in sessions-trend-chart averaged "the last 7
+  // RETURNED days", which excluded exactly the zero days that should have
+  // dragged it down, and did so by a different amount on each series. That
+  // made the current-vs-prior delta wrong whenever the two periods had
+  // different numbers of omitted days.
+  //
+  // A missing day within a period's span is a real zero and is filled as one.
+  // A day BEYOND the compare period's span is genuinely unknown (the compare
+  // window is simply shorter) and stays undefined, so the overlay ends rather
+  // than flatlining to zero.
+  const rows: TrendRow[] = []
+  for (let offset = 0; offset <= maxCurrentOffset; offset++) {
+    const r    = currentByOffset.get(offset)
+    const prev = compareByOffset.get(offset)
+    const priorInSpan = compareAnchor != null && offset <= maxCompareOffset
+
+    rows.push({
+      date:         fmtDate(fromEpochDay(currentAnchor + offset)),
+      sessions:     (r?.sessions    as number) ?? 0,
+      users:        (r?.activeUsers as number) ?? 0,
+      newUsers:     (r?.newUsers    as number) ?? 0,
+      prevDate:     priorInSpan ? fmtDate(fromEpochDay(compareAnchor + offset)) : undefined,
+      prevSessions: priorInSpan ? ((prev?.sessions    as number) ?? 0) : undefined,
+      prevUsers:    priorInSpan ? ((prev?.activeUsers as number) ?? 0) : undefined,
+      prevNewUsers: priorInSpan ? ((prev?.newUsers    as number) ?? 0) : undefined,
+    })
+  }
+  return rows
 }
 
 // ── Channels — ported as one block from ga4/index.tsx:336-403. channelConvData
 // depends on channelColorMap, which depends on channelData — splitting these
 // desynchronizes the two tabs' colors. ──
+
+/** Rows shown on the By Volume tab. The channel query fetches more than this
+ *  so the By Conversion ranking has a wider pool to choose from. */
+const VOLUME_DISPLAY_LIMIT = 10
 
 export function buildChannelData(
   current: Ga4Row[] | null,
@@ -187,7 +231,12 @@ export function buildChannelData(
   // instead of each starting from raw API order.
   const sortedBySessions = [...current].sort((a, b) => (Number(b.sessions) || 0) - (Number(a.sessions) || 0))
 
-  const volumeData = sortedBySessions
+  // The fetch deliberately returns more channels than the volume tab shows
+  // (see index.tsx): convData ranks by CONVERSION RATE and must choose from
+  // the full pool, or a high-converting channel outside the top 10 by volume
+  // can never surface. Colors are assigned across the whole sorted list before
+  // the display slice, so a channel's color does not shift with the cap.
+  const rankedVolume = sortedBySessions
     .map((r, i) => ({
       name:     String(r.sessionDefaultChannelGroup ?? 'Other'),
       sessions: (r.sessions as number) ?? 0,
@@ -198,8 +247,10 @@ export function buildChannelData(
       color:    CHANNEL_COLORS[i % CHANNEL_COLORS.length],
     }))
 
+  const volumeData = rankedVolume.slice(0, VOLUME_DISPLAY_LIMIT)
+
   // Channels by conversion rate — same rows, sorted by conv rate, top 5 with ≥20 sessions
-  const channelColorMap = Object.fromEntries(volumeData.map((c) => [c.name, c.color]))
+  const channelColorMap = Object.fromEntries(rankedVolume.map((c) => [c.name, c.color]))
   const convData = sortedBySessions
     .filter((r) => ((r.sessions as number) ?? 0) >= 20)
     .sort((a, b) => ((b.sessionConversionRate as number) ?? 0) - ((a.sessionConversionRate as number) ?? 0))
