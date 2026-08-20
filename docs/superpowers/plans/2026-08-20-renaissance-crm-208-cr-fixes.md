@@ -713,3 +713,98 @@ One item (schema.ts:151) is deliberately out of the data-layer scope and flagged
 **Type consistency:** `transformPipeline` changes signature in Task 3 from `(rows, cmpRows, wonStage)` to `(openRows, wonRowsCurrent, wonRowsPrior, wonStage)`; every caller (`getSalesforcePipelineImpl`, the tests) is updated in the same task. `toNumber`/`toBool` gain an optional `field` param in Task 1, backward-compatible. `transformWeeklyContacts` gains an optional `now` in Task 6, backward-compatible. `toWeekBuckets` return type is unchanged.
 
 **Placeholder scan:** no TBDs. The two judgment steps (Task 4 truncation approach, Task 5 Step 4 refactor shape) name the options and require the implementer to state the choice, rather than leaving it unspecified.
+
+---
+
+# Amendment: Tasks 9 to 13 (second code-review round, `0637be0..a7cb641`)
+
+Added after the review of the Task 1 to 3 commits. Live read-only probe against
+the Renaissance Salesforce account (2026-08-20, `smQuery` called directly because
+the local dev DB has not had migration 0021 applied and `getClientBySlug` therefore
+throws on `clients.salesforce_config`):
+
+| Query, wide window | Rows | Distinct | Cold latency |
+|---|---|---|---|
+| stage, 2026 YTD | 28 | | 7.8s |
+| stage, wide 2016 to 2035 | 31 | 13 stages | 6.6s |
+| owner, wide | 129 | 93 owners, 36 open | 12.2s, plus one outright 15s timeout |
+| owner, YTD | 65 | 34 owners | 7.7s |
+
+Both 500 caps hold with room. The stale comments do not. And the 15s
+`REQUEST_TIMEOUT_MS` guard is not theoretical on this account: it fired on the
+first cold owner call of the probe session.
+
+## Task 9: `toBool` fails closed on an unrecognized flag, inflating `closedWon`
+
+Probed: a `Closed Won` row carrying `is_closed: 'Yes'` yields openDeals 0,
+totalPipeline 0, closedWon $500k, and no warn, because `toBool` does not
+recognize 'Yes', returns `true`, and Task 2's `isClosed &&` filter passes it.
+
+**Decision (Paul, 2026-08-20):** widen the accepted vocabulary AND surface the
+event to the dashboard user rather than only to `console.warn`. Keeping the
+fail-closed default is deliberate; what changes is that a garbled flag stops
+being invisible.
+
+- [ ] Step 1: failing test in `num.test.ts`: `toBool('Yes')`/`'No'`/`'Y'`/`'N'` resolve correctly and do not warn; an unrecognized `'Closed'` still warns and returns true.
+- [ ] Step 2: failing test in `pipeline.test.ts`: a row set containing one unrecognized `is_closed` returns `unrecognizedClosedFlags: 1` on `PipelineData`.
+- [ ] Step 3: widen `toBool` to accept yes/no/y/n (trimmed, any case) alongside true/false/1/0.
+- [ ] Step 4: add `parseBool(v): boolean | undefined` (undefined means unrecognized) as the shared primitive; `toBool` becomes `parseBool(v) ?? (warn, true)` so behavior is unchanged for every existing caller.
+- [ ] Step 5: count unrecognized flags in `toStageRows`/`transformByOwner` and surface as `unrecognizedClosedFlags: number` on `PipelineData` (new field in `types.ts`, documented as a data-quality caveat for the UI to render, parallel to `stageTruncated`).
+- [ ] Step 6: mutation check, revert the widened vocabulary and confirm the 'Yes' test fails; revert the counter and confirm the flag test fails.
+- [ ] Step 7: commit.
+
+## Task 10: a renamed won stage renders $0 with no user-visible signal
+
+`wonRowsFor` warns to the console, but `PipelineData` carries no flag, so a
+renamed CRM stage is indistinguishable from "won nothing this year" in the
+returned shape. Two secondary defects in the same block: the two warns fire as a
+contradictory pair (`won stage but not closed: ["Closed Won"]` immediately
+followed by `no rows matched won stage "Closed Won"`), and the mislabel warn is
+computed over `wonRowsCurrent` (close-date YTD) while the rows it describes
+actually reach the tiles through `openRows`.
+
+- [ ] Step 1: failing test, a row set whose only stage is `Closed Wonn` returns `wonStageUnmatched: true` while a matching set returns false.
+- [ ] Step 2: failing test, a won-stage-but-not-closed row produces the mislabel warn but NOT the no-match warn.
+- [ ] Step 3: add `wonStageUnmatched: boolean` to `PipelineData`; thread it out of `wonRowsFor` (return `{ amount, unmatched }`).
+- [ ] Step 4: suppress the no-match warn when the mislabel warn already fired (the stage IS present, just not closed) so the pair stops contradicting itself.
+- [ ] Step 5: state in the mislabel warn which row set it describes, or move it to the set that feeds the tiles.
+- [ ] Step 6: mutation check, commit.
+
+## Task 11: the widened open query has no `.catch`, so one slow call blanks the section
+
+`getSalesforcePipelineImpl` catches the won-prior and owner fetches and degrades,
+but the open and won-current queries throw straight through. The open query now
+spans ~10 years instead of ~8 months and is the likeliest to trip the 15s guard,
+which the probe confirms is reachable. When it throws, the whole section blanks
+via the error boundary and the closedWon and owner data that fetched fine is
+discarded.
+
+- [ ] Step 1: failing orchestration test, the open query rejecting still returns a `PipelineData` carrying the real `closedWon` and `byOwner`.
+- [ ] Step 2: add `.catch` on the open and won-current queries, logging before swallowing, same contract as the owner fetch.
+- [ ] Step 3: add `openUnavailable: boolean` / `wonUnavailable: boolean` to `PipelineData` so the tiles render as unavailable rather than a confident 0 (the same reason `byOwner` is null and never `[]`).
+- [ ] Step 4: mutation check (remove the catch, confirm the test throws), commit.
+
+## Task 12: `OPEN_WINDOW` bounds are stated as proof, not as a limit
+
+2016-08-20 is the connector's export floor, not evidence that no earlier
+opportunity exists. A still-open pre-2016 deal is dropped from all three tiles
+with no warn, and the scorecard's "no earlier open deal can exist to miss" does
+not follow from the floor. Same shape on the 2035 end bound. Detecting it would
+cost a per-render date-dimension query, which is not worth it.
+
+- [ ] Step 1: correct the `OPEN_WINDOW` comment to state the floor as a connector
+      limitation and name what it can silently drop.
+- [ ] Step 2: correct the claim in `docs/superpowers/specs/2026-08-13-crm-parity-scorecard.md`.
+- [ ] Step 3: record the measured cardinality (stage 31 rows, owner 129 rows / 93
+      owners) against both caps, replacing the stale "about 18 rows" and "about 39
+      owners" comments (this is the Task 4 comment fix, done with real numbers).
+- [ ] Step 4: commit (doc and comment only, no behavior change).
+
+## Task 13: dead `opts.filters`
+
+`salesforceQuery` forwards `opts.filters` to `smQuery`, no caller passes it, and
+`pipeline.ts` documents that server-side filtering is deliberately avoided for
+this source (a typo'd filter field returns HTTP 200 with empty data).
+
+- [ ] Step 1: remove `filters` from the `opts` type and the `smQuery` call.
+- [ ] Step 2: `npx tsc --noEmit`, full suite, commit.
