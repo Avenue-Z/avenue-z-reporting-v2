@@ -134,6 +134,14 @@ export function ChannelTabsChart({
     return failed ? <LoadFailed /> : <NoData />
   }
 
+  // convData is NOT simply volumeData re-sorted: buildChannelData additionally
+  // drops every channel under 20 sessions (reshape.ts). A low-traffic client
+  // can therefore have a populated volume tab and an empty conversion tab, so
+  // the guard above does not cover this case. Without its own empty state the
+  // conversion tab renders the sortable column headers over zero rows.
+  const convEmpty = convData.length === 0
+  const activeTabEmpty = tab === 'conversion' && convEmpty
+
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
       {/* Header */}
@@ -172,6 +180,7 @@ export function ChannelTabsChart({
       </div>
 
       {/* ── Shared column headers ── */}
+      {!activeTabEmpty && (
       <div className="mb-1 flex items-center gap-3 px-2">
         <div className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
         <div className="hidden flex-1 sm:block" />
@@ -196,6 +205,7 @@ export function ChannelTabsChart({
           </button>
         </div>
       </div>
+      )}
 
       {/* ── By Volume ── */}
       {tab === 'volume' && (
@@ -329,7 +339,13 @@ export function ChannelTabsChart({
       )}
 
       {/* ── By Conversion ── */}
-      {tab === 'conversion' && (
+      {tab === 'conversion' && convEmpty && (
+        <p className="px-2 py-6 text-sm text-text-muted">
+          No channel cleared the 20-session minimum this period.
+        </p>
+      )}
+
+      {tab === 'conversion' && !convEmpty && (
         <div className="space-y-1">
           {sortedConvData.map((d) => {
             const barW      = (d.convRate / convMax) * 100
