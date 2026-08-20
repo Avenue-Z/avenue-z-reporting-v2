@@ -17,12 +17,20 @@ const STAGE_FIELDS = [
 // server-side filter is avoided on purpose: a typo'd filter field returns HTTP 200
 // with empty data and no error, indistinguishable from a legitimate zero result.
 const OWNER_FIELDS = ['opportunity_owner', 'opportunity_is_closed', 'opportunity_count', 'opportunity_amount']
-// About 39 owners, open and closed, well under this cap.
+// Measured live on the wide window (2026-08-20): 129 rows across 93 distinct
+// owners (36 of them with open deals), because is_closed is a dimension and one
+// owner spans more than one row. Roughly 4x headroom under this cap. The flag
+// below stays keyed to the RAW row count, not the deduped owner list: if the
+// response is capped we cannot know whether the rows we never saw held owners we
+// never rendered, so a complete-looking list is exactly when a false all-clear
+// would hurt.
 const OWNER_MAX_ROWS = 500
-// Live cardinality is about 18 rows, well under this cap, but only because
-// probability is currently a per-stage default. A client setting probability
-// per deal makes cardinality stage times probability, so this still needs its
-// own truncation flag: see stageTruncated below.
+// Measured live on the wide window (2026-08-20): 31 rows across 13 stages, and
+// 28 rows on the year-to-date window, so roughly 16x headroom under this cap.
+// It stays this generous because the row count is stage x is_closed x
+// probability, and probability is only cheap while it remains a per-stage
+// default: a client setting it per deal multiplies the cardinality. That is why
+// the flag below exists rather than trusting the cap: see stageTruncated.
 const STAGE_MAX_ROWS = 500
 
 /** The default stage that means new-business won, when a client has not customized
@@ -45,9 +53,12 @@ const DEFAULT_WON_STAGE = 'Closed Won'
 const OPEN_SETTINGS = { deal_date_field: 'deal_created', convert_to_default_currency: false }
 const WON_SETTINGS = { deal_date_field: 'deal_closed', convert_to_default_currency: false }
 // A window wide enough to include every currently-open deal regardless of when it
-// was created. Static bounds so the query is cache-stable within a day. Start date
-// is Supermetrics' live-confirmed earliest supported historical date for this
-// Salesforce connector (2016-08-20); anything earlier 400s with START_DATE_HISTORICAL.
+// was created. Static bounds so the query is cache-stable within a day. The start
+// date is Supermetrics' live-confirmed floor for this connector (2016-08-20);
+// anything earlier 400s with START_DATE_HISTORICAL. Known limit, not a proof: a
+// deal created before that floor and still open today is silently absent from
+// these tiles, and the response gives us no way to detect it. The far end is
+// clamped to today by the connector.
 const OPEN_WINDOW = '2016-08-20,2035-12-31'
 
 function toStageRows(rows: Record<string, string>[]): StageRow[] {
