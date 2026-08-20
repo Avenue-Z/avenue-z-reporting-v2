@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { transformPipeline, transformByOwner } from './pipeline'
+import { transformPipeline, transformByOwner, countUnrecognizedClosed } from './pipeline'
 
 // Shaped exactly like parseSmRows output for the stage query. Values are numbers
 // and booleans at runtime despite the string typing, so fixtures use real types.
@@ -383,5 +383,30 @@ describe('transformByOwner', () => {
     expect(out.rows).toEqual([])
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce]'), 'unknown')
     warnSpy.mockRestore()
+  })
+})
+
+describe('countUnrecognizedClosed', () => {
+  it('counts rows whose is_closed value toBool cannot recognise', () => {
+    const set = [
+      { opportunity_is_closed: true },
+      { opportunity_is_closed: 'Yes' },      // recognised since the vocabulary widened
+      { opportunity_is_closed: 'Closed' },   // not recognised
+      { opportunity_is_closed: '' },         // not recognised
+    ] as unknown as Record<string, string>[]
+    expect(countUnrecognizedClosed(set)).toBe(2)
+  })
+
+  it('sums across row sets and tolerates a null set from a failed fetch', () => {
+    const a = [{ opportunity_is_closed: 'huh' }] as unknown as Record<string, string>[]
+    const b = [{ opportunity_is_closed: 'nope' }] as unknown as Record<string, string>[]
+    expect(countUnrecognizedClosed(a, null, b)).toBe(2)
+  })
+
+  it('returns 0 when every flag is recognised', () => {
+    const set = [
+      { opportunity_is_closed: false }, { opportunity_is_closed: 'no' }, { opportunity_is_closed: 1 },
+    ] as unknown as Record<string, string>[]
+    expect(countUnrecognizedClosed(set)).toBe(0)
   })
 })

@@ -287,4 +287,48 @@ describe('getSalesforcePipeline', () => {
     const data = await getSalesforcePipeline('acme')
     expect(data.stageTruncated).toBe(true)
   })
+
+  test('surfaces unrecognised is_closed flags so the UI can caveat the tiles', async () => {
+    // A garbled flag is failed CLOSED by toBool, so the deal silently leaves the
+    // open tiles and, on a won-stage row, lands in closedWon. The console warn is
+    // invisible to a dashboard reader; this count is what the UI renders a caveat
+    // from. 'Yes' is deliberately included and must NOT count: the vocabulary was
+    // widened to cover it.
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date') {
+        return Promise.resolve([{ ...stageRow('Closed Won', 4, 400, 100, true), opportunity_is_closed: 'Yes' }])
+      }
+      return Promise.resolve([{ ...stageRow('Proposal Released', 10, 1000), opportunity_is_closed: 'Closed' }])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.unrecognizedClosedFlags).toBe(1)
+  })
+
+  test('counts rows, not deals: the open and won windows overlap by design', async () => {
+    // The open query (wide, created-date basis) and the won query (year to date,
+    // close-date basis) both return the same deal when it was created and closed
+    // this year, so one bad row can contribute more than once. That is why the
+    // field is documented as a severity hint rather than a deal count; asserting
+    // it here stops anyone "fixing" it into a silent dedup later.
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    const garbled = [{ ...stageRow('Closed Won', 4, 400, 100, true), opportunity_is_closed: 'Closed' }]
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve(garbled)
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.unrecognizedClosedFlags).toBe(2) // same row seen by the open and won queries
+  })
+
+  test('reports zero unrecognised flags when every row is clean', async () => {
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.unrecognizedClosedFlags).toBe(0)
+  })
 })

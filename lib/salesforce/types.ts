@@ -55,6 +55,21 @@ export interface PipelineData extends PipelineKpis {
    * drives the client-facing headline numbers, not just a supporting chart.
    */
   stageTruncated: boolean
+  /**
+   * How many rows carried an opportunity_is_closed value this module does not
+   * recognise (see parseBool in num.ts). Those rows are failed CLOSED, which
+   * drops them from the open tiles and, on a won-stage row, adds them to
+   * closedWon, so a non-zero count means the headline numbers are shifted by an
+   * unknown amount in a known direction. Surfaced rather than left as a console
+   * warn so the UI can caveat the tiles to the person reading the dashboard,
+   * who is the one making decisions from them.
+   *
+   * Counts ROWS across the queries backing this section, not distinct deals: the
+   * open (wide, created-date) and won (year to date, close-date) windows overlap,
+   * so one bad deal can contribute more than once. Treat it as a severity hint,
+   * never as "N deals are affected".
+   */
+  unrecognizedClosedFlags: number
 }
 
 export interface WeekBucket {

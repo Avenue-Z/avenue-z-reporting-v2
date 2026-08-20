@@ -1,5 +1,5 @@
 import { salesforceQuery, resolveCompareIso } from './base'
-import { toNumber, toBool } from './num'
+import { toNumber, toBool, parseBool } from './num'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cached } from '@/lib/cache'
 import { byClient } from '@/lib/perf'
@@ -61,6 +61,24 @@ function toStageRows(rows: Record<string, string>[]): StageRow[] {
     count:       toNumber(r.opportunity_count, 'opportunity_count'),
     amount:      toNumber(r.opportunity_amount, 'opportunity_amount'),
   }))
+}
+
+/**
+ * Counts rows whose opportunity_is_closed carries a value parseBool does not
+ * recognise. toBool fails those closed (see num.ts), which quietly moves a deal
+ * out of the open tiles and, on a won-stage row, into closedWon. The console
+ * warn it emits is invisible to anyone reading the dashboard, so the count is
+ * surfaced on PipelineData as unrecognizedClosedFlags for the UI to caveat.
+ * A null row set (a fetch that failed and degraded) contributes nothing.
+ */
+export function countUnrecognizedClosed(...rowSets: (Record<string, string>[] | null)[]): number {
+  let n = 0
+  for (const rows of rowSets) {
+    for (const r of rows ?? []) {
+      if (parseBool(r.opportunity_is_closed) === undefined) n++
+    }
+  }
+  return n
 }
 
 function pct(current: number, prior: number | undefined): number | undefined {
@@ -229,6 +247,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // truncated won-prior set undercounts the prior just as badly as a truncated
     // won-current set undercounts closedWon, and would otherwise silently overstate
     // the closedWon year-over-year delta.
+    unrecognizedClosedFlags: countUnrecognizedClosed(openRows, wonCurRows, wonPriorRows, ownerRows),
     stageTruncated:
       openRows.length >= STAGE_MAX_ROWS ||
       wonCurRows.length >= STAGE_MAX_ROWS ||
