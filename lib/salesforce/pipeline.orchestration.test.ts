@@ -331,4 +331,44 @@ describe('getSalesforcePipeline', () => {
     const data = await getSalesforcePipeline('acme')
     expect(data.unrecognizedClosedFlags).toBe(0)
   })
+
+  test('a failed open query degrades to unavailable open tiles, keeping closedWon and byOwner', async () => {
+    // The open query spans about ten years on the created-date basis and is the
+    // likeliest of the four to trip smQuery's 15s guard (observed live on the
+    // owner query during the 2026-08-20 probe). Without a catch it throws
+    // straight through, the section blanks via the error boundary, and the
+    // closedWon and owner data that fetched fine is thrown away with it.
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date') return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+      return Promise.reject(new Error('Supermetrics request timed out after 15000ms'))
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.openUnavailable).toBe(true)
+    expect(data.closedWon.value).toBe(400)      // still rendered
+    expect(data.byOwner).toEqual([{ owner: 'Owner A', count: 5, amount: 500 }])
+    expect(data.openDeals.value).toBe(0)        // 0 only because the flag says unavailable
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  test('a failed closed-won query degrades to an unavailable won tile, keeping the open tiles', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date') return Promise.reject(new Error('boom'))
+      return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.wonUnavailable).toBe(true)
+    expect(data.openUnavailable).toBe(false)
+    expect(data.openDeals.value).toBe(10)
+    // An unavailable window is not a stage mismatch; that flag must stay quiet.
+    expect(data.wonStageUnmatched).toBe(false)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
+  })
 })

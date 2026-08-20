@@ -223,8 +223,20 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
   const wonStage = client?.salesforceConfig?.wonStageName ?? DEFAULT_WON_STAGE
 
   const [openRows, wonCurRows, wonPriorRows, ownerRows] = await Promise.all([
-    salesforceQuery(slug, STAGE_FIELDS, OPEN_WINDOW, { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS }),
-    salesforceQuery(slug, STAGE_FIELDS, wonRange, { settings: WON_SETTINGS, maxRows: STAGE_MAX_ROWS }),
+    // Same degrade-not-fail contract as the owner fetch: this query spans about
+    // ten years on the created-date basis, making it the likeliest to trip
+    // smQuery's 15s guard (observed live on the owner query, 2026-08-20). Letting
+    // it throw would blank the whole section through the error boundary and
+    // discard the closedWon and owner data that fetched fine. null is surfaced as
+    // openUnavailable so the tiles read as unavailable, never as a confident 0.
+    salesforceQuery(slug, STAGE_FIELDS, OPEN_WINDOW, { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS }).catch((e) => {
+      console.error(`[salesforce] open pipeline fetch failed for ${slug}:`, e)
+      return null
+    }),
+    salesforceQuery(slug, STAGE_FIELDS, wonRange, { settings: WON_SETTINGS, maxRows: STAGE_MAX_ROWS }).catch((e) => {
+      console.error(`[salesforce] closed-won fetch failed for ${slug}:`, e)
+      return null
+    }),
     wonPriorIso
       ? salesforceQuery(slug, STAGE_FIELDS, wonPriorIso, { settings: WON_SETTINGS, maxRows: STAGE_MAX_ROWS }).catch((e) => {
           // Same degrade-not-fail contract as the owner fetch below: a persistently
@@ -241,10 +253,15 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
       return null
     }),
   ])
-  const kpis = transformPipeline(openRows, wonCurRows, wonPriorRows, wonStage)
+  const kpis = transformPipeline(openRows ?? [], wonCurRows ?? [], wonPriorRows, wonStage)
   const owner = ownerRows ? transformByOwner(ownerRows, OWNER_MAX_ROWS) : null
   return {
     ...kpis,
+    // Parallel to byOwner being null rather than []: a fetch that failed must
+    // never render as a confident zero. The tile values are 0 in that case only
+    // because there is nothing to sum; these flags are what makes that legible.
+    openUnavailable: openRows === null,
+    wonUnavailable: wonCurRows === null,
     byOwner: owner ? owner.rows : null,
     ownersTruncated: owner ? owner.truncated : false,
     // Drives all four headline tiles, unlike the owner breakdown, so a silent
@@ -255,8 +272,8 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // the closedWon year-over-year delta.
     unrecognizedClosedFlags: countUnrecognizedClosed(openRows, wonCurRows, wonPriorRows, ownerRows),
     stageTruncated:
-      openRows.length >= STAGE_MAX_ROWS ||
-      wonCurRows.length >= STAGE_MAX_ROWS ||
+      (openRows?.length ?? 0) >= STAGE_MAX_ROWS ||
+      (wonCurRows?.length ?? 0) >= STAGE_MAX_ROWS ||
       (wonPriorRows?.length ?? 0) >= STAGE_MAX_ROWS,
   }
 }

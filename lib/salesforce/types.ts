@@ -79,6 +79,15 @@ export interface PipelineData extends PipelineKpis {
    * is missing data, a different problem.
    */
   wonStageUnmatched: boolean
+  /**
+   * True when the open-pipeline query failed and degraded. openDeals,
+   * totalPipeline and weightedPipeline are then 0 because there was nothing to
+   * sum, not because the client has no open deals: render them as unavailable,
+   * the same distinction byOwner draws between null and [].
+   */
+  openUnavailable: boolean
+  /** True when the closed-won query failed and degraded; closedWon is 0 for want of data. */
+  wonUnavailable: boolean
 }
 
 export interface WeekBucket {
