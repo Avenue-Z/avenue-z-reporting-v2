@@ -45,7 +45,10 @@ function toStageRows(rows: Record<string, string>[]): StageRow[] {
 }
 
 function pct(current: number, prior: number | undefined): number | undefined {
-  if (prior == null || prior === 0) return undefined
+  // A non-positive prior (zero or negative) withholds the delta. closedWon
+  // amounts can go negative (credits, refunds), and a swing from -50k to
+  // +100k should not render as a sign-flipped "down 300 percent".
+  if (prior == null || prior <= 0) return undefined
   return ((current - prior) / prior) * 100
 }
 
@@ -70,17 +73,32 @@ export function transformPipeline(
 ): PipelineKpis {
   const agg = (input: StageRow[], warnOnNoMatch: boolean) => {
     const open = input.filter((r) => !r.isClosed)
-    const won  = input.filter((r) => r.stage === wonStage)
-    // A renamed won stage (differing by punctuation, casing, or trailing
-    // whitespace from wonStage) collapses this tile to $0 with nothing to
-    // distinguish it from a client who genuinely won nothing. Warn with the
-    // stages actually present so an operator can see the correct label
-    // immediately, rather than having to go dig through the CRM.
-    if (warnOnNoMatch && input.length > 0 && won.length === 0) {
-      console.warn(
-        `[salesforce] no rows matched won stage "${wonStage}"; stages present:`,
-        [...new Set(input.map((r) => r.stage))],
-      )
+    // Won requires BOTH the won stage AND is_closed: a row whose stage says
+    // Closed Won but whose is_closed flag is still false (a mid-migration or
+    // data-entry state) is not actually closed yet, so it belongs in open, not
+    // in both open and won. Without the isClosed check that row is double
+    // counted: it inflates openDeals/totalPipeline (correctly, since it is not
+    // closed) AND closedWon (incorrectly, since it is not closed).
+    const won  = input.filter((r) => r.isClosed && r.stage === wonStage)
+    if (warnOnNoMatch) {
+      const mislabeled = input.filter((r) => !r.isClosed && r.stage === wonStage)
+      if (mislabeled.length > 0) {
+        console.warn(
+          `[salesforce] ${mislabeled.length} row(s) in won stage but not closed; excluded from closedWon:`,
+          mislabeled.map((r) => r.stage),
+        )
+      }
+      // A renamed won stage (differing by punctuation, casing, or trailing
+      // whitespace from wonStage) collapses this tile to $0 with nothing to
+      // distinguish it from a client who genuinely won nothing. Warn with the
+      // stages actually present so an operator can see the correct label
+      // immediately, rather than having to go dig through the CRM.
+      if (input.length > 0 && won.length === 0) {
+        console.warn(
+          `[salesforce] no rows matched won stage "${wonStage}"; stages present:`,
+          [...new Set(input.map((r) => r.stage))],
+        )
+      }
     }
     return {
       openDeals:     open.reduce((s, r) => s + r.count, 0),

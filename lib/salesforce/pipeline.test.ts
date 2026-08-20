@@ -248,6 +248,31 @@ describe('transformPipeline', () => {
     expect(noMatchCalls).toHaveLength(0)
     warnSpy.mockRestore()
   })
+
+  it('does not double-count a won-stage row that is not flagged closed', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // stage says Closed Won but is_closed is false: a mid-migration/data-entry state.
+    const rows = [
+      { opportunity_stage_name: 'Closed Won', opportunity_is_closed: false, opportunity_probability: 100, opportunity_count: 3, opportunity_amount: 500000 },
+    ] as unknown as Record<string, string>[]
+    const p = transformPipeline(rows, null)
+    // It is open (not closed), so it counts toward open tiles...
+    expect(p.openDeals.value).toBe(3)
+    // ...but must NOT also count as closed-won.
+    expect(p.closedWon.value).toBe(0)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('won stage but not closed'),
+      expect.anything(),
+    )
+    warn.mockRestore()
+  })
+
+  it('withholds the closedWon delta when the prior is negative, not just zero', () => {
+    const cur = [{ opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: 100000 }] as unknown as Record<string, string>[]
+    const prior = [{ opportunity_stage_name: 'Closed Won', opportunity_is_closed: true, opportunity_probability: 100, opportunity_count: 1, opportunity_amount: -50000 }] as unknown as Record<string, string>[]
+    const p = transformPipeline(cur, prior)
+    expect(p.closedWon.delta).toBeUndefined()
+  })
 })
 
 describe('transformByOwner', () => {
