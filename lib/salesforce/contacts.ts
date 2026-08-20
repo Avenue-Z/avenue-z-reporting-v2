@@ -8,6 +8,11 @@ const WEEK_FIELDS = ['yearWeekIso_created', 'contact_count']
 // Weekly series are small (a year to date is at most 53 buckets); this is ample
 // headroom, same reasoning as the stage/owner caps in pipeline.ts.
 const WEEK_MAX_ROWS = 100
+// Pinned explicitly rather than left on the connector default. The window basis
+// for this source is the data_fetched_by setting, not a report-type selection
+// (this source has none), so a future change to Supermetrics' default would
+// silently reinterpret every bucket as last-modified instead of created.
+const CONTACT_SETTINGS = { data_fetched_by: 'fetched_by_created' }
 
 /** The API returns 'YYYY|WW'. Normalize to 'YYYY-Www' so it sorts and reads as ISO. */
 function normalizeWeek(key: string): string {
@@ -20,13 +25,54 @@ function normalizeWeek(key: string): string {
  * '2026-W00') is rejected rather than admitted as a real week. */
 const WEEK_KEY_RE = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/
 
-/** Rows into normalized, chronologically sorted buckets. Shared by the transform and
- * the fetcher, so both agree on which bucket is "latest" (see getSalesforceWeeklyContacts).
- * A malformed key is dropped rather than kept: '-W00' sorts first so it can never
- * become the current week, but with exactly two buckets it would become
- * previousWeek and produce a nonsense weekOverWeek. */
+/** '2026-W07' to 202607, so weeks compare numerically by year then week. String
+ * comparison happens to agree for zero-padded keys, but only by coincidence of
+ * the format; comparing the numbers says what is actually meant. */
+function weekOrdinal(week: string): number {
+  const [y, w] = week.split('-W')
+  return Number(y) * 100 + Number(w)
+}
+
+const DAY_MS = 86_400_000
+
+/** The Monday (UTC) that starts the given ISO week key. */
+function isoWeekStart(week: string): Date {
+  const [y, w] = week.split('-W').map(Number)
+  // Jan 4 is always in ISO week 1, so its Monday anchors the year.
+  const jan4 = new Date(Date.UTC(y, 0, 4))
+  const dow = jan4.getUTCDay() || 7
+  return new Date(jan4.getTime() - (dow - 1) * DAY_MS + (w - 1) * 7 * DAY_MS)
+}
+
+/** The ISO week key containing the given instant. UTC throughout, matching the
+ * rest of this module's date handling (see resolveCompareIso in base.ts). */
+function isoWeekKey(d: Date): string {
+  const day = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const dow = day.getUTCDay() || 7
+  // Shift to the Thursday of this week: the ISO year is whichever year owns it.
+  const thu = new Date(day.getTime() + (4 - dow) * DAY_MS)
+  const jan1 = new Date(Date.UTC(thu.getUTCFullYear(), 0, 1))
+  const week = Math.ceil(((thu.getTime() - jan1.getTime()) / DAY_MS + 1) / 7)
+  return `${thu.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+/** Days of the current ISO week that have started, 1 (Monday) through 7 (Sunday). */
+function daysElapsedInIsoWeek(now: Date): number {
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  return day.getUTCDay() || 7
+}
+
+/**
+ * Rows into normalized buckets, merged by week and sorted numerically.
+ *
+ * Merging matters because the same week can arrive more than once (the connector
+ * splits on dimensions we do not request back); pushing both would leave two
+ * buckets claiming the same week and displace the real prior week out of the
+ * comparison. A malformed key is dropped rather than kept, since '-W00' would
+ * otherwise sort first and could become a comparison operand.
+ */
 function toWeekBuckets(rows: Record<string, string>[]): WeekBucket[] {
-  const buckets: WeekBucket[] = []
+  const byWeek = new Map<string, number>()
   for (const r of rows) {
     const raw = String(r.yearWeekIso_created ?? '')
     const week = normalizeWeek(raw)
@@ -34,38 +80,109 @@ function toWeekBuckets(rows: Record<string, string>[]): WeekBucket[] {
       console.warn(`[salesforce] dropping malformed week key:`, raw)
       continue
     }
-    buckets.push({ week, contacts: toNumber(r.contact_count, 'contact_count') })
+    byWeek.set(week, (byWeek.get(week) ?? 0) + toNumber(r.contact_count, 'contact_count'))
   }
-  return buckets.sort((a, b) => a.week.localeCompare(b.week))
+  return [...byWeek.entries()]
+    .map(([week, contacts]) => ({ week, contacts }))
+    .sort((a, b) => weekOrdinal(a.week) - weekOrdinal(b.week))
 }
 
 /**
- * Pure transform: pipe-keyed weekly rows into sorted ISO buckets plus the
- * current/previous/week-over-week figures. priorYearWeek is passed in rather
- * than looked up here, since finding the matching prior-year bucket needs the
- * compare fetch's rows, which this function does not receive.
+ * Fills weeks the API omitted with explicit zeros, from the first observed week
+ * through the current one. The API returns no row at all for a week with no
+ * contacts, so without this the "previous" week can be any distance back in the
+ * calendar while still being presented as week over week. For this metric an
+ * absent week genuinely means zero contacts created, so a zero is the truth,
+ * not a guess.
+ */
+function gapFill(buckets: WeekBucket[], throughWeek: string): WeekBucket[] {
+  if (buckets.length === 0) return []
+  const have = new Map(buckets.map((b) => [b.week, b.contacts]))
+  const end = weekOrdinal(throughWeek) >= weekOrdinal(buckets[buckets.length - 1].week)
+    ? throughWeek
+    : buckets[buckets.length - 1].week
+  const out: WeekBucket[] = []
+  let cursor = isoWeekStart(buckets[0].week)
+  const last = isoWeekStart(end)
+  while (cursor.getTime() <= last.getTime()) {
+    const week = isoWeekKey(cursor)
+    out.push({ week, contacts: have.get(week) ?? 0 })
+    cursor = new Date(cursor.getTime() + 7 * DAY_MS)
+  }
+  // Rebuilding the calendar means a key that passed WEEK_KEY_RE but is not a
+  // real ISO week (W53 in a 52-week year) has no slot to land in. Dropping it is
+  // right, doing so silently is not: it is contacts disappearing from a total.
+  const emitted = new Set(out.map((b) => b.week))
+  for (const week of have.keys()) {
+    if (!emitted.has(week)) {
+      console.warn(`[salesforce] week key is not a real ISO week, dropped from the series:`, week)
+    }
+  }
+  return out
+}
+
+/**
+ * Pure transform: pipe-keyed weekly rows into sorted, gap-filled ISO buckets
+ * plus the current/previous/comparison figures.
+ *
+ * The comparison rule is the load-bearing part. The latest bucket is the ISO
+ * week in progress, covering only the days elapsed so far, so comparing it
+ * against a complete week is structurally invalid: rendered on a Monday it
+ * reads as an ~85 percent collapse that is really just a week that has barely
+ * started. Rather than publishing that and hoping the UI suppresses it, the
+ * comparison is taken between the two most recent COMPLETE weeks, and the
+ * partial week is reported separately with the flag and day count a caller
+ * needs to label it ("18 contacts, 3 days in"). Same structural-invalidity rule
+ * the open-pipeline tiles use when they withhold a year-over-year delta.
+ *
+ * cmpRows is the prior-year window's rows, matched by ISO week number against
+ * the last COMPLETE week (not the partial one), so both sides of that
+ * comparison are full weeks too.
+ *
+ * `now` is injectable so the tests are time-independent.
  */
 export function transformWeeklyContacts(
   rows: Record<string, string>[],
-  priorYearWeek: number | undefined,
+  cmpRows: Record<string, string>[] | null,
+  now: Date = new Date(),
 ): WeeklyContacts {
-  const weeks = toWeekBuckets(rows)
-  const currentWeek = weeks.at(-1)?.contacts ?? 0
-  // previousWeek is the previous PRESENT bucket (the second-to-last after empty
-  // weeks are already absent from the API response), not necessarily the
-  // immediately preceding calendar week. If a week had zero contacts, it never
-  // appears as a row, so weekOverWeek can end up comparing two non-adjacent
-  // weeks. This is a consequence of the API omitting empty periods, by design.
-  const previousWeek = weeks.at(-2)?.contacts ?? 0
-  const weekOverWeek = previousWeek > 0 ? ((currentWeek - previousWeek) / previousWeek) * 100 : undefined
-  return { weeks, currentWeek, previousWeek, priorYearWeek, weekOverWeek }
+  const currentKey = isoWeekKey(now)
+  const weeks = gapFill(toWeekBuckets(rows), currentKey)
+  const currentWeek = weeks.find((b) => b.week === currentKey)?.contacts ?? 0
+  const completed = weeks.filter((b) => weekOrdinal(b.week) < weekOrdinal(currentKey))
+  const previousWeek = completed.at(-1)?.contacts ?? 0
+  const beforeThat = completed.at(-2)?.contacts
+  const completedWeekOverWeek =
+    beforeThat != null && beforeThat > 0 ? ((previousWeek - beforeThat) / beforeThat) * 100 : undefined
+
+  // Prior year: the bucket carrying the same ISO week number as our last
+  // COMPLETE week. Matching the partial week instead would compare a few days
+  // against a full week, and would also land on the compare window's own ragged
+  // edge (the window ends on the same calendar date a year earlier, which is
+  // almost never the same weekday, so its final bucket is clipped short).
+  const lastCompleteKey = completed.at(-1)?.week
+  let priorYearWeek: number | undefined
+  if (cmpRows && lastCompleteKey) {
+    const want = lastCompleteKey.split('-W')[1]
+    priorYearWeek = toWeekBuckets(cmpRows).find((b) => b.week.split('-W')[1] === want)?.contacts
+  }
+
+  return {
+    weeks,
+    currentWeek,
+    currentWeekPartial: true,
+    daysElapsedInCurrentWeek: daysElapsedInIsoWeek(now),
+    previousWeek,
+    priorYearWeek,
+    completedWeekOverWeek,
+  }
 }
 
 /**
  * Weekly buckets year to date, plus the same window last year for the
  * prior-year comparison. The compare query failing degrades to no prior-year
- * figure rather than failing the block. The Contacts report type filters on
- * contact created date, so these are genuinely new contacts per week.
+ * figure rather than failing the block. The window basis is pinned to contact
+ * created date via CONTACT_SETTINGS, so these are genuinely new contacts per week.
  */
 // Exported (not module-private) so contacts.test.ts can call it directly: the
 // public getSalesforceWeeklyContacts below is wrapped in cached(), which
@@ -73,48 +190,23 @@ export function transformWeeklyContacts(
 // which every vitest run is. Testing the impl directly is the intended use of
 // the ...Impl pattern (see lib/hubspot/client.ts), not a workaround: it is the
 // plain, uncached orchestration this wraps.
-export async function getSalesforceWeeklyContactsImpl(slug: string): Promise<WeeklyContacts> {
-  // Under year_to_date the latest bucket is usually an in-progress, partial
-  // week (whatever days have elapsed so far), compared against previousWeek,
-  // a complete prior week. weekOverWeek and priorYearWeek are therefore a
-  // partial-vs-complete comparison, not partial-vs-partial. By design: the
-  // API has no notion of "week so far" to fetch instead.
+export async function getSalesforceWeeklyContactsImpl(slug: string, now: Date = new Date()): Promise<WeeklyContacts> {
   const dateRange = 'year_to_date'
   const cmpIso = resolveCompareIso(dateRange, 'previous_year')
   const [rows, cmpRows] = await Promise.all([
-    salesforceQuery(slug, WEEK_FIELDS, dateRange, { maxRows: WEEK_MAX_ROWS }),
+    salesforceQuery(slug, WEEK_FIELDS, dateRange, { settings: CONTACT_SETTINGS, maxRows: WEEK_MAX_ROWS }),
     cmpIso
-      ? salesforceQuery(slug, WEEK_FIELDS, cmpIso, { maxRows: WEEK_MAX_ROWS }).catch((e) => {
+      ? salesforceQuery(slug, WEEK_FIELDS, cmpIso, { settings: CONTACT_SETTINGS, maxRows: WEEK_MAX_ROWS }).catch((e) => {
           console.error(`[salesforce] contacts compare fetch failed for ${slug}:`, e)
           return null
         })
       : Promise.resolve(null),
   ])
-  // Prior-year week: the bucket in the compare set with the same ISO week number as
-  // our latest week. Matched by week number, not array position (the compare set's
-  // row order is not guaranteed to line up with the current set's), and against the
-  // chronologically latest bucket, not just the last row the API happened to return
-  // (the API does not guarantee row order, only that the shape is one row per week).
-  //
-  // Known artifact: matching by ISO week number does not mean matching an equal
-  // number of days. The compare window ends on the same calendar date a year
-  // earlier, which almost never falls on the same weekday, so the two windows
-  // that share a week number are not the same length. Worked example: today
-  // 2026-08-16 is a Sunday, so the current 2026-W33 bucket covers a full 7 days,
-  // but 2025-08-16 (a year earlier) is a Saturday, so 2025-W33 is clipped to 6
-  // days by the window boundary. The prior-year figure is understated by roughly
-  // a seventh right now. The drift ranges 0 to 6 days and reverses direction
-  // between years depending on where the anniversary date falls in its week, so
-  // there is no fixed correction to apply here: this is why the figure can look
-  // low even when nothing is actually down.
-  let priorYearWeek: number | undefined
-  const latestWeek = toWeekBuckets(rows).at(-1)?.week
-  if (cmpRows && latestWeek) {
-    const wantWeek = latestWeek.split('-W')[1]
-    const hit = toWeekBuckets(cmpRows).find((b) => b.week.split('-W')[1] === wantWeek)
-    if (hit) priorYearWeek = hit.contacts
-  }
-  return transformWeeklyContacts(rows, priorYearWeek)
+  // The transform owns the prior-year matching now, so each row set is bucketed
+  // exactly once per fetch. Bucketing here as well (to find the latest week)
+  // emitted every malformed-key warn twice, which made the log count a
+  // misleading measure of how bad the data actually is.
+  return transformWeeklyContacts(rows, cmpRows, now)
 }
 
 // Cached the same way the HubSpot fetchers this block replaces are (1-hour TTL,

@@ -97,11 +97,29 @@ export interface WeekBucket {
 }
 
 export interface WeeklyContacts {
+  /** Every ISO week from the first with data through the current one, gap-filled
+   * with zeros where the API omitted a week, so consecutive entries are genuinely
+   * consecutive calendar weeks. */
   weeks: WeekBucket[]
+  /** Contacts in the ISO week currently in progress, covering only the days
+   * elapsed so far. Always read this together with daysElapsedInCurrentWeek:
+   * on its own it looks like a collapsed week rather than a partial one. */
   currentWeek: number
+  /** True whenever currentWeek covers a week still in progress, which is every
+   * live render. Present so a consumer cannot use currentWeek without meeting
+   * the fact that it is partial. */
+  currentWeekPartial: boolean
+  /** 1 (Monday) through 7 (Sunday): how much of the current week currentWeek covers. */
+  daysElapsedInCurrentWeek: number
+  /** The most recent COMPLETE ISO week. This, not currentWeek, is the figure to
+   * headline when a full week is what the reader expects. */
   previousWeek: number
-  /** Same ISO week last year, or undefined when the compare query failed or had no matching week. */
+  /** The same ISO week last year as previousWeek, so both sides are full weeks.
+   * Undefined when the compare query failed or had no matching week. */
   priorYearWeek?: number
-  /** Percent change current vs previous week, undefined when previous is 0. */
-  weekOverWeek?: number
+  /** Percent change between the two most recent COMPLETE weeks. Deliberately not
+   * a comparison against currentWeek: a partial week against a complete one is
+   * structurally invalid and renders as a large false decline early in the week.
+   * Undefined when there is no second complete week, or the earlier one is 0. */
+  completedWeekOverWeek?: number
 }
