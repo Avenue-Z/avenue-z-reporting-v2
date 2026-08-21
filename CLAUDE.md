@@ -600,6 +600,44 @@ Still open:
   returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
   (`lib/triplewhale/client.ts`)
 
+## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
+
+Surfaced reviewing the Web Analytics ↔ Overview channel-parity fix (PR #210).
+That PR corrected the three channel queries only; the items below were
+deliberately left out of its scope so it stayed reviewable.
+
+- [ ] **Source/medium drilldown cap fills from the highest-volume channels** —
+  the `sessionDefaultChannelGroup, sessionSource, sessionMedium` query takes
+  `limit: 150` ordered by sessions desc, so the cap is consumed by the biggest
+  channels first. A low-volume channel still shown in the top-10 chart can come
+  back with zero rows and silently render an empty hover breakdown (the panel is
+  gated on `smEntries.length > 0`). Present **identically on both pages** — this
+  is not an asymmetry PR #210 introduced — so a fix has to touch both.
+  (`components/report-sections/ga4/index.tsx`,
+  `components/report-sections/executive-overview/index.tsx`)
+
+- [ ] **Eight rankable GA4 queries still take an arbitrary N** — `limit` without
+  `orderBys` lets GA4 return *any* N rows, not the top N by sessions. Highest
+  value first: the two compare fetches on `pagePath` / `landingPage`
+  (`limit: 25`) drive the Top Pages and Entry Pages delta arrows off an
+  arbitrary slice — the same mechanism as the channel-compare bug PR #210 fixed,
+  so a page can read "prior 0" while having had traffic; then the main
+  `pagePath` / `landingPage` / `eventName` queries (`limit: 25`); `country`
+  (`limit: 150`, least likely to bite since most clients see far fewer); and the
+  two 90-day "perennially popular" lookbacks (`limit: 10`). Note the other three
+  `limit`-bearing queries in that same `Promise.all` are already correctly
+  bounded and need nothing: the two `dimensions: ['date']` trend queries
+  (`limit: 90`) and `dayOfWeek, hour` (`limit: 200` against 168 possible
+  combinations). (`components/report-sections/ga4/index.tsx`)
+
+- [ ] **Sessions-desc `orderBys` literal duplicated three times** — the merged
+  Overview section defines `SESSIONS_DESC_ORDER`
+  (`components/report-sections/executive-overview/index.tsx`); the ga4 section
+  pastes the literal at each of its three call sites. Left duplicated on purpose
+  while PR #210 was stacked on #207 so the rebase stayed trivial; now that #207
+  has merged there is no reason not to hoist a single shared constant, with
+  `lib/ga4/` the natural home.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
