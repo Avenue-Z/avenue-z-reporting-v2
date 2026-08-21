@@ -33,6 +33,7 @@ export type ReportSlug =
   | 'peec-ai'
   | 'profound-ai'
   | 'demand-overview'
+  | 'executive-overview'
   | 'ai-summaries'
   | 'report-generator'
   | 'request-a-report'

@@ -27,6 +27,7 @@ import { GoHighLevelReport } from '@/components/report-sections/gohighlevel'
 import { TicketSalesReport } from '@/components/report-sections/ticket-sales'
 import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
@@ -117,6 +118,8 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
+    case 'executive-overview':
+      return <ExecutiveOverviewReport clientSlug={clientSlug} />
     case 'request-a-report':
       return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'peec-ai':

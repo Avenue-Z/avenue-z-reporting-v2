@@ -184,6 +184,14 @@ export type CompetitorAverages = {
 }
 
 export type PeecOverview = {
+  /**
+   * False when neither clients.peec_your_brand nor the PEEC_AI_YOUR_BRAND env
+   * fallback identified which tracked brand is the client. In that state the
+   * "your brand" filters degrade to pass-throughs, so visibility figures are
+   * averages across EVERY tracked brand. Any consumer presenting such a figure
+   * as the client's own must dash instead.
+   */
+  yourBrandResolved: boolean
   weeklyVisibility: WeeklyVisibility[]
   competitorWeeklyVisibility: WeeklyVisibility[]
   dailyVisibility: DailyPoint[]
@@ -805,6 +813,10 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
   }
 
   return {
+    // Lets callers tell "0% visibility" apart from "we could not identify which
+    // brand is you, so every brand is in the average". Consumers that show a
+    // visibility figure as the CLIENT's own must dash when this is false.
+    yourBrandResolved: !!yourBrand,
     weeklyVisibility,
     competitorWeeklyVisibility,
     dailyVisibility,
@@ -858,7 +870,10 @@ export const getPeecOverview = cached(
     // v10 = FB-058: TopDomain now carries priorCitationCount (prior-period Peec
     //       citation_count). Required for the §H.1 Citation Share delta. v9 cached
     //       entries lack this field, so invalidate to force a fresh fetch.
-    version: 'v10',
+    // v11 = PR 207 CR4: response now carries yourBrandResolved, so a consumer can
+    //       tell an all-brands average apart from the client's own visibility.
+    //       v10 entries lack the field and would read as resolved.
+    version: 'v11',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },
