@@ -600,6 +600,75 @@ Still open:
   returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
   (`lib/triplewhale/client.ts`)
 
+## Known Follow-ups: PR Influence (from FB-069 / PR #163 review)
+
+Deliberately out of scope for [#163](https://github.com/Avenue-Z/avenue-z-reporting-v2/pull/163),
+which fixed the article-URL matchback and Tina's Req 2/3/4. Recorded here because
+GitHub issues are disabled on this repo. None of these are regressions from that
+PR; the first is pre-existing FB-068 behaviour that #163 merely sharpened.
+
+- [ ] **"First cited" / "Most recent" report the date picker back to the reader.**
+  Both columns are clamped to the selected range, so for a continuously cited
+  article they converge on the window's own start and end dates. At the default
+  `last_30_days` they collapse to the same value. Compounding it, `last_N_days`
+  ends *yesterday* (`lib/date-range.ts:60-66`, deliberate, matches Google Ads)
+  while `this_week` / `this_month` / `this_quarter` / `year_to_date` end *today*
+  (`date-range.ts:71-90`), so changing range **type** silently moves the end
+  boundary by a day. Making "First cited" all-time needs a second unwindowed
+  `/reports/domains` call with its own cache entry. **Product decision for Tina
+  before any code**; cheapest interim is relabelling to "First cited in range".
+  (`lib/peec/citation-dates.ts`, `components/report-sections/peec-ai/pr-influence.tsx`)
+- [ ] **Those same two dates are domain-scoped while row inclusion is article-scoped.**
+  True since #163 changed the matching rule. The link-host-first lookup added there
+  is also opportunistic rather than reliable: `walkDomainDates` uses `targetHosts`
+  only as an early-exit condition, never as a filter, so which hosts land in the
+  index depends on where the walk stopped, and that differs between the ascending
+  and descending passes. Unreachable today (0 mismatches across 290 real
+  placements) because `client.ts:170` derives the Domain column from the link.
+  **Fix in one pass with the item above**, same two cells, otherwise it is three
+  separate conversations with Tina about the same columns.
+  (`lib/pr-proof/matchback.ts`, `lib/peec/citation-dates.ts`)
+- [ ] **The AI synopsis still restates "N of M placements cited by AI" in prose.**
+  Tina asked for that line to be removed and #163 removed it from the table, but
+  the same figure is still built into the synopsis context, passed to the prompt
+  under "USE THESE EXACT VALUES", and enforced by grounding validator rule 3.
+  Invisible only because `SHOW_AI_NARRATIVE = false` (`lib/constants.ts:196`).
+  Flip that flag without resolving this and the number comes back in a sentence.
+  This was a sub-decision that never made it into the version of the Decisions doc
+  Tina answered, so nobody has ruled on it.
+  (`components/report-sections/peec-ai/pr-influence.tsx`, `lib/peec/pr-influence-synopsis.ts`)
+- [ ] **Three hand-rolled offset pagination walks in `lib/peec/`.** `fetchAllPages`
+  (`url-citations.ts`, added in #163), `fetchAllRows` (`client.ts:333`) and
+  `walkDomainDates` (`citation-dates.ts:126`), with three different page sizes,
+  caps and stop conditions. `fetchAllPages` is the right abstraction and is
+  already generic; `walkDomainDates` needs an early-exit predicate it does not
+  have yet. Same class as the `keyHash`-in-four-files item above.
+- [ ] **`getPRProofData`'s cache key ignores the config it read.** The key is
+  `(vendor, fn, clientSlug)` via `cached()`, so it reflects *which client* but not
+  *which sheet* or *which columns*. Changing `pr_proof_sheet_id` or
+  `pr_proof_column_map` therefore invalidates nothing, and the dashboard serves a
+  parse made under the old config for up to the 1-hour TTL. Observed on staging
+  2026-07-22: the column map was corrected to point at the demo sheet, and the
+  table kept rendering the previous sheet's result (one row, blank Article) for
+  the rest of the TTL. The symptom reads as a bug rather than as lag, which is the
+  same trap that made the 2026-07-21 outage hard to attribute. Fix is small: fold
+  the sheet id and a hash of the column map into the cache key so a config change
+  invalidates itself. Until then, a redeploy is the only way to force a config
+  change to take effect immediately. (`lib/pr-proof/client.ts`, `lib/cache.ts`)
+- [ ] **Peec `/reports/urls` gives no way to prove a paginated walk was complete.**
+  Verified live: the endpoint returns only `data` with no `totalCount`, and
+  `order_by` on `url` is rejected with a 400. The sole accepted sort field is
+  `citation_count`, which is the tie-heavy field the concern is about. #163 ships
+  `countDuplicateUrlKeys` as a proxy alarm (a repeated key means the ordering
+  shifted mid-walk), but that detects a reorder having happened, not that no rows
+  were lost. Revisit if Peec adds `totalCount` or a unique sort field.
+  (`lib/peec/url-citations.ts`)
+
+**Needs a human decision, not code:** Avenue Z's PR Influence table now renders
+empty. That is correct under article-URL matching (all three of its placements
+matched only on domain), and it is still a client-facing zero where there were
+three rows before.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
