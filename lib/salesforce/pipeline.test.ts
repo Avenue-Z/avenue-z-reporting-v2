@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { transformPipeline, transformByOwner, countUnrecognizedClosed } from './pipeline'
+import { transformPipeline, transformByOwner, countUnrecognizedClosed, openWindow } from './pipeline'
 
 // Shaped exactly like parseSmRows output for the stage query. Values are numbers
 // and booleans at runtime despite the string typing, so fixtures use real types.
@@ -451,5 +451,30 @@ describe('wonStageUnmatched', () => {
   it('does not flag an empty won window, which is missing data rather than a mismatch', () => {
     const p = transformPipeline([], [], null)
     expect(p.wonStageUnmatched).toBe(false)
+  })
+})
+
+describe('openWindow', () => {
+  // The bug this guards: Supermetrics' Salesforce historical floor is a rolling
+  // "today minus 10 years". A hardcoded start ('2016-08-20') slipped one day under
+  // the floor by 2026-08-21 and 400'd every open query, zeroing the open tiles.
+  it('keeps the start strictly above the rolling ten-year floor for any date', () => {
+    for (const iso of ['2026-08-21', '2026-12-31', '2027-01-01', '2030-06-15', '2099-02-01']) {
+      const now = new Date(`${iso}T12:00:00Z`)
+      const [start] = openWindow(now).split(',')
+      const floor = new Date(Date.UTC(now.getUTCFullYear() - 10, now.getUTCMonth(), now.getUTCDate()))
+      expect(new Date(`${start}T00:00:00Z`).getTime()).toBeGreaterThan(floor.getTime())
+    }
+  })
+
+  it('derives the bounds from the clock, so it does not rot into a static literal', () => {
+    expect(openWindow(new Date('2026-08-21T12:00:00Z'))).toBe('2017-01-01,2035-12-31')
+    expect(openWindow(new Date('2027-08-21T12:00:00Z'))).toBe('2018-01-01,2036-12-31')
+  })
+
+  it('ends comfortably in the future so today is always within the window', () => {
+    const now = new Date('2026-08-21T12:00:00Z')
+    const [, end] = openWindow(now).split(',')
+    expect(new Date(`${end}T00:00:00Z`).getTime()).toBeGreaterThan(now.getTime())
   })
 })

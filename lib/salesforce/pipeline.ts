@@ -52,14 +52,24 @@ const DEFAULT_WON_STAGE = 'Closed Won'
 // needs this revisited deliberately, not flipped silently.
 const OPEN_SETTINGS = { deal_date_field: 'deal_created', convert_to_default_currency: false }
 const WON_SETTINGS = { deal_date_field: 'deal_closed', convert_to_default_currency: false }
-// A window wide enough to include every currently-open deal regardless of when it
-// was created. Static bounds so the query is cache-stable within a day. The start
-// date is Supermetrics' live-confirmed floor for this connector (2016-08-20);
-// anything earlier 400s with START_DATE_HISTORICAL. Known limit, not a proof: a
-// deal created before that floor and still open today is silently absent from
-// these tiles, and the response gives us no way to detect it. The far end is
-// clamped to today by the connector.
-const OPEN_WINDOW = '2016-08-20,2035-12-31'
+/**
+ * A window wide enough to include every currently-open deal regardless of when it
+ * was created. This must NOT be a static literal: Supermetrics' Salesforce
+ * historical floor is a ROLLING "today minus 10 years", so a hardcoded start date
+ * silently slips below the floor as the clock advances and every query 400s with
+ * START_DATE_HISTORICAL (a fixed '2016-08-20' was already one day under the floor
+ * by 2026-08-21, live-confirmed, which zeroed the open tiles). The start is
+ * therefore derived from the clock: January 1 of nine years ago, which is always
+ * comfortably above a ten-year rolling floor (worst case, on Dec 31, still a day
+ * above it) yet captures effectively all still-open history, since an opportunity
+ * open for nine or more years is vanishingly rare. Year-granular bounds keep the
+ * query cache-stable within a calendar year. `now` is injectable so the derivation
+ * is testable without depending on the wall clock.
+ */
+export function openWindow(now: Date = new Date()): string {
+  const y = now.getUTCFullYear()
+  return `${y - 9}-01-01,${y + 9}-12-31`
+}
 
 function toStageRows(rows: Record<string, string>[]): StageRow[] {
   return rows.map((r) => ({
@@ -232,6 +242,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
   const wonPriorIso = resolveCompareIso(wonRange, 'previous_year')
   const client = await getClientBySlug(slug)
   const wonStage = client?.salesforceConfig?.wonStageName ?? DEFAULT_WON_STAGE
+  const openWin = openWindow()
 
   const [openRows, wonCurRows, wonPriorRows, ownerRows] = await Promise.all([
     // Same degrade-not-fail contract as the owner fetch: this query spans about
@@ -240,7 +251,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // it throw would blank the whole section through the error boundary and
     // discard the closedWon and owner data that fetched fine. null is surfaced as
     // openUnavailable so the tiles read as unavailable, never as a confident 0.
-    salesforceQuery(slug, STAGE_FIELDS, OPEN_WINDOW, { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS }).catch((e) => {
+    salesforceQuery(slug, STAGE_FIELDS, openWin, { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS }).catch((e) => {
       console.error(`[salesforce] open pipeline fetch failed for ${slug}:`, e)
       return null
     }),
@@ -257,7 +268,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
           return null
         })
       : Promise.resolve(null),
-    salesforceQuery(slug, OWNER_FIELDS, OPEN_WINDOW, { settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS }).catch((e) => {
+    salesforceQuery(slug, OWNER_FIELDS, openWin, { settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS }).catch((e) => {
       // A failed fetch must surface as byOwner: null, never as an empty list, so
       // it never reads as "this client has no owners". Log before swallowing.
       console.error(`[salesforce] owner fetch failed for ${slug}:`, e)

@@ -16,7 +16,8 @@ vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 // lib/hubspot/client.ts): the wrapper is a thin cache/perf/health shell around
 // the impl, so exercising the impl directly tests the same orchestration logic
 // without needing to fake a request context.
-import { getSalesforcePipelineImpl as getSalesforcePipeline } from './pipeline'
+import { getSalesforcePipelineImpl as getSalesforcePipeline, openWindow } from './pipeline'
+const EXPECTED_OPEN_WINDOW = openWindow()
 import { salesforceQuery, resolveCompareIso } from './base'
 import { getClientBySlug } from '@/lib/db/queries'
 
@@ -82,12 +83,12 @@ describe('getSalesforcePipeline', () => {
     await getSalesforcePipeline('acme')
     expect(calls).toHaveLength(4) // open, won-current, won-prior, owner
 
-    const openCall = calls.find((c) => !c.fields.includes('opportunity_owner') && c.dateRange === '2016-08-20,2035-12-31')
+    const openCall = calls.find((c) => !c.fields.includes('opportunity_owner') && c.dateRange === EXPECTED_OPEN_WINDOW)
     expect(openCall).toBeDefined()
     expect(openCall!.opts.settings).toEqual({ deal_date_field: 'deal_created', convert_to_default_currency: false })
 
     const ownerCall = calls.find((c) => c.fields.includes('opportunity_owner'))
-    expect(ownerCall!.dateRange).toBe('2016-08-20,2035-12-31')
+    expect(ownerCall!.dateRange).toBe(EXPECTED_OPEN_WINDOW)
     expect(ownerCall!.opts.settings).toEqual({ deal_date_field: 'deal_created', convert_to_default_currency: false })
 
     const wonCurCall = calls.find((c) => !c.fields.includes('opportunity_owner') && c.dateRange === 'year_to_date')
@@ -225,7 +226,7 @@ describe('getSalesforcePipeline', () => {
           // a reverted implementation pointing it at year_to_date or cmpIso
           // instead, or passing the wrong maxRows, would fail these rather than
           // passing silently against a one-row fixture like the earlier tests use.
-          expect(dateRange).toBe('2016-08-20,2035-12-31') // OPEN_WINDOW
+          expect(dateRange).toBe(EXPECTED_OPEN_WINDOW) // the dynamic open window
           expect(opts?.maxRows).toBe(500) // OWNER_MAX_ROWS
           return Promise.resolve(cappedOwners)
         }
