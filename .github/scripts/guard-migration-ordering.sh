@@ -81,9 +81,12 @@ label_applied_at() {
 iso() { jq -rn --argjson t "$1" '$t | todateiso8601'; }
 
 # Requires $1 to be present AND to have been applied after the head commit was
-# authored. GitHub never strips a label on push, so without the second half a PR
+# committed. GitHub never strips a label on push, so without the second half a PR
 # labelled for migration 0019 stays green after 0020 is pushed on top of it, and
-# 0020 merges having been confirmed by nobody.
+# 0020 merges having been confirmed by nobody. Committer date is the closest
+# stand-in for push time that the API offers; git sets it to now on commit,
+# amend, rebase and cherry-pick, so the only way past this is to forge
+# GIT_COMMITTER_DATE deliberately.
 require_label() {
   local label="$1" guidance="$2" at
   at="$(label_applied_at "$label")"
