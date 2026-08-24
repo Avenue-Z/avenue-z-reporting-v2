@@ -229,6 +229,16 @@ commit "$d" 'an additive and a destructive migration in one PR'
 check 'an additive and a destructive migration in one PR FAILS as mixed' \
   "$d" main HEAD '[]' 1 'split this into expand/contract'
 
+# Only an addition this PR's code can SELECT creates the conflict. A new index or
+# constraint is not one, so a drop that ships beside one is an ordinary
+# destructive migration, not a split.
+d="$(new_repo drop-plus-index)"
+printf 'export const clients = pgTable("clients", { id: uuid("id") })\n' >"$d/lib/db/schema.ts"
+printf 'DROP INDEX "clients_existing_idx";\nCREATE INDEX "clients_id_idx" ON "clients" ("id");\n' >"$d/drizzle/0002_reindex.sql"
+commit "$d" 'drop and create an index'
+check 'a drop beside a CREATE INDEX is destructive, not a mixed conflict' \
+  "$d" main HEAD "$(labels_at "$d" migration-deferred-apply 60)" 0 "OK — 'migration-deferred-apply'"
+
 # No schema change means no code in this PR selects the addition, so there is no
 # conflict — the destructive ordering governs both and the usual label applies.
 d="$(new_repo mixed-no-schema-change)"

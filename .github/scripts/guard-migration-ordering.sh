@@ -78,7 +78,14 @@ SCHEMA_CHANGED="$(printf '%s\n' "$CHANGED" | grep -Fx 'lib/db/schema.ts' || true
 # not to the end of the statement, so a compound
 # `ALTER TABLE t DROP CONSTRAINT c, DROP COLUMN d;` keeps its real drop.
 readonly DESTRUCTIVE_RE='(^|[^[:alnum:]_])(drop|rename)[[:space:]]+["a-z_]'
-readonly ADDITIVE_RE='(^|[^[:alnum:]_])(add[[:space:]]+(column|constraint)|create[[:space:]]+(table|type|schema|sequence|index|view|unique))'
+# Deliberately narrower than "anything new": this pattern exists only to detect
+# the mixed-ordering conflict below, and the conflict needs something this PR's
+# code will SELECT the moment it merges. Drizzle's query builder enumerates
+# columns, so that means ADD COLUMN / CREATE TABLE (and CREATE TYPE, which only
+# ever arrives attached to one of them). CREATE INDEX, ADD CONSTRAINT, CREATE
+# VIEW and friends are new objects no `select` depends on, so a migration that
+# drops a column and creates an index is not a conflict and must not be blocked.
+readonly ADDITIVE_RE='(^|[^[:alnum:]_])(add[[:space:]]+column|create[[:space:]]+(table|type))'
 
 normalize_sql() { # reads SQL on stdin, emits one lowercased statement per line
   tr '[:upper:]' '[:lower:]' \

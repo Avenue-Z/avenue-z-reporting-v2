@@ -22,6 +22,15 @@ jobs:
       - name: RSC boundary check
         run: npm run check:rsc
 
+  # The migration guard is the only check that can hold back a schema change, so
+  # its own failure cases have to be known to fail. Pure bash + git + jq, no npm.
+  migration-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migration guard test suite
+        run: bash .github/scripts/guard-migration-ordering.test.sh
+
   test:
     runs-on: ubuntu-latest
     steps:
