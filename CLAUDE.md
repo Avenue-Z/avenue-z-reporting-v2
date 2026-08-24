@@ -600,6 +600,113 @@ Still open:
   returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
   (`lib/triplewhale/client.ts`)
 
+## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
+
+Surfaced reviewing the Web Analytics ↔ Overview channel-parity fix (PR #210).
+Across five files that PR ordered the three channel queries by sessions desc,
+added the share-of-total denominator
+(`components/report-sections/ga4/channel-share.ts`), and made a channel absent
+from the compare fetch render `—` instead of a fabricated zero
+(`components/report-sections/ga4/channel-tabs-chart.tsx`). The items below were
+deliberately left out of its scope so it stayed reviewable.
+
+- [ ] **Source/medium drilldown cap fills from the highest-volume channels** —
+  the `sessionDefaultChannelGroup, sessionSource, sessionMedium` query takes
+  `limit: 150` ordered by sessions desc, so the cap is consumed by the biggest
+  channels first. A low-volume channel still shown in the chart can come back
+  with zero rows and silently render an empty hover breakdown (the panel is
+  gated on `smEntries.length > 0`). The *query* is identical on both pages
+  (`components/report-sections/ga4/index.tsx:220-223`,
+  `components/report-sections/executive-overview/index.tsx:77`); the *exposure*
+  is not. Overview draws channels from a `limit: 25` pool
+  (`executive-overview/index.tsx:68`) and its By Conversion tab ranks across all
+  25 rows with ≥20 sessions (`executive-overview/reshape.ts:254-257`; its volume
+  tab slices to 10 via `VOLUME_DISPLAY_LIMIT`, `reshape.ts:172`, applied at
+  `:250`), while ga4 feeds both of its tabs from a single `limit: 10` pool
+  (`ga4/index.tsx:144`, consumed at `:371`, `:385`, `:580-582`). So channels
+  ranked 11–25 by volume get a hover panel on Overview and can never render on
+  ga4 — and those are exactly the low-volume channels the 150-row cap drops. A
+  fix has to touch both pages, but the asymmetry sits in the exposure rather
+  than the query, so a symmetric fix under-fixes Overview: it has strictly more
+  channels able to reach the bug.
+
+- [ ] **Eight rankable GA4 queries still take an arbitrary N** — `limit` without
+  `orderBys` lets GA4 return *any* N rows, not the top N by sessions. Highest
+  value first:
+
+  - The two compare fetches on `pagePath` / `landingPage`
+    (`components/report-sections/ga4/index.tsx:232`, `:242`) drive the Top Pages
+    and Entry Pages delta arrows off an arbitrary slice. A page missing from the
+    compare fetch renders **nothing** — no prior line and no arrow — because
+    both are gated on `hasPrior`
+    (`components/report-sections/ga4/top-pages-chart.tsx:210`, applied at `:258`
+    and `:260-264`). A delta that silently vanishes is harder to catch in QA
+    than a number that reads wrong, since nothing on screen looks broken.
+    **"Just add `orderBys`" is the wrong fix here.** #210's channel fix was
+    ordering *plus* widening the compare `limit` 10→25 (see the comment at
+    `ga4/index.tsx:153-160`); §4 of `docs/qa/ga4-channel-parity-code-review.md`
+    puts it plainly — "before ordering, a given channel's absence was luck.
+    After ordering, absence became a rule." These page compare fetches are
+    *already* at `limit: 25`, the same as their main queries (`:169`, `:176`),
+    over a high-cardinality dimension, so ordering them alone converts a latent
+    bug into a guaranteed one. Keying the compare to the current period's page
+    set needs either a second round-trip or a `dimensionFilter` inList
+    (`GA4DimensionFilter` is supported, `lib/ga4/types.ts:38`) — and both
+    compare fetches sit in the same `Promise.all` as the current-period query
+    (`ga4/index.tsx:118`), so either route serialises two fetches that run in
+    parallel today. That structural cost is the reason this was scoped out, not
+    an oversight. Fix it together with the absent-vs-zero item below.
+  - The main `pagePath` / `landingPage` / `eventName` queries (`limit: 25`) —
+    but see the `eventName` exception below.
+  - The two 90-day "perennially popular" lookbacks (`ga4/index.tsx:246-252`,
+    `:254-260`, `limit: 10`, unordered), which become `stalePagePaths` /
+    `staleEntryPaths` (`:443-445`) and are used by the Rising toggle to
+    **exclude** rows (`top-pages-chart.tsx:80`, `:99`). An arbitrary 10 of every
+    page seen in 90 days makes that exclusion set arbitrary for any site with
+    more than 10 pages in 90 days — i.e. effectively every client.
+  - `country` (`ga4/index.tsx:212-214`, `limit: 150`) last, since it only bites
+    above 150 countries, which is rare.
+
+  The other three **unordered** `limit`-bearing queries in that same
+  `Promise.all` are already correctly bounded and need nothing: the two
+  `dimensions: ['date']` trend queries (`:126-128`, `:134-136`, `limit: 90`) and
+  `dayOfWeek, hour` (`:204-206`, `limit: 200` against 168 possible
+  combinations). Of the 14 `limit`-bearing queries in that block, 3 are ordered
+  (`:144`, `:160`, `:222`) and 11 unordered; 11 − 3 correctly bounded = the
+  eight rankable ones above.
+
+- [ ] **Top Pages / Entry Pages still conflate "absent from the compare fetch"
+  with "observed zero"** — `components/report-sections/ga4/top-pages-chart.tsx:207`
+  reads `compareMap[row.page] ?? 0` and `:210` gates on `prior > 0`, so a page
+  that genuinely had zero prior sessions and a page that simply missed the
+  compare fetch are indistinguishable — both render nothing. PR #210 fixed
+  exactly this in the channel twin (`const hasPrior = row.name in compareMap`,
+  absent renders `—`: `ga4/channel-tabs-chart.tsx:189`, `:228`); Top Pages and
+  Entry Pages never got the port. This is the actual defect behind the delta
+  arrows above, so fix it alongside the compare-fetch width — widening the fetch
+  without fixing the render still shows nothing for a page whose prior really
+  was zero.
+
+- [ ] **`eventName` cannot take a sessions-desc order** — the events query
+  requests `eventCount, eventCountPerUser, keyEvents` and no `sessions` metric
+  (`components/report-sections/ga4/index.tsx:196-198`), yet it sits in the
+  rankable list above while the item below proposes hoisting one shared
+  `SESSIONS_DESC_ORDER`. Applied together those two produce an invalid GA4
+  request. This query needs `eventCount` desc; the shared sessions constant does
+  not fit it.
+
+- [ ] **Sessions-desc `orderBys` literal duplicated three times** — the merged
+  Overview section defines `SESSIONS_DESC_ORDER`
+  (`components/report-sections/executive-overview/index.tsx:29`, used at `:68`,
+  `:76`, `:77`); the ga4 section pastes the literal at each of its three call
+  sites (`components/report-sections/ga4/index.tsx:145`, `:161`, `:223`). Left
+  duplicated on purpose while PR #210 was stacked on #207 so the rebase stayed
+  trivial; now that #207 has merged there is no reason not to hoist a single
+  shared constant, with `lib/ga4/` the natural home — nothing there defines one
+  today (`lib/ga4/order-by.test.ts` exists but tests `buildRunReportRequest` in
+  `client.ts`, so it is not the home for it). Mind the `eventName` exception
+  above when applying it.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
