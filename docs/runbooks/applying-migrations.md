@@ -55,7 +55,7 @@ journal's `when`, so they can be mixed without drift.
 
 `drizzle-kit migrate` selects the single newest row in
 `drizzle.__drizzle_migrations` and applies only migrations stamped **later**
-than it ([`drizzle-orm/pg-core/dialect.cjs:61-64`](../../node_modules/drizzle-orm/pg-core/dialect.cjs)):
+than it (`node_modules/drizzle-orm/pg-core/dialect.cjs:61-64`):
 
 ```js
 const lastDbMigration = dbMigrations[0];           // order by created_at desc limit 1

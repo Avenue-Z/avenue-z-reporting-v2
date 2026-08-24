@@ -151,7 +151,6 @@ export const clients = pgTable('clients', {
   // configurable dashboard but is not a real client, so it's hidden from the
   // /dashboard client lists (see getVisibleClients). Real clients stay false.
   dashboardOnly: boolean('dashboard_only').notNull().default(false),
-  guardScratchProbe: text("guard_scratch_probe"),
   dashboardConfig: jsonb('dashboard_config').$type<DashboardConfig>(),
   reportSectionConfig: jsonb('report_section_config').$type<ReportSectionConfig>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
