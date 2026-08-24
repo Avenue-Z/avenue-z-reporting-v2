@@ -1,28 +1,24 @@
 name: Guard migration ordering
 
-# Drizzle's query builder enumerates columns explicitly, it never does `select *`.
-# So the moment a new column lands in `lib/db/schema.ts`, EVERY read of that table
-# selects it — including `getClientBySlug` / `getClientByEmail`, which back the
-# Auth.js session callback and every /dashboard and /portal page. Against a
-# database that does not have the column yet, that is Postgres 42703, and it
-# throws rather than degrades: merging code ahead of its migration takes the whole
-# app down, not just the feature that needed the column.
+# Stops a schema change from reaching a branch whose database has not been
+# migrated to match it — and stops a destructive migration from being applied
+# under code that still reads what it drops. The mechanism, the two labels, and
+# why a migrator's exit code proves nothing are documented at the top of
+# .github/scripts/guard-migration-ordering.sh.
 #
-# This gate does not try to detect whether the migration ran (CI cannot reach the
-# target database, and a migrator's exit code is not evidence anyway —
-# `drizzle-kit migrate` is timestamp-gated and can silently no-op). It requires a
-# human to confirm it, the same shape as the self-reviewed gate: apply the
-# migration to the target environment, verify the column with a direct
-# information_schema query, then label the PR.
-#
-# Deliberately NOT a blanket "migration and schema changed together" failure:
-# Drizzle generates the migration alongside the schema edit, so that would fail
-# every legitimate migration PR and force splitting each one in two.
-#
-# Make this a REQUIRED status check on dev, staging and main.
+# ENFORCEMENT (keep this accurate — a gate nobody wired up is worse than none):
+#   staging, main : required status check, enforced by the branch rulesets.
+#   dev           : advisory only. `dev` has no ruleset, so a red run here does
+#                   not block the merge button; someone has to look. Ungated on
+#                   the branch where the outage lands first, which is a known gap.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   require-migration-applied:
@@ -32,34 +28,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Require 'migration-applied' when a migration ships with a schema change
+      # When each label was applied, so the guard can reject one that predates the
+      # current head commit. The PR payload carries which labels are on the PR but
+      # not when they landed, and GitHub never strips a label on push.
+      - name: Collect label timeline
+        id: labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          events=$(gh api --paginate "repos/${REPO}/issues/${PR}/timeline" \
+            --jq '.[] | select(.event == "labeled") | {label: .label.name, at: .created_at}' \
+            | jq -sc '.')
+          echo "events=${events}" >> "$GITHUB_OUTPUT"
+
+      - name: Require the migration ordering to have been confirmed
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'migration-applied') }}
-        run: |
-          set -euo pipefail
-
-          # Compare against the merge base, not the base tip: base.sha moves as
-          # other PRs land, which would otherwise pull unrelated files into the diff.
-          MERGE_BASE=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
-          FILES=$(git diff --name-only "$MERGE_BASE" "$HEAD_SHA")
-
-          TOUCHES_MIGRATION=$(echo "$FILES" | grep -c '^drizzle/.*\.sql$' || true)
-          TOUCHES_SCHEMA=$(echo "$FILES" | grep -c '^lib/db/schema\.ts$' || true)
-
-          if [ "$TOUCHES_MIGRATION" -eq 0 ] || [ "$TOUCHES_SCHEMA" -eq 0 ]; then
-            echo "OK — this PR does not ship a migration alongside a schema change."
-            exit 0
-          fi
-
-          echo "This PR changes both lib/db/schema.ts and drizzle/*.sql:"
-          echo "$FILES" | grep -E '^drizzle/.*\.sql$|^lib/db/schema\.ts$' | sed 's/^/  /'
-
-          if [ "$HAS_LABEL" = "true" ]; then
-            echo "OK — 'migration-applied' label is present."
-            exit 0
-          fi
-
-          echo "::error::This PR adds a migration and the schema change that reads it. Apply the migration to the target environment BEFORE merging, verify the column exists, then add the 'migration-applied' label. Verify with: select column_name from information_schema.columns where table_name = '<table>' and column_name = '<column>';  Use scripts/migrate-http.ts (hash-diffed) rather than npm run db:migrate, which is timestamp-gated and can exit 0 having applied nothing. See MIGRATIONS-PENDING.md."
-          exit 1
+          LABEL_EVENTS: ${{ steps.labels.outputs.events }}
+        run: .github/scripts/guard-migration-ordering.sh
