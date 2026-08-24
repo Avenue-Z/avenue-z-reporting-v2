@@ -49,6 +49,22 @@ labels_at() { # dir label offset_seconds
   jq -cn --arg l "$2" --argjson t "$((ct + $3))" '[{label: $l, at: ($t | todateiso8601)}]'
 }
 
+# Label events JSON from "label:event:offset_seconds" specs, each offset measured
+# from the head commit (negative = before it). Unlike labels_at above, this one
+# can express a removal, which is what finding 1 turns on.
+label_events() { # dir spec...
+  local dir="$1"; shift
+  local ct json spec label event off
+  ct="$(git -C "$dir" show -s --format=%ct HEAD)"
+  json='[]'
+  for spec in "$@"; do
+    IFS=: read -r label event off <<<"$spec"
+    json="$(jq -cn --argjson j "$json" --arg l "$label" --arg e "$event" \
+      --argjson t "$((ct + off))" '$j + [{label: $l, event: $e, at: ($t | todateiso8601)}]')"
+  done
+  printf '%s' "$json"
+}
+
 check() { # name dir base head labels expected_status expected_substring
   local name="$1" dir="$2" base="$3" head="$4" labels="$5" want_status="$6" want_text="$7"
   local out status
@@ -148,6 +164,78 @@ commit "$d" 'someone else changed the schema on main'
 git -C "$d" checkout -q feature
 check 'a schema change on the base branch is not attributed to this PR' \
   "$d" main HEAD '[]' 0 'touches neither'
+
+# Review finding 1: GitHub keeps the `labeled` event forever, so a removal has to
+# be read too — otherwise taking the label back off leaves the guard green.
+d="$(new_repo label-removed)"
+printf 'export const clients = pgTable("clients", { id: uuid("id"), added: text("added") })\n' >"$d/lib/db/schema.ts"
+printf 'ALTER TABLE "clients" ADD COLUMN "added" text;\n' >"$d/drizzle/0002_add.sql"
+commit "$d" 'schema + migration'
+check 'a label removed after it was applied no longer confirms anything' \
+  "$d" main HEAD "$(label_events "$d" migration-applied:labeled:60 migration-applied:unlabeled:120)" \
+  1 'adds a migration and the schema change that reads it'
+check 'a label re-applied after a removal confirms again' \
+  "$d" main HEAD "$(label_events "$d" migration-applied:labeled:60 migration-applied:unlabeled:120 migration-applied:labeled:180)" \
+  0 "OK — 'migration-applied'"
+check 'a removal of one label does not revoke the other' \
+  "$d" main HEAD "$(label_events "$d" migration-deferred-apply:unlabeled:120 migration-applied:labeled:60)" \
+  0 "OK — 'migration-applied'"
+
+# Review finding 2: COLUMN is optional in Postgres, and grep is line-oriented.
+d="$(new_repo drop-no-column-keyword)"
+printf 'ALTER TABLE "users" DROP "demo_mode";\n' >"$d/drizzle/0002_drop.sql"
+commit "$d" 'drop without the COLUMN keyword'
+check 'a DROP without the COLUMN keyword is destructive' \
+  "$d" main HEAD '[]' 1 'DESTRUCTIVE migration'
+
+d="$(new_repo rename-no-column-keyword)"
+printf 'ALTER TABLE "clients" RENAME "old" TO "new";\n' >"$d/drizzle/0002_rename.sql"
+commit "$d" 'rename without the COLUMN keyword'
+check 'a RENAME without the COLUMN keyword is destructive' \
+  "$d" main HEAD '[]' 1 'DESTRUCTIVE migration'
+
+d="$(new_repo drop-across-lines)"
+printf 'ALTER TABLE "users"\n  DROP COLUMN "demo_mode";\n' >"$d/drizzle/0002_drop.sql"
+commit "$d" 'drop split across lines'
+check 'a DROP split across lines is destructive' \
+  "$d" main HEAD '[]' 1 'DESTRUCTIVE migration'
+
+# Stripping the harmless forms must not swallow a real drop sharing the statement.
+d="$(new_repo compound-drop)"
+printf 'ALTER TABLE "clients" DROP CONSTRAINT "clients_pkey", DROP COLUMN "existing";\n' >"$d/drizzle/0002_compound.sql"
+commit "$d" 'drop constraint and column together'
+check 'a real DROP COLUMN beside a DROP CONSTRAINT is still destructive' \
+  "$d" main HEAD '[]' 1 'DESTRUCTIVE migration'
+
+# Review finding 3: one migration that both adds and drops has two mutually
+# exclusive orderings, so neither label is honest and it must be split.
+d="$(new_repo mixed)"
+printf 'export const clients = pgTable("clients", { id: uuid("id"), added: text("added") })\n' >"$d/lib/db/schema.ts"
+printf 'ALTER TABLE "clients" ADD COLUMN "added" text;\nALTER TABLE "clients" DROP COLUMN "existing";\n' >"$d/drizzle/0002_mixed.sql"
+commit "$d" 'one db:generate that adds one column and drops another'
+check 'a mixed migration with a schema change FAILS unlabelled' \
+  "$d" main HEAD '[]' 1 'split this into expand/contract'
+check 'a mixed migration cannot be waved through with migration-deferred-apply' \
+  "$d" main HEAD "$(labels_at "$d" migration-deferred-apply 60)" 1 'split this into expand/contract'
+check 'a mixed migration cannot be waved through with migration-applied' \
+  "$d" main HEAD "$(labels_at "$d" migration-applied 60)" 1 'split this into expand/contract'
+
+# Split across two files in one PR is the same conflict, and is caught the same.
+d="$(new_repo mixed-two-files)"
+printf 'export const clients = pgTable("clients", { id: uuid("id"), added: text("added") })\n' >"$d/lib/db/schema.ts"
+printf 'ALTER TABLE "clients" ADD COLUMN "added" text;\n' >"$d/drizzle/0002_add.sql"
+printf 'ALTER TABLE "clients" DROP COLUMN "existing";\n' >"$d/drizzle/0003_drop.sql"
+commit "$d" 'an additive and a destructive migration in one PR'
+check 'an additive and a destructive migration in one PR FAILS as mixed' \
+  "$d" main HEAD '[]' 1 'split this into expand/contract'
+
+# No schema change means no code in this PR selects the addition, so there is no
+# conflict — the destructive ordering governs both and the usual label applies.
+d="$(new_repo mixed-no-schema-change)"
+printf 'ALTER TABLE "clients" ADD COLUMN "added" text;\nALTER TABLE "clients" DROP COLUMN "existing";\n' >"$d/drizzle/0002_mixed.sql"
+commit "$d" 'mixed migration, no schema change'
+check 'a mixed migration without a schema change takes the destructive ordering' \
+  "$d" main HEAD "$(labels_at "$d" migration-deferred-apply 60)" 0 "OK — 'migration-deferred-apply'"
 
 # ---------------------------------------------------------------------------
 

@@ -32,8 +32,9 @@
 # Inputs (env):
 #   BASE_SHA      the PR's base commit  (github.event.pull_request.base.sha)
 #   HEAD_SHA      the PR's head commit  (github.event.pull_request.head.sha)
-#   LABEL_EVENTS  JSON array of this PR's `labeled` timeline events, as
-#                 [{"label": "...", "at": "<ISO8601>"}, …]. Defaults to [].
+#   LABEL_EVENTS  JSON array of this PR's `labeled` and `unlabeled` timeline
+#                 events, as [{"label": "…", "at": "<ISO8601>", "event": "…"}, …].
+#                 `event` defaults to "labeled" when absent. Defaults to [].
 #
 # Exercised by .github/scripts/guard-migration-ordering.test.sh.
 
@@ -59,23 +60,70 @@ CHANGED="$(git diff --name-only --diff-filter=ACMR "$MERGE_BASE" "$HEAD_SHA")"
 MIGRATIONS="$(printf '%s\n' "$CHANGED" | grep -E '^drizzle/[^/]+\.sql$' || true)"
 SCHEMA_CHANGED="$(printf '%s\n' "$CHANGED" | grep -Fx 'lib/db/schema.ts' || true)"
 
-# Which of this PR's migrations remove or rename something the running code may
-# still be selecting. DROP CONSTRAINT / DROP DEFAULT / DROP NOT NULL are
-# deliberately not matched: they do not break a `select`.
+# Classify each of this PR's migrations. Destructive = removes or renames
+# something the running code may still be selecting. Additive = introduces
+# something new code may immediately select. A file can be both.
+#
+# Matching runs over a normalized copy of the SQL: lowercased so no pattern needs
+# a case flag (BSD sed has no portable `I`), and with newlines collapsed so a
+# statement wrapped across lines still matches — grep is line-oriented, and a
+# hand-written `ALTER TABLE users\n  DROP COLUMN demo_mode;` would otherwise read
+# as additive and pass unlabelled.
+#
+# `COLUMN` is optional in Postgres (`ALTER TABLE users DROP demo_mode;` is valid,
+# as is `RENAME old TO new`), so the DROP match cannot require it. That makes the
+# match broad, which is why the three harmless forms — DROP CONSTRAINT, DROP
+# DEFAULT, DROP NOT NULL, none of which break a `select` — are stripped out
+# first rather than excluded in the pattern. Each is stripped as its own clause,
+# not to the end of the statement, so a compound
+# `ALTER TABLE t DROP CONSTRAINT c, DROP COLUMN d;` keeps its real drop.
+readonly DESTRUCTIVE_RE='(^|[^[:alnum:]_])(drop|rename)[[:space:]]+["a-z_]'
+readonly ADDITIVE_RE='(^|[^[:alnum:]_])(add[[:space:]]+(column|constraint)|create[[:space:]]+(table|type|schema|sequence|index|view|unique))'
+
+normalize_sql() { # reads SQL on stdin, emits one lowercased statement per line
+  tr '[:upper:]' '[:lower:]' \
+    | tr '\n' ' ' \
+    | tr -s '[:space:]' ' ' \
+    | sed 's/;/;\
+/g'
+}
+
+strip_harmless_drops() { # the DROP forms that break no `select`
+  sed -E -e 's/drop[[:space:]]+constraint[[:space:]]+[^ ,;]+//g' \
+         -e 's/drop[[:space:]]+default//g' \
+         -e 's/drop[[:space:]]+not[[:space:]]+null//g'
+}
+
 DESTRUCTIVE=''
+ADDITIVE=''
 while IFS= read -r file; do
   [ -n "$file" ] || continue
-  sql="$(git show "${HEAD_SHA}:${file}")"
-  if grep -Eiq 'drop[[:space:]]+(column|table|type|schema|sequence)|rename[[:space:]]+(column|to)' <<<"$sql"; then
+  sql="$(git show "${HEAD_SHA}:${file}" | normalize_sql)"
+  if printf '%s\n' "$sql" | strip_harmless_drops | grep -Eq "$DESTRUCTIVE_RE"; then
     DESTRUCTIVE="${DESTRUCTIVE}${file}"$'\n'
+  fi
+  if grep -Eq "$ADDITIVE_RE" <<<"$sql"; then
+    ADDITIVE="${ADDITIVE}${file}"$'\n'
   fi
 done <<<"$MIGRATIONS"
 
 HEAD_COMMITTED_AT="$(git show -s --format=%ct "$HEAD_SHA")"
 
-# Newest application time of $1, as a unix timestamp; empty if never applied.
+# Newest application time of $1 that has not since been revoked, as a unix
+# timestamp; empty if never applied or removed after its last application.
+# GitHub keeps a `labeled` event forever, so taking the label back off would
+# otherwise leave the attestation standing — the label is only current when its
+# newest `labeled` is strictly newer than its newest `unlabeled`.
 label_applied_at() {
-  jq -r --arg l "$1" '[.[] | select(.label == $l) | .at | fromdateiso8601] | max // ""' <<<"$LABEL_EVENTS"
+  jq -r --arg l "$1" '
+    [.[] | select(.label == $l)] as $events
+    | ([$events[] | select(.event == "unlabeled") | .at | fromdateiso8601] | max // 0) as $revoked
+    | [ $events[]
+        | select((.event // "labeled") == "labeled")
+        | .at | fromdateiso8601
+        | select(. > $revoked) ]
+      | max // ""
+  ' <<<"$LABEL_EVENTS"
 }
 
 iso() { jq -rn --argjson t "$1" '$t | todateiso8601'; }
@@ -111,6 +159,28 @@ fi
 
 echo "Migration-relevant files in this PR:"
 printf '%s\n%s\n' "$MIGRATIONS" "$SCHEMA_CHANGED" | grep -v '^$' | sed 's/^/  /'
+
+# A PR that ships both an addition and a removal, with lib/db/schema.ts changed
+# so this PR's code reads the addition, has two mutually exclusive orderings and
+# no honest label. The addition must be applied BEFORE the merge deploys (or the
+# new column is selected against a database without it); the removal must be
+# applied AFTER (or the dropped column is pulled from under code still selecting
+# it). Classifying it destructive and taking migration-deferred-apply — which is
+# what happens without this check — hands out "deploy first, apply after"
+# guidance that is right for the drop and is the exact 42703 for the add. One
+# `db:generate` over a schema edit that adds one column and drops another emits
+# exactly this file, so it is reachable from ordinary use, and there is no label
+# to add: the work has to be split. Without a lib/db/schema.ts change no code in
+# this PR selects the addition, so there is no conflict and the destructive
+# ordering below governs both.
+if [ -n "$DESTRUCTIVE" ] && [ -n "$ADDITIVE" ] && [ -n "$SCHEMA_CHANGED" ]; then
+  echo "Additive:"
+  printf '%s' "$ADDITIVE" | grep -v '^$' | sed 's/^/  /'
+  echo "Destructive:"
+  printf '%s' "$DESTRUCTIVE" | grep -v '^$' | sed 's/^/  /'
+  echo "::error::This PR ships BOTH an additive and a destructive migration alongside a lib/db/schema.ts change, and those two need opposite orderings: the addition must be applied BEFORE this merges (new code selects it immediately), the removal only AFTER the deploy is live (running code still selects it). No single label can confirm both, so neither label is offered here — split this into expand/contract. Land the additive migration and the code that reads it in one PR ('${ADDITIVE_LABEL}'), then the removal in a follow-up once nothing deployed reads the dropped object ('${DESTRUCTIVE_LABEL}'). Full procedure: ${RUNBOOK}."
+  exit 1
+fi
 
 if [ -n "$DESTRUCTIVE" ]; then
   echo "Destructive (removes or renames something running code may still select):"

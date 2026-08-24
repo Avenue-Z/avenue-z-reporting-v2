@@ -36,6 +36,33 @@ PR.
 `DROP CONSTRAINT`, `DROP DEFAULT` and `DROP NOT NULL` are not destructive in
 this sense; they break no `select`.
 
+### A PR that both adds and removes has no label
+
+The two orderings above are mutually exclusive, so a PR carrying both an
+addition and a removal alongside a `lib/db/schema.ts` change cannot be confirmed
+by either label — whichever you pick is the wrong instruction for the other
+half. This is not exotic: one `npm run db:generate` over a schema edit that adds
+one column and drops another emits exactly one `.sql` containing both, and the
+guard fails it with no label offered.
+
+Split it expand/contract:
+
+1. Land the addition and the code that reads it, applying the migration first
+   (`migration-applied`).
+2. Once that deploy is live and nothing running still reads the dropped object,
+   ship the removal in a follow-up PR (`migration-deferred-apply`).
+
+A mixed migration with **no** `lib/db/schema.ts` change is not blocked: nothing
+in that PR selects the addition, so the destructive ordering covers both halves
+and `migration-deferred-apply` is the honest label.
+
+### Removing a label revokes it
+
+The guard reads the `unlabeled` timeline event as well as `labeled`, so taking a
+label back off genuinely withdraws the attestation on the next run. Re-applying
+it after a removal confirms again, provided the new application is still newer
+than the head commit.
+
 ---
 
 ## Applying

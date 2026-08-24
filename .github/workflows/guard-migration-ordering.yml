@@ -35,9 +35,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      # When each label was applied, so the guard can reject one that predates the
-      # current head commit. The PR payload carries which labels are on the PR but
-      # not when they landed, and GitHub never strips a label on push.
+      # When each label was applied AND removed, so the guard can reject one that
+      # predates the current head commit or has since been taken off. The PR
+      # payload carries which labels are on the PR but not when they landed, and
+      # GitHub never strips a label on push. `unlabeled` is collected because
+      # GitHub keeps the `labeled` event forever: without it, removing a label to
+      # revoke the attestation leaves the guard reading the stale `labeled` event
+      # and staying green.
       - name: Collect label timeline
         id: labels
         env:
@@ -47,7 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           events=$(gh api --paginate "repos/${REPO}/issues/${PR}/timeline" \
-            --jq '.[] | select(.event == "labeled") | {label: .label.name, at: .created_at}' \
+            --jq '.[] | select(.event == "labeled" or .event == "unlabeled")
+                      | {label: .label.name, at: .created_at, event: .event}' \
             | jq -sc '.')
           echo "events=${events}" >> "$GITHUB_OUTPUT"
 
