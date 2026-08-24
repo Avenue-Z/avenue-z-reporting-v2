@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { NoData, LoadFailed } from './no-data'
 
 // ── Shared types ────────────────────────────────────────────────────────────
 
@@ -20,17 +21,21 @@ export interface ChannelConvRow {
   color: string
 }
 
-interface SourceMediumEntry {
+export interface SourceMediumEntry {
   name: string
   sessions: number
 }
 
-interface ChannelTabsChartProps {
+export interface ChannelTabsChartProps {
   volumeData: ChannelVolumeRow[]
   convData: ChannelConvRow[]
   compareMap?: Record<string, number>
-  compareLabel?: string
   sourceMediumMap?: Record<string, SourceMediumEntry[]>
+  /** True when the primary (current-period) GA4 query REJECTED, as opposed to
+   *  succeeding with zero rows. Selects the "couldn't load" empty state
+   *  instead of NoData so an outage never reads as a claim the period itself
+   *  had no traffic. */
+  failed?: boolean
 }
 
 type Tab = 'volume' | 'conversion'
@@ -44,7 +49,7 @@ const TABS: { id: Tab; label: string; tooltip: string }[] = [
   {
     id:      'conversion',
     label:   'By Conversion',
-    tooltip: 'The same channels ranked by conversion rate instead of session volume. Reveals which sources bring the highest-quality traffic — a channel driving fewer sessions but converting at 3× the rate is often more valuable.',
+    tooltip: 'Channels ranked by conversion rate instead of session volume, limited to the top 5 channels with at least 20 sessions in the period. Reveals which sources bring the highest-quality traffic: a channel driving fewer sessions but converting at 3× the rate is often more valuable.',
   },
 ]
 
@@ -81,8 +86,8 @@ export function ChannelTabsChart({
   volumeData,
   convData,
   compareMap = {},
-  compareLabel,
   sourceMediumMap = {},
+  failed,
 }: ChannelTabsChartProps) {
   const [tab,     setTab]     = useState<Tab>('volume')
   const [hovered, setHovered] = useState<string | null>(null)
@@ -119,6 +124,24 @@ export function ChannelTabsChart({
   const volMax  = Math.max(...volumeData.map((r) => r.sessions), 1)
   const convMax = Math.max(...convData.map((r) => r.convRate), 0.001)
 
+  // An empty volumeData means either a query that succeeded with zero rows or one
+  // that REJECTED (see index.tsx / reshape.ts, both collapse to []). Both tabs
+  // derive from the same underlying channel query, so this also covers convData.
+  // `failed` disambiguates which empty state is honest: chart chrome around
+  // nothing either way, but the copy must not claim the period was empty when
+  // the real story is an outage.
+  if (volumeData.length === 0) {
+    return failed ? <LoadFailed /> : <NoData />
+  }
+
+  // convData is NOT simply volumeData re-sorted: buildChannelData additionally
+  // drops every channel under 20 sessions (reshape.ts). A low-traffic client
+  // can therefore have a populated volume tab and an empty conversion tab, so
+  // the guard above does not cover this case. Without its own empty state the
+  // conversion tab renders the sortable column headers over zero rows.
+  const convEmpty = convData.length === 0
+  const activeTabEmpty = tab === 'conversion' && convEmpty
+
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
       {/* Header */}
@@ -126,6 +149,11 @@ export function ChannelTabsChart({
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">Traffic by Channel</h3>
           <Tooltip text={activeTab.tooltip} />
+          {tab === 'conversion' && (
+            <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted">
+              Top 5 · ≥20 sessions
+            </span>
+          )}
         </div>
 
         <div className="flex gap-1 rounded-lg bg-white/[0.04] p-1">
@@ -152,14 +180,15 @@ export function ChannelTabsChart({
       </div>
 
       {/* ── Shared column headers ── */}
+      {!activeTabEmpty && (
       <div className="mb-1 flex items-center gap-3 px-2">
         <div className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
         <div className="hidden flex-1 sm:block" />
-        <div className="flex shrink-0 items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           <button
             onClick={() => handleSort('sessions')}
             className={cn(
-              'w-16 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:w-20',
+              'w-14 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:w-20',
               sortBy === 'sessions' ? 'font-bold text-white' : 'font-bold text-text-muted hover:text-white/60'
             )}
           >
@@ -176,22 +205,25 @@ export function ChannelTabsChart({
           </button>
         </div>
       </div>
+      )}
 
       {/* ── By Volume ── */}
       {tab === 'volume' && (
         <div className="space-y-1">
           {sortedVolumeData.map((row) => {
             const barWidth      = (row.sessions / volMax) * 100
-            // A channel absent from compareMap (truncated out of the compare
-            // period's ranking, not merely a real zero) must read as "no prior
-            // data," not "Prior period 0": the two mean very different things.
-            // `in` distinguishes "key never set" from "key set to an observed 0".
-            const hasPrior      = row.name in compareMap
+            // A channel absent from compareMap (outside the compare period's
+            // ranking, not merely a real zero) must read as "no prior data,"
+            // not "Prior period 0": the two mean very different things and
+            // coalescing them with `?? 0` presented a channel that actually
+            // grew as if it were brand new. `in` distinguishes "key never
+            // set" from "key set to 0" (a real, observed zero prior).
+            const hasPrior       = row.name in compareMap
             const priorSessions = compareMap[row.name] ?? 0
             const isHovered     = hovered === row.name
             const isDimmed      = hovered !== null && !isHovered
             const smEntries     = sourceMediumMap[row.name] ?? []
-            const smMax         = smEntries[0]?.sessions ?? 1
+            const smMax         = smEntries[0]?.sessions || 1
 
             return (
               <div
@@ -219,39 +251,61 @@ export function ChannelTabsChart({
                     />
                   </div>
 
-                  <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-                    {isHovered && hasCompare ? (
-                      <>
-                        <div className="text-right">
-                          <p className="text-[10px] text-text-muted">Prior period</p>
-                          <p className="tabular-nums text-xs font-medium text-white/50">
-                            {hasPrior ? priorSessions.toLocaleString() : '—'}
-                          </p>
-                        </div>
-                        <div className="hidden h-6 w-px bg-white/10 sm:block" />
-                        <div className="text-right">
-                          {hasPrior && <Delta current={row.sessions} prior={priorSessions} />}
-                          <p className="tabular-nums text-sm font-semibold text-white">
-                            {row.sessions.toLocaleString()}
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
+                  {/* Fixed-size box: both layouts are always mounted and stacked via absolute
+                      positioning, so hovering swaps opacity/content only, never the box's own
+                      width or height. That keeps the flex-1 bar's available space constant.
+                      Before this, the wider/taller hover layout shrank the bar and "pumped" it
+                      on every hover, and a channel with no prior period (Delta renders null)
+                      collapsed to one line while its neighbours stayed two. */}
+                  <div className="relative h-9 w-36 shrink-0 sm:w-44">
+                    <div
+                      className={cn(
+                        'absolute inset-0 flex items-center justify-end gap-2 transition-opacity duration-150 sm:gap-3',
+                        isHovered && hasCompare ? 'pointer-events-none opacity-0' : 'opacity-100'
+                      )}
+                    >
+                      {/* Session count + share of total. The share line sits inside this
+                          span's own reserved width (w-14 sm:w-20) rather than widening it,
+                          so it cannot push into the CVR column or resize the fixed h-9/w-36
+                          hover box that swaps content on hover. */}
+                      <span className="w-14 text-right tabular-nums sm:w-20">
                         <span className={cn(
-                          'w-14 text-right tabular-nums sm:w-20',
+                          'block',
                           sortBy === 'sessions' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
                         )}>
                           {row.sessions.toLocaleString()}
                         </span>
-                        <span className={cn(
-                          'hidden w-16 text-right tabular-nums sm:block',
-                          sortBy === 'cvr' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
-                        )}>
-                          {(row.convRate * 100).toFixed(1)}%
+                        <span className="block text-[10px] leading-tight text-white/30">
+                          {row.pct}%
                         </span>
-                      </>
-                    )}
+                      </span>
+                      <span className={cn(
+                        'hidden w-16 text-right tabular-nums sm:block',
+                        sortBy === 'cvr' ? 'text-sm font-bold text-white' : 'text-xs text-white/40'
+                      )}>
+                        {(row.convRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div
+                      className={cn(
+                        'absolute inset-0 flex items-center justify-end gap-2 transition-opacity duration-150 sm:gap-3',
+                        isHovered && hasCompare ? 'opacity-100' : 'pointer-events-none opacity-0'
+                      )}
+                    >
+                      <div className="text-right">
+                        <p className="text-[10px] text-text-muted">Prior period</p>
+                        <p className="tabular-nums text-xs font-medium text-white/50">
+                          {hasPrior ? priorSessions.toLocaleString() : '—'}
+                        </p>
+                      </div>
+                      <div className="hidden h-6 w-px bg-white/10 sm:block" />
+                      <div className="text-right">
+                        {hasPrior && <Delta current={row.sessions} prior={priorSessions} />}
+                        <p className="tabular-nums text-sm font-semibold text-white">
+                          {row.sessions.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -285,14 +339,20 @@ export function ChannelTabsChart({
       )}
 
       {/* ── By Conversion ── */}
-      {tab === 'conversion' && (
+      {tab === 'conversion' && convEmpty && (
+        <p className="px-2 py-6 text-sm text-text-muted">
+          No channel cleared the 20-session minimum this period.
+        </p>
+      )}
+
+      {tab === 'conversion' && !convEmpty && (
         <div className="space-y-1">
           {sortedConvData.map((d) => {
             const barW      = (d.convRate / convMax) * 100
             const isHov     = hovered === d.name
             const isDimmed  = hovered !== null && !isHov
             const smEntries = sourceMediumMap[d.name] ?? []
-            const smMax     = smEntries[0]?.sessions ?? 1
+            const smMax     = smEntries[0]?.sessions || 1
 
             return (
               <div

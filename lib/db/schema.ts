@@ -33,6 +33,7 @@ export type ReportSlug =
   | 'peec-ai'
   | 'profound-ai'
   | 'demand-overview'
+  | 'executive-overview'
   | 'ai-summaries'
   | 'report-generator'
   | 'request-a-report'
@@ -63,6 +64,13 @@ export interface MetaConfig {
 export interface LinkedInConfig {
   /** LinkedIn ad account id, digits only, e.g. '503368877'. */
   linkedinAdAccountId: string
+}
+
+export interface SalesforceConfig {
+  /** Salesforce org id, 18 chars, e.g. '00D15000000Em4GEAS'. Passed as the Supermetrics ds_accounts value. */
+  salesforceAccountId: string
+  /** The exact stage label that counts as new-business won for the closedWon tile; defaults to 'Closed Won'. */
+  wonStageName?: string
 }
 
 export interface DashSocialConfig {
@@ -141,6 +149,7 @@ export const clients = pgTable('clients', {
   paidSearchConfig: jsonb('paid_search_config').$type<PaidSearchConfig>(),
   metaConfig: jsonb('meta_config').$type<MetaConfig>(),
   linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
+  salesforceConfig: jsonb('salesforce_config').$type<SalesforceConfig>(),
   dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),

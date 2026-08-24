@@ -19,6 +19,7 @@ import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influ
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
 import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { AISummariesReport } from '@/components/report-sections/ai-summaries'
 import { ReportGeneratorReport } from '@/components/report-sections/report-generator'
@@ -53,6 +54,8 @@ function getReportComponent(
       return <ReportGeneratorReport clientSlug={clientSlug} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
+    case 'executive-overview':
+      return <ExecutiveOverviewReport clientSlug={clientSlug} />
     case 'ga4':
       if (subsection === 'conversion-journey') {
         return <ConversionJourneyReport clientSlug={clientSlug} dateRange={dateRange} />

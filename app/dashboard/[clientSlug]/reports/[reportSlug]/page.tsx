@@ -5,6 +5,7 @@ import { REPORT_NAMES } from '@/lib/constants'
 import { Header } from '@/components/layout/header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
+import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
 import { GA4Report } from '@/components/report-sections/ga4'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
 import { PaidSearchReport } from '@/components/report-sections/paid-search'
@@ -41,6 +42,8 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
   switch (reportSlug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
+    case 'executive-overview':
+      return <ExecutiveOverviewReport clientSlug={clientSlug} />
     case 'ga4':
       return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'meta-ads':
@@ -99,9 +102,13 @@ export default async function ReportPage({
   return (
     <>
       <Header title={reportName} subtitle={client.name}>
-        <Suspense fallback={null}>
-          <ReportDateRange value={dateRange} compareValue={compareRange} />
-        </Suspense>
+        {/* executive-overview resolves its own fixed range internally (no compareRange
+            support), so the picker here would be a dead control for that slug only. */}
+        {reportSlug !== 'executive-overview' && (
+          <Suspense fallback={null}>
+            <ReportDateRange value={dateRange} compareValue={compareRange} />
+          </Suspense>
+        )}
       </Header>
 
       <div className="divider-full mb-8" />

@@ -21,9 +21,15 @@ export default defineConfig({
       'lib/peec/scatter-window.test.ts',
       'lib/peec/url-citations.test.ts',
       'lib/ga4/format-speed.test.ts',
+      'lib/ga4/order-by.test.ts',
       'lib/concurrency.test.ts',
       'lib/meta/kpis.test.ts',
       'lib/meta/creative.test.ts',
+      'lib/salesforce/num.test.ts',
+      'lib/salesforce/resolve-compare-iso.test.ts',
+      'lib/salesforce/pipeline.test.ts',
+      'lib/salesforce/pipeline.orchestration.test.ts',
+      'lib/salesforce/contacts.test.ts',
       'lib/linkedin/kpis.dash.test.ts',
       // Paid Search regression guards (converted from node:assert scripts): the
       // item-10 no-cap keyword guard + the exact-cents CPL (items 11c/11d). The
