@@ -30,6 +30,12 @@ export async function salesforceQuery(
   const client = await getClientBySlug(slug)
   const accountId = client?.salesforceConfig?.salesforceAccountId
   const envVar = client?.smApiKeyEnvVar
+  // These two throws stay distinct: each names WHICH half is missing, which a
+  // boolean cannot. canQuerySalesforce (lib/salesforce/configured.ts) is the
+  // caller-side mirror of exactly this conjunction and is pinned to it by
+  // configured.test.ts, so the guard and the precondition cannot drift apart.
+  // Callers deciding what to TELL the reader want isSalesforceConfigured
+  // instead: a missing env var is a deployment problem, not an unconnected CRM.
   if (!accountId || !envVar) throw new Error(`salesforce_config / sm_api_key_env_var missing for ${slug}`)
   const apiKey = process.env[envVar]
   if (!apiKey) throw new Error(`Missing env var ${envVar}`)
