@@ -25,7 +25,7 @@ export async function salesforceQuery(
   slug: string,
   fields: string[],
   dateRange: string,
-  opts: { settings?: Record<string, unknown>; maxRows?: number } = {},
+  opts: { settings?: Record<string, unknown>; maxRows?: number; timeoutMs?: number } = {},
 ): Promise<Record<string, string>[]> {
   const client = await getClientBySlug(slug)
   const accountId = client?.salesforceConfig?.salesforceAccountId
@@ -48,6 +48,12 @@ export async function salesforceQuery(
     dateRange: `${startDate},${endDate}`,
     settings: opts.settings,
     maxRows: opts.maxRows ?? 500,
+  }, {
+    // Left undefined by default so smQuery's own REQUEST_TIMEOUT_MS stays the
+    // single source of the 15s hang guard. Callers whose window is genuinely
+    // wide enough to take longer than that pass their own; see WIDE_TIMEOUT_MS
+    // in pipeline.ts for why the open-window queries need it.
+    timeoutMs: opts.timeoutMs,
   })
   return parseSmRows(result)
 }

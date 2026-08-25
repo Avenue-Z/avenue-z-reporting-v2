@@ -31,6 +31,7 @@ export default defineConfig({
       'lib/salesforce/pipeline.orchestration.test.ts',
       'lib/salesforce/contacts.test.ts',
       'lib/salesforce/configured.test.ts',
+      'lib/salesforce/base.timeout.test.ts',
       'lib/linkedin/kpis.dash.test.ts',
       // Paid Search regression guards (converted from node:assert scripts): the
       // item-10 no-cap keyword guard + the exact-cents CPL (items 11c/11d). The

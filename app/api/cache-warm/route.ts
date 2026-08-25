@@ -20,8 +20,7 @@
  * renders a full report that fans out several Neon queries, so firing every
  * URL at once produced a burst of concurrent DB requests that spiked Function
  * CPU Duration and tripped Neon errors — worst at :30, where this cron
- * overlapped the health sweep. Bounding keeps peak load flat; the window is
- * sized to stay well under the Vercel Pro 60s function ceiling.
+ * overlapped the health sweep. Bounding keeps peak load flat.
  */
 import { NextResponse } from 'next/server'
 import { getAllClients } from '@/lib/db/queries'
@@ -29,10 +28,17 @@ import { mintServiceCookie } from '@/lib/auth/service-cookie'
 import { mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// Raised from 60s. The Executive Overview render now waits out the Salesforce
+// open-window queries instead of aborting them at 15s (WIDE_TIMEOUT_MS in
+// lib/salesforce/pipeline.ts), and the by-owner query alone measures about 42s
+// live. At 60s a single such URL could consume the whole budget and leave the
+// remaining batches unwarmed, which defeats the point: this cron exists so the
+// slow first render lands here rather than on a reader. 300 matches the ceiling
+// already in use on app/api/discovery/sm-dimension-values/route.ts.
+export const maxDuration = 300
 
 // Max self-fetch renders in flight at once. Balances peak Neon load against
-// the 60s maxDuration ceiling (wall time ≈ ceil(urls / CONCURRENCY) × render).
+// the maxDuration ceiling above (wall time ≈ ceil(urls / CONCURRENCY) × render).
 const CONCURRENCY = 8
 
 // peec-ai subsections that call cached fetchers (getAgentAnalytics) the
