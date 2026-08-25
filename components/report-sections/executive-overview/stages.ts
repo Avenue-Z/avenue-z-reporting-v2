@@ -1,7 +1,8 @@
 import { CHART_COLORS } from '@/lib/constants'
 import type { DemandStage } from './demand-journey'
 import type { TrendRow } from './sessions-trend-chart'
-import { fmtNum, fmtPct, pct } from './reshape'
+import type { PipelineData, WeeklyContacts } from '@/lib/salesforce/types'
+import { fmtNum, fmtPct, fmtUsd, pct } from './reshape'
 
 export interface StageInput {
   totals: Record<string, unknown> | null
@@ -28,6 +29,20 @@ export interface StageInput {
    * unconnected. When omitted, falls back to `peec != null` for older callers.
    */
   peecConnected?: boolean
+  /** Pipeline tile data, or null when the fetch failed or the client has no CRM. */
+  pipeline?: PipelineData | null
+  /** Weekly contact data, or null when the fetch failed or the client has no CRM. */
+  contacts?: WeeklyContacts | null
+  /**
+   * Whether the CLIENT is CONFIGURED for a CRM, independent of whether either
+   * fetch returned data. Exactly the same distinction peecConnected draws
+   * above: a configured client whose fetch failed must NOT read "not
+   * connected", it dashes. Comes from isSalesforceConfigured (client row
+   * state), never from canQuerySalesforce: a deployment missing the shared
+   * Supermetrics key is a load failure, not an unconnected CRM. When omitted,
+   * falls back to data presence for older callers.
+   */
+  crmConnected?: boolean
   /**
    * Injectable "current time" for the partial-week detection below. Defaults
    * to the real current time; tests pass a fixed Date so the AI Visibility
@@ -61,7 +76,7 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
   return last.weekStart === isoWeekStart(now) ? weekly.slice(0, -1) : weekly
 }
 
-export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, now = new Date() }: StageInput): DemandStage[] {
+export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, now = new Date() }: StageInput): DemandStage[] {
   // With no resolvable "your brand", weeklyVisibility is an average across every
   // tracked brand (filterYou degrades to a pass-through), which is emphatically
   // not this client's visibility rate. Dash instead of publishing a number that
@@ -129,23 +144,54 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       ],
     },
     {
-      // This page has no CRM data source: index.tsx fetches only GA4 and
-      // Peec. A CRM-configured client still has nothing to show here, so
-      // this stays hardcoded unconnected rather than following the client's
-      // hubspotTokenEnvVar flag (which previously claimed a connection this
-      // page could not honor, rendering an empty hero line). The follow-up
-      // PR that wires in CRM data flips this to a real connection check.
       key: 'inbound', source: 'Inbound Funnel', label: 'Online Contacts',
       color: CHART_COLORS.positive,
       connector: 'becomes pipeline',
-      connected: false,
+      metric: contacts ? fmtNum(contacts.currentWeek) : '—',
+      // The window label for this card: the hero is week to date, not the
+      // page's 30 days.
+      badge: contacts ? 'WEEK TO DATE' : undefined,
+      subMetric: contacts ? `${contacts.daysElapsedInCurrentWeek} of 7 days so far` : undefined,
+      // Never a delta on this metric: it is a partial week, and the only
+      // comparison the source offers is between two COMPLETE weeks.
+      delta: undefined,
+      // Written out, not "retained": the stub this replaces carried no
+      // heroLabel at all, so retaining would ship a blank hover reveal.
+      heroLabel: contacts ? 'new contacts created so far this week' : undefined,
+      stats: contacts ? [
+        // weeks.length < 2 means no completed week exists, so previousWeek's 0
+        // is the `?? 0` at contacts.ts:153 rather than a count.
+        { label: 'Previous Week',  value: contacts.weeks.length >= 2 ? fmtNum(contacts.previousWeek) : '—' },
+        { label: 'Week over Week', value: contacts.completedWeekOverWeek != null ? `${contacts.completedWeekOverWeek > 0 ? '+' : ''}${contacts.completedWeekOverWeek.toFixed(1)}%` : '—' },
+        { label: 'Prior Year Week', value: contacts.priorYearWeek != null ? fmtNum(contacts.priorYearWeek) : '—' },
+      ] : undefined,
+      // Only `false` triggers the unconnected treatment (demand-journey.tsx:128-133),
+      // so a configured client with no data omits this and simply dashes.
+      connected: (crmConnected ?? (contacts != null)) ? undefined : false,
       unconnectedHint: 'Connect your CRM to see this',
     },
     {
-      // Same as 'inbound' above: no CRM data source on this page yet.
       key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
       color: CHART_COLORS.neutral,
-      connected: false,
+      // No connector: last stage in the row.
+      metric: pipeline ? (pipeline.openUnavailable ? '—' : fmtUsd(pipeline.totalPipeline.value)) : '—',
+      badge: pipeline ? 'AS OF TODAY' : undefined,
+      // Must not keep stating a deal count beside a dashed value: that is the
+      // same defect as a live delta under a dashed number, in a different field.
+      subMetric: pipeline
+        ? (pipeline.openUnavailable ? "Couldn't load open pipeline." : `${fmtNum(pipeline.openDeals.value)} open deals`)
+        : undefined,
+      // Named explicitly rather than reading totalPipeline.delta, which is
+      // always undefined but would read like a live wire waiting to be fixed.
+      delta: undefined,
+      heroLabel: pipeline ? 'open pipeline as of today' : undefined,
+      stats: pipeline ? [
+        // Dashes under both flags, matching the block below: a renamed stage
+        // makes the true figure unknown, not zero.
+        { label: 'Closed Won',        value: pipeline.wonUnavailable || pipeline.wonStageUnmatched ? '—' : fmtUsd(pipeline.closedWon.value) },
+        { label: 'Weighted Pipeline', value: pipeline.openUnavailable ? '—' : fmtUsd(pipeline.weightedPipeline.value) },
+      ] : undefined,
+      connected: (crmConnected ?? (pipeline != null)) ? undefined : false,
       unconnectedHint: 'Connect your CRM to see this',
     },
   ]

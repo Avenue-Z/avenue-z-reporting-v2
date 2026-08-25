@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildStages } from './stages'
+import type { PipelineData, WeeklyContacts } from '@/lib/salesforce/types'
 
 const totals = { sessions: 89234, activeUsers: 62108, newUsers: 34872, conversions: 1847, bounceRate: 0.384, sessionConversionRate: 0.021 }
 const cmpTotals = { sessions: 77300 }
@@ -18,18 +19,18 @@ describe('buildStages', () => {
     expect(s.map(x => x.key)).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
   })
 
-  it('always marks the two CRM stages unconnected and gives them no metric: this page has no CRM data source', () => {
-    // Not gated on any client config flag. index.tsx fetches only GA4 and
-    // Peec, so there is nothing a CRM-configured client could see here either
-    // A prior version derived this from the client's hubspotTokenEnvVar,
-    // which claimed a connection this page could not honor and rendered an
-    // empty hero line for any CRM-configured client.
-    const s = buildStages({ totals, cmpTotals, peec, trendRows: [] })
+  it('marks the two CRM stages unconnected only when the client has no CRM configured', () => {
+    const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: false })
     const crm = s.filter(x => x.key === 'inbound' || x.key === 'pipeline')
     expect(crm).toHaveLength(2)
     for (const stage of crm) {
       expect(stage.connected).toBe(false)
-      expect(stage.metric).toBeUndefined()
+      // The null glyph, not undefined: the stub these replace hardcoded no
+      // metric at all, but the populated card always writes one and it is the
+      // glyph with no data. Nothing reads it in this branch anyway, since
+      // demand-journey.tsx:128 renders the unconnected treatment instead. What
+      // matters is that no FIGURE is published.
+      expect(stage.metric).toBe('—')
       expect(stage.delta).toBeUndefined()
       expect(stage.unconnectedHint).toContain('CRM')
     }
@@ -203,5 +204,129 @@ describe('buildStages: AI Visibility brand resolution', () => {
   it('renders the visibility number when the brand did resolve', () => {
     const aeo = buildStages({ totals, cmpTotals, peec: { ...peec, yourBrandResolved: true }, trendRows: [] })[0]
     expect(aeo.metric).toBe('24.8%')
+  })
+})
+
+const pipelineFixture: PipelineData = {
+  openDeals:        { value: 297 },
+  totalPipeline:    { value: 4_820_000 },
+  closedWon:        { value: 1_375_000, delta: 15.7 },
+  weightedPipeline: { value: 2_140_000 },
+  byOwner: [{ owner: 'Dana Reyes', count: 41, amount: 900_000 }],
+  ownersTruncated: false,
+  stageTruncated: false,
+  unrecognizedClosedFlags: 0,
+  wonStageUnmatched: false,
+  openUnavailable: false,
+  wonUnavailable: false,
+}
+
+const contactsFixture: WeeklyContacts = {
+  weeks: [
+    { week: '2026-W31', contacts: 240 },
+    { week: '2026-W32', contacts: 186 },
+    { week: '2026-W33', contacts: 52 },
+  ],
+  currentWeek: 52,
+  currentWeekPartial: true,
+  daysElapsedInCurrentWeek: 3,
+  previousWeek: 186,
+  priorYearWeek: 149,
+  completedWeekOverWeek: -22.5,
+}
+
+describe('CRM stages, populated', () => {
+  it('populates the inbound card from contacts, with a hero label and a week-to-date badge', () => {
+    const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], contacts: contactsFixture, crmConnected: true })
+    const inbound = s.find(x => x.key === 'inbound')!
+    expect(inbound.metric).toBe('52')
+    expect(inbound.badge).toBe('WEEK TO DATE')
+    expect(inbound.subMetric).toBe('3 of 7 days so far')
+    // The shipped stub carried NO heroLabel, so "retained" would ship a blank
+    // hover reveal. It has to be written out.
+    expect(inbound.heroLabel).toBeTruthy()
+    expect(inbound.connected).toBeUndefined()
+    // Partial week against a complete one is structurally invalid.
+    expect(inbound.delta).toBeUndefined()
+  })
+
+  it('populates the pipeline card from pipeline, with an as-of-today badge', () => {
+    const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], pipeline: pipelineFixture, crmConnected: true })
+    const p = s.find(x => x.key === 'pipeline')!
+    expect(p.metric).toBe('$4,820,000')
+    expect(p.badge).toBe('AS OF TODAY')
+    expect(p.subMetric).toBe('297 open deals')
+    expect(p.heroLabel).toBeTruthy()
+    expect(p.delta).toBeUndefined()
+    expect(p.connector).toBeUndefined()   // last stage in the row
+  })
+
+  it('dashes the inbound Previous Week stat when no completed week exists', () => {
+    const s = buildStages({
+      totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true,
+      contacts: { ...contactsFixture, weeks: [{ week: '2026-W01', contacts: 12 }], previousWeek: 0, completedWeekOverWeek: undefined, priorYearWeek: undefined },
+    })
+    const stat = s.find(x => x.key === 'inbound')!.stats!.find(st => st.label === 'Previous Week')!
+    expect(stat.value).toBe('—')
+  })
+
+  it('dashes the pipeline card\'s Closed Won stat under wonUnavailable and under wonStageUnmatched', () => {
+    // Two explicit fixtures rather than a computed key: a computed property in
+    // an object literal widens to `string`, so the spread would stop
+    // typechecking against PipelineData.
+    const degraded: PipelineData[] = [
+      { ...pipelineFixture, closedWon: { value: 0, delta: -100 }, wonUnavailable: true },
+      { ...pipelineFixture, closedWon: { value: 0, delta: -100 }, wonStageUnmatched: true },
+    ]
+    for (const pipeline of degraded) {
+      const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true, pipeline })
+      const stat = s.find(x => x.key === 'pipeline')!.stats!.find(st => st.label === 'Closed Won')!
+      expect(stat.value).toBe('—')
+    }
+  })
+
+  it('does not state a deal count beside a dashed metric', () => {
+    const s = buildStages({
+      totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true,
+      pipeline: { ...pipelineFixture, openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 }, openUnavailable: true },
+    })
+    const p = s.find(x => x.key === 'pipeline')!
+    expect(p.metric).toBe('—')
+    expect(p.subMetric).toBe("Couldn't load open pipeline.")
+  })
+})
+
+describe('CRM stages, crmConnected decides the unconnected treatment', () => {
+  it('configured with no data dashes the cards rather than saying "not connected"', () => {
+    // This is the case that would otherwise contradict the block below it on
+    // the same screen, which renders "Couldn't load contact data."
+    const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true })
+    for (const stage of s.filter(x => x.key === 'inbound' || x.key === 'pipeline')) {
+      expect(stage.connected).toBeUndefined()
+      expect(stage.metric).toBe('—')
+    }
+  })
+
+  it('falls back to data presence when crmConnected is omitted, for older callers', () => {
+    // crmConnected omitted on purpose here; peecConnected still supplied, per
+    // the spec's section 2 drift row 4.
+    const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [] })
+    expect(s.find(x => x.key === 'inbound')?.connected).toBe(false)
+
+    const withData = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], contacts: contactsFixture })
+    expect(withData.find(x => x.key === 'inbound')?.connected).toBeUndefined()
+  })
+
+  it('keeps the CRM-specific hint on both stubs in every branch', () => {
+    for (const input of [
+      { crmConnected: false },
+      { crmConnected: true },
+      { crmConnected: true, contacts: contactsFixture, pipeline: pipelineFixture },
+    ]) {
+      const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], ...input })
+      for (const stage of s.filter(x => x.key === 'inbound' || x.key === 'pipeline')) {
+        expect(stage.unconnectedHint).toBe('Connect your CRM to see this')
+      }
+    }
   })
 })
