@@ -270,6 +270,26 @@ describe('CRM stages, populated', () => {
     expect(stat.value).toBe('—')
   })
 
+  it('dashes the inbound hero when the contacts fetch succeeded but returned no weeks', () => {
+    // transformWeeklyContacts returns a non-null object with weeks: [] and
+    // currentWeek: 0 when the CRM yields zero usable contact rows for the year.
+    // Gating on `contacts` alone headlines a confident 0 under a WEEK TO DATE
+    // badge, while ContactPacing renders <NoData /> for that same input
+    // (contact-pacing.tsx:25). The card must not claim a figure the block
+    // beside it refuses to claim.
+    const s = buildStages({
+      totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true,
+      contacts: { ...contactsFixture, weeks: [], currentWeek: 0, previousWeek: 0, completedWeekOverWeek: undefined, priorYearWeek: undefined },
+    })
+    const inbound = s.find(x => x.key === 'inbound')!
+    expect(inbound.metric).toBe('—')
+    expect(inbound.badge).toBeUndefined()
+    expect(inbound.subMetric).toBeUndefined()
+    expect(inbound.heroLabel).toBeUndefined()
+    // Configured, so this is the dashed state, not the unconnected treatment.
+    expect(inbound.connected).toBeUndefined()
+  })
+
   it('dashes the pipeline card\'s Closed Won stat under wonUnavailable and under wonStageUnmatched', () => {
     // Two explicit fixtures rather than a computed key: a computed property in
     // an object literal widens to `string`, so the spread would stop

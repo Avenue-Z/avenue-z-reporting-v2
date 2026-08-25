@@ -77,6 +77,9 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
 }
 
 export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, now = new Date() }: StageInput): DemandStage[] {
+  // A contacts object with no weeks is a successful fetch that found nothing,
+  // not data. See the inbound stage below for why the distinction matters.
+  const withWeeks = contacts && contacts.weeks.length > 0 ? contacts : null
   // With no resolvable "your brand", weeklyVisibility is an average across every
   // tracked brand (filterYou degrades to a pass-through), which is emphatically
   // not this client's visibility rate. Dash instead of publishing a number that
@@ -147,17 +150,27 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       key: 'inbound', source: 'Inbound Funnel', label: 'Online Contacts',
       color: CHART_COLORS.positive,
       connector: 'becomes pipeline',
-      metric: contacts ? fmtNum(contacts.currentWeek) : '—',
+      // withWeeks, not `contacts`: a fetch that SUCCEEDS but returns zero
+      // usable rows still yields a non-null object, with weeks: [] and
+      // currentWeek: 0 (`?? 0` at contacts.ts:150), so gating on presence alone
+      // headlines a confident 0 under a WEEK TO DATE badge. That is the same
+      // confident-zero-under-degrade the Contact Creation block already refuses
+      // (ContactPacing returns <NoData /> on weeks.length === 0,
+      // contact-pacing.tsx:25); the card beside it must not claim a figure the
+      // block declines to claim. The stats below stay gated on `contacts`: they
+      // already dash individually in this state, which is the right treatment
+      // for a configured client with no data.
+      metric: withWeeks ? fmtNum(withWeeks.currentWeek) : '—',
       // The window label for this card: the hero is week to date, not the
       // page's 30 days.
-      badge: contacts ? 'WEEK TO DATE' : undefined,
-      subMetric: contacts ? `${contacts.daysElapsedInCurrentWeek} of 7 days so far` : undefined,
+      badge: withWeeks ? 'WEEK TO DATE' : undefined,
+      subMetric: withWeeks ? `${withWeeks.daysElapsedInCurrentWeek} of 7 days so far` : undefined,
       // Never a delta on this metric: it is a partial week, and the only
       // comparison the source offers is between two COMPLETE weeks.
       delta: undefined,
       // Written out, not "retained": the stub this replaces carried no
       // heroLabel at all, so retaining would ship a blank hover reveal.
-      heroLabel: contacts ? 'new contacts created so far this week' : undefined,
+      heroLabel: withWeeks ? 'new contacts created so far this week' : undefined,
       stats: contacts ? [
         // weeks.length < 2 means no completed week exists, so previousWeek's 0
         // is the `?? 0` at contacts.ts:153 rather than a count.
