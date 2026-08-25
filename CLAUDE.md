@@ -483,7 +483,12 @@ merges to `dev`, not a record written after the fact. Faithful skeleton:
   CONFIRMED (proven in-tree) / PLAUSIBLE (code assumption confirmed, external
   trigger unverified). Location is `file:line`.
 - **§4 Detail:** one block per finding: the mechanism, then a suggested fix.
-- **§5 Follow-ups:** the fixes, tracked separately (not applied in the review
+- **§5 Blast radius:** REQUIRED, never omit. Which clients this actually reaches
+  and by what mechanism, whether any client needs telling before a changed
+  number ships, and if the change is per-client, why that is correct. See
+  **Blast Radius Check** below for why this is its own section: a ticket named
+  after one client is not evidence the fix is scoped to that client.
+- **§6 Follow-ups:** the fixes, tracked separately (not applied in the review
   PR), bucketed (e.g. Correctness / Needs a live call first / Decide together /
   Cleanup), noting which block the ship and which is highest-value.
 
@@ -521,6 +526,10 @@ situation again.
 
 **The process:**
 
+0. **Run the Blast Radius Check** (own section below). Which clients does this
+   reach, and does a changed number need flagging before it ships? Required in
+   every review, at every stage.
+
 1. **Understand the implementation.** Read through the code/implementation on
    the branch until you have a solid grasp of the general *why* — how the pieces
    fit together and the logic behind them. You do NOT need to be able to say
@@ -543,6 +552,53 @@ situation again.
 **Never merge to `main` without an explicit go-ahead from Thomas**, even when
 the self-review and checks are green. The self-review is a prerequisite for
 merging, not a license to merge on your own.
+
+---
+
+## Blast Radius Check (required in EVERY code review, every stage)
+
+**Almost nothing in this repo is per-client. Assume a change ships to every client
+until you have proven otherwise, and say so explicitly in the review.**
+
+This is easy to get wrong because tickets arrive named after one client ("Renaissance
+Focus", "Bristol is seeing…"), which reads as if the fix is scoped to that client. It
+almost never is. A change reviewed as if it were one-client, then shipped to all, is how
+a client sees numbers move without warning.
+
+### Why: the platform is shared by construction
+
+| Surface | Shared or per-client | Proof |
+|---|---|---|
+| Section templates | **Global.** One row per section for the whole platform | `section_slug` is the PRIMARY KEY of `section_templates` (`lib/db/schema.ts`). No client column exists, so per-client templates are not representable. |
+| Template lookup | **Global** | `getSectionTemplate(section)` takes no client argument (`lib/db/queries.ts`). |
+| Template fallback | **Global** | `const template = dbTemplate ?? PEEC_TEMPLATE`, a single constant. |
+| Bespoke parts | Escape hatch exists, **currently unused** | `BESPOKE_PARTS` is `{}` (`parts/bespoke/registry.ts`). |
+| Per-client overrides | Real, but **layout only** | `clients.report_section_config` controls order, hidden, labels, thresholds, extraParts. It has **no lever for business or matching logic**. |
+| `lib/**` helpers | **Global, and below the template layer entirely** | Not parts, not template entries, not overridable. |
+
+The trap: a defect in `lib/**` is invisible to the override system. You cannot fix it for
+one client, and you cannot get it right for one client and wrong for another. It lands
+everywhere at once.
+
+Genuinely per-client surfaces are narrow: DB columns on the `clients` row (`pr_proof_sheet_id`,
+`pr_proof_column_map`, `ga4_property_id`, `gsc_site_url`, the `*_config` jsonb columns,
+`enabled_reports`), and `report_section_config` for layout. If your change is not in one
+of those, it is global.
+
+### What every review must state
+
+Answer these in the review comment. Not implied, written down:
+
+1. **Which clients does this actually reach?** Name the mechanism (shared `lib/`,
+   global template, per-client column), do not assert it from the ticket title.
+2. **If it changes a number a client already saw, does anyone need telling before it
+   ships?** A metric that silently drops is a client-trust problem, not just a diff.
+3. **If it is genuinely per-client, why is that correct?** Truth and correctness
+   requirements should never be per-client configurable. Styling and layout can be.
+
+Worked example: `docs/official-feedback/tina-2026-07-20-pr-changes.md` §8. Ticket was
+filed as "Renaissance Focus"; the defect was in `lib/pr-proof/matchback.ts` and affected
+every client with a PR Proof sheet.
 
 ---
 
