@@ -110,6 +110,33 @@ describe('getSalesforcePipeline', () => {
     expect(openWindowedByYtd).toBeUndefined()
   })
 
+  test('gives only the two wide open-window queries a timeout above smQuery\'s 15s hang guard', async () => {
+    // Live on Renaissance the by-owner query takes ~42s and the wide open-stage
+    // query times out under concurrent load, both tripping smQuery's 15s
+    // REQUEST_TIMEOUT_MS. getSalesforcePipeline is cached() for an hour and
+    // degrades rather than throws, so one timed-out render pins byOwner: null
+    // and openUnavailable for the whole hour. Only these two span the ~18-year
+    // created-date window; the won queries are a year or less and stay on the
+    // default guard, so a genuinely hung connector still fails fast there.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    const calls: Array<{ fields: string[]; dateRange: string; timeoutMs?: number }> = []
+    ;(salesforceQuery as Mock).mockImplementation(
+      (_slug: string, fields: string[], dateRange: string, opts: { timeoutMs?: number }) => {
+        calls.push({ fields, dateRange, timeoutMs: opts?.timeoutMs })
+        return Promise.resolve([])
+      },
+    )
+    await getSalesforcePipeline('acme')
+
+    const wide = calls.filter((c) => c.dateRange === EXPECTED_OPEN_WINDOW)
+    expect(wide).toHaveLength(2) // open stage + owner
+    for (const c of wide) expect(c.timeoutMs).toBeGreaterThan(15_000)
+
+    const narrow = calls.filter((c) => c.dateRange !== EXPECTED_OPEN_WINDOW)
+    expect(narrow).toHaveLength(2) // won-current + won-prior
+    for (const c of narrow) expect(c.timeoutMs).toBeUndefined()
+  })
+
   test('a failed owner fetch yields byOwner null, never an empty array', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     ;(resolveCompareIso as Mock).mockReturnValue(null)

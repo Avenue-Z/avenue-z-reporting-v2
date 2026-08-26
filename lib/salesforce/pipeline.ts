@@ -33,6 +33,32 @@ const OWNER_MAX_ROWS = 500
 // the flag below exists rather than trusting the cap: see stageTruncated.
 const STAGE_MAX_ROWS = 500
 
+/**
+ * Submit-call timeout for the two queries that span the ~18-year open window.
+ *
+ * smQuery's REQUEST_TIMEOUT_MS is 15s, sized for the healthy ~3s response so a
+ * connector that never answers surfaces as an error instead of an indefinite
+ * spinner. That premise does not hold here: measured live on Renaissance
+ * (2026-08-25) the by-owner query takes about 42s and the wide open-stage query
+ * times out under concurrent load. Neither is hung, both are simply large, and
+ * both were being aborted as if they were broken.
+ *
+ * The cost of that abort is not a slow render, it is a wrong one for an hour:
+ * getSalesforcePipelineImpl degrades rather than throws (see the .catch blocks
+ * below) and getSalesforcePipeline is cached() at a 1-hour TTL, so a single
+ * timed-out first render pins byOwner: null and openUnavailable until the
+ * entry expires. Open Deals by Owner then reads "unavailable" on a client
+ * whose data is fine.
+ *
+ * Raised only for these two queries, never globally: the won queries below
+ * span a year or less, every other channel's windows are narrower still, and
+ * the 15s guard remains the right default for all of them. Kept comfortably
+ * under the cache-warm cron's own function ceiling
+ * (app/api/cache-warm/route.ts), which is what populates this entry before a
+ * reader ever asks for it.
+ */
+const WIDE_TIMEOUT_MS = 60_000
+
 /** The default stage that means new-business won, when a client has not customized
  * it. Never use is_won: it also covers renewals carrying $0. Overridable per client
  * via salesforceConfig.wonStageName, so a renamed or customized stage label does not
@@ -251,7 +277,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // it throw would blank the whole section through the error boundary and
     // discard the closedWon and owner data that fetched fine. null is surfaced as
     // openUnavailable so the tiles read as unavailable, never as a confident 0.
-    salesforceQuery(slug, STAGE_FIELDS, openWin, { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS }).catch((e) => {
+    salesforceQuery(slug, STAGE_FIELDS, openWin, { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs: WIDE_TIMEOUT_MS }).catch((e) => {
       console.error(`[salesforce] open pipeline fetch failed for ${slug}:`, e)
       return null
     }),
@@ -268,7 +294,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
           return null
         })
       : Promise.resolve(null),
-    salesforceQuery(slug, OWNER_FIELDS, openWin, { settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS }).catch((e) => {
+    salesforceQuery(slug, OWNER_FIELDS, openWin, { settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs: WIDE_TIMEOUT_MS }).catch((e) => {
       // A failed fetch must surface as byOwner: null, never as an empty list, so
       // it never reads as "this client has no owners". Log before swallowing.
       console.error(`[salesforce] owner fetch failed for ${slug}:`, e)

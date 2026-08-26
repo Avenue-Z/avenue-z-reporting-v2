@@ -12,6 +12,12 @@ import {
   buildTrendRows, buildAudienceRows, buildChannelData, buildCompareLabel,
 } from './reshape'
 import { buildStages } from './stages'
+import { getSalesforcePipeline } from '@/lib/salesforce/pipeline'
+import { getSalesforceWeeklyContacts } from '@/lib/salesforce/contacts'
+import { isSalesforceConfigured, canQuerySalesforce } from '@/lib/salesforce/configured'
+import { PipelinePerformance } from './pipeline-performance'
+import { ContactPacing } from './contact-pacing'
+import { LoadFailed } from './no-data'
 
 const KPI_METRICS = [
   'sessions', 'activeUsers', 'newUsers', 'bounceRate',
@@ -49,10 +55,20 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const client        = await getClientBySlug(clientSlug)
   const peecConfigured = !!client?.peecCustomerProjectId
 
+  // Two questions, two predicates (lib/salesforce/configured.ts).
+  //   hasCrm   decides what we TELL the reader (LoadFailed vs NeedsConnection)
+  //   canFetch decides whether we ISSUE the request at all
+  // They differ on exactly one case: a configured client on a deployment whose
+  // shared Supermetrics key is unset. Using canFetch for the render decision
+  // there would tell them to connect a CRM they already connected.
+  const hasCrm   = isSalesforceConfigured(client)
+  const canFetch = canQuerySalesforce(client)
+
   const [
     totalsRes, cmpTotalsRes, trendRes, cmpTrendRes,
     channelRes, cmpChannelRes, channelSMRes,
     audienceRes, cmpAudienceRes, peecRes,
+    pipelineRes, contactsRes,
   ] = await Promise.allSettled([
     ga4Query({ clientSlug, dateRange: mainIso, metrics: KPI_METRICS }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: KPI_METRICS }) : Promise.resolve(null),
@@ -78,6 +94,8 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }) : Promise.resolve(null),
     peecConfigured ? getPeecOverview(clientSlug, 'year_to_date') : Promise.resolve(null),
+    canFetch ? getSalesforcePipeline(clientSlug)       : Promise.resolve(null),
+    canFetch ? getSalesforceWeeklyContacts(clientSlug) : Promise.resolve(null),
   ])
 
   const val = <T,>(r: PromiseSettledResult<T>): T | null =>
@@ -110,18 +128,22 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const audience    = buildAudienceRows(val(audienceRes)?.rows ?? null)
   const cmpAudience = buildAudienceRows(val(cmpAudienceRes)?.rows ?? null)
   const peec        = val(peecRes)
+  const pipeline    = val(pipelineRes)
+  const contacts    = val(contactsRes)
   const cmpLabel    = buildCompareLabel(compare)
 
-  const stages = buildStages({ totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured })
+  const stages = buildStages({
+    totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured,
+    pipeline, contacts, crmConnected: hasCrm,
+  })
 
   return (
     <div className="space-y-8">
-      <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Last 30 days</p>
-
       <DemandJourney stages={stages} />
 
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Web Analytics</h2>
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Last 30 days</p>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           <KpiCard title="Sessions"             value={fmtNum(totals?.sessions as number)}                    delta={pct(totals?.sessions as number, cmpTotals?.sessions as number)} comparisonExpected tooltip="Total number of sessions in the selected period." />
           <KpiCard title="Active Users"         value={fmtNum(totals?.activeUsers as number)}                 delta={pct(totals?.activeUsers as number, cmpTotals?.activeUsers as number)} comparisonExpected tooltip="Users who had at least one engaged session." />
@@ -139,12 +161,16 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
 
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Contact Creation</h2>
-        <NeedsConnection sourceName="CRM" />
+        {contacts ? <ContactPacing data={contacts} />
+          : hasCrm ? <LoadFailed message="Couldn't load contact data." />
+          : <NeedsConnection sourceName="CRM" />}
       </section>
 
       <section className="space-y-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Pipeline Performance</h2>
-        <NeedsConnection sourceName="CRM" />
+        {pipeline ? <PipelinePerformance data={pipeline} />
+          : hasCrm ? <LoadFailed message="Couldn't load pipeline data." />
+          : <NeedsConnection sourceName="CRM" />}
       </section>
     </div>
   )
