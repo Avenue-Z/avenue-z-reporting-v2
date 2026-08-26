@@ -24,7 +24,7 @@ A socket-level timeout on an outbound request: the process could not complete a 
 
 `call()` in `lib/supermetrics/client.ts` retried 429 up to three attempts honouring `Retry-After` (`:73`), and converted an abort into `SmTimeoutError` (`:84`). Every other rejection propagated on the first attempt. One blip therefore killed every query in flight.
 
-Transient failures now retry with exponential backoff: `MAX_NETWORK_RETRIES = 2` over three total attempts (`:34`), `RETRY_DELAY_MS = 500` doubling per attempt (`:35`, `:93`). Recognition is by error code against `TRANSIENT_CODES` (`:37`) — `ETIMEDOUT`, `ECONNRESET`, `ECONNREFUSED`, `EPIPE`, `EAI_AGAIN`, `UND_ERR_SOCKET`, `UND_ERR_CONNECT_TIMEOUT` — read from `e.code` **or** `e.cause.code`, since Node reports the reason on the cause. Failing both, the wrapper shape itself is the signal: `TypeError` whose message is exactly `fetch failed` (`:51-57`).
+Transient failures now retry with exponential backoff: `MAX_NETWORK_RETRIES = 2` over three total attempts (`:34`), `RETRY_DELAY_MS = 500` doubling per attempt (`:35`, `:93`). Recognition is by error code against `TRANSIENT_CODES` (`:37`) — `ETIMEDOUT`, `ECONNRESET`, `ECONNREFUSED`, `EPIPE`, `EAI_AGAIN`, `UND_ERR_SOCKET`, `UND_ERR_CONNECT_TIMEOUT` — read from `e.code` **or** `e.cause.code`, since Node reports the reason on the cause. Failing both, the wrapper shape itself is the signal: `TypeError` whose message is exactly `fetch failed` (`:51-59`, the check itself at `:58`).
 
 Two exclusions, both deliberate:
 
@@ -74,8 +74,8 @@ Sev: **●** correctness · **○** cleanup/convention. Status: CONFIRMED (prove
 | 3 | ○ | CONFIRMED | `client.ts:73-79`, `:87-94` | The 429 retry and the network retry share one `attempt` counter. A request that takes one 429 and then hits a socket error gets fewer network retries than one that did not, for no stated reason. |
 | 4 | ○ | CONFIRMED | `client.ts:87-94` | Retrying the submit `POST` starts a **new** Supermetrics query each attempt. Up to three schedules can be created for one logical query, with the first two abandoned rather than cancelled. |
 | 5 | ○ | CONFIRMED | `pipeline.ts:320` | The thrown error says only `every Salesforce query failed for ${slug}`. The four underlying causes were logged separately a moment earlier but are not attached, so whatever surfaces the throw cannot say why. |
-| 6 | ○ | CONFIRMED | `pipeline.ts:336` | Still no cache **tag**. `extractTags: byClient` labels PERF log lines; it is not `options.tags`, so `revalidateTag` cannot reach these entries. This is precisely why there was no lever to clear the bad entry during the incident, and this PR does not add one. |
-| 7 | ○ | PLAUSIBLE | `client.ts:57` | Any `TypeError: fetch failed` is treated as transient, including a genuinely unreachable host. A permanently dead endpoint now costs 1.5s of backoff before failing, rather than failing immediately. |
+| 6 | ○ | CONFIRMED | `pipeline.ts:355-356` | Still no cache **tag**. `extractTags: byClient` labels PERF log lines; it is not `options.tags`, so `revalidateTag` cannot reach these entries. This is precisely why there was no lever to clear the bad entry during the incident, and this PR does not add one. |
+| 7 | ○ | PLAUSIBLE | `client.ts:58` | Any `TypeError: fetch failed` is treated as transient, including a genuinely unreachable host. A permanently dead endpoint now costs 1.5s of backoff before failing, rather than failing immediately. |
 
 ---
 
