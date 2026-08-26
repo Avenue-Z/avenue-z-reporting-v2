@@ -301,6 +301,25 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
       return null
     }),
   ])
+  // Every primary query failed, so there is no partial result to protect and
+  // nothing to render but four dashes. Throw rather than return that object.
+  //
+  // The distinction is what gets CACHED. An all-unavailable return value is a
+  // successful result as far as cached() is concerned, so a transient outage
+  // lasting seconds is stored and replayed for the full hour of the TTL, long
+  // after the network recovers. That is exactly what happened on staging on
+  // 2026-08-26. A rejection stores nothing, so the next reader retries.
+  //
+  // The reader loses nothing: index.tsx renders a thrown pipeline as
+  // "Couldn't load pipeline data." for a configured client, which is the same
+  // message four dashed tiles were already carrying, in one place instead of
+  // four. wonPriorRows is deliberately not part of this test: it is the compare
+  // fetch, it is null whenever no compare window was resolved at all, and its
+  // absence only costs a delta.
+  if (openRows === null && wonCurRows === null && ownerRows === null) {
+    throw new Error(`every Salesforce query failed for ${slug}`)
+  }
+
   const kpis = transformPipeline(openRows ?? [], wonCurRows ?? [], wonPriorRows, wonStage)
   const owner = ownerRows ? transformByOwner(ownerRows, OWNER_MAX_ROWS) : null
   return {
