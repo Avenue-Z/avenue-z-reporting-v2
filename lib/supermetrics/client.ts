@@ -78,6 +78,20 @@ async function call(
       await new Promise((r) => setTimeout(r, Math.min(retry, 10) * 1000))
       return call(url, init, fetchImpl, timeoutMs, attempt + 1, retryDelayMs)
     }
+    // A 5xx is the vendor failing, not an answer about the query, so it gets the
+    // same bounded retry as a socket failure. Observed live on staging
+    // (2026-08-26): `Supermetrics 500` on the wide open-pipeline query while the
+    // other three queries in the same fan-out succeeded. One 500 degraded the
+    // tiles, and because a partial degrade is still a fulfilled result, the
+    // degraded object was cached over a good entry: tiles that had been showing
+    // real figures reverted to dashes for the rest of the TTL.
+    //
+    // 4xx stays unretried. A 400 or a 404 IS an answer about this query and will
+    // say the same thing three times.
+    if (res.status >= 500 && attempt < MAX_NETWORK_RETRIES) {
+      await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt))
+      return call(url, init, fetchImpl, timeoutMs, attempt + 1, retryDelayMs)
+    }
     if (!res.ok) throw new SmQueryError(`Supermetrics ${res.status}`, res.status)
     return await res.json()
   } catch (e) {

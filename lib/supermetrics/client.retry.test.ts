@@ -61,6 +61,35 @@ describe('transient network failures are retried', () => {
     expect(calls).toBe(1)
   })
 
+  test('retries a 5xx: a server error is the vendor failing, not an answer', async () => {
+    // Observed live on staging 2026-08-26: `SmQueryError: Supermetrics 500` on
+    // the wide open-pipeline query, while the other three queries in the same
+    // fan-out succeeded. One 500 degraded the tiles and the degraded object was
+    // then cached over a good entry, so tiles that had been showing real figures
+    // went back to dashes.
+    let calls = 0
+    const flaky500 = vi.fn(async () => {
+      calls++
+      if (calls === 1) {
+        return { ok: false, status: 500, headers: { get: () => null }, json: async () => ({}) } as unknown as Response
+      }
+      return ok()
+    }) as unknown as typeof fetch
+    const res = await smQuery(params, { fetchImpl: flaky500, retryDelayMs: 1 })
+    expect(res.rows).toEqual([['10']])
+    expect(calls).toBe(2)
+  })
+
+  test('gives up on a persistent 5xx rather than retrying forever', async () => {
+    let calls = 0
+    const dead500 = vi.fn(async () => {
+      calls++
+      return { ok: false, status: 503, headers: { get: () => null }, json: async () => ({}) } as unknown as Response
+    }) as unknown as typeof fetch
+    await expect(smQuery(params, { fetchImpl: dead500, retryDelayMs: 1 })).rejects.toThrow(/503/)
+    expect(calls).toBe(3)
+  })
+
   test('does not retry a genuine API rejection: a 400 is an answer, not a blip', async () => {
     let calls = 0
     const bad = vi.fn(async () => {
