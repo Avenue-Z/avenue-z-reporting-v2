@@ -12,7 +12,7 @@ Reviewed against PR #220, whose review record is `docs/qa/exec-overview-crm-wiri
 
 ### 1.1 Why the bars were blank
 
-Each bar's height is a **percentage** of the tallest week: `height: ${(b.contacts / max) * 100}%` (`contact-pacing.tsx:133`, `max` at `:51`). A percentage height resolves against the containing block's height, and if that block's height is `auto`, the percentage resolves to `auto` as well, which is zero for an element with no content.
+Each bar's height is a **percentage** of the tallest week: `height: ${(b.contacts / max) * 100}%` (`contact-pacing.tsx:131`, `max` at `:51`). A percentage height resolves against the containing block's height, and if that block's height is `auto`, the percentage resolves to `auto` as well, which is zero for an element with no content.
 
 The original markup nested each bar inside a per-week column. The row carries `h-32` (a definite 8rem) and `items-end`. That second class is what did the damage: `align-items: flex-end` overrides flex's default `stretch`, so the column was sized by its content rather than filled to the row's height. The column's height was therefore indefinite, every bar's percentage resolved to zero, and only the week labels below them drew.
 
@@ -20,7 +20,7 @@ The one visible artifact confirms the mechanism rather than merely fitting it. T
 
 ### 1.2 What makes the percentages resolve now
 
-Bars and labels are two sibling tracks (`:113` bars, `:154` labels), and every element between a bar and the `h-32` row carries a definite height. There is exactly one such element: the hover wrapper at `:123`, `group relative flex h-full flex-1 flex-col justify-end`. `h-full` is `height: 100%` against a definite 8rem parent, so it is itself definite, and `justify-end` sits the bar on the row's baseline.
+Bars and labels are two sibling tracks (`:113` bars, `:149` labels), and every element between a bar and the `h-32` row carries a definite height. There is exactly one such element: the hover wrapper at `:123`, `group relative flex h-full flex-1 flex-col justify-end`. `h-full` is `height: 100%` against a definite 8rem parent, so it is itself definite, and `justify-end` sits the bar on the row's baseline.
 
 Both tracks use the same `flex-1` cells and the same `gap-1`, so labels stay under their bars. Every bucket renders a label cell whether or not it carries text; dropping the empty ones would let the remaining labels slide out of alignment.
 
@@ -76,7 +76,7 @@ Sev: **●** correctness · **○** cleanup/convention. Status: CONFIRMED (prove
 |---|---|---|---|---|
 | 1 | ● | CONFIRMED | `peec-ai/technical-audit.tsx:163-170` | The identical collapse exists outside this diff. Same `flex h-* items-end` › `flex flex-col` › percentage-height child structure. Its bars are `bg-white/[0.06]` at `h-12`, so the failure is easy to miss, but those bars are also rendering at zero height today. |
 | 2 | ○ | CONFIRMED | `contact-pacing.tsx:140` | The tooltip is hover-only and `pointer-events-none`. With the axis now thinned to 8 labels, a touch or keyboard user cannot obtain any per-week figure at all: on a phone, 27 of 35 bars are unlabelled and unreachable. The previous per-bar `W##` labels at least named every bucket. |
-| 3 | ○ | CONFIRMED | `contact-pacing.tsx:142`, `:50`, `:103` | The partial-week caveat now appears in **three** places on one screen: the Current Week tile's "Partial week: 3 of 7 days.", the row caption's "current week in progress: 3 of 7 days.", and now the tooltip's "so far, 3 of 7 days". PR #220's review record raised this as finding 4 when there were two. |
+| 3 | ○ | CONFIRMED | `contact-pacing.tsx:142`, `:77`, `:170` | The partial-week caveat now appears in **three** places on one screen: the Current Week tile's "Partial week: 3 of 7 days." (`:77`), the row caption's "current week in progress: 3 of 7 days.", (`:170`), and now the tooltip's "so far, 3 of 7 days" (`:142`). PR #220's review record raised this as finding 4 when there were two. |
 | 4 | ○ | PLAUSIBLE | `contact-pacing.tsx:140` | The tooltip is `left-1/2 -translate-x-1/2 w-max` with no edge collision handling. On the first and last of 35 cells it extends past the chart's bounds; whether it clips depends on whether any ancestor establishes `overflow: hidden`, which was not traced. |
 | 5 | ○ | CONFIRMED | `lib/constants.ts:13`, `:26` | `CHART_COLORS.positive` and `CHART_COLORS.googleAds` are both `#60FF80`. The bars are now the same green as the Google Ads series, which is not a problem on this page today but makes the colour ambiguous if paid media is ever added to it. |
 | 6 | ○ | CONFIRMED | `contact-pacing.test.tsx` (ancestor-chain test) | The regression test asserts the chain by matching the literal class `h-full`. A future refactor that gives the wrapper a definite height by another valid means (`h-32`, an explicit style) would fail the test while being correct. It over-specifies the mechanism rather than the outcome, which is a deliberate trade: no layout-capable test exists to assert the outcome. |
