@@ -24,12 +24,47 @@ const BASE = 'https://api.supermetrics.com/enterprise/v2'
 // budget is bounded separately by maxPolls in smQuery (~60s).
 const REQUEST_TIMEOUT_MS = 15000
 
+// Socket-level failures get a bounded retry. Observed live on staging
+// (2026-08-26): a single `write ETIMEDOUT` (errno -110) on a cold render. Before
+// this, only HTTP 429 was retried and a rejected fetch propagated on the first
+// try, so one blip lasting seconds killed every query in flight at once. For the
+// Executive Overview that meant all four pipeline queries degrading together and
+// the degraded object being cached for an hour: seconds of network trouble, an
+// hour of dashed tiles.
+const MAX_NETWORK_RETRIES = 2
+const RETRY_DELAY_MS = 500
+
+const TRANSIENT_CODES = new Set([
+  'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN',
+  'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT',
+])
+
+/**
+ * Whether a thrown error is a transport blip worth retrying, as opposed to an
+ * answer from the API.
+ *
+ * A 4xx/5xx is an answer and never lands here (it throws SmQueryError above). An
+ * AbortError is our OWN hang guard firing and is explicitly excluded: retrying it
+ * would multiply the 60s wide-window ceiling into minutes and blow the function
+ * budget, which is the opposite of what that guard exists to do.
+ */
+function isTransientNetworkError(e: unknown): boolean {
+  if (!(e instanceof Error) || e.name === 'AbortError') return false
+  const code = (e as { code?: unknown }).code ?? (e.cause as { code?: unknown } | undefined)?.code
+  if (typeof code === 'string' && TRANSIENT_CODES.has(code)) return true
+  // Node wraps every socket-level failure as `TypeError: fetch failed` with the
+  // real reason on .cause, and that cause does not always carry a code we know.
+  // The wrapper shape itself is the signal.
+  return e instanceof TypeError && e.message === 'fetch failed'
+}
+
 async function call(
   url: string,
   init: RequestInit,
   fetchImpl: typeof fetch,
   timeoutMs: number,
   attempt = 0,
+  retryDelayMs = RETRY_DELAY_MS,
 ): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -41,13 +76,22 @@ async function call(
       }
       const retry = Number(res.headers.get('Retry-After') ?? '2')
       await new Promise((r) => setTimeout(r, Math.min(retry, 10) * 1000))
-      return call(url, init, fetchImpl, timeoutMs, attempt + 1)
+      return call(url, init, fetchImpl, timeoutMs, attempt + 1, retryDelayMs)
     }
     if (!res.ok) throw new SmQueryError(`Supermetrics ${res.status}`, res.status)
     return await res.json()
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
       throw new SmTimeoutError(`Supermetrics request timed out after ${timeoutMs}ms`)
+    }
+    if (isTransientNetworkError(e) && attempt < MAX_NETWORK_RETRIES) {
+      // Exponential, so a source that is briefly unreachable is not hammered.
+      // The timer above is cleared in `finally` and a fresh one is armed by the
+      // recursive call, so each attempt gets the full timeout rather than a
+      // shrinking slice of the first one's budget.
+      clearTimeout(timer)
+      await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt))
+      return call(url, init, fetchImpl, timeoutMs, attempt + 1, retryDelayMs)
     }
     throw e
   } finally {
@@ -57,12 +101,14 @@ async function call(
 
 export async function smQuery(
   p: SmQueryParams,
-  opts: { pollMs?: number; maxPolls?: number; timeoutMs?: number; fetchImpl?: typeof fetch } = {},
+  opts: { pollMs?: number; maxPolls?: number; timeoutMs?: number; retryDelayMs?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<SmResult> {
   const fetchImpl = opts.fetchImpl ?? fetch
   const pollMs = opts.pollMs ?? 1500
   const maxPolls = opts.maxPolls ?? 40 // ~60s ceiling
   const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS
+  // Shortened by tests; production always takes the constant.
+  const retryDelayMs = opts.retryDelayMs ?? RETRY_DELAY_MS
   const headers = { Authorization: `Bearer ${p.apiKey}`, 'Content-Type': 'application/json' }
 
   type SmField = { field_id: string; data_column: number }
@@ -94,7 +140,7 @@ export async function smQuery(
       ...(p.filters ? { filter: p.filters } : {}),
       ...(p.settings ? { settings: p.settings } : {}),
     }),
-  }, fetchImpl, timeoutMs)) as SmResponse
+  }, fetchImpl, timeoutMs, 0, retryDelayMs)) as SmResponse
 
   if (submit.meta?.status_code && submit.meta.status_code !== 'SUCCESS') {
     throw new SmQueryError(`Supermetrics status ${submit.meta.status_code}`)
@@ -110,7 +156,7 @@ export async function smQuery(
 
   for (let i = 0; i < maxPolls; i++) {
     await new Promise((r) => setTimeout(r, pollMs))
-    const out = (await call(`${BASE}/query/data/json/${scheduleId}`, { headers }, fetchImpl, timeoutMs)) as SmResponse
+    const out = (await call(`${BASE}/query/data/json/${scheduleId}`, { headers }, fetchImpl, timeoutMs, 0, retryDelayMs)) as SmResponse
     if (out.meta?.status_code === 'FAILURE') throw new SmQueryError('Supermetrics query failed')
     if (Array.isArray(out.data)) {
       return { header: fieldHeader(out) ?? out.data[0] ?? [], rows: out.data.slice(1) }

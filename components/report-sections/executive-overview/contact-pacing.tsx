@@ -1,13 +1,27 @@
 import type { WeeklyContacts } from '@/lib/salesforce/types'
+import { CHART_COLORS } from '@/lib/constants'
+import { isoWeekStart } from '@/lib/salesforce/iso-week'
 import { KpiCard } from './kpi-card'
 import { NoData } from './no-data'
 import { fmtNum } from './reshape'
 
 const NULL_GLYPH = '—'
 
-/** '2026-W33' to 'W33'. */
-function weekLabel(week: string): string {
-  return `W${week.split('-W')[1] ?? ''}`
+/** Plural agreement matters here: these strings are the only place a single
+ *  contact is ever named, and "1 contacts" in a client-facing tooltip is the
+ *  kind of detail that undermines the numbers beside it. */
+function countLabel(n: number): string {
+  return `${fmtNum(n)} ${n === 1 ? 'contact' : 'contacts'}`
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** 'Aug 3' for the Monday that opens a week. Fixed abbreviations rather than
+ *  Intl.DateTimeFormat: this renders on the server, and a locale-dependent month
+ *  name would make the axis differ between environments and its assertions
+ *  differ between machines. UTC throughout, matching the transform's week keys. */
+function dateLabel(monday: Date): string {
+  return `${MONTHS[monday.getUTCMonth()]} ${monday.getUTCDate()}`
 }
 
 export function ContactPacing({ data }: { data: WeeklyContacts }) {
@@ -35,6 +49,19 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const hasCompletedWeek = weeks.length >= 2
 
   const max = Math.max(...weeks.map((w) => w.contacts))
+
+  // Week numbers are how the data is keyed, not how a reader reads a year. The
+  // axis is labelled by date and thinned to one anchor per month: 35 labels on
+  // 35 cells is a smear, and the intermediate weeks are legible by position
+  // once the month starts are marked.
+  const starts = weeks.map((b) => isoWeekStart(b.week))
+  const opensMonth = starts.map((d, i) => i > 0 && d.getUTCMonth() !== starts[i - 1].getUTCMonth())
+  // The first bucket is anchored too, since a year whose data opens mid-month
+  // would otherwise carry no label until the next month change. It yields when
+  // the SECOND bucket opens a month, which happens whenever ISO week 1 starts in
+  // December: labelling both would print two dates on adjacent cells at the
+  // narrowest point of the chart.
+  const labelled = starts.map((d, i) => (i === 0 ? !(starts.length > 1 && opensMonth[1]) : opensMonth[i]))
 
   return (
     <div className="space-y-6">
@@ -72,27 +99,67 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
       </div>
 
       <div className="space-y-2">
-        <div className="flex h-32 items-end gap-1">
-          {weeks.map((b, i) => {
-            const isPartial = i === weeks.length - 1
-            return (
-              <div key={b.week} className="flex flex-1 flex-col items-center gap-1">
-                <span
-                  data-week={b.week}
-                  data-partial={isPartial ? 'true' : undefined}
-                  className={
-                    isPartial
-                      ? 'w-full rounded-t border-t-2 border-dashed border-white/40 bg-white/20'
-                      : 'w-full rounded-t bg-white/60'
-                  }
-                  // max === 0 is every bucket at zero. Short-circuit rather than
-                  // dividing, which would emit height: NaN%.
-                  style={{ height: max === 0 ? '0%' : `${(b.contacts / max) * 100}%` }}
-                />
-                <span className="text-[10px] text-text-muted">{weekLabel(b.week)}</span>
-              </div>
-            )
-          })}
+        {/* Bars and labels are two sibling tracks, not one column per week, and
+            that split is load-bearing rather than cosmetic. Each bar's height is
+            a PERCENTAGE, which resolves against its containing block's height, so
+            that block has to be this fixed-height row. While each bar sat inside
+            a per-week column instead, the column's own height was content-based
+            (this row is `items-end`, which suppresses the default
+            `align-items: stretch`), the percentage resolved to `auto`, and every
+            bar rendered at zero height with only the labels still drawing. Both
+            tracks carry the same flex-1 cells and the same gap, so the labels
+            stay aligned under their bars. */}
+        <div className="space-y-1">
+          <div className="flex h-32 items-end gap-1">
+            {weeks.map((b, i) => {
+              const isPartial = i === weeks.length - 1
+              return (
+                // h-full is load-bearing, not decoration. This wrapper exists to
+                // anchor the hover tooltip, and it sits between the bar and the
+                // fixed-height row, so without a definite height of its own the
+                // bar's percentage would resolve against `auto` and collapse to
+                // zero: exactly the bug the sibling label track was introduced
+                // to fix. justify-end then sits the bar on the row's baseline.
+                <div key={b.week} className="group relative flex h-full flex-1 flex-col justify-end">
+                  <span
+                    data-week={b.week}
+                    data-partial={isPartial ? 'true' : undefined}
+                    className={isPartial ? 'w-full rounded-t border-t-2 border-dashed' : 'w-full rounded-t'}
+                    style={{
+                      // max === 0 is every bucket at zero. Short-circuit rather
+                      // than dividing, which would emit height: NaN%.
+                      height: max === 0 ? '0%' : `${(b.contacts / max) * 100}%`,
+                      // The journey card heading this block is CHART_COLORS.positive.
+                      // The in-progress week keeps that hue at low alpha with the
+                      // dashed cap, so it reads as the same series still filling
+                      // rather than as a different one.
+                      backgroundColor: isPartial ? `${CHART_COLORS.positive}33` : CHART_COLORS.positive,
+                      borderTopColor: isPartial ? CHART_COLORS.positive : undefined,
+                    }}
+                  />
+                  <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                    {isPartial
+                      ? `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)} so far, ${daysElapsedInCurrentWeek} of 7 days`
+                      : `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)}`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex gap-1">
+            {weeks.map((b, i) => (
+              // Every bucket keeps a cell, labelled or not, so the label track
+              // and the bar track stay in step: dropping the blanks would let
+              // the remaining labels slide out from under their bars.
+              <span
+                key={b.week}
+                data-week-label={b.week}
+                className="flex-1 text-center text-[10px] text-text-muted"
+              >
+                {labelled[i] ? dateLabel(starts[i]) : ''}
+              </span>
+            ))}
+          </div>
         </div>
         {/* The final bar covers only the days elapsed so far. Drawn at full
             scale with nothing distinguishing it, it reads on a Monday as a
