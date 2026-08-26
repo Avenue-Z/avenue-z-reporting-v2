@@ -128,6 +128,33 @@ describe('the in-progress bar is marked', () => {
   })
 })
 
+describe('bar heights resolve against a definite containing block', () => {
+  // The bars carry `height: N%`, and a percentage height resolves against its
+  // containing block's height. That block must therefore be the fixed-height
+  // row itself. Nesting each bar one level deeper, inside a per-week column,
+  // broke exactly this: the row is `items-end`, which suppresses the default
+  // `align-items: stretch`, so the column's own height was content-based, the
+  // percentage resolved to `auto`, and every bar rendered at zero height while
+  // the labels below them still drew. jsdom performs no layout, so no
+  // assertion on the emitted style string can catch it. The structural
+  // invariant that makes the percentage resolvable can.
+  it('makes every bar a direct child of the fixed-height row', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    const row = container.querySelector('.h-32')
+    expect(row).not.toBeNull()
+    const bars = Array.from(container.querySelectorAll('[data-week]'))
+    expect(bars).toHaveLength(3)
+    for (const bar of bars) expect(bar.parentElement).toBe(row)
+  })
+
+  it('keeps one label per bucket so the label track still matches the bar track', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    expect(container.querySelectorAll('[data-week-label]')).toHaveLength(
+      container.querySelectorAll('[data-week]').length,
+    )
+  })
+})
+
 describe('guards', () => {
   it('empty weeks replaces the WHOLE block, tiles included', () => {
     // Chart-only replacement would leave three tiles reading 0, 0 and the glyph

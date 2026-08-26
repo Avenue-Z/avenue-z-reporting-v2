@@ -72,27 +72,48 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
       </div>
 
       <div className="space-y-2">
-        <div className="flex h-32 items-end gap-1">
-          {weeks.map((b, i) => {
-            const isPartial = i === weeks.length - 1
-            return (
-              <div key={b.week} className="flex flex-1 flex-col items-center gap-1">
+        {/* Bars and labels are two sibling tracks, not one column per week, and
+            that split is load-bearing rather than cosmetic. Each bar's height is
+            a PERCENTAGE, which resolves against its containing block's height, so
+            that block has to be this fixed-height row. While each bar sat inside
+            a per-week column instead, the column's own height was content-based
+            (this row is `items-end`, which suppresses the default
+            `align-items: stretch`), the percentage resolved to `auto`, and every
+            bar rendered at zero height with only the labels still drawing. Both
+            tracks carry the same flex-1 cells and the same gap, so the labels
+            stay aligned under their bars. */}
+        <div className="space-y-1">
+          <div className="flex h-32 items-end gap-1">
+            {weeks.map((b, i) => {
+              const isPartial = i === weeks.length - 1
+              return (
                 <span
+                  key={b.week}
                   data-week={b.week}
                   data-partial={isPartial ? 'true' : undefined}
                   className={
                     isPartial
-                      ? 'w-full rounded-t border-t-2 border-dashed border-white/40 bg-white/20'
-                      : 'w-full rounded-t bg-white/60'
+                      ? 'flex-1 rounded-t border-t-2 border-dashed border-white/40 bg-white/20'
+                      : 'flex-1 rounded-t bg-white/60'
                   }
                   // max === 0 is every bucket at zero. Short-circuit rather than
                   // dividing, which would emit height: NaN%.
                   style={{ height: max === 0 ? '0%' : `${(b.contacts / max) * 100}%` }}
                 />
-                <span className="text-[10px] text-text-muted">{weekLabel(b.week)}</span>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
+          <div className="flex gap-1">
+            {weeks.map((b) => (
+              <span
+                key={b.week}
+                data-week-label={b.week}
+                className="flex-1 text-center text-[10px] text-text-muted"
+              >
+                {weekLabel(b.week)}
+              </span>
+            ))}
+          </div>
         </div>
         {/* The final bar covers only the days elapsed so far. Drawn at full
             scale with nothing distinguishing it, it reads on a Monday as a
