@@ -381,6 +381,41 @@ describe('getSalesforcePipeline', () => {
     err.mockRestore()
   })
 
+  test('throws when EVERY query fails, so a total outage is never cached as a result', async () => {
+    // The incident this guards (staging, 2026-08-26): a transient socket failure
+    // took all four queries down at once. Returning an all-unavailable object
+    // makes that a successful RESULT, so cached() stored it and served four
+    // dashed tiles for the full hour, long after the network recovered.
+    //
+    // Degrade-not-fail exists to protect data that DID arrive. When none did
+    // there is nothing to protect, and throwing is both more honest and
+    // self-healing: unstable_cache stores no entry for a rejected call, so the
+    // next reader retries instead of inheriting the failure. index.tsx already
+    // renders this as "Couldn't load pipeline data." for a configured client,
+    // which is what four dashed tiles were saying anyway.
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockRejectedValue(new Error('fetch failed'))
+    await expect(getSalesforcePipeline('acme')).rejects.toThrow(/every salesforce query failed/i)
+    err.mockRestore()
+  })
+
+  test('still degrades rather than throwing while ANY query returns data', async () => {
+    // The boundary of the rule above: three of four down is still a partial
+    // result worth rendering and worth caching.
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.reject(new Error('fetch failed'))
+    })
+    const data = await getSalesforcePipeline('acme')
+    expect(data.openUnavailable).toBe(true)
+    expect(data.wonUnavailable).toBe(true)
+    expect(data.byOwner).toEqual([{ owner: 'Owner A', count: 5, amount: 500 }])
+    err.mockRestore()
+  })
+
   test('a failed closed-won query degrades to an unavailable won tile, keeping the open tiles', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     ;(resolveCompareIso as Mock).mockReturnValue(null)
