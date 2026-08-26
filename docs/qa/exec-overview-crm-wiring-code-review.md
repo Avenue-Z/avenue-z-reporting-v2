@@ -42,7 +42,7 @@ The two query windows are different on purpose, and this is the single most impo
 | **Previous Week** | The most recent **complete** ISO week. Its delta is `completedWeekOverWeek`, where both sides are full weeks. |
 | **Prior Year Week** | The bucket carrying the same ISO week *number* as Previous Week, one year earlier. |
 
-### 1.2 The three decisions that shape what a client sees
+### 1.2 The four decisions that shape what a client sees
 
 **Why Closed Won sometimes shows a dash with no percentage.** `KpiCard` tests `delta !== undefined` (`kpi-card.tsx:61`) **before** `comparisonExpected` (`kpi-card.tsx:73`), so nothing in that component stops a tile rendering a dash as its value with a confident percentage underneath. And the wire is live: `transformPipeline` builds Closed Won as `kpi(wonCur.amount, wonPrior?.amount)` (`pipeline.ts:194`), and `wonCur.amount` is `0` whenever the closed-won fetch degraded or the won stage was renamed. Against a healthy prior year, `pct()` returns exactly `-100` (proved by execution, §2). `PipelinePerformance` therefore computes the delta rather than reading it, withholding it for two distinct reasons:
 
@@ -55,6 +55,8 @@ The two query windows are different on purpose, and this is the single most impo
 
 **Why the cards and the blocks cannot disagree.** `buildStages` receives `crmConnected: hasCrm` (`index.tsx:137`). Keying the journey stubs off data presence alone would give a configured client whose fetch rejected "Connect your CRM to see this" on the card while the block below said "Couldn't load contact data", verbatim the defect `peecConnected` was added to fix. Only `connected === false` triggers the unconnected treatment (`demand-journey.tsx:128`), so a configured client with no data omits the flag and dashes instead.
 
+**Why no vendor name reaches the screen.** Every string a reader sees is generic: the two journey cards are sourced `Inbound Funnel` and `Pipeline` (`stages.ts:150`, `:187`), both unconnected hints read "Connect your CRM to see this" (`stages.ts:184`, `:208`), and each block's not-connected state renders `NeedsConnection sourceName="CRM"` (`index.tsx:166`, `:173`). That is a constraint rather than a coincidence: both new components carry a `vendor neutrality` test asserting that no `/Salesforce|HubSpot/i` string reaches the DOM (`pipeline-performance.test.tsx:183`, `contact-pacing.test.tsx:154`), and the pipeline one runs that assertion with every degradation flag set at once, which is the state most likely to leak a vendor name through a caveat line. The page reports on the client's CRM, not on which CRM vendor we query, so replacing the source behind it stays a data-layer change with no copy to rewrite.
+
 ### 1.3 What replaced the page-level window label
 
 `index.tsx` printed one `Last 30 days` line above the entire page. None of the CRM data is on that window: the open tiles are as-of-today, Closed Won is year to date, the contact bars are year-to-date ISO weeks. The line moved inside the Web Analytics section, and each new block carries its own window label.
@@ -65,7 +67,7 @@ The two query windows are different on purpose, and this is the single most impo
 
 Findings were probed, not read.
 
-**Static anchors confirmed at the stated line** (`grep -n` against the branch, all matched): `kpi-card.tsx:61` / `:73` for the delta-before-comparisonExpected ordering; `pipeline.ts:194` for the `kpi(wonCur.amount, wonPrior?.amount)` construction; `pipeline.ts:109` for `pct()`'s non-positive-prior guard; `pipeline.ts:223` for the owner sort; `contacts.ts:99` for `gapFill` returning `[]`; `contacts.ts:153` for `previousWeek`'s `?? 0`; `contacts.ts:173` for `currentWeekPartial: true`; `demand-journey.tsx:128` for the `connected === false` branch.
+**Static anchors confirmed at the stated line** (`grep -n` against the branch, all matched): `kpi-card.tsx:61` / `:73` for the delta-before-comparisonExpected ordering; `pipeline.ts:194` for the `kpi(wonCur.amount, wonPrior?.amount)` construction; `pipeline.ts:109` for `pct()`'s non-positive-prior guard; `pipeline.ts:223` for the owner sort; `contacts.ts:99` for `gapFill` returning `[]`; `contacts.ts:153` for `previousWeek`'s `?? 0`; `contacts.ts:173` for `currentWeekPartial: true`; `demand-journey.tsx:128` for the `connected === false` branch; `stages.ts:150`, `:184`, `:187` and `:208` plus `index.tsx:166` and `:173` for the vendor-neutral copy, and `pipeline-performance.test.tsx:183` / `contact-pacing.test.tsx:154` for the two `vendor neutrality` tests that pin it.
 
 **Logic executed in a throwaway probe spec** (written, run, deleted; not part of the diff):
 
