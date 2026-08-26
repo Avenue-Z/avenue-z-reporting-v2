@@ -1,9 +1,17 @@
 import type { WeeklyContacts } from '@/lib/salesforce/types'
+import { CHART_COLORS } from '@/lib/constants'
 import { KpiCard } from './kpi-card'
 import { NoData } from './no-data'
 import { fmtNum } from './reshape'
 
 const NULL_GLYPH = '—'
+
+/** Plural agreement matters here: these strings are the only place a single
+ *  contact is ever named, and "1 contacts" in a client-facing tooltip is the
+ *  kind of detail that undermines the numbers beside it. */
+function countLabel(n: number): string {
+  return `${fmtNum(n)} ${n === 1 ? 'contact' : 'contacts'}`
+}
 
 /** '2026-W33' to 'W33'. */
 function weekLabel(week: string): string {
@@ -87,19 +95,35 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
             {weeks.map((b, i) => {
               const isPartial = i === weeks.length - 1
               return (
-                <span
-                  key={b.week}
-                  data-week={b.week}
-                  data-partial={isPartial ? 'true' : undefined}
-                  className={
-                    isPartial
-                      ? 'flex-1 rounded-t border-t-2 border-dashed border-white/40 bg-white/20'
-                      : 'flex-1 rounded-t bg-white/60'
-                  }
-                  // max === 0 is every bucket at zero. Short-circuit rather than
-                  // dividing, which would emit height: NaN%.
-                  style={{ height: max === 0 ? '0%' : `${(b.contacts / max) * 100}%` }}
-                />
+                // h-full is load-bearing, not decoration. This wrapper exists to
+                // anchor the hover tooltip, and it sits between the bar and the
+                // fixed-height row, so without a definite height of its own the
+                // bar's percentage would resolve against `auto` and collapse to
+                // zero: exactly the bug the sibling label track was introduced
+                // to fix. justify-end then sits the bar on the row's baseline.
+                <div key={b.week} className="group relative flex h-full flex-1 flex-col justify-end">
+                  <span
+                    data-week={b.week}
+                    data-partial={isPartial ? 'true' : undefined}
+                    className={isPartial ? 'w-full rounded-t border-t-2 border-dashed' : 'w-full rounded-t'}
+                    style={{
+                      // max === 0 is every bucket at zero. Short-circuit rather
+                      // than dividing, which would emit height: NaN%.
+                      height: max === 0 ? '0%' : `${(b.contacts / max) * 100}%`,
+                      // The journey card heading this block is CHART_COLORS.positive.
+                      // The in-progress week keeps that hue at low alpha with the
+                      // dashed cap, so it reads as the same series still filling
+                      // rather than as a different one.
+                      backgroundColor: isPartial ? `${CHART_COLORS.positive}33` : CHART_COLORS.positive,
+                      borderTopColor: isPartial ? CHART_COLORS.positive : undefined,
+                    }}
+                  />
+                  <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                    {isPartial
+                      ? `${weekLabel(b.week)} \u00b7 ${countLabel(b.contacts)} so far, ${daysElapsedInCurrentWeek} of 7 days`
+                      : `${weekLabel(b.week)} \u00b7 ${countLabel(b.contacts)}`}
+                  </span>
+                </div>
               )
             })}
           </div>

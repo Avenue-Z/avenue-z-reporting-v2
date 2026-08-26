@@ -130,21 +130,34 @@ describe('the in-progress bar is marked', () => {
 
 describe('bar heights resolve against a definite containing block', () => {
   // The bars carry `height: N%`, and a percentage height resolves against its
-  // containing block's height. That block must therefore be the fixed-height
-  // row itself. Nesting each bar one level deeper, inside a per-week column,
-  // broke exactly this: the row is `items-end`, which suppresses the default
-  // `align-items: stretch`, so the column's own height was content-based, the
-  // percentage resolved to `auto`, and every bar rendered at zero height while
-  // the labels below them still drew. jsdom performs no layout, so no
-  // assertion on the emitted style string can catch it. The structural
-  // invariant that makes the percentage resolvable can.
-  it('makes every bar a direct child of the fixed-height row', () => {
+  // containing block's height. Every element between a bar and the fixed-height
+  // row must therefore carry a definite height of its own. The original markup
+  // nested each bar in a per-week column that had none: the row is `items-end`,
+  // which suppresses the default `align-items: stretch`, so the column was
+  // sized by its content, the percentage resolved to `auto`, and every bar
+  // rendered at zero height while the labels below them still drew.
+  //
+  // The hover target reintroduced a wrapper, which is why this asserts the
+  // whole ancestor chain rather than "the bar is a direct child": `h-full` on
+  // that wrapper keeps the chain definite. jsdom performs no layout, so no
+  // assertion on the emitted style string can catch a regression here.
+  it('keeps every element between a bar and the fixed-height row definite', () => {
     const { container } = render(<ContactPacing data={data()} />)
     const row = container.querySelector('.h-32')
     expect(row).not.toBeNull()
     const bars = Array.from(container.querySelectorAll('[data-week]'))
     expect(bars).toHaveLength(3)
-    for (const bar of bars) expect(bar.parentElement).toBe(row)
+    for (const bar of bars) {
+      let node = bar.parentElement
+      let hops = 0
+      while (node && node !== row) {
+        expect(node.className).toMatch(/\bh-full\b/)
+        node = node.parentElement
+        hops++
+        expect(hops).toBeLessThan(5)
+      }
+      expect(node).toBe(row)
+    }
   })
 
   it('keeps one label per bucket so the label track still matches the bar track', () => {
@@ -152,6 +165,44 @@ describe('bar heights resolve against a definite containing block', () => {
     expect(container.querySelectorAll('[data-week-label]')).toHaveLength(
       container.querySelectorAll('[data-week]').length,
     )
+  })
+})
+
+describe('bars read as the Online Contacts stage', () => {
+  // The journey card heading this block is CHART_COLORS.positive. Grey bars
+  // under a green card made the two look like different sources.
+  it('fills completed bars with the section green', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    const bars = Array.from(container.querySelectorAll('[data-week]')) as HTMLElement[]
+    expect(bars[0].style.backgroundColor).toBe('rgb(96, 255, 128)')
+  })
+
+  it('keeps the in-progress bar visually distinct rather than solid', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    const bars = Array.from(container.querySelectorAll('[data-week]')) as HTMLElement[]
+    const partial = bars[2]
+    expect(partial.getAttribute('data-partial')).toBe('true')
+    expect(partial.style.backgroundColor).not.toBe(bars[0].style.backgroundColor)
+  })
+})
+
+describe('bars are hoverable, like every other chart in the report', () => {
+  it('names the week and its count on every bar', () => {
+    render(<ContactPacing data={data()} />)
+    expect(screen.getByText('W31 · 240 contacts')).toBeInTheDocument()
+    expect(screen.getByText('W32 · 186 contacts')).toBeInTheDocument()
+  })
+
+  it('says the final bar is still filling, so its lower count is not read as a drop', () => {
+    render(<ContactPacing data={data()} />)
+    expect(screen.getByText('W33 · 52 contacts so far, 3 of 7 days')).toBeInTheDocument()
+  })
+
+  it('singularises a one-contact week', () => {
+    render(<ContactPacing data={data({
+      weeks: [{ week: '2026-W31', contacts: 1 }, { week: '2026-W32', contacts: 4 }],
+    })} />)
+    expect(screen.getByText('W31 · 1 contact')).toBeInTheDocument()
   })
 })
 
