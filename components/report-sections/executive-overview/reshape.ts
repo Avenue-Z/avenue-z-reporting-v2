@@ -22,6 +22,15 @@ export function fmtPct(n: number | null | undefined): string {
   return `${(n * 100).toFixed(1)}%`
 }
 
+export function fmtUsd(n: number | null | undefined): string {
+  if (n == null) return '—'
+  return n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  })
+}
+
 export function fmtDuration(seconds: number | null | undefined): string {
   if (seconds == null) return '—'
   const m = Math.floor(seconds / 60)
