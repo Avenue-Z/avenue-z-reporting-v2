@@ -121,10 +121,10 @@ describe('the in-progress bar is marked', () => {
     expect(screen.getByText('Final bar is the current week in progress: 3 of 7 days.')).toBeInTheDocument()
   })
 
-  it('labels buckets by week number', () => {
+  it('labels the axis by date, not by week number', () => {
     render(<ContactPacing data={data()} />)
-    expect(screen.getByText('W31')).toBeInTheDocument()
-    expect(screen.getByText('W33')).toBeInTheDocument()
+    expect(screen.queryByText(/^W\d\d$/)).not.toBeInTheDocument()
+    expect(screen.getByText('Aug 3')).toBeInTheDocument()
   })
 })
 
@@ -189,20 +189,56 @@ describe('bars read as the Online Contacts stage', () => {
 describe('bars are hoverable, like every other chart in the report', () => {
   it('names the week and its count on every bar', () => {
     render(<ContactPacing data={data()} />)
-    expect(screen.getByText('W31 · 240 contacts')).toBeInTheDocument()
-    expect(screen.getByText('W32 · 186 contacts')).toBeInTheDocument()
+    expect(screen.getByText('Week of Jul 27 · 240 contacts')).toBeInTheDocument()
+    expect(screen.getByText('Week of Aug 3 · 186 contacts')).toBeInTheDocument()
   })
 
   it('says the final bar is still filling, so its lower count is not read as a drop', () => {
     render(<ContactPacing data={data()} />)
-    expect(screen.getByText('W33 · 52 contacts so far, 3 of 7 days')).toBeInTheDocument()
+    expect(screen.getByText('Week of Aug 10 · 52 contacts so far, 3 of 7 days')).toBeInTheDocument()
   })
 
   it('singularises a one-contact week', () => {
     render(<ContactPacing data={data({
       weeks: [{ week: '2026-W31', contacts: 1 }, { week: '2026-W32', contacts: 4 }],
     })} />)
-    expect(screen.getByText('W31 · 1 contact')).toBeInTheDocument()
+    expect(screen.getByText('Week of Jul 27 · 1 contact')).toBeInTheDocument()
+  })
+})
+
+describe('the axis is thinned to month starts', () => {
+  // 35 weekly bars carrying 35 labels is unreadable, and the week number was
+  // never the thing a reader wanted anyway. One label per month start gives a
+  // date the eye can anchor on and leaves the rest of the track clean. Every
+  // bucket keeps a cell so the label track and the bar track stay in step; only
+  // the anchors carry text.
+  it('labels only the bucket that opens each month', () => {
+    const { container } = render(<ContactPacing data={data({
+      weeks: [
+        { week: '2026-W01', contacts: 10 }, { week: '2026-W02', contacts: 20 },
+        { week: '2026-W03', contacts: 30 }, { week: '2026-W04', contacts: 40 },
+        { week: '2026-W05', contacts: 50 }, { week: '2026-W06', contacts: 60 },
+        { week: '2026-W07', contacts: 70 }, { week: '2026-W08', contacts: 80 },
+        { week: '2026-W09', contacts: 90 },
+      ],
+    })} />)
+    const cells = Array.from(container.querySelectorAll('[data-week-label]'))
+    expect(cells).toHaveLength(9)
+    const labelled = cells.filter((c) => (c.textContent ?? '') !== '').map((c) => c.textContent)
+    // 2026-W01 opens on 2025-12-29, so the January anchor is W02, not W01.
+    expect(labelled).toEqual(['Jan 5', 'Feb 2'])
+  })
+
+  it('anchors the first bucket when it does not sit beside a month change', () => {
+    const { container } = render(<ContactPacing data={data({
+      weeks: [
+        { week: '2026-W02', contacts: 10 }, { week: '2026-W03', contacts: 20 },
+        { week: '2026-W04', contacts: 30 },
+      ],
+    })} />)
+    const labelled = Array.from(container.querySelectorAll('[data-week-label]'))
+      .filter((c) => (c.textContent ?? '') !== '').map((c) => c.textContent)
+    expect(labelled).toEqual(['Jan 5'])
   })
 })
 

@@ -1,4 +1,5 @@
 import { salesforceQuery, resolveCompareIso } from './base'
+import { isoWeekStart } from './iso-week'
 import { toNumber } from './num'
 import { cached } from '@/lib/cache'
 import { byClient } from '@/lib/perf'
@@ -34,15 +35,6 @@ function weekOrdinal(week: string): number {
 }
 
 const DAY_MS = 86_400_000
-
-/** The Monday (UTC) that starts the given ISO week key. */
-function isoWeekStart(week: string): Date {
-  const [y, w] = week.split('-W').map(Number)
-  // Jan 4 is always in ISO week 1, so its Monday anchors the year.
-  const jan4 = new Date(Date.UTC(y, 0, 4))
-  const dow = jan4.getUTCDay() || 7
-  return new Date(jan4.getTime() - (dow - 1) * DAY_MS + (w - 1) * 7 * DAY_MS)
-}
 
 /** The ISO week key containing the given instant. UTC throughout, matching the
  * rest of this module's date handling (see resolveCompareIso in base.ts). */

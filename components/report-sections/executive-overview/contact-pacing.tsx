@@ -1,5 +1,6 @@
 import type { WeeklyContacts } from '@/lib/salesforce/types'
 import { CHART_COLORS } from '@/lib/constants'
+import { isoWeekStart } from '@/lib/salesforce/iso-week'
 import { KpiCard } from './kpi-card'
 import { NoData } from './no-data'
 import { fmtNum } from './reshape'
@@ -13,9 +14,14 @@ function countLabel(n: number): string {
   return `${fmtNum(n)} ${n === 1 ? 'contact' : 'contacts'}`
 }
 
-/** '2026-W33' to 'W33'. */
-function weekLabel(week: string): string {
-  return `W${week.split('-W')[1] ?? ''}`
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** 'Aug 3' for the Monday that opens a week. Fixed abbreviations rather than
+ *  Intl.DateTimeFormat: this renders on the server, and a locale-dependent month
+ *  name would make the axis differ between environments and its assertions
+ *  differ between machines. UTC throughout, matching the transform's week keys. */
+function dateLabel(monday: Date): string {
+  return `${MONTHS[monday.getUTCMonth()]} ${monday.getUTCDate()}`
 }
 
 export function ContactPacing({ data }: { data: WeeklyContacts }) {
@@ -43,6 +49,19 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const hasCompletedWeek = weeks.length >= 2
 
   const max = Math.max(...weeks.map((w) => w.contacts))
+
+  // Week numbers are how the data is keyed, not how a reader reads a year. The
+  // axis is labelled by date and thinned to one anchor per month: 35 labels on
+  // 35 cells is a smear, and the intermediate weeks are legible by position
+  // once the month starts are marked.
+  const starts = weeks.map((b) => isoWeekStart(b.week))
+  const opensMonth = starts.map((d, i) => i > 0 && d.getUTCMonth() !== starts[i - 1].getUTCMonth())
+  // The first bucket is anchored too, since a year whose data opens mid-month
+  // would otherwise carry no label until the next month change. It yields when
+  // the SECOND bucket opens a month, which happens whenever ISO week 1 starts in
+  // December: labelling both would print two dates on adjacent cells at the
+  // narrowest point of the chart.
+  const labelled = starts.map((d, i) => (i === 0 ? !(starts.length > 1 && opensMonth[1]) : opensMonth[i]))
 
   return (
     <div className="space-y-6">
@@ -120,21 +139,24 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
                   />
                   <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
                     {isPartial
-                      ? `${weekLabel(b.week)} \u00b7 ${countLabel(b.contacts)} so far, ${daysElapsedInCurrentWeek} of 7 days`
-                      : `${weekLabel(b.week)} \u00b7 ${countLabel(b.contacts)}`}
+                      ? `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)} so far, ${daysElapsedInCurrentWeek} of 7 days`
+                      : `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)}`}
                   </span>
                 </div>
               )
             })}
           </div>
           <div className="flex gap-1">
-            {weeks.map((b) => (
+            {weeks.map((b, i) => (
+              // Every bucket keeps a cell, labelled or not, so the label track
+              // and the bar track stay in step: dropping the blanks would let
+              // the remaining labels slide out from under their bars.
               <span
                 key={b.week}
                 data-week-label={b.week}
                 className="flex-1 text-center text-[10px] text-text-muted"
               >
-                {weekLabel(b.week)}
+                {labelled[i] ? dateLabel(starts[i]) : ''}
               </span>
             ))}
           </div>
