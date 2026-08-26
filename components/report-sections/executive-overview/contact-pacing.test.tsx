@@ -121,10 +121,124 @@ describe('the in-progress bar is marked', () => {
     expect(screen.getByText('Final bar is the current week in progress: 3 of 7 days.')).toBeInTheDocument()
   })
 
-  it('labels buckets by week number', () => {
+  it('labels the axis by date, not by week number', () => {
     render(<ContactPacing data={data()} />)
-    expect(screen.getByText('W31')).toBeInTheDocument()
-    expect(screen.getByText('W33')).toBeInTheDocument()
+    expect(screen.queryByText(/^W\d\d$/)).not.toBeInTheDocument()
+    expect(screen.getByText('Aug 3')).toBeInTheDocument()
+  })
+})
+
+describe('bar heights resolve against a definite containing block', () => {
+  // The bars carry `height: N%`, and a percentage height resolves against its
+  // containing block's height. Every element between a bar and the fixed-height
+  // row must therefore carry a definite height of its own. The original markup
+  // nested each bar in a per-week column that had none: the row is `items-end`,
+  // which suppresses the default `align-items: stretch`, so the column was
+  // sized by its content, the percentage resolved to `auto`, and every bar
+  // rendered at zero height while the labels below them still drew.
+  //
+  // The hover target reintroduced a wrapper, which is why this asserts the
+  // whole ancestor chain rather than "the bar is a direct child": `h-full` on
+  // that wrapper keeps the chain definite. jsdom performs no layout, so no
+  // assertion on the emitted style string can catch a regression here.
+  it('keeps every element between a bar and the fixed-height row definite', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    const row = container.querySelector('.h-32')
+    expect(row).not.toBeNull()
+    const bars = Array.from(container.querySelectorAll('[data-week]'))
+    expect(bars).toHaveLength(3)
+    for (const bar of bars) {
+      let node = bar.parentElement
+      let hops = 0
+      while (node && node !== row) {
+        expect(node.className).toMatch(/\bh-full\b/)
+        node = node.parentElement
+        hops++
+        expect(hops).toBeLessThan(5)
+      }
+      expect(node).toBe(row)
+    }
+  })
+
+  it('keeps one label per bucket so the label track still matches the bar track', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    expect(container.querySelectorAll('[data-week-label]')).toHaveLength(
+      container.querySelectorAll('[data-week]').length,
+    )
+  })
+})
+
+describe('bars read as the Online Contacts stage', () => {
+  // The journey card heading this block is CHART_COLORS.positive. Grey bars
+  // under a green card made the two look like different sources.
+  it('fills completed bars with the section green', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    const bars = Array.from(container.querySelectorAll('[data-week]')) as HTMLElement[]
+    expect(bars[0].style.backgroundColor).toBe('rgb(96, 255, 128)')
+  })
+
+  it('keeps the in-progress bar visually distinct rather than solid', () => {
+    const { container } = render(<ContactPacing data={data()} />)
+    const bars = Array.from(container.querySelectorAll('[data-week]')) as HTMLElement[]
+    const partial = bars[2]
+    expect(partial.getAttribute('data-partial')).toBe('true')
+    expect(partial.style.backgroundColor).not.toBe(bars[0].style.backgroundColor)
+  })
+})
+
+describe('bars are hoverable, like every other chart in the report', () => {
+  it('names the week and its count on every bar', () => {
+    render(<ContactPacing data={data()} />)
+    expect(screen.getByText('Week of Jul 27 · 240 contacts')).toBeInTheDocument()
+    expect(screen.getByText('Week of Aug 3 · 186 contacts')).toBeInTheDocument()
+  })
+
+  it('says the final bar is still filling, so its lower count is not read as a drop', () => {
+    render(<ContactPacing data={data()} />)
+    expect(screen.getByText('Week of Aug 10 · 52 contacts so far, 3 of 7 days')).toBeInTheDocument()
+  })
+
+  it('singularises a one-contact week', () => {
+    render(<ContactPacing data={data({
+      weeks: [{ week: '2026-W31', contacts: 1 }, { week: '2026-W32', contacts: 4 }],
+    })} />)
+    expect(screen.getByText('Week of Jul 27 · 1 contact')).toBeInTheDocument()
+  })
+})
+
+describe('the axis is thinned to month starts', () => {
+  // 35 weekly bars carrying 35 labels is unreadable, and the week number was
+  // never the thing a reader wanted anyway. One label per month start gives a
+  // date the eye can anchor on and leaves the rest of the track clean. Every
+  // bucket keeps a cell so the label track and the bar track stay in step; only
+  // the anchors carry text.
+  it('labels only the bucket that opens each month', () => {
+    const { container } = render(<ContactPacing data={data({
+      weeks: [
+        { week: '2026-W01', contacts: 10 }, { week: '2026-W02', contacts: 20 },
+        { week: '2026-W03', contacts: 30 }, { week: '2026-W04', contacts: 40 },
+        { week: '2026-W05', contacts: 50 }, { week: '2026-W06', contacts: 60 },
+        { week: '2026-W07', contacts: 70 }, { week: '2026-W08', contacts: 80 },
+        { week: '2026-W09', contacts: 90 },
+      ],
+    })} />)
+    const cells = Array.from(container.querySelectorAll('[data-week-label]'))
+    expect(cells).toHaveLength(9)
+    const labelled = cells.filter((c) => (c.textContent ?? '') !== '').map((c) => c.textContent)
+    // 2026-W01 opens on 2025-12-29, so the January anchor is W02, not W01.
+    expect(labelled).toEqual(['Jan 5', 'Feb 2'])
+  })
+
+  it('anchors the first bucket when it does not sit beside a month change', () => {
+    const { container } = render(<ContactPacing data={data({
+      weeks: [
+        { week: '2026-W02', contacts: 10 }, { week: '2026-W03', contacts: 20 },
+        { week: '2026-W04', contacts: 30 },
+      ],
+    })} />)
+    const labelled = Array.from(container.querySelectorAll('[data-week-label]'))
+      .filter((c) => (c.textContent ?? '') !== '').map((c) => c.textContent)
+    expect(labelled).toEqual(['Jan 5'])
   })
 })
 
