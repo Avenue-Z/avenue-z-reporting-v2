@@ -50,9 +50,12 @@ export async function salesforceQuery(
     maxRows: opts.maxRows ?? 500,
   }, {
     // Left undefined by default so smQuery's own REQUEST_TIMEOUT_MS stays the
-    // single source of the 15s hang guard. Callers whose window is genuinely
-    // wide enough to take longer than that pass their own; see WIDE_TIMEOUT_MS
-    // in pipeline.ts for why the open-window queries need it.
+    // single source of the 15s hang guard. Callers that need more pass their
+    // own; see SALESFORCE_TIMEOUT_MS in pipeline.ts, which every pipeline query
+    // now takes. Note what that constant is NOT: it is no longer a
+    // wide-window-only allowance. The 15s budget covers connect + transfer +
+    // parse + event-loop wait, so a narrow year-to-date query on a busy
+    // function aborts just as readily as an 18-year one.
     timeoutMs: opts.timeoutMs,
   })
   return parseSmRows(result)

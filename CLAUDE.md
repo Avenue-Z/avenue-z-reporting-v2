@@ -171,8 +171,12 @@ export interface SmResult { header: string[]; rows: string[][] }
 with the data array; large/queued queries return a `schedule_id` without data,
 and the helper polls `/query/data/json/{schedule_id}` until the data appears
 (~60s ceiling via `maxPolls`) or throws `SmTimeoutError`. Each request has a
-15s hang guard (`REQUEST_TIMEOUT_MS`, via `AbortController`) and retries HTTP
-429 honoring `Retry-After`. Rows are keyed by canonical `field_id` (from
+15s hang guard (`REQUEST_TIMEOUT_MS`, via `AbortController`; callers needing
+more pass `timeoutMs`, as every Salesforce *pipeline* query does — the contact
+queries in `lib/salesforce/contacts.ts` still take the default) and bounded retries for
+the three transient cases: HTTP 429, HTTP 5xx, and socket-level failures. 429
+and 5xx honor `Retry-After` when present; a 4xx is an answer and is never
+retried, and neither is our own abort. Rows are keyed by canonical `field_id` (from
 `meta.query.fields`), not the display-name header row; `parseSmRows(result)`
 turns the `{ header, rows }` shape into objects.
 

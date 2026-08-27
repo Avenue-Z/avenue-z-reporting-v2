@@ -8,15 +8,71 @@ vi.mock('@/lib/salesforce/base', () => ({ salesforceQuery: vi.fn(), resolveCompa
 // The real getClientBySlug hits Next.js's unstable_cache, which throws outside a
 // request context, so it must be mocked here too.
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
-// getSalesforcePipeline (the public export) is wrapped in cached(), which calls
-// Next's unstable_cache under the hood. unstable_cache throws
-// ("Invariant: incrementalCache missing") outside a real request context, which
-// is exactly what every test here is. These tests import the internal
-// ...Impl directly instead, per the pattern cached() is built around (see
-// lib/hubspot/client.ts): the wrapper is a thin cache/perf/health shell around
-// the impl, so exercising the impl directly tests the same orchestration logic
-// without needing to fake a request context.
-import { getSalesforcePipelineImpl as getSalesforcePipeline, openWindow } from './pipeline'
+// The four queries are now each wrapped in cached() individually (see the
+// per-query caching test below), so the wrappers sit BETWEEN the composer and
+// the mocked salesforceQuery and every test in this file would hit them.
+// cached() calls Next's unstable_cache, which throws ("Invariant:
+// incrementalCache missing") outside a real request context — exactly what
+// every test here is. Replacing cached() with a pass-through is precisely what
+// CACHE_DISABLE=1 does in production (lib/cache.ts), so the orchestration under
+// test is unchanged; only the cache/perf/health shell is removed.
+//
+// Two records, because "a wrapper was built" and "the composer goes through it"
+// are different claims and only the second one is the property that matters.
+// cachedRegistry captures each cached() call at module load (with its options,
+// so the health severity of a fetcher is pinned too); cacheCalls captures every
+// invocation that actually passes through a wrapper during a render.
+//
+// The distinction is not theoretical. An earlier version of this file asserted
+// on the registry alone, and swapping getOpenStages(slug) for openStagesImpl(slug)
+// in the composer — which disables caching for that query outright — left all
+// twenty tests green, because the `const getOpenStages = cached(...)` line still
+// ran and still registered.
+//
+// The registry also keeps the IMPL each wrapper was built around. That is what
+// lets a test ask the question the two records above cannot: is the value
+// handed to cached() a rejection or a caught null? Moving a `.catch` from the
+// composer into an impl is a one-line edit that leaves every other test in this
+// file green while restoring the outage — unstable_cache stores the fulfilled
+// null and replays it for the full hour.
+const { cachedRegistry, cacheCalls } = vi.hoisted(() => ({
+  cachedRegistry: [] as Array<{
+    vendor: string
+    fn: string
+    options: Record<string, unknown>
+    impl: (...a: unknown[]) => unknown
+  }>,
+  cacheCalls: [] as string[],
+}))
+vi.mock('@/lib/cache', () => ({
+  cached: (
+    vendor: string,
+    fn: string,
+    impl: (...a: unknown[]) => unknown,
+    options: Record<string, unknown> = {},
+  ) => {
+    cachedRegistry.push({ vendor, fn, options, impl })
+    // A DISTINCT function, never `impl` itself: the composer calling the impl
+    // directly has to be observably different from it calling the wrapper, or
+    // the test below cannot tell the two apart. Beyond the record it is a
+    // pass-through, which is exactly what CACHE_DISABLE=1 does in production,
+    // so the orchestration under test is unchanged.
+    return (...args: unknown[]) => {
+      cacheCalls.push(fn)
+      return impl(...args)
+    }
+  },
+}))
+// These tests import the internal ...Impl directly, per the pattern the
+// composer is built around (see lib/hubspot/client.ts): it is the plain,
+// uncached orchestration, and calling it exercises the same logic a render does.
+import {
+  getSalesforcePipelineImpl as getSalesforcePipeline,
+  // The public export, imported under its own name so the composite-uncached
+  // test can compare the two by identity rather than by string.
+  getSalesforcePipeline as exportedPipeline,
+  openWindow,
+} from './pipeline'
 const EXPECTED_OPEN_WINDOW = openWindow()
 import { salesforceQuery, resolveCompareIso } from './base'
 import { getClientBySlug } from '@/lib/db/queries'
@@ -110,14 +166,24 @@ describe('getSalesforcePipeline', () => {
     expect(openWindowedByYtd).toBeUndefined()
   })
 
-  test('gives only the two wide open-window queries a timeout above smQuery\'s 15s hang guard', async () => {
-    // Live on Renaissance the by-owner query takes ~42s and the wide open-stage
-    // query times out under concurrent load, both tripping smQuery's 15s
-    // REQUEST_TIMEOUT_MS. getSalesforcePipeline is cached() for an hour and
-    // degrades rather than throws, so one timed-out render pins byOwner: null
-    // and openUnavailable for the whole hour. Only these two span the ~18-year
-    // created-date window; the won queries are a year or less and stay on the
-    // default guard, so a genuinely hung connector still fails fast there.
+  test('gives every Salesforce query a timeout above smQuery\'s 15s hang guard, won queries included', async () => {
+    // The won queries were the last two left on smQuery's 15s default, on the
+    // reasoning that only the wide created-date queries were slow enough to
+    // need more. Staging disproved that: the closed-won query aborted at
+    // exactly 15000ms on 2026-08-26 AND 2026-08-27, while the two queries that
+    // had been given headroom never failed once.
+    //
+    // The reason is that the 15s budget is not a network budget. The abort
+    // timer is armed before the fetch and res.json() runs inside the same
+    // window (lib/supermetrics/client.ts), so connect + transfer + parse + any
+    // time the continuation spends waiting on a busy event loop all count
+    // against it. On a CPU-pressured serverless function that aborts a query
+    // whose response actually arrived in ~2s, which is what these measure
+    // uncontended and at 16 in flight.
+    //
+    // Raising all four costs nothing in worst-case page latency: they run
+    // concurrently in one Promise.all, so the ceiling was already the wide
+    // queries' 60s. A genuinely hung connector still fails, just later.
     ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
     const calls: Array<{ fields: string[]; dateRange: string; timeoutMs?: number }> = []
     ;(salesforceQuery as Mock).mockImplementation(
@@ -128,13 +194,110 @@ describe('getSalesforcePipeline', () => {
     )
     await getSalesforcePipeline('acme')
 
-    const wide = calls.filter((c) => c.dateRange === EXPECTED_OPEN_WINDOW)
-    expect(wide).toHaveLength(2) // open stage + owner
-    for (const c of wide) expect(c.timeoutMs).toBeGreaterThan(15_000)
+    expect(calls).toHaveLength(4) // open, won-current, won-prior, owner
+    for (const c of calls) expect(c.timeoutMs).toBeGreaterThan(15_000)
 
-    const narrow = calls.filter((c) => c.dateRange !== EXPECTED_OPEN_WINDOW)
-    expect(narrow).toHaveLength(2) // won-current + won-prior
-    for (const c of narrow) expect(c.timeoutMs).toBeUndefined()
+    // Named explicitly so a regression that reverts only the won queries — the
+    // exact shape of the bug — fails here rather than passing on the other two.
+    const won = calls.filter((c) => c.dateRange !== EXPECTED_OPEN_WINDOW)
+    expect(won).toHaveLength(2)
+    for (const c of won) expect(c.timeoutMs).toBeGreaterThan(15_000)
+  })
+
+  test('caches each query separately, so one failure cannot poison the other three', () => {
+    // The hour-long outage this prevents (staging, 2026-08-26 16:32): the open
+    // query 500'd and the closed-won query timed out while the owner query
+    // succeeded. A partial degrade is still a FULFILLED result, so cached()
+    // stored the degraded object over a good entry and served four dashed tiles
+    // for the rest of the TTL, long after the vendor recovered. Retrying 5xx
+    // makes that rarer; it cannot make it impossible, because any single query
+    // failing for a reason retries cannot cure does the same thing again.
+    //
+    // Caching each query on its own entry removes the shared fate: a query that
+    // throws is simply not stored (unstable_cache writes nothing for a rejected
+    // call), so the next render retries that one query while the other three
+    // serve warm. The composite must NOT be cached, or the poisoning is back.
+    //
+    // Structural rather than behavioural on purpose: the property under test is
+    // where the cache boundary sits, and unstable_cache's real store cannot be
+    // exercised outside a request context.
+    // Exact, not arrayContaining: a set that merely CONTAINS the four is also
+    // satisfied by a fifth entry wrapping the composer, which is the one thing
+    // this test exists to forbid.
+    const fns = cachedRegistry.filter((c) => c.vendor === 'salesforce').map((c) => c.fn).sort()
+    expect(fns).toEqual(['openStages', 'ownerRows', 'wonStages', 'wonStagesCompare'])
+
+    // Identity, not name. The previous version asserted the registry held no
+    // entry called 'getSalesforcePipeline', which any other label sails past —
+    // `cached('salesforce', 'pipeline', getSalesforcePipelineImpl)` restores the
+    // shared fate with the whole suite green. Comparing the export to the impl
+    // cannot be fooled: a wrapper is a different function object, whatever it
+    // is registered as.
+    expect(exportedPipeline).toBe(getSalesforcePipeline)
+  })
+
+  test('hands cached() a rejection, never a caught null: the .catch stays outside the wrapper', () => {
+    // The invariant the whole split rests on, and the one no test covered.
+    // unstable_cache stores nothing for a REJECTED call — that is the entire
+    // mechanism by which a failed query no longer poisons an entry. It does
+    // store a FULFILLED one, so a `.catch(() => null)` moved from the composer
+    // down into an impl turns the failure back into cached data and replays the
+    // outage for the full hour, with every other test in this file still green.
+    //
+    // Asserted on the impls the registry captured rather than on the composer,
+    // because that is exactly the boundary in question: what cached() is handed.
+    ;(salesforceQuery as Mock).mockRejectedValue(new Error('vendor 500'))
+    const salesforce = cachedRegistry.filter((c) => c.vendor === 'salesforce')
+    expect(salesforce).toHaveLength(4)
+    return Promise.all(
+      salesforce.map((c) =>
+        // Both arities: the won impl takes (slug, range), the other two (slug).
+        expect(c.impl('acme', '2025-01-01,2025-12-31')).rejects.toThrow('vendor 500'),
+      ),
+    )
+  })
+
+  test('routes every query through its wrapper, not past it to the bare impl', async () => {
+    // The half of the property the registration check cannot see. Registering a
+    // wrapper proves nothing if the composer then calls the impl directly, and
+    // that swap is a one-word edit that silently disables caching for a query.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve([stageRow('Closed Won', 10, 1000, 100, true)])
+    })
+    cacheCalls.length = 0
+    await getSalesforcePipeline('acme')
+    // All four, including the compare window: each one that stops appearing here
+    // is a query that has quietly left the cache and is re-fetched every render.
+    expect(cacheCalls.sort()).toEqual(['openStages', 'ownerRows', 'wonStages', 'wonStagesCompare'])
+  })
+
+  test('keeps the compare fetch out of the health verdict, unlike the three that back tiles', () => {
+    // The prior-year window only supplies the Closed Won delta, and the composer
+    // documents its failure as costing exactly that. Once recordFetch moved down
+    // onto the queries, a failure there would have entered the beacon's failed
+    // set and made deriveStatus mark the whole Executive Overview down — paging
+    // Slack over a missing arrow on a page that rendered every figure it owes.
+    const bySeverity = (fn: string) =>
+      cachedRegistry.find((c) => c.vendor === 'salesforce' && c.fn === fn)?.options.healthCritical
+    expect(bySeverity('wonStagesCompare')).toBe(false)
+    // Left undefined (cached() defaults it true) on the three whose failure does
+    // dash a tile, so a real outage still reports.
+    for (const fn of ['openStages', 'wonStages', 'ownerRows']) {
+      expect(bySeverity(fn)).toBeUndefined()
+    }
+  })
+
+  test('gives every Salesforce query a negative TTL far below the positive one', () => {
+    // unstable_cache stores nothing for a rejected call, so without this a query
+    // failing persistently is re-issued on every render and pays the full 60s
+    // ceiling each time. Short enough that a blip cannot cost anything like the
+    // hour it used to; long enough to stop the storm.
+    for (const c of cachedRegistry.filter((c) => c.vendor === 'salesforce')) {
+      expect(c.options.negativeTtlSeconds).toBe(60)
+      expect(c.options.negativeTtlSeconds as number).toBeLessThan(3600)
+    }
   })
 
   test('a failed owner fetch yields byOwner null, never an empty array', async () => {
