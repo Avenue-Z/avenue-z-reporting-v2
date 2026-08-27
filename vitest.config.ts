@@ -23,6 +23,7 @@ export default defineConfig({
       'lib/ga4/format-speed.test.ts',
       'lib/ga4/order-by.test.ts',
       'lib/concurrency.test.ts',
+      'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
       'lib/meta/kpis.test.ts',
       'lib/meta/creative.test.ts',

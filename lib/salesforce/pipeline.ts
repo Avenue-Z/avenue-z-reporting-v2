@@ -300,14 +300,25 @@ export function transformByOwner(
  *    contemporaneous.
  *
  *    What bounds it: in the healthy path all four are written by the same
- *    render and expire together, so they stay in lockstep. Skew appears only
- *    after a partial failure — precisely the case whose alternative was four
- *    dashed tiles for an hour — and it is capped by the 1-hour TTL, after which
- *    the laggards refresh. A tile and a chart that disagree slightly for part
- *    of an hour beats both of them showing nothing for all of it, so the split
- *    stands; but it is a real trade, not a free win, and anything that later
- *    needs these four to be strictly consistent has to re-unify them behind one
- *    entry and re-solve the shared-fate problem some other way.
+ *    render and expire together, so they stay in lockstep, and no entry is ever
+ *    staler than the 1-hour TTL. Skew appears only after a partial failure —
+ *    precisely the case whose alternative was four dashed tiles for an hour.
+ *
+ *    What does NOT bound it: the misalignment is permanent, not self-healing.
+ *    Nothing re-synchronises the four expiries. A query that fails while its
+ *    siblings are written comes back roughly NEGATIVE_TTL_SECONDS later and
+ *    keeps that offset from then on: in every subsequent hour there is a ~65s
+ *    window where the three that expired on time hold a fresh fetch and the
+ *    laggard is still serving the previous hour's, a data-age gap of nearly an
+ *    hour. Only another partial failure, a deploy, or a tag invalidation moves
+ *    it. Steady state is a brief recurring gap, not one that the next TTL
+ *    closes.
+ *
+ *    A tile and a chart that disagree slightly for part of an hour beats both
+ *    of them showing nothing for all of it, so the split stands; but it is a
+ *    real trade, not a free win, and anything that later needs these four to be
+ *    strictly consistent has to re-unify them behind one entry and re-solve the
+ *    shared-fate problem some other way.
  *
  * The won queries get two wrappers, not one. They run the same impl over
  * different windows, so a single wrapper would have served both (the range is

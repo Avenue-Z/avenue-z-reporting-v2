@@ -93,6 +93,38 @@ describe('transient network failures are retried', () => {
     expect(calls).toBe(3)
   })
 
+  test('spends one budget across the whole retry chain, not a fresh timeout per attempt', async () => {
+    // The abort timer used to be armed inside each attempt, so a retry got a
+    // fresh full timeoutMs. Harmless while a 5xx threw on the first response;
+    // load-bearing once 5xx is retried, because the Salesforce ceiling is 60s
+    // and 3 x 60s + back-off is 181.5s — on report pages that declare no
+    // maxDuration and under a health sweep that declares 60s. Wide pipeline
+    // queries genuinely run 41-49s cold, so a late-arriving 500 is ordinary.
+    const TIMEOUT = 300
+    const FETCH_MS = 200
+    let calls = 0
+    const slow503 = ((_u: string, init?: RequestInit) => {
+      calls++
+      return new Promise<Response>((resolve, reject) => {
+        const t = setTimeout(
+          () => resolve({ ok: false, status: 503, headers: { get: () => null }, json: async () => ({}) } as unknown as Response),
+          FETCH_MS,
+        )
+        init?.signal?.addEventListener('abort', () => {
+          clearTimeout(t)
+          const e = new Error('aborted'); e.name = 'AbortError'; reject(e)
+        })
+      })
+    }) as unknown as typeof fetch
+    const start = Date.now()
+    await expect(smQuery(params, { fetchImpl: slow503, timeoutMs: TIMEOUT, retryDelayMs: 10 }))
+      .rejects.toBeInstanceOf(SmTimeoutError)
+    // A per-attempt timeout would allow three 200ms fetches plus back-off (~630ms).
+    expect(Date.now() - start).toBeLessThan(TIMEOUT + 150)
+    // And the bound is the deadline, not an early give-up: it did retry.
+    expect(calls).toBeGreaterThan(1)
+  })
+
   test('does not retry a genuine API rejection: a 400 is an answer, not a blip', async () => {
     let calls = 0
     const bad = vi.fn(async () => {
@@ -171,6 +203,46 @@ describe('a retryable response is handled without wasting the vendor\'s hint or 
     const impl = vi.fn(async () => res) as unknown as typeof fetch
     await expect(smQuery(params, { fetchImpl: impl, retryDelayMs: 1 })).rejects.toThrow(/503/)
     expect(cancel).toHaveBeenCalledTimes(3)
+  })
+
+  /** A 429 that hands back a spy on the body it never gets read. */
+  const rateLimited = () => {
+    const cancel = vi.fn(async () => {})
+    return {
+      res: {
+        ok: false, status: 429, headers: { get: () => null }, body: { cancel }, json: async () => ({}),
+      } as unknown as Response,
+      cancel,
+    }
+  }
+
+  test('retries a 429 and recovers, the branch that had no coverage at all', async () => {
+    const { res } = rateLimited()
+    let calls = 0
+    const impl = vi.fn(async () => { calls++; return calls === 1 ? res : ok() }) as unknown as typeof fetch
+    const out = await smQuery(params, { fetchImpl: impl, retryDelayMs: 1 })
+    expect(out.rows).toEqual([['10']])
+    expect(calls).toBe(2)
+  })
+
+  test('gives a persistent 429 the same 3 attempts as every other branch, and releases every body', async () => {
+    // Two defects met here. The give-up test was a hardcoded `attempt >= 3`
+    // sharing one counter with the 5xx branch's MAX_NETWORK_RETRIES, so a run
+    // of 429s quietly got four attempts while the docblock promised three. And
+    // the throw it guarded was the one unread-response path in the file with no
+    // discardBody: four requests, three bodies cancelled, the last socket pinned
+    // until GC — precisely when connections are scarcest.
+    const { res, cancel } = rateLimited()
+    let calls = 0
+    const impl = vi.fn(async () => { calls++; return res }) as unknown as typeof fetch
+    const start = Date.now()
+    await expect(smQuery(params, { fetchImpl: impl, retryDelayMs: 1 })).rejects.toThrow(/rate limit/)
+    expect(calls).toBe(3)
+    expect(cancel).toHaveBeenCalledTimes(3)
+    // The back-off derives from retryDelayMs (1ms here, so 4ms then 8ms). The
+    // hardcoded 2000ms literal it replaces would put this run past 4 seconds —
+    // which is why no suite ever covered this branch.
+    expect(Date.now() - start).toBeLessThan(1000)
   })
 
   test('releases the body of a 4xx too, which is thrown without ever being read', async () => {

@@ -28,8 +28,20 @@ vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 // in the composer — which disables caching for that query outright — left all
 // twenty tests green, because the `const getOpenStages = cached(...)` line still
 // ran and still registered.
+//
+// The registry also keeps the IMPL each wrapper was built around. That is what
+// lets a test ask the question the two records above cannot: is the value
+// handed to cached() a rejection or a caught null? Moving a `.catch` from the
+// composer into an impl is a one-line edit that leaves every other test in this
+// file green while restoring the outage — unstable_cache stores the fulfilled
+// null and replays it for the full hour.
 const { cachedRegistry, cacheCalls } = vi.hoisted(() => ({
-  cachedRegistry: [] as Array<{ vendor: string; fn: string; options: Record<string, unknown> }>,
+  cachedRegistry: [] as Array<{
+    vendor: string
+    fn: string
+    options: Record<string, unknown>
+    impl: (...a: unknown[]) => unknown
+  }>,
   cacheCalls: [] as string[],
 }))
 vi.mock('@/lib/cache', () => ({
@@ -39,7 +51,7 @@ vi.mock('@/lib/cache', () => ({
     impl: (...a: unknown[]) => unknown,
     options: Record<string, unknown> = {},
   ) => {
-    cachedRegistry.push({ vendor, fn, options })
+    cachedRegistry.push({ vendor, fn, options, impl })
     // A DISTINCT function, never `impl` itself: the composer calling the impl
     // directly has to be observably different from it calling the wrapper, or
     // the test below cannot tell the two apart. Beyond the record it is a
@@ -54,7 +66,13 @@ vi.mock('@/lib/cache', () => ({
 // These tests import the internal ...Impl directly, per the pattern the
 // composer is built around (see lib/hubspot/client.ts): it is the plain,
 // uncached orchestration, and calling it exercises the same logic a render does.
-import { getSalesforcePipelineImpl as getSalesforcePipeline, openWindow } from './pipeline'
+import {
+  getSalesforcePipelineImpl as getSalesforcePipeline,
+  // The public export, imported under its own name so the composite-uncached
+  // test can compare the two by identity rather than by string.
+  getSalesforcePipeline as exportedPipeline,
+  openWindow,
+} from './pipeline'
 const EXPECTED_OPEN_WINDOW = openWindow()
 import { salesforceQuery, resolveCompareIso } from './base'
 import { getClientBySlug } from '@/lib/db/queries'
@@ -203,11 +221,40 @@ describe('getSalesforcePipeline', () => {
     // Structural rather than behavioural on purpose: the property under test is
     // where the cache boundary sits, and unstable_cache's real store cannot be
     // exercised outside a request context.
-    const fns = cachedRegistry.filter((c) => c.vendor === 'salesforce').map((c) => c.fn)
-    expect(fns).toEqual(
-      expect.arrayContaining(['openStages', 'wonStages', 'wonStagesCompare', 'ownerRows']),
+    // Exact, not arrayContaining: a set that merely CONTAINS the four is also
+    // satisfied by a fifth entry wrapping the composer, which is the one thing
+    // this test exists to forbid.
+    const fns = cachedRegistry.filter((c) => c.vendor === 'salesforce').map((c) => c.fn).sort()
+    expect(fns).toEqual(['openStages', 'ownerRows', 'wonStages', 'wonStagesCompare'])
+
+    // Identity, not name. The previous version asserted the registry held no
+    // entry called 'getSalesforcePipeline', which any other label sails past —
+    // `cached('salesforce', 'pipeline', getSalesforcePipelineImpl)` restores the
+    // shared fate with the whole suite green. Comparing the export to the impl
+    // cannot be fooled: a wrapper is a different function object, whatever it
+    // is registered as.
+    expect(exportedPipeline).toBe(getSalesforcePipeline)
+  })
+
+  test('hands cached() a rejection, never a caught null: the .catch stays outside the wrapper', () => {
+    // The invariant the whole split rests on, and the one no test covered.
+    // unstable_cache stores nothing for a REJECTED call — that is the entire
+    // mechanism by which a failed query no longer poisons an entry. It does
+    // store a FULFILLED one, so a `.catch(() => null)` moved from the composer
+    // down into an impl turns the failure back into cached data and replays the
+    // outage for the full hour, with every other test in this file still green.
+    //
+    // Asserted on the impls the registry captured rather than on the composer,
+    // because that is exactly the boundary in question: what cached() is handed.
+    ;(salesforceQuery as Mock).mockRejectedValue(new Error('vendor 500'))
+    const salesforce = cachedRegistry.filter((c) => c.vendor === 'salesforce')
+    expect(salesforce).toHaveLength(4)
+    return Promise.all(
+      salesforce.map((c) =>
+        // Both arities: the won impl takes (slug, range), the other two (slug).
+        expect(c.impl('acme', '2025-01-01,2025-12-31')).rejects.toThrow('vendor 500'),
+      ),
     )
-    expect(fns).not.toContain('getSalesforcePipeline')
   })
 
   test('routes every query through its wrapper, not past it to the bare impl', async () => {
