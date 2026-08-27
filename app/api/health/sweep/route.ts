@@ -13,7 +13,9 @@
  * time), not an unbounded Promise.all. Each probe self-fetches a full report
  * render (?health=1) that fans out several Neon queries; firing all units at
  * once spiked Function CPU Duration and tripped Neon errors. Bounding keeps
- * peak load flat and under the 60s function ceiling.
+ * peak load flat and under the 60s function ceiling. Each probe is also
+ * individually capped (PROBE_TIMEOUT_MS) so one hung render costs its own unit
+ * rather than the whole sweep.
  */
 import { NextResponse } from 'next/server'
 import { getAllClients, getAllHealthState, upsertHealthState } from '@/lib/db/queries'
@@ -31,6 +33,25 @@ export const maxDuration = 60
 // maxDuration ceiling (wall time ≈ ceil(units / CONCURRENCY) × render).
 const CONCURRENCY = 8
 
+/**
+ * Ceiling on a single probe's render.
+ *
+ * Without one, a probe fetch waits indefinitely and a single hung unit consumes
+ * the whole maxDuration above — taking every other unit's result down with it,
+ * so a sweep that was meant to report one section down reports nothing at all.
+ * That became easy to hit once every Salesforce query took a 60s ceiling
+ * (SALESFORCE_TIMEOUT_MS in lib/salesforce/pipeline.ts): one cold, failing
+ * Executive Overview render is the entire sweep budget on its own.
+ *
+ * 25s is well clear of a healthy render and well inside the 60s function
+ * budget. The crons are ordered so this is not a close call: cache-warm runs at
+ * :30 and the sweeps at :15 and :45 (vercel.json), both inside the 1-hour TTL
+ * it writes, so a probe reads warm entries and answers in seconds. A probe that
+ * needs 25s is not a cold cache, it is a section in trouble — which is a `down`
+ * worth reporting, not a reason to lose the run.
+ */
+const PROBE_TIMEOUT_MS = 25_000
+
 interface Unit {
   url: string
   surface: Surface
@@ -40,10 +61,17 @@ interface Unit {
 
 async function probe(u: Unit, cookieHeader: string): Promise<ProbeResult> {
   try {
-    const res = await fetch(u.url, { headers: { Cookie: cookieHeader }, redirect: 'manual' })
+    const res = await fetch(u.url, {
+      headers: { Cookie: cookieHeader },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
     const html = await res.text()
     return deriveStatus({ surface: u.surface, clientSlug: u.clientSlug, section: u.section, httpStatus: res.status, html })
   } catch {
+    // Includes the PROBE_TIMEOUT_MS abort. httpStatus: null is deriveStatus's
+    // 'fetch failed' -> down path, which is the right verdict for a section
+    // that could not answer inside the window.
     return deriveStatus({ surface: u.surface, clientSlug: u.clientSlug, section: u.section, httpStatus: null, html: '' })
   }
 }

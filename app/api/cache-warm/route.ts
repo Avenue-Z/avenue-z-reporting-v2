@@ -28,13 +28,15 @@ import { mintServiceCookie } from '@/lib/auth/service-cookie'
 import { mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
-// Raised from 60s. The Executive Overview render now waits out the Salesforce
-// open-window queries instead of aborting them at 15s (WIDE_TIMEOUT_MS in
-// lib/salesforce/pipeline.ts), and the by-owner query alone measures about 42s
-// live. At 60s a single such URL could consume the whole budget and leave the
-// remaining batches unwarmed, which defeats the point: this cron exists so the
-// slow first render lands here rather than on a reader. 300 matches the ceiling
-// already in use on app/api/discovery/sm-dimension-values/route.ts.
+// Raised from 60s. The Executive Overview render waits out the Salesforce
+// queries instead of aborting them at 15s (SALESFORCE_TIMEOUT_MS in
+// lib/salesforce/pipeline.ts, which all four queries now take — it started as a
+// wide-window-only allowance and is no longer that), and the by-owner query
+// alone measured about 42s live. At 60s a single such URL could consume the
+// whole budget and leave the remaining batches unwarmed, which defeats the
+// point: this cron exists so the slow first render lands here rather than on a
+// reader. 300 matches the ceiling already in use on
+// app/api/discovery/sm-dimension-values/route.ts.
 export const maxDuration = 300
 
 // Max self-fetch renders in flight at once. Balances peak Neon load against

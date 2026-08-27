@@ -280,29 +280,105 @@ export function transformByOwner(
  * can take the async schedule/poll path, is too much live-render latency for a
  * client-facing page.
  *
- * One wrapper serves both won queries: they differ only by window, and the
- * range is an argument, so each window gets its own cache entry.
+ * Two consequences of the split are deliberate, and both cost something:
+ *
+ * 1. NOT STORING A FAILURE MEANS RE-ISSUING IT. The property that makes the
+ *    split work — unstable_cache writes nothing for a rejected call — also
+ *    means a query that fails persistently is re-run in full on every render,
+ *    each time paying the whole SALESFORCE_TIMEOUT_MS ceiling. Caching the
+ *    composite used to hide that behind the stored degraded object, at the
+ *    price of the hour-long outage above. Hence NEGATIVE_TTL_SECONDS below: a
+ *    failure is remembered just long enough to stop the storm, nowhere near
+ *    long enough to bring the hour back.
+ *
+ * 2. THE FOUR RESULTS ARE NO LONGER ONE SNAPSHOT. openStages and ownerRows read
+ *    the same deals through different aggregations, so while they shared an
+ *    entry the Open Deals tile and Open Deals by Owner could not disagree.
+ *    Separate entries can now hold data fetched at different moments, and the
+ *    owner rows can stop summing to the tile. countUnrecognizedClosed and
+ *    stageTruncated below likewise reason across row sets that need not be
+ *    contemporaneous.
+ *
+ *    What bounds it: in the healthy path all four are written by the same
+ *    render and expire together, so they stay in lockstep. Skew appears only
+ *    after a partial failure — precisely the case whose alternative was four
+ *    dashed tiles for an hour — and it is capped by the 1-hour TTL, after which
+ *    the laggards refresh. A tile and a chart that disagree slightly for part
+ *    of an hour beats both of them showing nothing for all of it, so the split
+ *    stands; but it is a real trade, not a free win, and anything that later
+ *    needs these four to be strictly consistent has to re-unify them behind one
+ *    entry and re-solve the shared-fate problem some other way.
+ *
+ * The won queries get two wrappers, not one. They run the same impl over
+ * different windows, so a single wrapper would have served both (the range is
+ * an argument, so each window keyed its own entry). They are split because the
+ * CURRENT window backs the Closed Won tile while the PRIOR window only supplies
+ * that tile's delta, and after the boundary moved down here that difference
+ * started to matter: see getWonStagesCompare.
  */
+
+/**
+ * How long a failed Salesforce query is remembered before it is attempted again.
+ *
+ * One minute against a 1-hour positive TTL. The asymmetry is the point. A
+ * transient failure now costs at most a minute of dashed tiles instead of the
+ * hour that prompted this whole change, while a genuinely broken query is
+ * attempted once a minute per instance rather than once per render — which
+ * matters because each attempt can burn the full 60s ceiling, on a page the
+ * health sweep probes under a 60s function budget of its own.
+ */
+const NEGATIVE_TTL_SECONDS = 60
 function openStagesImpl(slug: string): Promise<Record<string, string>[]> {
   return salesforceQuery(slug, STAGE_FIELDS, openWindow(), {
     settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
   })
 }
-const getOpenStages = cached('salesforce', 'openStages', openStagesImpl, { extractTags: byClient })
+const getOpenStages = cached('salesforce', 'openStages', openStagesImpl, {
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+})
 
 function wonStagesImpl(slug: string, range: string): Promise<Record<string, string>[]> {
   return salesforceQuery(slug, STAGE_FIELDS, range, {
     settings: WON_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
   })
 }
-const getWonStages = cached('salesforce', 'wonStages', wonStagesImpl, { extractTags: byClient })
+const getWonStages = cached('salesforce', 'wonStages', wonStagesImpl, {
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+})
+
+/**
+ * The prior-year window, whose only job is the Closed Won delta.
+ *
+ * Same impl as getWonStages, separate wrapper for one reason: healthCritical is
+ * false. Moving the cache boundary down onto the queries also moved recordFetch
+ * down with it, and recordFetch is what the health beacon reads. On the
+ * composite, this fetch's failure was caught inside the cached call, the
+ * composite still fulfilled, and health saw a healthy render — correctly, since
+ * the page renders every figure it is asked for and merely omits one delta.
+ * Per query, the same failure lands in the beacon's failed set, and
+ * deriveStatus (lib/health/derive.ts) marks a section down if ANY source
+ * failed. A missing year-over-year arrow would have declared the whole
+ * Executive Overview down and paged Slack for it.
+ *
+ * The contract this fetch has always had is stated a few lines below at its
+ * .catch: degrade rather than fail, "its absence only costs a delta". A signal
+ * that loud contradicts it. The console.error there remains the operational
+ * signal, as it was designed to be, and the PERF line still records the
+ * failure; what is withheld is only the outage verdict. When health grows a
+ * `degraded` status this should become that instead of silence.
+ */
+const getWonStagesCompare = cached('salesforce', 'wonStagesCompare', wonStagesImpl, {
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, healthCritical: false,
+})
 
 function ownerRowsImpl(slug: string): Promise<Record<string, string>[]> {
   return salesforceQuery(slug, OWNER_FIELDS, openWindow(), {
     settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
   })
 }
-const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, { extractTags: byClient })
+const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, {
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+})
 
 /**
  * Fetches open deals over a wide, created-date-basis window (openness is as of
@@ -338,10 +414,13 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
       return null
     }),
     wonPriorIso
-      ? getWonStages(slug, wonPriorIso).catch((e) => {
+      ? getWonStagesCompare(slug, wonPriorIso).catch((e) => {
           // Same degrade-not-fail contract as the owner fetch below: a persistently
           // failing compare fetch silently drops the closed-won year-over-year
           // delta, so it needs the same operational signal before it swallows it.
+          // This console.error IS that signal, and it is the only one: the
+          // wrapper is healthCritical: false precisely so a missing delta does
+          // not read as a page-wide outage. See getWonStagesCompare.
           console.error(`[salesforce] pipeline won-prior fetch failed for ${slug}:`, e)
           return null
         })
@@ -399,9 +478,11 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
 }
 
 // Deliberately NOT wrapped in cached(). The caching (and with it recordFetch,
-// so a Salesforce outage still shows on the health probe) sits on the four
-// query fetchers above, one entry each, so a single failed query cannot write a
-// degraded object over a good composite entry and dash every tile for an hour.
-// See the comment on openStagesImpl for the incident that forced the split.
+// so a Salesforce outage still shows on the health probe — every fetcher above
+// except the delta-only compare window, see getWonStagesCompare) sits on the
+// four query fetchers above, one entry each, so a single failed query cannot
+// write a degraded object over a good composite entry and dash every tile for
+// an hour. See the comment on openStagesImpl for the incident that forced the
+// split, and for the two costs the split carries.
 // Re-wrapping this composer would silently restore that shared fate.
 export const getSalesforcePipeline = getSalesforcePipelineImpl

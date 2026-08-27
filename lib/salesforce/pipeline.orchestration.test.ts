@@ -17,15 +17,38 @@ vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 // CACHE_DISABLE=1 does in production (lib/cache.ts), so the orchestration under
 // test is unchanged; only the cache/perf/health shell is removed.
 //
-// The registry records each wrapper cached() builds at module load, which is
-// what the per-query caching test asserts on.
-const { cachedRegistry } = vi.hoisted(() => ({
-  cachedRegistry: [] as Array<{ vendor: string; fn: string }>,
+// Two records, because "a wrapper was built" and "the composer goes through it"
+// are different claims and only the second one is the property that matters.
+// cachedRegistry captures each cached() call at module load (with its options,
+// so the health severity of a fetcher is pinned too); cacheCalls captures every
+// invocation that actually passes through a wrapper during a render.
+//
+// The distinction is not theoretical. An earlier version of this file asserted
+// on the registry alone, and swapping getOpenStages(slug) for openStagesImpl(slug)
+// in the composer — which disables caching for that query outright — left all
+// twenty tests green, because the `const getOpenStages = cached(...)` line still
+// ran and still registered.
+const { cachedRegistry, cacheCalls } = vi.hoisted(() => ({
+  cachedRegistry: [] as Array<{ vendor: string; fn: string; options: Record<string, unknown> }>,
+  cacheCalls: [] as string[],
 }))
 vi.mock('@/lib/cache', () => ({
-  cached: (vendor: string, fn: string, impl: unknown) => {
-    cachedRegistry.push({ vendor, fn })
-    return impl
+  cached: (
+    vendor: string,
+    fn: string,
+    impl: (...a: unknown[]) => unknown,
+    options: Record<string, unknown> = {},
+  ) => {
+    cachedRegistry.push({ vendor, fn, options })
+    // A DISTINCT function, never `impl` itself: the composer calling the impl
+    // directly has to be observably different from it calling the wrapper, or
+    // the test below cannot tell the two apart. Beyond the record it is a
+    // pass-through, which is exactly what CACHE_DISABLE=1 does in production,
+    // so the orchestration under test is unchanged.
+    return (...args: unknown[]) => {
+      cacheCalls.push(fn)
+      return impl(...args)
+    }
   },
 }))
 // These tests import the internal ...Impl directly, per the pattern the
@@ -181,8 +204,53 @@ describe('getSalesforcePipeline', () => {
     // where the cache boundary sits, and unstable_cache's real store cannot be
     // exercised outside a request context.
     const fns = cachedRegistry.filter((c) => c.vendor === 'salesforce').map((c) => c.fn)
-    expect(fns).toEqual(expect.arrayContaining(['openStages', 'wonStages', 'ownerRows']))
+    expect(fns).toEqual(
+      expect.arrayContaining(['openStages', 'wonStages', 'wonStagesCompare', 'ownerRows']),
+    )
     expect(fns).not.toContain('getSalesforcePipeline')
+  })
+
+  test('routes every query through its wrapper, not past it to the bare impl', async () => {
+    // The half of the property the registration check cannot see. Registering a
+    // wrapper proves nothing if the composer then calls the impl directly, and
+    // that swap is a one-word edit that silently disables caching for a query.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockImplementation((_slug: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      return Promise.resolve([stageRow('Closed Won', 10, 1000, 100, true)])
+    })
+    cacheCalls.length = 0
+    await getSalesforcePipeline('acme')
+    // All four, including the compare window: each one that stops appearing here
+    // is a query that has quietly left the cache and is re-fetched every render.
+    expect(cacheCalls.sort()).toEqual(['openStages', 'ownerRows', 'wonStages', 'wonStagesCompare'])
+  })
+
+  test('keeps the compare fetch out of the health verdict, unlike the three that back tiles', () => {
+    // The prior-year window only supplies the Closed Won delta, and the composer
+    // documents its failure as costing exactly that. Once recordFetch moved down
+    // onto the queries, a failure there would have entered the beacon's failed
+    // set and made deriveStatus mark the whole Executive Overview down — paging
+    // Slack over a missing arrow on a page that rendered every figure it owes.
+    const bySeverity = (fn: string) =>
+      cachedRegistry.find((c) => c.vendor === 'salesforce' && c.fn === fn)?.options.healthCritical
+    expect(bySeverity('wonStagesCompare')).toBe(false)
+    // Left undefined (cached() defaults it true) on the three whose failure does
+    // dash a tile, so a real outage still reports.
+    for (const fn of ['openStages', 'wonStages', 'ownerRows']) {
+      expect(bySeverity(fn)).toBeUndefined()
+    }
+  })
+
+  test('gives every Salesforce query a negative TTL far below the positive one', () => {
+    // unstable_cache stores nothing for a rejected call, so without this a query
+    // failing persistently is re-issued on every render and pays the full 60s
+    // ceiling each time. Short enough that a blip cannot cost anything like the
+    // hour it used to; long enough to stop the storm.
+    for (const c of cachedRegistry.filter((c) => c.vendor === 'salesforce')) {
+      expect(c.options.negativeTtlSeconds).toBe(60)
+      expect(c.options.negativeTtlSeconds as number).toBeLessThan(3600)
+    }
   })
 
   test('a failed owner fetch yields byOwner null, never an empty array', async () => {
