@@ -597,3 +597,120 @@ describe('getSalesforcePipeline', () => {
     err.mockRestore()
   })
 })
+
+describe('campaign scoping', () => {
+  const OURS = '2026 - Inbound Prospecting'
+  const THEIRS = 'Napa Golf Outing'
+  const NAMES = [OURS, '2026 - Inbound Prospecting - Employers']
+
+  const withCampaign = (row: Record<string, unknown>, campaign: string) => ({ ...row, campaign_name: campaign })
+
+  /** A client row carrying a configured campaign list. */
+  const configured = (campaignNames?: string[]) =>
+    ({ salesforceConfig: { salesforceAccountId: '00D', campaignNames } }) as unknown as ReturnType<typeof getClientBySlug>
+
+  let warnSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+  })
+  afterEach(() => warnSpy.mockRestore())
+
+  test('every query requests campaign_name, or there is nothing to filter on', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    const fieldSets: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      fieldSets.push(fields)
+      return Promise.resolve([])
+    })
+    await getSalesforcePipeline('acme')
+    expect(fieldSets).toHaveLength(4)
+    for (const fields of fieldSets) expect(fields).toContain('campaign_name')
+  })
+
+  test('scopes every tile to the configured campaigns, dropping the rest of the book', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner'))
+        return Promise.resolve([
+          withCampaign(ownerRow('Jason Clemons', 1, 51730.62), OURS),
+          withCampaign(ownerRow('Someone Else', 900, 90000000), THEIRS),
+        ])
+      return Promise.resolve([
+        withCampaign(stageRow('Proposal Released', 1, 51730.62, 25, false), OURS),
+        // The renewal book: vastly larger, and not ours. It must not reach a tile.
+        withCampaign(stageRow('Proposal Released', 3946, 172005960, 25, false), THEIRS),
+        withCampaign(stageRow('Closed Won', 1, 20584.44, 100, true), '2026 - Inbound Prospecting - Employers'),
+        withCampaign(stageRow('Closed Won', 623, 31326868, 100, true), THEIRS),
+      ])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.openDeals.value).toBe(1)
+    expect(p.totalPipeline.value).toBeCloseTo(51730.62, 2)
+    expect(p.weightedPipeline.value).toBeCloseTo(12932.66, 2)
+    expect(p.closedWon.value).toBeCloseTo(20584.44, 2)
+    expect(p.byOwner).toEqual([{ owner: 'Jason Clemons', count: 1, amount: 51730.62 }])
+    expect(p.campaignScoped).toBe(true)
+    expect(p.campaignUnmatched).toBe(false)
+  })
+
+  test('filters the prior-year window too, so the delta compares like with like', async () => {
+    // The trap: scope the current window but not the compare window, and the
+    // closed-won delta measures our slice against their entire book — a
+    // permanent, enormous false decline on a client-facing tile.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([])
+      const ours = withCampaign(stageRow('Closed Won', 1, 100, 100, true), OURS)
+      const theirs = withCampaign(stageRow('Closed Won', 500, 50000, 100, true), THEIRS)
+      // Prior-year window carries both; if it is left unfiltered the baseline is 50100.
+      return Promise.resolve(dateRange === '2025-01-01,2025-12-31' ? [ours, theirs] : [ours])
+    })
+    const p = await getSalesforcePipeline('acme')
+    // Baseline must be 100 (ours last year), so the delta is 0 — not -99.8%.
+    expect(p.closedWon.delta).toBeCloseTo(0, 6)
+  })
+
+  test('flags unmatched rather than publishing a confident $0 when nothing matches', async () => {
+    // A renamed campaign in the CRM lands here. The tiles legitimately compute 0,
+    // and 0 is indistinguishable from "no agency-sourced pipeline" without a flag.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([
+      withCampaign(stageRow('Proposal Released', 3946, 172005960, 25, false), THEIRS),
+    ])
+    const p = await getSalesforcePipeline('acme')
+    expect(p.totalPipeline.value).toBe(0)
+    expect(p.campaignUnmatched).toBe(true)
+    expect(p.campaignScoped).toBe(true)
+  })
+
+  test('an unconfigured client keeps whole-org reporting and is not flagged as scoped', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(undefined))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+      Promise.resolve(
+        fields.includes('opportunity_owner')
+          ? [withCampaign(ownerRow('Someone Else', 900, 90000), THEIRS)]
+          : [withCampaign(stageRow('Proposal Released', 10, 1000, 25, false), THEIRS)],
+      ),
+    )
+    const p = await getSalesforcePipeline('acme')
+    expect(p.openDeals.value).toBe(10)
+    expect(p.campaignScoped).toBe(false)
+    expect(p.campaignUnmatched).toBe(false)
+  })
+
+  test('counts unrecognized closed flags on the SCOPED rows, not the whole org', async () => {
+    // Otherwise a client with two in-scope deals inherits a warning generated by
+    // 89,000 rows they are not being shown, and the caveat is meaningless.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([])
+      return Promise.resolve([
+        withCampaign({ ...stageRow('Proposal Released', 1, 100, 25, false), opportunity_is_closed: 'maybe' }, THEIRS),
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS),
+      ])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.unrecognizedClosedFlags).toBe(0)
+  })
+})

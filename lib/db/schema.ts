@@ -71,6 +71,21 @@ export interface SalesforceConfig {
   salesforceAccountId: string
   /** The exact stage label that counts as new-business won for the closedWon tile; defaults to 'Closed Won'. */
   wonStageName?: string
+  /**
+   * Exact Salesforce Campaign names whose opportunities and leads count as
+   * agency-sourced. When set, every CRM figure on the Executive Overview is
+   * scoped to these campaigns; when absent, the whole org is reported (the
+   * pre-existing behaviour).
+   *
+   * Set this for any client whose CRM holds business the agency did not
+   * source. Renaissance's org is 89,654 opportunities and ~$172M of open
+   * pipeline, nearly all of it their own renewals, so reporting it unscoped
+   * overstates agency contribution by orders of magnitude.
+   *
+   * Matching is exact, case-insensitive and trimmed — never a substring. See
+   * lib/salesforce/campaign-filter.ts for why.
+   */
+  campaignNames?: string[]
 }
 
 export interface DashSocialConfig {

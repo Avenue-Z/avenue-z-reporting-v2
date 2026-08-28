@@ -88,6 +88,26 @@ export interface PipelineData extends PipelineKpis {
   openUnavailable: boolean
   /** True when the closed-won query failed and degraded; closedWon is 0 for want of data. */
   wonUnavailable: boolean
+  /**
+   * True when these figures were scoped to the client's configured campaigns
+   * (`salesforceConfig.campaignNames`) rather than covering the whole CRM.
+   *
+   * The UI MUST say so. Scoped and unscoped numbers differ by orders of
+   * magnitude for a client whose CRM also holds business the agency did not
+   * source, and a reader cannot tell which they are looking at from the figure
+   * alone. False means whole-org, which is the pre-existing behaviour.
+   */
+  campaignScoped: boolean
+  /**
+   * True when rows arrived but NONE were on the configured campaigns, so every
+   * tile computed 0 from an empty scoped set.
+   *
+   * Same hazard as `wonStageUnmatched`: a plausible $0 that actually means the
+   * campaign was renamed in the CRM. Render a caveat rather than a confident
+   * zero. False when no filter is configured, and false for an empty fetch —
+   * that is missing data, which `openUnavailable` / `wonUnavailable` cover.
+   */
+  campaignUnmatched: boolean
 }
 
 export interface WeekBucket {

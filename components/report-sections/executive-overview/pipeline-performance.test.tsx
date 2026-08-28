@@ -21,6 +21,8 @@ function data(over: Partial<PipelineData> = {}): PipelineData {
     wonStageUnmatched: false,
     openUnavailable: false,
     wonUnavailable: false,
+    campaignScoped: false,
+    campaignUnmatched: false,
     ...over,
   }
 }
@@ -188,5 +190,48 @@ describe('vendor neutrality', () => {
       openUnavailable: true, wonUnavailable: true,
     })} />)
     expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/i)
+  })
+})
+
+describe('campaign scoping disclosure', () => {
+  it('says the figures are scoped when a campaign filter is active', () => {
+    // Without this line the reader cannot tell a $51k agency slice from a $172M
+    // whole-book figure. Both are "Total Pipeline" and both are true.
+    render(<PipelinePerformance data={data({ campaignScoped: true })} />)
+    expect(screen.getByText(/scoped to agency-sourced campaigns/i)).toBeInTheDocument()
+  })
+
+  it('says nothing about scoping when the whole CRM is reported', () => {
+    render(<PipelinePerformance data={data({ campaignScoped: false })} />)
+    expect(screen.queryByText(/scoped to agency-sourced campaigns/i)).not.toBeInTheDocument()
+  })
+
+  it('caveats a zero that came from matching no campaign, rather than showing a bare $0', () => {
+    render(<PipelinePerformance data={data({
+      campaignScoped: true,
+      campaignUnmatched: true,
+      openDeals: { value: 0 }, totalPipeline: { value: 0 },
+      closedWon: { value: 0 }, weightedPipeline: { value: 0 },
+    })} />)
+    expect(screen.getByTestId('caveat')).toHaveTextContent(/no deals matched/i)
+  })
+
+  it('does not caveat when the filter matched normally', () => {
+    render(<PipelinePerformance data={data({ campaignScoped: true, campaignUnmatched: false })} />)
+    expect(screen.queryByText(/no deals matched the configured/i)).not.toBeInTheDocument()
+  })
+
+  it('uses no em or en dash in the scoping copy, per the plan Global Constraints', () => {
+    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, campaignUnmatched: true })} />)
+    const scoping = [...container.querySelectorAll('p')]
+      .map((p) => p.textContent ?? '')
+      .filter((t) => /scoped to agency-sourced|no deals matched/i.test(t))
+    expect(scoping.length).toBeGreaterThan(0)
+    for (const t of scoping) expect(t).not.toMatch(/[—–]/)
+  })
+
+  it('names no CRM vendor anywhere on screen', () => {
+    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, campaignUnmatched: true })} />)
+    expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/)
   })
 })

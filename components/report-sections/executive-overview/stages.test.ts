@@ -219,6 +219,8 @@ const pipelineFixture: PipelineData = {
   wonStageUnmatched: false,
   openUnavailable: false,
   wonUnavailable: false,
+  campaignScoped: false,
+  campaignUnmatched: false,
 }
 
 const contactsFixture: WeeklyContacts = {

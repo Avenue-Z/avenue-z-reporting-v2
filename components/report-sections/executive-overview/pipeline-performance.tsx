@@ -16,6 +16,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     openDeals, totalPipeline, closedWon, weightedPipeline,
     byOwner, ownersTruncated, stageTruncated, unrecognizedClosedFlags,
     wonStageUnmatched, openUnavailable, wonUnavailable,
+    campaignScoped, campaignUnmatched,
   } = data
 
   // KpiCard tests `delta !== undefined` BEFORE `comparisonExpected`
@@ -51,6 +52,16 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     openUnavailable ? NULL_GLYPH : fmt(k.value)
 
   const caveats: string[] = []
+  if (campaignUnmatched) {
+    // Leads the caveat list: it explains all four tiles at once, and it is the
+    // only one that means the figures describe nothing rather than describing
+    // something imperfectly. A bare $0 here reads as "the agency sourced
+    // nothing", when the likelier cause is a campaign renamed in the CRM.
+    caveats.push(
+      'No deals matched the agency-sourced campaigns, so these totals are 0. ' +
+      'The campaigns may have been renamed.',
+    )
+  }
   if (stageTruncated) {
     caveats.push('Deal totals hit the row limit and may be undercounted.')
   }
@@ -71,6 +82,11 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     <div className="space-y-6">
       <p className="text-xs text-text-muted">
         Open pipeline is as of today. Closed won is year to date.
+        {/* Whole-org and scoped figures differ by orders of magnitude and carry
+            identical tile titles, so the reader has nothing but this line to
+            tell them apart. It sits with the window labels because it is the
+            same kind of statement: what these numbers cover. */}
+        {campaignScoped && ' Scoped to agency-sourced campaigns.'}
       </p>
 
       <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
