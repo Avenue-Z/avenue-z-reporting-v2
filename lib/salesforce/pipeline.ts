@@ -41,7 +41,7 @@ const OWNER_MAX_ROWS = 500
 // what is sent: campaign_name is a third dimension here now, taking the same
 // window to 92 rows (measured 2026-08-28, see the STAGE_FIELDS note at the top
 // of this file, which this comment contradicted for four lines). Real headroom
-// is therefore 5.4x, re-measured at 89 rows / 5.6x on 2026-08-31.
+// is therefore 5.4x, independently re-measured at 90 rows / 5.6x on 2026-08-31.
 // It stays this generous because the row count is stage x is_closed x
 // probability, and probability is only cheap while it remains a per-stage
 // default: a client setting it per deal multiplies the cardinality. That is why
