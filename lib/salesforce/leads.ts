@@ -16,12 +16,30 @@ import type { WeeklyContacts } from './types'
  * object that carries a campaign, so a campaign-scoped inbound metric has to be
  * built on them. Whole-org clients keep the contacts path unchanged.
  *
- * WHY LEAD_ID IS REQUESTED. Leads are many-to-many with campaigns, unlike
- * opportunities, which carry a single primary campaign. Measured live on this
- * org: 363 lead-campaign rows across 222 DISTINCT leads, with 141 leads in more
- * than one campaign. Summing `lead_count` over the returned rows therefore
- * overcounts by roughly 63%, silently. `lead_id` is the only way to count each
- * lead once, so it is a dimension here and `dedupeLeadWeeks` is what collapses it.
+ * WHY LEAD_ID IS REQUESTED — AND WHAT IT IS AND IS NOT BUYING US TODAY.
+ *
+ * Leads are many-to-many with campaigns, unlike opportunities, which carry a
+ * single primary campaign, so `lead_count` summed over the returned rows can
+ * double-count a lead that sits in two campaigns. `lead_id` is the only way to
+ * count each lead once, and `dedupeLeadWeeks` is what collapses it.
+ *
+ * The magnitude, re-measured live 2026-08-31, because an earlier version of this
+ * comment cited "363 rows across 222 distinct leads, roughly 63% overcount" and
+ * that figure does not reproduce at any window:
+ *
+ *   | Window                              | Rows   | Distinct | Multi-campaign | Inflation |
+ *   |-------------------------------------|--------|----------|----------------|-----------|
+ *   | 2026 year to date (what this queries)|     88 |       88 |              0 |      0.0% |
+ *   | 2025 year to date (compare window)  |      6 |        6 |              0 |      0.0% |
+ *   | Org-wide, 2017 to 2035              | 19,002 |   18,861 |            141 |      0.7% |
+ *
+ * So in the window this function actually uses there is no duplication at all,
+ * and `dedupeLeadWeeks` currently changes nothing. It stays as DEFENSIVE code:
+ * the many-to-many shape is real (141 org-wide leads do sit in more than one
+ * campaign), a scoped client's campaign programme can grow into it, and the
+ * failure mode it prevents is a silent client-facing overcount. Stated plainly
+ * so the next person who diffs the output with and without it does not conclude
+ * it is dead code and delete it.
  */
 export const LEAD_FIELDS = ['yearWeekIso_created', 'lead_id', 'campaign_name', 'lead_count']
 

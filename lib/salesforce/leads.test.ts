@@ -12,9 +12,11 @@ const NAMES = [
 
 describe('dedupeLeadWeeks', () => {
   it('counts each lead once even when it belongs to several matching campaigns', () => {
-    // Measured on the live org: 363 lead-campaign rows over 222 distinct leads,
-    // 141 of them in more than one campaign. Summing lead_count would inflate
-    // the chart by ~63%. This is the whole reason lead_id is requested.
+    // The many-to-many shape this exists for. Live measurement 2026-08-31: no
+    // duplication at all in the year-to-date window this code queries (88 rows,
+    // 88 distinct leads), and 141 multi-campaign leads org-wide for a 0.7%
+    // overcount. So this is defensive, not load-bearing today — which is exactly
+    // why it needs a test: nothing in production output would notice it break.
     const out = dedupeLeadWeeks(
       [
         row('L1', '2026|10', NAMES[0]),
@@ -110,8 +112,10 @@ describe('lead query shape', () => {
   })
 
   it('requests lead_id, or every lead is counted once per campaign it belongs to', () => {
-    // Measured live: 363 rows over 222 distinct leads. Without the id the chart
-    // overstates by ~63%.
+    // Defensive rather than load-bearing today (see the docblock on LEAD_FIELDS
+    // for the live measurements), but without the id there is no way to count a
+    // lead once at all, so the overcount becomes unbounded as a campaign
+    // programme grows.
     expect(LEAD_FIELDS).toContain('lead_id')
   })
 
