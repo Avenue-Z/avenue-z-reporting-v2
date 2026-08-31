@@ -15,7 +15,7 @@ vi.mock('@/lib/cache', () => ({
 
 import { salesforceQuery, resolveCompareIso } from '@/lib/salesforce/base'
 import { getClientBySlug } from '@/lib/db/queries'
-import { getSalesforceWeeklyLeadsImpl } from './leads'
+import { getSalesforceWeeklyLeadsImpl, LEAD_MAX_ROWS } from './leads'
 
 const NAMES = [
   '2026 - Inbound Prospecting',
@@ -87,5 +87,76 @@ describe('getSalesforceWeeklyLeadsImpl — campaignUnmatched reaches the caller'
     const out = await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
 
     expect(out.campaignUnmatched).toBe(false)
+  })
+})
+
+/**
+ * The cap existed as a constant and was compared to nothing. A truncated lead
+ * response is a client-facing undercount of the whole weekly series, so it has
+ * to reach the reader the way pipeline.ts's stageTruncated does.
+ */
+describe('getSalesforceWeeklyLeadsImpl — row cap', () => {
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => row(`L${i}`, '2026|30', NAMES[0]))
+
+  it('flags truncation when the current-window query returns at least its cap', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue(many(LEAD_MAX_ROWS))
+
+    expect((await getSalesforceWeeklyLeadsImpl('renaissance', NOW)).truncated).toBe(true)
+  })
+
+  it('does not flag truncation under the cap', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue(many(3))
+
+    expect((await getSalesforceWeeklyLeadsImpl('renaissance', NOW)).truncated).toBe(false)
+  })
+
+  it('judges the cap on the RAW response, not the deduped or campaign-scoped rows', async () => {
+    // The trap this guards: dedupe collapses LEAD_MAX_ROWS rows onto a handful
+    // of leads and the filter drops most of the rest, so any post-processing
+    // count is orders of magnitude under the cap and reports a permanent,
+    // meaningless all-clear.
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([
+      ...Array.from({ length: LEAD_MAX_ROWS - 1 }, () => row('L1', '2026|30', 'Napa Golf Outing')),
+      row('L1', '2026|30', NAMES[0]),
+    ])
+
+    const out = await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
+    expect(out.truncated).toBe(true)
+    // One lead survived dedupe + filter. Its bucket is W30, not the last
+    // element: gapFill runs the series through the current week (W34 at NOW).
+    expect(out.weeks.find((w) => w.week === '2026-W30')?.contacts).toBe(1)
+    expect(out.weeks.reduce((n, w) => n + w.contacts, 0)).toBe(1)
+  })
+})
+
+/**
+ * The other half of the afb76c4 regression, reached a different way: rows that
+ * ARE in scope but carry no lead id are dropped, which empties the series while
+ * campaignUnmatched stays correctly false. Without a count of its own the block
+ * falls through to "No data for this period." and asserts the period was empty.
+ */
+describe('getSalesforceWeeklyLeadsImpl — id-less rows reach the caller', () => {
+  it('reports how many in-scope rows had no lead id', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([
+      row('', '2026|30', NAMES[0]),
+      row('', '2026|31', NAMES[0]),
+    ])
+
+    const out = await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
+    expect(out.unusableRows).toBe(2)
+    expect(out.campaignUnmatched).toBe(false)
+    expect(out.weeks).toEqual([])
+  })
+
+  it('reports zero on a healthy fetch', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([row('L1', '2026|30', NAMES[0])])
+
+    expect((await getSalesforceWeeklyLeadsImpl('renaissance', NOW)).unusableRows).toBe(0)
   })
 })

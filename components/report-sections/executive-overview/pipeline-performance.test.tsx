@@ -22,7 +22,8 @@ function data(over: Partial<PipelineData> = {}): PipelineData {
     openUnavailable: false,
     wonUnavailable: false,
     campaignScoped: false,
-    campaignUnmatched: false,
+    openCampaignUnmatched: false,
+    wonCampaignUnmatched: false,
     ...over,
   }
 }
@@ -209,29 +210,76 @@ describe('campaign scoping disclosure', () => {
   it('caveats a zero that came from matching no campaign, rather than showing a bare $0', () => {
     render(<PipelinePerformance data={data({
       campaignScoped: true,
-      campaignUnmatched: true,
+      openCampaignUnmatched: true,
+      wonCampaignUnmatched: true,
       openDeals: { value: 0 }, totalPipeline: { value: 0 },
       closedWon: { value: 0 }, weightedPipeline: { value: 0 },
     })} />)
-    expect(screen.getByTestId('caveat')).toHaveTextContent(/no deals matched/i)
+    expect(screen.getByTestId('caveat')).toHaveTextContent(/no open or closed-won deals on the agency-sourced campaigns/i)
   })
 
   it('does not caveat when the filter matched normally', () => {
-    render(<PipelinePerformance data={data({ campaignScoped: true, campaignUnmatched: false })} />)
-    expect(screen.queryByText(/no deals matched the configured/i)).not.toBeInTheDocument()
+    render(<PipelinePerformance data={data({ campaignScoped: true })} />)
+    expect(screen.queryByTestId('caveat')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The reviewed defect. openCampaignUnmatched and wonCampaignUnmatched describe
+   * DIFFERENT windows on different date bases, and while pipeline.ts OR'd them
+   * into one flag this block told a client with real open pipeline that all four
+   * of their totals were 0. Open-pipeline-with-no-close-yet is the ordinary
+   * opening state of a newly scoped client, so this is the common case, not an edge.
+   */
+  describe('the two unmatched windows are reported independently', () => {
+    const openOnly = {
+      campaignScoped: true,
+      openCampaignUnmatched: false,
+      wonCampaignUnmatched: true,
+      totalPipeline: { value: 51_731 },
+      closedWon: { value: 0 },
+    }
+
+    it('keeps the open tiles live when only the closed-won window matched nothing', () => {
+      render(<PipelinePerformance data={data(openOnly)} />)
+      expect(screen.getByText('$51,731')).toBeInTheDocument()
+      // The old copy printed exactly this claim above that $51,731.
+      expect(screen.getByTestId('caveat')).not.toHaveTextContent(/these totals are 0/i)
+      expect(screen.getByTestId('caveat')).toHaveTextContent(/no closed-won deals/i)
+      expect(screen.getByTestId('caveat')).not.toHaveTextContent(/no open deals/i)
+    })
+
+    it('dashes Closed Won rather than publishing its $0, the same as a renamed won stage', () => {
+      render(<PipelinePerformance data={data(openOnly)} />)
+      expect(screen.queryByText('$0')).not.toBeInTheDocument()
+      expect(screen.getByText('No closed-won deals on the agency-sourced campaigns.')).toBeInTheDocument()
+    })
+
+    it('dashes the three open tiles and keeps Closed Won when only the open window matched nothing', () => {
+      render(<PipelinePerformance data={data({
+        campaignScoped: true,
+        openCampaignUnmatched: true,
+        wonCampaignUnmatched: false,
+        openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 },
+        closedWon: { value: 1_375_000 },
+      })} />)
+      expect(screen.getByText('$1,375,000')).toBeInTheDocument()
+      expect(screen.getAllByText('No open deals on the agency-sourced campaigns.')).toHaveLength(3)
+      expect(screen.getByTestId('caveat')).toHaveTextContent(/no open deals/i)
+      expect(screen.getByTestId('caveat')).not.toHaveTextContent(/closed-won/i)
+    })
   })
 
   it('uses no em or en dash in the scoping copy, per the plan Global Constraints', () => {
-    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, campaignUnmatched: true })} />)
+    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, openCampaignUnmatched: true, wonCampaignUnmatched: true })} />)
     const scoping = [...container.querySelectorAll('p')]
       .map((p) => p.textContent ?? '')
-      .filter((t) => /scoped to agency-sourced|no deals matched/i.test(t))
+      .filter((t) => /scoped to agency-sourced|agency-sourced campaigns/i.test(t))
     expect(scoping.length).toBeGreaterThan(0)
     for (const t of scoping) expect(t).not.toMatch(/[—–]/)
   })
 
   it('names no CRM vendor anywhere on screen', () => {
-    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, campaignUnmatched: true })} />)
+    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, openCampaignUnmatched: true, wonCampaignUnmatched: true })} />)
     expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/)
   })
 })

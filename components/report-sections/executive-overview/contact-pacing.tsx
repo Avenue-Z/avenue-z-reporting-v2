@@ -28,6 +28,7 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const {
     weeks, currentWeek, currentWeekPartial, daysElapsedInCurrentWeek,
     previousWeek, priorYearWeek, completedWeekOverWeek, campaignUnmatched,
+    truncated, unusableRows,
   } = data
 
   // gapFill returns [] only when the query produced no usable bucket at all
@@ -44,6 +45,21 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   // the likely cause directly below; this block must not contradict it.
   if (campaignUnmatched) {
     return <NoData message="No leads matched the agency-sourced campaigns. The campaigns may have been renamed." />
+  }
+
+  // Second special-cased empty state, ordered ahead of the generic one for the
+  // same reason campaignUnmatched is: it explains the SAME emptiness truthfully.
+  // dedupeLeadWeeks must drop rows with no lead id (leads.ts), so a response
+  // whose in-scope rows all lack one yields an empty series from a query that
+  // returned plenty of rows — and "No data for this period." asserts the period
+  // was empty, which is false. Ranked below campaignUnmatched: when both are
+  // live, nothing was in scope in the first place, so the scope is the cause.
+  if (weeks.length === 0 && (unusableRows ?? 0) > 0) {
+    return (
+      <NoData
+        message={`${fmtNum(unusableRows!)} rows carried no lead identifier, so no weekly series could be built. This is a data quality issue in the CRM, not an empty period.`}
+      />
+    )
   }
 
   if (weeks.length === 0) return <NoData />
@@ -179,6 +195,20 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
         <p className="text-xs text-text-muted">
           Final bar is the current week in progress: {daysElapsedInCurrentWeek} of 7 days.
         </p>
+        {/* Only an explicit true caveats: undefined means the path that produced
+            this data does not measure its cap at all (types.ts, truncated). */}
+        {truncated === true && (
+          <p data-testid="leads-caveat" className="text-xs text-text-muted">
+            The lead query hit its row limit, so these weekly counts may be undercounted.
+          </p>
+        )}
+        {/* Partial loss, unlike the whole-series case handled above: the series
+            rendered, but it is missing however many leads these rows represented. */}
+        {(unusableRows ?? 0) > 0 && (
+          <p data-testid="leads-caveat" className="text-xs text-text-muted">
+            {fmtNum(unusableRows!)} rows carried no lead identifier and were left out of these counts.
+          </p>
+        )}
       </div>
     </div>
   )

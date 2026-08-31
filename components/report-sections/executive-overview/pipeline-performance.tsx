@@ -16,7 +16,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     openDeals, totalPipeline, closedWon, weightedPipeline,
     byOwner, ownersTruncated, stageTruncated, unrecognizedClosedFlags,
     wonStageUnmatched, openUnavailable, wonUnavailable,
-    campaignScoped, campaignUnmatched,
+    campaignScoped, openCampaignUnmatched, wonCampaignUnmatched,
   } = data
 
   // KpiCard tests `delta !== undefined` BEFORE `comparisonExpected`
@@ -31,7 +31,13 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
   //     also fire on the prior-year won query, so the ratio is unsafe even
   //     though each total is merely low)
   // Do not "restore" this by reading closedWon.delta directly.
-  const wonValueGone   = wonUnavailable || wonStageUnmatched
+  // campaignUnmatched joins this list rather than being handled only in the
+  // caveat region: a scoped window that matched no rows makes the true figure
+  // UNKNOWN, exactly like a renamed won stage, so the tile dashes for the same
+  // reason. Split per row set — the open windows and the won window fail
+  // independently (lib/salesforce/types.ts).
+  const openValueGone  = openUnavailable || openCampaignUnmatched
+  const wonValueGone   = wonUnavailable || wonStageUnmatched || wonCampaignUnmatched
   const baselineDirty  = stageTruncated || unrecognizedClosedFlags > 0
   const wonDelta       = wonValueGone || baselineDirty ? undefined : closedWon.delta
   // The greyed null-glyph placeholder KpiCard renders under comparisonExpected
@@ -45,20 +51,37 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
   const wonCaveat =
     wonUnavailable   ? "Couldn't load closed-won data."
     : wonStageUnmatched ? 'No deals matched the won stage; it may have been renamed.'
+    : wonCampaignUnmatched ? 'No closed-won deals on the agency-sourced campaigns.'
     : 'Year to date'
 
-  const openCaveat = openUnavailable ? "Couldn't load open pipeline." : 'Open as of today'
+  const openCaveat =
+    openUnavailable ? "Couldn't load open pipeline."
+    : openCampaignUnmatched ? 'No open deals on the agency-sourced campaigns.'
+    : 'Open as of today'
   const openValue = (k: { value: number }, fmt: (n: number) => string) =>
-    openUnavailable ? NULL_GLYPH : fmt(k.value)
+    openValueGone ? NULL_GLYPH : fmt(k.value)
 
   const caveats: string[] = []
-  if (campaignUnmatched) {
-    // Leads the caveat list: it explains all four tiles at once, and it is the
-    // only one that means the figures describe nothing rather than describing
-    // something imperfectly. A bare $0 here reads as "the agency sourced
-    // nothing", when the likelier cause is a campaign renamed in the CRM.
+  if (openCampaignUnmatched || wonCampaignUnmatched) {
+    // Leads the caveat list: it is the only entry that means the affected
+    // figures describe nothing at all rather than describing something
+    // imperfectly. A bare $0 here reads as "the agency sourced nothing", when
+    // the likelier cause is a campaign renamed in the CRM.
+    //
+    // It names WHICH windows came back empty instead of asserting that all four
+    // totals are 0. The open and closed-won row sets are different windows and
+    // either can be empty on its own, so the old single sentence printed "these
+    // totals are 0" above a live six-figure Total Pipeline for any client with
+    // open pipeline and no close yet — the normal opening state for a newly
+    // scoped client.
+    const both = openCampaignUnmatched && wonCampaignUnmatched
+    const which =
+      both ? 'no open or closed-won deals'
+      : openCampaignUnmatched ? 'no open deals'
+      : 'no closed-won deals'
     caveats.push(
-      'No deals matched the agency-sourced campaigns, so these totals are 0. ' +
+      `The CRM returned ${which} on the agency-sourced campaigns, so ` +
+      `${both ? 'those tiles are' : 'the affected tiles are'} dashed rather than shown as 0. ` +
       'The campaigns may have been renamed.',
     )
   }

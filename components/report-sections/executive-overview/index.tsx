@@ -16,6 +16,7 @@ import { getSalesforcePipeline } from '@/lib/salesforce/pipeline'
 import { getSalesforceWeeklyContacts } from '@/lib/salesforce/contacts'
 import { getSalesforceWeeklyLeads } from '@/lib/salesforce/leads'
 import { isSalesforceConfigured, canQuerySalesforce } from '@/lib/salesforce/configured'
+import { hasCampaignScope } from '@/lib/salesforce/campaign-filter'
 import { PipelinePerformance } from './pipeline-performance'
 import { ContactPacing } from './contact-pacing'
 import { LoadFailed } from './no-data'
@@ -70,7 +71,13 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   // dimension outright), so reporting them beside campaign-scoped pipeline
   // tiles would put an unscoped inbound number next to scoped revenue and
   // invite exactly the comparison neither one supports.
-  const crmScoped = (client?.salesforceConfig?.campaignNames?.length ?? 0) > 0
+  //
+  // hasCampaignScope, never a local `campaignNames.length > 0`. That length test
+  // disagreed with filterByCampaign, which normalizes and drops blanks before
+  // building its match set: a config of [' '] is length 1 but filters nothing,
+  // so the page printed "Scoped to agency-sourced campaigns." and switched to
+  // the leads series over whole-org data. One predicate, one answer.
+  const crmScoped = hasCampaignScope(client?.salesforceConfig?.campaignNames)
 
   const [
     totalsRes, cmpTotalsRes, trendRes, cmpTrendRes,
@@ -142,7 +149,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
 
   const stages = buildStages({
     totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured,
-    pipeline, contacts, crmConnected: hasCrm,
+    pipeline, contacts, crmConnected: hasCrm, crmScoped,
   })
 
   return (

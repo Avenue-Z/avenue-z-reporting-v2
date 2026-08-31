@@ -295,3 +295,39 @@ describe('campaign-scoped empty state', () => {
     expect(screen.getByText('186')).toBeInTheDocument()
   })
 })
+
+/**
+ * The two signals the leads path adds. Both describe an empty or short series
+ * for a reason the generic "No data for this period." actively misstates: the
+ * query returned rows, they just could not all be turned into weekly counts.
+ */
+describe('leads-path data quality signals', () => {
+  it('explains an empty series caused by rows with no lead id, rather than blaming the period', () => {
+    render(<ContactPacing data={data({ weeks: [], currentWeek: 0, previousWeek: 0, unusableRows: 12 })} />)
+    expect(screen.getByText(/12 rows carried no lead identifier/i)).toBeInTheDocument()
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+  })
+
+  it('ranks campaignUnmatched above it: nothing was in scope in the first place', () => {
+    render(<ContactPacing data={data({ weeks: [], currentWeek: 0, previousWeek: 0, unusableRows: 12, campaignUnmatched: true })} />)
+    expect(screen.getByText(/no leads matched the agency-sourced campaigns/i)).toBeInTheDocument()
+  })
+
+  it('caveats a rendered series that is missing some rows, without replacing it', () => {
+    render(<ContactPacing data={data({ unusableRows: 3 })} />)
+    expect(screen.getByText(/3 rows carried no lead identifier and were left out/i)).toBeInTheDocument()
+    // The chart is still there: this is partial loss, not an empty series.
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+  })
+
+  it('caveats a truncated lead response', () => {
+    render(<ContactPacing data={data({ truncated: true })} />)
+    expect(screen.getByText(/hit its row limit/i)).toBeInTheDocument()
+  })
+
+  it('stays silent on the contacts path, which measures neither', () => {
+    // undefined means "not measured", not "fine". Only an explicit true caveats.
+    render(<ContactPacing data={data()} />)
+    expect(screen.queryByTestId('leads-caveat')).not.toBeInTheDocument()
+  })
+})

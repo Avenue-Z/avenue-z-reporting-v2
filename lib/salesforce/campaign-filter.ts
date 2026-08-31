@@ -52,6 +52,27 @@ function norm(v: unknown): string {
   return String(v ?? '').trim().toLowerCase()
 }
 
+/** The match set a configured name list actually produces: normalized, with
+ *  blanks dropped. Built once here so `hasCampaignScope` and `filterByCampaign`
+ *  can never disagree about what counts as a configured campaign. */
+function wantedSet(names: string[] | undefined): Set<string> {
+  return new Set((names ?? []).map(norm).filter((n) => n !== ''))
+}
+
+/**
+ * Whether a configured name list will actually scope anything.
+ *
+ * This is the ONE predicate every caller must ask, UI included. `names.length >
+ * 0` is not equivalent and must not be reimplemented: this drops blanks exactly
+ * the way `filterByCampaign` builds its match set, so a config of `[' ']`
+ * reports false here and applies no filter there. Two predicates that disagree
+ * put "Scoped to agency-sourced campaigns." above whole-org numbers, and
+ * mislabel the inbound block as leads while it still counts every contact.
+ */
+export function hasCampaignScope(names: string[] | undefined): boolean {
+  return wantedSet(names).size > 0
+}
+
 /**
  * Keeps only rows whose `campaign_name` is one of `names`.
  *
@@ -68,7 +89,7 @@ export function filterByCampaign(
   rows: Record<string, string>[],
   names: string[] | undefined,
 ): CampaignFilterResult {
-  const wanted = new Set((names ?? []).map(norm).filter((n) => n !== ''))
+  const wanted = wantedSet(names)
   if (wanted.size === 0) return { rows, active: false, unmatched: false }
   const kept = rows.filter((r) => wanted.has(norm(r.campaign_name)))
   return { rows: kept, active: true, unmatched: rows.length > 0 && kept.length === 0 }

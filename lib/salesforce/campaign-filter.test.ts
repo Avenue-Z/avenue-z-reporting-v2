@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterByCampaign } from './campaign-filter'
+import { filterByCampaign, hasCampaignScope } from './campaign-filter'
 
 const row = (campaign: string, n = 1) =>
   ({ campaign_name: campaign, opportunity_count: n }) as unknown as Record<string, string>
@@ -67,5 +67,42 @@ describe('filterByCampaign', () => {
 
   it('does not flag unmatched on an empty input, which is missing data not a mismatch', () => {
     expect(filterByCampaign([], NAMES).unmatched).toBe(false)
+  })
+})
+
+/**
+ * The UI predicate. It exists because index.tsx had its own — `campaignNames
+ * ?.length > 0` — which disagrees with the match set filterByCampaign actually
+ * builds. These tests exist mainly to pin that the two never diverge again.
+ */
+describe('hasCampaignScope', () => {
+  it('is false for no config at all', () => {
+    expect(hasCampaignScope(undefined)).toBe(false)
+    expect(hasCampaignScope([])).toBe(false)
+  })
+
+  it('is false for names that normalize away, which a bare length check gets wrong', () => {
+    // [' '] has length 1. A length check calls this scoped, prints "Scoped to
+    // agency-sourced campaigns." and switches the inbound block to the leads
+    // series, all over whole-org data that no filter touched.
+    for (const names of [[' '], [''], ['', '   ']]) {
+      expect(hasCampaignScope(names)).toBe(false)
+      expect(filterByCampaign([row('Napa Golf Outing')], names).active).toBe(false)
+    }
+  })
+
+  it('is true for a real name, with or without surrounding whitespace', () => {
+    expect(hasCampaignScope([PARENT])).toBe(true)
+    expect(hasCampaignScope(['  ', PARENT])).toBe(true)
+    expect(hasCampaignScope([`  ${PARENT}  `])).toBe(true)
+  })
+
+  it('agrees with filterByCampaign.active on every input, which is the whole point', () => {
+    const inputs: (string[] | undefined)[] = [
+      undefined, [], [''], [' '], ['', ' '], [PARENT], ['  ', PARENT], [`  ${PARENT}  `], NAMES,
+    ]
+    for (const names of inputs) {
+      expect(hasCampaignScope(names)).toBe(filterByCampaign([row('anything')], names).active)
+    }
   })
 })

@@ -220,7 +220,8 @@ const pipelineFixture: PipelineData = {
   openUnavailable: false,
   wonUnavailable: false,
   campaignScoped: false,
-  campaignUnmatched: false,
+  openCampaignUnmatched: false,
+  wonCampaignUnmatched: false,
 }
 
 const contactsFixture: WeeklyContacts = {
@@ -351,5 +352,71 @@ describe('CRM stages, crmConnected decides the unconnected treatment', () => {
         expect(stage.unconnectedHint).toBe('Connect your CRM to see this')
       }
     }
+  })
+})
+
+/**
+ * The reviewed defect: the funnel read openUnavailable and wonStageUnmatched but
+ * ignored campaignUnmatched entirely, so it rendered a confident $0 and "0 open
+ * deals" directly above a Pipeline Performance block saying those totals could
+ * not be trusted.
+ */
+describe('the pipeline card honours the campaign-scope flags', () => {
+  const stage = (pipeline: PipelineData) =>
+    buildStages({ totals, cmpTotals, peec, trendRows: [], pipeline, crmConnected: true })
+      .find((s) => s.key === 'pipeline')!
+
+  it('dashes the hero and names the cause when the open window matched no campaign', () => {
+    const s = stage({
+      ...pipelineFixture,
+      campaignScoped: true, openCampaignUnmatched: true,
+      openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 },
+    })
+    expect(s.metric).toBe('—')
+    // Never "0 open deals": that is the confident zero this flag exists to stop.
+    expect(s.subMetric).toBe('No open deals on the agency-sourced campaigns.')
+    expect(s.stats?.find((x) => x.label === 'Weighted Pipeline')?.value).toBe('—')
+  })
+
+  it('dashes only the Closed Won stat when just the closed-won window matched no campaign', () => {
+    // The newly-scoped-client case: real open pipeline, no close yet. The hero
+    // must stay live, which is exactly what a single OR-ed flag destroyed.
+    const s = stage({
+      ...pipelineFixture,
+      campaignScoped: true, wonCampaignUnmatched: true,
+      closedWon: { value: 0 },
+    })
+    expect(s.metric).toBe('$4,820,000')
+    expect(s.subMetric).toBe('297 open deals')
+    expect(s.stats?.find((x) => x.label === 'Closed Won')?.value).toBe('—')
+    expect(s.stats?.find((x) => x.label === 'Weighted Pipeline')?.value).toBe('$2,140,000')
+  })
+
+  it('leaves every figure live when both windows matched normally', () => {
+    const s = stage({ ...pipelineFixture, campaignScoped: true })
+    expect(s.metric).toBe('$4,820,000')
+    expect(s.stats?.find((x) => x.label === 'Closed Won')?.value).toBe('$1,375,000')
+  })
+})
+
+/** The inbound card must name the object it is actually counting. index.tsx
+ *  switches its section heading to "Lead Creation" on the same predicate, so a
+ *  hardcoded "Online Contacts" put the two in contradiction on one screen. */
+describe('the inbound card names leads or contacts by scope', () => {
+  const inbound = (crmScoped: boolean) =>
+    buildStages({ totals, cmpTotals, peec, trendRows: [], contacts: contactsFixture, crmConnected: true, crmScoped })
+      .find((s) => s.key === 'inbound')!
+
+  it('says leads for a campaign-scoped client', () => {
+    expect(inbound(true).label).toBe('Online Leads')
+    expect(inbound(true).heroLabel).toBe('new leads created so far this week')
+  })
+
+  it('keeps contacts for a whole-org client, and defaults to contacts when the flag is omitted', () => {
+    expect(inbound(false).label).toBe('Online Contacts')
+    expect(inbound(false).heroLabel).toBe('new contacts created so far this week')
+    const dflt = buildStages({ totals, cmpTotals, peec, trendRows: [], contacts: contactsFixture, crmConnected: true })
+      .find((s) => s.key === 'inbound')!
+    expect(dflt.label).toBe('Online Contacts')
   })
 })

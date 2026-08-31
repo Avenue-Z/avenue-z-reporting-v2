@@ -99,15 +99,28 @@ export interface PipelineData extends PipelineKpis {
    */
   campaignScoped: boolean
   /**
-   * True when rows arrived but NONE were on the configured campaigns, so every
-   * tile computed 0 from an empty scoped set.
+   * True when the OPEN row set arrived with rows but NONE were on the configured
+   * campaigns, so openDeals, totalPipeline and weightedPipeline each computed 0
+   * from an empty scoped set.
    *
    * Same hazard as `wonStageUnmatched`: a plausible $0 that actually means the
    * campaign was renamed in the CRM. Render a caveat rather than a confident
    * zero. False when no filter is configured, and false for an empty fetch —
    * that is missing data, which `openUnavailable` / `wonUnavailable` cover.
    */
-  campaignUnmatched: boolean
+  openCampaignUnmatched: boolean
+  /**
+   * The same statement for the CLOSED-WON row set, which backs only the
+   * closedWon tile.
+   *
+   * Kept separate from `openCampaignUnmatched` rather than OR'd into one flag,
+   * because the two describe different windows on different date bases (open is
+   * a wide created-date window evaluated as of now; won is year to date on the
+   * close date). Either can be true alone, and won-alone is the ORDINARY state
+   * of a client scoped mid-year who has open pipeline and no close yet. A single
+   * flag made the UI disclaim all four tiles whenever either window was empty.
+   */
+  wonCampaignUnmatched: boolean
 }
 
 export interface WeekBucket {
@@ -151,6 +164,30 @@ export interface WeeklyContacts {
    * Always false on the contacts path, which cannot be campaign-scoped at all.
    */
   campaignUnmatched: boolean
+  /**
+   * True when the underlying query returned at least as many rows as its cap, so
+   * the weekly counts may be undercounted.
+   *
+   * Optional because only the LEADS path currently computes it: that query is
+   * one row per lead PER CAMPAIGN, so its row count scales with the campaign
+   * programme rather than with the 53 weeks of the window, and the cap is
+   * reachable in a way the contacts query's is not. Undefined means "not
+   * measured", which is why the UI must treat only an explicit `true` as a
+   * caveat.
+   */
+  truncated?: boolean
+  /**
+   * How many in-scope rows were discarded because they carried no lead id.
+   *
+   * `dedupeLeadWeeks` must drop them — admitting them would collapse every
+   * id-less row onto one key and report them all as a single lead — but dropping
+   * them silently reaches the same false explanation `campaignUnmatched` exists
+   * to prevent, by a different route: if every in-scope row is id-less the
+   * series is empty and the block would claim the PERIOD was empty. Surfaced so
+   * the UI can say what actually happened. Undefined on the contacts path, which
+   * has no per-lead identity to lose.
+   */
+  unusableRows?: number
   /** Percent change between the two most recent COMPLETE weeks. Deliberately not
    * a comparison against currentWeek: a partial week against a complete one is
    * structurally invalid and renders as a large false decline early in the week.

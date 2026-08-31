@@ -26,7 +26,10 @@ const STAGE_FIELDS = [
 const OWNER_FIELDS = ['opportunity_owner', 'opportunity_is_closed', 'opportunity_count', 'opportunity_amount', 'campaign_name']
 // Measured live on the wide window (2026-08-20): 129 rows across 93 distinct
 // owners (36 of them with open deals), because is_closed is a dimension and one
-// owner spans more than one row. Roughly 4x headroom under this cap. The flag
+// owner spans more than one row. Re-measured 2026-08-31, now that campaign_name
+// is a second dimension on this query: 127 rows without it, 184 with. Headroom
+// under this cap is therefore 2.72x, not the "roughly 4x" this comment claimed
+// while it still described the pre-campaign_name query. The flag
 // below stays keyed to the RAW row count, not the deduped owner list: if the
 // response is capped we cannot know whether the rows we never saw held owners we
 // never rendered, so a complete-looking list is exactly when a false all-clear
@@ -517,10 +520,20 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
       (wonCurRows?.length ?? 0) >= STAGE_MAX_ROWS ||
       (wonPriorRows?.length ?? 0) >= STAGE_MAX_ROWS,
     campaignScoped: scopedOpen.active,
-    // Only the two row sets that back a visible figure can raise this. The
-    // prior-year window matching nothing is an ordinary empty baseline, which
-    // pct() already degrades to no delta.
-    campaignUnmatched: scopedOpen.unmatched || scopedWonCur.unmatched,
+    // TWO flags, never one OR'd flag. scopedOpen is the wide created-date window
+    // behind Open Deals / Total Pipeline / Weighted Pipeline; scopedWonCur is the
+    // year-to-date CLOSE-date window behind Closed Won. Different questions over
+    // different windows, and either can match nothing while the other matches
+    // plenty — open pipeline with no closed-won yet is the ORDINARY opening state
+    // for a newly scoped client, not an error. While these were OR'd, that client
+    // got "these totals are 0, the campaigns may have been renamed" printed above
+    // a live six-figure Total Pipeline: a client-facing falsehood.
+    //
+    // The prior-year window raises neither. It backs no visible figure, and
+    // matching nothing there is an ordinary empty baseline that pct() already
+    // degrades to no delta.
+    openCampaignUnmatched: scopedOpen.unmatched,
+    wonCampaignUnmatched: scopedWonCur.unmatched,
   }
 }
 

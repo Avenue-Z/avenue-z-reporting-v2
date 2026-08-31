@@ -23,7 +23,7 @@ import type { WeeklyContacts } from './types'
  * overcounts by roughly 63%, silently. `lead_id` is the only way to count each
  * lead once, so it is a dimension here and `dedupeLeadWeeks` is what collapses it.
  */
-const LEAD_FIELDS = ['yearWeekIso_created', 'lead_id', 'campaign_name', 'lead_count']
+export const LEAD_FIELDS = ['yearWeekIso_created', 'lead_id', 'campaign_name', 'lead_count']
 
 /**
  * One row per lead per campaign, so the cap has to clear leads x campaigns
@@ -31,7 +31,7 @@ const LEAD_FIELDS = ['yearWeekIso_created', 'lead_id', 'campaign_name', 'lead_co
  * on 2026-08-28); this leaves room for a campaign programme two orders of
  * magnitude larger before truncation is even conceivable.
  */
-const LEAD_MAX_ROWS = 20000
+export const LEAD_MAX_ROWS = 20000
 
 /** Pinned explicitly, never left on the connector default: the lead window basis
  *  is its own setting, and a default change would silently reinterpret every
@@ -44,6 +44,30 @@ export interface DedupedLeadWeeks {
   rows: Record<string, string>[]
   /** Rows arrived, none were on a configured campaign. See CampaignFilterResult.unmatched. */
   unmatched: boolean
+  /**
+   * How many IN-SCOPE rows were dropped for carrying no lead id.
+   *
+   * They have to be dropped (see the loop below), but dropping them silently
+   * reaches the same false explanation `unmatched` exists to prevent, by a
+   * different route: if every in-scope row is id-less the series is empty and
+   * the block claims the PERIOD was empty when the query in fact returned rows.
+   * Surfaced so the UI can say what actually happened.
+   */
+  idlessRows: number
+}
+
+/**
+ * Ordering key for a raw 'YYYY|WW' week.
+ *
+ * The raw keys are NOT safely comparable as strings: the connector does not
+ * promise a zero-padded week, and '2026|10' < '2026|9' lexically, so week 10
+ * would win an "earliest wins" comparison against week 9. Pad before comparing.
+ * The RAW key is still what gets emitted — contacts.ts's normalizeWeek is what
+ * parses it downstream — this is only the ordering key.
+ */
+function weekOrder(raw: string): string {
+  const [year, week] = String(raw).split('|')
+  return `${year}-${String(week ?? '').padStart(2, '0')}`
 }
 
 /**
@@ -64,22 +88,27 @@ export function dedupeLeadWeeks(
   // one id means the connector split on a dimension we did not request back;
   // picking deterministically beats counting the lead twice.
   const weekByLead = new Map<string, string>()
+  let idlessRows = 0
   for (const r of scoped.rows) {
     const id = String(r.lead_id ?? '').trim()
     // An id-less row cannot be deduped. Admitting it would collapse every such
-    // row onto one key and report them all as a single lead.
-    if (id === '') continue
+    // row onto one key and report them all as a single lead. Counted rather than
+    // dropped silently: see DedupedLeadWeeks.idlessRows.
+    if (id === '') { idlessRows++; continue }
     const week = String(r.yearWeekIso_created ?? '')
     const seen = weekByLead.get(id)
-    if (seen === undefined || week < seen) weekByLead.set(id, week)
+    if (seen === undefined || weekOrder(week) < weekOrder(seen)) weekByLead.set(id, week)
   }
   const counts = new Map<string, number>()
   for (const week of weekByLead.values()) counts.set(week, (counts.get(week) ?? 0) + 1)
   return {
     rows: [...counts.entries()]
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      // Same padded key as the earliest-wins comparison above, and for the same
+      // reason: raw '2026|9' would sort after '2026|10'.
+      .sort(([a], [b]) => (weekOrder(a) < weekOrder(b) ? -1 : weekOrder(a) > weekOrder(b) ? 1 : 0))
       .map(([week, n]) => ({ yearWeekIso_created: week, contact_count: n }) as unknown as Record<string, string>),
     unmatched: scoped.unmatched,
+    idlessRows,
   }
 }
 
@@ -106,7 +135,18 @@ export async function getSalesforceWeeklyLeadsImpl(slug: string, now: Date = new
   const cmp = cmpRows ? dedupeLeadWeeks(cmpRows, campaignNames) : null
   // cur.unmatched, not cmp's: the compare window matching nothing is an ordinary
   // empty prior-year baseline, the same call pipeline.ts makes for wonPrior.
-  return transformWeeklyContacts(cur.rows, cmp?.rows ?? null, now, cur.unmatched)
+  return {
+    ...transformWeeklyContacts(cur.rows, cmp?.rows ?? null, now, cur.unmatched),
+    // Judged on the RAW response length, before dedupe and before the campaign
+    // filter, exactly as pipeline.ts judges stageTruncated: the cap applies to
+    // what the API returned, and rows we never saw could have been in scope.
+    // Counting the deduped or scoped rows instead would compare a handful of
+    // leads against a 20,000-row cap and report a permanent, meaningless
+    // all-clear. Only the CURRENT window: a truncated prior year costs one
+    // comparison figure, not the series the reader is looking at.
+    truncated: rows.length >= LEAD_MAX_ROWS,
+    unusableRows: cur.idlessRows,
+  }
 }
 
 // Cached on the same 1-hour TTL and for the same reason as the contacts fetcher
