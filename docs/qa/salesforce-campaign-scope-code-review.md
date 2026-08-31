@@ -4,17 +4,19 @@
 — *feat(salesforce): scope Executive Overview CRM figures to the agency-sourced
 campaigns* (`feat/salesforce-campaign-filter` → `dev`), author `paulramirez`.
 
-**Diff range reviewed.** `889ada5..afb76c4` (3 commits, merge-base `889ada5`).
+**Diff range reviewed.** `889ada5..f46ffaf` (8 commits, merge-base `889ada5`).
 No unrelated code is in scope. The review covers `lib/salesforce/campaign-filter.ts`,
-`lib/salesforce/leads.ts`, the scoping block in `lib/salesforce/pipeline.ts`, the
-`WeeklyContacts` / `PipelineData` additions in `lib/salesforce/types.ts`, the
-`campaignNames` field in `lib/db/schema.ts`, the two Executive Overview components
-that read the new flags, and `scripts/set-renaissance-campaign-scope.ts`.
+`lib/salesforce/leads.ts`, the scoping and caching blocks in
+`lib/salesforce/pipeline.ts`, the `WeeklyContacts` / `PipelineData` additions in
+`lib/salesforce/types.ts`, the `campaignNames` field in `lib/db/schema.ts`, the
+two Executive Overview components that read the new flags, and
+`scripts/set-renaissance-campaign-scope.ts`.
 
 **This document changes no code.** It is the Stage-1 gate artifact per
-`CLAUDE.md` § *Branch Flow & Promotion Pipeline*. Finding **#1** was found during
-this review and fixed on the feature branch (`afb76c4`) rather than here; every
-other finding in §5 is an open follow-up.
+`CLAUDE.md` § *Branch Flow & Promotion Pipeline*. It was written against
+`afb76c4` and has been brought forward to `f46ffaf`, because a gate artifact that
+describes code the branch no longer holds certifies nothing. Three review rounds
+are folded in; §3 records who found what and where it stands.
 
 ---
 
@@ -47,10 +49,12 @@ So the filter is on campaign name, and nothing else was available to use.
 campaign names per client. **Absent means whole-org**, so every client that is
 not explicitly scoped keeps the pre-existing behaviour untouched.
 
-**The matcher.** `filterByCampaign` (`lib/salesforce/campaign-filter.ts:67`)
+**The matcher.** `filterByCampaign` (`lib/salesforce/campaign-filter.ts:105`)
 normalises with `trim().toLowerCase()` and tests set membership. Exact, never
 substring. An empty or absent name list short-circuits to `{active: false}` and
-passes every row through.
+passes every row through. `hasCampaignScope` (`:79`) is the single predicate the
+UI must ask, and it is built from the same `wantedSet` helper, so a config of
+`[' ']` cannot report "scoped" in one place while applying no filter in another.
 
 **Scope for Renaissance — three campaigns.** Confirmed live 2026-08-31 against
 the **Campaigns** report type (`campaign_count` is Campaigns-only, so this query
@@ -63,11 +67,14 @@ probes structurally cannot):
 | `2026 - Inbound Prospecting - Employers` | 2 | 22 |
 | `2026 - Inbound Prospecting - Brokers` | 0 | 0 |
 
-Those three are the only campaigns in the org whose name mentions prospecting.
+Those three are the only campaigns in the org whose name mentions prospecting,
+and all three were confirmed byte-for-byte against the live strings (plain ASCII,
+hyphen-minus, single spaces, no en-dash contamination). That check matters
+because exact matching turns a typo into a silent $0 rather than an error.
 Brokers carries nothing today; it is scoped in so the first deal it produces is
 counted without a deploy.
 
-**Pipeline tiles** (`lib/salesforce/pipeline.ts:483-487`). `campaign_name` is
+**Pipeline tiles** (`lib/salesforce/pipeline.ts:533-536`). `campaign_name` is
 added to `STAGE_FIELDS` (`:18`) and `OWNER_FIELDS` (`:26`), then **all four** row
 sets are filtered before any transform — open, won-current, won-prior, owner.
 Scoping only the current sets would measure this year's agency slice against last
@@ -82,29 +89,88 @@ year's entire book, i.e. a permanent false decline on Closed Won.
 | Owner breakdown | scoped owner rows, open only, grouped and sorted by count desc |
 
 Live scoped values: 1 open deal, $51,731 pipeline, $12,933 weighted, $20,584
-Closed Won YTD.
+Closed Won YTD. Independently recomputed from raw API rows by the reviewer, with
+the business rules applied outside the code under review; all five figures match,
+as does the per-campaign split (53 + 22 + 0 = 75 leads, 3 + 2 + 0 opportunities).
 
 **Inbound block — leads, not contacts.** For a scoped client
-(`index.tsx:73`) the section fetches `getSalesforceWeeklyLeads` and is titled
-*Lead Creation*; unscoped clients keep *Contact Creation* unchanged. The reason
-is a hard connector limit: dimensioning contacts by `campaign_name` returns
-**HTTP 400**, so contacts cannot be scoped at all, and an unscoped inbound count
+(`index.tsx:80`, `:113`) the section fetches `getSalesforceWeeklyLeads` and is
+titled *Lead Creation* (`:183`); unscoped clients keep *Contact Creation*
+unchanged. The reason is a hard connector limit: dimensioning contacts by
+`campaign_name` returns **HTTP 400 SETTING_KEY_INVALID**, independently
+reproduced, so contacts cannot be scoped at all, and an unscoped inbound count
 sitting beside scoped revenue invites a comparison neither supports.
 
-**Lead dedup.** Leads are **many-to-many** with campaigns, unlike opportunities,
-which carry one primary campaign. Live: 363 lead-campaign rows over 222 distinct
-leads, 141 of them on more than one campaign. So `lead_id` is requested as a
-dimension (`leads.ts:26`) and `dedupeLeadWeeks` (`:58`) counts each id once,
-earliest week wins. Summing `lead_count` instead would inflate the chart ~63%.
-The deduped output is re-emitted in the contacts query's shape so the already
-tested `transformWeeklyContacts` does the bucketing and gap-filling.
+**Lead dedup, and an honest account of what it buys.** Leads are **many-to-many**
+with campaigns, unlike opportunities, which carry one primary campaign, so
+summing `lead_count` over the returned rows can count one lead twice. `lead_id`
+is therefore requested (`leads.ts:44`) and `dedupeLeadWeeks` (`:103`) counts each
+id once, earliest week wins.
 
-**Honesty flags.** `campaignScoped` (`pipeline.ts:519`) drives the UI line naming
+An earlier version of this document, and of the code comment, claimed "363
+lead-campaign rows over 222 distinct leads, 141 on more than one campaign, ~63%
+inflation". **That figure does not reproduce at any window** and is retracted.
+Re-measured live 2026-08-31:
+
+| Window | Rows | Distinct leads | Multi-campaign | Inflation |
+|---|---|---|---|---|
+| **2026 YTD — what the code actually queries** | **88** | **88** | **0** | **0.0%** |
+| 2025 YTD — the compare window | 6 | 6 | 0 | 0.0% |
+| Org-wide, 2017–2035 | 19,002 | 18,861 | 141 | 0.7% |
+
+The 141 is real but org-wide, and even there the inflation is 0.7%. In the window
+this code queries there is no duplication at all, so **the dedup is currently
+inert**. It is kept as deliberately defensive code — the many-to-many shape is
+real and a scoped client's campaign programme can grow into it — and `leads.ts`
+now says so plainly, so nobody diffs the output with and without it, concludes it
+is dead, and deletes it.
+
+**Id-less lead rows are disclosed, not counted.** `dedupeLeadWeeks` drops rows
+carrying no `lead_id`, because admitting them would collapse every such row onto
+one key and report them all as a single lead. Dropping them undercounts instead,
+so the count is surfaced as `unusableRows` and `contact-pacing.tsx:57` renders it
+rather than letting an all-id-less response fall through to "No data for this
+period." This is a recorded **decision**, not an oversight: the number a client
+sees is still an undercount, it is just caveated.
+
+**Honesty flags.** `campaignScoped` (`pipeline.ts:566`) drives the UI line naming
 the scope — mandatory, because scoped and unscoped tiles carry identical titles
-and differ by orders of magnitude. `campaignUnmatched` (`:523`, and
-`types.ts:153` for the leads side) means rows arrived and **none** matched, which
-is almost always a campaign renamed in the CRM rather than a genuine zero. Both
-blocks render a caveat instead of a confident zero.
+and differ by orders of magnitude. Then **three** separate unmatched flags, not
+one:
+
+| Flag | Row set | Backs |
+|---|---|---|
+| `openCampaignUnmatched` (`:579`) | open, wide created-date window | Open Deals, Total Pipeline, Weighted Pipeline |
+| `wonCampaignUnmatched` (`:580`) | closed-won, YTD close-date window | Closed Won |
+| `ownerCampaignUnmatched` (`:590`) | owner rows | the by-owner breakdown, no tile |
+
+Each means *rows arrived and none matched*, which is far more often a campaign
+renamed in the CRM than a genuine zero. They are separate because the windows are
+different questions and either can be empty alone: open pipeline with no close
+yet is the **ordinary opening state** of a newly scoped client. While they were
+OR'd into one flag, that client got "these totals are 0, the campaigns may have
+been renamed" printed above a live six-figure Total Pipeline. The owner flag is
+separate again because the tile caveat promises to explain *dashed tiles*, and
+the breakdown has none — filtered to empty it would render "No open deals by
+owner.", a claim about the client's deals rather than about the filter.
+
+The prior-year window raises no flag: it backs no visible figure, and matching
+nothing there is an ordinary empty baseline `pct()` already degrades to no delta.
+
+**Truncation outranks the accusation.** `filterByCampaign` takes a `truncated`
+argument and suppresses `unmatched` when the row set was capped
+(`campaign-filter.ts:105`). Only a response we saw *all of* can support "the
+campaigns may have been renamed" — on a capped one, the in-scope rows may simply
+sit past the cap. Truncation is computed once off the **raw** arrays
+(`pipeline.ts:527-530`), before a scoped set exists to measure by mistake, and
+fed both to the filter and to `stageTruncated` / `ownersTruncated`. The filter
+itself still runs on a capped response; only the accusation is withheld.
+
+There is a pleasant property worth recording: because the campaign filter runs
+*before* `wonRowsFor`, the one genuinely contradictory pair —
+`wonStageUnmatched` blaming a renamed stage while `wonCampaignUnmatched` blames
+renamed campaigns — is unreachable by construction. It holds by ordering, not by
+accident.
 
 ### Why the filter is client-side
 
@@ -113,7 +179,38 @@ parameter at all. A typo'd server-side filter field returns **HTTP 200 with empt
 data** — indistinguishable from a legitimate zero. Filtering in-process means a
 mistake fails a test rather than silently zeroing a client's report. The cost was
 measured before the choice: adding `campaign_name` takes the stage query from 31
-to 92 rows against a 500-row cap. There is no volume argument for the risky option.
+to 92 rows against a 500-row cap.
+
+**Read that headroom as a best case.** Every headroom figure on this branch was
+measured against Renaissance, which is the friendliest possible org for adding
+this dimension: 89,425 of its 89,654 opportunities carry no campaign at all, so
+`campaign_name` collapses to a single blank value across almost the whole book. A
+client running a real campaign programme multiplies much harder against the same
+cap, and no other org has been measured. The truncation flags, not these numbers,
+are what protects a client-facing total. `pipeline.ts:50` now says so.
+
+### Where the caches sit, and why it matters here
+
+Both CRM blocks cache **raw rows** and apply scoping outside the cache, so a
+`campaignNames` correction takes effect on the very next render.
+
+- Pipeline: four per-query wrappers (`pipeline.ts:390-436`), all on
+  `CACHE_VERSION` (`:383`), currently **v2**. The bump is not hygiene: adding
+  `campaign_name` changed the response shape, and a v1 entry written by
+  pre-branch code holds rows with no `campaign_name` key, so `norm(undefined)` is
+  `''`, nothing matches, and all four tiles dash under "The campaigns may have
+  been renamed." on a client that renamed nothing.
+- Leads: `getLeadRows` / `getLeadRowsCompare` (`leads.ts:220`, `:234`), with the
+  composer deliberately unwrapped (`:242`). This previously cached the assembled,
+  already-scoped series under a key that omits `campaignNames`, which meant
+  fixing a renamed campaign corrected the tiles immediately and left the Lead
+  Creation block repeating the accusation for up to an hour, on the same page.
+
+**There is no invalidation escape hatch.** No Salesforce `cached()` call passes
+`tags:`, so `revalidateTag` cannot reach these entries; the only remedies are the
+one-hour TTL and `CACHE_DISABLE=1`. That is why the version bump has to land
+*before* the scope script is run — the exposure window is created by exactly the
+deploy-then-run sequence.
 
 ---
 
@@ -121,15 +218,26 @@ to 92 rows against a 500-row cap. There is no volume argument for the risky opti
 
 | Claim | How it was actually probed |
 |---|---|
-| Three campaigns exist, exact names | Live query against the SF **Campaigns** report type (`campaign_name, campaign_status, campaign_count`, `campaign_name =@ Prospecting`), 2026-08-31. Returned exactly three rows. |
+| Three campaigns exist, exact names | Live query against the SF **Campaigns** report type (`campaign_name, campaign_status, campaign_count`, `campaign_name =@ Prospecting`), 2026-08-31. Returned exactly three rows; all three compared byte-for-byte against the config, and 3 of 178 campaigns in the org mention "prospect". |
 | Brokers holds 0 opportunities / 0 leads | Opportunity- and lead-dimensioned live queries over `2017-01-01..2035-12-31`; Brokers produces **no row**, which is why the earlier probes could not see it — those group opportunities, so a campaign with no deals is absent rather than zero. |
 | Adding Brokers changes no tile | Same live rows tallied under a two-name and a three-name scope. Identical: 1 / $51,731 / $12,933 / $20,584 / 75 leads. |
-| `campaignNames` is unset in production | `SELECT slug, salesforce_config FROM clients` against the live DB. Renaissance is `{"salesforceAccountId":"00D15000000Em4GEAS"}` — **no** `campaignNames`. |
-| Finding #1 is real, not a misreading | `grep` for every non-test consumer of `.unmatched`: only `pipeline.ts:236` and `:523`. `WeeklyContacts` had no such field. Then executed: reverted the one-line fix and confirmed `leads.orchestration.test.ts` fails, restored it and confirmed it passes. |
-| Finding #1's rendered symptom | Traced `gapFill` (`contacts.ts:91`, returns `[]` on empty input) → `ContactPacing` `weeks.length === 0` → `<NoData />`. Confirms the symptom is a **false explanation**, not a fabricated number — the initial read of "confident zero chart" was wrong and is corrected here. |
-| Finding #2 | `owner.truncated` has no reader after `pipeline.ts:490`; `transformByOwner` (`:245-265`) uses `maxRows` **only** to compute that flag and never slices rows. |
+| The five tile figures | Recomputed from raw API rows with the business rules applied **outside** the code under review, then again through the real `filterByCampaign` after the round-two refactor. Match on every figure, both times. |
+| Contacts cannot be campaign-dimensioned | Reproduced independently: `HTTP 400 SETTING_KEY_INVALID`. The Lead Creation swap is forced, not chosen. |
+| The ~63% dedup inflation claim | **Did not reproduce.** Re-measured at three windows (table in §1); the queried window shows 0.0%. Claim retracted in `dfeee53`, in both the code comment and this document. |
+| `campaignNames` is unset in production | `SELECT slug, salesforce_config FROM clients` against the live DB, twice, most recently 2026-08-31. Renaissance is `{"salesforceAccountId":"00D15000000Em4GEAS"}` — **no** `campaignNames` — and is the only client with any `salesforce_config` at all. |
+| All four opportunity row sets are scoped | Confirmed by mutation: dropping any one of the four filter calls fails a targeted test. All four queries request `campaign_name`. |
+| Absent `campaignNames` is a genuine no-op | `filterByCampaign` returns the input array by reference; `crmScoped` defaults false and both new flags are false with no campaign list, so `openGone` / `wonGone` reduce exactly to the pre-branch conditions. |
+| Every flag combination renders truthfully | The composer was driven with each degrade path across all five row sets — reject renders "unavailable", empty renders the generic no-data, rows-none-matching renders the specific message. No path produces a confident number. `wonStageUnmatched` + `wonCampaignUnmatched` is unreachable by ordering. |
+| Truncation is judged on raw counts | Confirmed live (90 open rows, 29 won) against the scoped counts (4 and 3), and pinned per-window by tests that cap exactly one window at a time. |
+| Truncation suppresses the accusation | Mutation: removing `!truncated` from `filterByCampaign` fails two named tests, one unit and one end-to-end through the composer. |
+| The leads cache boundary | Pinned by recording which fetcher names `cached()` wraps at import; re-wrapping the composer fails that test. Verified by mutation. |
+| `LEAD_SETTINGS`'s value | Now asserted as a **literal** in `leads.orchestration.test.ts`, not as the imported constant. Verified by mutation: changing it to `lead_converted` previously left 976 green and now fails two tests. |
+| No cross-client cache collisions | Keys lead with the slug. |
+| The scope script is safe | `{ ...cfg, campaignNames }` spreads the raw jsonb, so keys not on the interface survive; idempotent; refuses on a missing config; can only reach the renaissance row. What protects it is `salesforceAccountId` being required on the type, **not** a test — `scripts/**` is excluded from vitest. |
+| No migration needed | `campaignNames` is a new optional key inside the existing `salesforce_config` jsonb column, so `drizzle-kit` has nothing to diff. |
+| No vendor name leaks | No CRM vendor name reaches any user-visible string. |
 | Record Type = Sales | **Not verified.** The connector exposes record type for Account, Order and Contract, not Opportunity. Flagged rather than asserted — needs the client. |
-| Suite | `919 passed` (116 files), `tsc --noEmit` clean, `check:rsc` clean. Green on the PR: `test`, `rsc-boundary`, Vercel. |
+| Suite | `984 passed` (117 files), `tsc --noEmit` clean, `check:rsc` clean, lint unchanged at its 66 pre-existing errors with none in the touched files. Green on the PR: `test`, `rsc-boundary`, Vercel. |
 
 ---
 
@@ -137,70 +245,63 @@ to 92 rows against a 500-row cap. There is no volume argument for the risky opti
 
 Sev: **●** correctness · **○** cleanup/convention.
 Status: CONFIRMED (proven in-tree) · PLAUSIBLE (code assumption confirmed, external trigger unverified).
+Round: **R0** found writing this record · **R1/R2/R3** the reviewer's rounds on the PR.
 
-| # | Sev | Status | Location | Finding |
-|---|---|---|---|---|
-| 1 | ● | CONFIRMED | `lib/salesforce/leads.ts:109` | `campaignUnmatched` was computed and discarded, so a renamed campaign rendered "No data for this period." while Pipeline Performance blamed the rename. **Fixed on the branch in `afb76c4`.** |
-| 2 | ○ | CONFIRMED | `lib/salesforce/pipeline.ts:490` | `OWNER_MAX_ROWS` is passed to `transformByOwner` purely to compute a `truncated` the composer then ignores. Vestigial, and a future reader who trusts it gets a false all-clear. |
-| 3 | ○ | CONFIRMED | `components/report-sections/executive-overview/index.tsx:179` | "Scoped to agency-sourced campaigns." renders under the heading even when the block below is `NeedsConnection` or `LoadFailed` — describing the scope of numbers that are not on screen. |
-| 4 | ● | PLAUSIBLE | `lib/salesforce/pipeline.ts:483` | Record Type = Sales is not applied, because the connector does not expose record type for Opportunity. Five opportunities are in scope; whether all five are Sales is unconfirmed. |
-| 5 | ● | CONFIRMED | production DB | Renaissance has **no** `campaignNames`, so merging this changes no live number. Every CRM figure on staging is still whole-org until the script is run. |
+| # | Sev | Rnd | Status | Location | Finding |
+|---|---|---|---|---|---|
+| 1 | ● | R0 | CONFIRMED | `lib/salesforce/leads.ts` | `campaignUnmatched` computed and discarded, so a renamed campaign rendered "No data for this period." while Pipeline Performance blamed the rename. **Fixed `afb76c4`.** |
+| 2 | ● | R1 | CONFIRMED | `pipeline.ts` | One `campaignUnmatched` OR'd two independent windows, so the page asserted "these totals are 0" directly above a live $51,731 tile — the ordinary state of a newly scoped client. **Fixed `fa7d39c`** (split into two flags). |
+| 3 | ● | R1 | CONFIRMED | `stages.ts` | The Demand Journey funnel ignored the flag and rendered a confident `$0` above the block saying the totals cannot be trusted. **Fixed `fa7d39c`.** |
+| 4 | ● | R1 | CONFIRMED | `pipeline.ts` | Nothing pinned the truncation flags to **raw** pre-filter counts; moving them to post-filter counts left the suite green. **Fixed `fa7d39c`.** |
+| 5 | ● | R1 | CONFIRMED | `index.tsx` | No test at all, so the Contact→Lead swap, the heading and the scoped label were unguarded. **Fixed `fa7d39c` / `4e07761`.** |
+| 6 | ● | R1 | CONFIRMED | `leads.ts` | The leads path lacked both guards the pipeline path had: no test that `campaign_name` is requested, and no truncation flag. **Fixed `fa7d39c`.** |
+| 7 | ○ | R1 | CONFIRMED | `pipeline.ts:27` | Owner cap comment cited a pre-`campaign_name` measurement. Re-measured 127→184 rows, 2.72x. **Fixed `fa7d39c`.** |
+| 8 | ● | R2 | CONFIRMED | `pipeline.ts` | `scopedOwner.unmatched` computed and thrown away, so the breakdown said "No open deals by owner." when the truth was that no owner was on a configured campaign. **Fixed `4e07761`** (third flag). |
+| 9 | ● | R2 | CONFIRMED | `index.tsx` / `leads.ts` | Three unpinned seams: the `crmScoped` wiring, the leads field-list call site, and per-window `stageTruncated` terms. Each reverted green. **Fixed `4e07761`.** |
+| 10 | ● | R3 | CONFIRMED | `pipeline.ts:383` | The four cache wrappers sat on default `v1` after a response-shape change, so a stale entry would dash all four tiles under a false rename accusation. **Fixed `f46ffaf`.** |
+| 11 | ● | R3 | CONFIRMED | `campaign-filter.ts:105` | `unmatched` could not tell "none matched" from "the in-scope rows are past the cap", so exactly 500 out-of-scope rows raised the accusation *and* the truncation flag, with the speculative sentence printed first. **Fixed `f46ffaf`.** |
+| 12 | ● | R3 | CONFIRMED | `leads.ts:242` | The leads cache stored the post-filter value under a key omitting `campaignNames`, so a config fix left the block accusing the client for up to an hour beside corrected tiles. **Fixed `f46ffaf`.** |
+| 13 | ● | R3 | CONFIRMED | `leads.orchestration.test.ts` | `LEAD_SETTINGS` pinned by a tautology: the assertion imported the constant it checked, so `lead_converted` rebased every weekly bucket with 976 green. **Fixed `f46ffaf`.** |
+| 14 | ○ | R3 | CONFIRMED | `types.ts:198` | Cross-reference to `PipelineData.campaignUnmatched`, a field split into three. **Fixed `f46ffaf`.** |
+| 15 | ○ | R3 | CONFIRMED | `types.ts:81` | `unrecognizedClosedFlags` is a row count, so the new dimension inflates it ~3x for **unscoped** clients over identical data. Magnitude only — the caveat already says "rows, never deals". **Documented `f46ffaf`.** |
+| 16 | ○ | R3 | CONFIRMED | `pipeline.ts:50` | Every headroom re-measurement came from Renaissance, the friendliest possible org. **Documented `f46ffaf`.** |
+| 17 | ○ | R0 | CONFIRMED | `pipeline.ts:539` | `OWNER_MAX_ROWS` is passed to `transformByOwner` purely to compute a `truncated` the composer ignores. Vestigial; a future reader who wires it back up gets a false all-clear. **Open.** |
+| 18 | ○ | R0 | CONFIRMED | `index.tsx:185` | "Scoped to agency-sourced campaigns." renders under the heading even when the block below is `NeedsConnection` or `LoadFailed`. **Open.** |
+| 19 | ○ | R1 | CONFIRMED | `set-renaissance-campaign-scope.ts:52`, `:56` | Em dashes in operator-facing strings. **Open.** |
+| 20 | ● | R0 | PLAUSIBLE | live CRM | Record Type = Sales is not applied, because the connector does not expose record type for Opportunity. Five opportunities are in scope. **Open — needs the client.** |
+| 21 | ● | R0 | CONFIRMED | production DB | Renaissance has **no** `campaignNames`, so merging changes no live number. **Open — a decision, not a defect.** |
 
 ---
 
-## §4 — Detail
+## §4 — Detail on what is still open
 
-### #1 — The leads path dropped its own honesty flag ●
+Findings 1–16 are closed on the branch and their mechanisms are described in §1,
+where the code now explains itself. The four below are not.
 
-**Mechanism.** `dedupeLeadWeeks` returned `{rows, unmatched}` and
-`getSalesforceWeeklyLeadsImpl` used only `.rows`. `WeeklyContacts` had no field
-to carry the flag, so it died at the call site. `pipeline.ts` consumed the
-equivalent flag correctly, which is what made the asymmetry invisible: each piece
-was right in isolation and the value was lost between them.
-
-**Consequence.** When the configured campaigns match nothing, the scoped set is
-empty → `gapFill` returns `[]` → `ContactPacing` renders `<NoData />`, whose
-message is *"No data for this period."* That asserts the period was empty. The
-query in fact returned rows, none in scope. Directly below it, Pipeline
-Performance says *"The campaigns may have been renamed."* One rename, two
-contradictory explanations, and the leads one points away from the cause.
-
-Not hypothetical: exact-match filtering over three hand-entered names is exactly
-the configuration where a rename goes unnoticed.
-
-**Fix applied (`afb76c4`).** `WeeklyContacts.campaignUnmatched` added as
-**required** — optional is what allowed the omission, and `tsc` immediately
-caught the one existing fixture. `transformWeeklyContacts` takes it as a
-defaulted trailing param so the contacts path is not made to pass a constant
-false everywhere. `ContactPacing` checks it *before* the `weeks.length` check,
-since both branches are live at once and the generic message would otherwise win
-by accident. Regression coverage is `leads.orchestration.test.ts` — an
-end-to-end test through the impl, because a unit test of either piece alone
-passes with the bug present.
-
-### #2 — Vestigial cap argument on the owner transform ○
+### #17 — Vestigial cap argument on the owner transform ○
 
 **Mechanism.** `transformByOwner(rows, maxRows)` uses `maxRows` only for
-`truncated: rows.length >= maxRows`; it never slices. Since scoping, the composer
-judges truncation on the **raw** row count at `:502` — correct, because the cap
-applies to what the API returned and unseen rows could have been in scope — and
-ignores the returned flag. So `:490` computes a value whose own inline comment at
-`:499` explains why it must not be trusted.
+`truncated: rows.length >= maxRows`; it never slices. The composer judges
+truncation on the **raw** row count at `pipeline.ts:530` — correct, because the
+cap applies to what the API returned and unseen rows could have been in scope —
+and ignores the returned flag. So `:539` computes a value whose own neighbouring
+comment explains why it must not be trusted.
 
 **Suggested fix.** Have the composer stop asking for it, or return it from a
 shape that cannot be misread. Low stakes; the risk is a future reader wiring
 `owner.truncated` back up and getting the false all-clear.
 
-### #3 — Scope caption over an absent block ○
+### #18 — Scope caption over an absent block ○
 
-**Mechanism.** `index.tsx:178-183` gates the caption on `crmScoped` alone, while
+**Mechanism.** `index.tsx:185-186` gates the caption on `crmScoped` alone, while
 the body below is a three-way branch (`ContactPacing` / `LoadFailed` /
 `NeedsConnection`). A client with no CRM connected sees *"Lead Creation / Scoped
-to agency-sourced campaigns. / [connect your CRM]"*.
+to agency-sourced campaigns. / [connect your CRM]"* — describing the scope of
+numbers that are not on screen.
 
 **Suggested fix.** Gate the caption on the data branch, not on config.
 
-### #4 — Record Type = Sales ●
+### #20 — Record Type = Sales ●
 
 **Mechanism.** The connector exposes record type for Account, Order and Contract
 but not Opportunity, so a non-Sales opportunity on a scoped campaign would be
@@ -210,12 +311,13 @@ cannot be established from the connector.
 **Suggested fix.** Ask the client. If any are not Sales, the tiles need a
 different discriminator, and there may not be one available.
 
-### #5 — The feature is inert until the script runs ●
+### #21 — The feature is inert until the script runs ●
 
 **Mechanism.** `campaignNames` is client config in the DB. Live value today is
 `{"salesforceAccountId":"00D15000000Em4GEAS"}` with no campaign list, so
 `filterByCampaign` short-circuits to whole-org for Renaissance. The two-name
-scope from the earlier work was never applied either.
+scope from the earlier work was never applied either. Re-verified against the
+production database on 2026-08-31: no client has `campaignNames` set.
 
 `scripts/set-renaissance-campaign-scope.ts` is what applies it. Committing the
 names rather than leaving a hand-typed SQL edit is deliberate: this is the single
@@ -224,38 +326,55 @@ exact-match filter a typo degrades to a silent $0 rather than an error, so the
 names get reviewed like code. The script is idempotent and refuses to write onto
 a client with no `salesforce_config`.
 
-**Note for the promotion path.** Merging this PR does not change any client-facing
-number. Running the script does. Those are two separate decisions and should stay
-separate.
+**Sequencing, and this is the part that has teeth.** Merging this PR changes no
+client-facing number. Running the script does. They are two decisions and should
+stay separate — and the **cache version bump (#10) must be deployed before the
+script runs**, because there is no invalidation escape hatch and the stale-entry
+window is opened by exactly that sequence.
 
 ---
 
 ## §5 — Follow-ups
 
-**Correctness**
-- [x] **#1** — leads `campaignUnmatched` threaded through and covered by an
-  end-to-end regression test. Fixed on the feature branch in `afb76c4`.
+**Correctness — all closed on the branch**
+- [x] **#1–#9** — leads flag threaded through; the unmatched flag split into
+  three; the Demand Journey funnel taught the flag; every truncation term and
+  wiring seam pinned by a test that fails under its own mutation.
+- [x] **#10–#13** — cache version bumped to `v2`; a capped response no longer
+  accuses the client of renaming a campaign; the leads cache boundary moved onto
+  the raw query to match the pipeline; `LEAD_SETTINGS` pinned by value.
 
 **Needs a live call / the client first**
-- [ ] **#4** — confirm all five in-scope opportunities are Record Type = Sales.
+- [ ] **#20** — confirm all five in-scope opportunities are Record Type = Sales.
   Blocks nothing technically, but it is the one open question that could change
   a client-facing number.
 
-**Decide together**
-- [ ] **#5** — when to run `scripts/set-renaissance-campaign-scope.ts`. This is
-  the highest-value item on the list: until it runs, the whole feature is a
-  no-op and staging keeps showing the $174M renewal book. Recommend running it
-  on staging first so Tina QAs the scoped numbers, not the unscoped ones.
+**Decide together — the highest-value items on this list**
+- [ ] **#21** — when to run `scripts/set-renaissance-campaign-scope.ts`. Until it
+  runs, the whole feature is a no-op and staging keeps showing the $174M renewal
+  book. Recommend running it on staging first so Tina QAs the scoped numbers, not
+  the unscoped ones. **Deploy the `v2` bump first.**
 - [ ] Confirm **Brokers belongs in scope**. It was deliberately excluded in
-  `af46b7f` and added in `dea198f`. It changes no number today, so this is a
-  cheap decision to make now and an expensive one to discover later.
+  `af46b7f` and added in `dea198f`. Reviewed and answered *yes* in R1 — verified
+  to exist, correctly spelled, and to change no tile today — recorded here so the
+  answer is not only in a PR thread.
 
 **Cleanup**
-- [ ] **#2** — drop the vestigial `OWNER_MAX_ROWS` argument at `pipeline.ts:490`.
-- [ ] **#3** — gate the "Scoped to agency-sourced campaigns." caption on the
+- [ ] **#17** — drop the vestigial `OWNER_MAX_ROWS` argument at `pipeline.ts:539`.
+- [ ] **#18** — gate the "Scoped to agency-sourced campaigns." caption on the
   rendered branch rather than on config.
+- [ ] **#19** — em dashes in the scope script's operator-facing strings.
+
+**Recorded decisions, not findings**
+- Id-less lead rows are **disclosed rather than counted**. The client-facing
+  number is still an undercount; it is caveated instead of silently wrong.
+  Admitting the rows would collapse them onto one key and report them as a single
+  lead, which is further from the truth.
+- The lead dedup is **currently inert** and kept deliberately. See §1.
 
 **Watch, not a finding**
 - Client-side filtering means truncation is judged before scoping. Correct today
-  (92 rows against a 500 cap) and `stageTruncated` guards it, but a client with a
-  large campaign programme would need the cap revisited rather than the approach.
+  and now guarded on both sides — the truncation flags fire on raw counts, and a
+  capped response suppresses the rename accusation. The residual risk is a client
+  with a large campaign programme against the same 500-row cap, on which no
+  measurement exists; that needs the cap revisited, not the approach.
