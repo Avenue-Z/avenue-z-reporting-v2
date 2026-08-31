@@ -4,7 +4,11 @@ import { dedupeLeadWeeks } from './leads'
 const row = (id: string, week: string, campaign: string) =>
   ({ lead_id: id, yearWeekIso_created: week, campaign_name: campaign, lead_count: 1 }) as unknown as Record<string, string>
 
-const NAMES = ['2026 - Inbound Prospecting', '2026 - Inbound Prospecting - Employers']
+const NAMES = [
+  '2026 - Inbound Prospecting',
+  '2026 - Inbound Prospecting - Brokers',
+  '2026 - Inbound Prospecting - Employers',
+]
 
 describe('dedupeLeadWeeks', () => {
   it('counts each lead once even when it belongs to several matching campaigns', () => {

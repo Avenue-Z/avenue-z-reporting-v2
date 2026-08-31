@@ -11,11 +11,15 @@
  *
  * EXACT MATCH, NOT SUBSTRING. The names come from the client contact and are
  * stored per client in `salesforce_config.campaignNames`. Matching is exact
- * (case-insensitive, trimmed) rather than a prefix or `includes`, because this
- * org contains `2026 - Inbound Prospecting - Brokers` alongside the two names
- * that were scoped in: a substring match would silently widen client-facing
- * numbers the day that campaign starts producing deals. Widening the scope
- * should be a config edit somebody made on purpose.
+ * (case-insensitive, trimmed) rather than a prefix or `includes`. Renaissance's
+ * org carries three sibling campaigns under one prefix — `2026 - Inbound
+ * Prospecting`, `2026 - Inbound Prospecting - Brokers` and `2026 - Inbound
+ * Prospecting - Employers` — and all three are scoped in. Verified against the
+ * Campaigns report type 2026-08-31: those three are the only campaigns in the
+ * org whose name mentions prospecting. Listing them individually is the point.
+ * A prefix match would reach the same answer today and then silently swallow
+ * the fourth sibling somebody creates next quarter. Widening the scope stays a
+ * config edit somebody made on purpose.
  *
  * NO SERVER-SIDE FILTER. Deliberate, and consistent with `salesforceQuery`,
  * which takes no `filters` parameter: a typo'd filter field returns HTTP 200

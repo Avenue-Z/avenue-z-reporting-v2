@@ -4,7 +4,13 @@ import { filterByCampaign } from './campaign-filter'
 const row = (campaign: string, n = 1) =>
   ({ campaign_name: campaign, opportunity_count: n }) as unknown as Record<string, string>
 
-const NAMES = ['2026 - Inbound Prospecting', '2026 - Inbound Prospecting - Employers']
+// The live scope for Renaissance: three sibling campaigns under one prefix.
+// Confirmed against the Campaigns report type on 2026-08-31 — these are the only
+// campaigns in the org whose name mentions prospecting.
+const PARENT = '2026 - Inbound Prospecting'
+const BROKERS = '2026 - Inbound Prospecting - Brokers'
+const EMPLOYERS = '2026 - Inbound Prospecting - Employers'
+const NAMES = [PARENT, BROKERS, EMPLOYERS]
 
 describe('filterByCampaign', () => {
   it('passes every row through when no campaign names are configured', () => {
@@ -19,13 +25,10 @@ describe('filterByCampaign', () => {
 
   it('keeps only rows whose campaign is one of the configured names', () => {
     const r = filterByCampaign(
-      [row('2026 - Inbound Prospecting'), row('Napa Golf Outing'), row('2026 - Inbound Prospecting - Employers')],
+      [row(PARENT), row('Napa Golf Outing'), row(EMPLOYERS), row(BROKERS)],
       NAMES,
     )
-    expect(r.rows.map((x) => x.campaign_name)).toEqual([
-      '2026 - Inbound Prospecting',
-      '2026 - Inbound Prospecting - Employers',
-    ])
+    expect(r.rows.map((x) => x.campaign_name)).toEqual([PARENT, EMPLOYERS, BROKERS])
     expect(r.active).toBe(true)
     expect(r.unmatched).toBe(false)
   })
@@ -43,10 +46,14 @@ describe('filterByCampaign', () => {
   })
 
   it('does not substring-match: a longer campaign name is a different campaign', () => {
-    // '2026 - Inbound Prospecting - Brokers' is a real, separate campaign in this
-    // org. Nick scoped the filter to two names; a startsWith/includes match would
-    // silently pull in a third and change client-facing numbers.
-    expect(filterByCampaign([row('2026 - Inbound Prospecting - Brokers')], NAMES).rows).toEqual([])
+    // All three siblings are in scope, and each is named individually in the config.
+    // This is what makes that necessary: given a config that names only the parent,
+    // the '- Brokers' sibling is not pulled in. A startsWith/includes match would
+    // agree with the three-name config today and then silently widen client-facing
+    // numbers the moment somebody creates a fourth sibling nobody reviewed.
+    const r = filterByCampaign([row(BROKERS)], [PARENT])
+    expect(r.rows).toEqual([])
+    expect(r.unmatched).toBe(true)
   })
 
   it('flags unmatched when rows arrived but none matched', () => {

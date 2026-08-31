@@ -601,7 +601,7 @@ describe('getSalesforcePipeline', () => {
 describe('campaign scoping', () => {
   const OURS = '2026 - Inbound Prospecting'
   const THEIRS = 'Napa Golf Outing'
-  const NAMES = [OURS, '2026 - Inbound Prospecting - Employers']
+  const NAMES = [OURS, '2026 - Inbound Prospecting - Brokers', '2026 - Inbound Prospecting - Employers']
 
   const withCampaign = (row: Record<string, unknown>, campaign: string) => ({ ...row, campaign_name: campaign })
 
