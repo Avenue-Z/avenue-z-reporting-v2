@@ -62,6 +62,24 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
     )
   }
 
+  // Third special-cased empty state, and the last one before the generic
+  // message. A CAPPED response whose in-scope rows all sit past the cap empties
+  // the series while campaignUnmatched is correctly false — it is suppressed on
+  // truncation, because a response we did not see all of cannot support the
+  // rename accusation. Nothing else here knew about that state, so the block
+  // fell through to "No data for this period.", which types.ts itself calls
+  // false: the query returned its full cap of rows. The tiles below print a
+  // compensating line in the same situation (pipeline-performance.tsx); this
+  // one printed nothing.
+  //
+  // Ranked last of the three because it is the weakest claim: the other two
+  // know WHY the series is empty, this one only knows we cannot tell.
+  if (weeks.length === 0 && truncated === true) {
+    return (
+      <NoData message="The lead query hit its row limit before any agency-sourced lead, so no weekly series could be built. This is not an empty period." />
+    )
+  }
+
   if (weeks.length === 0) return <NoData />
 
   // weeks is a contiguous run of ISO weeks through the current one, and the

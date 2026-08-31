@@ -578,6 +578,29 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // degrades to no delta.
     openCampaignUnmatched: scopedOpen.unmatched,
     wonCampaignUnmatched: scopedWonCur.unmatched,
+    // The DASH, kept apart from the ACCUSATION above, because one boolean was
+    // doing both jobs and the truncation suppression turned off both at once.
+    // A capped response whose scoped set is empty cannot support "the campaigns
+    // may have been renamed" — the in-scope rows may sit past the cap — but the
+    // figure is no more established for that: it renders 0 / $0 / $0 under a
+    // "may be undercounted" line, and a reader takes the zero as the number.
+    // The rule this file already states a few lines up applies unchanged: a
+    // value that could not be established must never render as a confident
+    // zero. So the accusation stays suppressed and the tiles keep dashing.
+    //
+    // `rows.length === 0` is what makes the truncated term scope-only without
+    // testing `active`: an unscoped set is returned whole, and a set that hit
+    // the cap has at least STAGE_MAX_ROWS rows in it, so the two conditions can
+    // only be true together once a filter has emptied it.
+    openValueUnknown:
+      openRows === null || scopedOpen.unmatched || (openTruncated && scopedOpen.rows.length === 0),
+    // One term longer than its twin, because this tile has one more way to be
+    // unknowable. wonStageUnmatched does NOT already cover the truncated case:
+    // it also requires a non-empty input, so an emptied scoped set reports
+    // false there exactly as the campaign flag does.
+    wonValueUnknown:
+      wonCurRows === null || kpis.wonStageUnmatched || scopedWonCur.unmatched
+      || (wonCurTruncated && scopedWonCur.rows.length === 0),
     // The fourth campaign flag, and the third unmatched one: its own flag
     // rather than a widening of the two above. The owner rows back the
     // breakdown and no tile, so they cannot ride the tile caveat: that

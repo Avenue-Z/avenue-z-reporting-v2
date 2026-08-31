@@ -331,3 +331,42 @@ describe('leads-path data quality signals', () => {
     expect(screen.queryByTestId('leads-caveat')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * The leads block's own version of the capped-and-empty state.
+ *
+ * campaignUnmatched is suppressed on truncation for the reason filterByCampaign
+ * gives, so it cannot explain this emptiness, and nothing else here knew about
+ * it: the block fell through to "No data for this period." — a claim the period
+ * was empty, when the query in fact returned its full cap of rows. The tiles
+ * below print a compensating line in the same situation; this one printed
+ * nothing at all.
+ */
+describe('a truncated lead response with nothing in scope', () => {
+  const empty = { weeks: [], currentWeek: 0, previousWeek: 0 }
+
+  it('never claims the period was empty', () => {
+    render(<ContactPacing data={data({ ...empty, truncated: true, campaignUnmatched: false })} />)
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+    expect(screen.getByText(/row limit before any agency-sourced lead/i)).toBeInTheDocument()
+  })
+
+  it('ranks below campaignUnmatched, which knows why the series is empty', () => {
+    // Both cannot be live under the real producer (truncation suppresses the
+    // flag), but the ordering is what stops a future change making the weaker
+    // claim win by accident.
+    render(<ContactPacing data={data({ ...empty, truncated: true, campaignUnmatched: true })} />)
+    expect(screen.getByText(/no leads matched the agency-sourced campaigns/i)).toBeInTheDocument()
+  })
+
+  it('ranks below the id-less explanation, which also knows why', () => {
+    render(<ContactPacing data={data({ ...empty, truncated: true, unusableRows: 4 })} />)
+    expect(screen.getByText(/carried no lead identifier/i)).toBeInTheDocument()
+  })
+
+  it('leaves a truncated response that DID produce a series rendering it', () => {
+    render(<ContactPacing data={data({ truncated: true })} />)
+    expect(screen.queryByText(/no weekly series could be built/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/hit its row limit/i)).toBeInTheDocument()
+  })
+})

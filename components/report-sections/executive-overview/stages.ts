@@ -117,8 +117,16 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
   // Split the same way PipelineData splits it: the open windows and the won
   // window can be unmatched independently, so a client with open pipeline and no
   // close yet keeps a live hero metric and dashes only the Closed Won stat.
-  const openGone = !!pipeline && (pipeline.openUnavailable || pipeline.openCampaignUnmatched)
-  const wonGone  = !!pipeline && (pipeline.wonUnavailable || pipeline.wonStageUnmatched || pipeline.wonCampaignUnmatched)
+  //
+  // Both read the value flags rather than re-OR'ing the narrow ones, which is
+  // also what keeps this card and the block below agreeing on a fourth state
+  // neither of them can compute: a capped response whose scoped set is empty.
+  // The campaign flags are false there on purpose (a capped response cannot
+  // support the rename accusation), so an OR of them would have put a confident
+  // $0 back in the hero metric while the block dashed — the same contradiction
+  // in the opposite direction.
+  const openGone = !!pipeline && pipeline.openValueUnknown
+  const wonGone  = !!pipeline && pipeline.wonValueUnknown
 
   return [
     {
@@ -228,6 +236,9 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       subMetric: pipeline
         ? (pipeline.openUnavailable ? "Couldn't load open pipeline."
            : pipeline.openCampaignUnmatched ? 'No open deals on the agency-sourced campaigns.'
+           // Same tail as the block's tile caveat: the only state left where
+           // the value is unknown but no named flag explains it.
+           : pipeline.openValueUnknown ? 'Row limit reached before any agency-sourced deal.'
            : `${fmtNum(pipeline.openDeals.value)} open deals`)
         : undefined,
       // Named explicitly rather than reading totalPipeline.delta, which is

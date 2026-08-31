@@ -13,11 +13,44 @@ vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 // The pass-through also RECORDS which fetchers were wrapped, at import time, so
 // the cache boundary itself can be asserted. vi.hoisted because vi.mock is
 // hoisted above any ordinary const and would hit its TDZ.
-const wrapped = vi.hoisted(() => ({ names: [] as string[] }))
+//
+// TWO records, ported from pipeline.orchestration.test.ts:26-30, because "a
+// wrapper was built" and "the composer goes through it" are different claims
+// and only the second is the property that matters. The registry alone cannot
+// see the regression it exists to catch: swapping getLeadRows(slug, range) for
+// leadRowsImpl(slug, range) in the composer disables caching for the main lead
+// query outright, and the `const getLeadRows = cached(...)` line still runs and
+// still registers, so every test in this file stayed green. The structural
+// change on this branch happened HERE, which is the one file the pattern had
+// not reached.
+//
+// The registry also keeps each wrapper's OPTIONS, so the health severity and
+// the negative TTL are pinned rather than inferred.
+const { wrapped, cacheCalls } = vi.hoisted(() => ({
+  wrapped: {
+    names: [] as string[],
+    options: [] as Array<{ fn: string; options: Record<string, unknown> }>,
+  },
+  cacheCalls: [] as string[],
+}))
 vi.mock('@/lib/cache', () => ({
-  cached: (_v: string, fn: string, impl: (...a: unknown[]) => unknown) => {
+  cached: (
+    _v: string,
+    fn: string,
+    impl: (...a: unknown[]) => unknown,
+    options: Record<string, unknown> = {},
+  ) => {
     wrapped.names.push(fn)
-    return impl
+    wrapped.options.push({ fn, options })
+    // A DISTINCT function, never `impl` itself: the composer calling the impl
+    // directly has to be observably different from it calling the wrapper, or
+    // no assertion here can tell the two apart. Beyond the record it is a
+    // pass-through, which is what CACHE_DISABLE=1 does in production, so the
+    // orchestration under test is unchanged.
+    return (...args: unknown[]) => {
+      cacheCalls.push(fn)
+      return impl(...args)
+    }
   },
 }))
 
@@ -239,6 +272,8 @@ describe('getSalesforceWeeklyLeadsImpl \u2014 the query it actually issues', () 
  * is invisible unless it is asserted.
  */
 describe('the cache boundary', () => {
+  const leadOptions = (fn: string) => wrapped.options.find((o) => o.fn === fn)?.options
+
   it('wraps the two raw-row queries and NOT the composer', () => {
     // Filtered to this module's own fetchers: leads.ts imports contacts.ts for
     // transformWeeklyContacts, which registers a wrapper of its own at import.
@@ -246,6 +281,44 @@ describe('the cache boundary', () => {
     // re-wrapping the composer shows up here rather than passing silently.
     expect(wrapped.names.filter((n) => n.toLowerCase().includes('lead')))
       .toEqual(['leadRows', 'leadRowsCompare'])
+  })
+
+  it('routes BOTH queries through their wrappers, not past them into the impl', () => {
+    // The claim the registry cannot make. A composer that calls leadRowsImpl
+    // directly leaves the registry identical and the query uncached on every
+    // render.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([row('L1', '2026|30', NAMES[0])])
+    cacheCalls.length = 0
+    return getSalesforceWeeklyLeadsImpl('renaissance', NOW).then(() => {
+      expect(cacheCalls.sort()).toEqual(['leadRows', 'leadRowsCompare'])
+    })
+  })
+
+  it('gives both wrappers a negative TTL, the brake the boundary move took off', () => {
+    // While the cached entry was the assembled composite, a persistently failing
+    // compare query was caught INSIDE the wrapper, so the call fulfilled with a
+    // degraded result and unstable_cache stored it for the hour: one real
+    // upstream attempt per hour, by accident. The catch now sits outside, so a
+    // rejection stores nothing and the query is re-issued every render, each one
+    // paying smQuery's 15s timeout plus retries. pipeline.ts carries this key on
+    // all four of its fetchers for exactly this reason.
+    for (const fn of ['leadRows', 'leadRowsCompare']) {
+      expect(leadOptions(fn)?.negativeTtlSeconds).toBe(60)
+      expect(leadOptions(fn)?.negativeTtlSeconds as number).toBeLessThan(3600)
+    }
+  })
+
+  it('keeps the compare query out of the health verdict, and the current one in it', () => {
+    // Losing this would page Slack over a missing year-over-year figure on a
+    // page that renders every series it owes: recordFetch moved down with the
+    // boundary, and deriveStatus marks a section down if ANY source failed.
+    // Its pipeline twin is pinned the same way (pipeline.orchestration.test.ts).
+    expect(leadOptions('leadRowsCompare')?.healthCritical).toBe(false)
+    // Left undefined (cached() defaults it true) on the query whose failure
+    // does take the block down, so a real outage still reports.
+    expect(leadOptions('leadRows')?.healthCritical).toBeUndefined()
   })
 })
 

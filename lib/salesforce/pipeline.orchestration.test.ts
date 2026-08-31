@@ -289,6 +289,23 @@ describe('getSalesforcePipeline', () => {
     }
   })
 
+  test('carries the cache version on all four fetchers, so no query can be read back off a v1 key', () => {
+    // The response shape changed on this branch: campaign_name joined
+    // STAGE_FIELDS and OWNER_FIELDS. A v1 entry written by pre-branch code
+    // holds rows with NO campaign_name key, every one normalizes to '',
+    // nothing matches a configured campaign, and all four tiles dash under
+    // "The campaigns may have been renamed." on a client that renamed nothing.
+    //
+    // Asserted per fetcher, not on the shared constant. The constant exists so
+    // nobody bumps three of four by hand, but the property that matters is that
+    // each wrapper actually PASSES it: dropping `version` from one line is
+    // invisible to every other test here, and a half-bump reproduces the same
+    // falsehood on a subset of tiles.
+    const sf = cachedRegistry.filter((c) => c.vendor === 'salesforce')
+    expect(sf.map((c) => c.fn).sort()).toEqual(['openStages', 'ownerRows', 'wonStages', 'wonStagesCompare'])
+    for (const c of sf) expect(c.options.version).toBe('v2')
+  })
+
   test('gives every Salesforce query a negative TTL far below the positive one', () => {
     // unstable_cache stores nothing for a rejected call, so without this a query
     // failing persistently is re-issued on every render and pays the full 60s
@@ -982,5 +999,149 @@ describe('campaign scoping', () => {
     })
     const p = await getSalesforcePipeline('acme')
     expect(p.unrecognizedClosedFlags).toBe(0)
+  })
+
+  /**
+   * Truncation is judged per window, and each judgement is passed to the filter
+   * for THAT window. Nothing pinned the pairing.
+   *
+   * The four `filterByCampaign` calls take four different truncation arguments,
+   * and every test above either caps all three stage windows together or caps
+   * none of them, so the arguments are interchangeable under all of them:
+   * crossing two is a one-token edit that stays green. Live it would suppress
+   * the rename accusation on a window that was complete (a real cause hidden)
+   * or raise it on one that was capped (the falsehood this branch removed).
+   *
+   * Each case caps exactly ONE window with rows that are ALL out of scope, so
+   * the capped window must stay silent and the under-cap ones must accuse.
+   */
+  describe('each window is filtered with its OWN truncation verdict', () => {
+    const cappedOutOfScope = () =>
+      Array.from({ length: 500 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS))
+    const oneOutOfScope = () => [withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)]
+
+    /** Caps one stage window; every other query returns a single out-of-scope row. */
+    const capOnly = (target: 'open' | 'wonCur') => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+        if (fields.includes('opportunity_owner')) return Promise.resolve([])
+        const which =
+          dateRange === EXPECTED_OPEN_WINDOW ? 'open'
+          : dateRange === '2025-01-01,2025-12-31' ? 'wonPrior'
+          : 'wonCur'
+        return Promise.resolve(which === target ? cappedOutOfScope() : oneOutOfScope())
+      })
+    }
+
+    test('a capped OPEN window silences only the open accusation', async () => {
+      capOnly('open')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.openCampaignUnmatched).toBe(false)
+      // The won window was complete, so its accusation is supported and stands.
+      expect(p.wonCampaignUnmatched).toBe(true)
+    })
+
+    test('a capped CLOSED-WON window silences only the won accusation', async () => {
+      capOnly('wonCur')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.wonCampaignUnmatched).toBe(false)
+      expect(p.openCampaignUnmatched).toBe(true)
+    })
+  })
+
+  /**
+   * The dash and the accusation are two different questions, and one boolean
+   * used to answer both.
+   *
+   * Suppressing `openCampaignUnmatched` on a capped response is right — the
+   * in-scope rows may sit past the cap, so the response cannot support "the
+   * campaigns may have been renamed" — but it left the tiles rendering a
+   * confident 0 / $0 / $0 under "may be undercounted". The value flags carry
+   * the dash instead, and stay true in exactly that state.
+   */
+  describe('openValueUnknown / wonValueUnknown outlive the suppressed accusation', () => {
+    const allOutOfScope = (n: number) =>
+      Array.from({ length: n }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS))
+
+    const respond = (rows: (dateRange: string) => Record<string, unknown>[]) => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) =>
+        Promise.resolve(fields.includes('opportunity_owner') ? [] : rows(dateRange)))
+    }
+
+    test('stay true on a capped window whose scoped set is empty, while the accusation is false', async () => {
+      respond(() => allOutOfScope(500))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+      expect(p.openCampaignUnmatched).toBe(false)
+      expect(p.wonCampaignUnmatched).toBe(false)
+      // The figures are 0 for want of an in-scope row we can prove exists or
+      // does not. That is unknown, not zero.
+      expect(p.totalPipeline.value).toBe(0)
+      expect(p.openValueUnknown).toBe(true)
+      expect(p.wonValueUnknown).toBe(true)
+    })
+
+    test('stay true on a COMPLETE response that matched nothing, where the accusation also stands', async () => {
+      respond(() => allOutOfScope(1))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(false)
+      expect(p.openCampaignUnmatched).toBe(true)
+      expect(p.openValueUnknown).toBe(true)
+      expect(p.wonValueUnknown).toBe(true)
+    })
+
+    test('go false on a capped window that DID return in-scope rows', async () => {
+      // The ordinary truncated case. The totals are merely low, so dashing them
+      // would withhold figures that genuinely exist.
+      respond(() => [
+        ...allOutOfScope(499),
+        withCampaign(stageRow('Closed Won', 2, 900, 100, true), OURS),
+        withCampaign(stageRow('Proposal Released', 3, 700, 25, false), OURS),
+      ])
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+      expect(p.openValueUnknown).toBe(false)
+      expect(p.wonValueUnknown).toBe(false)
+      expect(p.totalPipeline.value).toBe(700)
+    })
+
+    test('openValueUnknown also covers a failed open fetch', async () => {
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+        if (fields.includes('opportunity_owner')) return Promise.resolve([])
+        if (dateRange === EXPECTED_OPEN_WINDOW) return Promise.reject(new Error('open query failed'))
+        return Promise.resolve([withCampaign(stageRow('Closed Won', 2, 900, 100, true), OURS)])
+      })
+      const p = await getSalesforcePipeline('acme')
+      expect(p.openUnavailable).toBe(true)
+      expect(p.openValueUnknown).toBe(true)
+      // The won window fetched and matched, so its value is known.
+      expect(p.wonValueUnknown).toBe(false)
+      err.mockRestore()
+    })
+
+    test('wonValueUnknown also covers a renamed won stage, which no campaign flag reports', async () => {
+      respond(() => [withCampaign(stageRow('Proposal Released', 3, 700, 25, false), OURS)])
+      const p = await getSalesforcePipeline('acme')
+      expect(p.wonStageUnmatched).toBe(true)
+      expect(p.wonCampaignUnmatched).toBe(false)
+      expect(p.wonValueUnknown).toBe(true)
+      // Open matched, so it stays live: the two windows fail independently.
+      expect(p.openValueUnknown).toBe(false)
+    })
+
+    test('both stay false on a healthy scoped response', async () => {
+      respond(() => [
+        withCampaign(stageRow('Proposal Released', 3, 700, 25, false), OURS),
+        withCampaign(stageRow('Closed Won', 2, 900, 100, true), OURS),
+      ])
+      const p = await getSalesforcePipeline('acme')
+      expect(p.openValueUnknown).toBe(false)
+      expect(p.wonValueUnknown).toBe(false)
+    })
   })
 })

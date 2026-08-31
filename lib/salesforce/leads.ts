@@ -206,7 +206,13 @@ export async function getSalesforceWeeklyLeadsImpl(slug: string, now: Date = new
  * There was no way to clear it early — no Salesforce fetcher passes `tags:`, so
  * revalidateTag cannot reach these entries, leaving only the TTL or
  * CACHE_DISABLE=1. So the boundary now sits on the RAW query, exactly as the
- * pipeline's does, and every scoping decision is made fresh on each render.
+ * pipeline's does, and the scoping re-runs below it every render.
+ *
+ * That is not quite "a corrected campaign name lands on the next render": the
+ * names come from getClientBySlug, which is itself cached at a 5-minute TTL, so
+ * the true bound is five minutes rather than one render. Five minutes against
+ * the hour this replaces is the fix working; the sentence is just weaker than
+ * it looks.
  *
  * The fetcher names are new (`leadRows`, not `getSalesforceWeeklyLeads`), and
  * cached() keys on vendor + fn + version, so no pre-existing entry can be read
@@ -214,10 +220,33 @@ export async function getSalesforceWeeklyLeadsImpl(slug: string, now: Date = new
  * the old assembled-shape entries, which gained `truncated` and `unusableRows`
  * on this branch, are unreachable rather than reinterpreted.
  */
+/**
+ * How long a failed lead query is remembered before it is attempted again.
+ *
+ * Matches pipeline.ts's constant of the same name, which carries the fuller
+ * argument for the 60s-against-an-hour asymmetry. It is here because the
+ * boundary move above TOOK A BRAKE OFF, and the brake has to come back
+ * deliberately rather than by accident.
+ *
+ * The accident: while the cached entry was the assembled composite, a
+ * persistently failing compare query was caught inside the wrapper, so the call
+ * FULFILLED with a degraded result and unstable_cache stored it for the hour —
+ * which meant one real upstream attempt per hour. Now the catch sits outside,
+ * correctly, so a rejection stores nothing and the query is re-issued on every
+ * render, each one paying smQuery's 15s REQUEST_TIMEOUT_MS plus its retries
+ * (leadRowsImpl passes no timeoutMs of its own). lib/cache.ts's negative-caching
+ * docblock describes this exact trade, and pipeline.ts applied it to all four
+ * of its fetchers when it made the same move; the leads move inherited the
+ * structure without the key.
+ */
+const NEGATIVE_TTL_SECONDS = 60
+
 function leadRowsImpl(slug: string, range: string): Promise<Record<string, string>[]> {
   return salesforceQuery(slug, LEAD_FIELDS, range, { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS })
 }
-const getLeadRows = cached('salesforce', 'leadRows', leadRowsImpl, { extractTags: byClient })
+const getLeadRows = cached('salesforce', 'leadRows', leadRowsImpl, {
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+})
 
 /**
  * Same impl, separate wrapper, one difference: healthCritical is false.
@@ -232,7 +261,7 @@ const getLeadRows = cached('salesforce', 'leadRows', leadRowsImpl, { extractTags
  * at the call site remains the operational signal.
  */
 const getLeadRowsCompare = cached('salesforce', 'leadRowsCompare', leadRowsImpl, {
-  extractTags: byClient, healthCritical: false,
+  extractTags: byClient, healthCritical: false, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
 })
 
 // Deliberately NOT wrapped in cached(). The caching sits on the two fetchers

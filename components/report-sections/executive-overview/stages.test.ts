@@ -207,7 +207,7 @@ describe('buildStages: AI Visibility brand resolution', () => {
   })
 })
 
-const pipelineFixture: PipelineData = {
+const healthyPipeline: PipelineData = {
   openDeals:        { value: 297 },
   totalPipeline:    { value: 4_820_000 },
   closedWon:        { value: 1_375_000, delta: 15.7 },
@@ -223,7 +223,32 @@ const pipelineFixture: PipelineData = {
   openCampaignUnmatched: false,
   wonCampaignUnmatched: false,
   ownerCampaignUnmatched: false,
+  openValueUnknown: false,
+  wonValueUnknown: false,
 }
+
+/**
+ * Builds a fixture with the two value flags DERIVED the way pipeline.ts
+ * composes them, rather than spread in by hand.
+ *
+ * The card dashes on those flags now, so a fixture that sets only a narrow one
+ * would silently stop dashing and the test would assert the wrong thing about
+ * the wrong state. Deriving keeps every existing case meaning what it meant.
+ * Pass a value flag explicitly to reach the state no narrow flag implies: a
+ * TRUNCATED response whose scoped set came back empty, where the campaign flag
+ * is deliberately false and the figure is still unknown.
+ */
+function pipelineData(over: Partial<PipelineData> = {}): PipelineData {
+  const base = { ...healthyPipeline, ...over }
+  return {
+    ...base,
+    openValueUnknown: over.openValueUnknown ?? (base.openUnavailable || base.openCampaignUnmatched),
+    wonValueUnknown: over.wonValueUnknown
+      ?? (base.wonUnavailable || base.wonStageUnmatched || base.wonCampaignUnmatched),
+  }
+}
+
+const pipelineFixture: PipelineData = pipelineData()
 
 const contactsFixture: WeeklyContacts = {
   weeks: [
@@ -300,8 +325,8 @@ describe('CRM stages, populated', () => {
     // an object literal widens to `string`, so the spread would stop
     // typechecking against PipelineData.
     const degraded: PipelineData[] = [
-      { ...pipelineFixture, closedWon: { value: 0, delta: -100 }, wonUnavailable: true },
-      { ...pipelineFixture, closedWon: { value: 0, delta: -100 }, wonStageUnmatched: true },
+      pipelineData({ closedWon: { value: 0, delta: -100 }, wonUnavailable: true }),
+      pipelineData({ closedWon: { value: 0, delta: -100 }, wonStageUnmatched: true }),
     ]
     for (const pipeline of degraded) {
       const s = buildStages({ totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true, pipeline })
@@ -313,7 +338,7 @@ describe('CRM stages, populated', () => {
   it('does not state a deal count beside a dashed metric', () => {
     const s = buildStages({
       totals, cmpTotals, peec, peecConnected: true, trendRows: [], crmConnected: true,
-      pipeline: { ...pipelineFixture, openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 }, openUnavailable: true },
+      pipeline: pipelineData({ openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 }, openUnavailable: true }),
     })
     const p = s.find(x => x.key === 'pipeline')!
     expect(p.metric).toBe('—')
@@ -368,11 +393,10 @@ describe('the pipeline card honours the campaign-scope flags', () => {
       .find((s) => s.key === 'pipeline')!
 
   it('dashes the hero and names the cause when the open window matched no campaign', () => {
-    const s = stage({
-      ...pipelineFixture,
+    const s = stage(pipelineData({
       campaignScoped: true, openCampaignUnmatched: true,
       openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 },
-    })
+    }))
     expect(s.metric).toBe('—')
     // Never "0 open deals": that is the confident zero this flag exists to stop.
     expect(s.subMetric).toBe('No open deals on the agency-sourced campaigns.')
@@ -382,11 +406,10 @@ describe('the pipeline card honours the campaign-scope flags', () => {
   it('dashes only the Closed Won stat when just the closed-won window matched no campaign', () => {
     // The newly-scoped-client case: real open pipeline, no close yet. The hero
     // must stay live, which is exactly what a single OR-ed flag destroyed.
-    const s = stage({
-      ...pipelineFixture,
+    const s = stage(pipelineData({
       campaignScoped: true, wonCampaignUnmatched: true,
       closedWon: { value: 0 },
-    })
+    }))
     expect(s.metric).toBe('$4,820,000')
     expect(s.subMetric).toBe('297 open deals')
     expect(s.stats?.find((x) => x.label === 'Closed Won')?.value).toBe('—')
@@ -394,9 +417,28 @@ describe('the pipeline card honours the campaign-scope flags', () => {
   })
 
   it('leaves every figure live when both windows matched normally', () => {
-    const s = stage({ ...pipelineFixture, campaignScoped: true })
+    const s = stage(pipelineData({ campaignScoped: true }))
     expect(s.metric).toBe('$4,820,000')
     expect(s.stats?.find((x) => x.label === 'Closed Won')?.value).toBe('$1,375,000')
+  })
+
+  it('dashes on a capped response with nothing in scope, where no campaign flag is raised', () => {
+    // The card and the block must agree here. openCampaignUnmatched is FALSE on
+    // a truncated response by design, so a card that OR'd the narrow flags would
+    // headline a confident $0 while Pipeline Performance dashed the same figure
+    // — the contradiction this describe exists to prevent, in the opposite
+    // direction from the one that produced it.
+    const s = stage(pipelineData({
+      campaignScoped: true, stageTruncated: true,
+      openCampaignUnmatched: false, wonCampaignUnmatched: false,
+      openValueUnknown: true, wonValueUnknown: true,
+      openDeals: { value: 0 }, totalPipeline: { value: 0 },
+      weightedPipeline: { value: 0 }, closedWon: { value: 0 },
+    }))
+    expect(s.metric).toBe('—')
+    expect(s.subMetric).toBe('Row limit reached before any agency-sourced deal.')
+    expect(s.stats?.find((x) => x.label === 'Closed Won')?.value).toBe('—')
+    expect(s.stats?.find((x) => x.label === 'Weighted Pipeline')?.value).toBe('—')
   })
 })
 

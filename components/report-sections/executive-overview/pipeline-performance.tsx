@@ -17,7 +17,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     byOwner, ownersTruncated, stageTruncated, unrecognizedClosedFlags,
     wonStageUnmatched, openUnavailable, wonUnavailable,
     campaignScoped, openCampaignUnmatched, wonCampaignUnmatched,
-    ownerCampaignUnmatched,
+    ownerCampaignUnmatched, openValueUnknown, wonValueUnknown,
   } = data
 
   // KpiCard tests `delta !== undefined` BEFORE `comparisonExpected`
@@ -32,13 +32,16 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
   //     also fire on the prior-year won query, so the ratio is unsafe even
   //     though each total is merely low)
   // Do not "restore" this by reading closedWon.delta directly.
-  // campaignUnmatched joins this list rather than being handled only in the
-  // caveat region: a scoped window that matched no rows makes the true figure
-  // UNKNOWN, exactly like a renamed won stage, so the tile dashes for the same
-  // reason. Split per row set — the open windows and the won window fail
-  // independently (lib/salesforce/types.ts).
-  const openValueGone  = openUnavailable || openCampaignUnmatched
-  const wonValueGone   = wonUnavailable || wonStageUnmatched || wonCampaignUnmatched
+  // Read straight off the data rather than re-OR'd here. These two fields ARE
+  // "the value could not be established", per row set, and they carry one state
+  // this file cannot compute: a truncated response whose scoped set came back
+  // empty. openCampaignUnmatched is deliberately false there — a capped
+  // response cannot support the rename accusation — and dashing on it alone
+  // therefore printed a confident 0 / $0 / $0 under "may be undercounted".
+  // The caveats below still read the narrow flags, because WHICH sentence to
+  // print is a different question from WHETHER to dash (lib/salesforce/types.ts).
+  const openValueGone  = openValueUnknown
+  const wonValueGone   = wonValueUnknown
   const baselineDirty  = stageTruncated || unrecognizedClosedFlags > 0
   const wonDelta       = wonValueGone || baselineDirty ? undefined : closedWon.delta
   // The greyed null-glyph placeholder KpiCard renders under comparisonExpected
@@ -49,15 +52,21 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
 
   // wonUnavailable wins over wonStageUnmatched: "could not load" is the more
   // fundamental statement, and only one subValue slot exists per tile.
+  // Each chain ends on the value flag, which is true in exactly one state the
+  // three named ones are not: the response was capped and nothing in the part
+  // we saw was in scope. The tile dashes there, so the slot must say why rather
+  // than keep printing the healthy window label under a null glyph.
   const wonCaveat =
     wonUnavailable   ? "Couldn't load closed-won data."
     : wonStageUnmatched ? 'No deals matched the won stage; it may have been renamed.'
     : wonCampaignUnmatched ? 'No closed-won deals on the agency-sourced campaigns.'
+    : wonValueUnknown ? 'Row limit reached before any agency-sourced deal.'
     : 'Year to date'
 
   const openCaveat =
     openUnavailable ? "Couldn't load open pipeline."
     : openCampaignUnmatched ? 'No open deals on the agency-sourced campaigns.'
+    : openValueUnknown ? 'Row limit reached before any agency-sourced deal.'
     : 'Open as of today'
   const openValue = (k: { value: number }, fmt: (n: number) => string) =>
     openValueGone ? NULL_GLYPH : fmt(k.value)
