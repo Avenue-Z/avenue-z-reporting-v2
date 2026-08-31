@@ -232,6 +232,7 @@ const contactsFixture: WeeklyContacts = {
   currentWeek: 52,
   currentWeekPartial: true,
   daysElapsedInCurrentWeek: 3,
+  campaignUnmatched: false,
   previousWeek: 186,
   priorYearWeek: 149,
   completedWeekOverWeek: -22.5,

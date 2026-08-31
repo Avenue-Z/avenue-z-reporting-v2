@@ -35,6 +35,7 @@ export default defineConfig({
       'lib/salesforce/configured.test.ts',
       'lib/salesforce/campaign-filter.test.ts',
       'lib/salesforce/leads.test.ts',
+      'lib/salesforce/leads.orchestration.test.ts',
       'lib/salesforce/base.timeout.test.ts',
       'lib/supermetrics/client.retry.test.ts',
       'lib/linkedin/kpis.dash.test.ts',

@@ -137,6 +137,20 @@ export interface WeeklyContacts {
   /** The same ISO week last year as previousWeek, so both sides are full weeks.
    * Undefined when the compare query failed or had no matching week. */
   priorYearWeek?: number
+  /**
+   * True when rows arrived but NONE were on the client's configured campaigns,
+   * so this series is empty because the filter matched nothing — not because
+   * the client created no leads.
+   *
+   * The distinction is the whole point. An empty series renders NoData, whose
+   * message claims the PERIOD was empty, and that is simply false here: the
+   * query returned plenty of rows. Same hazard as
+   * PipelineData.campaignUnmatched, and the two blocks sit on the same page,
+   * so they must not explain one renamed campaign two different ways.
+   *
+   * Always false on the contacts path, which cannot be campaign-scoped at all.
+   */
+  campaignUnmatched: boolean
   /** Percent change between the two most recent COMPLETE weeks. Deliberately not
    * a comparison against currentWeek: a partial week against a complete one is
    * structurally invalid and renders as a large false decline early in the week.

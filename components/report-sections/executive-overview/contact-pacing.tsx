@@ -27,7 +27,7 @@ function dateLabel(monday: Date): string {
 export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const {
     weeks, currentWeek, currentWeekPartial, daysElapsedInCurrentWeek,
-    previousWeek, priorYearWeek, completedWeekOverWeek,
+    previousWeek, priorYearWeek, completedWeekOverWeek, campaignUnmatched,
   } = data
 
   // gapFill returns [] only when the query produced no usable bucket at all
@@ -36,6 +36,16 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   // three tiles reading 0, 0 and a dash stacked above "No data for this
   // period.": a confident zero with the disclaimer printed under it rather
   // than on it. Replace the whole block.
+  // Ordered ahead of the empty check because it describes the SAME empty state
+  // more truthfully. When the filter matches nothing the series is empty too, so
+  // both branches are live at once and the generic message would win by accident
+  // — asserting the period was empty when the query in fact returned plenty of
+  // rows, none of them on the configured campaigns. Pipeline Performance names
+  // the likely cause directly below; this block must not contradict it.
+  if (campaignUnmatched) {
+    return <NoData message="No leads matched the agency-sourced campaigns. The campaigns may have been renamed." />
+  }
+
   if (weeks.length === 0) return <NoData />
 
   // weeks is a contiguous run of ISO weeks through the current one, and the

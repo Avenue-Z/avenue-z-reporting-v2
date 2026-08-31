@@ -104,7 +104,9 @@ export async function getSalesforceWeeklyLeadsImpl(slug: string, now: Date = new
   ])
   const cur = dedupeLeadWeeks(rows, campaignNames)
   const cmp = cmpRows ? dedupeLeadWeeks(cmpRows, campaignNames) : null
-  return transformWeeklyContacts(cur.rows, cmp?.rows ?? null, now)
+  // cur.unmatched, not cmp's: the compare window matching nothing is an ordinary
+  // empty prior-year baseline, the same call pipeline.ts makes for wonPrior.
+  return transformWeeklyContacts(cur.rows, cmp?.rows ?? null, now, cur.unmatched)
 }
 
 // Cached on the same 1-hour TTL and for the same reason as the contacts fetcher

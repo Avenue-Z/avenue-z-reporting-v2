@@ -17,6 +17,7 @@ function data(over: Partial<WeeklyContacts> = {}): WeeklyContacts {
     previousWeek: 186,
     priorYearWeek: 149,
     completedWeekOverWeek: -22.5,
+    campaignUnmatched: false,
     ...over,
   }
 }
@@ -269,5 +270,28 @@ describe('vendor neutrality', () => {
   it('names no CRM vendor', () => {
     const { container } = render(<ContactPacing data={data()} />)
     expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/i)
+  })
+})
+
+describe('campaign-scoped empty state', () => {
+  it('says the campaigns matched nothing rather than that the period was empty', () => {
+    // The generic NoData message asserts the PERIOD had no leads. When the
+    // filter matched nothing that is false — rows came back, none in scope —
+    // and Pipeline Performance directly below names the rename as the likely
+    // cause. Two blocks explaining one rename two different ways is the bug.
+    render(<ContactPacing data={data({ weeks: [], campaignUnmatched: true })} />)
+    expect(screen.getByText(/No leads matched the agency-sourced campaigns/)).toBeInTheDocument()
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+  })
+
+  it('keeps the generic empty message when nothing is campaign-scoped', () => {
+    render(<ContactPacing data={data({ weeks: [], campaignUnmatched: false })} />)
+    expect(screen.getByText('No data for this period.')).toBeInTheDocument()
+  })
+
+  it('renders the series normally when the scope matched', () => {
+    // The flag must not hijack a healthy render just because scoping is on.
+    render(<ContactPacing data={data({ campaignUnmatched: false })} />)
+    expect(screen.getByText('186')).toBeInTheDocument()
   })
 })
