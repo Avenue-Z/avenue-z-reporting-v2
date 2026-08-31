@@ -36,7 +36,12 @@ const OWNER_FIELDS = ['opportunity_owner', 'opportunity_is_closed', 'opportunity
 // would hurt.
 const OWNER_MAX_ROWS = 500
 // Measured live on the wide window (2026-08-20): 31 rows across 13 stages, and
-// 28 rows on the year-to-date window, so roughly 16x headroom under this cap.
+// 28 rows on the year-to-date window. That was the PRE-campaign_name query, and
+// the "roughly 16x headroom" this comment claimed from it no longer describes
+// what is sent: campaign_name is a third dimension here now, taking the same
+// window to 92 rows (measured 2026-08-28, see the STAGE_FIELDS note at the top
+// of this file, which this comment contradicted for four lines). Real headroom
+// is therefore 5.4x, re-measured at 89 rows / 5.6x on 2026-08-31.
 // It stays this generous because the row count is stage x is_closed x
 // probability, and probability is only cheap while it remains a per-stage
 // default: a client setting it per deal multiplies the cardinality. That is why
@@ -534,6 +539,16 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // degrades to no delta.
     openCampaignUnmatched: scopedOpen.unmatched,
     wonCampaignUnmatched: scopedWonCur.unmatched,
+    // The fourth campaign flag, and the third unmatched one: its own flag
+    // rather than a widening of the two above. The owner rows back the
+    // breakdown and no tile, so they cannot ride the tile caveat: that
+    // caveat now promises to explain DASHED TILES, and the breakdown has none.
+    // Filtered to empty it renders "No open deals by owner." — a claim about
+    // this client's deals, when the true statement is that no owner was on a
+    // configured campaign. Both cannot be true at once, so the UI needs to know
+    // which one it is holding. False when the fetch itself failed: byOwner is
+    // then null and "unavailable" already outranks any statement about scope.
+    ownerCampaignUnmatched: scopedOwner?.unmatched ?? false,
   }
 }
 

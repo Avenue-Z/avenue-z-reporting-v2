@@ -24,6 +24,7 @@ function data(over: Partial<PipelineData> = {}): PipelineData {
     campaignScoped: false,
     openCampaignUnmatched: false,
     wonCampaignUnmatched: false,
+    ownerCampaignUnmatched: false,
     ...over,
   }
 }
@@ -156,6 +157,41 @@ describe('owner list, three distinct states', () => {
     render(<PipelinePerformance data={data({ byOwner: [] })} />)
     expect(screen.getByText('No open deals by owner.')).toBeInTheDocument()
     expect(screen.queryByText('Owner breakdown unavailable.')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The fourth state, and the reason ownerCampaignUnmatched is its own flag.
+   * The breakdown is not a tile, so the caveat region \u2014 which now promises
+   * to explain dashed TILES \u2014 does not reach it. Filtered to empty, the
+   * list previously asserted "No open deals by owner.": a statement about this
+   * client's deals, when the true statement is about the campaign filter.
+   */
+  it('an empty caused by the campaign filter says so, instead of claiming no open deals', () => {
+    render(<PipelinePerformance data={data({
+      byOwner: [], campaignScoped: true, ownerCampaignUnmatched: true,
+    })} />)
+    expect(screen.getByText(/no owners matched the agency-sourced campaigns/i)).toBeInTheDocument()
+    // The two statements are mutually exclusive; printing both would be worse
+    // than printing the wrong one.
+    expect(screen.queryByText('No open deals by owner.')).not.toBeInTheDocument()
+  })
+
+  it('a scoped client whose owners DID match keeps the ordinary empty copy', () => {
+    // ownerCampaignUnmatched, not campaignScoped, is what switches the copy: a
+    // scoped client can legitimately have matching owners and no OPEN deals.
+    render(<PipelinePerformance data={data({
+      byOwner: [], campaignScoped: true, ownerCampaignUnmatched: false,
+    })} />)
+    expect(screen.getByText('No open deals by owner.')).toBeInTheDocument()
+    expect(screen.queryByText(/no owners matched/i)).not.toBeInTheDocument()
+  })
+
+  it('a failed fetch still reads as unavailable, never as a campaign mismatch', () => {
+    // byOwner null outranks the flag: pipeline.ts holds it false in this case,
+    // and the list must not offer a scope explanation for an outage.
+    render(<PipelinePerformance data={data({ byOwner: null, campaignScoped: true })} />)
+    expect(screen.getByText('Owner breakdown unavailable.')).toBeInTheDocument()
+    expect(screen.queryByText(/no owners matched/i)).not.toBeInTheDocument()
   })
 
   it('every owner at zero produces a finite width, never NaN%', () => {

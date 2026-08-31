@@ -17,6 +17,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     byOwner, ownersTruncated, stageTruncated, unrecognizedClosedFlags,
     wonStageUnmatched, openUnavailable, wonUnavailable,
     campaignScoped, openCampaignUnmatched, wonCampaignUnmatched,
+    ownerCampaignUnmatched,
   } = data
 
   // KpiCard tests `delta !== undefined` BEFORE `comparisonExpected`
@@ -136,7 +137,17 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
           // exact confusion the null/empty distinction exists to prevent.
           <p className="text-sm text-text-muted">Owner breakdown unavailable.</p>
         ) : byOwner.length === 0 ? (
-          <p className="text-sm text-text-muted">No open deals by owner.</p>
+          // Two different statements, and exactly one of them is true. The
+          // default copy asserts something about this client's DEALS; when the
+          // campaign filter emptied the row set it is instead a statement about
+          // the FILTER, most likely a campaign renamed in the CRM. This branch
+          // is why ownerCampaignUnmatched exists as its own flag: the caveat
+          // region below explains dashed tiles, and this list is not a tile.
+          <p className="text-sm text-text-muted">
+            {ownerCampaignUnmatched
+              ? 'No owners matched the agency-sourced campaigns; they may have been renamed.'
+              : 'No open deals by owner.'}
+          </p>
         ) : (
           <div className="space-y-2">
             {byOwner.map((o) => (

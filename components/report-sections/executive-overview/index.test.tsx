@@ -66,6 +66,17 @@ describe('a campaign-scoped client', () => {
     expect(screen.getByText('Scoped to agency-sourced campaigns.')).toBeInTheDocument()
   })
 
+  it('passes the scope through to the funnel card, which sits above that heading', async () => {
+    // The seam this pins. buildStages defaults crmScoped to false, so deleting
+    // the argument from the call in index.tsx left the whole suite green while
+    // rendering "Online Contacts" on the funnel card directly above a "Lead
+    // Creation" heading. Both sides were tested; nothing asserted that THIS
+    // file supplies the value.
+    await renderReport()
+    expect(screen.getByText('Online Leads')).toBeInTheDocument()
+    expect(screen.queryByText('Online Contacts')).not.toBeInTheDocument()
+  })
+
   it('names leads, not contacts, in the failure message', async () => {
     await renderReport()
     expect(screen.getByText("Couldn't load lead data.")).toBeInTheDocument()
@@ -82,6 +93,14 @@ describe('a whole-org client', () => {
     expect(screen.getByText('Contact Creation')).toBeInTheDocument()
     expect(screen.queryByText('Scoped to agency-sourced campaigns.')).not.toBeInTheDocument()
     expect(screen.getByText("Couldn't load contact data.")).toBeInTheDocument()
+  })
+
+  it('leaves the funnel card naming contacts, matching its heading', async () => {
+    // The other direction of the same seam: a hardcoded `crmScoped: true` would
+    // put "Online Leads" over a whole-org contacts series.
+    await renderReport()
+    expect(screen.getByText('Online Contacts')).toBeInTheDocument()
+    expect(screen.queryByText('Online Leads')).not.toBeInTheDocument()
   })
 })
 

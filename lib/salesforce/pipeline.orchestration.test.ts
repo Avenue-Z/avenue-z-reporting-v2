@@ -785,6 +785,138 @@ describe('campaign scoping', () => {
     expect(p.byOwner).toHaveLength(1)
   })
 
+  /**
+   * Per-TERM pinning for stageTruncated, which the combined test above cannot
+   * give. That test hands the same 500-row payload to all three stage windows,
+   * so the flag is an OR of three terms that are all true at once: mutate any
+   * ONE of them from the raw length to the scoped length and the other two
+   * still carry it green. Verified by mutation \u2014 all three drifted green
+   * individually, while ownersTruncated (a single term) correctly failed.
+   *
+   * Each case below puts exactly ONE window at the cap and leaves the other two
+   * at a single row, so the term under test is the only thing that can raise
+   * the flag. 499 out-of-scope rows plus one in-scope row keeps the SCOPED set
+   * at 1 \u2014 three orders of magnitude under the cap \u2014 which is what
+   * makes a raw-to-scoped swap observable rather than a no-op.
+   */
+  describe('stageTruncated pins each window independently', () => {
+    const capped = () => [
+      ...Array.from({ length: 499 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)),
+      withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS),
+    ]
+    const single = () => [withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS)]
+
+    /** Every stage query under the cap except the one named. */
+    const onlyCapped = (target: 'open' | 'wonCur' | 'wonPrior') => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+        if (fields.includes('opportunity_owner')) return Promise.resolve([])
+        const which =
+          dateRange === EXPECTED_OPEN_WINDOW ? 'open'
+          : dateRange === '2025-01-01,2025-12-31' ? 'wonPrior'
+          : 'wonCur'
+        return Promise.resolve(which === target ? capped() : single())
+      })
+    }
+
+    test('the OPEN window alone raises it', async () => {
+      onlyCapped('open')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+      // Proof the scoped set is nowhere near the cap, so a raw-to-scoped swap
+      // on this term really does flip the flag rather than passing anyway.
+      expect(p.openDeals.value).toBe(1)
+    })
+
+    test('the CLOSED-WON year-to-date window alone raises it', async () => {
+      onlyCapped('wonCur')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+    })
+
+    test('the PRIOR-YEAR window alone raises it, since a capped baseline overstates the delta', async () => {
+      onlyCapped('wonPrior')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+    })
+
+    test('all three under the cap leaves it false', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(fields.includes('opportunity_owner') ? [] : single()))
+      expect((await getSalesforcePipeline('acme')).stageTruncated).toBe(false)
+    })
+  })
+
+  /**
+   * scopedOwner.unmatched was computed and thrown away. The owner rows back the
+   * breakdown and no tile, so the tile caveat cannot speak for them: filtered to
+   * empty, byOwner is [] and the list renders "No open deals by owner.", which
+   * is a claim about the client's deals rather than about the filter.
+   */
+  describe('ownerCampaignUnmatched reaches the caller', () => {
+    test('is true when owner rows arrived and none were on a configured campaign', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(
+          fields.includes('opportunity_owner')
+            ? [withCampaign(ownerRow('Someone Else', 900, 90000000), THEIRS)]
+            : [withCampaign(stageRow('Proposal Released', 1, 51730.62, 25, false), OURS)],
+        ))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.ownerCampaignUnmatched).toBe(true)
+      // The empty list the flag exists to explain.
+      expect(p.byOwner).toEqual([])
+      // And it is independent of the tile flags: the open window matched fine.
+      expect(p.openCampaignUnmatched).toBe(false)
+    })
+
+    test('is false when owners matched the configured campaigns', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(
+          fields.includes('opportunity_owner')
+            ? [withCampaign(ownerRow('Jason Clemons', 1, 51730.62), OURS),
+               withCampaign(ownerRow('Someone Else', 900, 90000000), THEIRS)]
+            : [],
+        ))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.ownerCampaignUnmatched).toBe(false)
+      expect(p.byOwner).toEqual([{ owner: 'Jason Clemons', count: 1, amount: 51730.62 }])
+    })
+
+    test('is false for an empty owner fetch, which is missing data rather than a mismatch', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockResolvedValue([])
+      expect((await getSalesforcePipeline('acme')).ownerCampaignUnmatched).toBe(false)
+    })
+
+    test('is false for an unconfigured client, which is not scoped at all', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(undefined))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(
+          fields.includes('opportunity_owner')
+            ? [withCampaign(ownerRow('Someone Else', 900, 90000), THEIRS)]
+            : [],
+        ))
+      expect((await getSalesforcePipeline('acme')).ownerCampaignUnmatched).toBe(false)
+    })
+
+    test('is false when the owner fetch FAILED: byOwner is null and unavailable outranks scope', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        fields.includes('opportunity_owner')
+          ? Promise.reject(new Error('owner query failed'))
+          : Promise.resolve([withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS)]))
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const p = await getSalesforcePipeline('acme')
+      errSpy.mockRestore()
+      expect(p.byOwner).toBeNull()
+      expect(p.ownerCampaignUnmatched).toBe(false)
+    })
+  })
+
   test('counts unrecognized closed flags on the SCOPED rows, not the whole org', async () => {
     // Otherwise a client with two in-scope deals inherits a warning generated by
     // 89,000 rows they are not being shown, and the caveat is meaningless.

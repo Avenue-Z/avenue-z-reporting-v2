@@ -121,6 +121,21 @@ export interface PipelineData extends PipelineKpis {
    * flag made the UI disclaim all four tiles whenever either window was empty.
    */
   wonCampaignUnmatched: boolean
+  /**
+   * The same statement for the OWNER row set, which backs the Open Deals by
+   * Owner breakdown and no tile at all.
+   *
+   * A FOURTH flag rather than widening the tile caveat's wording, because the
+   * breakdown is not a tile and the caveat region explains dashed tiles. When
+   * the owner rows are filtered to empty, `byOwner` is `[]` and the list renders
+   * its ordinary empty copy — "No open deals by owner." — which is a different
+   * claim from "no owners matched the configured campaigns" and, in this case,
+   * the false one. Only the UI can tell them apart, and only if it is told.
+   *
+   * Same contract as the other two: false when no filter is configured, and
+   * false for an empty fetch, which is missing data rather than a mismatch.
+   */
+  ownerCampaignUnmatched: boolean
 }
 
 export interface WeekBucket {

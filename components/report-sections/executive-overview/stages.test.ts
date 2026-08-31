@@ -222,6 +222,7 @@ const pipelineFixture: PipelineData = {
   campaignScoped: false,
   openCampaignUnmatched: false,
   wonCampaignUnmatched: false,
+  ownerCampaignUnmatched: false,
 }
 
 const contactsFixture: WeeklyContacts = {

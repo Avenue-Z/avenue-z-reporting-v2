@@ -15,7 +15,7 @@ vi.mock('@/lib/cache', () => ({
 
 import { salesforceQuery, resolveCompareIso } from '@/lib/salesforce/base'
 import { getClientBySlug } from '@/lib/db/queries'
-import { getSalesforceWeeklyLeadsImpl, LEAD_MAX_ROWS } from './leads'
+import { getSalesforceWeeklyLeadsImpl, LEAD_FIELDS, LEAD_SETTINGS, LEAD_MAX_ROWS } from './leads'
 
 const NAMES = [
   '2026 - Inbound Prospecting',
@@ -158,5 +158,49 @@ describe('getSalesforceWeeklyLeadsImpl — id-less rows reach the caller', () =>
     ;(salesforceQuery as Mock).mockResolvedValue([row('L1', '2026|30', NAMES[0])])
 
     expect((await getSalesforceWeeklyLeadsImpl('renaissance', NOW)).unusableRows).toBe(0)
+  })
+})
+
+/**
+ * The static guards in leads.test.ts pin the CONSTANTS; nothing pinned the
+ * CALL. Verified by mutation: replacing LEAD_FIELDS at the call site with an
+ * inlined ['yearWeekIso_created', 'lead_id', 'lead_count'] and dropping the
+ * settings object left the whole suite green at 357/357, because LEAD_FIELDS
+ * still contained campaign_name for the constant guard to find and every
+ * fixture here supplies campaign_name regardless of what was requested.
+ *
+ * That is the round-one silent failure exactly: live, the connector would
+ * return no campaign column, filterByCampaign would match nothing, and every
+ * scoped client would read "no leads matched the agency-sourced campaigns".
+ */
+describe('getSalesforceWeeklyLeadsImpl \u2014 the query it actually issues', () => {
+  it('sends LEAD_FIELDS, LEAD_SETTINGS and LEAD_MAX_ROWS, not an inlined equivalent', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([row('L1', '2026|30', NAMES[0])])
+
+    await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
+
+    // LEAD_SETTINGS rides on this same call and was equally unpinned: the lead
+    // window basis is its own connector setting, so losing it silently
+    // reinterprets every bucket as last-modified or converted, not created.
+    expect(salesforceQuery).toHaveBeenCalledWith(
+      'renaissance', LEAD_FIELDS, 'year_to_date',
+      { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS },
+    )
+  })
+
+  it('sends the same fields and settings on the compare window', async () => {
+    // The prior-year series is scoped and bucketed by the same rules; a compare
+    // call that dropped either would compare unlike with unlike.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([row('L1', '2026|30', NAMES[0])])
+
+    await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
+
+    expect(salesforceQuery).toHaveBeenCalledWith(
+      'renaissance', LEAD_FIELDS, '2025-01-01,2025-12-31',
+      { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS },
+    )
   })
 })

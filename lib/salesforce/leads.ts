@@ -54,7 +54,7 @@ export const LEAD_MAX_ROWS = 20000
 /** Pinned explicitly, never left on the connector default: the lead window basis
  *  is its own setting, and a default change would silently reinterpret every
  *  bucket as last-modified or converted instead of created. */
-const LEAD_SETTINGS = { lead_date_field: 'lead_created' }
+export const LEAD_SETTINGS = { lead_date_field: 'lead_created' }
 
 /** What `dedupeLeadWeeks` hands back: rows shaped exactly like the contacts
  *  query's output, so the already-tested weekly transform can consume them. */
