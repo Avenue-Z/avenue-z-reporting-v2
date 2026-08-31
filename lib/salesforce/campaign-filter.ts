@@ -36,7 +36,8 @@ export interface CampaignFilterResult {
   /** True when a filter was actually applied, so the UI can label the numbers as scoped. */
   active: boolean
   /**
-   * True when rows arrived and NONE matched the configured campaigns.
+   * True when a COMPLETE row set arrived and NONE of it matched the configured
+   * campaigns.
    *
    * Parallel to `wonStageUnmatched` in pipeline.ts, and it carries the same
    * risk: the totals collapse to 0, which is indistinguishable from "this
@@ -44,6 +45,12 @@ export interface CampaignFilterResult {
    * says so. It most likely means a campaign was renamed in the CRM. False for
    * an empty input, which is missing data — a different problem with a
    * different message.
+   *
+   * COMPLETE is load-bearing. The flag is an accusation — the UI turns it into
+   * "the campaigns may have been renamed" — and only a response we saw all of
+   * can support it. On a capped response the in-scope rows may simply sit past
+   * the cap, so the caller passes `truncated` and this stays false, leaving the
+   * truncation caveat to speak alone. See the `truncated` parameter below.
    */
   unmatched: boolean
 }
@@ -84,13 +91,24 @@ export function hasCampaignScope(names: string[] | undefined): boolean {
  * the majority of this org (89,425 of 89,654 opportunities carry no campaign),
  * and none of them are agency-sourced, so admitting them would reinstate the
  * overstatement wholesale.
+ *
+ * `truncated` says whether `rows` is the whole response or only the first N of
+ * it, and the caller is the only one who can know: the cap lives with the query.
+ * It suppresses `unmatched` ONLY — the filter itself still applies, because a
+ * capped response that quietly reverted to whole-org numbers would be a far
+ * worse failure than a missing caveat. Passing it matters because this change
+ * put a second dimension on both capped queries and cut the headroom that used
+ * to make the cap unreachable in practice (stage 16x to 5.4x, owner ~4x to
+ * 2.72x, see pipeline.ts), so "capped and nothing matched" went from
+ * hypothetical to a state a real client can reach.
  */
 export function filterByCampaign(
   rows: Record<string, string>[],
   names: string[] | undefined,
+  truncated = false,
 ): CampaignFilterResult {
   const wanted = wantedSet(names)
   if (wanted.size === 0) return { rows, active: false, unmatched: false }
   const kept = rows.filter((r) => wanted.has(norm(r.campaign_name)))
-  return { rows: kept, active: true, unmatched: rows.length > 0 && kept.length === 0 }
+  return { rows: kept, active: true, unmatched: !truncated && rows.length > 0 && kept.length === 0 }
 }

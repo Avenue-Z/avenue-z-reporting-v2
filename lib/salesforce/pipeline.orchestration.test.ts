@@ -786,6 +786,58 @@ describe('campaign scoping', () => {
   })
 
   /**
+   * A capped response and a filter that matched nothing are the SAME observation
+   * from two directions, and only one of them justifies an accusation. Before
+   * this, exactly 500 out-of-scope rows produced stageTruncated AND
+   * openCampaignUnmatched together, and pipeline-performance.tsx pushes the
+   * campaign caveat first (:66) and the truncation caveat second (:89) — so the
+   * page told the client their campaigns may have been renamed, then mentioned
+   * the row limit underneath, when only the second sentence was true.
+   *
+   * This is the interaction the earlier rounds could not catch: truncation-on-raw
+   * -counts and the unmatched flags were each pinned carefully, but only alone.
+   */
+  test('a capped response does not also accuse the client of renaming a campaign', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      // Exactly the cap, and NOTHING in scope: the in-scope rows, if any, are
+      // past the cap and were never returned.
+      if (fields.includes('opportunity_owner'))
+        return Promise.resolve(Array.from({ length: 500 }, () =>
+          withCampaign(ownerRow('Someone Else', 1, 100), THEIRS)))
+      return Promise.resolve(Array.from({ length: 500 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)))
+    })
+    const p = await getSalesforcePipeline('acme')
+    // The true statement, and the only one the page should make.
+    expect(p.stageTruncated).toBe(true)
+    expect(p.ownersTruncated).toBe(true)
+    // The speculative ones, all suppressed.
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(p.wonCampaignUnmatched).toBe(false)
+    expect(p.ownerCampaignUnmatched).toBe(false)
+    // Suppressing the accusation must not suppress the FILTER: the whole book is
+    // still excluded, so the tiles read 0 rather than reverting to whole-org.
+    expect(p.totalPipeline.value).toBe(0)
+    expect(p.campaignScoped).toBe(true)
+  })
+
+  test('an UNDER-cap response with nothing in scope still raises the accusation', async () => {
+    // The other half of the pair: without this, suppressing on truncation could
+    // be widened to suppress always and nothing here would object.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+      Promise.resolve(fields.includes('opportunity_owner')
+        ? [withCampaign(ownerRow('Someone Else', 1, 100), THEIRS)]
+        : [withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)]))
+    const p = await getSalesforcePipeline('acme')
+    expect(p.stageTruncated).toBe(false)
+    expect(p.openCampaignUnmatched).toBe(true)
+    expect(p.wonCampaignUnmatched).toBe(true)
+    expect(p.ownerCampaignUnmatched).toBe(true)
+  })
+
+  /**
    * Per-TERM pinning for stageTruncated, which the combined test above cannot
    * give. That test hands the same 500-row payload to all three stage windows,
    * so the flag is an OR of three terms that are all true at once: mutate any

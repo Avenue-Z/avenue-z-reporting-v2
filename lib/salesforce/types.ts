@@ -68,6 +68,15 @@ export interface PipelineData extends PipelineKpis {
    * open (wide, created-date) and won (year to date, close-date) windows overlap,
    * so one bad deal can contribute more than once. Treat it as a severity hint,
    * never as "N deals are affected".
+   *
+   * That row basis got coarser when campaign_name joined STAGE_FIELDS and
+   * OWNER_FIELDS. It is a dimension, so the connector splits what used to be one
+   * row into one row per campaign, and an UNSCOPED client's count therefore
+   * inflates over identical underlying data — roughly threefold on the org this
+   * was measured against. Nothing is double-counted that was not already
+   * multiply-counted, and the magnitude was never meaningful, which is why the
+   * caveat says "rows" and the fix is this sentence rather than a different
+   * metric. A scoped client is unaffected: the count is taken on the scoped rows.
    */
   unrecognizedClosedFlags: number
   /**
@@ -134,6 +143,11 @@ export interface PipelineData extends PipelineKpis {
    *
    * Same contract as the other two: false when no filter is configured, and
    * false for an empty fetch, which is missing data rather than a mismatch.
+   * False as well when the owner fetch FAILED — byOwner is null there, the list
+   * already renders "Owner breakdown unavailable.", and an outage outranks any
+   * statement about scope. And false when the response was TRUNCATED: the
+   * in-scope owners may sit past the cap, so a capped response cannot support
+   * the rename accusation. See filterByCampaign.
    */
   ownerCampaignUnmatched: boolean
 }
@@ -172,9 +186,12 @@ export interface WeeklyContacts {
    *
    * The distinction is the whole point. An empty series renders NoData, whose
    * message claims the PERIOD was empty, and that is simply false here: the
-   * query returned plenty of rows. Same hazard as
-   * PipelineData.campaignUnmatched, and the two blocks sit on the same page,
-   * so they must not explain one renamed campaign two different ways.
+   * query returned plenty of rows. Same hazard as PipelineData's three campaign
+   * flags — `openCampaignUnmatched` is the closest analogue, since it guards the
+   * same false zero for the same reason — and the two blocks sit on the same
+   * page, so they must not explain one renamed campaign two different ways.
+   * (There was a single `PipelineData.campaignUnmatched` when this was written;
+   * it is now three, one per row set.)
    *
    * Always false on the contacts path, which cannot be campaign-scoped at all.
    */

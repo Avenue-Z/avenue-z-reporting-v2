@@ -9,8 +9,16 @@ vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 // cached() calls Next's unstable_cache, which throws outside a request context.
 // A pass-through is what CACHE_DISABLE=1 does in production, so the code under
 // test is unchanged; only the cache shell is removed.
+//
+// The pass-through also RECORDS which fetchers were wrapped, at import time, so
+// the cache boundary itself can be asserted. vi.hoisted because vi.mock is
+// hoisted above any ordinary const and would hit its TDZ.
+const wrapped = vi.hoisted(() => ({ names: [] as string[] }))
 vi.mock('@/lib/cache', () => ({
-  cached: (_v: string, _f: string, impl: (...a: unknown[]) => unknown) => impl,
+  cached: (_v: string, fn: string, impl: (...a: unknown[]) => unknown) => {
+    wrapped.names.push(fn)
+    return impl
+  },
 }))
 
 import { salesforceQuery, resolveCompareIso } from '@/lib/salesforce/base'
@@ -183,10 +191,20 @@ describe('getSalesforceWeeklyLeadsImpl \u2014 the query it actually issues', () 
     // LEAD_SETTINGS rides on this same call and was equally unpinned: the lead
     // window basis is its own connector setting, so losing it silently
     // reinterprets every bucket as last-modified or converted, not created.
+    // LEAD_SETTINGS is asserted as a LITERAL, not as the imported constant.
+    // Importing it from the module under test pins the call site and nothing
+    // else: the assertion holds no matter what the constant says, so changing it
+    // to { lead_date_field: 'lead_converted' } left the whole suite green and
+    // silently rebased every weekly bucket onto a different date basis. Both
+    // siblings already assert the literal — contacts.test.ts:295 and
+    // pipeline.orchestration.test.ts:144 — so this was a drift from convention.
     expect(salesforceQuery).toHaveBeenCalledWith(
       'renaissance', LEAD_FIELDS, 'year_to_date',
-      { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS },
+      { settings: { lead_date_field: 'lead_created' }, maxRows: LEAD_MAX_ROWS },
     )
+    // And the constant the call site reads really is that literal, so the two
+    // axes are pinned separately rather than by one self-referential assertion.
+    expect(LEAD_SETTINGS).toEqual({ lead_date_field: 'lead_created' })
   })
 
   it('sends the same fields and settings on the compare window', async () => {
@@ -200,7 +218,61 @@ describe('getSalesforceWeeklyLeadsImpl \u2014 the query it actually issues', () 
 
     expect(salesforceQuery).toHaveBeenCalledWith(
       'renaissance', LEAD_FIELDS, '2025-01-01,2025-12-31',
-      { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS },
+      { settings: { lead_date_field: 'lead_created' }, maxRows: LEAD_MAX_ROWS },
     )
+  })
+})
+
+/**
+ * The cache boundary sits on the RAW query, never on the assembled series.
+ *
+ * Wrapping the composer stored an already-scoped result under a key that does
+ * not include campaignNames, so correcting a renamed campaign left this block
+ * repeating "the campaigns may have been renamed" for up to an hour above
+ * pipeline tiles that had already corrected — pipeline.ts caches raw rows and
+ * scopes outside, and the two blocks share a page. There is no way to clear the
+ * entry early: no Salesforce fetcher passes `tags:`, so revalidateTag cannot
+ * reach it.
+ *
+ * Nothing else here would notice a revert. Every test in this file drives the
+ * impl directly, and the cache is a pass-through under the mock, so the wrapping
+ * is invisible unless it is asserted.
+ */
+describe('the cache boundary', () => {
+  it('wraps the two raw-row queries and NOT the composer', () => {
+    // Filtered to this module's own fetchers: leads.ts imports contacts.ts for
+    // transformWeeklyContacts, which registers a wrapper of its own at import.
+    // 'getSalesforceWeeklyLeads' matches this filter too, which is the point —
+    // re-wrapping the composer shows up here rather than passing silently.
+    expect(wrapped.names.filter((n) => n.toLowerCase().includes('lead')))
+      .toEqual(['leadRows', 'leadRowsCompare'])
+  })
+})
+
+/**
+ * A capped response cannot support the rename accusation: the in-scope rows may
+ * sit past the cap. Same fix, same reasoning, as the pipeline path.
+ */
+describe('getSalesforceWeeklyLeadsImpl — truncation outranks the campaign accusation', () => {
+  it('does not claim a campaign was renamed when the response was capped', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue(
+      Array.from({ length: LEAD_MAX_ROWS }, (_, i) => row(`L${i}`, '2026|30', 'Napa Golf Outing')),
+    )
+
+    const out = await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
+    expect(out.truncated).toBe(true)
+    expect(out.campaignUnmatched).toBe(false)
+    // The filter still ran: none of the out-of-scope leads reached the series.
+    expect(out.weeks).toEqual([])
+  })
+
+  it('still claims it when the same rows arrive under the cap', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(withScope(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([row('L1', '2026|30', 'Napa Golf Outing')])
+
+    const out = await getSalesforceWeeklyLeadsImpl('renaissance', NOW)
+    expect(out.truncated).toBe(false)
+    expect(out.campaignUnmatched).toBe(true)
   })
 })

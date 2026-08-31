@@ -45,9 +45,12 @@ export const LEAD_FIELDS = ['yearWeekIso_created', 'lead_id', 'campaign_name', '
 
 /**
  * One row per lead per campaign, so the cap has to clear leads x campaigns
- * rather than weeks. Scoped clients return tens of rows (73 for the live client
- * on 2026-08-28); this leaves room for a campaign programme two orders of
- * magnitude larger before truncation is even conceivable.
+ * rather than weeks. Scoped clients return tens of rows (88 for the live client
+ * on the year-to-date window, re-measured 2026-08-31 — an earlier version of
+ * this line said 73 from a 2026-08-28 run, which contradicted the table in the
+ * LEAD_FIELDS docblock above for the same query); this leaves room for a
+ * campaign programme two orders of magnitude larger before truncation is even
+ * conceivable.
  */
 export const LEAD_MAX_ROWS = 20000
 
@@ -100,8 +103,12 @@ function weekOrder(raw: string): string {
 export function dedupeLeadWeeks(
   rows: Record<string, string>[],
   campaignNames: string[] | undefined,
+  truncated = false,
 ): DedupedLeadWeeks {
-  const scoped = filterByCampaign(rows, campaignNames)
+  // `truncated` only suppresses `unmatched`, never the filter. See
+  // filterByCampaign: a capped response cannot support the rename accusation,
+  // because the in-scope rows may sit past the cap.
+  const scoped = filterByCampaign(rows, campaignNames, truncated)
   // Earliest week wins. A lead has one creation date, so two different weeks for
   // one id means the connector split on a dimension we did not request back;
   // picking deterministically beats counting the lead twice.
@@ -141,16 +148,23 @@ export async function getSalesforceWeeklyLeadsImpl(slug: string, now: Date = new
   const client = await getClientBySlug(slug)
   const campaignNames = client?.salesforceConfig?.campaignNames
   const [rows, cmpRows] = await Promise.all([
-    salesforceQuery(slug, LEAD_FIELDS, dateRange, { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS }),
+    getLeadRows(slug, dateRange),
     cmpIso
-      ? salesforceQuery(slug, LEAD_FIELDS, cmpIso, { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS }).catch((e) => {
+      ? getLeadRowsCompare(slug, cmpIso).catch((e) => {
+          // Degrade, do not fail: the compare window supplies the prior-year
+          // figure and nothing else. The catch sits OUTSIDE the cached wrapper
+          // for the same reason pipeline.ts gives — caught inside, the null
+          // becomes a fulfilled result and gets stored as if it were data.
           console.error(`[salesforce] leads compare fetch failed for ${slug}:`, e)
           return null
         })
       : Promise.resolve(null),
   ])
-  const cur = dedupeLeadWeeks(rows, campaignNames)
-  const cmp = cmpRows ? dedupeLeadWeeks(cmpRows, campaignNames) : null
+  // Measured on the RAW response, before dedupe and before the campaign filter,
+  // and computed here so it can be passed INTO the filter as well as reported.
+  const truncated = rows.length >= LEAD_MAX_ROWS
+  const cur = dedupeLeadWeeks(rows, campaignNames, truncated)
+  const cmp = cmpRows ? dedupeLeadWeeks(cmpRows, campaignNames, cmpRows.length >= LEAD_MAX_ROWS) : null
   // cur.unmatched, not cmp's: the compare window matching nothing is an ordinary
   // empty prior-year baseline, the same call pipeline.ts makes for wonPrior.
   return {
@@ -162,16 +176,67 @@ export async function getSalesforceWeeklyLeadsImpl(slug: string, now: Date = new
     // leads against a 20,000-row cap and report a permanent, meaningless
     // all-clear. Only the CURRENT window: a truncated prior year costs one
     // comparison figure, not the series the reader is looking at.
-    truncated: rows.length >= LEAD_MAX_ROWS,
+    truncated,
     unusableRows: cur.idlessRows,
   }
 }
 
-// Cached on the same 1-hour TTL and for the same reason as the contacts fetcher
-// it stands in for: two Supermetrics queries per render, either of which can take
-// the async schedule/poll path, is too much live-render latency for a
-// client-facing page. Wrapping also routes this through recordFetch so an outage
-// reaches the health probe.
-export const getSalesforceWeeklyLeads = cached(
-  'salesforce', 'getSalesforceWeeklyLeads', getSalesforceWeeklyLeadsImpl, { extractTags: byClient },
-)
+/**
+ * WHERE THE CACHE BOUNDARY SITS, AND WHY IT MOVED.
+ *
+ * Cached on the same 1-hour TTL and for the same reason as the contacts fetcher
+ * this stands in for: two Supermetrics queries per render, either of which can
+ * take the async schedule/poll path, is too much live-render latency for a
+ * client-facing page. Wrapping also routes these through recordFetch so an
+ * outage reaches the health probe.
+ *
+ * What changed is WHAT is stored. This used to wrap the composer, so the entry
+ * held the assembled, ALREADY-SCOPED series — campaignUnmatched and all — while
+ * the cache key carried only the slug, not campaignNames. That made a config fix
+ * un-take-effect-able for up to an hour, and it desynchronised the two CRM
+ * blocks on one page, because pipeline.ts caches raw rows and scopes outside:
+ *
+ *   1. A campaign is genuinely renamed in the CRM. Both blocks correctly say so.
+ *   2. Somebody corrects campaignNames.
+ *   3. The pipeline tiles come back on the very next render, off raw cached rows.
+ *   4. This block kept repeating "the campaigns may have been renamed" for the
+ *      rest of the hour, above the corrected tiles — the contradiction
+ *      contact-pacing.tsx says the flag exists to prevent.
+ *
+ * There was no way to clear it early — no Salesforce fetcher passes `tags:`, so
+ * revalidateTag cannot reach these entries, leaving only the TTL or
+ * CACHE_DISABLE=1. So the boundary now sits on the RAW query, exactly as the
+ * pipeline's does, and every scoping decision is made fresh on each render.
+ *
+ * The fetcher names are new (`leadRows`, not `getSalesforceWeeklyLeads`), and
+ * cached() keys on vendor + fn + version, so no pre-existing entry can be read
+ * back under the new shape. That is also what makes a `version` bump moot here:
+ * the old assembled-shape entries, which gained `truncated` and `unusableRows`
+ * on this branch, are unreachable rather than reinterpreted.
+ */
+function leadRowsImpl(slug: string, range: string): Promise<Record<string, string>[]> {
+  return salesforceQuery(slug, LEAD_FIELDS, range, { settings: LEAD_SETTINGS, maxRows: LEAD_MAX_ROWS })
+}
+const getLeadRows = cached('salesforce', 'leadRows', leadRowsImpl, { extractTags: byClient })
+
+/**
+ * Same impl, separate wrapper, one difference: healthCritical is false.
+ *
+ * Moving the boundary down moved recordFetch down with it. On the composite, a
+ * failed compare fetch was caught inside the cached call and health saw a
+ * healthy render — correctly, since the block renders its series and merely
+ * omits one prior-year figure. Per query, the same failure lands in the beacon's
+ * failed set, and deriveStatus marks a section down if ANY source failed, so a
+ * missing year-over-year number would page Slack for an outage that is not one.
+ * Identical reasoning to getWonStagesCompare in pipeline.ts. The console.error
+ * at the call site remains the operational signal.
+ */
+const getLeadRowsCompare = cached('salesforce', 'leadRowsCompare', leadRowsImpl, {
+  extractTags: byClient, healthCritical: false,
+})
+
+// Deliberately NOT wrapped in cached(). The caching sits on the two fetchers
+// above, so the campaign scoping below them re-runs on every render and a
+// config fix takes effect immediately. Re-wrapping this composer would silently
+// restore the stale-scope bug the docblock above describes.
+export const getSalesforceWeeklyLeads = getSalesforceWeeklyLeadsImpl

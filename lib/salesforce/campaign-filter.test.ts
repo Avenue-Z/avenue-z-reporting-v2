@@ -68,6 +68,35 @@ describe('filterByCampaign', () => {
   it('does not flag unmatched on an empty input, which is missing data not a mismatch', () => {
     expect(filterByCampaign([], NAMES).unmatched).toBe(false)
   })
+
+  /**
+   * A capped response cannot support the rename accusation, because the rows we
+   * never saw could be the in-scope ones. Without this, exactly 500 out-of-scope
+   * rows raise `unmatched` AND the caller's truncation flag together, and the UI
+   * pushes the campaign caveat first — so the page leads with "the campaigns may
+   * have been renamed" and buries the one true sentence, "hit the row limit",
+   * underneath it.
+   */
+  it('does not flag unmatched when the row set was truncated', () => {
+    const r = filterByCampaign([row('Napa Golf Outing')], NAMES, true)
+    expect(r.rows).toEqual([])
+    expect(r.active).toBe(true)
+    expect(r.unmatched).toBe(false)
+  })
+
+  it('still filters and reports normally on a truncated set that DID match', () => {
+    // Truncation only suppresses the accusation. It must not suppress the filter,
+    // or a capped response would quietly widen the numbers back to whole-org.
+    const r = filterByCampaign([row(PARENT), row('Napa Golf Outing')], NAMES, true)
+    expect(r.rows.map((x) => x.campaign_name)).toEqual([PARENT])
+    expect(r.unmatched).toBe(false)
+  })
+
+  it('defaults to treating the response as complete', () => {
+    // The parameter is opt-in, so a caller that forgets it gets today's behaviour
+    // rather than a silently disabled flag.
+    expect(filterByCampaign([row('Napa Golf Outing')], NAMES).unmatched).toBe(true)
+  })
 })
 
 /**

@@ -46,6 +46,15 @@ const OWNER_MAX_ROWS = 500
 // probability, and probability is only cheap while it remains a per-stage
 // default: a client setting it per deal multiplies the cardinality. That is why
 // the flag below exists rather than trusting the cap: see stageTruncated.
+//
+// READ THE HEADROOM FIGURES HERE AND ON OWNER_MAX_ROWS AS A BEST CASE, not a
+// typical one. Every one of them was measured against Renaissance, which is the
+// friendliest possible org for adding this dimension: 89,425 of its 89,654
+// opportunities carry no campaign at all, so campaign_name collapses to a single
+// blank value across almost the whole book. A client running a real campaign
+// programme multiplies much harder against the same cap, and no other org has
+// been measured. The truncation flags, not these numbers, are what actually
+// protects a client-facing total.
 const STAGE_MAX_ROWS = 500
 
 /**
@@ -354,13 +363,32 @@ export function transformByOwner(
  * health sweep probes under a 60s function budget of its own.
  */
 const NEGATIVE_TTL_SECONDS = 60
+
+/**
+ * Cache version shared by the four query fetchers below.
+ *
+ * v2 because campaign_name joined STAGE_FIELDS and OWNER_FIELDS on this branch,
+ * and lib/cache.ts asks for a bump whenever a fetcher's response shape changes.
+ * Here that policy is load-bearing rather than hygienic: a v1 entry written by
+ * pre-branch code holds rows with NO campaign_name key, every one of them
+ * normalizes to '', nothing matches a configured campaign, and all four tiles
+ * dash under "The campaigns may have been renamed." on a client that renamed
+ * nothing — the exact falsehood openCampaignUnmatched exists to prevent,
+ * arriving through the cache instead of through the data.
+ *
+ * It has to land before the scope script runs, because there is no way to clear
+ * those entries early: no fetcher here passes `tags:`, so revalidateTag cannot
+ * reach them, and the only remedies are the 1-hour TTL or CACHE_DISABLE=1.
+ */
+const CACHE_VERSION = 'v2'
+
 function openStagesImpl(slug: string): Promise<Record<string, string>[]> {
   return salesforceQuery(slug, STAGE_FIELDS, openWindow(), {
     settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
   })
 }
 const getOpenStages = cached('salesforce', 'openStages', openStagesImpl, {
-  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
 })
 
 function wonStagesImpl(slug: string, range: string): Promise<Record<string, string>[]> {
@@ -369,7 +397,7 @@ function wonStagesImpl(slug: string, range: string): Promise<Record<string, stri
   })
 }
 const getWonStages = cached('salesforce', 'wonStages', wonStagesImpl, {
-  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
 })
 
 /**
@@ -395,6 +423,7 @@ const getWonStages = cached('salesforce', 'wonStages', wonStagesImpl, {
  */
 const getWonStagesCompare = cached('salesforce', 'wonStagesCompare', wonStagesImpl, {
   extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, healthCritical: false,
+  version: CACHE_VERSION,
 })
 
 function ownerRowsImpl(slug: string): Promise<Record<string, string>[]> {
@@ -403,7 +432,7 @@ function ownerRowsImpl(slug: string): Promise<Record<string, string>[]> {
   })
 }
 const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, {
-  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
 })
 
 /**
@@ -486,13 +515,25 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
   // Closed Won tile. Leaving the owner rows unfiltered would put the client's
   // whole sales team under a chart captioned as agency-sourced.
   //
-  // Truncation is still judged on the RAW row lengths below: the cap applies to
-  // what the API returned, and rows we never saw could have been in scope.
+  // Truncation is judged on the RAW row lengths, and measured immediately below:
+  // before a scoped row set exists to measure by mistake, and before the filter
+  // runs, because the filter has to be told. The cap applies to what the API
+  // returned, and rows we never saw could have been in scope — which is also why
+  // a capped response cannot support the "campaigns may have been renamed"
+  // accusation. Left uninformed, exactly 500 out-of-scope rows raise `unmatched`
+  // and `stageTruncated` at once, and pipeline-performance.tsx pushes the
+  // campaign caveat first, so the page leads with the speculative sentence and
+  // buries the only true one underneath it.
+  const openTruncated = (openRows?.length ?? 0) >= STAGE_MAX_ROWS
+  const wonCurTruncated = (wonCurRows?.length ?? 0) >= STAGE_MAX_ROWS
+  const wonPriorTruncated = (wonPriorRows?.length ?? 0) >= STAGE_MAX_ROWS
+  const ownersTruncated = (ownerRows?.length ?? 0) >= OWNER_MAX_ROWS
+
   const campaignNames = client?.salesforceConfig?.campaignNames
-  const scopedOpen = filterByCampaign(openRows ?? [], campaignNames)
-  const scopedWonCur = filterByCampaign(wonCurRows ?? [], campaignNames)
-  const scopedWonPrior = wonPriorRows ? filterByCampaign(wonPriorRows, campaignNames) : null
-  const scopedOwner = ownerRows ? filterByCampaign(ownerRows, campaignNames) : null
+  const scopedOpen = filterByCampaign(openRows ?? [], campaignNames, openTruncated)
+  const scopedWonCur = filterByCampaign(wonCurRows ?? [], campaignNames, wonCurTruncated)
+  const scopedWonPrior = wonPriorRows ? filterByCampaign(wonPriorRows, campaignNames, wonPriorTruncated) : null
+  const scopedOwner = ownerRows ? filterByCampaign(ownerRows, campaignNames, ownersTruncated) : null
 
   const kpis = transformPipeline(scopedOpen.rows, scopedWonCur.rows, scopedWonPrior?.rows ?? null, wonStage)
   const owner = scopedOwner ? transformByOwner(scopedOwner.rows, OWNER_MAX_ROWS) : null
@@ -506,8 +547,9 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     byOwner: owner ? owner.rows : null,
     // Judged on the RAW row count, not the scoped one: transformByOwner now sees
     // a filtered set, so its own length check would never reach the cap and would
-    // report a false all-clear on a response that was actually capped.
-    ownersTruncated: (ownerRows?.length ?? 0) >= OWNER_MAX_ROWS,
+    // report a false all-clear on a response that was actually capped. Computed
+    // above, before the scoped sets exist.
+    ownersTruncated,
     // Drives all four headline tiles, unlike the owner breakdown, so a silent
     // truncation here would corrupt client-facing numbers rather than just a chart.
     // Checks the open query (backs three of the four tiles) and both won queries: a
@@ -520,10 +562,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     unrecognizedClosedFlags: countUnrecognizedClosed(
       scopedOpen.rows, scopedWonCur.rows, scopedWonPrior?.rows ?? null, scopedOwner?.rows ?? null,
     ),
-    stageTruncated:
-      (openRows?.length ?? 0) >= STAGE_MAX_ROWS ||
-      (wonCurRows?.length ?? 0) >= STAGE_MAX_ROWS ||
-      (wonPriorRows?.length ?? 0) >= STAGE_MAX_ROWS,
+    stageTruncated: openTruncated || wonCurTruncated || wonPriorTruncated,
     campaignScoped: scopedOpen.active,
     // TWO flags, never one OR'd flag. scopedOpen is the wide created-date window
     // behind Open Deals / Total Pipeline / Weighted Pipeline; scopedWonCur is the
