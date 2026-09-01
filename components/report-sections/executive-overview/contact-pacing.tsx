@@ -27,7 +27,8 @@ function dateLabel(monday: Date): string {
 export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const {
     weeks, currentWeek, currentWeekPartial, daysElapsedInCurrentWeek,
-    previousWeek, priorYearWeek, completedWeekOverWeek,
+    previousWeek, priorYearWeek, completedWeekOverWeek, campaignUnmatched,
+    truncated, unusableRows,
   } = data
 
   // gapFill returns [] only when the query produced no usable bucket at all
@@ -36,6 +37,49 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   // three tiles reading 0, 0 and a dash stacked above "No data for this
   // period.": a confident zero with the disclaimer printed under it rather
   // than on it. Replace the whole block.
+  // Ordered ahead of the empty check because it describes the SAME empty state
+  // more truthfully. When the filter matches nothing the series is empty too, so
+  // both branches are live at once and the generic message would win by accident
+  // — asserting the period was empty when the query in fact returned plenty of
+  // rows, none of them on the configured campaigns. Pipeline Performance names
+  // the likely cause directly below; this block must not contradict it.
+  if (campaignUnmatched) {
+    return <NoData message="No leads matched the agency-sourced campaigns. The campaigns may have been renamed." />
+  }
+
+  // Second special-cased empty state, ordered ahead of the generic one for the
+  // same reason campaignUnmatched is: it explains the SAME emptiness truthfully.
+  // dedupeLeadWeeks must drop rows with no lead id (leads.ts), so a response
+  // whose in-scope rows all lack one yields an empty series from a query that
+  // returned plenty of rows — and "No data for this period." asserts the period
+  // was empty, which is false. Ranked below campaignUnmatched: when both are
+  // live, nothing was in scope in the first place, so the scope is the cause.
+  if (weeks.length === 0 && (unusableRows ?? 0) > 0) {
+    return (
+      <NoData
+        message={`${fmtNum(unusableRows!)} rows carried no lead identifier, so no weekly series could be built. This is a data quality issue in the CRM, not an empty period.`}
+      />
+    )
+  }
+
+  // Third special-cased empty state, and the last one before the generic
+  // message. A CAPPED response whose in-scope rows all sit past the cap empties
+  // the series while campaignUnmatched is correctly false — it is suppressed on
+  // truncation, because a response we did not see all of cannot support the
+  // rename accusation. Nothing else here knew about that state, so the block
+  // fell through to "No data for this period.", which types.ts itself calls
+  // false: the query returned its full cap of rows. The tiles below print a
+  // compensating line in the same situation (pipeline-performance.tsx); this
+  // one printed nothing.
+  //
+  // Ranked last of the three because it is the weakest claim: the other two
+  // know WHY the series is empty, this one only knows we cannot tell.
+  if (weeks.length === 0 && truncated === true) {
+    return (
+      <NoData message="The lead query hit its row limit before any agency-sourced lead, so no weekly series could be built. This is not an empty period." />
+    )
+  }
+
   if (weeks.length === 0) return <NoData />
 
   // weeks is a contiguous run of ISO weeks through the current one, and the
@@ -169,6 +213,20 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
         <p className="text-xs text-text-muted">
           Final bar is the current week in progress: {daysElapsedInCurrentWeek} of 7 days.
         </p>
+        {/* Only an explicit true caveats: undefined means the path that produced
+            this data does not measure its cap at all (types.ts, truncated). */}
+        {truncated === true && (
+          <p data-testid="leads-caveat" className="text-xs text-text-muted">
+            The lead query hit its row limit, so these weekly counts may be undercounted.
+          </p>
+        )}
+        {/* Partial loss, unlike the whole-series case handled above: the series
+            rendered, but it is missing however many leads these rows represented. */}
+        {(unusableRows ?? 0) > 0 && (
+          <p data-testid="leads-caveat" className="text-xs text-text-muted">
+            {fmtNum(unusableRows!)} rows carried no lead identifier and were left out of these counts.
+          </p>
+        )}
       </div>
     </div>
   )

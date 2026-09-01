@@ -155,6 +155,9 @@ export function transformWeeklyContacts(
   rows: Record<string, string>[],
   cmpRows: Record<string, string>[] | null,
   now: Date = new Date(),
+  // Defaulted rather than required so the contacts path, which has no campaign
+  // scoping to report, is not made to pass a constant false at every call site.
+  campaignUnmatched = false,
 ): WeeklyContacts {
   const currentKey = isoWeekKey(now)
   const weeks = gapFill(toWeekBuckets(rows), currentKey)
@@ -185,6 +188,7 @@ export function transformWeeklyContacts(
     previousWeek,
     priorYearWeek,
     completedWeekOverWeek,
+    campaignUnmatched,
   }
 }
 

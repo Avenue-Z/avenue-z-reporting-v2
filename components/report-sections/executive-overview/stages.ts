@@ -44,6 +44,19 @@ export interface StageInput {
    */
   crmConnected?: boolean
   /**
+   * Whether this client's CRM figures are scoped to configured campaigns.
+   *
+   * Only affects wording: the inbound card counts LEADS for a scoped client
+   * (leads are the only inbound object carrying a campaign — see lib/salesforce/
+   * leads.ts) and CONTACTS for everyone else, and it must name the object it is
+   * actually counting. The section heading in index.tsx already switches on the
+   * same predicate; this keeps the journey card from contradicting it.
+   *
+   * Must come from hasCampaignScope (lib/salesforce/campaign-filter.ts), never
+   * from a hand-rolled `campaignNames.length > 0`.
+   */
+  crmScoped?: boolean
+  /**
    * Injectable "current time" for the partial-week detection below. Defaults
    * to the real current time; tests pass a fixed Date so the AI Visibility
    * delta assertions are not time-dependent.
@@ -76,7 +89,7 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
   return last.weekStart === isoWeekStart(now) ? weekly.slice(0, -1) : weekly
 }
 
-export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, now = new Date() }: StageInput): DemandStage[] {
+export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date() }: StageInput): DemandStage[] {
   // A contacts object with no weeks is a successful fetch that found nothing,
   // not data. See the inbound stage below for why the distinction matters.
   const withWeeks = contacts && contacts.weeks.length > 0 ? contacts : null
@@ -92,6 +105,28 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
   // isYou is computed from clients.peec_your_brand. Matching on a literal brand
   // name here would blank share of voice for every client but the one hardcoded.
   const aeoSov   = peec?.brandRankings?.find((b) => b.isYou)?.sov ?? null
+
+  // The pipeline card must dash on EVERY state that makes the figure unknowable,
+  // not only the two it already knew about. campaignUnmatched is the third: the
+  // scoped window returned rows and none were on the configured campaigns, so
+  // the tiles compute 0 from an empty set. Left unread, this card headlined a
+  // confident $0 and "0 open deals" immediately above a Pipeline Performance
+  // block saying those very totals could not be trusted — the funnel and the
+  // block contradicting each other on one screen.
+  //
+  // Split the same way PipelineData splits it: the open windows and the won
+  // window can be unmatched independently, so a client with open pipeline and no
+  // close yet keeps a live hero metric and dashes only the Closed Won stat.
+  //
+  // Both read the value flags rather than re-OR'ing the narrow ones, which is
+  // also what keeps this card and the block below agreeing on a fourth state
+  // neither of them can compute: a capped response whose scoped set is empty.
+  // The campaign flags are false there on purpose (a capped response cannot
+  // support the rename accusation), so an OR of them would have put a confident
+  // $0 back in the hero metric while the block dashed — the same contradiction
+  // in the opposite direction.
+  const openGone = !!pipeline && pipeline.openValueUnknown
+  const wonGone  = !!pipeline && pipeline.wonValueUnknown
 
   return [
     {
@@ -147,7 +182,12 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       ],
     },
     {
-      key: 'inbound', source: 'Inbound Funnel', label: 'Online Contacts',
+      // The label names the object being counted, which differs by scope: a
+      // scoped client's series is agency-sourced LEADS, everyone else's is every
+      // CONTACT created. index.tsx:176 already switches its section heading the
+      // same way; leaving this hardcoded put "Online Contacts" on the card
+      // heading a block titled "Lead Creation".
+      key: 'inbound', source: 'Inbound Funnel', label: crmScoped ? 'Online Leads' : 'Online Contacts',
       color: CHART_COLORS.positive,
       connector: 'becomes pipeline',
       // withWeeks, not `contacts`: a fetch that SUCCEEDS but returns zero
@@ -170,7 +210,9 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       delta: undefined,
       // Written out, not "retained": the stub this replaces carried no
       // heroLabel at all, so retaining would ship a blank hover reveal.
-      heroLabel: withWeeks ? 'new contacts created so far this week' : undefined,
+      heroLabel: withWeeks
+        ? `new ${crmScoped ? 'leads' : 'contacts'} created so far this week`
+        : undefined,
       stats: contacts ? [
         // weeks.length < 2 means no completed week exists, so previousWeek's 0
         // is the `?? 0` at contacts.ts:153 rather than a count.
@@ -187,12 +229,17 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       key: 'pipeline', source: 'Pipeline', label: 'Open Pipeline',
       color: CHART_COLORS.neutral,
       // No connector: last stage in the row.
-      metric: pipeline ? (pipeline.openUnavailable ? '—' : fmtUsd(pipeline.totalPipeline.value)) : '—',
+      metric: pipeline && !openGone ? fmtUsd(pipeline.totalPipeline.value) : '—',
       badge: pipeline ? 'AS OF TODAY' : undefined,
       // Must not keep stating a deal count beside a dashed value: that is the
       // same defect as a live delta under a dashed number, in a different field.
       subMetric: pipeline
-        ? (pipeline.openUnavailable ? "Couldn't load open pipeline." : `${fmtNum(pipeline.openDeals.value)} open deals`)
+        ? (pipeline.openUnavailable ? "Couldn't load open pipeline."
+           : pipeline.openCampaignUnmatched ? 'No open deals on the agency-sourced campaigns.'
+           // Same tail as the block's tile caveat: the only state left where
+           // the value is unknown but no named flag explains it.
+           : pipeline.openValueUnknown ? 'Row limit reached before any agency-sourced deal.'
+           : `${fmtNum(pipeline.openDeals.value)} open deals`)
         : undefined,
       // Named explicitly rather than reading totalPipeline.delta, which is
       // always undefined but would read like a live wire waiting to be fixed.
@@ -201,8 +248,8 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       stats: pipeline ? [
         // Dashes under both flags, matching the block below: a renamed stage
         // makes the true figure unknown, not zero.
-        { label: 'Closed Won',        value: pipeline.wonUnavailable || pipeline.wonStageUnmatched ? '—' : fmtUsd(pipeline.closedWon.value) },
-        { label: 'Weighted Pipeline', value: pipeline.openUnavailable ? '—' : fmtUsd(pipeline.weightedPipeline.value) },
+        { label: 'Closed Won',        value: wonGone  ? '—' : fmtUsd(pipeline.closedWon.value) },
+        { label: 'Weighted Pipeline', value: openGone ? '—' : fmtUsd(pipeline.weightedPipeline.value) },
       ] : undefined,
       connected: (crmConnected ?? (pipeline != null)) ? undefined : false,
       unconnectedHint: 'Connect your CRM to see this',
