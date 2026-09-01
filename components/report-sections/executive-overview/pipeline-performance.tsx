@@ -16,6 +16,8 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     openDeals, totalPipeline, closedWon, weightedPipeline,
     byOwner, ownersTruncated, stageTruncated, unrecognizedClosedFlags,
     wonStageUnmatched, openUnavailable, wonUnavailable,
+    campaignScoped, openCampaignUnmatched, wonCampaignUnmatched,
+    ownerCampaignUnmatched, openValueUnknown, wonValueUnknown,
   } = data
 
   // KpiCard tests `delta !== undefined` BEFORE `comparisonExpected`
@@ -30,7 +32,16 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
   //     also fire on the prior-year won query, so the ratio is unsafe even
   //     though each total is merely low)
   // Do not "restore" this by reading closedWon.delta directly.
-  const wonValueGone   = wonUnavailable || wonStageUnmatched
+  // Read straight off the data rather than re-OR'd here. These two fields ARE
+  // "the value could not be established", per row set, and they carry one state
+  // this file cannot compute: a truncated response whose scoped set came back
+  // empty. openCampaignUnmatched is deliberately false there — a capped
+  // response cannot support the rename accusation — and dashing on it alone
+  // therefore printed a confident 0 / $0 / $0 under "may be undercounted".
+  // The caveats below still read the narrow flags, because WHICH sentence to
+  // print is a different question from WHETHER to dash (lib/salesforce/types.ts).
+  const openValueGone  = openValueUnknown
+  const wonValueGone   = wonValueUnknown
   const baselineDirty  = stageTruncated || unrecognizedClosedFlags > 0
   const wonDelta       = wonValueGone || baselineDirty ? undefined : closedWon.delta
   // The greyed null-glyph placeholder KpiCard renders under comparisonExpected
@@ -41,16 +52,49 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
 
   // wonUnavailable wins over wonStageUnmatched: "could not load" is the more
   // fundamental statement, and only one subValue slot exists per tile.
+  // Each chain ends on the value flag, which is true in exactly one state the
+  // three named ones are not: the response was capped and nothing in the part
+  // we saw was in scope. The tile dashes there, so the slot must say why rather
+  // than keep printing the healthy window label under a null glyph.
   const wonCaveat =
     wonUnavailable   ? "Couldn't load closed-won data."
     : wonStageUnmatched ? 'No deals matched the won stage; it may have been renamed.'
+    : wonCampaignUnmatched ? 'No closed-won deals on the agency-sourced campaigns.'
+    : wonValueUnknown ? 'Row limit reached before any agency-sourced deal.'
     : 'Year to date'
 
-  const openCaveat = openUnavailable ? "Couldn't load open pipeline." : 'Open as of today'
+  const openCaveat =
+    openUnavailable ? "Couldn't load open pipeline."
+    : openCampaignUnmatched ? 'No open deals on the agency-sourced campaigns.'
+    : openValueUnknown ? 'Row limit reached before any agency-sourced deal.'
+    : 'Open as of today'
   const openValue = (k: { value: number }, fmt: (n: number) => string) =>
-    openUnavailable ? NULL_GLYPH : fmt(k.value)
+    openValueGone ? NULL_GLYPH : fmt(k.value)
 
   const caveats: string[] = []
+  if (openCampaignUnmatched || wonCampaignUnmatched) {
+    // Leads the caveat list: it is the only entry that means the affected
+    // figures describe nothing at all rather than describing something
+    // imperfectly. A bare $0 here reads as "the agency sourced nothing", when
+    // the likelier cause is a campaign renamed in the CRM.
+    //
+    // It names WHICH windows came back empty instead of asserting that all four
+    // totals are 0. The open and closed-won row sets are different windows and
+    // either can be empty on its own, so the old single sentence printed "these
+    // totals are 0" above a live six-figure Total Pipeline for any client with
+    // open pipeline and no close yet — the normal opening state for a newly
+    // scoped client.
+    const both = openCampaignUnmatched && wonCampaignUnmatched
+    const which =
+      both ? 'no open or closed-won deals'
+      : openCampaignUnmatched ? 'no open deals'
+      : 'no closed-won deals'
+    caveats.push(
+      `The CRM returned ${which} on the agency-sourced campaigns, so ` +
+      `${both ? 'those tiles are' : 'the affected tiles are'} dashed rather than shown as 0. ` +
+      'The campaigns may have been renamed.',
+    )
+  }
   if (stageTruncated) {
     caveats.push('Deal totals hit the row limit and may be undercounted.')
   }
@@ -71,6 +115,11 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
     <div className="space-y-6">
       <p className="text-xs text-text-muted">
         Open pipeline is as of today. Closed won is year to date.
+        {/* Whole-org and scoped figures differ by orders of magnitude and carry
+            identical tile titles, so the reader has nothing but this line to
+            tell them apart. It sits with the window labels because it is the
+            same kind of statement: what these numbers cover. */}
+        {campaignScoped && ' Scoped to agency-sourced campaigns.'}
       </p>
 
       <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
@@ -97,7 +146,17 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
           // exact confusion the null/empty distinction exists to prevent.
           <p className="text-sm text-text-muted">Owner breakdown unavailable.</p>
         ) : byOwner.length === 0 ? (
-          <p className="text-sm text-text-muted">No open deals by owner.</p>
+          // Two different statements, and exactly one of them is true. The
+          // default copy asserts something about this client's DEALS; when the
+          // campaign filter emptied the row set it is instead a statement about
+          // the FILTER, most likely a campaign renamed in the CRM. This branch
+          // is why ownerCampaignUnmatched exists as its own flag: the caveat
+          // region below explains dashed tiles, and this list is not a tile.
+          <p className="text-sm text-text-muted">
+            {ownerCampaignUnmatched
+              ? 'No owners matched the agency-sourced campaigns; they may have been renamed.'
+              : 'No open deals by owner.'}
+          </p>
         ) : (
           <div className="space-y-2">
             {byOwner.map((o) => (
