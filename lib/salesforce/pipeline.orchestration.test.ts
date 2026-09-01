@@ -289,6 +289,23 @@ describe('getSalesforcePipeline', () => {
     }
   })
 
+  test('carries the cache version on all four fetchers, so no query can be read back off a v1 key', () => {
+    // The response shape changed on this branch: campaign_name joined
+    // STAGE_FIELDS and OWNER_FIELDS. A v1 entry written by pre-branch code
+    // holds rows with NO campaign_name key, every one normalizes to '',
+    // nothing matches a configured campaign, and all four tiles dash under
+    // "The campaigns may have been renamed." on a client that renamed nothing.
+    //
+    // Asserted per fetcher, not on the shared constant. The constant exists so
+    // nobody bumps three of four by hand, but the property that matters is that
+    // each wrapper actually PASSES it: dropping `version` from one line is
+    // invisible to every other test here, and a half-bump reproduces the same
+    // falsehood on a subset of tiles.
+    const sf = cachedRegistry.filter((c) => c.vendor === 'salesforce')
+    expect(sf.map((c) => c.fn).sort()).toEqual(['openStages', 'ownerRows', 'wonStages', 'wonStagesCompare'])
+    for (const c of sf) expect(c.options.version).toBe('v2')
+  })
+
   test('gives every Salesforce query a negative TTL far below the positive one', () => {
     // unstable_cache stores nothing for a rejected call, so without this a query
     // failing persistently is re-issued on every render and pays the full 60s
@@ -595,5 +612,536 @@ describe('getSalesforcePipeline', () => {
     expect(data.wonStageUnmatched).toBe(false)
     expect(err).toHaveBeenCalled()
     err.mockRestore()
+  })
+})
+
+describe('campaign scoping', () => {
+  const OURS = '2026 - Inbound Prospecting'
+  const THEIRS = 'Napa Golf Outing'
+  const NAMES = [OURS, '2026 - Inbound Prospecting - Brokers', '2026 - Inbound Prospecting - Employers']
+
+  const withCampaign = (row: Record<string, unknown>, campaign: string) => ({ ...row, campaign_name: campaign })
+
+  /** A client row carrying a configured campaign list. */
+  const configured = (campaignNames?: string[]) =>
+    ({ salesforceConfig: { salesforceAccountId: '00D', campaignNames } }) as unknown as ReturnType<typeof getClientBySlug>
+
+  let warnSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+  })
+  afterEach(() => warnSpy.mockRestore())
+
+  test('every query requests campaign_name, or there is nothing to filter on', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    const fieldSets: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      fieldSets.push(fields)
+      return Promise.resolve([])
+    })
+    await getSalesforcePipeline('acme')
+    expect(fieldSets).toHaveLength(4)
+    for (const fields of fieldSets) expect(fields).toContain('campaign_name')
+  })
+
+  test('scopes every tile to the configured campaigns, dropping the rest of the book', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner'))
+        return Promise.resolve([
+          withCampaign(ownerRow('Jason Clemons', 1, 51730.62), OURS),
+          withCampaign(ownerRow('Someone Else', 900, 90000000), THEIRS),
+        ])
+      return Promise.resolve([
+        withCampaign(stageRow('Proposal Released', 1, 51730.62, 25, false), OURS),
+        // The renewal book: vastly larger, and not ours. It must not reach a tile.
+        withCampaign(stageRow('Proposal Released', 3946, 172005960, 25, false), THEIRS),
+        withCampaign(stageRow('Closed Won', 1, 20584.44, 100, true), '2026 - Inbound Prospecting - Employers'),
+        withCampaign(stageRow('Closed Won', 623, 31326868, 100, true), THEIRS),
+      ])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.openDeals.value).toBe(1)
+    expect(p.totalPipeline.value).toBeCloseTo(51730.62, 2)
+    expect(p.weightedPipeline.value).toBeCloseTo(12932.66, 2)
+    expect(p.closedWon.value).toBeCloseTo(20584.44, 2)
+    expect(p.byOwner).toEqual([{ owner: 'Jason Clemons', count: 1, amount: 51730.62 }])
+    expect(p.campaignScoped).toBe(true)
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(p.wonCampaignUnmatched).toBe(false)
+  })
+
+  test('filters the prior-year window too, so the delta compares like with like', async () => {
+    // The trap: scope the current window but not the compare window, and the
+    // closed-won delta measures our slice against their entire book — a
+    // permanent, enormous false decline on a client-facing tile.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([])
+      const ours = withCampaign(stageRow('Closed Won', 1, 100, 100, true), OURS)
+      const theirs = withCampaign(stageRow('Closed Won', 500, 50000, 100, true), THEIRS)
+      // Prior-year window carries both; if it is left unfiltered the baseline is 50100.
+      return Promise.resolve(dateRange === '2025-01-01,2025-12-31' ? [ours, theirs] : [ours])
+    })
+    const p = await getSalesforcePipeline('acme')
+    // Baseline must be 100 (ours last year), so the delta is 0 — not -99.8%.
+    expect(p.closedWon.delta).toBeCloseTo(0, 6)
+  })
+
+  test('flags unmatched rather than publishing a confident $0 when nothing matches', async () => {
+    // A renamed campaign in the CRM lands here. The tiles legitimately compute 0,
+    // and 0 is indistinguishable from "no agency-sourced pipeline" without a flag.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockResolvedValue([
+      withCampaign(stageRow('Proposal Released', 3946, 172005960, 25, false), THEIRS),
+    ])
+    const p = await getSalesforcePipeline('acme')
+    expect(p.totalPipeline.value).toBe(0)
+    expect(p.openCampaignUnmatched).toBe(true)
+    expect(p.campaignScoped).toBe(true)
+  })
+
+  /**
+   * The two flags describe DIFFERENT windows: open is a wide created-date window
+   * evaluated as of now, won is year to date on the close date. While they were
+   * OR'd into one flag, a client with real open pipeline and no close yet — the
+   * ordinary opening state of a newly scoped client — had all four of their
+   * tiles disclaimed as "these totals are 0".
+   */
+  test('raises the open and closed-won unmatched flags independently, never as one OR', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([])
+      // Open window: in scope. Won windows (year to date and prior year): rows
+      // arrived, none of them ours.
+      if (dateRange === EXPECTED_OPEN_WINDOW)
+        return Promise.resolve([withCampaign(stageRow('Proposal Released', 1, 51730.62, 25, false), OURS)])
+      return Promise.resolve([withCampaign(stageRow('Closed Won', 623, 31326868, 100, true), THEIRS)])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(p.wonCampaignUnmatched).toBe(true)
+    // And the open figure the OR'd flag used to disclaim is genuinely there.
+    expect(p.totalPipeline.value).toBeCloseTo(51730.62, 2)
+  })
+
+  test('the prior-year window matching nothing raises neither flag: it is an empty baseline, not a caveat', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([])
+      if (dateRange === '2025-01-01,2025-12-31')
+        return Promise.resolve([withCampaign(stageRow('Closed Won', 500, 50000, 100, true), THEIRS)])
+      return Promise.resolve([withCampaign(stageRow('Closed Won', 1, 100, 100, true), OURS)])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(p.wonCampaignUnmatched).toBe(false)
+  })
+
+  test('an unconfigured client keeps whole-org reporting and is not flagged as scoped', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(undefined))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+      Promise.resolve(
+        fields.includes('opportunity_owner')
+          ? [withCampaign(ownerRow('Someone Else', 900, 90000), THEIRS)]
+          : [withCampaign(stageRow('Proposal Released', 10, 1000, 25, false), THEIRS)],
+      ),
+    )
+    const p = await getSalesforcePipeline('acme')
+    expect(p.openDeals.value).toBe(10)
+    expect(p.campaignScoped).toBe(false)
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(p.wonCampaignUnmatched).toBe(false)
+  })
+
+  test('a config of blank names is not a scope: whole-org reporting, and no scoped label', async () => {
+    // hasCampaignScope and filterByCampaign must agree. A `names.length > 0`
+    // test says "scoped" here while the filter applies nothing, which puts
+    // "Scoped to agency-sourced campaigns." over the client's entire book.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured([' ', '']))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+      Promise.resolve(
+        fields.includes('opportunity_owner')
+          ? [withCampaign(ownerRow('Someone Else', 900, 90000), THEIRS)]
+          : [withCampaign(stageRow('Proposal Released', 10, 1000, 25, false), THEIRS)],
+      ),
+    )
+    const p = await getSalesforcePipeline('acme')
+    expect(p.campaignScoped).toBe(false)
+    expect(p.openDeals.value).toBe(10)
+    expect(p.openCampaignUnmatched).toBe(false)
+  })
+
+  /**
+   * The truncation flags must stay pinned to the RAW response length, never the
+   * post-filter one. Nothing else in this suite would notice the swap: a scoped
+   * client's post-filter count is a handful of rows against a 500 cap, so moving
+   * these to the scoped rows disables truncation detection permanently while
+   * every other test still passes.
+   */
+  test('judges truncation on the RAW response, not the campaign-scoped subset', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      // 500 raw rows = the cap. Exactly ONE of them is in scope, so a
+      // post-filter check sees 1 and reports a false all-clear.
+      const theirs = Array.from({ length: 499 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS))
+      if (fields.includes('opportunity_owner'))
+        return Promise.resolve([...Array.from({ length: 499 }, () =>
+          withCampaign(ownerRow('Someone Else', 1, 100), THEIRS)),
+          withCampaign(ownerRow('Jason Clemons', 1, 100), OURS)])
+      return Promise.resolve([...theirs, withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS)])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.stageTruncated).toBe(true)
+    expect(p.ownersTruncated).toBe(true)
+    // Proof the scoped set really is far under the cap, so these flags cannot be
+    // passing for the wrong reason.
+    expect(p.openDeals.value).toBe(1)
+    expect(p.byOwner).toHaveLength(1)
+  })
+
+  /**
+   * A capped response and a filter that matched nothing are the SAME observation
+   * from two directions, and only one of them justifies an accusation. Before
+   * this, exactly 500 out-of-scope rows produced stageTruncated AND
+   * openCampaignUnmatched together, and pipeline-performance.tsx pushes the
+   * campaign caveat first (:66) and the truncation caveat second (:89) — so the
+   * page told the client their campaigns may have been renamed, then mentioned
+   * the row limit underneath, when only the second sentence was true.
+   *
+   * This is the interaction the earlier rounds could not catch: truncation-on-raw
+   * -counts and the unmatched flags were each pinned carefully, but only alone.
+   */
+  test('a capped response does not also accuse the client of renaming a campaign', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      // Exactly the cap, and NOTHING in scope: the in-scope rows, if any, are
+      // past the cap and were never returned.
+      if (fields.includes('opportunity_owner'))
+        return Promise.resolve(Array.from({ length: 500 }, () =>
+          withCampaign(ownerRow('Someone Else', 1, 100), THEIRS)))
+      return Promise.resolve(Array.from({ length: 500 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)))
+    })
+    const p = await getSalesforcePipeline('acme')
+    // The true statement, and the only one the page should make.
+    expect(p.stageTruncated).toBe(true)
+    expect(p.ownersTruncated).toBe(true)
+    // The speculative ones, all suppressed.
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(p.wonCampaignUnmatched).toBe(false)
+    expect(p.ownerCampaignUnmatched).toBe(false)
+    // Suppressing the accusation must not suppress the FILTER: the whole book is
+    // still excluded, so the tiles read 0 rather than reverting to whole-org.
+    expect(p.totalPipeline.value).toBe(0)
+    expect(p.campaignScoped).toBe(true)
+  })
+
+  test('an UNDER-cap response with nothing in scope still raises the accusation', async () => {
+    // The other half of the pair: without this, suppressing on truncation could
+    // be widened to suppress always and nothing here would object.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+      Promise.resolve(fields.includes('opportunity_owner')
+        ? [withCampaign(ownerRow('Someone Else', 1, 100), THEIRS)]
+        : [withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)]))
+    const p = await getSalesforcePipeline('acme')
+    expect(p.stageTruncated).toBe(false)
+    expect(p.openCampaignUnmatched).toBe(true)
+    expect(p.wonCampaignUnmatched).toBe(true)
+    expect(p.ownerCampaignUnmatched).toBe(true)
+  })
+
+  /**
+   * Per-TERM pinning for stageTruncated, which the combined test above cannot
+   * give. That test hands the same 500-row payload to all three stage windows,
+   * so the flag is an OR of three terms that are all true at once: mutate any
+   * ONE of them from the raw length to the scoped length and the other two
+   * still carry it green. Verified by mutation \u2014 all three drifted green
+   * individually, while ownersTruncated (a single term) correctly failed.
+   *
+   * Each case below puts exactly ONE window at the cap and leaves the other two
+   * at a single row, so the term under test is the only thing that can raise
+   * the flag. 499 out-of-scope rows plus one in-scope row keeps the SCOPED set
+   * at 1 \u2014 three orders of magnitude under the cap \u2014 which is what
+   * makes a raw-to-scoped swap observable rather than a no-op.
+   */
+  describe('stageTruncated pins each window independently', () => {
+    const capped = () => [
+      ...Array.from({ length: 499 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)),
+      withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS),
+    ]
+    const single = () => [withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS)]
+
+    /** Every stage query under the cap except the one named. */
+    const onlyCapped = (target: 'open' | 'wonCur' | 'wonPrior') => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+        if (fields.includes('opportunity_owner')) return Promise.resolve([])
+        const which =
+          dateRange === EXPECTED_OPEN_WINDOW ? 'open'
+          : dateRange === '2025-01-01,2025-12-31' ? 'wonPrior'
+          : 'wonCur'
+        return Promise.resolve(which === target ? capped() : single())
+      })
+    }
+
+    test('the OPEN window alone raises it', async () => {
+      onlyCapped('open')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+      // Proof the scoped set is nowhere near the cap, so a raw-to-scoped swap
+      // on this term really does flip the flag rather than passing anyway.
+      expect(p.openDeals.value).toBe(1)
+    })
+
+    test('the CLOSED-WON year-to-date window alone raises it', async () => {
+      onlyCapped('wonCur')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+    })
+
+    test('the PRIOR-YEAR window alone raises it, since a capped baseline overstates the delta', async () => {
+      onlyCapped('wonPrior')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+    })
+
+    test('all three under the cap leaves it false', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(fields.includes('opportunity_owner') ? [] : single()))
+      expect((await getSalesforcePipeline('acme')).stageTruncated).toBe(false)
+    })
+  })
+
+  /**
+   * scopedOwner.unmatched was computed and thrown away. The owner rows back the
+   * breakdown and no tile, so the tile caveat cannot speak for them: filtered to
+   * empty, byOwner is [] and the list renders "No open deals by owner.", which
+   * is a claim about the client's deals rather than about the filter.
+   */
+  describe('ownerCampaignUnmatched reaches the caller', () => {
+    test('is true when owner rows arrived and none were on a configured campaign', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(
+          fields.includes('opportunity_owner')
+            ? [withCampaign(ownerRow('Someone Else', 900, 90000000), THEIRS)]
+            : [withCampaign(stageRow('Proposal Released', 1, 51730.62, 25, false), OURS)],
+        ))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.ownerCampaignUnmatched).toBe(true)
+      // The empty list the flag exists to explain.
+      expect(p.byOwner).toEqual([])
+      // And it is independent of the tile flags: the open window matched fine.
+      expect(p.openCampaignUnmatched).toBe(false)
+    })
+
+    test('is false when owners matched the configured campaigns', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(
+          fields.includes('opportunity_owner')
+            ? [withCampaign(ownerRow('Jason Clemons', 1, 51730.62), OURS),
+               withCampaign(ownerRow('Someone Else', 900, 90000000), THEIRS)]
+            : [],
+        ))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.ownerCampaignUnmatched).toBe(false)
+      expect(p.byOwner).toEqual([{ owner: 'Jason Clemons', count: 1, amount: 51730.62 }])
+    })
+
+    test('is false for an empty owner fetch, which is missing data rather than a mismatch', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockResolvedValue([])
+      expect((await getSalesforcePipeline('acme')).ownerCampaignUnmatched).toBe(false)
+    })
+
+    test('is false for an unconfigured client, which is not scoped at all', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(undefined))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        Promise.resolve(
+          fields.includes('opportunity_owner')
+            ? [withCampaign(ownerRow('Someone Else', 900, 90000), THEIRS)]
+            : [],
+        ))
+      expect((await getSalesforcePipeline('acme')).ownerCampaignUnmatched).toBe(false)
+    })
+
+    test('is false when the owner fetch FAILED: byOwner is null and unavailable outranks scope', async () => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) =>
+        fields.includes('opportunity_owner')
+          ? Promise.reject(new Error('owner query failed'))
+          : Promise.resolve([withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS)]))
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const p = await getSalesforcePipeline('acme')
+      errSpy.mockRestore()
+      expect(p.byOwner).toBeNull()
+      expect(p.ownerCampaignUnmatched).toBe(false)
+    })
+  })
+
+  test('counts unrecognized closed flags on the SCOPED rows, not the whole org', async () => {
+    // Otherwise a client with two in-scope deals inherits a warning generated by
+    // 89,000 rows they are not being shown, and the caveat is meaningless.
+    ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([])
+      return Promise.resolve([
+        withCampaign({ ...stageRow('Proposal Released', 1, 100, 25, false), opportunity_is_closed: 'maybe' }, THEIRS),
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), OURS),
+      ])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(p.unrecognizedClosedFlags).toBe(0)
+  })
+
+  /**
+   * Truncation is judged per window, and each judgement is passed to the filter
+   * for THAT window. Nothing pinned the pairing.
+   *
+   * The four `filterByCampaign` calls take four different truncation arguments,
+   * and every test above either caps all three stage windows together or caps
+   * none of them, so the arguments are interchangeable under all of them:
+   * crossing two is a one-token edit that stays green. Live it would suppress
+   * the rename accusation on a window that was complete (a real cause hidden)
+   * or raise it on one that was capped (the falsehood this branch removed).
+   *
+   * Each case caps exactly ONE window with rows that are ALL out of scope, so
+   * the capped window must stay silent and the under-cap ones must accuse.
+   */
+  describe('each window is filtered with its OWN truncation verdict', () => {
+    const cappedOutOfScope = () =>
+      Array.from({ length: 500 }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS))
+    const oneOutOfScope = () => [withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS)]
+
+    /** Caps one stage window; every other query returns a single out-of-scope row. */
+    const capOnly = (target: 'open' | 'wonCur') => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+        if (fields.includes('opportunity_owner')) return Promise.resolve([])
+        const which =
+          dateRange === EXPECTED_OPEN_WINDOW ? 'open'
+          : dateRange === '2025-01-01,2025-12-31' ? 'wonPrior'
+          : 'wonCur'
+        return Promise.resolve(which === target ? cappedOutOfScope() : oneOutOfScope())
+      })
+    }
+
+    test('a capped OPEN window silences only the open accusation', async () => {
+      capOnly('open')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.openCampaignUnmatched).toBe(false)
+      // The won window was complete, so its accusation is supported and stands.
+      expect(p.wonCampaignUnmatched).toBe(true)
+    })
+
+    test('a capped CLOSED-WON window silences only the won accusation', async () => {
+      capOnly('wonCur')
+      const p = await getSalesforcePipeline('acme')
+      expect(p.wonCampaignUnmatched).toBe(false)
+      expect(p.openCampaignUnmatched).toBe(true)
+    })
+  })
+
+  /**
+   * The dash and the accusation are two different questions, and one boolean
+   * used to answer both.
+   *
+   * Suppressing `openCampaignUnmatched` on a capped response is right — the
+   * in-scope rows may sit past the cap, so the response cannot support "the
+   * campaigns may have been renamed" — but it left the tiles rendering a
+   * confident 0 / $0 / $0 under "may be undercounted". The value flags carry
+   * the dash instead, and stay true in exactly that state.
+   */
+  describe('openValueUnknown / wonValueUnknown outlive the suppressed accusation', () => {
+    const allOutOfScope = (n: number) =>
+      Array.from({ length: n }, () =>
+        withCampaign(stageRow('Proposal Released', 1, 100, 25, false), THEIRS))
+
+    const respond = (rows: (dateRange: string) => Record<string, unknown>[]) => {
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) =>
+        Promise.resolve(fields.includes('opportunity_owner') ? [] : rows(dateRange)))
+    }
+
+    test('stay true on a capped window whose scoped set is empty, while the accusation is false', async () => {
+      respond(() => allOutOfScope(500))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+      expect(p.openCampaignUnmatched).toBe(false)
+      expect(p.wonCampaignUnmatched).toBe(false)
+      // The figures are 0 for want of an in-scope row we can prove exists or
+      // does not. That is unknown, not zero.
+      expect(p.totalPipeline.value).toBe(0)
+      expect(p.openValueUnknown).toBe(true)
+      expect(p.wonValueUnknown).toBe(true)
+    })
+
+    test('stay true on a COMPLETE response that matched nothing, where the accusation also stands', async () => {
+      respond(() => allOutOfScope(1))
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(false)
+      expect(p.openCampaignUnmatched).toBe(true)
+      expect(p.openValueUnknown).toBe(true)
+      expect(p.wonValueUnknown).toBe(true)
+    })
+
+    test('go false on a capped window that DID return in-scope rows', async () => {
+      // The ordinary truncated case. The totals are merely low, so dashing them
+      // would withhold figures that genuinely exist.
+      respond(() => [
+        ...allOutOfScope(499),
+        withCampaign(stageRow('Closed Won', 2, 900, 100, true), OURS),
+        withCampaign(stageRow('Proposal Released', 3, 700, 25, false), OURS),
+      ])
+      const p = await getSalesforcePipeline('acme')
+      expect(p.stageTruncated).toBe(true)
+      expect(p.openValueUnknown).toBe(false)
+      expect(p.wonValueUnknown).toBe(false)
+      expect(p.totalPipeline.value).toBe(700)
+    })
+
+    test('openValueUnknown also covers a failed open fetch', async () => {
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(getClientBySlug as Mock).mockResolvedValue(configured(NAMES))
+      ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+        if (fields.includes('opportunity_owner')) return Promise.resolve([])
+        if (dateRange === EXPECTED_OPEN_WINDOW) return Promise.reject(new Error('open query failed'))
+        return Promise.resolve([withCampaign(stageRow('Closed Won', 2, 900, 100, true), OURS)])
+      })
+      const p = await getSalesforcePipeline('acme')
+      expect(p.openUnavailable).toBe(true)
+      expect(p.openValueUnknown).toBe(true)
+      // The won window fetched and matched, so its value is known.
+      expect(p.wonValueUnknown).toBe(false)
+      err.mockRestore()
+    })
+
+    test('wonValueUnknown also covers a renamed won stage, which no campaign flag reports', async () => {
+      respond(() => [withCampaign(stageRow('Proposal Released', 3, 700, 25, false), OURS)])
+      const p = await getSalesforcePipeline('acme')
+      expect(p.wonStageUnmatched).toBe(true)
+      expect(p.wonCampaignUnmatched).toBe(false)
+      expect(p.wonValueUnknown).toBe(true)
+      // Open matched, so it stays live: the two windows fail independently.
+      expect(p.openValueUnknown).toBe(false)
+    })
+
+    test('both stay false on a healthy scoped response', async () => {
+      respond(() => [
+        withCampaign(stageRow('Proposal Released', 3, 700, 25, false), OURS),
+        withCampaign(stageRow('Closed Won', 2, 900, 100, true), OURS),
+      ])
+      const p = await getSalesforcePipeline('acme')
+      expect(p.openValueUnknown).toBe(false)
+      expect(p.wonValueUnknown).toBe(false)
+    })
   })
 })

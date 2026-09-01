@@ -4,9 +4,17 @@ import { PipelinePerformance } from './pipeline-performance'
 import type { PipelineData } from '@/lib/salesforce/types'
 
 /** Healthy baseline. Every figure is distinct so a getByText assertion cannot
- *  pass by coincidence: the parent plan's fixture reused 131 twice. */
+ *  pass by coincidence: the parent plan's fixture reused 131 twice.
+ *
+ *  openValueUnknown / wonValueUnknown are DERIVED from the narrow flags the way
+ *  pipeline.ts composes them, never spread in by hand. The tiles dash on those
+ *  two now, so an override that set only a narrow flag would quietly stop
+ *  dashing and its test would assert the wrong thing. Pass a value flag
+ *  explicitly to reach the one state no narrow flag implies: a TRUNCATED
+ *  response whose scoped set came back empty, where the campaign flag is
+ *  deliberately false and the figure is still unknown. */
 function data(over: Partial<PipelineData> = {}): PipelineData {
-  return {
+  const base: PipelineData = {
     openDeals:        { value: 297 },
     totalPipeline:    { value: 4_820_000 },
     closedWon:        { value: 1_375_000, delta: 15.7 },
@@ -21,7 +29,19 @@ function data(over: Partial<PipelineData> = {}): PipelineData {
     wonStageUnmatched: false,
     openUnavailable: false,
     wonUnavailable: false,
+    campaignScoped: false,
+    openCampaignUnmatched: false,
+    wonCampaignUnmatched: false,
+    ownerCampaignUnmatched: false,
+    openValueUnknown: false,
+    wonValueUnknown: false,
     ...over,
+  }
+  return {
+    ...base,
+    openValueUnknown: over.openValueUnknown ?? (base.openUnavailable || base.openCampaignUnmatched),
+    wonValueUnknown: over.wonValueUnknown
+      ?? (base.wonUnavailable || base.wonStageUnmatched || base.wonCampaignUnmatched),
   }
 }
 
@@ -155,6 +175,41 @@ describe('owner list, three distinct states', () => {
     expect(screen.queryByText('Owner breakdown unavailable.')).not.toBeInTheDocument()
   })
 
+  /**
+   * The fourth state, and the reason ownerCampaignUnmatched is its own flag.
+   * The breakdown is not a tile, so the caveat region \u2014 which now promises
+   * to explain dashed TILES \u2014 does not reach it. Filtered to empty, the
+   * list previously asserted "No open deals by owner.": a statement about this
+   * client's deals, when the true statement is about the campaign filter.
+   */
+  it('an empty caused by the campaign filter says so, instead of claiming no open deals', () => {
+    render(<PipelinePerformance data={data({
+      byOwner: [], campaignScoped: true, ownerCampaignUnmatched: true,
+    })} />)
+    expect(screen.getByText(/no owners matched the agency-sourced campaigns/i)).toBeInTheDocument()
+    // The two statements are mutually exclusive; printing both would be worse
+    // than printing the wrong one.
+    expect(screen.queryByText('No open deals by owner.')).not.toBeInTheDocument()
+  })
+
+  it('a scoped client whose owners DID match keeps the ordinary empty copy', () => {
+    // ownerCampaignUnmatched, not campaignScoped, is what switches the copy: a
+    // scoped client can legitimately have matching owners and no OPEN deals.
+    render(<PipelinePerformance data={data({
+      byOwner: [], campaignScoped: true, ownerCampaignUnmatched: false,
+    })} />)
+    expect(screen.getByText('No open deals by owner.')).toBeInTheDocument()
+    expect(screen.queryByText(/no owners matched/i)).not.toBeInTheDocument()
+  })
+
+  it('a failed fetch still reads as unavailable, never as a campaign mismatch', () => {
+    // byOwner null outranks the flag: pipeline.ts holds it false in this case,
+    // and the list must not offer a scope explanation for an outage.
+    render(<PipelinePerformance data={data({ byOwner: null, campaignScoped: true })} />)
+    expect(screen.getByText('Owner breakdown unavailable.')).toBeInTheDocument()
+    expect(screen.queryByText(/no owners matched/i)).not.toBeInTheDocument()
+  })
+
   it('every owner at zero produces a finite width, never NaN%', () => {
     const { container } = render(<PipelinePerformance data={data({
       byOwner: [{ owner: 'Dana Reyes', count: 0, amount: 0 }],
@@ -188,5 +243,162 @@ describe('vendor neutrality', () => {
       openUnavailable: true, wonUnavailable: true,
     })} />)
     expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/i)
+  })
+})
+
+describe('campaign scoping disclosure', () => {
+  it('says the figures are scoped when a campaign filter is active', () => {
+    // Without this line the reader cannot tell a $51k agency slice from a $172M
+    // whole-book figure. Both are "Total Pipeline" and both are true.
+    render(<PipelinePerformance data={data({ campaignScoped: true })} />)
+    expect(screen.getByText(/scoped to agency-sourced campaigns/i)).toBeInTheDocument()
+  })
+
+  it('says nothing about scoping when the whole CRM is reported', () => {
+    render(<PipelinePerformance data={data({ campaignScoped: false })} />)
+    expect(screen.queryByText(/scoped to agency-sourced campaigns/i)).not.toBeInTheDocument()
+  })
+
+  it('caveats a zero that came from matching no campaign, rather than showing a bare $0', () => {
+    render(<PipelinePerformance data={data({
+      campaignScoped: true,
+      openCampaignUnmatched: true,
+      wonCampaignUnmatched: true,
+      openDeals: { value: 0 }, totalPipeline: { value: 0 },
+      closedWon: { value: 0 }, weightedPipeline: { value: 0 },
+    })} />)
+    expect(screen.getByTestId('caveat')).toHaveTextContent(/no open or closed-won deals on the agency-sourced campaigns/i)
+  })
+
+  it('does not caveat when the filter matched normally', () => {
+    render(<PipelinePerformance data={data({ campaignScoped: true })} />)
+    expect(screen.queryByTestId('caveat')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The reviewed defect. openCampaignUnmatched and wonCampaignUnmatched describe
+   * DIFFERENT windows on different date bases, and while pipeline.ts OR'd them
+   * into one flag this block told a client with real open pipeline that all four
+   * of their totals were 0. Open-pipeline-with-no-close-yet is the ordinary
+   * opening state of a newly scoped client, so this is the common case, not an edge.
+   */
+  describe('the two unmatched windows are reported independently', () => {
+    const openOnly = {
+      campaignScoped: true,
+      openCampaignUnmatched: false,
+      wonCampaignUnmatched: true,
+      totalPipeline: { value: 51_731 },
+      closedWon: { value: 0 },
+    }
+
+    it('keeps the open tiles live when only the closed-won window matched nothing', () => {
+      render(<PipelinePerformance data={data(openOnly)} />)
+      expect(screen.getByText('$51,731')).toBeInTheDocument()
+      // The old copy printed exactly this claim above that $51,731.
+      expect(screen.getByTestId('caveat')).not.toHaveTextContent(/these totals are 0/i)
+      expect(screen.getByTestId('caveat')).toHaveTextContent(/no closed-won deals/i)
+      expect(screen.getByTestId('caveat')).not.toHaveTextContent(/no open deals/i)
+    })
+
+    it('dashes Closed Won rather than publishing its $0, the same as a renamed won stage', () => {
+      render(<PipelinePerformance data={data(openOnly)} />)
+      expect(screen.queryByText('$0')).not.toBeInTheDocument()
+      expect(screen.getByText('No closed-won deals on the agency-sourced campaigns.')).toBeInTheDocument()
+    })
+
+    it('dashes the three open tiles and keeps Closed Won when only the open window matched nothing', () => {
+      render(<PipelinePerformance data={data({
+        campaignScoped: true,
+        openCampaignUnmatched: true,
+        wonCampaignUnmatched: false,
+        openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 },
+        closedWon: { value: 1_375_000 },
+      })} />)
+      expect(screen.getByText('$1,375,000')).toBeInTheDocument()
+      expect(screen.getAllByText('No open deals on the agency-sourced campaigns.')).toHaveLength(3)
+      expect(screen.getByTestId('caveat')).toHaveTextContent(/no open deals/i)
+      expect(screen.getByTestId('caveat')).not.toHaveTextContent(/closed-won/i)
+    })
+  })
+
+  it('uses no em or en dash in the scoping copy, per the plan Global Constraints', () => {
+    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, openCampaignUnmatched: true, wonCampaignUnmatched: true })} />)
+    const scoping = [...container.querySelectorAll('p')]
+      .map((p) => p.textContent ?? '')
+      .filter((t) => /scoped to agency-sourced|agency-sourced campaigns/i.test(t))
+    expect(scoping.length).toBeGreaterThan(0)
+    for (const t of scoping) expect(t).not.toMatch(/[—–]/)
+  })
+
+  it('names no CRM vendor anywhere on screen', () => {
+    const { container } = render(<PipelinePerformance data={data({ campaignScoped: true, openCampaignUnmatched: true, wonCampaignUnmatched: true })} />)
+    expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/)
+  })
+})
+
+/**
+ * The state that one boolean used to collapse.
+ *
+ * A capped response whose scoped set came back empty leaves openCampaignUnmatched
+ * deliberately FALSE — the in-scope rows may sit past the cap, so the response
+ * cannot support "the campaigns may have been renamed" — while the figure is no
+ * more established for that. When the dash and the accusation shared a flag,
+ * suppressing the second turned off the first and the block printed 0, $0, $0
+ * under "may be undercounted", which a reader takes as the number with hedging
+ * attached. These cases pin the two apart: no accusation, still a dash.
+ */
+describe('a truncated response with nothing in scope', () => {
+  const capped = (over: Partial<PipelineData> = {}) => data({
+    campaignScoped: true,
+    stageTruncated: true,
+    openCampaignUnmatched: false,
+    wonCampaignUnmatched: false,
+    openValueUnknown: true,
+    openDeals: { value: 0 }, totalPipeline: { value: 0 }, weightedPipeline: { value: 0 },
+    ...over,
+  })
+
+  it('dashes the three open tiles rather than printing a confident zero', () => {
+    render(<PipelinePerformance data={capped()} />)
+    // Not one '0', '$0' or '$0' between them.
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('says the row limit is why, instead of leaving the healthy window label under a dash', () => {
+    render(<PipelinePerformance data={capped()} />)
+    expect(screen.getAllByText('Row limit reached before any agency-sourced deal.')).toHaveLength(3)
+    expect(screen.queryByText('Open as of today')).not.toBeInTheDocument()
+  })
+
+  it('makes no rename accusation, and still prints the truncation caveat', () => {
+    render(<PipelinePerformance data={capped()} />)
+    expect(screen.getByTestId('caveat')).toHaveTextContent(/hit the row limit/i)
+    expect(screen.getByTestId('caveat')).not.toHaveTextContent(/may have been renamed/i)
+  })
+
+  it('dashes Closed Won on the same state, one tile over', () => {
+    // wonStageUnmatched cannot cover this either: it also requires a non-empty
+    // input, so an emptied scoped set reports false there too.
+    render(<PipelinePerformance data={capped({
+      wonValueUnknown: true, wonStageUnmatched: false, closedWon: { value: 0 },
+    })} />)
+    // The DASH is the assertion. Reading the caveat alone would pass with the
+    // tile still printing $0, because the subValue chain and the value slot are
+    // fed by different expressions and only one of them is under test here.
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(4)
+    // All four tiles now, the three open ones plus Closed Won.
+    expect(screen.getAllByText('Row limit reached before any agency-sourced deal.')).toHaveLength(4)
+    expect(screen.queryByText('Year to date')).not.toBeInTheDocument()
+  })
+
+  it('leaves a capped response whose scoped set is NOT empty reading its real numbers', () => {
+    // The ordinary truncated case: rows were in scope, the totals are merely
+    // low. Dashing here would withhold figures that do exist.
+    render(<PipelinePerformance data={data({ campaignScoped: true, stageTruncated: true })} />)
+    expect(screen.getByText('297')).toBeInTheDocument()
+    expect(screen.getByTestId('caveat')).toHaveTextContent(/hit the row limit/i)
   })
 })

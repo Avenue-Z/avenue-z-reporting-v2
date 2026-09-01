@@ -1,4 +1,5 @@
 import { salesforceQuery, resolveCompareIso } from './base'
+import { filterByCampaign } from './campaign-filter'
 import { toNumber, toBool, parseBool } from './num'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cached } from '@/lib/cache'
@@ -9,28 +10,51 @@ import type { PipelineKpis, PipelineData, PipelineKpi, StageRow, OwnerRow } from
 // is decided by the stage literal, see DEFAULT_WON_STAGE), and it is a
 // dimension, so keeping it in the query multiplies row cardinality against
 // STAGE_MAX_ROWS for no benefit.
+// campaign_name is requested so the rows can be scoped to agency-sourced
+// campaigns client-side (see campaign-filter.ts for why the filter is not sent
+// to the API). It is a dimension, so it multiplies cardinality — measured live
+// on this org 2026-08-28: the stage query goes from 31 rows to 92, against
+// STAGE_MAX_ROWS of 500. Ample, but stageTruncated below still guards it.
 const STAGE_FIELDS = [
   'opportunity_stage_name', 'opportunity_is_closed',
   'opportunity_probability', 'opportunity_count', 'opportunity_amount',
+  'campaign_name',
 ]
 // is_closed lets the owner breakdown filter down to open deals client-side. A
 // server-side filter is avoided on purpose: a typo'd filter field returns HTTP 200
 // with empty data and no error, indistinguishable from a legitimate zero result.
-const OWNER_FIELDS = ['opportunity_owner', 'opportunity_is_closed', 'opportunity_count', 'opportunity_amount']
+const OWNER_FIELDS = ['opportunity_owner', 'opportunity_is_closed', 'opportunity_count', 'opportunity_amount', 'campaign_name']
 // Measured live on the wide window (2026-08-20): 129 rows across 93 distinct
 // owners (36 of them with open deals), because is_closed is a dimension and one
-// owner spans more than one row. Roughly 4x headroom under this cap. The flag
+// owner spans more than one row. Re-measured 2026-08-31, now that campaign_name
+// is a second dimension on this query: 127 rows without it, 184 with. Headroom
+// under this cap is therefore 2.72x, not the "roughly 4x" this comment claimed
+// while it still described the pre-campaign_name query. The flag
 // below stays keyed to the RAW row count, not the deduped owner list: if the
 // response is capped we cannot know whether the rows we never saw held owners we
 // never rendered, so a complete-looking list is exactly when a false all-clear
 // would hurt.
 const OWNER_MAX_ROWS = 500
 // Measured live on the wide window (2026-08-20): 31 rows across 13 stages, and
-// 28 rows on the year-to-date window, so roughly 16x headroom under this cap.
+// 28 rows on the year-to-date window. That was the PRE-campaign_name query, and
+// the "roughly 16x headroom" this comment claimed from it no longer describes
+// what is sent: campaign_name is a third dimension here now, taking the same
+// window to 92 rows (measured 2026-08-28, see the STAGE_FIELDS note at the top
+// of this file, which this comment contradicted for four lines). Real headroom
+// is therefore 5.4x, independently re-measured at 90 rows / 5.6x on 2026-08-31.
 // It stays this generous because the row count is stage x is_closed x
 // probability, and probability is only cheap while it remains a per-stage
 // default: a client setting it per deal multiplies the cardinality. That is why
 // the flag below exists rather than trusting the cap: see stageTruncated.
+//
+// READ THE HEADROOM FIGURES HERE AND ON OWNER_MAX_ROWS AS A BEST CASE, not a
+// typical one. Every one of them was measured against Renaissance, which is the
+// friendliest possible org for adding this dimension: 89,425 of its 89,654
+// opportunities carry no campaign at all, so campaign_name collapses to a single
+// blank value across almost the whole book. A client running a real campaign
+// programme multiplies much harder against the same cap, and no other org has
+// been measured. The truncation flags, not these numbers, are what actually
+// protects a client-facing total.
 const STAGE_MAX_ROWS = 500
 
 /**
@@ -88,21 +112,50 @@ const OPEN_SETTINGS = { deal_date_field: 'deal_created', convert_to_default_curr
 const WON_SETTINGS = { deal_date_field: 'deal_closed', convert_to_default_currency: false }
 /**
  * A window wide enough to include every currently-open deal regardless of when it
- * was created. This must NOT be a static literal: Supermetrics' Salesforce
- * historical floor is a ROLLING "today minus 10 years", so a hardcoded start date
- * silently slips below the floor as the clock advances and every query 400s with
+ * was created, and no wider, because width costs latency on a cold query.
+ *
+ * This must NOT be a static literal: Supermetrics' Salesforce historical floor is
+ * a ROLLING "today minus 10 years", so a hardcoded start date silently slips
+ * below the floor as the clock advances and every query 400s with
  * START_DATE_HISTORICAL (a fixed '2016-08-20' was already one day under the floor
- * by 2026-08-21, live-confirmed, which zeroed the open tiles). The start is
- * therefore derived from the clock: January 1 of nine years ago, which is always
- * comfortably above a ten-year rolling floor (worst case, on Dec 31, still a day
- * above it) yet captures effectively all still-open history, since an opportunity
- * open for nine or more years is vanishingly rare. Year-granular bounds keep the
- * query cache-stable within a calendar year. `now` is injectable so the derivation
- * is testable without depending on the wall clock.
+ * by 2026-08-21, live-confirmed, which zeroed the open tiles). The bounds are
+ * therefore derived from the clock, and kept year-granular so the query stays
+ * cache-stable within a calendar year. `now` is injectable so the derivation is
+ * testable without depending on the wall clock.
+ *
+ * WHY THREE YEARS AND NOT NINE. It was nine, which is the widest the rolling
+ * ten-year floor allows. That is a real cost rather than free head-room: a query
+ * Supermetrics has not served before takes tens of seconds, and the cost scales
+ * with the width of the window. Measured live 2026-09-01, cold, back to back, on
+ * ranges the API had never been asked for:
+ *
+ *   | Window width | Cold latency |
+ *   |--------------|--------------|
+ *   | 19 years (the old +-9) | ~43s |
+ *   | 14 years     | 37.0s        |
+ *   | 8 years (this, +-3)    | 26.6s |
+ *   | 4 years      | 18.0s        |
+ *
+ * Warm, every one of them returns in ~1.6s. The old width was close enough to
+ * SALESFORCE_TIMEOUT_MS that a cold render tipped over it and the Executive
+ * Overview rendered "Couldn't load open pipeline." until a later render happened
+ * to land warm (observed on a preview deployment 2026-09-01, `SmTimeoutError`
+ * after 60000ms). Narrowing does not make the cold call free, and any change to
+ * the query shape re-pays it once, but it moves the cold case from roughly
+ * two-thirds of the budget to under half of it.
+ *
+ * WHAT NARROWING COSTS. Deals CREATED more than three years ago that are still
+ * open leave the tiles. Measured against the live org on the same day: 1 open
+ * deal of 4,010, and $20,379 of $177,900,895 of open pipeline, which is 0.011%.
+ * Weighted Pipeline moves by $1,019 in the opposite direction, because the
+ * connector returns an AVERAGED probability per stage row and dropping a deal
+ * re-weights that average; the figure is not strictly monotonic in the window.
+ * If a client ever runs genuinely long sales cycles this is the constant to
+ * revisit, and the trade is latency against completeness, not correctness.
  */
 export function openWindow(now: Date = new Date()): string {
   const y = now.getUTCFullYear()
-  return `${y - 9}-01-01,${y + 9}-12-31`
+  return `${y - 3}-01-01,${y + 3}-12-31`
 }
 
 function toStageRows(rows: Record<string, string>[]): StageRow[] {
@@ -339,13 +392,32 @@ export function transformByOwner(
  * health sweep probes under a 60s function budget of its own.
  */
 const NEGATIVE_TTL_SECONDS = 60
+
+/**
+ * Cache version shared by the four query fetchers below.
+ *
+ * v2 because campaign_name joined STAGE_FIELDS and OWNER_FIELDS on this branch,
+ * and lib/cache.ts asks for a bump whenever a fetcher's response shape changes.
+ * Here that policy is load-bearing rather than hygienic: a v1 entry written by
+ * pre-branch code holds rows with NO campaign_name key, every one of them
+ * normalizes to '', nothing matches a configured campaign, and all four tiles
+ * dash under "The campaigns may have been renamed." on a client that renamed
+ * nothing — the exact falsehood openCampaignUnmatched exists to prevent,
+ * arriving through the cache instead of through the data.
+ *
+ * It has to land before the scope script runs, because there is no way to clear
+ * those entries early: no fetcher here passes `tags:`, so revalidateTag cannot
+ * reach them, and the only remedies are the 1-hour TTL or CACHE_DISABLE=1.
+ */
+const CACHE_VERSION = 'v2'
+
 function openStagesImpl(slug: string): Promise<Record<string, string>[]> {
   return salesforceQuery(slug, STAGE_FIELDS, openWindow(), {
     settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
   })
 }
 const getOpenStages = cached('salesforce', 'openStages', openStagesImpl, {
-  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
 })
 
 function wonStagesImpl(slug: string, range: string): Promise<Record<string, string>[]> {
@@ -354,7 +426,7 @@ function wonStagesImpl(slug: string, range: string): Promise<Record<string, stri
   })
 }
 const getWonStages = cached('salesforce', 'wonStages', wonStagesImpl, {
-  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
 })
 
 /**
@@ -380,6 +452,7 @@ const getWonStages = cached('salesforce', 'wonStages', wonStagesImpl, {
  */
 const getWonStagesCompare = cached('salesforce', 'wonStagesCompare', wonStagesImpl, {
   extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, healthCritical: false,
+  version: CACHE_VERSION,
 })
 
 function ownerRowsImpl(slug: string): Promise<Record<string, string>[]> {
@@ -388,7 +461,7 @@ function ownerRowsImpl(slug: string): Promise<Record<string, string>[]> {
   })
 }
 const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, {
-  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS,
+  extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
 })
 
 /**
@@ -463,8 +536,36 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     throw new Error(`every Salesforce query failed for ${slug}`)
   }
 
-  const kpis = transformPipeline(openRows ?? [], wonCurRows ?? [], wonPriorRows, wonStage)
-  const owner = ownerRows ? transformByOwner(ownerRows, OWNER_MAX_ROWS) : null
+  // Scope every row set to the agency-sourced campaigns BEFORE any transform.
+  //
+  // All four, not just the current ones. Leaving the prior-year window
+  // unfiltered would measure this year's agency slice against last year's
+  // ENTIRE book, which renders as a permanent, enormous false decline on the
+  // Closed Won tile. Leaving the owner rows unfiltered would put the client's
+  // whole sales team under a chart captioned as agency-sourced.
+  //
+  // Truncation is judged on the RAW row lengths, and measured immediately below:
+  // before a scoped row set exists to measure by mistake, and before the filter
+  // runs, because the filter has to be told. The cap applies to what the API
+  // returned, and rows we never saw could have been in scope — which is also why
+  // a capped response cannot support the "campaigns may have been renamed"
+  // accusation. Left uninformed, exactly 500 out-of-scope rows raise `unmatched`
+  // and `stageTruncated` at once, and pipeline-performance.tsx pushes the
+  // campaign caveat first, so the page leads with the speculative sentence and
+  // buries the only true one underneath it.
+  const openTruncated = (openRows?.length ?? 0) >= STAGE_MAX_ROWS
+  const wonCurTruncated = (wonCurRows?.length ?? 0) >= STAGE_MAX_ROWS
+  const wonPriorTruncated = (wonPriorRows?.length ?? 0) >= STAGE_MAX_ROWS
+  const ownersTruncated = (ownerRows?.length ?? 0) >= OWNER_MAX_ROWS
+
+  const campaignNames = client?.salesforceConfig?.campaignNames
+  const scopedOpen = filterByCampaign(openRows ?? [], campaignNames, openTruncated)
+  const scopedWonCur = filterByCampaign(wonCurRows ?? [], campaignNames, wonCurTruncated)
+  const scopedWonPrior = wonPriorRows ? filterByCampaign(wonPriorRows, campaignNames, wonPriorTruncated) : null
+  const scopedOwner = ownerRows ? filterByCampaign(ownerRows, campaignNames, ownersTruncated) : null
+
+  const kpis = transformPipeline(scopedOpen.rows, scopedWonCur.rows, scopedWonPrior?.rows ?? null, wonStage)
+  const owner = scopedOwner ? transformByOwner(scopedOwner.rows, OWNER_MAX_ROWS) : null
   return {
     ...kpis,
     // Parallel to byOwner being null rather than []: a fetch that failed must
@@ -473,18 +574,72 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     openUnavailable: openRows === null,
     wonUnavailable: wonCurRows === null,
     byOwner: owner ? owner.rows : null,
-    ownersTruncated: owner ? owner.truncated : false,
+    // Judged on the RAW row count, not the scoped one: transformByOwner now sees
+    // a filtered set, so its own length check would never reach the cap and would
+    // report a false all-clear on a response that was actually capped. Computed
+    // above, before the scoped sets exist.
+    ownersTruncated,
     // Drives all four headline tiles, unlike the owner breakdown, so a silent
     // truncation here would corrupt client-facing numbers rather than just a chart.
     // Checks the open query (backs three of the four tiles) and both won queries: a
     // truncated won-prior set undercounts the prior just as badly as a truncated
     // won-current set undercounts closedWon, and would otherwise silently overstate
     // the closedWon year-over-year delta.
-    unrecognizedClosedFlags: countUnrecognizedClosed(openRows, wonCurRows, wonPriorRows, ownerRows),
-    stageTruncated:
-      (openRows?.length ?? 0) >= STAGE_MAX_ROWS ||
-      (wonCurRows?.length ?? 0) >= STAGE_MAX_ROWS ||
-      (wonPriorRows?.length ?? 0) >= STAGE_MAX_ROWS,
+    // Counted on the SCOPED rows. Counting raw would hand a client with two
+    // in-scope deals a caveat generated by 89,000 rows they are not shown,
+    // which is noise rather than a warning about their numbers.
+    unrecognizedClosedFlags: countUnrecognizedClosed(
+      scopedOpen.rows, scopedWonCur.rows, scopedWonPrior?.rows ?? null, scopedOwner?.rows ?? null,
+    ),
+    stageTruncated: openTruncated || wonCurTruncated || wonPriorTruncated,
+    campaignScoped: scopedOpen.active,
+    // TWO flags, never one OR'd flag. scopedOpen is the wide created-date window
+    // behind Open Deals / Total Pipeline / Weighted Pipeline; scopedWonCur is the
+    // year-to-date CLOSE-date window behind Closed Won. Different questions over
+    // different windows, and either can match nothing while the other matches
+    // plenty — open pipeline with no closed-won yet is the ORDINARY opening state
+    // for a newly scoped client, not an error. While these were OR'd, that client
+    // got "these totals are 0, the campaigns may have been renamed" printed above
+    // a live six-figure Total Pipeline: a client-facing falsehood.
+    //
+    // The prior-year window raises neither. It backs no visible figure, and
+    // matching nothing there is an ordinary empty baseline that pct() already
+    // degrades to no delta.
+    openCampaignUnmatched: scopedOpen.unmatched,
+    wonCampaignUnmatched: scopedWonCur.unmatched,
+    // The DASH, kept apart from the ACCUSATION above, because one boolean was
+    // doing both jobs and the truncation suppression turned off both at once.
+    // A capped response whose scoped set is empty cannot support "the campaigns
+    // may have been renamed" — the in-scope rows may sit past the cap — but the
+    // figure is no more established for that: it renders 0 / $0 / $0 under a
+    // "may be undercounted" line, and a reader takes the zero as the number.
+    // The rule this file already states a few lines up applies unchanged: a
+    // value that could not be established must never render as a confident
+    // zero. So the accusation stays suppressed and the tiles keep dashing.
+    //
+    // `rows.length === 0` is what makes the truncated term scope-only without
+    // testing `active`: an unscoped set is returned whole, and a set that hit
+    // the cap has at least STAGE_MAX_ROWS rows in it, so the two conditions can
+    // only be true together once a filter has emptied it.
+    openValueUnknown:
+      openRows === null || scopedOpen.unmatched || (openTruncated && scopedOpen.rows.length === 0),
+    // One term longer than its twin, because this tile has one more way to be
+    // unknowable. wonStageUnmatched does NOT already cover the truncated case:
+    // it also requires a non-empty input, so an emptied scoped set reports
+    // false there exactly as the campaign flag does.
+    wonValueUnknown:
+      wonCurRows === null || kpis.wonStageUnmatched || scopedWonCur.unmatched
+      || (wonCurTruncated && scopedWonCur.rows.length === 0),
+    // The fourth campaign flag, and the third unmatched one: its own flag
+    // rather than a widening of the two above. The owner rows back the
+    // breakdown and no tile, so they cannot ride the tile caveat: that
+    // caveat now promises to explain DASHED TILES, and the breakdown has none.
+    // Filtered to empty it renders "No open deals by owner." — a claim about
+    // this client's deals, when the true statement is that no owner was on a
+    // configured campaign. Both cannot be true at once, so the UI needs to know
+    // which one it is holding. False when the fetch itself failed: byOwner is
+    // then null and "unavailable" already outranks any statement about scope.
+    ownerCampaignUnmatched: scopedOwner?.unmatched ?? false,
   }
 }
 

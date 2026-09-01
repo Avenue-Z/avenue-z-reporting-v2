@@ -68,6 +68,15 @@ export interface PipelineData extends PipelineKpis {
    * open (wide, created-date) and won (year to date, close-date) windows overlap,
    * so one bad deal can contribute more than once. Treat it as a severity hint,
    * never as "N deals are affected".
+   *
+   * That row basis got coarser when campaign_name joined STAGE_FIELDS and
+   * OWNER_FIELDS. It is a dimension, so the connector splits what used to be one
+   * row into one row per campaign, and an UNSCOPED client's count therefore
+   * inflates over identical underlying data — roughly threefold on the org this
+   * was measured against. Nothing is double-counted that was not already
+   * multiply-counted, and the magnitude was never meaningful, which is why the
+   * caveat says "rows" and the fix is this sentence rather than a different
+   * metric. A scoped client is unaffected: the count is taken on the scoped rows.
    */
   unrecognizedClosedFlags: number
   /**
@@ -88,6 +97,108 @@ export interface PipelineData extends PipelineKpis {
   openUnavailable: boolean
   /** True when the closed-won query failed and degraded; closedWon is 0 for want of data. */
   wonUnavailable: boolean
+  /**
+   * True when these figures were scoped to the client's configured campaigns
+   * (`salesforceConfig.campaignNames`) rather than covering the whole CRM.
+   *
+   * The UI MUST say so. Scoped and unscoped numbers differ by orders of
+   * magnitude for a client whose CRM also holds business the agency did not
+   * source, and a reader cannot tell which they are looking at from the figure
+   * alone. False means whole-org, which is the pre-existing behaviour.
+   */
+  campaignScoped: boolean
+  /**
+   * True when the OPEN row set arrived with rows but NONE were on the configured
+   * campaigns, so openDeals, totalPipeline and weightedPipeline each computed 0
+   * from an empty scoped set.
+   *
+   * Same hazard as `wonStageUnmatched`: a plausible $0 that actually means the
+   * campaign was renamed in the CRM. Render a caveat rather than a confident
+   * zero. False when no filter is configured, and false for an empty fetch —
+   * that is missing data, which `openUnavailable` / `wonUnavailable` cover.
+   * False as well when the response was TRUNCATED: the in-scope rows may sit
+   * past the cap, so a capped response cannot support the rename accusation.
+   * See filterByCampaign.
+   *
+   * This is the ACCUSATION, not the dash. Suppressing it on a capped response
+   * must not restore a confident $0, so the dash is driven by
+   * `openValueUnknown` below, which stays true in that state.
+   */
+  openCampaignUnmatched: boolean
+  /**
+   * True when the OPEN figures could not be ESTABLISHED, which is the only
+   * question the tiles need answered: render the null glyph, never a confident
+   * 0. Three causes, and the per-tile caveat is what tells the reader which:
+   *
+   *   - `openUnavailable` — the fetch failed, so there was nothing to sum.
+   *   - `openCampaignUnmatched` — a COMPLETE response carried no in-scope row.
+   *   - a TRUNCATED response whose scoped set came back empty. The in-scope
+   *     rows may simply sit past the cap, so 0 is not a finding here, it is the
+   *     absence of one.
+   *
+   * That third case is why this exists apart from `openCampaignUnmatched`. One
+   * boolean used to do both jobs, so suppressing the accusation on a capped
+   * response also turned off the dash and printed `0` / `$0` / `$0` under a
+   * "may be undercounted" line. pipeline.ts states the principle: a value that
+   * could not be established must never render as a confident zero.
+   */
+  openValueUnknown: boolean
+  /**
+   * The same statement for the CLOSED-WON row set, which backs only the
+   * closedWon tile.
+   *
+   * Kept separate from `openCampaignUnmatched` rather than OR'd into one flag,
+   * because the two describe different windows on different date bases (open is
+   * a wide created-date window evaluated as of now; won is year to date on the
+   * close date). Either can be true alone, and won-alone is the ORDINARY state
+   * of a client scoped mid-year who has open pipeline and no close yet. A single
+   * flag made the UI disclaim all four tiles whenever either window was empty.
+   *
+   * Carries the same two exclusions as `openCampaignUnmatched`: false for an
+   * empty fetch, and false when the response was TRUNCATED, because the
+   * in-scope rows may sit past the cap. And, for the same reason, it is the
+   * accusation only — `wonValueUnknown` below is what dashes the tile.
+   */
+  wonCampaignUnmatched: boolean
+  /**
+   * `openValueUnknown`'s twin for the Closed Won tile, and it subsumes one more
+   * cause because this tile has one more way to be unknowable: the fetch failed
+   * (`wonUnavailable`), the won stage matched nothing (`wonStageUnmatched`), a
+   * complete response carried no in-scope row (`wonCampaignUnmatched`), or a
+   * truncated response left an empty scoped set.
+   *
+   * The last of those is reached exactly as the open twin is, and was fixed
+   * with it rather than left one tile over: `wonStageUnmatched` cannot cover it
+   * either, since it too requires a non-empty input.
+   */
+  wonValueUnknown: boolean
+  /**
+   * The same statement for the OWNER row set, which backs the Open Deals by
+   * Owner breakdown and no tile at all.
+   *
+   * A FOURTH flag rather than widening the tile caveat's wording, because the
+   * breakdown is not a tile and the caveat region explains dashed tiles. When
+   * the owner rows are filtered to empty, `byOwner` is `[]` and the list renders
+   * its ordinary empty copy — "No open deals by owner." — which is a different
+   * claim from "no owners matched the configured campaigns" and, in this case,
+   * the false one. Only the UI can tell them apart, and only if it is told.
+   *
+   * Same contract as the other two, all three clauses: false when no filter is
+   * configured, false for an empty fetch, which is missing data rather than a
+   * mismatch, and false when the response was TRUNCATED, because the in-scope
+   * owners may sit past the cap. See filterByCampaign.
+   *
+   * One clause the other two do not carry: false when the owner fetch FAILED.
+   * byOwner is null there, the list already renders "Owner breakdown
+   * unavailable.", and an outage outranks any statement about scope. The tile
+   * flags need no equivalent because their failure has its own field
+   * (`openUnavailable` / `wonUnavailable`), which the value flags read.
+   *
+   * No `ownerValueUnknown` twin, because the breakdown has no value to dash:
+   * a capped-and-empty owner set renders the ordinary "No open deals by owner."
+   * copy, which the list's own `ownersTruncated` line then qualifies.
+   */
+  ownerCampaignUnmatched: boolean
 }
 
 export interface WeekBucket {
@@ -117,6 +228,53 @@ export interface WeeklyContacts {
   /** The same ISO week last year as previousWeek, so both sides are full weeks.
    * Undefined when the compare query failed or had no matching week. */
   priorYearWeek?: number
+  /**
+   * True when rows arrived but NONE were on the client's configured campaigns,
+   * so this series is empty because the filter matched nothing — not because
+   * the client created no leads.
+   *
+   * The distinction is the whole point. An empty series renders NoData, whose
+   * message claims the PERIOD was empty, and that is simply false here: the
+   * query returned plenty of rows. Same hazard as PipelineData's three campaign
+   * flags — `openCampaignUnmatched` is the closest analogue, since it guards the
+   * same false zero for the same reason — and the two blocks sit on the same
+   * page, so they must not explain one renamed campaign two different ways.
+   * (There was a single `PipelineData.campaignUnmatched` when this was written;
+   * it is now three, one per row set.)
+   *
+   * False when the response was TRUNCATED, the same exclusion the three
+   * pipeline flags carry: a capped response cannot support the accusation,
+   * because the in-scope rows may sit past the cap. The block then has only
+   * `truncated` to explain its empty series, which is why contact-pacing.tsx
+   * reads that flag before falling through to the generic empty state.
+   *
+   * Always false on the contacts path, which cannot be campaign-scoped at all.
+   */
+  campaignUnmatched: boolean
+  /**
+   * True when the underlying query returned at least as many rows as its cap, so
+   * the weekly counts may be undercounted.
+   *
+   * Optional because only the LEADS path currently computes it: that query is
+   * one row per lead PER CAMPAIGN, so its row count scales with the campaign
+   * programme rather than with the 53 weeks of the window, and the cap is
+   * reachable in a way the contacts query's is not. Undefined means "not
+   * measured", which is why the UI must treat only an explicit `true` as a
+   * caveat.
+   */
+  truncated?: boolean
+  /**
+   * How many in-scope rows were discarded because they carried no lead id.
+   *
+   * `dedupeLeadWeeks` must drop them — admitting them would collapse every
+   * id-less row onto one key and report them all as a single lead — but dropping
+   * them silently reaches the same false explanation `campaignUnmatched` exists
+   * to prevent, by a different route: if every in-scope row is id-less the
+   * series is empty and the block would claim the PERIOD was empty. Surfaced so
+   * the UI can say what actually happened. Undefined on the contacts path, which
+   * has no per-lead identity to lose.
+   */
+  unusableRows?: number
   /** Percent change between the two most recent COMPLETE weeks. Deliberately not
    * a comparison against currentWeek: a partial week against a complete one is
    * structurally invalid and renders as a large false decline early in the week.

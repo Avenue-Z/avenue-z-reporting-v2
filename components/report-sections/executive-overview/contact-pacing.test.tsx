@@ -17,6 +17,7 @@ function data(over: Partial<WeeklyContacts> = {}): WeeklyContacts {
     previousWeek: 186,
     priorYearWeek: 149,
     completedWeekOverWeek: -22.5,
+    campaignUnmatched: false,
     ...over,
   }
 }
@@ -269,5 +270,103 @@ describe('vendor neutrality', () => {
   it('names no CRM vendor', () => {
     const { container } = render(<ContactPacing data={data()} />)
     expect(container.textContent ?? '').not.toMatch(/Salesforce|HubSpot/i)
+  })
+})
+
+describe('campaign-scoped empty state', () => {
+  it('says the campaigns matched nothing rather than that the period was empty', () => {
+    // The generic NoData message asserts the PERIOD had no leads. When the
+    // filter matched nothing that is false — rows came back, none in scope —
+    // and Pipeline Performance directly below names the rename as the likely
+    // cause. Two blocks explaining one rename two different ways is the bug.
+    render(<ContactPacing data={data({ weeks: [], campaignUnmatched: true })} />)
+    expect(screen.getByText(/No leads matched the agency-sourced campaigns/)).toBeInTheDocument()
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+  })
+
+  it('keeps the generic empty message when nothing is campaign-scoped', () => {
+    render(<ContactPacing data={data({ weeks: [], campaignUnmatched: false })} />)
+    expect(screen.getByText('No data for this period.')).toBeInTheDocument()
+  })
+
+  it('renders the series normally when the scope matched', () => {
+    // The flag must not hijack a healthy render just because scoping is on.
+    render(<ContactPacing data={data({ campaignUnmatched: false })} />)
+    expect(screen.getByText('186')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The two signals the leads path adds. Both describe an empty or short series
+ * for a reason the generic "No data for this period." actively misstates: the
+ * query returned rows, they just could not all be turned into weekly counts.
+ */
+describe('leads-path data quality signals', () => {
+  it('explains an empty series caused by rows with no lead id, rather than blaming the period', () => {
+    render(<ContactPacing data={data({ weeks: [], currentWeek: 0, previousWeek: 0, unusableRows: 12 })} />)
+    expect(screen.getByText(/12 rows carried no lead identifier/i)).toBeInTheDocument()
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+  })
+
+  it('ranks campaignUnmatched above it: nothing was in scope in the first place', () => {
+    render(<ContactPacing data={data({ weeks: [], currentWeek: 0, previousWeek: 0, unusableRows: 12, campaignUnmatched: true })} />)
+    expect(screen.getByText(/no leads matched the agency-sourced campaigns/i)).toBeInTheDocument()
+  })
+
+  it('caveats a rendered series that is missing some rows, without replacing it', () => {
+    render(<ContactPacing data={data({ unusableRows: 3 })} />)
+    expect(screen.getByText(/3 rows carried no lead identifier and were left out/i)).toBeInTheDocument()
+    // The chart is still there: this is partial loss, not an empty series.
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+  })
+
+  it('caveats a truncated lead response', () => {
+    render(<ContactPacing data={data({ truncated: true })} />)
+    expect(screen.getByText(/hit its row limit/i)).toBeInTheDocument()
+  })
+
+  it('stays silent on the contacts path, which measures neither', () => {
+    // undefined means "not measured", not "fine". Only an explicit true caveats.
+    render(<ContactPacing data={data()} />)
+    expect(screen.queryByTestId('leads-caveat')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The leads block's own version of the capped-and-empty state.
+ *
+ * campaignUnmatched is suppressed on truncation for the reason filterByCampaign
+ * gives, so it cannot explain this emptiness, and nothing else here knew about
+ * it: the block fell through to "No data for this period." — a claim the period
+ * was empty, when the query in fact returned its full cap of rows. The tiles
+ * below print a compensating line in the same situation; this one printed
+ * nothing at all.
+ */
+describe('a truncated lead response with nothing in scope', () => {
+  const empty = { weeks: [], currentWeek: 0, previousWeek: 0 }
+
+  it('never claims the period was empty', () => {
+    render(<ContactPacing data={data({ ...empty, truncated: true, campaignUnmatched: false })} />)
+    expect(screen.queryByText('No data for this period.')).not.toBeInTheDocument()
+    expect(screen.getByText(/row limit before any agency-sourced lead/i)).toBeInTheDocument()
+  })
+
+  it('ranks below campaignUnmatched, which knows why the series is empty', () => {
+    // Both cannot be live under the real producer (truncation suppresses the
+    // flag), but the ordering is what stops a future change making the weaker
+    // claim win by accident.
+    render(<ContactPacing data={data({ ...empty, truncated: true, campaignUnmatched: true })} />)
+    expect(screen.getByText(/no leads matched the agency-sourced campaigns/i)).toBeInTheDocument()
+  })
+
+  it('ranks below the id-less explanation, which also knows why', () => {
+    render(<ContactPacing data={data({ ...empty, truncated: true, unusableRows: 4 })} />)
+    expect(screen.getByText(/carried no lead identifier/i)).toBeInTheDocument()
+  })
+
+  it('leaves a truncated response that DID produce a series rendering it', () => {
+    render(<ContactPacing data={data({ truncated: true })} />)
+    expect(screen.queryByText(/no weekly series could be built/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/hit its row limit/i)).toBeInTheDocument()
   })
 })

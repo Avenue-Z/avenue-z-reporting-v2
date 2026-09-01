@@ -14,6 +14,24 @@ const WEEK_MAX_ROWS = 100
 // (this source has none), so a future change to Supermetrics' default would
 // silently reinterpret every bucket as last-modified instead of created.
 const CONTACT_SETTINGS = { data_fetched_by: 'fetched_by_created' }
+/**
+ * Hang guard for the two contact queries, matching SALESFORCE_TIMEOUT_MS in
+ * pipeline.ts, which carries the fuller argument for the number.
+ *
+ * These queries used to pass nothing and so ran on smQuery's own 15s
+ * REQUEST_TIMEOUT_MS, a quarter of what every pipeline query gets, against the
+ * same upstream. That is not a smaller budget for a smaller query: warm, these
+ * return in about a second, but a query Supermetrics has not served before takes
+ * tens of seconds whatever its shape, and 15s does not clear that. Observed live
+ * on a preview deployment 2026-09-01: `[salesforce] contacts compare fetch
+ * failed ... SmTimeoutError: Supermetrics request timed out after 15000ms`,
+ * which costs the prior-year figure on the Contact Creation block.
+ *
+ * Deliberately a second literal rather than an import from pipeline.ts, matching
+ * how base.ts already refers to that constant by name. If a third module needs
+ * it, hoist all three into base.ts rather than adding another copy.
+ */
+const SALESFORCE_TIMEOUT_MS = 60_000
 
 /** The API returns 'YYYY|WW'. Normalize to 'YYYY-Www' so it sorts and reads as ISO. */
 function normalizeWeek(key: string): string {
@@ -137,6 +155,9 @@ export function transformWeeklyContacts(
   rows: Record<string, string>[],
   cmpRows: Record<string, string>[] | null,
   now: Date = new Date(),
+  // Defaulted rather than required so the contacts path, which has no campaign
+  // scoping to report, is not made to pass a constant false at every call site.
+  campaignUnmatched = false,
 ): WeeklyContacts {
   const currentKey = isoWeekKey(now)
   const weeks = gapFill(toWeekBuckets(rows), currentKey)
@@ -167,6 +188,7 @@ export function transformWeeklyContacts(
     previousWeek,
     priorYearWeek,
     completedWeekOverWeek,
+    campaignUnmatched,
   }
 }
 
@@ -186,9 +208,13 @@ export async function getSalesforceWeeklyContactsImpl(slug: string, now: Date = 
   const dateRange = 'year_to_date'
   const cmpIso = resolveCompareIso(dateRange, 'previous_year')
   const [rows, cmpRows] = await Promise.all([
-    salesforceQuery(slug, WEEK_FIELDS, dateRange, { settings: CONTACT_SETTINGS, maxRows: WEEK_MAX_ROWS }),
+    salesforceQuery(slug, WEEK_FIELDS, dateRange, {
+      settings: CONTACT_SETTINGS, maxRows: WEEK_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
+    }),
     cmpIso
-      ? salesforceQuery(slug, WEEK_FIELDS, cmpIso, { settings: CONTACT_SETTINGS, maxRows: WEEK_MAX_ROWS }).catch((e) => {
+      ? salesforceQuery(slug, WEEK_FIELDS, cmpIso, {
+          settings: CONTACT_SETTINGS, maxRows: WEEK_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
+        }).catch((e) => {
           console.error(`[salesforce] contacts compare fetch failed for ${slug}:`, e)
           return null
         })

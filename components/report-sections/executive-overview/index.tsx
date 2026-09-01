@@ -14,7 +14,9 @@ import {
 import { buildStages } from './stages'
 import { getSalesforcePipeline } from '@/lib/salesforce/pipeline'
 import { getSalesforceWeeklyContacts } from '@/lib/salesforce/contacts'
+import { getSalesforceWeeklyLeads } from '@/lib/salesforce/leads'
 import { isSalesforceConfigured, canQuerySalesforce } from '@/lib/salesforce/configured'
+import { hasCampaignScope } from '@/lib/salesforce/campaign-filter'
 import { PipelinePerformance } from './pipeline-performance'
 import { ContactPacing } from './contact-pacing'
 import { LoadFailed } from './no-data'
@@ -64,6 +66,19 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const hasCrm   = isSalesforceConfigured(client)
   const canFetch = canQuerySalesforce(client)
 
+  // A client with configured campaigns gets the LEADS series, not contacts.
+  // Contacts cannot be scoped to a campaign at all (the connector rejects the
+  // dimension outright), so reporting them beside campaign-scoped pipeline
+  // tiles would put an unscoped inbound number next to scoped revenue and
+  // invite exactly the comparison neither one supports.
+  //
+  // hasCampaignScope, never a local `campaignNames.length > 0`. That length test
+  // disagreed with filterByCampaign, which normalizes and drops blanks before
+  // building its match set: a config of [' '] is length 1 but filters nothing,
+  // so the page printed "Scoped to agency-sourced campaigns." and switched to
+  // the leads series over whole-org data. One predicate, one answer.
+  const crmScoped = hasCampaignScope(client?.salesforceConfig?.campaignNames)
+
   const [
     totalsRes, cmpTotalsRes, trendRes, cmpTrendRes,
     channelRes, cmpChannelRes, channelSMRes,
@@ -95,7 +110,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }) : Promise.resolve(null),
     peecConfigured ? getPeecOverview(clientSlug, 'year_to_date') : Promise.resolve(null),
     canFetch ? getSalesforcePipeline(clientSlug)       : Promise.resolve(null),
-    canFetch ? getSalesforceWeeklyContacts(clientSlug) : Promise.resolve(null),
+    canFetch ? (crmScoped ? getSalesforceWeeklyLeads(clientSlug) : getSalesforceWeeklyContacts(clientSlug)) : Promise.resolve(null),
   ])
 
   const val = <T,>(r: PromiseSettledResult<T>): T | null =>
@@ -134,7 +149,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
 
   const stages = buildStages({
     totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured,
-    pipeline, contacts, crmConnected: hasCrm,
+    pipeline, contacts, crmConnected: hasCrm, crmScoped,
   })
 
   return (
@@ -160,9 +175,18 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
       </section>
 
       <section className="space-y-6">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Contact Creation</h2>
+        {/* The heading names the object actually being counted. A scoped client
+            is looking at leads on the configured campaigns; an unscoped one is
+            looking at every contact created in the CRM. Calling both "Contact
+            Creation" would mislabel one of them. */}
+        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">
+          {crmScoped ? 'Lead Creation' : 'Contact Creation'}
+        </h2>
+        {crmScoped && (
+          <p className="text-xs text-text-muted">Scoped to agency-sourced campaigns.</p>
+        )}
         {contacts ? <ContactPacing data={contacts} />
-          : hasCrm ? <LoadFailed message="Couldn't load contact data." />
+          : hasCrm ? <LoadFailed message={`Couldn't load ${crmScoped ? 'lead' : 'contact'} data.`} />
           : <NeedsConnection sourceName="CRM" />}
       </section>
 

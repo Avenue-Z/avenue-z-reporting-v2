@@ -292,12 +292,30 @@ describe('getSalesforceWeeklyContacts', () => {
     await getSalesforceWeeklyContacts('acme', WED_W34)
     expect(salesforceQuery).toHaveBeenCalledWith(
       'acme', ['yearWeekIso_created', 'contact_count'], 'year_to_date',
-      { settings: { data_fetched_by: 'fetched_by_created' }, maxRows: 100 },
+      { settings: { data_fetched_by: 'fetched_by_created' }, maxRows: 100, timeoutMs: 60_000 },
     )
     expect(salesforceQuery).toHaveBeenCalledWith(
       'acme', ['yearWeekIso_created', 'contact_count'], '2025-01-01,2025-12-31',
-      { settings: { data_fetched_by: 'fetched_by_created' }, maxRows: 100 },
+      { settings: { data_fetched_by: 'fetched_by_created' }, maxRows: 100, timeoutMs: 60_000 },
     )
+  })
+
+  it('gives BOTH contact queries the same hang guard the pipeline queries get', async () => {
+    // Left unset, these ran on smQuery's 15s REQUEST_TIMEOUT_MS while every
+    // pipeline query got 60s against the same upstream. Warm they return in
+    // about a second, but a query Supermetrics has not served before takes tens
+    // of seconds whatever its shape, and 15s does not clear that: observed live
+    // 2026-09-01 as `SmTimeoutError ... after 15000ms` on the compare query,
+    // which silently costs the prior-year figure.
+    //
+    // Asserted on every call rather than on one, because the compare query is
+    // the one that was seen failing and it is the easier of the two to miss.
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    ;(salesforceQuery as Mock).mockResolvedValue([{ yearWeekIso_created: '2026|33', contact_count: 131 }])
+    await getSalesforceWeeklyContacts('acme', WED_W34)
+    const calls = (salesforceQuery as Mock).mock.calls
+    expect(calls).toHaveLength(2)
+    for (const [, , , opts] of calls) expect(opts.timeoutMs).toBe(60_000)
   })
 })
 
