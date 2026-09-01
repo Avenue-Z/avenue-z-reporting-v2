@@ -112,21 +112,50 @@ const OPEN_SETTINGS = { deal_date_field: 'deal_created', convert_to_default_curr
 const WON_SETTINGS = { deal_date_field: 'deal_closed', convert_to_default_currency: false }
 /**
  * A window wide enough to include every currently-open deal regardless of when it
- * was created. This must NOT be a static literal: Supermetrics' Salesforce
- * historical floor is a ROLLING "today minus 10 years", so a hardcoded start date
- * silently slips below the floor as the clock advances and every query 400s with
+ * was created, and no wider, because width costs latency on a cold query.
+ *
+ * This must NOT be a static literal: Supermetrics' Salesforce historical floor is
+ * a ROLLING "today minus 10 years", so a hardcoded start date silently slips
+ * below the floor as the clock advances and every query 400s with
  * START_DATE_HISTORICAL (a fixed '2016-08-20' was already one day under the floor
- * by 2026-08-21, live-confirmed, which zeroed the open tiles). The start is
- * therefore derived from the clock: January 1 of nine years ago, which is always
- * comfortably above a ten-year rolling floor (worst case, on Dec 31, still a day
- * above it) yet captures effectively all still-open history, since an opportunity
- * open for nine or more years is vanishingly rare. Year-granular bounds keep the
- * query cache-stable within a calendar year. `now` is injectable so the derivation
- * is testable without depending on the wall clock.
+ * by 2026-08-21, live-confirmed, which zeroed the open tiles). The bounds are
+ * therefore derived from the clock, and kept year-granular so the query stays
+ * cache-stable within a calendar year. `now` is injectable so the derivation is
+ * testable without depending on the wall clock.
+ *
+ * WHY THREE YEARS AND NOT NINE. It was nine, which is the widest the rolling
+ * ten-year floor allows. That is a real cost rather than free head-room: a query
+ * Supermetrics has not served before takes tens of seconds, and the cost scales
+ * with the width of the window. Measured live 2026-09-01, cold, back to back, on
+ * ranges the API had never been asked for:
+ *
+ *   | Window width | Cold latency |
+ *   |--------------|--------------|
+ *   | 19 years (the old +-9) | ~43s |
+ *   | 14 years     | 37.0s        |
+ *   | 8 years (this, +-3)    | 26.6s |
+ *   | 4 years      | 18.0s        |
+ *
+ * Warm, every one of them returns in ~1.6s. The old width was close enough to
+ * SALESFORCE_TIMEOUT_MS that a cold render tipped over it and the Executive
+ * Overview rendered "Couldn't load open pipeline." until a later render happened
+ * to land warm (observed on a preview deployment 2026-09-01, `SmTimeoutError`
+ * after 60000ms). Narrowing does not make the cold call free, and any change to
+ * the query shape re-pays it once, but it moves the cold case from roughly
+ * two-thirds of the budget to under half of it.
+ *
+ * WHAT NARROWING COSTS. Deals CREATED more than three years ago that are still
+ * open leave the tiles. Measured against the live org on the same day: 1 open
+ * deal of 4,010, and $20,379 of $177,900,895 of open pipeline, which is 0.011%.
+ * Weighted Pipeline moves by $1,019 in the opposite direction, because the
+ * connector returns an AVERAGED probability per stage row and dropping a deal
+ * re-weights that average; the figure is not strictly monotonic in the window.
+ * If a client ever runs genuinely long sales cycles this is the constant to
+ * revisit, and the trade is latency against completeness, not correctness.
  */
 export function openWindow(now: Date = new Date()): string {
   const y = now.getUTCFullYear()
-  return `${y - 9}-01-01,${y + 9}-12-31`
+  return `${y - 3}-01-01,${y + 3}-12-31`
 }
 
 function toStageRows(rows: Record<string, string>[]): StageRow[] {

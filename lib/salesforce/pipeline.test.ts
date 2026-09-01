@@ -468,8 +468,21 @@ describe('openWindow', () => {
   })
 
   it('derives the bounds from the clock, so it does not rot into a static literal', () => {
-    expect(openWindow(new Date('2026-08-21T12:00:00Z'))).toBe('2017-01-01,2035-12-31')
-    expect(openWindow(new Date('2027-08-21T12:00:00Z'))).toBe('2018-01-01,2036-12-31')
+    expect(openWindow(new Date('2026-08-21T12:00:00Z'))).toBe('2023-01-01,2029-12-31')
+    expect(openWindow(new Date('2027-08-21T12:00:00Z'))).toBe('2024-01-01,2030-12-31')
+  })
+
+  it('stays narrow, because window width is what a cold query is billed for', () => {
+    // Measured live 2026-09-01 on ranges Supermetrics had never served: 14y took
+    // 37.0s, 8y took 26.6s, 4y took 18.0s, and the old 19y took ~43s against a
+    // 60s SALESFORCE_TIMEOUT_MS, which is what tipped a cold render into
+    // "Couldn't load open pipeline.". Widening this back is a latency decision,
+    // not a free one, so it has to fail here first.
+    const [start, end] = openWindow(new Date('2026-08-21T12:00:00Z')).split(',')
+    const years = Number(end.slice(0, 4)) - Number(start.slice(0, 4)) + 1
+    expect(years).toBeLessThanOrEqual(8)
+    // And not so narrow that a deal created last year falls out of the tiles.
+    expect(years).toBeGreaterThanOrEqual(5)
   })
 
   it('ends comfortably in the future so today is always within the window', () => {
