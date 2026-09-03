@@ -117,7 +117,20 @@ async function main() {
   // Before any query, so a wrong target costs nothing and writes nothing.
   assertExpectedHost(host)
 
-  const row = await db.query.clients.findFirst({ where: eq(clients.slug, SLUG) })
+  // Select ONLY hidden_reports, never the whole row.
+  //
+  // db.query.clients.findFirst() names every column in schema.ts, so it fails on
+  // any database that has not caught up to the current schema, with an error
+  // about a column this script neither reads nor writes. Production is two
+  // columns behind dev today (salesforce_config, owned_linkedin_handle), which
+  // is fine in itself because prod runs `main` and `main` does not declare them,
+  // but it made a whole-row read impossible there. A visibility flag has no
+  // business caring about the CRM config column, so it does not ask for it.
+  const [row] = await db
+    .select({ hiddenReports: clients.hiddenReports })
+    .from(clients)
+    .where(eq(clients.slug, SLUG))
+    .limit(1)
   if (!row) throw new Error(`client "${SLUG}" not found`)
 
   const before = row.hiddenReports ?? []
