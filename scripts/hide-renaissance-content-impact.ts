@@ -46,9 +46,15 @@
 //
 // Run (dev):  npx tsx --env-file=.env.local scripts/hide-renaissance-content-impact.ts
 // Staging/prod: same script, with DATABASE_URL pointed at that environment.
-// The script prints the host it is about to write to; check it before trusting
-// the result, since the endpoints differ only by name (dev ep-still-tree,
-// staging ep-restless-union, production ep-green-violet).
+//
+// The three endpoints differ only by name (dev ep-still-tree, staging
+// ep-restless-union, production ep-green-violet), so the script prints the host
+// it is about to write to. On production, verify rather than read: set
+// EXPECT_DB_HOST and it refuses to run, before issuing any query, unless the
+// connection actually points there.
+//
+//   EXPECT_DB_HOST=ep-green-violet \
+//     npx tsx --env-file=.env.production scripts/hide-renaissance-content-impact.ts
 //
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
@@ -74,8 +80,42 @@ function targetHost(): string {
   return raw.match(/@([^/:?]+)/)?.[1] ?? '(DATABASE_URL not set)'
 }
 
+/**
+ * Refuses to run unless the connection points where the operator says it should.
+ *
+ * Printing the host is not much of a safeguard on the run that matters: the
+ * command for production is character-for-character the command for staging
+ * apart from an endpoint id nobody reliably eyeballs, which is the same reason
+ * scripts/migrate-staging.sh allow-lists its target instead of trusting the
+ * reader. This cannot be a fixed allow-list, because the script is meant to run
+ * against all three environments, so the expectation is supplied per run:
+ *
+ *   EXPECT_DB_HOST=ep-green-violet npx tsx --env-file=.env.production scripts/...
+ *
+ * Matched as a substring so the endpoint id alone is enough and the full
+ * pooler hostname does not have to be typed. Unset skips the check and keeps
+ * the original behaviour, so existing invocations are unaffected.
+ */
+function assertExpectedHost(host: string): void {
+  const expected = process.env.EXPECT_DB_HOST
+  if (!expected) {
+    console.log('EXPECT_DB_HOST not set, so the target is not being verified.')
+    return
+  }
+  if (!host.includes(expected)) {
+    throw new Error(
+      `REFUSING: expected a host containing "${expected}" but connected to "${host}". ` +
+      'Nothing was written. Check which --env-file you passed.',
+    )
+  }
+  console.log(`Host matches EXPECT_DB_HOST ("${expected}").`)
+}
+
 async function main() {
-  console.log(`Target database: ${targetHost()}`)
+  const host = targetHost()
+  console.log(`Target database: ${host}`)
+  // Before any query, so a wrong target costs nothing and writes nothing.
+  assertExpectedHost(host)
 
   const row = await db.query.clients.findFirst({ where: eq(clients.slug, SLUG) })
   if (!row) throw new Error(`client "${SLUG}" not found`)
