@@ -1,6 +1,6 @@
 {
-  "id": "10a0fe71-f81a-4dd9-b657-20a07850128a",
-  "prevId": "23197e96-e48d-4f80-bd71-0f0b4c3a2d6a",
+  "id": "fe0a0629-5125-475c-90d6-d8d26c002692",
+  "prevId": "10a0fe71-f81a-4dd9-b657-20a07850128a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -167,6 +167,13 @@
         },
         "hidden_reports": {
           "name": "hidden_reports",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "hidden_journey_stages": {
+          "name": "hidden_journey_stages",
           "type": "text[]",
           "primaryKey": false,
           "notNull": true,

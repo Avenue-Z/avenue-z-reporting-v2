@@ -92,3 +92,61 @@ Apply the migration in this order, every environment:
    against a real database anyway: the seed is stale against live data in
    both directions and would clobber real client rows. That is the reason
    not to run it, not a lack of the field.
+
+## Add clients.ga4_config, clients.hidden_journey_stages (delivered, awaiting apply)
+
+- Migrations: `drizzle/0022_military_the_santerians.sql` (`ga4_config`,
+  nullable jsonb) and `drizzle/0023_clever_nightcrawler.sql`
+  (`hidden_journey_stages`, `text[]` with a `'{}'` default) — kept as two
+  migrations, not one, matching the two features being independently
+  revertable (PR #235 review). Both additive, no data change, no backfill.
+  Stack directly on `0021` (`salesforce_config`, above) in the journal.
+
+**Same failure mode as `0021`, for the same reason: `getClientBySlug` /
+`getClientByEmail` / `getAllClients` (`lib/db/queries.ts`) now name both new
+columns in every `clients` read, because they're in `lib/db/schema.ts`.**
+Against a database missing either column that's a Postgres `42703`, and it
+throws rather than degrades — nobody logs in, no client's report or portal
+renders, not just the Executive Overview's conversion cards.
+
+As of PR #235 (2026-09-11), per Thomas's review on that PR (verified directly
+against `information_schema` on all three databases — I don't have staging or
+production credentials to re-confirm this myself, so this table is his
+finding, cited, not independently re-verified):
+
+| Database | Has `ga4_config` / `hidden_journey_stages`? | Also still missing |
+|---|---|---|
+| dev (`ep-still-tree`) | yes (0022 + 0023 applied) | — |
+| staging (`ep-restless-union`) | no | `owned_linkedin_handle` too |
+| production (`ep-green-violet`) | no | `owned_linkedin_handle`, `salesforce_config` |
+
+Production is missing `salesforce_config` too, meaning **`0021` was never
+applied there either** — the exact silent-skip scenario this file already
+warned about for `0021`, now confirmed live rather than hypothetical. `0022`
+and `0023` sit directly on top of `0021` in the journal, so applying them to
+production requires applying `0021` first, in order.
+
+Apply per environment, before merge, the same way as `0021`:
+
+1. `CACHE_DISABLE=1 npx tsx --env-file=.env.local scripts/migrate-http.ts`
+   for dev, `npm run db:migrate:staging` for staging. Production is Neon
+   console only, applied in journal order (`0021`, then `0022`, then `0023`),
+   by deliberate act, not by editing the staging guard. **Not** `npm run
+   db:migrate` / the `db-migrate.yml` workflow — both use the
+   timestamp-gated migrator this file already documents as able to skip a
+   migration while exiting 0.
+2. Verify with a direct query, not a migrator exit code:
+
+       select column_name from information_schema.columns
+       where table_name = 'clients'
+       and column_name in ('salesforce_config', 'ga4_config', 'hidden_journey_stages');
+
+   **Code must not merge to an environment's branch until this returns all
+   three rows for that environment** (all three, not just the two this
+   migration adds — `0021` has to be confirmed too, given the table above).
+3. Once confirmed, set Renaissance's values with the two targeted scripts
+   written for this (config-as-code, not a hand-typed SQL edit — see each
+   script's header for why): `CACHE_DISABLE=1 npx tsx --env-file=<env file>
+   scripts/set-renaissance-ga4-config.ts` and `scripts/hide-renaissance-pipeline-stages.ts`.
+   Kept as two scripts, deliberately, matching the two columns being two
+   unrelated features that happen to share this migration.

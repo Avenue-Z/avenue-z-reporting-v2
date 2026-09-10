@@ -1,8 +1,8 @@
 # Renaissance GA4 conversions fix — working notes
 
-Not a review record. Scratch space for this fix while it's in progress; superseded
-by `docs/qa/ga4-conversion-definition-code-review.md` once the change is ready to
-go through the standard review-record process (see `CLAUDE.md`).
+Not a review record. Scratch space for this fix; the actual review-record doc
+(`docs/qa/ga4-conversion-definition-code-review.md`, per `CLAUDE.md`'s Stage-1
+process) hasn't been opened yet — this isn't superseding it prematurely.
 
 Source: `Renaissance Dashboard Turnover.md`, section 9, dated 2026-09-01.
 
@@ -11,31 +11,36 @@ Source: `Renaissance Dashboard Turnover.md`, section 9, dated 2026-09-01.
 Every Conversions figure on the platform sums GA4's `conversions` metric with no
 event filter — whatever the client's GA4 property has flagged as a "key event."
 For Renaissance (property `310998391`), August 2026: dashboard shows 16,824
-conversions / 29.58% conversion rate; real form-fill leads were 81-82. Visible in
-4 places on the Executive Overview (`executive-overview/index.tsx:27,99,169`,
-`stages.ts:180`), which is the only Renaissance-enabled report that shows it.
+conversions / 29.58% conversion rate. The turnover doc's own reconciliation
+called 81-82 of those "the actual lead events" — **that number turned out to be
+an undercount by construction, not the ground truth; see "Ground truth,
+corrected" below.** Visible in 4 places on the Executive Overview
+(`executive-overview/index.tsx:27,99,169`, `stages.ts:180`), which is the only
+Renaissance-enabled report that shows it.
 
 ## Event inventory (Supermetrics GAWA, account 310998391, last 90 days, pulled 2026-09-08)
 
 Flagged as GA4 key event today (`isConversionEvent = true`):
 
-| Event | Count (90d) | Classification |
+| Event | Count (90d) | In shipped allowlist |
 |---|---|---|
-| outbound_click | 45,388 | soft engagement — not a lead |
-| pdf_view | 2,231 | soft engagement |
-| contact_link_click | 1,029 | soft engagement |
-| contact_individual_lead | 121 | real lead |
-| broker_group_lead | 36 | real lead |
-| contact_employee_lead | 36 | real lead |
-| contact_other_lead | 25 | → merged into `form_submission`, see Decisions |
-| broker_individual_lead | 8 | real lead |
-| via_form | 7 | → merged into `form_submission`, see Decisions |
-| contact_employer_lead | 6 | real lead |
-| employer_group_vision_lead | 6 | real lead |
-| contact_broker_lead | 4 | real lead |
-| whitelabel_form | 3 | → merged into `form_submission`, see Decisions |
+| outbound_click | 45,388 | no — soft engagement, not a lead |
+| pdf_view | 2,231 | no — soft engagement |
+| contact_link_click | 1,029 | no — soft engagement |
+| contact_individual_lead | 121 | yes |
+| broker_group_lead | 36 | yes |
+| contact_employee_lead | 36 | yes |
+| contact_other_lead | 25 | yes — merged into `form_submission`, see Decisions |
+| broker_individual_lead | 8 | yes |
+| via_form | 7 | yes — merged into `form_submission` |
+| contact_employer_lead | 6 | yes |
+| employer_group_vision_lead | 6 | yes |
+| contact_broker_lead | 4 | yes |
+| whitelabel_form | 3 | yes — merged into `form_submission` |
 
-NOT flagged as key event today (real leads, currently invisible to the dashboard):
+NOT flagged as key event today (real leads per the turnover doc's own finding
+(b), invisible to the dashboard until this fix — all included in the shipped
+allowlist):
 
 | Event | Count (90d) |
 |---|---|
@@ -54,23 +59,73 @@ Re-pull anytime: `data_query(ds_id="GAWA", ds_accounts="310998391",
 fields="eventName,isConversionEvent,eventCount", date_range_type="last_90_days")`
 via the Supermetrics connector.
 
+## Ground truth, corrected (2026-09-11, PR #235 review)
+
+Thomas's review on PR #235 checked whether the shipped 15-row allowlist
+reconciles to the 81-82 figure above and found it doesn't: the same allowlist
+summed over the full 90-day window is 327 events (~112.6/31-day-month), about
+37% above 81-82. Flagged as blocking, correctly — a number that's wrong by 37%
+still spends the credibility this fix exists to restore, even if it's nowhere
+near the original 205x error.
+
+Verified directly against August 2026 (a closed month) via Supermetrics:
+
+```
+data_query(ds_id="GAWA", ds_accounts="310998391", fields="eventName,eventCount",
+           date_range_type="custom", start_date="2026-08-01", end_date="2026-08-31")
+```
+
+**The shipped allowlist sums to exactly 107 for August 2026 — not 81-82, and
+not the 90-day-derived ~112.6/month estimate either (both are in the right
+neighborhood; August specifically had `via_form` at 0, which pulls the 90-day
+average up relative to any single month).**
+
+The reconciliation: 81-82 was never a complete count of real leads. It came
+from the turnover doc's `conversions`/`keyEvents`-metric analysis, and that
+metric returns 0 for any event GA4 hasn't already flagged as a key event —
+structurally, by how the API works, not as an approximation. The turnover
+doc's own finding (b) already named the consequence: **6 event types
+(`contact_provider_lead` + 5 `employer_group_*` events, later found to be 7
+including `employer_group_life_lead`) are real leads sitting outside that
+flag, invisible to any query built on `keyEvents`/`conversions`.** 81-82 excluded
+those 6 event types by construction. 107 is 81-82 plus their August-specific
+count (25), which is exactly what including them should add.
+
+So: the shipped allowlist is correct, and 81-82 was the number to correct, not
+the allowlist. This is turnover doc step 9.4 step 6 ("verify against a closed
+month, reconciled exactly") — now actually done, with a real number, rather
+than left unmarked as this doc originally had it.
+
 ## Decisions
 
 **2026-09-10 (Nick):** `via_form`, `contact_other_lead`, and `whitelabel_form` are
 combined into one synthetic line item, `form_submission` (35 events/90d combined:
-7 + 25 + 3), rather than kept as three separately-categorized events. This is an
+7 + 25 + 3), rather than kept as three separately-tracked leads. This is an
 internal working decision, not a confirmation from Renaissance or their GTM
 owner — turnover doc step 9.4.3's client reconciliation for these three specific
 events is being skipped for now, not completed. Revisit if the client later says
 these are meaningfully different (e.g. different lead quality/source).
 
-Schema implication: `leadEvents` entries need a `sourceEvents: string[]` (not a
-single `name`), so one allowlist row can map to N underlying GA4 event names,
-summed. Keep this shape uniform for every entry (even single-event ones) rather
-than special-casing merged vs. unmerged — e.g. `{ name: "contact_individual_lead",
-category: "contact", sourceEvents: ["contact_individual_lead"] }` alongside
-`{ name: "form_submission", category: "form", sourceEvents: ["via_form",
-"whitelabel_form", "contact_other_lead"] }`.
+**Correction (2026-09-11, PR #235 review):** as first implemented, this
+decision was cosmetic only — `Ga4LeadEvent` carried a `category` field and the
+merge was framed as "one row instead of three, for display grouping," but
+`sumLeadEventConversions` sums `eventCount` over every row the query returns
+and never reads `name` or `category` at all. So whether these three were one
+row or three was inert at runtime; the number on the tile is identical either
+way. `category` has been dropped from `Ga4LeadEvent` entirely (see
+`lib/db/schema.ts`) since nothing reads it, and this decision is now correctly
+understood as what it actually controls: **whether `via_form`, `whitelabel_form`,
+and `contact_other_lead` count as real leads at all** (they're in the
+allowlist's flattened `sourceEvents` union either way), not how they're
+grouped for display. That's the version of this decision worth taking to
+Renaissance's GTM owner — not the grouping, which no longer exists as a
+concept in the implementation.
+
+Schema shape: `leadEvents: [{ name, sourceEvents }]`, `sourceEvents` always an
+array even for the common one-event case, so merged and unmerged rows need no
+special-casing in query-building code — e.g. `{ name: "contact_individual_lead",
+sourceEvents: ["contact_individual_lead"] }` alongside `{ name: "form_submission",
+sourceEvents: ["via_form", "whitelabel_form", "contact_other_lead"] }`.
 
 ## Open questions — need Renaissance / their GTM owner (turnover doc step 9.4.3)
 
@@ -79,71 +134,136 @@ category: "contact", sourceEvents: ["contact_individual_lead"] }` alongside
   entries (`dental`, `accident`, `vision`), all mismatched by the `_group_` infix.
   `employer_group_life_lead` fired once in the 90-day window with no corresponding
   Google Ads action at all — confirm whether that's expected.
+- Whether `via_form` / `whitelabel_form` / `contact_other_lead` are genuinely one
+  kind of lead or three (see Decisions above) — this now controls allowlist
+  membership, not just display grouping, so it's a real question, not a nice-to-have.
 
-## Implementation status (2026-09-10)
+## Implementation status (2026-09-11)
 
-Steps 1-3 below are done on `feat/renaissance-ga4-conversions`, scoped to
-exactly what was asked: the Executive Overview KPI grid's Conversions /
-Conversion Rate cards, and the same numbers surfaced on the Web Analytics
-journey-stage card (kept in sync deliberately — leaving one fixed and one
-stale would show two different conversion rates on one page). The Channel
-Tabs chart's per-channel "By Conversion" ranking (doc's item #4, ranks
-channels by `sessionConversionRate`) is **not touched** — that needs
-per-channel event filtering, a separate, harder problem, not in scope here.
-`ga4/index.tsx`, `demand-overview`, `exec-summary` (the doc's other 3 call
-sites) also untouched — none are enabled for Renaissance.
+On `feat/renaissance-ga4-conversions`, PR #235 (opened against `dev`, reviewed
+by Thomas and Paul). Scoped to exactly what was asked: the Executive
+Overview's Conversions/Conversion Rate KPI cards and the same numbers on the
+Web Analytics journey-stage card (deliberately kept in sync — leaving one
+fixed and one stale would show two different conversion rates on one page).
+**Explicitly not touched, and stated as such rather than silently left:** the
+Channel Tabs chart's per-channel "By Conversion" ranking still reads raw
+`sessionConversionRate` per channel — it needs per-channel event filtering, a
+separate, harder problem. `ga4/index.tsx`, `demand-overview`, `exec-summary`
+(the turnover doc's other 3 call sites) also untouched — none are enabled for
+Renaissance.
 
-Also done, a separate decision from the GA4 fix: `hidden_journey_stages`
+Separate decision, bundled in the same PR but split into its own commit/
+migration/config script so it's independently revertable: `hidden_journey_stages`
 (new `clients` column, `text[]`, Renaissance-only) drops Inbound Funnel and
-Pipeline from the top journey row for Renaissance, pending those being fixed
-separately. `stages.ts`'s `buildStages` filters on it; `DemandJourney`
-needed no change — it derives connector-arrow placement from array position
-(`isLast`), so a shorter stages array just renders cleanly with no dangling
-arrow.
+Pipeline from the top journey row, pending those being fixed separately.
+Constrained to removing only a *trailing* run of the fixed stage order — a
+review finding caught that hiding a middle stage would leave a connector
+arrow's text describing a stage that's no longer next; `stages.ts` validates
+this and ignores an invalid value rather than risk a mislabeled arrow.
 
-Files touched: `lib/db/schema.ts` (+`Ga4Config`/`Ga4LeadEvent` types, `form`
-added to `LeadCategory`, `ga4Config` + `hiddenJourneyStages` columns),
-`drizzle/0022_calm_silver_sable.sql` (generated via `drizzle-kit generate`,
-purely additive, applied to dev), `lib/ga4/lead-events.ts` (new — pure
-helpers: `leadEventNames`, `leadEventFilter`, `sumLeadEventConversions`),
-`components/report-sections/executive-overview/stages.ts` (`trueConversions`
-+ `hiddenStages` params), `components/report-sections/executive-overview/index.tsx`
-(2 new `ga4Query` calls gated on `ga4Config`, wires `trueConversions`/rate
-into both the KPI cards and `buildStages`). `lib/paid-search/leads.ts` and
-its test needed a one-line fix for the new `LeadCategory` member.
+### Review findings from Paul and Thomas (PR #235), and what changed
 
-`npx tsc --noEmit`, `npm test` (236 passed), and `npm run check:rsc` all
-clean. Renaissance's `ga4_config.leadEvents` (15 rows, 4 categories,
-`form_submission` merging `via_form`+`whitelabel_form`+`contact_other_lead`
-per the Decisions above) and `hidden_journey_stages: [inbound, pipeline]`
-are live on the dev DB. Not yet verified against the actual rendered page —
-needs a real login (Nick's own Google OAuth), not something to script.
+All four blocking findings, fixed:
 
-No cache-version bump: this doesn't change what any *existing* `ga4Query`
-call shape returns, only adds new call shapes (different metrics/dimensions),
-which get fresh cache keys automatically. The turnover doc's step 5 assumed
-a shape change that this implementation doesn't actually make.
+1. **Conversion Rate regressed for every unconfigured client** (`index.tsx`,
+   `stages.ts`) — the original ternary gated on `conversions != null`, which
+   the raw-totals fallback always satisfies, so it silently took the
+   filtered-rate branch for avenue-z and begin-health too, not just
+   Renaissance. Rebuilt as an explicit three-state read on `trueConversions`
+   itself (`undefined` = unconfigured, `null` = configured-but-failed, a
+   number = real value) instead of inferring state from `conversions`.
+2. **A failed lead-event fetch rendered a confident 0** — `sumLeadEventConversions`
+   now returns `null` (not 0) for null/undefined input, so a fetch failure is
+   distinguishable from a genuine zero-leads period and renders a dash,
+   matching the existing `trendFailed`/`audienceFailed`/`channelFailed` pattern
+   rather than inventing a new one.
+3. **A malformed `ga4_config` row took the whole page down** — `leadEventFilter`
+   was called synchronously while building the `Promise.allSettled` array, so
+   a throw there escaped the settled-promise net entirely. `lib/ga4/lead-events.ts`
+   is now defensive against missing/malformed `leadEvents`/`sourceEvents`, and
+   `index.tsx` gates on a new `hasLeadEvents()` check (an empty allowlist is
+   treated as unconfigured, not as "configured with nothing," since GA4's
+   `inListFilter` rejects an empty `values` array outright).
+4. **The shipped allowlist didn't reconcile to the doc's own 81-82** — see
+   "Ground truth, corrected" above. Root cause was the framing of 81-82, not
+   the allowlist; fixed by re-deriving and documenting the real number (107,
+   verified live against August).
 
-Not yet on any commit — still working tree changes on `feat/renaissance-ga4-conversions`.
+Also addressed, not blocking but real:
 
-## Planned implementation (turnover doc 9.4 steps 4-7, partially started)
+- Widening the shared `LeadCategory` union (for GA4's `form` category) broke
+  an unchecked exhaustiveness assumption in the Paid Search leads report.
+  Reverted — `Ga4LeadEvent` no longer carries `category` at all, since nothing
+  read it (see Decisions).
+- `getClientBySlug` and `getAllClients` (`lib/db/queries.ts`) cache
+  `clients` rows and hadn't had their cache `version` bumped despite the row
+  shape changing (two new columns) — bumped to `v2`.
+- No test coverage on `lib/ga4/lead-events.ts`, and `vitest.config.ts` pins
+  `lib/ga4/*.test.ts` files individually rather than via glob, so a new test
+  file wouldn't have run without a config change either. Added
+  `lib/ga4/lead-events.test.ts` (covering exactly the failure modes above —
+  null-vs-zero, malformed config, de-duplication) and added it to the include
+  list.
+- Renaissance's config was originally set with a raw hand-typed SQL `UPDATE`.
+  Replaced with `scripts/set-renaissance-ga4-config.ts` and
+  `scripts/hide-renaissance-pipeline-stages.ts` (idempotent, committed,
+  reviewable — same pattern as `scripts/set-renaissance-campaign-scope.ts`),
+  kept as two scripts matching the two-commit split.
+- `MIGRATIONS-PENDING.md` now has a `0022` section (staging and production are
+  both behind this migration — and production is behind `0021` too, a
+  pre-existing gap this PR didn't create but that blocks it from reaching
+  production regardless).
+- Journey-stage hiding was validated to only accept a trailing suffix of the
+  fixed stage order (`aeo, ga4, inbound, pipeline`), so a future config that
+  hides a non-trailing stage can't mislabel a connector arrow.
+- The Conversion Rate tooltip claimed "percentage of sessions," which isn't
+  what the query computes (event count over sessions — a session with two
+  lead events counts twice, and the value can exceed 100%). Relabeled honestly
+  instead of rebuilding the query to be truly session-scoped, which is a
+  separate, larger change; the doc's original step 4 ("decide the
+  conversion-rate denominator explicitly") is still genuinely open as a
+  product question, this just stopped the tooltip lying about which one was
+  chosen.
 
-1. ~~Decide final allowlist~~ — done for the form-event merge (see Decisions);
-   the `employer_`/`employer_group_` naming question above is still open but
-   doesn't block starting the schema/code work, since it only affects 3 rows in
-   an allowlist arrays contains.
-2. Schema: `clients.ga4_config = { leadEvents: [{ name, category, sourceEvents }] }`,
-   per-client, loosely mirrors `clients.paid_search_config.leadActions` shape.
-   Hand-written Drizzle migration.
-3. Code: swap bare `conversions` metric for `eventCount` + `dimensionFilter`
-   `inListFilter` on `eventName` (flattened across all `sourceEvents`), summed
-   per `leadEvents` row, at the 5 call sites in section 9.1 of the turnover doc.
-   Fall back to current behavior for clients with no `ga4_config`
-   (avenue-z, begin-health) — must stay correct for them too.
-4. Decide the conversion-rate denominator explicitly — `eventCount` is event-scoped,
-   `sessionConversionRate` is session-scoped, this doesn't follow automatically.
-5. Bump the GA4 cache version in `lib/cache.ts` — response shape changes.
-6. Verify against a closed month, reconciled exactly.
-7. Real review record + normal branch-flow gates before this goes anywhere near
-   `staging` — flag Tina before it lands there, since it moves numbers on 4 pages
-   at once.
+Also addressed, partially: the two features were originally one commit and
+one migration (a process finding — Avenue Z's multi-feature convention wants
+these independently revertable). The **migration** is now genuinely split —
+`0022_military_the_santerians` for `ga4_config`, `0023_clever_nightcrawler`
+for `hidden_journey_stages`, regenerated via `drizzle-kit generate` rather
+than hand-split, then reapplied to dev (the original combined `0022` never
+reached staging or production, so this was safe to redo) — and there are two
+config scripts, one per feature. The **commit history** is not split: the
+original commit (`5661054`) already has review comments anchored to it, and
+splitting it means rewriting pushed history the reviewers have already
+commented on, which needs an explicit ask, not an assumption. This round of
+fixes lands as one new commit on top instead. Flagged here rather than
+silently left as if fully resolved.
+
+`npx tsc --noEmit`, `npm test` (full suite), and `npm run check:rsc` all
+clean after the fixes above. Verified live on a Vercel Preview deployment —
+Nick confirmed the Conversions/Conversion Rate numbers and the journey-row
+change before the review round; not yet re-verified live against the fixed
+build.
+
+## Planned implementation (turnover doc 9.4 steps 4-7)
+
+1. ~~Decide final allowlist~~ — done, including the corrected ground-truth
+   reconciliation above. The `employer_`/`employer_group_` naming question and
+   the `form_submission` merge question are both still genuinely open with the
+   client (see Open questions), but don't block what's shipped.
+2. ~~Schema~~ — done, `clients.ga4_config = { leadEvents: [{ name, sourceEvents }] }`.
+3. ~~Code~~ — done for the Executive Overview KPI cards + journey card.
+   Channel Tabs "By Conversion" intentionally not done (see Implementation
+   status).
+4. Decide the conversion-rate denominator properly (sessions-that-fired-an-
+   allowlisted-event, vs. relabeling as "leads per session" permanently) — the
+   tooltip fix above is a stopgap, not a resolution.
+5. ~~Cache versioning~~ — not needed for `ga4Query` itself (new call shapes get
+   fresh cache keys automatically); was needed and is now done for
+   `getClientBySlug`/`getAllClients`, which DO reuse the same key across this
+   deploy.
+6. ~~Verify against a closed month, reconciled exactly~~ — done, see Ground
+   truth above.
+7. Real review record + normal branch-flow gates before this goes anywhere
+   near `staging` — flag Tina before it lands there, since it moves numbers on
+   4 pages at once.

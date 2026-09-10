@@ -64,18 +64,40 @@ export interface StageInput {
    */
   now?: Date
   /**
-   * Filtered lead-event conversions (see lib/ga4/lead-events.ts), for a
-   * client with `ga4Config` set. When provided, overrides `totals.conversions`
-   * on the ga4 stage's "Conversions" stat and derives its conv. rate
-   * sub-metric from this instead of `totals.sessionConversionRate` — both
-   * pull from the raw GA4 `conversions`/`sessionConversionRate` metrics
-   * otherwise, which count every property-level "key event", not just real
-   * leads. Omitted (not just falsy) for a client with no `ga4Config`, so the
-   * `?? totals?.conversions` fallback below is exact, not approximate.
+   * Filtered lead-event conversions (see lib/ga4/lead-events.ts). Three
+   * distinct states, not two — collapsing any pair of these is the bug PR
+   * review caught twice:
+   *   - `undefined`: no effective `ga4Config`. Falls through to the raw
+   *     `totals.conversions` / `totals.sessionConversionRate` below,
+   *     unchanged from before this feature existed.
+   *   - `null`: `ga4Config` is set but the filtered fetch failed. Renders a
+   *     dash, never the raw count (that's the inflated number this feature
+   *     exists to stop showing) and never 0 (a vendor outage is not the same
+   *     fact as a genuine zero leads this period).
+   *   - a `number` (including 0): fetch succeeded. Used exactly, and the
+   *     conv. rate is derived from THIS over sessions — never blended with
+   *     `totals.sessionConversionRate`, which is a different, session-scoped
+   *     metric for a different definition of "conversion".
    */
-  trueConversions?: number
+  trueConversions?: number | null
   /** Stage keys to omit from the returned array entirely (clients.hidden_journey_stages). Defaults to showing all four. */
   hiddenStages?: DemandJourneyStageKey[]
+}
+
+// The fixed stage order this module always builds in. Each stage's
+// `connector` text names the stage that immediately follows it (e.g. ga4's
+// "converts to leads" describes inbound), so hiddenStages may only remove a
+// TRAILING run of this order — dropping a middle stage would leave a
+// connector describing a stage that's no longer next. isTrailingSuffix below
+// is the guard; anything else is treated as an invalid config (show all
+// stages) rather than risk a mislabeled arrow.
+const STAGE_ORDER: DemandJourneyStageKey[] = ['aeo', 'ga4', 'inbound', 'pipeline']
+
+function isTrailingSuffix(hidden: DemandJourneyStageKey[]): boolean {
+  if (hidden.length === 0) return true
+  const tail = STAGE_ORDER.slice(-hidden.length)
+  const hiddenSet = new Set(hidden)
+  return tail.length === hiddenSet.size && tail.every((k) => hiddenSet.has(k))
 }
 
 /** ISO date (UTC) of the Monday that starts the week containing `date`. Mirrors
@@ -104,17 +126,20 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
 }
 
 export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date(), trueConversions, hiddenStages = [] }: StageInput): DemandStage[] {
-  // conversions/conversionRate: trueConversions (filtered event count) when
-  // present, else GA4's raw conversions metric — see StageInput.trueConversions.
-  // Rate is always derived from the CHOSEN conversions figure over sessions,
-  // never mixed (a true numerator over GA4's session-scoped rate would silently
-  // report a rate for a different definition of "conversion" than the count
-  // beside it). No comparison-period variant: neither of this stage's fields
-  // that use conversions (subMetric, the Conversions stat) shows a delta —
-  // the stage's own `delta` is sessions, not conversions.
-  const conversions   = trueConversions ?? (totals?.conversions as number | undefined)
-  const sessions       = totals?.sessions as number | undefined
-  const conversionRate = conversions != null && sessions ? conversions / sessions : (totals?.sessionConversionRate as number | undefined)
+  // Three-way, not `??`/ternary-on-conversions — see StageInput.trueConversions.
+  // The bug review caught: gating on `conversions != null` is satisfied by the
+  // unconfigured fallback too (totals.conversions is a real number), so it
+  // silently took the filtered-rate branch for EVERY client, unconfigured
+  // ones included. Gate on `trueConversions` itself, explicitly per state.
+  const sessions = totals?.sessions as number | undefined
+  const conversions =
+    trueConversions === undefined ? (totals?.conversions as number | undefined) :
+    trueConversions === null      ? null :
+    trueConversions
+  const conversionRate =
+    trueConversions === undefined ? (totals?.sessionConversionRate as number | undefined) :
+    trueConversions === null      ? null :
+    (sessions ? trueConversions / sessions : null)
   // A contacts object with no weeks is a successful fetch that found nothing,
   // not data. See the inbound stage below for why the distinction matters.
   const withWeeks = contacts && contacts.weeks.length > 0 ? contacts : null
@@ -283,7 +308,8 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
 
   // Filtered rather than never-constructed: cheap to build, and keeps every
   // stage's derivation above uniform regardless of which client is hiding what.
-  return hiddenStages.length === 0
+  const safeHidden = isTrailingSuffix(hiddenStages) ? hiddenStages : []
+  return safeHidden.length === 0
     ? stages
-    : stages.filter((s) => !hiddenStages.includes(s.key as DemandJourneyStageKey))
+    : stages.filter((s) => !safeHidden.includes(s.key as DemandJourneyStageKey))
 }

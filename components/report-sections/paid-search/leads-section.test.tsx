@@ -12,7 +12,7 @@ const data: LeadBreakdown = {
     { name: 'Broker Form', category: 'broker', count: 20 },
     { name: 'Contact Form', category: 'contact', count: 8 },
   ],
-  categoryTotals: { employer: 100, broker: 20, contact: 8, form: 0 },
+  categoryTotals: { employer: 100, broker: 20, contact: 8 },
   trend: [],
   totalLeads: 128,
 }

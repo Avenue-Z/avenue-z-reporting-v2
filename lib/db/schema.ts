@@ -47,7 +47,7 @@ export interface PRConfig {
   lookbackDays?: number
 }
 
-export type LeadCategory = 'employer' | 'broker' | 'contact' | 'form'
+export type LeadCategory = 'employer' | 'broker' | 'contact'
 
 export interface PaidSearchConfig {
   /** Google Ads account id, digits only, e.g. '4136001852'. */
@@ -63,11 +63,18 @@ export interface PaidSearchConfig {
  * line (e.g. a client's several low-signal "generic form" events reported
  * together as one `form_submission` line), so query-building code never
  * needs a merged-vs-unmerged special case.
+ *
+ * No `category` field, deliberately: this does not share `LeadCategory` with
+ * `PaidSearchConfig`. Nothing here currently computes a per-category
+ * breakdown (the query sums every allowlisted event into one flat total),
+ * and widening a union shared with paid search silently broke an
+ * exhaustiveness assumption in `leads-section.tsx` on the first attempt at
+ * this — see PR #235 review. Add a dedicated category type if/when
+ * something actually reads it.
  */
 export interface Ga4LeadEvent {
   /** Display name for this row. Not necessarily a real GA4 event name when sourceEvents.length > 1. */
   name: string
-  category: LeadCategory
   /** GA4 eventName values (from the `eventName` dimension) summed into this row. */
   sourceEvents: string[]
 }
