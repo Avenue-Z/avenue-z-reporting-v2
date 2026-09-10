@@ -1,4 +1,5 @@
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import { leadEventFilter, sumLeadEventConversions } from '@/lib/ga4/lead-events'
 import { getPeecOverview } from '@/lib/peec/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { KpiCard } from './kpi-card'
@@ -56,6 +57,12 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   // numbers as if they were this client's.
   const client        = await getClientBySlug(clientSlug)
   const peecConfigured = !!client?.peecCustomerProjectId
+  // See lib/ga4/lead-events.ts and docs/qa/renaissance-ga4-conversions/notes.md:
+  // GA4's raw `conversions` metric sums whatever the property's "key event"
+  // flags happen to be, not necessarily real leads. A client with ga4Config
+  // set gets an explicit eventName allowlist instead; one with none keeps the
+  // original behavior exactly (the `?? totals?.conversions` fallbacks below).
+  const ga4Config = client?.ga4Config ?? null
 
   // Two questions, two predicates (lib/salesforce/configured.ts).
   //   hasCrm   decides what we TELL the reader (LoadFailed vs NeedsConnection)
@@ -84,6 +91,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     channelRes, cmpChannelRes, channelSMRes,
     audienceRes, cmpAudienceRes, peecRes,
     pipelineRes, contactsRes,
+    leadEventsRes, cmpLeadEventsRes,
   ] = await Promise.allSettled([
     ga4Query({ clientSlug, dateRange: mainIso, metrics: KPI_METRICS }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: KPI_METRICS }) : Promise.resolve(null),
@@ -111,6 +119,12 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     peecConfigured ? getPeecOverview(clientSlug, 'year_to_date') : Promise.resolve(null),
     canFetch ? getSalesforcePipeline(clientSlug)       : Promise.resolve(null),
     canFetch ? (crmScoped ? getSalesforceWeeklyLeads(clientSlug) : getSalesforceWeeklyContacts(clientSlug)) : Promise.resolve(null),
+    // dimensions: ['eventName'] + a leadEventFilter, not a bare conversions
+    // metric — see lib/ga4/lead-events.ts. Only issued when ga4Config is set;
+    // an unconfigured client's Conversions/Conversion Rate keep reading
+    // straight off `totals` below, untouched.
+    ga4Config ? ga4Query({ clientSlug, dateRange: mainIso, metrics: ['eventCount'], dimensions: ['eventName'], dimensionFilter: leadEventFilter(ga4Config) }) : Promise.resolve(null),
+    ga4Config && cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['eventCount'], dimensions: ['eventName'], dimensionFilter: leadEventFilter(ga4Config) }) : Promise.resolve(null),
   ])
 
   const val = <T,>(r: PromiseSettledResult<T>): T | null =>
@@ -147,9 +161,22 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
   const contacts    = val(contactsRes)
   const cmpLabel    = buildCompareLabel(compare)
 
+  // See lib/ga4/lead-events.ts. `?? totals?.conversions` (not `??=`) so a
+  // client with ga4Config but a failed leadEvents fetch shows 0 real leads
+  // rather than silently reverting to the inflated raw count — the two
+  // numbers are for different definitions of "conversion" and must never
+  // blend.
+  const trueConversions    = ga4Config ? sumLeadEventConversions(val(leadEventsRes)?.rows)    : undefined
+  const trueCmpConversions = ga4Config ? sumLeadEventConversions(val(cmpLeadEventsRes)?.rows) : undefined
+  const conversions    = trueConversions    ?? (totals?.conversions as number | undefined)
+  const cmpConversions = trueCmpConversions ?? (cmpTotals?.conversions as number | undefined)
+  const conversionRate    = conversions != null && totals?.sessions       ? conversions    / (totals.sessions as number)    : (totals?.sessionConversionRate as number | undefined)
+  const cmpConversionRate = cmpConversions != null && cmpTotals?.sessions ? cmpConversions / (cmpTotals.sessions as number) : (cmpTotals?.sessionConversionRate as number | undefined)
+
   const stages = buildStages({
     totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured,
     pipeline, contacts, crmConnected: hasCrm, crmScoped,
+    trueConversions, hiddenStages: client?.hiddenJourneyStages,
   })
 
   return (
@@ -166,8 +193,8 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
           <KpiCard title="Bounce Rate"          value={fmtPct(totals?.bounceRate as number)}                  delta={pct(totals?.bounceRate as number, cmpTotals?.bounceRate as number)} invertDelta comparisonExpected tooltip="Sessions that ended with no engagement. Lower is better." />
           <KpiCard title="Avg Session Duration" value={fmtDuration(totals?.averageSessionDuration as number)} delta={pct(totals?.averageSessionDuration as number, cmpTotals?.averageSessionDuration as number)} comparisonExpected tooltip="Average time users spend per session. Higher = more engaged." />
           <KpiCard title="Pages / Session"      value={totals?.screenPageViewsPerSession != null ? Number(totals.screenPageViewsPerSession).toFixed(1) : '—'} delta={pct(totals?.screenPageViewsPerSession as number, cmpTotals?.screenPageViewsPerSession as number)} comparisonExpected tooltip="Average number of pages viewed per session." />
-          <KpiCard title="Conversions"          value={fmtNum(totals?.conversions as number)}                 delta={pct(totals?.conversions as number, cmpTotals?.conversions as number)} comparisonExpected tooltip="Total conversion events fired in the selected period." />
-          <KpiCard title="Conversion Rate"      value={fmtPct(totals?.sessionConversionRate as number)}       delta={pct(totals?.sessionConversionRate as number, cmpTotals?.sessionConversionRate as number)} comparisonExpected tooltip="Percentage of sessions that resulted in a conversion." />
+          <KpiCard title="Conversions"          value={fmtNum(conversions)}                 delta={pct(conversions, cmpConversions)} comparisonExpected tooltip={ga4Config ? 'Real leads captured in the selected period.' : 'Total conversion events fired in the selected period.'} />
+          <KpiCard title="Conversion Rate"      value={fmtPct(conversionRate)}       delta={pct(conversionRate, cmpConversionRate)} comparisonExpected tooltip={ga4Config ? 'Percentage of sessions that resulted in a real lead.' : 'Percentage of sessions that resulted in a conversion.'} />
         </div>
         <SessionsTrendChart data={trendRows} compareLabel={cmpLabel} failed={trendFailed} />
         <NewReturning rows={audience.rows} compareRows={cmpAudience.rows} failed={audienceFailed} />

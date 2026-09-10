@@ -47,13 +47,39 @@ export interface PRConfig {
   lookbackDays?: number
 }
 
-export type LeadCategory = 'employer' | 'broker' | 'contact'
+export type LeadCategory = 'employer' | 'broker' | 'contact' | 'form'
 
 export interface PaidSearchConfig {
   /** Google Ads account id, digits only, e.g. '4136001852'. */
   googleAdsAccountId: string
   /** Canonical conversion actions. Category is NOT name-derivable, so it is explicit. */
   leadActions: Array<{ name: string; category: LeadCategory }>
+}
+
+/**
+ * One reported conversion line item. `sourceEvents` is always an array, even
+ * for the common case of one GA4 event name reported as itself — a row with
+ * more than one entry sums several raw GA4 events into a single reported
+ * line (e.g. a client's several low-signal "generic form" events reported
+ * together as one `form_submission` line), so query-building code never
+ * needs a merged-vs-unmerged special case.
+ */
+export interface Ga4LeadEvent {
+  /** Display name for this row. Not necessarily a real GA4 event name when sourceEvents.length > 1. */
+  name: string
+  category: LeadCategory
+  /** GA4 eventName values (from the `eventName` dimension) summed into this row. */
+  sourceEvents: string[]
+}
+
+export interface Ga4Config {
+  /**
+   * The client's real conversions, as an explicit GA4 event-name allowlist —
+   * replaces trusting GA4's property-level "key event" flag, which mixes
+   * genuine leads with soft-engagement events (outbound clicks, PDF views)
+   * that were never meant to be conversions. See docs/qa/renaissance-ga4-conversions/notes.md.
+   */
+  leadEvents: Ga4LeadEvent[]
 }
 
 export interface MetaConfig {
@@ -115,6 +141,9 @@ export interface DashSocialConfig {
  * to the legacy A–G layout (Client | Outlet | Headline | Publication Date
  * | Link | Impact | Date Added).
  */
+/** Keys of the four Executive Overview journey-stage cards, in their fixed display order. */
+export type DemandJourneyStageKey = 'aeo' | 'ga4' | 'inbound' | 'pipeline'
+
 export interface PRProofColumnMap {
   /**
    * Name of the worksheet tab holding the data. Optional — defaults to
@@ -166,8 +195,13 @@ export const clients = pgTable('clients', {
   linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
   salesforceConfig: jsonb('salesforce_config').$type<SalesforceConfig>(),
   dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
+  ga4Config: jsonb('ga4_config').$type<Ga4Config>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
+  // Executive Overview journey-stage cards to omit for this client — e.g. a
+  // CRM stage whose figures are known-untrustworthy (see SalesforceConfig's
+  // campaignNames doc) until that's resolved. Empty means show all four.
+  hiddenJourneyStages: text('hidden_journey_stages').array().notNull().default([]).$type<DemandJourneyStageKey[]>(),
   sharedPasswordHash: text('shared_password_hash'),
   maxSeats: integer('max_seats').notNull().default(5),
   triplewhaleShopId: text('triplewhale_shop_id'),

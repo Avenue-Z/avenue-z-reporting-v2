@@ -14,7 +14,7 @@ export function transformLeads(
     counts.set(r.ConversionTypeName, (counts.get(r.ConversionTypeName) ?? 0) + Number(r.Conversions || 0))
   }
   const byAction: LeadActionRow[] = cfg.leadActions.map((a) => ({ name: a.name, category: a.category, count: counts.get(a.name) ?? 0 }))
-  const categoryTotals: Record<LeadCategory, number> = { employer: 0, broker: 0, contact: 0 }
+  const categoryTotals: Record<LeadCategory, number> = { employer: 0, broker: 0, contact: 0, form: 0 }
   for (const a of byAction) categoryTotals[a.category] += a.count
   const totalLeads = byAction.reduce((s, a) => s + a.count, 0)
 

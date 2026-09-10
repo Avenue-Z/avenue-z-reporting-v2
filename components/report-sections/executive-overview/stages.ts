@@ -2,6 +2,7 @@ import { CHART_COLORS } from '@/lib/constants'
 import type { DemandStage } from './demand-journey'
 import type { TrendRow } from './sessions-trend-chart'
 import type { PipelineData, WeeklyContacts } from '@/lib/salesforce/types'
+import type { DemandJourneyStageKey } from '@/lib/db/schema'
 import { fmtNum, fmtPct, fmtUsd, pct } from './reshape'
 
 export interface StageInput {
@@ -62,6 +63,19 @@ export interface StageInput {
    * delta assertions are not time-dependent.
    */
   now?: Date
+  /**
+   * Filtered lead-event conversions (see lib/ga4/lead-events.ts), for a
+   * client with `ga4Config` set. When provided, overrides `totals.conversions`
+   * on the ga4 stage's "Conversions" stat and derives its conv. rate
+   * sub-metric from this instead of `totals.sessionConversionRate` — both
+   * pull from the raw GA4 `conversions`/`sessionConversionRate` metrics
+   * otherwise, which count every property-level "key event", not just real
+   * leads. Omitted (not just falsy) for a client with no `ga4Config`, so the
+   * `?? totals?.conversions` fallback below is exact, not approximate.
+   */
+  trueConversions?: number
+  /** Stage keys to omit from the returned array entirely (clients.hidden_journey_stages). Defaults to showing all four. */
+  hiddenStages?: DemandJourneyStageKey[]
 }
 
 /** ISO date (UTC) of the Monday that starts the week containing `date`. Mirrors
@@ -89,7 +103,18 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
   return last.weekStart === isoWeekStart(now) ? weekly.slice(0, -1) : weekly
 }
 
-export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date() }: StageInput): DemandStage[] {
+export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date(), trueConversions, hiddenStages = [] }: StageInput): DemandStage[] {
+  // conversions/conversionRate: trueConversions (filtered event count) when
+  // present, else GA4's raw conversions metric — see StageInput.trueConversions.
+  // Rate is always derived from the CHOSEN conversions figure over sessions,
+  // never mixed (a true numerator over GA4's session-scoped rate would silently
+  // report a rate for a different definition of "conversion" than the count
+  // beside it). No comparison-period variant: neither of this stage's fields
+  // that use conversions (subMetric, the Conversions stat) shows a delta —
+  // the stage's own `delta` is sessions, not conversions.
+  const conversions   = trueConversions ?? (totals?.conversions as number | undefined)
+  const sessions       = totals?.sessions as number | undefined
+  const conversionRate = conversions != null && sessions ? conversions / sessions : (totals?.sessionConversionRate as number | undefined)
   // A contacts object with no weeks is a successful fetch that found nothing,
   // not data. See the inbound stage below for why the distinction matters.
   const withWeeks = contacts && contacts.weeks.length > 0 ? contacts : null
@@ -128,7 +153,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
   const openGone = !!pipeline && pipeline.openValueUnknown
   const wonGone  = !!pipeline && pipeline.wonValueUnknown
 
-  return [
+  const stages: DemandStage[] = [
     {
       key: 'aeo', source: 'AEO', label: 'AI Visibility',
       metric: latest != null ? `${latest.toFixed(1)}%` : '—',
@@ -168,7 +193,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
     {
       key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
       metric: fmtNum(totals?.sessions as number),
-      subMetric: `${fmtPct(totals?.sessionConversionRate as number)} conv. rate`,
+      subMetric: `${fmtPct(conversionRate)} conv. rate`,
       delta: pct(totals?.sessions as number, cmpTotals?.sessions as number),
       color: CHART_COLORS.ga4,
       connector: 'converts to leads',
@@ -177,7 +202,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       stats: [
         { label: 'Active Users', value: fmtNum(totals?.activeUsers as number) },
         { label: 'New Users',    value: fmtNum(totals?.newUsers as number) },
-        { label: 'Conversions',  value: fmtNum(totals?.conversions as number) },
+        { label: 'Conversions',  value: fmtNum(conversions) },
         { label: 'Bounce Rate',  value: fmtPct(totals?.bounceRate as number) },
       ],
     },
@@ -255,4 +280,10 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       unconnectedHint: 'Connect your CRM to see this',
     },
   ]
+
+  // Filtered rather than never-constructed: cheap to build, and keeps every
+  // stage's derivation above uniform regardless of which client is hiding what.
+  return hiddenStages.length === 0
+    ? stages
+    : stages.filter((s) => !hiddenStages.includes(s.key as DemandJourneyStageKey))
 }
