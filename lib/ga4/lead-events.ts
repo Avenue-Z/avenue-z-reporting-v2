@@ -49,17 +49,30 @@ export function leadEventFilter(config: Ga4Config): GA4DimensionFilter {
  * "the fetch failed or never ran" apart from "it ran and found nothing this
  * period", which is a real, different fact and must render differently (a
  * dash, not a fabricated zero). Also `null` if ANY row's `eventCount` fails
- * to parse as a number (a GA4 response-shape change, a metric-header
+ * to parse as a genuine number (a GA4 response-shape change, a metric-header
  * mismatch) — treating one bad row as a silent `0` would quietly undercount
  * a real total, the same class of wrong-but-plausible number this feature
- * exists to stop shipping.
+ * exists to stop shipping. An explicit blank check first, not just
+ * `Number.isFinite` on the result: `Number('')`, `Number('  ')` and
+ * `Number([])` all coerce to `0` in JS, which would slip a genuinely blank
+ * cell (a real GA4 response shape — `lib/supermetrics`'s `parseSmRows` fills
+ * a missing metric cell with `''` elsewhere in this repo) past a NaN check
+ * as a silent contribution instead of failing the sum.
  */
 export function sumLeadEventConversions(rows: GA4Row[] | null | undefined): number | null {
   if (rows == null) return null
   let sum = 0
   for (const row of rows) {
-    const n = Number(row.eventCount)
-    if (Number.isNaN(n)) return null
+    const raw = row.eventCount
+    if (raw === null || raw === undefined || String(raw).trim() === '') {
+      console.warn(`sumLeadEventConversions: blank eventCount for row ${JSON.stringify(row)} — treating the whole sum as unknown`)
+      return null
+    }
+    const n = Number(raw)
+    if (!Number.isFinite(n)) {
+      console.warn(`sumLeadEventConversions: unparseable eventCount ${JSON.stringify(raw)} for row ${JSON.stringify(row)} — treating the whole sum as unknown`)
+      return null
+    }
     sum += n
   }
   return sum
@@ -75,7 +88,7 @@ export interface DerivedConversions {
  * shows, given a three-state `trueConversions` (see `sumLeadEventConversions`)
  * plus the client's raw GA4 totals for that same period. Used by BOTH the
  * Executive Overview KPI tile and the journey-stage card — one function, not
- * two copies kept in sync by hand, which is exactly the shape of the PR #235
+ * two copies kept in sync by hand, which is exactly the shape of the PR `#235`
  * round-one regression (the two copies drifted; nothing forced them not to).
  *
  *   - `trueConversions === undefined`: no effective `ga4Config`. Returns the

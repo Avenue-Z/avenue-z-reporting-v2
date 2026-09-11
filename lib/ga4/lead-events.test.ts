@@ -66,11 +66,11 @@ describe('sumLeadEventConversions', () => {
     expect(sumLeadEventConversions([])).toBe(0)
   })
 
-  test('sums eventCount across rows, and a null cell (0) is not the same as an unparseable one', () => {
+  test('sums eventCount across rows, and a real zero contributes 0', () => {
     expect(sumLeadEventConversions([
       { eventName: 'a', eventCount: 3 },
       { eventName: 'b', eventCount: '4' },
-      { eventName: 'c', eventCount: null },
+      { eventName: 'c', eventCount: 0 },
     ])).toBe(7)
   })
 
@@ -78,7 +78,10 @@ describe('sumLeadEventConversions', () => {
   // unparseable row (a GA4 response-shape change, a metric-header mismatch)
   // into a 0 contribution — a plausible-looking but quietly wrong total,
   // with no dash and no error. An unparseable row now fails the whole sum.
-  test('a row with an unparseable eventCount fails the whole sum rather than silently contributing 0', () => {
+  // Round-four review finding: `null`/`undefined` per-row are treated the
+  // same way, not as an implicit 0 — GA4/Supermetrics use those to signal a
+  // missing cell, not a genuine zero (see the function's own docstring).
+  test('a row with an unparseable, null, or missing eventCount fails the whole sum rather than silently contributing 0', () => {
     expect(sumLeadEventConversions([
       { eventName: 'a', eventCount: 3 },
       { eventName: 'b', eventCount: 'not-a-number' },
@@ -87,11 +90,35 @@ describe('sumLeadEventConversions', () => {
       { eventName: 'a', eventCount: 3 },
       { eventName: 'b', eventCount: undefined as unknown as null },
     ])).toBeNull()
+    expect(sumLeadEventConversions([
+      { eventName: 'a', eventCount: 3 },
+      { eventName: 'b', eventCount: null },
+    ])).toBeNull()
+  })
+
+  // Round-four review finding: `Number('')`, `Number('  ')` and `Number([])`
+  // all coerce to 0 in JS, so a Number.isNaN-only guard let a blank metric
+  // cell (a real GA4/Supermetrics response shape) through as a silent 0
+  // contribution — the same failure class the row-level guard exists to
+  // catch, just for a value that doesn't happen to be NaN.
+  test('a blank (empty string, whitespace, or empty array) eventCount fails the whole sum, not a silent 0', () => {
+    expect(sumLeadEventConversions([
+      { eventName: 'a', eventCount: 3 },
+      { eventName: 'b', eventCount: '' },
+    ])).toBeNull()
+    expect(sumLeadEventConversions([
+      { eventName: 'a', eventCount: 3 },
+      { eventName: 'b', eventCount: '   ' },
+    ])).toBeNull()
+    expect(sumLeadEventConversions([
+      { eventName: 'a', eventCount: 3 },
+      { eventName: 'b', eventCount: [] as unknown as number },
+    ])).toBeNull()
   })
 })
 
 /**
- * PR #235 round three, both reviewers: `index.tsx` and `stages.ts` each had
+ * PR `#235` round three, both reviewers: `index.tsx` and `stages.ts` each had
  * their own copy of this three-way branch, and the compare-period copy in
  * `index.tsx` shipped with zero test coverage — reverting it to `??` left
  * the full suite green, the same way the main-period copy did at round two.

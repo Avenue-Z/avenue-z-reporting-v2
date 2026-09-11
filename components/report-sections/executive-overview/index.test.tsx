@@ -218,6 +218,39 @@ describe('the ga4Config gate', () => {
     expect(screen.queryByText(/100\.0%/)).not.toBeInTheDocument()
   })
 
+  /**
+   * Round four (Thomas): the compare-period call site (`trueCmpConversions`
+   * in index.tsx) was the one call site `deriveConversions`'s extraction
+   * did NOT pin — a shared function protects its own body from drifting,
+   * not a call site from being rewritten or handed the wrong arguments.
+   * Reverting this line to `??`, or swapping in `totals` for `cmpTotals`
+   * (a real risk: four same-shaped arguments from a sibling object), both
+   * left the full suite green, because the existing compare-period test
+   * only exercised the success state, where `??` and the three-way
+   * function agree by definition. This exercises the ONE state where they
+   * diverge: the compare fetch fails while the main one succeeds.
+   */
+  it('a failed COMPARE-period fetch renders the current value with a dashed delta, never a percentage against the raw prior total', async () => {
+    let eventNameCalls = 0
+    ;(ga4Query as Mock).mockImplementation(async (params: { dimensions?: string[] }) => {
+      if (!params.dimensions?.includes('eventName')) return { rows: [totalsRow] }
+      eventNameCalls++
+      // Main period query is issued before the compare-period one (array
+      // construction order) — succeed on the first, fail on the second.
+      if (eventNameCalls === 1) return { rows: [{ eventName: 'real_lead', eventCount: 7 }] }
+      throw new Error('GA4 5xx')
+    })
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    expect(kpiValue('Conversions').getByText('7')).toBeInTheDocument()
+    // The dashed placeholder delta, never a % — pct(7, null) is undefined,
+    // never a real percentage against whatever the raw prior total was.
+    expect(kpiValue('Conversions').queryByText(/%/)).not.toBeInTheDocument()
+  })
+
   it('the Conversions delta compares against the filtered prior period, not the raw one', async () => {
     // index.tsx builds its Promise.allSettled array in source order, main
     // period's eventName query before the compare period's, so the array

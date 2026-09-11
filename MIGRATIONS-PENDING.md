@@ -120,6 +120,16 @@ finding, cited, not independently re-verified):
 | staging (`ep-restless-union`) | no | `owned_linkedin_handle` too |
 | production (`ep-green-violet`) | no | `owned_linkedin_handle`, `salesforce_config` |
 
+**`owned_linkedin_handle` is not part of this apply plan and never will be
+from following it.** It has no Drizzle migration and isn't in `lib/db/schema.ts`
+— it exists on dev only, added out of band by hand. The table above is
+accurate about what each database has, but none of the numbered steps below
+create this column anywhere, and because it isn't in `schema.ts`, its absence
+can't cause the `42703` the rest of this entry is about (Drizzle only
+enumerates columns it knows about). If this column is meant to ship, it
+needs its own migration; don't infer one from this entry's presence in the
+table above.
+
 Production is missing `salesforce_config` too, meaning **`0021` was never
 applied there either** — the exact silent-skip scenario this file already
 warned about for `0021`, now confirmed live rather than hypothetical. `0022`

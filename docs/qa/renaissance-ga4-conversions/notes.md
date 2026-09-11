@@ -140,17 +140,30 @@ data_query(ds_id="GAWA", ds_accounts="310998391", fields="sessions,eventCount",
            filters="eventName [] <all 17 allowlisted source events>")
 ```
 
-Result: **101 distinct sessions, 107 total events** — 6 sessions fired more
-than one qualifying event. That doesn't cleanly separate "6 real people who
-took two different actions in one session" (legitimate, not a double count)
-from "a paired firing of the same physical submission" (a real double count)
-— session-level event data alone can't distinguish those without a raw event
-sequence, which isn't available through this connector. What it does give is
-a hard upper bound: **even if every one of those 6 were a duplicate pairing,
-the corrected total would be 101, not 107 — a ~9% band, not the "up to 13"
-(the full `form_submission` August count) the worst case would otherwise be.**
-Either way this stays a ~157-166x correction from 16,824, not a materially
-different fix. Whether the 6 are real double-leads or duplicate pairings is
+Result: **101 distinct sessions, 107 total events** — 6 more events than
+sessions (**corrected, PR `#235` round four**: that's the count of *excess
+events*, not of sessions with more than one — the number of sessions that
+fired more than one qualifying event is at most 6, and could be as low as 1
+if a single session fired seven). That doesn't cleanly separate "one or more
+real people who took two different actions in a session" (legitimate, not a
+double count) from "a paired firing of the same physical submission" (a real
+double count) — session-level event data alone can't distinguish those
+without a raw event sequence, which isn't available through this connector.
+What it does give is a hard upper bound, and the distinction above doesn't
+change it, since the bound only needs the excess-event count: **even in the
+worst case, the corrected total would be 101, not 107 — a ~9% band, not the
+"up to 13" (the full `form_submission` August count) the worst case would
+otherwise be.** Either way this stays a ~157-166x correction from 16,824, not
+a materially different fix.
+
+Method note: this verification query ran through Supermetrics (`ds_id:
+GAWA`), the same connector used for the 90-day inventory earlier in this
+doc — not through `lib/ga4`, the native client the shipped feature actually
+queries through in production. Almost certainly immaterial for a session-vs-
+event count, but it's a different path than production takes, worth being
+explicit about rather than implying it's the exact code path being verified.
+
+Whether the 6 (or fewer) are real double-leads or duplicate pairings is
 now a concrete, bounded question worth putting in front of Renaissance's GTM
 owner alongside the other open questions below, not an open-ended risk.
 
@@ -468,7 +481,10 @@ Also fixed:
   doesn't reasonably assume it drives a per-line-item breakdown that doesn't
   exist.
 - Two more bare `#235` references (in the two test files added this round)
-  escaped, matching the rest.
+  escaped — **though round four's own new code introduced two more** at
+  `lib/ga4/lead-events.ts:91` and `lead-events.test.ts:94`, so this claim was
+  net zero, not a fix, when it was written. Both are fixed now in round five
+  below, for real this time.
 
 Not done this round either: the em-dash count, now at 117 across the PR (39
 more this round). Still cosmetic, still deprioritized — noted again rather
@@ -476,6 +492,64 @@ than silently carried forward as if it had been addressed.
 
 `npx tsc --noEmit`, `npm test` (full suite), and `npm run check:rsc` all
 clean after round four. Not yet re-verified live against this build.
+
+### Round five (2026-09-11) — the one remaining blocker (a third, unpinned call site) is closed; everything else was cleanup
+
+One blocking finding:
+
+- **The compare-period call site in `index.tsx` was the one place
+  `deriveConversions`'s extraction didn't protect** (Thomas). Extracting the
+  shared function pins its own body — it doesn't pin a call site being
+  rewritten back to the old form, or handed the wrong arguments. Two
+  mutations both left the full suite green: reverting the line to `??`, and
+  swapping in the main period's values where the compare period's belong
+  (the realistic bug, since this call takes four same-shaped arguments from
+  a sibling object). Added one render test — main period succeeds, compare
+  period's fetch fails — which is the only state where `??` and
+  `deriveConversions` actually diverge; the existing compare test only
+  covered the success state, where they agree by definition. Self-verified
+  both mutations against the new test: 2 tests failed for one, 1 for the
+  other.
+
+Also fixed:
+
+- `sumLeadEventConversions`'s `Number.isNaN`-only guard let a blank cell
+  (`''`, whitespace, `[]`) through, since all three coerce to `0` in JS
+  rather than `NaN` — the same silent-contribution failure the row-level
+  guard exists to catch, just for a value that isn't literally NaN. Also
+  tightened: a `null`/`undefined` per-row `eventCount` is now treated the
+  same as blank/unparseable (fails the whole sum), not as an implicit `0` —
+  GA4/Supermetrics use a missing cell to signal exactly that, not a genuine
+  zero. Added a `console.warn` on this path too, matching the one already on
+  `hiddenJourneyStages` (same class of "config or upstream is wrong and
+  nobody can tell," previously treated inconsistently between the two).
+- Fixed an overclaim in the double-count section above: "6 sessions fired
+  more than one qualifying event" stated a precision the 101-vs-107 query
+  doesn't support — 6 is the count of *excess events*, not of *sessions*
+  with more than one (could be as few as 1 session firing 7 events). Doesn't
+  change the bound, which only needs the excess-event count, but the
+  sentence claimed more than the data shows. Added a method note that the
+  verification query ran through Supermetrics, not the native `lib/ga4`
+  client production actually uses for this feature.
+- `MIGRATIONS-PENDING.md` now has a line on `owned_linkedin_handle`: no
+  migration, not in `schema.ts`, exists on dev only by a hand-added column —
+  following this entry's steps will never create it elsewhere, and its
+  absence can't be the `42703` failure mode the entry is about.
+- Two more bare `#235` references, introduced by round four's own new code
+  (`lib/ga4/lead-events.ts`, `lead-events.test.ts`) — fixed, and the
+  now-inaccurate "escaped, matching the rest" claim above corrected to say
+  so plainly rather than leave it looking resolved when it wasn't.
+
+Noted, not changed: the module-level `warnedInvalidHiddenStages` Set that
+dedupes the invalid-config warn (added round three) has a real tradeoff
+Thomas flagged as "worth knowing rather than fixing" — it dedupes per
+*process*, not per client, so a second client hitting the exact same bad
+config stays silent once the first has already warned, and the message
+carries no client slug to say which one triggered it. Left as-is per his
+own read that this doesn't need a fix, just documenting.
+
+`npx tsc --noEmit`, `npm test` (full suite), and `npm run check:rsc` all
+clean after round five. Not yet re-verified live against this build.
 
 ## Planned implementation (turnover doc 9.4 steps 4-7)
 
