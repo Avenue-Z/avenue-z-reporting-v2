@@ -93,7 +93,7 @@ Apply the migration in this order, every environment:
    both directions and would clobber real client rows. That is the reason
    not to run it, not a lack of the field.
 
-## Add clients.ga4_config, clients.hidden_journey_stages (delivered, awaiting apply)
+## Add clients.ga4_config, clients.hidden_journey_stages (delivered; applied to dev + staging, awaiting production)
 
 - Migrations: `drizzle/0022_military_the_santerians.sql` (`ga4_config`,
   nullable jsonb) and `drizzle/0023_clever_nightcrawler.sql`
@@ -109,16 +109,24 @@ Against a database missing either column that's a Postgres `42703`, and it
 throws rather than degrades — nobody logs in, no client's report or portal
 renders, not just the Executive Overview's conversion cards.
 
-As of PR `#235` (2026-09-11), per Thomas's review on that PR (verified directly
-against `information_schema` on all three databases — I don't have staging or
-production credentials to re-confirm this myself, so this table is his
-finding, cited, not independently re-verified):
+As of 2026-09-11:
 
 | Database | Has `ga4_config` / `hidden_journey_stages`? | Also still missing |
 |---|---|---|
 | dev (`ep-still-tree`) | yes (0022 + 0023 applied) | — |
-| staging (`ep-restless-union`) | no | `owned_linkedin_handle` too |
+| staging (`ep-restless-union`) | **yes (0022 + 0023 applied 2026-09-11, via `migrate-http.ts` against `.env.staging` — same day as the `dev → staging` promotion, PR `#237`)** | `owned_linkedin_handle` |
 | production (`ep-green-violet`) | no | `owned_linkedin_handle`, `salesforce_config` |
+
+Renaissance's `ga4_config.leadEvents` and `hidden_journey_stages` are also
+already set on both dev and staging (via `scripts/set-renaissance-ga4-config.ts`
+and `scripts/hide-renaissance-pipeline-stages.ts`), so staging's Executive
+Overview is already showing the corrected numbers, not just column-ready.
+
+The original version of this table (PR `#235`, 2026-09-11) was Thomas's
+`information_schema` finding at review time, before dev/staging were
+merged/migrated — cited then, since the author had no staging/production
+credentials to check directly. The staging row above is now the author's own
+direct verification, post-merge.
 
 **`owned_linkedin_handle` is not part of this apply plan and never will be
 from following it.** It has no Drizzle migration and isn't in `lib/db/schema.ts`
@@ -180,22 +188,23 @@ verification against all three ledgers. Two things worth recording:
 
 Apply per environment, before merge, the same way as `0021`:
 
-1. `CACHE_DISABLE=1 npx tsx --env-file=.env.local scripts/migrate-http.ts`
-   for dev. **For staging, use `migrate-http.ts` too**, not `npm run
-   db:migrate:staging` — that command runs `scripts/migrate-staging.sh`,
+1. ~~`CACHE_DISABLE=1 npx tsx --env-file=.env.local scripts/migrate-http.ts`
+   for dev.~~ **Done** (2026-09-11, before `#235` merged). ~~For staging, use
+   `migrate-http.ts` too, not `npm run db:migrate:staging`~~ **Also done**
+   (2026-09-11, before PR `#237`'s `dev → staging` promotion, using
+   `CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`
+   — not `npm run db:migrate:staging`, which runs `scripts/migrate-staging.sh`,
    which internally invokes `npx drizzle-kit migrate`, the exact
-   timestamp-gated migrator this file bans two paragraphs up. It happens to
-   be safe for staging today (both new `when` values sit above staging's
-   newest ledger row, so nothing would be skipped), but the file's own rule
-   should hold everywhere, not just where it's currently harmless to break
-   it: `CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`.
-   (`.env.staging` is gitignored — get the staging branch's connection
-   string from the Neon console. `migrate-http.ts` falls back to
+   timestamp-gated migrator this file bans two paragraphs up. It would have
+   been safe for staging regardless — both new `when` values sat above
+   staging's newest ledger row — but the file's own rule should hold
+   everywhere, not just where breaking it happens to be harmless.
+   `.env.staging` is gitignored; `migrate-http.ts` falls back to
    `DATABASE_URL` when `DATABASE_URL_UNPOOLED` isn't set, so the pooled
-   string works fine here; `DATABASE_URL_UNPOOLED` is only a hard
-   requirement for `drizzle-kit`/`migrate-staging.sh`, not this script.)
-   **For production, use `migrate-http.ts` too, deliberately, not the Neon
-   console** — per the correction above, `0020`'s `CREATE TABLE` has no `IF
+   string alone worked fine — `DATABASE_URL_UNPOOLED` is only a hard
+   requirement for `drizzle-kit`/`migrate-staging.sh`, not this script.
+   **Production is still pending.** Use `migrate-http.ts` there too, not the
+   Neon console — per the correction above, `0020`'s `CREATE TABLE` has no `IF
    NOT EXISTS`, and pasting it into the console throws on the first
    statement since the table already exists there; `migrate-http.ts`
    self-heals that case and everything after it in order (`0020`, `0021`,
@@ -221,8 +230,10 @@ Apply per environment, before merge, the same way as `0021`:
    written for this (config-as-code, not a hand-typed SQL edit — see each
    script's header for why): `CACHE_DISABLE=1 npx tsx --env-file=<env file>
    scripts/set-renaissance-ga4-config.ts` and `scripts/hide-renaissance-pipeline-stages.ts`.
-   Kept as two scripts, deliberately, matching the two columns being two
-   unrelated features that happen to share this migration. Neither script
-   guards which database it points at (matching the `set-renaissance-campaign-scope.ts`
-   precedent, which doesn't either) — double-check `--env-file` before
-   running either one anywhere but dev.
+   **Done for dev and staging** (2026-09-11, same day as their migrations
+   above); **still pending for production.** Kept as two scripts,
+   deliberately, matching the two columns being two unrelated features that
+   happen to share this migration. Neither script guards which database it
+   points at (matching the `set-renaissance-campaign-scope.ts` precedent,
+   which doesn't either) — double-check `--env-file` before running either
+   one against production.
