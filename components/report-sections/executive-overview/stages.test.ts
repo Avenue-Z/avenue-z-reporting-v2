@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { buildStages } from './stages'
 import type { PipelineData, WeeklyContacts } from '@/lib/salesforce/types'
 
@@ -461,5 +461,100 @@ describe('the inbound card names leads or contacts by scope', () => {
     const dflt = buildStages({ totals, cmpTotals, peec, trendRows: [], contacts: contactsFixture, crmConnected: true })
       .find((s) => s.key === 'inbound')!
     expect(dflt.label).toBe('Online Contacts')
+  })
+})
+
+/**
+ * PR #235 round-two review, both reviewers: the round-one regression (every
+ * client without a lead-event allowlist silently got a DIFFERENT Conversion
+ * Rate) shipped once, fully passed CI, and was only caught by manual
+ * execution — because the module-level `totals` fixture above happens to
+ * format identically on both code paths (1847/89234 = "2.1%",
+ * sessionConversionRate: 0.021 also "2.1%"). Reverting the fix back to the
+ * original buggy gate left the full suite green. This fixture is deliberately
+ * chosen so the two paths produce DIFFERENT numbers — that's the whole trick,
+ * not the assertions.
+ */
+describe('ga4 stage conversions — trueConversions is a real three-state input', () => {
+  const distinctTotals = { sessions: 1000, conversions: 300, sessionConversionRate: 0.05 }
+  const ga4Stage = (trueConversions?: number | null) =>
+    buildStages({ totals: distinctTotals, cmpTotals: null, peec, trendRows: [], trueConversions })
+      .find((s) => s.key === 'ga4')!
+
+  it('unconfigured (trueConversions omitted) falls back to the raw GA4 metric, unchanged from before this feature existed', () => {
+    const s = ga4Stage(undefined)
+    expect(s.subMetric).toBe('5.0% conv. rate')
+    expect(s.stats?.find((x) => x.label === 'Conversions')?.value).toBe('300')
+  })
+
+  it('configured but the filtered fetch failed (null) dashes — never the raw count, never a fabricated 0', () => {
+    const s = ga4Stage(null)
+    expect(s.subMetric).toBe('— conv. rate')
+    expect(s.stats?.find((x) => x.label === 'Conversions')?.value).toBe('—')
+  })
+
+  it('configured and successful uses the real filtered number, including a genuine 0', () => {
+    const withLeads = ga4Stage(42)
+    expect(withLeads.subMetric).toBe('4.2% conv. rate')
+    expect(withLeads.stats?.find((x) => x.label === 'Conversions')?.value).toBe('42')
+
+    const zero = ga4Stage(0)
+    expect(zero.subMetric).toBe('0.0% conv. rate')
+    expect(zero.stats?.find((x) => x.label === 'Conversions')?.value).toBe('0')
+  })
+})
+
+describe('hiddenStages — trailing-suffix guard', () => {
+  const keysOf = (hiddenStages?: string[]) =>
+    buildStages({ totals, cmpTotals, peec, trendRows: [], hiddenStages: hiddenStages as never })
+      .map((s) => s.key)
+
+  it('drops a valid trailing run', () => {
+    expect(keysOf(['inbound', 'pipeline'])).toEqual(['aeo', 'ga4'])
+    expect(keysOf(['pipeline'])).toEqual(['aeo', 'ga4', 'inbound'])
+  })
+
+  it('order in the input does not matter, only which keys', () => {
+    expect(keysOf(['pipeline', 'inbound'])).toEqual(['aeo', 'ga4'])
+  })
+
+  it('rejects a non-trailing (middle or leading) hide and shows all four rather than mislabel a connector', () => {
+    expect(keysOf(['ga4'])).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+    expect(keysOf(['aeo'])).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+  })
+
+  it('rejects an unknown key entirely rather than hide nothing it recognizes', () => {
+    expect(keysOf(['bogus'])).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+  })
+
+  it('empty or omitted hides nothing', () => {
+    expect(keysOf([])).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+    expect(keysOf(undefined)).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+  })
+
+  it('a duplicate entry still hides the one stage it names, not everything or nothing', () => {
+    // Regression: comparing hidden.length against the tail's Set size meant a
+    // duplicate made an otherwise-valid trailing run fail the check entirely.
+    expect(keysOf(['pipeline', 'pipeline'])).toEqual(['aeo', 'ga4', 'inbound'])
+  })
+
+  it('rejects hiding every stage rather than render an empty card', () => {
+    expect(keysOf(['aeo', 'ga4', 'inbound', 'pipeline'])).toEqual(['aeo', 'ga4', 'inbound', 'pipeline'])
+  })
+
+  it('warns on an invalid config rather than failing silently', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    keysOf(['bogus'])
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0][0]).toContain('bogus')
+    warn.mockRestore()
+  })
+
+  it('does not warn on a valid hide or an empty list', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    keysOf(['inbound', 'pipeline'])
+    keysOf([])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

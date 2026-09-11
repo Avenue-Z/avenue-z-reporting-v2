@@ -34,7 +34,7 @@ export const getClientBySlug = cache(
     ttlSeconds: 300,
     tags: ['db'],
     extractTags: ([slug]) => ({ client: slug }),
-    // Bumped for the ga4Config + hiddenJourneyStages columns (PR #235). A
+    // Bumped for the ga4Config + hiddenJourneyStages columns (PR `#235`). A
     // warm instance serving a pre-bump cache entry would otherwise render
     // Renaissance's inflated raw conversions and all four journey stages for
     // up to the 300s TTL after this deploys, then flip mid-session.

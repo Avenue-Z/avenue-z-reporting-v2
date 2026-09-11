@@ -69,7 +69,7 @@ export interface PaidSearchConfig {
  * breakdown (the query sums every allowlisted event into one flat total),
  * and widening a union shared with paid search silently broke an
  * exhaustiveness assumption in `leads-section.tsx` on the first attempt at
- * this — see PR #235 review. Add a dedicated category type if/when
+ * this — see PR `#235` review. Add a dedicated category type if/when
  * something actually reads it.
  */
 export interface Ga4LeadEvent {

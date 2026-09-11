@@ -20,6 +20,7 @@ vi.mock('@/lib/salesforce/pipeline', () => ({ getSalesforcePipeline: vi.fn(async
 vi.mock('@/lib/salesforce/contacts', () => ({ getSalesforceWeeklyContacts: vi.fn(async () => null) }))
 vi.mock('@/lib/salesforce/leads', () => ({ getSalesforceWeeklyLeads: vi.fn(async () => null) }))
 
+import { ga4Query } from '@/lib/ga4/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { getSalesforceWeeklyContacts } from '@/lib/salesforce/contacts'
 import { getSalesforceWeeklyLeads } from '@/lib/salesforce/leads'
@@ -131,5 +132,54 @@ describe('a client with no CRM configured', () => {
     expect(getSalesforceWeeklyLeads).not.toHaveBeenCalled()
     expect(screen.queryByText(/Couldn't load/)).not.toBeInTheDocument()
     expect(screen.getByText('Contact Creation')).toBeInTheDocument()
+  })
+})
+
+/**
+ * PR #235 round-two review (Thomas): `hasLeadEvents(rawGa4Config) ? rawGa4Config
+ * : null` at index.tsx's `ga4Config` gate had zero coverage — mutating it to a
+ * bare `rawGa4Config` (i.e. treating an empty/malformed config as configured)
+ * left the full suite green. These pin what that gate actually controls:
+ * whether the eventName-filtered query is issued at all, and which number
+ * ends up on the Conversions tile.
+ */
+describe('the ga4Config gate', () => {
+  const totalsRow = { sessions: 1000, conversions: 999, sessionConversionRate: 0.05 }
+
+  beforeEach(() => {
+    ;(ga4Query as Mock).mockImplementation(async (params: { dimensions?: string[] }) =>
+      params.dimensions?.includes('eventName')
+        ? { rows: [{ eventName: 'real_lead', eventCount: 7 }] }
+        : { rows: [totalsRow] },
+    )
+  })
+
+  // '999' / '7' each render twice on a successful page — once on the KPI grid's
+  // Conversions card, once in the journey card's Conversions stat, since the
+  // fix deliberately keeps both in sync. getAllByText, not getByText.
+  it('issues no eventName query for a client with no ga4Config, and the raw totals conversions render', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({ slug: 'renaissance' } as never)
+    await renderReport()
+    expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(false)
+    expect(screen.getAllByText('999').length).toBeGreaterThan(0)
+  })
+
+  it('treats an empty leadEvents array as unconfigured — no query, raw totals render', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({ slug: 'renaissance', ga4Config: { leadEvents: [] } } as never)
+    await renderReport()
+    expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(false)
+    expect(screen.getAllByText('999').length).toBeGreaterThan(0)
+    expect(screen.queryByText('7')).not.toBeInTheDocument()
+  })
+
+  it('issues the eventName query and renders ITS total, not the raw conversions, when configured', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(true)
+    expect(screen.getAllByText('7').length).toBeGreaterThan(0)
+    expect(screen.queryByText('999')).not.toBeInTheDocument()
   })
 })

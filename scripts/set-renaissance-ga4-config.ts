@@ -69,9 +69,15 @@ async function main() {
     return
   }
 
+  // Merge, not overwrite — same reason set-renaissance-campaign-scope.ts
+  // spreads salesforceConfig before setting campaignNames. Ga4Config has
+  // exactly one key today (leadEvents), so this is inert right now, but it
+  // stays correct if a second key gets added later instead of silently
+  // erasing it.
+  const cfg = row.ga4Config ?? {}
   await db
     .update(clients)
-    .set({ ga4Config: { leadEvents: LEAD_EVENTS }, updatedAt: new Date() })
+    .set({ ga4Config: { ...cfg, leadEvents: LEAD_EVENTS }, updatedAt: new Date() })
     .where(eq(clients.slug, SLUG))
 
   console.log(`Set ${SLUG} ga4Config.leadEvents to ${LEAD_EVENTS.length} rows (${LEAD_EVENTS.flatMap((e) => e.sourceEvents).length} source events):`)

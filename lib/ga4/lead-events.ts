@@ -5,12 +5,20 @@ import type { GA4DimensionFilter, GA4Row } from './types'
  * Every underlying GA4 event name covered by a client's lead-event allowlist,
  * de-duplicated. `ga4Config` is unvalidated jsonb (`.$type<Ga4Config>()` is a
  * compile-time cast, nothing enforces the shape at read or write time), so
- * this tolerates a missing or malformed `leadEvents`/`sourceEvents` rather
- * than throwing — a hand-edited `{}` or `{"leadEvents": null}` row must
- * degrade to "no lead events configured", not take down the page.
+ * this tolerates a missing OR WRONGLY-TYPED `leadEvents`/`sourceEvents`
+ * rather than throwing — a hand-edited `{}`, `{"leadEvents": null}`, or
+ * `{"leadEvents": "oops"}` row must degrade to "no lead events configured,"
+ * not take down the page. `Array.isArray`, not `?? []`: the latter only
+ * guards null/undefined and still throws on a present-but-wrong-shaped
+ * value (a string, a number, a bare object) — round two of this exact bug.
+ * Also drops any non-string or blank source-event name, since either one
+ * reaching the GA4 filter is a request that runs and silently matches
+ * nothing, not an error anyone would see.
  */
 export function leadEventNames(config: Ga4Config | null | undefined): string[] {
-  return Array.from(new Set((config?.leadEvents ?? []).flatMap((e) => e?.sourceEvents ?? [])))
+  const events = Array.isArray(config?.leadEvents) ? config.leadEvents : []
+  const sourceEvents = events.flatMap((e) => (Array.isArray(e?.sourceEvents) ? e.sourceEvents : []))
+  return Array.from(new Set(sourceEvents.filter((s): s is string => typeof s === 'string' && s.length > 0)))
 }
 
 /**

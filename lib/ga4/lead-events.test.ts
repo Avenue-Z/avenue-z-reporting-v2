@@ -13,12 +13,27 @@ describe('leadEventNames', () => {
     expect(leadEventNames(config)).toEqual(['x', 'y', 'z'])
   })
 
-  test('tolerates malformed jsonb rather than throwing', () => {
+  test('tolerates malformed jsonb rather than throwing — missing/null', () => {
     expect(leadEventNames(null)).toEqual([])
     expect(leadEventNames(undefined)).toEqual([])
     expect(leadEventNames({} as Ga4Config)).toEqual([])
     expect(leadEventNames({ leadEvents: null } as unknown as Ga4Config)).toEqual([])
     expect(leadEventNames({ leadEvents: [{ name: 'a' }] } as unknown as Ga4Config)).toEqual([])
+  })
+
+  // Round-two review finding: `?? []` only guards null/undefined, not a
+  // present value of the wrong TYPE. These are the cases that still threw.
+  test('tolerates malformed jsonb rather than throwing — wrong type', () => {
+    expect(leadEventNames({ leadEvents: 'nope' } as unknown as Ga4Config)).toEqual([])
+    expect(leadEventNames({ leadEvents: { a: 1 } } as unknown as Ga4Config)).toEqual([])
+    expect(leadEventNames({ leadEvents: 42 } as unknown as Ga4Config)).toEqual([])
+    expect(leadEventNames({ leadEvents: [{ name: 'a', sourceEvents: 'nope' }] } as unknown as Ga4Config)).toEqual([])
+    expect(leadEventNames({ leadEvents: [{ name: 'a', sourceEvents: { x: 1 } }] } as unknown as Ga4Config)).toEqual([])
+  })
+
+  test('drops non-string and blank source-event names rather than sending them to GA4', () => {
+    expect(leadEventNames({ leadEvents: [{ name: 'a', sourceEvents: ['', '', 'x'] }] })).toEqual(['x'])
+    expect(leadEventNames({ leadEvents: [{ name: 'a', sourceEvents: [null, 1, 'x'] as unknown as string[] }] })).toEqual(['x'])
   })
 })
 
@@ -28,6 +43,7 @@ describe('hasLeadEvents', () => {
     expect(hasLeadEvents({ leadEvents: [] })).toBe(false)
     expect(hasLeadEvents({ leadEvents: [{ name: 'a', sourceEvents: [] }] })).toBe(false)
     expect(hasLeadEvents({ leadEvents: [{ name: 'a', sourceEvents: ['x'] }] })).toBe(true)
+    expect(hasLeadEvents({ leadEvents: 'nope' } as unknown as Ga4Config)).toBe(false)
   })
 })
 

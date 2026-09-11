@@ -94,10 +94,18 @@ export interface StageInput {
 const STAGE_ORDER: DemandJourneyStageKey[] = ['aeo', 'ga4', 'inbound', 'pipeline']
 
 function isTrailingSuffix(hidden: DemandJourneyStageKey[]): boolean {
-  if (hidden.length === 0) return true
-  const tail = STAGE_ORDER.slice(-hidden.length)
+  // Dedupe via the Set's size, not `hidden.length` — a duplicate entry
+  // (['pipeline','pipeline']) previously made the length/size comparison
+  // fail even for an otherwise-valid trailing run, silently un-hiding
+  // everything rather than hiding the one stage that was actually named.
   const hiddenSet = new Set(hidden)
-  return tail.length === hiddenSet.size && tail.every((k) => hiddenSet.has(k))
+  if (hiddenSet.size === 0) return true
+  // Hiding every stage leaves an empty, still-rendered card (DemandJourney
+  // doesn't special-case a zero-length list) rather than a meaningful
+  // journey row. Reject it the same way as any other invalid config.
+  if (hiddenSet.size >= STAGE_ORDER.length) return false
+  const tail = STAGE_ORDER.slice(-hiddenSet.size)
+  return tail.every((k) => hiddenSet.has(k))
 }
 
 /** ISO date (UTC) of the Monday that starts the week containing `date`. Mirrors
@@ -308,7 +316,14 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
 
   // Filtered rather than never-constructed: cheap to build, and keeps every
   // stage's derivation above uniform regardless of which client is hiding what.
-  const safeHidden = isTrailingSuffix(hiddenStages) ? hiddenStages : []
+  const validHidden = isTrailingSuffix(hiddenStages)
+  // A typo or an unreachable key otherwise falls back to "show everything"
+  // with nothing telling whoever hand-edited the config why the hide didn't
+  // take — a rejected value should be greppable, not silent.
+  if (hiddenStages.length > 0 && !validHidden) {
+    console.warn(`hiddenJourneyStages ${JSON.stringify(hiddenStages)} is not a valid trailing suffix of ${JSON.stringify(STAGE_ORDER)} — showing all stages`)
+  }
+  const safeHidden = validHidden ? hiddenStages : []
   return safeHidden.length === 0
     ? stages
     : stages.filter((s) => !safeHidden.includes(s.key as DemandJourneyStageKey))

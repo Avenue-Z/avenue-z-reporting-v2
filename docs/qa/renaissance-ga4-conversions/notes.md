@@ -59,9 +59,9 @@ Re-pull anytime: `data_query(ds_id="GAWA", ds_accounts="310998391",
 fields="eventName,isConversionEvent,eventCount", date_range_type="last_90_days")`
 via the Supermetrics connector.
 
-## Ground truth, corrected (2026-09-11, PR #235 review)
+## Ground truth, corrected (2026-09-11, PR `#235` review)
 
-Thomas's review on PR #235 checked whether the shipped 15-row allowlist
+Thomas's review on PR `#235` checked whether the shipped 15-row allowlist
 reconciles to the 81-82 figure above and found it doesn't: the same allowlist
 summed over the full 90-day window is 327 events (~112.6/31-day-month), about
 37% above 81-82. Flagged as blocking, correctly — a number that's wrong by 37%
@@ -75,21 +75,52 @@ data_query(ds_id="GAWA", ds_accounts="310998391", fields="eventName,eventCount",
            date_range_type="custom", start_date="2026-08-01", end_date="2026-08-31")
 ```
 
+Per-event August 2026 count, every row in the shipped allowlist (so this is
+checkable against a fresh pull, not a bare assertion):
+
+| Event | August count | Group |
+|---|---:|---|
+| contact_individual_lead | 38 | flagged |
+| broker_group_lead | 11 | flagged |
+| contact_employee_lead | 10 | flagged |
+| broker_individual_lead | 5 | flagged |
+| contact_employer_lead | 1 | flagged |
+| employer_group_vision_lead | 2 | flagged |
+| contact_broker_lead | 2 | flagged |
+| contact_other_lead | 12 | → `form_submission` |
+| whitelabel_form | 1 | → `form_submission` |
+| via_form | 0 | → `form_submission` |
+| contact_provider_lead | 14 | unflagged |
+| employer_group_dental_lead | 3 | unflagged |
+| employer_group_disability_lead | 3 | unflagged |
+| employer_group_supplemental_lead | 1 | unflagged |
+| employer_group_accident_lead | 3 | unflagged |
+| employer_group_pfml_lead | 1 | unflagged |
+| employer_group_life_lead | 0 | unflagged |
+| **Total** | **107** | |
+
+Grouped: flagged (69) + `form_submission` (13) = **82** — matching the turnover
+doc's own "81 (or 82 if `whitelabel_form` counts)" exactly, since `whitelabel_form`
+and `contact_other_lead` were already counted inside that 82. Plus unflagged (25)
+= **107**.
+
 **The shipped allowlist sums to exactly 107 for August 2026 — not 81-82, and
-not the 90-day-derived ~112.6/month estimate either (both are in the right
-neighborhood; August specifically had `via_form` at 0, which pulls the 90-day
-average up relative to any single month).**
+not the 90-day-derived ~112.6/month estimate either.** Both are close for a
+real, mundane reason: `via_form` (7 over 90 days, 0 in August specifically)
+accounts for roughly 2.4 of the ~5.6 gap between August and the 90-day
+pro-rated figure (7/90 × 31); the rest is ordinary month-to-month variance in
+the other 16 events, not something `via_form` alone explains.
 
 The reconciliation: 81-82 was never a complete count of real leads. It came
 from the turnover doc's `conversions`/`keyEvents`-metric analysis, and that
 metric returns 0 for any event GA4 hasn't already flagged as a key event —
 structurally, by how the API works, not as an approximation. The turnover
-doc's own finding (b) already named the consequence: **6 event types
-(`contact_provider_lead` + 5 `employer_group_*` events, later found to be 7
-including `employer_group_life_lead`) are real leads sitting outside that
-flag, invisible to any query built on `keyEvents`/`conversions`.** 81-82 excluded
-those 6 event types by construction. 107 is 81-82 plus their August-specific
-count (25), which is exactly what including them should add.
+doc's own finding (b) already named the consequence: **7 event types**
+(`contact_provider_lead` + 6 `employer_group_*` events, including
+`employer_group_life_lead`) **are real leads sitting outside that flag,
+invisible to any query built on `keyEvents`/`conversions`.** 81-82 excluded
+those 7 event types by construction — the "unflagged" rows in the table above,
+summing to exactly 25 for August. 82 + 25 = 107, exactly, not approximately.
 
 So: the shipped allowlist is correct, and 81-82 was the number to correct, not
 the allowlist. This is turnover doc step 9.4 step 6 ("verify against a closed
@@ -106,7 +137,7 @@ owner — turnover doc step 9.4.3's client reconciliation for these three specif
 events is being skipped for now, not completed. Revisit if the client later says
 these are meaningfully different (e.g. different lead quality/source).
 
-**Correction (2026-09-11, PR #235 review):** as first implemented, this
+**Correction (2026-09-11, PR `#235` review):** as first implemented, this
 decision was cosmetic only — `Ga4LeadEvent` carried a `category` field and the
 merge was framed as "one row instead of three, for display grouping," but
 `sumLeadEventConversions` sums `eventCount` over every row the query returns
@@ -140,7 +171,7 @@ sourceEvents: ["via_form", "whitelabel_form", "contact_other_lead"] }`.
 
 ## Implementation status (2026-09-11)
 
-On `feat/renaissance-ga4-conversions`, PR #235 (opened against `dev`, reviewed
+On `feat/renaissance-ga4-conversions`, PR `#235` (opened against `dev`, reviewed
 by Thomas and Paul). Scoped to exactly what was asked: the Executive
 Overview's Conversions/Conversion Rate KPI cards and the same numbers on the
 Web Analytics journey-stage card (deliberately kept in sync — leaving one
@@ -150,7 +181,13 @@ Channel Tabs chart's per-channel "By Conversion" ranking still reads raw
 `sessionConversionRate` per channel — it needs per-channel event filtering, a
 separate, harder problem. `ga4/index.tsx`, `demand-overview`, `exec-summary`
 (the turnover doc's other 3 call sites) also untouched — none are enabled for
-Renaissance.
+Renaissance today, but `ga4Config` is consumed only by `executive-overview`.
+**This is a stated decision, not an oversight found afterward:** if Renaissance
+ever gets the standalone `ga4` report enabled, its Web Analytics page would
+show the raw ~16,824-scale number for the same month the Executive Overview
+shows ~107, since neither `ga4Config` nor the filtered query is wired into
+that file. Flag this before enabling `ga4` for Renaissance, not after Tina
+notices two different numbers for what looks like the same metric.
 
 Separate decision, bundled in the same PR but split into its own commit/
 migration/config script so it's independently revertable: `hidden_journey_stages`
@@ -161,7 +198,7 @@ review finding caught that hiding a middle stage would leave a connector
 arrow's text describing a stage that's no longer next; `stages.ts` validates
 this and ignores an invalid value rather than risk a mislabeled arrow.
 
-### Review findings from Paul and Thomas (PR #235), and what changed
+### Review findings from Paul and Thomas (PR `#235`), and what changed
 
 All four blocking findings, fixed:
 
@@ -239,11 +276,97 @@ commented on, which needs an explicit ask, not an assumption. This round of
 fixes lands as one new commit on top instead. Flagged here rather than
 silently left as if fully resolved.
 
-`npx tsc --noEmit`, `npm test` (full suite), and `npm run check:rsc` all
-clean after the fixes above. Verified live on a Vercel Preview deployment —
-Nick confirmed the Conversions/Conversion Rate numbers and the journey-row
-change before the review round; not yet re-verified live against the fixed
-build.
+### Round three (2026-09-11) — both reviewers re-reviewed `0f02af2` and confirmed all four round-one blockers hold, then found two new blocking gaps in the fix itself plus several real smaller issues
+
+Both blocking:
+
+1. **Neither of the two round-one fixes had a pinning test.** Reverting
+   `stages.ts`'s conversion-rate gate, or `index.tsx`'s `hasLeadEvents(raw) ?
+   raw : null` gate, back to the exact original bugs left the full 1015-test
+   suite green — the bug that already shipped once could ship again silently.
+   Root cause: the module-level `stages.test.ts` fixture
+   (`sessions: 89234, conversions: 1847, sessionConversionRate: 0.021`)
+   formats identically on both the buggy and fixed code paths
+   (`1847/89234 = "2.1%"`, and `0.021` also formats to `"2.1%"`), so no
+   existing assertion could distinguish them. Added a `stages.test.ts` block
+   with a fixture where the two numbers genuinely differ
+   (`sessions: 1000, conversions: 300, sessionConversionRate: 0.05`), pinning
+   all three `trueConversions` states, plus an `index.test.tsx` block that
+   renders the full RSC through the `ga4Config` gate and asserts which query
+   fires and which number lands on the page. Both self-verified the way the
+   reviewers did: reverted each fix, confirmed the new tests fail, restored
+   the fix, confirmed green.
+2. **`leadEventNames` guarded against null/undefined but not against a
+   present, wrongly-typed `leadEvents` or `sourceEvents`** (a string, a
+   number, a bare object) — `{"leadEvents": "oops"}` in the jsonb column
+   still threw and took the whole page down, one line later than round one's
+   version of the same bug. Switched from `?? []` to `Array.isArray(...) ?
+   ... : []` at both levels, and now also drops any non-string or blank
+   source-event name before it reaches the GA4 filter. Test file extended to
+   cover the wrongly-typed cases explicitly, matching what the test's own
+   name already claimed.
+
+Also fixed:
+
+- **Ground truth table.** Pasted the actual per-event August 2026 breakdown
+  (not just the assertion) into the section above, so 107 is checkable
+  against a fresh pull rather than taken on faith. Fixed three smaller
+  issues in the prose: said "6 event types" where the table above it already
+  said 7; used "81-82 + 25 = 107" as if it worked for either endpoint when
+  only 82 actually reconciles (69 flagged + 13 `form_submission` = 82,
+  matching the turnover doc's own "82 if `whitelabel_form` counts" exactly);
+  and overstated what `via_form` explains about the August-vs-90-day-average
+  gap (accounts for less than half of it, the rest is ordinary variance).
+- **`isTrailingSuffix` had two edge cases that fell through the size check**:
+  a duplicate entry (`['pipeline','pipeline']`) failed the length-vs-set-size
+  comparison and silently un-hid everything; hiding all four stages was
+  accepted and rendered an empty bordered card. Both fixed (dedupe via the
+  Set itself; reject hiding every stage). Added a `console.warn` on any
+  rejected config, so a typo like `['pipelien']` is greppable instead of a
+  silent no-op. New `stages.test.ts` coverage for all of `STAGE_ORDER`/
+  `isTrailingSuffix`/the warn path, which had none before this round.
+- **`scripts/set-renaissance-ga4-config.ts` overwrote `ga4Config` instead of
+  merging** — inert today since `Ga4Config` has exactly one key, but the
+  precedent script (`set-renaissance-campaign-scope.ts`) merges for exactly
+  the reason a second key might get added later and silently erased. Fixed
+  to spread the existing config first.
+- **`MIGRATIONS-PENDING.md`'s own entry recommended the migrator it bans one
+  paragraph earlier** (`npm run db:migrate:staging` internally runs
+  `drizzle-kit migrate`, the timestamp-gated one) — switched to
+  `migrate-http.ts` for staging too, consistent with `0021`'s precedent.
+  Also documents: `.env.staging` needs `DATABASE_URL_UNPOOLED`; dev carries
+  an orphan ledger row from the pre-split combined migration (harmless,
+  self-heals); the "safe because it never reached staging/prod" justification
+  for the migration renumbering didn't cover preview branches or other
+  local databases (still safe, `migrate-http.ts` self-heals via its
+  already-exists handling, but the claim as originally written was narrower
+  than the actual safety argument); and, the significant one — **production's
+  ledger tip is `0019`, not `0021`**, so it needs `0020` (which creates the
+  `top_content_snapshots` table plus a foreign key) before either `0021`,
+  `0022`, or `0023` can apply. Materially bigger than "two additive columns"
+  and now stated explicitly rather than left for whoever schedules the prod
+  apply to discover.
+- Cross-page divergence (`ga4Config` only wired into `executive-overview`,
+  not the standalone `ga4` report) — added an explicit note above rather than
+  leaving it implicit, per the review.
+- Commit-history split: Thomas's second pass said not to bother — the actual
+  goal (independent revertability) is already delivered at the database
+  level via the `0022`/`0023` split, and rewriting history the round-one
+  comments are anchored to is a cost with no matching benefit. Leaving as is,
+  now with explicit agreement rather than just a unilateral call.
+
+The nine bare `#235` references (`notes.md`, `MIGRATIONS-PENDING.md`,
+`lib/db/queries.ts`, `lib/db/schema.ts`) are now wrapped in backticks so
+GitHub doesn't autolink them. Not done this round: the escalating em-dash
+count across `notes.md` and `MIGRATIONS-PENDING.md` — cosmetic, and pushed
+down in priority behind the two blocking items and the data/process fixes
+above.
+
+`npx tsc --noEmit`, `npm test` (full suite, now with the new pinning tests),
+and `npm run check:rsc` all clean after round three. Verified live on a
+Vercel Preview deployment — Nick confirmed the Conversions/Conversion Rate
+numbers and the journey-row change before the review round; not yet
+re-verified live against the round-three build.
 
 ## Planned implementation (turnover doc 9.4 steps 4-7)
 
