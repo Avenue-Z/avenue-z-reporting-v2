@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "ga4_config" jsonb;

@@ -56,6 +56,47 @@ export interface PaidSearchConfig {
   leadActions: Array<{ name: string; category: LeadCategory }>
 }
 
+/**
+ * One reported conversion line item. `sourceEvents` is always an array, even
+ * for the common case of one GA4 event name reported as itself — a row with
+ * more than one entry sums several raw GA4 events into a single reported
+ * line (e.g. a client's several low-signal "generic form" events reported
+ * together as one `form_submission` line), so query-building code never
+ * needs a merged-vs-unmerged special case.
+ *
+ * No `category` field, deliberately: this does not share `LeadCategory` with
+ * `PaidSearchConfig`. Nothing here currently computes a per-category
+ * breakdown (the query sums every allowlisted event into one flat total),
+ * and widening a union shared with paid search silently broke an
+ * exhaustiveness assumption in `leads-section.tsx` on the first attempt at
+ * this — see PR `#235` review. Add a dedicated category type if/when
+ * something actually reads it.
+ */
+export interface Ga4LeadEvent {
+  /**
+   * Documentation-only label for this row (e.g. what a merged sourceEvents
+   * group means) — not necessarily a real GA4 event name when
+   * sourceEvents.length > 1. Nothing in lib/ga4/lead-events.ts reads this
+   * field; every allowlisted event is summed into one flat total regardless
+   * of name or row grouping. If a per-line-item breakdown is ever built,
+   * this is where it would read from — until then it's for a human deciding
+   * what belongs on the allowlist, not for the query.
+   */
+  name: string
+  /** GA4 eventName values (from the `eventName` dimension) summed into this row. */
+  sourceEvents: string[]
+}
+
+export interface Ga4Config {
+  /**
+   * The client's real conversions, as an explicit GA4 event-name allowlist —
+   * replaces trusting GA4's property-level "key event" flag, which mixes
+   * genuine leads with soft-engagement events (outbound clicks, PDF views)
+   * that were never meant to be conversions. See docs/qa/renaissance-ga4-conversions/notes.md.
+   */
+  leadEvents: Ga4LeadEvent[]
+}
+
 export interface MetaConfig {
   /** Meta ad account id incl. the act_ prefix, e.g. 'act_1480350426850960'. */
   metaAdAccountId: string
@@ -115,6 +156,9 @@ export interface DashSocialConfig {
  * to the legacy A–G layout (Client | Outlet | Headline | Publication Date
  * | Link | Impact | Date Added).
  */
+/** Keys of the four Executive Overview journey-stage cards, in their fixed display order. */
+export type DemandJourneyStageKey = 'aeo' | 'ga4' | 'inbound' | 'pipeline'
+
 export interface PRProofColumnMap {
   /**
    * Name of the worksheet tab holding the data. Optional — defaults to
@@ -166,8 +210,13 @@ export const clients = pgTable('clients', {
   linkedinConfig: jsonb('linkedin_config').$type<LinkedInConfig>(),
   salesforceConfig: jsonb('salesforce_config').$type<SalesforceConfig>(),
   dashSocialConfig: jsonb('dash_social_config').$type<DashSocialConfig>(),
+  ga4Config: jsonb('ga4_config').$type<Ga4Config>(),
   enabledReports: text('enabled_reports').array().notNull().$type<ReportSlug[]>(),
   hiddenReports: text('hidden_reports').array().notNull().default([]).$type<ReportSlug[]>(),
+  // Executive Overview journey-stage cards to omit for this client — e.g. a
+  // CRM stage whose figures are known-untrustworthy (see SalesforceConfig's
+  // campaignNames doc) until that's resolved. Empty means show all four.
+  hiddenJourneyStages: text('hidden_journey_stages').array().notNull().default([]).$type<DemandJourneyStageKey[]>(),
   sharedPasswordHash: text('shared_password_hash'),
   maxSeats: integer('max_seats').notNull().default(5),
   triplewhaleShopId: text('triplewhale_shop_id'),
