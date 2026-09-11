@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 /**
  * index.tsx had NO test coverage at all: `crmScoped` could be hardcoded to
@@ -20,6 +20,7 @@ vi.mock('@/lib/salesforce/pipeline', () => ({ getSalesforcePipeline: vi.fn(async
 vi.mock('@/lib/salesforce/contacts', () => ({ getSalesforceWeeklyContacts: vi.fn(async () => null) }))
 vi.mock('@/lib/salesforce/leads', () => ({ getSalesforceWeeklyLeads: vi.fn(async () => null) }))
 
+import { ga4Query } from '@/lib/ga4/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { getSalesforceWeeklyContacts } from '@/lib/salesforce/contacts'
 import { getSalesforceWeeklyLeads } from '@/lib/salesforce/leads'
@@ -131,5 +132,144 @@ describe('a client with no CRM configured', () => {
     expect(getSalesforceWeeklyLeads).not.toHaveBeenCalled()
     expect(screen.queryByText(/Couldn't load/)).not.toBeInTheDocument()
     expect(screen.getByText('Contact Creation')).toBeInTheDocument()
+  })
+})
+
+/**
+ * PR `#235` round-two review (Thomas): `hasLeadEvents(rawGa4Config) ? rawGa4Config
+ * : null` at index.tsx's `ga4Config` gate had zero coverage — mutating it to a
+ * bare `rawGa4Config` (i.e. treating an empty/malformed config as configured)
+ * left the full suite green. These pin what that gate actually controls:
+ * whether the eventName-filtered query is issued at all, and which number
+ * ends up on the Conversions tile.
+ */
+describe('the ga4Config gate', () => {
+  const totalsRow = { sessions: 1000, conversions: 999, sessionConversionRate: 0.05 }
+
+  beforeEach(() => {
+    ;(ga4Query as Mock).mockImplementation(async (params: { dimensions?: string[] }) =>
+      params.dimensions?.includes('eventName')
+        ? { rows: [{ eventName: 'real_lead', eventCount: 7 }] }
+        : { rows: [totalsRow] },
+    )
+  })
+
+  // '999' / '7' each render twice on a successful page — once on the KPI grid's
+  // Conversions card, once in the journey card's Conversions stat, since the
+  // fix deliberately keeps both in sync. getAllByText, not getByText.
+  it('issues no eventName query for a client with no ga4Config, and the raw totals conversions render', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({ slug: 'renaissance' } as never)
+    await renderReport()
+    expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(false)
+    expect(screen.getAllByText('999').length).toBeGreaterThan(0)
+  })
+
+  it('treats an empty leadEvents array as unconfigured — no query, raw totals render', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({ slug: 'renaissance', ga4Config: { leadEvents: [] } } as never)
+    await renderReport()
+    expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(false)
+    expect(screen.getAllByText('999').length).toBeGreaterThan(0)
+    expect(screen.queryByText('7')).not.toBeInTheDocument()
+  })
+
+  it('issues the eventName query and renders ITS total, not the raw conversions, when configured', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(true)
+    expect(screen.getAllByText('7').length).toBeGreaterThan(0)
+    expect(screen.queryByText('999')).not.toBeInTheDocument()
+  })
+
+  /**
+   * Round three (Thomas, Paul): `deriveConversions` is unit-tested directly
+   * in lib/ga4/lead-events.test.ts now, but the two reviewers specifically
+   * also wanted render-level proof that index.tsx wires it correctly into
+   * the KPI tile — a pure-function test can't catch a wiring bug (passing
+   * the wrong args, reading the wrong field off the return value).
+   */
+  // "Conversions" also labels a stat row on the journey card (a <span>,
+  // different classes) — the KpiCard title is specifically a <p>, so filter
+  // to that before walking up to its card container.
+  const kpiValue = (title: string) => {
+    const titleEl = screen.getAllByText(title).find((el) => el.tagName === 'P')
+    if (!titleEl) throw new Error(`no KpiCard title element found for "${title}"`)
+    const card = titleEl.closest('.rounded-lg')
+    if (!card) throw new Error(`no KpiCard container found for "${title}"`)
+    return within(card as HTMLElement)
+  }
+
+  it('a failed filtered fetch dashes the Conversions AND Conversion Rate KPI tiles — never the raw count, never a fabricated 0', async () => {
+    ;(ga4Query as Mock).mockImplementation(async (params: { dimensions?: string[] }) => {
+      if (params.dimensions?.includes('eventName')) throw new Error('GA4 5xx')
+      return { rows: [totalsRow] }
+    })
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    expect(kpiValue('Conversions').getByText('—')).toBeInTheDocument()
+    expect(kpiValue('Conversion Rate').getByText('—')).toBeInTheDocument()
+    // Never the raw totals, and never a red -100% badge from a fabricated 0.
+    expect(kpiValue('Conversions').queryByText('999')).not.toBeInTheDocument()
+    expect(screen.queryByText(/100\.0%/)).not.toBeInTheDocument()
+  })
+
+  /**
+   * Round four (Thomas): the compare-period call site (`trueCmpConversions`
+   * in index.tsx) was the one call site `deriveConversions`'s extraction
+   * did NOT pin — a shared function protects its own body from drifting,
+   * not a call site from being rewritten or handed the wrong arguments.
+   * Reverting this line to `??`, or swapping in `totals` for `cmpTotals`
+   * (a real risk: four same-shaped arguments from a sibling object), both
+   * left the full suite green, because the existing compare-period test
+   * only exercised the success state, where `??` and the three-way
+   * function agree by definition. This exercises the ONE state where they
+   * diverge: the compare fetch fails while the main one succeeds.
+   */
+  it('a failed COMPARE-period fetch renders the current value with a dashed delta, never a percentage against the raw prior total', async () => {
+    let eventNameCalls = 0
+    ;(ga4Query as Mock).mockImplementation(async (params: { dimensions?: string[] }) => {
+      if (!params.dimensions?.includes('eventName')) return { rows: [totalsRow] }
+      eventNameCalls++
+      // Main period query is issued before the compare-period one (array
+      // construction order) — succeed on the first, fail on the second.
+      if (eventNameCalls === 1) return { rows: [{ eventName: 'real_lead', eventCount: 7 }] }
+      throw new Error('GA4 5xx')
+    })
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    expect(kpiValue('Conversions').getByText('7')).toBeInTheDocument()
+    // The dashed placeholder delta, never a % — pct(7, null) is undefined,
+    // never a real percentage against whatever the raw prior total was.
+    expect(kpiValue('Conversions').queryByText(/%/)).not.toBeInTheDocument()
+  })
+
+  it('the Conversions delta compares against the filtered prior period, not the raw one', async () => {
+    // index.tsx builds its Promise.allSettled array in source order, main
+    // period's eventName query before the compare period's, so the array
+    // literal's left-to-right evaluation calls this mock for main first —
+    // reliable without needing to know the actual dateRange strings.
+    let firstDateRange: string | undefined
+    ;(ga4Query as Mock).mockImplementation(async (params: { dateRange: string; dimensions?: string[] }) => {
+      if (!params.dimensions?.includes('eventName')) return { rows: [totalsRow] }
+      if (firstDateRange === undefined) firstDateRange = params.dateRange
+      const isMain = params.dateRange === firstDateRange
+      return { rows: [{ eventName: 'real_lead', eventCount: isMain ? 50 : 40 }] }
+    })
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    // 50 vs 40 filtered = +25.0%, not whatever 999 (raw) vs the raw compare
+    // total would give. Renders on both the KPI tile and the journey card.
+    expect(screen.getAllByText(/25\.0%/).length).toBeGreaterThan(0)
   })
 })

@@ -2,6 +2,8 @@ import { CHART_COLORS } from '@/lib/constants'
 import type { DemandStage } from './demand-journey'
 import type { TrendRow } from './sessions-trend-chart'
 import type { PipelineData, WeeklyContacts } from '@/lib/salesforce/types'
+import type { DemandJourneyStageKey } from '@/lib/db/schema'
+import { deriveConversions } from '@/lib/ga4/lead-events'
 import { fmtNum, fmtPct, fmtUsd, pct } from './reshape'
 
 export interface StageInput {
@@ -62,6 +64,56 @@ export interface StageInput {
    * delta assertions are not time-dependent.
    */
   now?: Date
+  /**
+   * Filtered lead-event conversions (see lib/ga4/lead-events.ts). Three
+   * distinct states, not two — collapsing any pair of these is the bug PR
+   * review caught twice:
+   *   - `undefined`: no effective `ga4Config`. Falls through to the raw
+   *     `totals.conversions` / `totals.sessionConversionRate` below,
+   *     unchanged from before this feature existed.
+   *   - `null`: `ga4Config` is set but the filtered fetch failed. Renders a
+   *     dash, never the raw count (that's the inflated number this feature
+   *     exists to stop showing) and never 0 (a vendor outage is not the same
+   *     fact as a genuine zero leads this period).
+   *   - a `number` (including 0): fetch succeeded. Used exactly, and the
+   *     conv. rate is derived from THIS over sessions — never blended with
+   *     `totals.sessionConversionRate`, which is a different, session-scoped
+   *     metric for a different definition of "conversion".
+   */
+  trueConversions?: number | null
+  /** Stage keys to omit from the returned array entirely (clients.hidden_journey_stages). Defaults to showing all four. */
+  hiddenStages?: DemandJourneyStageKey[]
+}
+
+// The fixed stage order this module always builds in. Each stage's
+// `connector` text names the stage that immediately follows it (e.g. ga4's
+// "converts to leads" describes inbound), so hiddenStages may only remove a
+// TRAILING run of this order — dropping a middle stage would leave a
+// connector describing a stage that's no longer next. isTrailingSuffix below
+// is the guard; anything else is treated as an invalid config (show all
+// stages) rather than risk a mislabeled arrow.
+const STAGE_ORDER: DemandJourneyStageKey[] = ['aeo', 'ga4', 'inbound', 'pipeline']
+
+// Module-level, not per-call: de-dupes the invalid-hiddenStages warn below
+// across server renders of the same bad value, for the lifetime of this
+// process. Unbounded growth isn't a real concern — this can only ever hold
+// as many distinct JSON strings as there are distinct wrong client configs,
+// which is a handful at most, not a per-request or per-session dimension.
+const warnedInvalidHiddenStages = new Set<string>()
+
+function isTrailingSuffix(hidden: DemandJourneyStageKey[]): boolean {
+  // Dedupe via the Set's size, not `hidden.length` — a duplicate entry
+  // (['pipeline','pipeline']) previously made the length/size comparison
+  // fail even for an otherwise-valid trailing run, silently un-hiding
+  // everything rather than hiding the one stage that was actually named.
+  const hiddenSet = new Set(hidden)
+  if (hiddenSet.size === 0) return true
+  // Hiding every stage leaves an empty, still-rendered card (DemandJourney
+  // doesn't special-case a zero-length list) rather than a meaningful
+  // journey row. Reject it the same way as any other invalid config.
+  if (hiddenSet.size >= STAGE_ORDER.length) return false
+  const tail = STAGE_ORDER.slice(-hiddenSet.size)
+  return tail.every((k) => hiddenSet.has(k))
 }
 
 /** ISO date (UTC) of the Monday that starts the week containing `date`. Mirrors
@@ -89,7 +141,16 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
   return last.weekStart === isoWeekStart(now) ? weekly.slice(0, -1) : weekly
 }
 
-export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date() }: StageInput): DemandStage[] {
+export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date(), trueConversions, hiddenStages = [] }: StageInput): DemandStage[] {
+  // deriveConversions, not a local copy of the three-way branch — see its
+  // doc comment in lib/ga4/lead-events.ts. index.tsx's KPI tile calls the
+  // exact same function; one implementation, not two kept in sync by hand.
+  const { conversions, conversionRate } = deriveConversions(
+    trueConversions,
+    totals?.conversions as number | undefined,
+    totals?.sessionConversionRate as number | undefined,
+    totals?.sessions as number | undefined,
+  )
   // A contacts object with no weeks is a successful fetch that found nothing,
   // not data. See the inbound stage below for why the distinction matters.
   const withWeeks = contacts && contacts.weeks.length > 0 ? contacts : null
@@ -128,7 +189,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
   const openGone = !!pipeline && pipeline.openValueUnknown
   const wonGone  = !!pipeline && pipeline.wonValueUnknown
 
-  return [
+  const stages: DemandStage[] = [
     {
       key: 'aeo', source: 'AEO', label: 'AI Visibility',
       metric: latest != null ? `${latest.toFixed(1)}%` : '—',
@@ -168,7 +229,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
     {
       key: 'ga4', source: 'Web Analytics', label: 'Site Sessions',
       metric: fmtNum(totals?.sessions as number),
-      subMetric: `${fmtPct(totals?.sessionConversionRate as number)} conv. rate`,
+      subMetric: `${fmtPct(conversionRate)} conv. rate`,
       delta: pct(totals?.sessions as number, cmpTotals?.sessions as number),
       color: CHART_COLORS.ga4,
       connector: 'converts to leads',
@@ -177,7 +238,7 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       stats: [
         { label: 'Active Users', value: fmtNum(totals?.activeUsers as number) },
         { label: 'New Users',    value: fmtNum(totals?.newUsers as number) },
-        { label: 'Conversions',  value: fmtNum(totals?.conversions as number) },
+        { label: 'Conversions',  value: fmtNum(conversions) },
         { label: 'Bounce Rate',  value: fmtPct(totals?.bounceRate as number) },
       ],
     },
@@ -255,4 +316,26 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
       unconnectedHint: 'Connect your CRM to see this',
     },
   ]
+
+  // Filtered rather than never-constructed: cheap to build, and keeps every
+  // stage's derivation above uniform regardless of which client is hiding what.
+  const validHidden = isTrailingSuffix(hiddenStages)
+  // A typo or an unreachable key otherwise falls back to "show everything"
+  // with nothing telling whoever hand-edited the config why the hide didn't
+  // take — a rejected value should be greppable, not silent. Deduped per
+  // unique bad value, not per render: buildStages runs on every request, so
+  // an unguarded warn here would log once per page load for as long as the
+  // config stayed wrong, which is real volume/cost for a signal that only
+  // needs to fire once to be found.
+  if (hiddenStages.length > 0 && !validHidden) {
+    const key = JSON.stringify(hiddenStages)
+    if (!warnedInvalidHiddenStages.has(key)) {
+      warnedInvalidHiddenStages.add(key)
+      console.warn(`hiddenJourneyStages ${key} is not a valid trailing suffix of ${JSON.stringify(STAGE_ORDER)} — showing all stages`)
+    }
+  }
+  const safeHidden = validHidden ? hiddenStages : []
+  return safeHidden.length === 0
+    ? stages
+    : stages.filter((s) => !safeHidden.includes(s.key as DemandJourneyStageKey))
 }
