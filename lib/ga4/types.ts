@@ -9,6 +9,9 @@ export interface GA4Row {
 export type GA4DimensionFilter =
   protos.google.analytics.data.v1beta.IRunReportRequest['dimensionFilter']
 
+/** GA4 Data API order-by expression (passed straight to runReport). */
+export type GA4OrderBy = protos.google.analytics.data.v1beta.IOrderBy
+
 /** Parsed GA4 response from runReport */
 export interface GA4ReportResult {
   rows: GA4Row[]
@@ -33,4 +36,12 @@ export interface GA4QueryParams {
   limit?: number
   /** Optional GA4 dimension filter, e.g. an inListFilter on pagePath. */
   dimensionFilter?: GA4DimensionFilter
+  /**
+   * Optional GA4 sort order, e.g. sessions descending. Passed through to
+   * runReport only when provided. Every existing caller that omits it keeps
+   * GA4's default unspecified row order unchanged. A caller combining this
+   * with `limit` gets an actual "top N" instead of "whichever N rows GA4
+   * happened to return".
+   */
+  orderBys?: GA4OrderBy[]
 }

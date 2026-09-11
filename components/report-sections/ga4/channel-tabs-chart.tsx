@@ -182,6 +182,11 @@ export function ChannelTabsChart({
         <div className="space-y-1">
           {sortedVolumeData.map((row) => {
             const barWidth      = (row.sessions / volMax) * 100
+            // A channel absent from compareMap (truncated out of the compare
+            // period's ranking, not merely a real zero) must read as "no prior
+            // data," not "Prior period 0": the two mean very different things.
+            // `in` distinguishes "key never set" from "key set to an observed 0".
+            const hasPrior      = row.name in compareMap
             const priorSessions = compareMap[row.name] ?? 0
             const isHovered     = hovered === row.name
             const isDimmed      = hovered !== null && !isHovered
@@ -220,12 +225,12 @@ export function ChannelTabsChart({
                         <div className="text-right">
                           <p className="text-[10px] text-text-muted">Prior period</p>
                           <p className="tabular-nums text-xs font-medium text-white/50">
-                            {priorSessions.toLocaleString()}
+                            {hasPrior ? priorSessions.toLocaleString() : '—'}
                           </p>
                         </div>
                         <div className="hidden h-6 w-px bg-white/10 sm:block" />
                         <div className="text-right">
-                          <Delta current={row.sessions} prior={priorSessions} />
+                          {hasPrior && <Delta current={row.sessions} prior={priorSessions} />}
                           <p className="tabular-nums text-sm font-semibold text-white">
                             {row.sessions.toLocaleString()}
                           </p>

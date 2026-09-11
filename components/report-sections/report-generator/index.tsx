@@ -13,6 +13,7 @@ const NON_CHANNEL_SLUGS = new Set([
   'ffci',
   'pr-placements',
   'profound-ai',
+  'executive-overview',
 ])
 
 interface ReportGeneratorProps {

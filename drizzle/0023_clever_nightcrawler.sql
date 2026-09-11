@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "hidden_journey_stages" text[] DEFAULT '{}' NOT NULL;

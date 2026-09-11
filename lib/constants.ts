@@ -93,6 +93,7 @@ export function aiSourceModel(source: unknown): AEOModel | null {
 /** Report display names */
 export const REPORT_NAMES: Record<string, string> = {
   'demand-overview': 'Overview',
+  'executive-overview': 'Executive Overview',
   'exec-summary': 'Executive Summary',
   ga4: 'Web Analytics',
   'meta-ads': 'Meta Advertising',
@@ -126,8 +127,8 @@ export const REPORT_NAMES: Record<string, string> = {
 /** Sidebar nav groups in display order */
 export const NAV_GROUPS: { label?: string; slugs: string[]; comingSoon?: boolean }[] = [
   {
-    // No label — demand-overview sits above the Reports section
-    slugs: ['demand-overview'],
+    // No label. These sit above the Reports section.
+    slugs: ['demand-overview', 'executive-overview'],
   },
   {
     label: 'Reports',
@@ -231,6 +232,7 @@ export const SHOW_AI_NARRATIVE = false
 /** All report slugs shown in the portal sidebar (excludes Soon sub-items like google-search-console) */
 export const ALL_REPORT_SLUGS: string[] = [
   'demand-overview',
+  'executive-overview',
   'peec-ai',
   'ga4',
   'paid-media',

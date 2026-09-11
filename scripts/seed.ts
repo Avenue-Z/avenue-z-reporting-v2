@@ -1,5 +1,5 @@
 import { db } from '../lib/db/client'
-import { clients, users, type PRConfig, type PaidSearchConfig, type MetaConfig, type LinkedInConfig, type ReportSlug } from '../lib/db/schema'
+import { clients, users, type PRConfig, type PaidSearchConfig, type MetaConfig, type LinkedInConfig, type SalesforceConfig, type ReportSlug } from '../lib/db/schema'
 
 type SeedClient = {
   slug: string
@@ -21,6 +21,7 @@ type SeedClient = {
   paidSearchConfig: PaidSearchConfig | null
   metaConfig: MetaConfig | null
   linkedinConfig: LinkedInConfig | null
+  salesforceConfig: SalesforceConfig | null
   enabledReports: ReportSlug[]
   hiddenReports: ReportSlug[]
   users: { email: string; role: 'INTERNAL_ADMIN' | 'INTERNAL_ANALYST' | 'CLIENT_ADMIN' | 'CLIENT_VIEWER' }[]
@@ -56,6 +57,7 @@ const SEED: SeedClient[] = [
     paidSearchConfig: null,
     metaConfig: null,
     linkedinConfig: null,
+    salesforceConfig: null,
     enabledReports: [
       'demand-overview',
       'ga4',
@@ -112,6 +114,7 @@ const SEED: SeedClient[] = [
     },
     metaConfig: { metaAdAccountId: 'act_1480350426850960' },
     linkedinConfig: { linkedinAdAccountId: '503368877' },
+    salesforceConfig: { salesforceAccountId: '00D15000000Em4GEAS' },
     enabledReports: [
       'google-ads',
       'meta-ads',
@@ -148,6 +151,7 @@ async function main() {
       paidSearchConfig: c.paidSearchConfig,
       metaConfig: c.metaConfig,
       linkedinConfig: c.linkedinConfig,
+      salesforceConfig: c.salesforceConfig,
       enabledReports: c.enabledReports,
       hiddenReports: c.hiddenReports,
       updatedAt: new Date(),

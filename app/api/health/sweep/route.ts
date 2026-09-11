@@ -13,16 +13,24 @@
  * time), not an unbounded Promise.all. Each probe self-fetches a full report
  * render (?health=1) that fans out several Neon queries; firing all units at
  * once spiked Function CPU Duration and tripped Neon errors. Bounding keeps
- * peak load flat and under the 60s function ceiling.
+ * peak load flat.
+ *
+ * Budget: two caps doing two different jobs, both in lib/health/sweep-probe.ts.
+ * PROBE_TIMEOUT_MS bounds ONE render so a hung unit costs only itself.
+ * SWEEP_BUDGET_MS bounds the whole probe phase, which the per-probe cap alone
+ * does not — see its docblock for why three slow probes would otherwise take
+ * the entire run down with them. Past the deadline, remaining units are
+ * SKIPPED, not probed: skipped is unknown rather than down, so they keep their
+ * stored status and cannot fire a false 🔴 into Slack.
  */
 import { NextResponse } from 'next/server'
 import { getAllClients, getAllHealthState, upsertHealthState } from '@/lib/db/queries'
 import { mintServiceCookie } from '@/lib/auth/service-cookie'
-import { deriveStatus } from '@/lib/health/derive'
 import { diffHealth, formatTransitions } from '@/lib/health/diff'
 import { postHealthChanges } from '@/lib/health/slack'
 import { mapWithConcurrency } from '@/lib/concurrency'
-import type { ProbeResult, Surface } from '@/lib/health/types'
+import { probe, SWEEP_BUDGET_MS, type Unit } from '@/lib/health/sweep-probe'
+import type { ProbeResult } from '@/lib/health/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -31,24 +39,10 @@ export const maxDuration = 60
 // maxDuration ceiling (wall time ≈ ceil(units / CONCURRENCY) × render).
 const CONCURRENCY = 8
 
-interface Unit {
-  url: string
-  surface: Surface
-  clientSlug: string
-  section: string
-}
-
-async function probe(u: Unit, cookieHeader: string): Promise<ProbeResult> {
-  try {
-    const res = await fetch(u.url, { headers: { Cookie: cookieHeader }, redirect: 'manual' })
-    const html = await res.text()
-    return deriveStatus({ surface: u.surface, clientSlug: u.clientSlug, section: u.section, httpStatus: res.status, html })
-  } catch {
-    return deriveStatus({ surface: u.surface, clientSlug: u.clientSlug, section: u.section, httpStatus: null, html: '' })
-  }
-}
-
 export async function GET(req: Request) {
+  // Opened at entry, not just before the probes, so the setup below (a Neon read
+  // and a cookie mint) comes out of the budget rather than being added on top.
+  const deadline = Date.now() + SWEEP_BUDGET_MS
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not set' }, { status: 500 })
   if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
@@ -81,7 +75,14 @@ export async function GET(req: Request) {
     }
   }
 
-  const observed = await mapWithConcurrency(units, CONCURRENCY, (u) => probe(u, cookieHeader))
+  const probed = await mapWithConcurrency(units, CONCURRENCY, (u) => probe(u, cookieHeader, deadline))
+  const observed = probed.filter((p): p is ProbeResult => p !== null)
+  const skipped = probed.length - observed.length
+  if (skipped > 0) {
+    // Never silent: a sweep that quietly covered two thirds of the estate still
+    // returns 200 and still posts transitions, which reads as a clean run.
+    console.warn(`[health-sweep] budget spent after ${observed.length}/${probed.length} units; ${skipped} skipped`)
+  }
   const stored = await getAllHealthState()
   const { transitions, upserts } = diffHealth(stored, observed)
 
@@ -100,6 +101,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     probed: observed.length,
+    skipped,
     down: observed.filter((o) => o.status === 'down').length,
     transitions: transitions.length,
   })

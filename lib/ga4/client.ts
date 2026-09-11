@@ -81,6 +81,30 @@ export function deriveCompareRange(
 }
 
 /**
+ * Builds the GA4 runReport request object. Pulled out of ga4QueryImpl so the
+ * request shape (in particular, whether `orderBys` is present at all) can
+ * be unit tested without a live GA4 client or DB lookup. Purely additive:
+ * `orderBys` is only included on the request when the caller passes it, so
+ * every existing caller (which never does) gets the exact same request shape
+ * as before this field existed.
+ */
+export function buildRunReportRequest(
+  propertyId: string,
+  dateRange: { startDate: string; endDate: string },
+  params: Pick<GA4QueryParams, 'metrics' | 'dimensions' | 'dimensionFilter' | 'limit' | 'orderBys'>,
+) {
+  return {
+    property: propertyId,
+    dateRanges: [{ startDate: dateRange.startDate, endDate: dateRange.endDate }],
+    metrics: params.metrics.map((name) => ({ name })),
+    dimensions: (params.dimensions ?? []).map((name) => ({ name })),
+    ...(params.dimensionFilter ? { dimensionFilter: params.dimensionFilter } : {}),
+    limit: params.limit ?? 1000,
+    ...(params.orderBys ? { orderBys: params.orderBys } : {}),
+  }
+}
+
+/**
  * Run a GA4 Data API report for a given client.
  * Server-side only — never call from a Client Component.
  */
@@ -99,14 +123,9 @@ async function ga4QueryImpl(params: GA4QueryParams): Promise<GA4ReportResult> {
   const { startDate, endDate } = parseDateRange(params.dateRange)
 
   const client = getClient()
-  const [response] = await client.runReport({
-    property: propertyId,
-    dateRanges: [{ startDate, endDate }],
-    metrics: params.metrics.map((name) => ({ name })),
-    dimensions: (params.dimensions ?? []).map((name) => ({ name })),
-    ...(params.dimensionFilter ? { dimensionFilter: params.dimensionFilter } : {}),
-    limit: params.limit ?? 1000,
-  })
+  const [response] = await client.runReport(
+    buildRunReportRequest(propertyId, { startDate, endDate }, params)
+  )
 
   const rows: GA4Row[] = (response.rows ?? []).map((row) => {
     const out: GA4Row = {}
