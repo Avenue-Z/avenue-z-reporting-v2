@@ -126,24 +126,35 @@ warned about for `0021`, now confirmed live rather than hypothetical. `0022`
 and `0023` sit directly on top of `0021` in the journal, so applying them to
 production requires applying `0021` first, in order.
 
-**Production's ledger is further behind than just `0021`.** Per Thomas's
-review, production's `drizzle.__drizzle_migrations` tip is `0019`, not
-`0021` — so production is missing `0020` too, which creates the entire
-`top_content_snapshots` table plus a foreign key, not merely two additive
-columns. Applying `0021`/`0022`/`0023` to production means `0020` has to go
-first, in order, and whoever schedules the prod apply should read `0020`'s
-SQL before running anything — this is a materially bigger change than this
-PR's own two columns.
+**Production's ledger is further behind than just `0021` — but only the
+ledger, corrected after an error in an earlier draft of this entry.**
+Production's `drizzle.__drizzle_migrations` tip is `0019`, not `0021`
+(re-verified independently by Thomas: 20 rows, no orphans). An earlier
+version of this paragraph said production was also missing the
+`top_content_snapshots` table `0020` creates. **That was wrong — the table
+already exists in production, foreign key included. Only the `0020` ledger
+row itself is missing**, a bookkeeping gap, not an absent table. This matters
+operationally: `drizzle/0020_chief_red_shift.sql` is a bare `CREATE TABLE`
+with no `IF NOT EXISTS`, so applying it via the Neon console (pasting the SQL
+directly) throws `relation "top_content_snapshots" already exists` on the
+first statement and stops there, mid-sequence, on production. Route `0020`
+through `migrate-http.ts` instead, the same as every other migration here —
+it catches `/already exists/i`, records the hash, and moves on, which is
+exactly the self-heal already described below for the preview-branch case.
+Production is not "Neon console only" for this reason (see the apply steps
+below, corrected to match).
 
 **On the migration renumbering (`0022`/`0023` replacing the original combined
 `0022_calm_silver_sable`):** confirmed safe by Thomas via independent
 verification against all three ledgers. Two things worth recording:
 
-- Dev carries an orphan row in `drizzle.__drizzle_migrations` — the old
-  combined `0022_calm_silver_sable`'s hash, left behind by the split.
-  Harmless (both migrators only ever check whether the CURRENT local files'
-  hashes are recorded, never the reverse), but real, so noted here rather
-  than left a mystery for whoever next queries that table.
+- Dev carries **five** orphan rows in `drizzle.__drizzle_migrations` (ids 9,
+  10, 14, 25, 27) — only one of them (27, the old combined
+  `0022_calm_silver_sable`'s hash) is from this PR's migration split; the
+  other four predate it and are unrelated. Harmless either way (both
+  migrators only ever check whether the CURRENT local files' hashes are
+  recorded, never the reverse), but noted precisely rather than implying
+  there's only the one from this PR.
 - The "safe because the original never reached staging or production"
   justification for the split covers those two environments specifically,
   not every database that might hold the old migration — a Neon preview
@@ -154,7 +165,8 @@ verification against all three ledgers. Two things worth recording:
   migrate` (the timestamp-gated one) would NOT self-heal there — it would
   attempt `ADD COLUMN` against an already-existing column and hard-fail —
   which is one more reason to standardize on `migrate-http.ts` everywhere,
-  not just dev.
+  not just dev (and, per the correction above, that now includes `0020` on
+  production specifically).
 
 Apply per environment, before merge, the same way as `0021`:
 
@@ -167,13 +179,20 @@ Apply per environment, before merge, the same way as `0021`:
    newest ledger row, so nothing would be skipped), but the file's own rule
    should hold everywhere, not just where it's currently harmless to break
    it: `CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`.
-   (`.env.staging` is gitignored; it needs `DATABASE_URL_UNPOOLED` for the
-   staging branch — see `scripts/migrate-staging.sh`'s own header for where
-   to get it from the Neon console.) Production is Neon console only,
-   applied in journal order (`0020`, then `0021`, then `0022`, then `0023`),
-   by deliberate act, not by editing any guard. **Not** `npm run db:migrate`
-   / the `db-migrate.yml` workflow either way — both use the same banned
-   migrator.
+   (`.env.staging` is gitignored — get the staging branch's connection
+   string from the Neon console. `migrate-http.ts` falls back to
+   `DATABASE_URL` when `DATABASE_URL_UNPOOLED` isn't set, so the pooled
+   string works fine here; `DATABASE_URL_UNPOOLED` is only a hard
+   requirement for `drizzle-kit`/`migrate-staging.sh`, not this script.)
+   **For production, use `migrate-http.ts` too, deliberately, not the Neon
+   console** — per the correction above, `0020`'s `CREATE TABLE` has no `IF
+   NOT EXISTS`, and pasting it into the console throws on the first
+   statement since the table already exists there; `migrate-http.ts`
+   self-heals that case and everything after it in order (`0020`, `0021`,
+   `0022`, `0023`). Still a deliberate act with production's own connection
+   string, never by editing the staging guard. **Not** `npm run db:migrate`
+   / the `db-migrate.yml` workflow for any environment — both use the same
+   banned migrator.
 2. Verify with a direct query, not a migrator exit code:
 
        select column_name from information_schema.columns
@@ -183,8 +202,11 @@ Apply per environment, before merge, the same way as `0021`:
    **Code must not merge to an environment's branch until this returns all
    three rows for that environment** (all three, not just the two this
    migration adds — `0021` has to be confirmed too, given the table above).
-   For production, also confirm `top_content_snapshots` exists before
-   assuming `0020` landed.
+   For production, checking whether `top_content_snapshots` exists proves
+   nothing about `0020` specifically, since the table is already there
+   regardless of the ledger — confirm `0020`'s hash is recorded instead:
+
+       select hash from drizzle.__drizzle_migrations order by created_at desc limit 5;
 3. Once confirmed, set Renaissance's values with the two targeted scripts
    written for this (config-as-code, not a hand-typed SQL edit — see each
    script's header for why): `CACHE_DISABLE=1 npx tsx --env-file=<env file>

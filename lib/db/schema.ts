@@ -73,7 +73,15 @@ export interface PaidSearchConfig {
  * something actually reads it.
  */
 export interface Ga4LeadEvent {
-  /** Display name for this row. Not necessarily a real GA4 event name when sourceEvents.length > 1. */
+  /**
+   * Documentation-only label for this row (e.g. what a merged sourceEvents
+   * group means) — not necessarily a real GA4 event name when
+   * sourceEvents.length > 1. Nothing in lib/ga4/lead-events.ts reads this
+   * field; every allowlisted event is summed into one flat total regardless
+   * of name or row grouping. If a per-line-item breakdown is ever built,
+   * this is where it would read from — until then it's for a human deciding
+   * what belongs on the allowlist, not for the query.
+   */
   name: string
   /** GA4 eventName values (from the `eventName` dimension) summed into this row. */
   sourceEvents: string[]

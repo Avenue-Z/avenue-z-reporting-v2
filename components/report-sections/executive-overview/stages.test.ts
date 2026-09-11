@@ -465,7 +465,7 @@ describe('the inbound card names leads or contacts by scope', () => {
 })
 
 /**
- * PR #235 round-two review, both reviewers: the round-one regression (every
+ * PR `#235` round-two review, both reviewers: the round-one regression (every
  * client without a lead-event allowlist silently got a DIFFERENT Conversion
  * Rate) shipped once, fully passed CI, and was only caught by manual
  * execution — because the module-level `totals` fixture above happens to
@@ -543,10 +543,13 @@ describe('hiddenStages — trailing-suffix guard', () => {
   })
 
   it('warns on an invalid config rather than failing silently', () => {
+    // A key not reused by any other test in this file — the warn is deduped
+    // per unique bad value for the module's lifetime (see stages.ts), so a
+    // value another test already triggered wouldn't warn a second time here.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    keysOf(['bogus'])
+    keysOf(['never-used-elsewhere-in-this-file'])
     expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0][0]).toContain('bogus')
+    expect(warn.mock.calls[0][0]).toContain('never-used-elsewhere-in-this-file')
     warn.mockRestore()
   })
 

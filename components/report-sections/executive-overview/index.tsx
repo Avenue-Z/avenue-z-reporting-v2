@@ -1,5 +1,5 @@
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { leadEventFilter, sumLeadEventConversions, hasLeadEvents } from '@/lib/ga4/lead-events'
+import { leadEventFilter, sumLeadEventConversions, hasLeadEvents, deriveConversions } from '@/lib/ga4/lead-events'
 import { getPeecOverview } from '@/lib/peec/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { KpiCard } from './kpi-card'
@@ -184,22 +184,14 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     cmpLeadEventsFailed ? null :
     sumLeadEventConversions(val(cmpLeadEventsRes)?.rows)
 
-  const conversions =
-    trueConversions === undefined ? (totals?.conversions as number | undefined) :
-    trueConversions === null      ? null :
-    trueConversions
-  const cmpConversions =
-    trueCmpConversions === undefined ? (cmpTotals?.conversions as number | undefined) :
-    trueCmpConversions === null      ? null :
-    trueCmpConversions
-  const conversionRate =
-    trueConversions === undefined ? (totals?.sessionConversionRate as number | undefined) :
-    trueConversions === null      ? null :
-    (totals?.sessions ? trueConversions / (totals.sessions as number) : null)
-  const cmpConversionRate =
-    trueCmpConversions === undefined ? (cmpTotals?.sessionConversionRate as number | undefined) :
-    trueCmpConversions === null      ? null :
-    (cmpTotals?.sessions ? trueCmpConversions / (cmpTotals.sessions as number) : null)
+  // deriveConversions, not a local copy of the three-way branch — see its
+  // doc comment in lib/ga4/lead-events.ts. stages.ts's journey card calls
+  // the exact same function for the main period; this is also the ONLY
+  // place the compare-period copy lives, which round three shipped
+  // unpinned by any test — see lead-events.test.ts for the coverage now.
+  const { conversions,    conversionRate }    = deriveConversions(trueConversions,    totals?.conversions as number | undefined,    totals?.sessionConversionRate as number | undefined,    totals?.sessions as number | undefined)
+  const { conversions: cmpConversions, conversionRate: cmpConversionRate } =
+    deriveConversions(trueCmpConversions, cmpTotals?.conversions as number | undefined, cmpTotals?.sessionConversionRate as number | undefined, cmpTotals?.sessions as number | undefined)
 
   const stages = buildStages({
     totals, cmpTotals, peec, trendRows, peecConnected: peecConfigured,

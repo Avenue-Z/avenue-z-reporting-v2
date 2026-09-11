@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 /**
  * index.tsx had NO test coverage at all: `crmScoped` could be hardcoded to
@@ -136,7 +136,7 @@ describe('a client with no CRM configured', () => {
 })
 
 /**
- * PR #235 round-two review (Thomas): `hasLeadEvents(rawGa4Config) ? rawGa4Config
+ * PR `#235` round-two review (Thomas): `hasLeadEvents(rawGa4Config) ? rawGa4Config
  * : null` at index.tsx's `ga4Config` gate had zero coverage — mutating it to a
  * bare `rawGa4Config` (i.e. treating an empty/malformed config as configured)
  * left the full suite green. These pin what that gate actually controls:
@@ -181,5 +181,62 @@ describe('the ga4Config gate', () => {
     expect((ga4Query as Mock).mock.calls.some((c) => (c[0] as { dimensions?: string[] }).dimensions?.includes('eventName'))).toBe(true)
     expect(screen.getAllByText('7').length).toBeGreaterThan(0)
     expect(screen.queryByText('999')).not.toBeInTheDocument()
+  })
+
+  /**
+   * Round three (Thomas, Paul): `deriveConversions` is unit-tested directly
+   * in lib/ga4/lead-events.test.ts now, but the two reviewers specifically
+   * also wanted render-level proof that index.tsx wires it correctly into
+   * the KPI tile — a pure-function test can't catch a wiring bug (passing
+   * the wrong args, reading the wrong field off the return value).
+   */
+  // "Conversions" also labels a stat row on the journey card (a <span>,
+  // different classes) — the KpiCard title is specifically a <p>, so filter
+  // to that before walking up to its card container.
+  const kpiValue = (title: string) => {
+    const titleEl = screen.getAllByText(title).find((el) => el.tagName === 'P')
+    if (!titleEl) throw new Error(`no KpiCard title element found for "${title}"`)
+    const card = titleEl.closest('.rounded-lg')
+    if (!card) throw new Error(`no KpiCard container found for "${title}"`)
+    return within(card as HTMLElement)
+  }
+
+  it('a failed filtered fetch dashes the Conversions AND Conversion Rate KPI tiles — never the raw count, never a fabricated 0', async () => {
+    ;(ga4Query as Mock).mockImplementation(async (params: { dimensions?: string[] }) => {
+      if (params.dimensions?.includes('eventName')) throw new Error('GA4 5xx')
+      return { rows: [totalsRow] }
+    })
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    expect(kpiValue('Conversions').getByText('—')).toBeInTheDocument()
+    expect(kpiValue('Conversion Rate').getByText('—')).toBeInTheDocument()
+    // Never the raw totals, and never a red -100% badge from a fabricated 0.
+    expect(kpiValue('Conversions').queryByText('999')).not.toBeInTheDocument()
+    expect(screen.queryByText(/100\.0%/)).not.toBeInTheDocument()
+  })
+
+  it('the Conversions delta compares against the filtered prior period, not the raw one', async () => {
+    // index.tsx builds its Promise.allSettled array in source order, main
+    // period's eventName query before the compare period's, so the array
+    // literal's left-to-right evaluation calls this mock for main first —
+    // reliable without needing to know the actual dateRange strings.
+    let firstDateRange: string | undefined
+    ;(ga4Query as Mock).mockImplementation(async (params: { dateRange: string; dimensions?: string[] }) => {
+      if (!params.dimensions?.includes('eventName')) return { rows: [totalsRow] }
+      if (firstDateRange === undefined) firstDateRange = params.dateRange
+      const isMain = params.dateRange === firstDateRange
+      return { rows: [{ eventName: 'real_lead', eventCount: isMain ? 50 : 40 }] }
+    })
+    ;(getClientBySlug as Mock).mockResolvedValue({
+      slug: 'renaissance',
+      ga4Config: { leadEvents: [{ name: 'real_lead', sourceEvents: ['real_lead'] }] },
+    } as never)
+    await renderReport()
+    // 50 vs 40 filtered = +25.0%, not whatever 999 (raw) vs the raw compare
+    // total would give. Renders on both the KPI tile and the journey card.
+    expect(screen.getAllByText(/25\.0%/).length).toBeGreaterThan(0)
   })
 })

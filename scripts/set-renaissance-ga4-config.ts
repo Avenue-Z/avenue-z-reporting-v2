@@ -19,9 +19,11 @@
 // doc's own passing mention implied. That 81-82 figure was never a complete
 // count — it came from GA4's `keyEvents` metric, which returns 0 for any
 // event not already flagged as a key event, so it structurally excluded the
-// 6 event types below that were real leads sitting outside the flag (see
-// notes.md's "Ground truth" section for the reconciliation). 107 is the
-// number that includes them.
+// 7 event types below (contact_provider_lead + the 6 employer_group_*
+// events) that were real leads sitting outside the flag (see notes.md's
+// "Ground truth, corrected" section for the full reconciliation, including a
+// checked bound on possible double-counting inside the form_submission
+// merge). 107 is the number that includes them.
 //
 // Idempotent read-modify-write; safe to re-run.
 //
@@ -63,7 +65,11 @@ async function main() {
   const row = await db.query.clients.findFirst({ where: eq(clients.slug, SLUG) })
   if (!row) throw new Error(`client "${SLUG}" not found`)
 
-  const before = row.ga4Config?.leadEvents ?? []
+  // Array.isArray, not `?? []` — same round-two/round-three finding as
+  // lib/ga4/lead-events.ts: a hand-edited row where leadEvents is present
+  // but the wrong type (e.g. a string) would otherwise throw here, on
+  // exactly the input this script exists to repair.
+  const before = Array.isArray(row.ga4Config?.leadEvents) ? row.ga4Config.leadEvents : []
   if (sameEvents(before, LEAD_EVENTS)) {
     console.log(`No change — ${SLUG} already has this exact ga4Config.leadEvents (${LEAD_EVENTS.length} rows).`)
     return
@@ -74,7 +80,10 @@ async function main() {
   // exactly one key today (leadEvents), so this is inert right now, but it
   // stays correct if a second key gets added later instead of silently
   // erasing it.
-  const cfg = row.ga4Config ?? {}
+  // Same guard as `before` above, at the merge site this time: a wrongly-typed
+  // ga4Config (e.g. a bare string) would otherwise spread into garbage keys
+  // (`{...'oops'}` -> `{"0":"o","1":"o",...}`) and get written back verbatim.
+  const cfg = row.ga4Config && typeof row.ga4Config === 'object' && !Array.isArray(row.ga4Config) ? row.ga4Config : {}
   await db
     .update(clients)
     .set({ ga4Config: { ...cfg, leadEvents: LEAD_EVENTS }, updatedAt: new Date() })

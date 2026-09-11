@@ -3,6 +3,7 @@ import type { DemandStage } from './demand-journey'
 import type { TrendRow } from './sessions-trend-chart'
 import type { PipelineData, WeeklyContacts } from '@/lib/salesforce/types'
 import type { DemandJourneyStageKey } from '@/lib/db/schema'
+import { deriveConversions } from '@/lib/ga4/lead-events'
 import { fmtNum, fmtPct, fmtUsd, pct } from './reshape'
 
 export interface StageInput {
@@ -93,6 +94,13 @@ export interface StageInput {
 // stages) rather than risk a mislabeled arrow.
 const STAGE_ORDER: DemandJourneyStageKey[] = ['aeo', 'ga4', 'inbound', 'pipeline']
 
+// Module-level, not per-call: de-dupes the invalid-hiddenStages warn below
+// across server renders of the same bad value, for the lifetime of this
+// process. Unbounded growth isn't a real concern — this can only ever hold
+// as many distinct JSON strings as there are distinct wrong client configs,
+// which is a handful at most, not a per-request or per-session dimension.
+const warnedInvalidHiddenStages = new Set<string>()
+
 function isTrailingSuffix(hidden: DemandJourneyStageKey[]): boolean {
   // Dedupe via the Set's size, not `hidden.length` — a duplicate entry
   // (['pipeline','pipeline']) previously made the length/size comparison
@@ -134,20 +142,15 @@ function dropPartialWeek<T extends { weekStart: string }>(weekly: T[], now: Date
 }
 
 export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected, pipeline, contacts, crmConnected, crmScoped = false, now = new Date(), trueConversions, hiddenStages = [] }: StageInput): DemandStage[] {
-  // Three-way, not `??`/ternary-on-conversions — see StageInput.trueConversions.
-  // The bug review caught: gating on `conversions != null` is satisfied by the
-  // unconfigured fallback too (totals.conversions is a real number), so it
-  // silently took the filtered-rate branch for EVERY client, unconfigured
-  // ones included. Gate on `trueConversions` itself, explicitly per state.
-  const sessions = totals?.sessions as number | undefined
-  const conversions =
-    trueConversions === undefined ? (totals?.conversions as number | undefined) :
-    trueConversions === null      ? null :
-    trueConversions
-  const conversionRate =
-    trueConversions === undefined ? (totals?.sessionConversionRate as number | undefined) :
-    trueConversions === null      ? null :
-    (sessions ? trueConversions / sessions : null)
+  // deriveConversions, not a local copy of the three-way branch — see its
+  // doc comment in lib/ga4/lead-events.ts. index.tsx's KPI tile calls the
+  // exact same function; one implementation, not two kept in sync by hand.
+  const { conversions, conversionRate } = deriveConversions(
+    trueConversions,
+    totals?.conversions as number | undefined,
+    totals?.sessionConversionRate as number | undefined,
+    totals?.sessions as number | undefined,
+  )
   // A contacts object with no weeks is a successful fetch that found nothing,
   // not data. See the inbound stage below for why the distinction matters.
   const withWeeks = contacts && contacts.weeks.length > 0 ? contacts : null
@@ -319,9 +322,17 @@ export function buildStages({ totals, cmpTotals, peec, trendRows, peecConnected,
   const validHidden = isTrailingSuffix(hiddenStages)
   // A typo or an unreachable key otherwise falls back to "show everything"
   // with nothing telling whoever hand-edited the config why the hide didn't
-  // take — a rejected value should be greppable, not silent.
+  // take — a rejected value should be greppable, not silent. Deduped per
+  // unique bad value, not per render: buildStages runs on every request, so
+  // an unguarded warn here would log once per page load for as long as the
+  // config stayed wrong, which is real volume/cost for a signal that only
+  // needs to fire once to be found.
   if (hiddenStages.length > 0 && !validHidden) {
-    console.warn(`hiddenJourneyStages ${JSON.stringify(hiddenStages)} is not a valid trailing suffix of ${JSON.stringify(STAGE_ORDER)} — showing all stages`)
+    const key = JSON.stringify(hiddenStages)
+    if (!warnedInvalidHiddenStages.has(key)) {
+      warnedInvalidHiddenStages.add(key)
+      console.warn(`hiddenJourneyStages ${key} is not a valid trailing suffix of ${JSON.stringify(STAGE_ORDER)} — showing all stages`)
+    }
   }
   const safeHidden = validHidden ? hiddenStages : []
   return safeHidden.length === 0

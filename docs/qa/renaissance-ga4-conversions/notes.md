@@ -127,6 +127,33 @@ the allowlist. This is turnover doc step 9.4 step 6 ("verify against a closed
 month, reconciled exactly") — now actually done, with a real number, rather
 than left unmarked as this doc originally had it.
 
+**Checked, not assumed: whether `form_submission`'s merge double-counts a lead
+also captured by a `contact_*_lead` event** (PR `#235` round three, Paul,
+blocking — "one query settles it"). If the same physical form submission
+fires both `via_form`/`whitelabel_form`/`contact_other_lead` AND one of the
+specific `contact_*_lead` events, one real lead would increment the sum
+twice. Verified for August 2026:
+
+```
+data_query(ds_id="GAWA", ds_accounts="310998391", fields="sessions,eventCount",
+           date_range_type="custom", start_date="2026-08-01", end_date="2026-08-31",
+           filters="eventName [] <all 17 allowlisted source events>")
+```
+
+Result: **101 distinct sessions, 107 total events** — 6 sessions fired more
+than one qualifying event. That doesn't cleanly separate "6 real people who
+took two different actions in one session" (legitimate, not a double count)
+from "a paired firing of the same physical submission" (a real double count)
+— session-level event data alone can't distinguish those without a raw event
+sequence, which isn't available through this connector. What it does give is
+a hard upper bound: **even if every one of those 6 were a duplicate pairing,
+the corrected total would be 101, not 107 — a ~9% band, not the "up to 13"
+(the full `form_submission` August count) the worst case would otherwise be.**
+Either way this stays a ~157-166x correction from 16,824, not a materially
+different fix. Whether the 6 are real double-leads or duplicate pairings is
+now a concrete, bounded question worth putting in front of Renaissance's GTM
+owner alongside the other open questions below, not an open-ended risk.
+
 ## Decisions
 
 **2026-09-10 (Nick):** `via_form`, `contact_other_lead`, and `whitelabel_form` are
@@ -367,6 +394,88 @@ and `npm run check:rsc` all clean after round three. Verified live on a
 Vercel Preview deployment — Nick confirmed the Conversions/Conversion Rate
 numbers and the journey-row change before the review round; not yet
 re-verified live against the round-three build.
+
+### Round four (2026-09-11) — both reviewers confirmed the reconciliation and the round-three pinning hold; found the pinning covered one of two copies, plus a real deploy-breaking doc error
+
+Both reviewers independently re-verified the 107 figure and the round-three
+test-pinning approach and confirmed both hold. Two blocking findings, both
+fixed:
+
+1. **`index.tsx` had its own copy of the three-state derivation, and that
+   copy — feeding the more prominent KPI tile, not just the journey card —
+   was exactly as unpinned as `stages.ts`'s copy was at round two.**
+   Reverting either `conversionRate` or `conversions`/`cmpConversions` back
+   to a `??`/ternary left the full suite green; `index.test.tsx` asserted
+   the count seven times and the rate zero times, and never exercised the
+   failed state. Root-caused rather than patched: extracted the whole
+   three-way branch into one shared function, `deriveConversions` in
+   `lib/ga4/lead-events.ts`, used by BOTH `stages.ts` and `index.tsx`
+   (including the compare-period copy, which had literally zero test
+   coverage — Paul's separate finding on the same root cause). One
+   implementation now, pinned directly with a dedicated unit-test suite
+   (5 tests covering all three states, sessions edge cases), plus
+   render-level tests confirming both files actually wire it in correctly
+   (a failed-fetch case dashing both KPI fields, a compare-period delta
+   case). Self-verified: reverted the shared function to its buggy form,
+   confirmed 6 tests fail across all three files (the unit tests plus both
+   call sites), restored it.
+2. **A newly-introduced error in `MIGRATIONS-PENDING.md` would have broken
+   an actual production deploy attempt.** Round three's entry said
+   production was missing the `top_content_snapshots` table `0020`
+   creates — wrong. The table already exists in production, foreign key
+   included; only the `0020` ledger row is missing. Following the entry's
+   own instruction (paste `0020`'s SQL into the Neon console, in order)
+   would have thrown `relation "top_content_snapshots" already exists` on
+   the first statement, since `0020`'s `CREATE TABLE` has no
+   `IF NOT EXISTS`, and stopped there, mid-sequence, on production.
+   Corrected the substance, and routed production through `migrate-http.ts`
+   (which self-heals "already exists") instead of the Neon console for this
+   reason — consistent with what the entry already recommends for the
+   preview-branch case. Also fixed two smaller accuracy claims in the same
+   entry: dev carries five orphan ledger rows, not one (only one is from
+   this PR's migration split); `.env.staging` doesn't need
+   `DATABASE_URL_UNPOOLED` for `migrate-http.ts` specifically (it falls back
+   to `DATABASE_URL`) — that requirement belongs to `drizzle-kit`, which the
+   entry now correctly avoids for staging too.
+
+Also fixed:
+
+- The possible `form_submission` double-count Paul flagged as blocking —
+  see "Checked, not assumed" above. Verified live: 101 distinct sessions vs
+  107 events for August, giving a hard bound (at most 6, not "up to 13")
+  rather than an open-ended risk.
+- `leadEventNames`'s blank-source-event filter used `s.length > 0`, which
+  let a whitespace-only string through — switched to `s.trim().length > 0`,
+  matching the precedent in `lib/salesforce/campaign-filter.ts` for the same
+  failure mode on campaign names.
+- `sumLeadEventConversions` used `Number(x) || 0` per row, which silently
+  turned an unparseable `eventCount` (a GA4 response-shape change, a
+  metric-header mismatch) into a 0 contribution — a plausible-looking but
+  quietly wrong total. An unparseable row now fails the whole sum (returns
+  `null`), consistent with how the function already treats a wholesale
+  fetch failure.
+- `scripts/set-renaissance-ga4-config.ts`: the malformed-jsonb hardening
+  (`Array.isArray`, not `?? []`) reached `lib/ga4/lead-events.ts` in round
+  three but not this script — fixed at both the read (`before`) and merge
+  (`cfg`) sites. Also fixed its header comment, which still said "6 event
+  types" after `notes.md` was corrected to 7.
+- `console.warn` on an invalid `hiddenJourneyStages` fired on every server
+  render of the same bad config — deduped per unique invalid value for the
+  process lifetime via a module-level `Set`, so the signal is still
+  greppable without unbounded log volume.
+- `Ga4LeadEvent.name`'s docstring now says explicitly that it's
+  documentation-only and read by nothing at runtime, so a future reader
+  doesn't reasonably assume it drives a per-line-item breakdown that doesn't
+  exist.
+- Two more bare `#235` references (in the two test files added this round)
+  escaped, matching the rest.
+
+Not done this round either: the em-dash count, now at 117 across the PR (39
+more this round). Still cosmetic, still deprioritized — noted again rather
+than silently carried forward as if it had been addressed.
+
+`npx tsc --noEmit`, `npm test` (full suite), and `npm run check:rsc` all
+clean after round four. Not yet re-verified live against this build.
 
 ## Planned implementation (turnover doc 9.4 steps 4-7)
 
