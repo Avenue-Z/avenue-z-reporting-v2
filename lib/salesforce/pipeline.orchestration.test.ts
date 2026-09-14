@@ -1145,3 +1145,76 @@ describe('campaign scoping', () => {
     })
   })
 })
+
+import { SmQueryError } from '@/lib/supermetrics/types'
+
+describe('owner query 5xx fallback', () => {
+  // Observed live on prod 2026-09-13: Supermetrics answers the owner query with a
+  // deterministic HTTP 500 (body just "Error:") on exactly the 2026 openWindow(),
+  // 2023-01-01..2029-12-31, while the same query WITHOUT campaign_name succeeds on
+  // that window, and the stage queries on the same window succeed too. The owner
+  // breakdown only needs campaign_name to filter by campaign, so an unscoped client
+  // can drop it and still get a correct, complete breakdown.
+  let warnSpy: ReturnType<typeof vi.spyOn>
+  let errorSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+  })
+  afterEach(() => {
+    warnSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  const client = (campaignNames?: string[]) =>
+    ({ salesforceConfig: { salesforceAccountId: '00D', campaignNames } }) as unknown as ReturnType<typeof getClientBySlug>
+
+  /** Records every owner call's fields; the campaign_name call fails with `ownerError`. */
+  const failOwnerWithCampaign = (ownerError: Error) => {
+    const ownerCalls: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      if (!fields.includes('opportunity_owner')) return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+      ownerCalls.push(fields)
+      return fields.includes('campaign_name')
+        ? Promise.reject(ownerError)
+        : Promise.resolve([ownerRow('Owner A', 5, 500)])
+    })
+    return ownerCalls
+  }
+
+  test('an unscoped client retries a 5xx owner query without campaign_name and keeps its breakdown', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    const ownerCalls = failOwnerWithCampaign(new SmQueryError('Supermetrics 500', 500))
+    const p = await getSalesforcePipeline('acme')
+    expect(ownerCalls).toHaveLength(2)
+    expect(ownerCalls[0]).toContain('campaign_name')
+    expect(ownerCalls[1]).not.toContain('campaign_name')
+    expect(p.byOwner).toEqual([{ owner: 'Owner A', count: 5, amount: 500 }])
+    expect(p.ownerCampaignUnmatched).toBe(false)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce] owner query'), expect.any(SmQueryError))
+  })
+
+  test('a campaign-scoped client never drops campaign_name: the breakdown stays unavailable', async () => {
+    // Rows without campaign_name would all normalize to '' and match nothing, so
+    // a fallback here would print "No owners matched the agency-sourced campaigns"
+    // over a query that simply failed. It also pins that the scope reaches the
+    // cached fetcher as an argument (and so its cache key): were it dropped
+    // there, the impl would see no scope and fall back.
+    ;(getClientBySlug as Mock).mockResolvedValue(client(['2026 - Inbound Prospecting']))
+    const ownerCalls = failOwnerWithCampaign(new SmQueryError('Supermetrics 500', 500))
+    const p = await getSalesforcePipeline('acme')
+    expect(ownerCalls).toHaveLength(1)
+    expect(p.byOwner).toBeNull()
+  })
+
+  test('a non-5xx owner failure is not retried without campaign_name', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    for (const e of [new SmQueryError('Supermetrics 400', 400), new Error('socket hang up')]) {
+      const ownerCalls = failOwnerWithCampaign(e)
+      const p = await getSalesforcePipeline('acme')
+      expect(ownerCalls).toHaveLength(1)
+      expect(p.byOwner).toBeNull()
+    }
+  })
+})

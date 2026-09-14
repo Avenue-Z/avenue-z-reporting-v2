@@ -1,5 +1,6 @@
 import { salesforceQuery, resolveCompareIso } from './base'
-import { filterByCampaign } from './campaign-filter'
+import { filterByCampaign, hasCampaignScope } from './campaign-filter'
+import { SmQueryError } from '@/lib/supermetrics/types'
 import { toNumber, toBool, parseBool } from './num'
 import { getClientBySlug } from '@/lib/db/queries'
 import { cached } from '@/lib/cache'
@@ -455,10 +456,36 @@ const getWonStagesCompare = cached('salesforce', 'wonStagesCompare', wonStagesIm
   version: CACHE_VERSION,
 })
 
-function ownerRowsImpl(slug: string): Promise<Record<string, string>[]> {
-  return salesforceQuery(slug, OWNER_FIELDS, openWindow(), {
+const OWNER_FIELDS_UNSCOPED = OWNER_FIELDS.filter((f) => f !== 'campaign_name')
+
+/**
+ * The owner query, with one fallback: an unscoped client whose query 5xx's is
+ * retried WITHOUT campaign_name.
+ *
+ * Observed live on prod 2026-09-13: Supermetrics returns a deterministic HTTP 500
+ * (body just "Error:") for this exact query on the 2026 openWindow(),
+ * 2023-01-01..2029-12-31, while the same query without campaign_name succeeds on
+ * that window, and so do neighbouring windows with it. campaign_name is only
+ * requested so filterByCampaign can scope the rows, and an unscoped client's
+ * filter is a pass-through, so its breakdown is identical without the column.
+ *
+ * A scoped client is never retried: rows with no campaign_name all normalize to
+ * '' and match nothing, which would turn a failed query into the "may have been
+ * renamed" accusation. That is also why the scope is an ARGUMENT rather than
+ * read from the client in here: it is part of the cache key, so a fallback
+ * entry can never be served to the same slug once a campaign list is configured.
+ */
+async function ownerRowsImpl(slug: string, campaignScoped: boolean): Promise<Record<string, string>[]> {
+  const query = (fields: string[]) => salesforceQuery(slug, fields, openWindow(), {
     settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
   })
+  try {
+    return await query(OWNER_FIELDS)
+  } catch (e) {
+    if (campaignScoped || !(e instanceof SmQueryError && (e.status ?? 0) >= 500)) throw e
+    console.warn(`[salesforce] owner query failed with campaign_name for ${slug}, retrying without it:`, e)
+    return query(OWNER_FIELDS_UNSCOPED)
+  }
 }
 const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, {
   extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
@@ -481,6 +508,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
   const wonPriorIso = resolveCompareIso(wonRange, 'previous_year')
   const client = await getClientBySlug(slug)
   const wonStage = client?.salesforceConfig?.wonStageName ?? DEFAULT_WON_STAGE
+  const campaignScoped = hasCampaignScope(client?.salesforceConfig?.campaignNames)
 
   const [openRows, wonCurRows, wonPriorRows, ownerRows] = await Promise.all([
     // Same degrade-not-fail contract as the owner fetch: letting this throw
@@ -509,7 +537,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
           return null
         })
       : Promise.resolve(null),
-    getOwnerRows(slug).catch((e) => {
+    getOwnerRows(slug, campaignScoped).catch((e) => {
       // A failed fetch must surface as byOwner: null, never as an empty list, so
       // it never reads as "this client has no owners". Log before swallowing.
       console.error(`[salesforce] owner fetch failed for ${slug}:`, e)
