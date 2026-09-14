@@ -1149,12 +1149,13 @@ describe('campaign scoping', () => {
 import { SmQueryError } from '@/lib/supermetrics/types'
 
 describe('owner query 5xx fallback', () => {
-  // Observed live on prod 2026-09-13: Supermetrics answers the owner query with a
-  // deterministic HTTP 500 (body just "Error:") on exactly the 2026 openWindow(),
-  // 2023-01-01..2029-12-31, while the same query WITHOUT campaign_name succeeds on
-  // that window, and the stage queries on the same window succeed too. The owner
-  // breakdown only needs campaign_name to filter by campaign, so an unscoped client
-  // can drop it and still get a correct, complete breakdown.
+  // Observed live on prod 2026-09-13: Supermetrics answered the owner query with an
+  // HTTP 500 (body just "Error:") on the 2026 openWindow(), 2023-01-01..2029-12-31,
+  // on every render, while the same query WITHOUT campaign_name succeeded. It did
+  // not reproduce the next day, so the live path cannot be exercised on demand and
+  // these tests are the evidence it behaves. The owner breakdown only needs
+  // campaign_name to filter by campaign, so an unscoped client can drop it and
+  // still get a correct, complete breakdown.
   let warnSpy: ReturnType<typeof vi.spyOn>
   let errorSpy: ReturnType<typeof vi.spyOn>
   beforeEach(() => {
@@ -1199,8 +1200,8 @@ describe('owner query 5xx fallback', () => {
     // Rows without campaign_name would all normalize to '' and match nothing, so
     // a fallback here would print "No owners matched the agency-sourced campaigns"
     // over a query that simply failed. It also pins that the scope reaches the
-    // cached fetcher as an argument (and so its cache key): were it dropped
-    // there, the impl would see no scope and fall back.
+    // cached fetcher as an argument: were it dropped there, the impl would see no
+    // scope and fall back.
     ;(getClientBySlug as Mock).mockResolvedValue(client(['2026 - Inbound Prospecting']))
     const ownerCalls = failOwnerWithCampaign(new SmQueryError('Supermetrics 500', 500))
     const p = await getSalesforcePipeline('acme')
@@ -1210,11 +1211,58 @@ describe('owner query 5xx fallback', () => {
 
   test('a non-5xx owner failure is not retried without campaign_name', async () => {
     ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
-    for (const e of [new SmQueryError('Supermetrics 400', 400), new Error('socket hang up')]) {
+    // The statusless SmQueryError is live: smQuery throws one when a response has
+    // neither data nor schedule_id. It pins `status ?? 0`; `?? 500` would retry it.
+    // The plain Error carrying status 500 pins `instanceof SmQueryError` against a
+    // duck-typed status check.
+    const statusful = Object.assign(new Error('Supermetrics 500'), { status: 500 })
+    for (const e of [
+      new SmQueryError('Supermetrics 400', 400),
+      new SmQueryError('Supermetrics response had neither data nor schedule_id'),
+      statusful,
+      new Error('socket hang up'),
+    ]) {
       const ownerCalls = failOwnerWithCampaign(e)
       const p = await getSalesforcePipeline('acme')
       expect(ownerCalls).toHaveLength(1)
       expect(p.byOwner).toBeNull()
+    }
+  })
+
+  test('when the fallback also fails, the breakdown is unavailable, not an empty list', async () => {
+    // [] here would render "No open deals by owner." over a total outage; null
+    // renders "Owner breakdown unavailable."
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    const ownerCalls: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[]) => {
+      if (!fields.includes('opportunity_owner')) return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+      ownerCalls.push(fields)
+      return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(ownerCalls).toHaveLength(2)
+    expect(p.byOwner).toBeNull()
+  })
+
+  test('the fallback spends what is left of the 60s budget, not a fresh 60s', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-14T12:00:00Z'))
+    try {
+      ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+      const ownerTimeouts: number[] = []
+      ;(salesforceQuery as Mock).mockImplementation(
+        (_s: string, fields: string[], _d: string, opts: { timeoutMs: number }) => {
+          if (!fields.includes('opportunity_owner')) return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+          ownerTimeouts.push(opts.timeoutMs)
+          if (!fields.includes('campaign_name')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+          vi.setSystemTime(Date.now() + 20_000) // the first attempt burned 20s
+          return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+        },
+      )
+      await getSalesforcePipeline('acme')
+      expect(ownerTimeouts).toEqual([60_000, 40_000])
+    } finally {
+      vi.useRealTimers()
     }
   })
 })

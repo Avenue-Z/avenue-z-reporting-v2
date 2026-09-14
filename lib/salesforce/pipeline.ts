@@ -462,29 +462,38 @@ const OWNER_FIELDS_UNSCOPED = OWNER_FIELDS.filter((f) => f !== 'campaign_name')
  * The owner query, with one fallback: an unscoped client whose query 5xx's is
  * retried WITHOUT campaign_name.
  *
- * Observed live on prod 2026-09-13: Supermetrics returns a deterministic HTTP 500
- * (body just "Error:") for this exact query on the 2026 openWindow(),
- * 2023-01-01..2029-12-31, while the same query without campaign_name succeeds on
- * that window, and so do neighbouring windows with it. campaign_name is only
- * requested so filterByCampaign can scope the rows, and an unscoped client's
- * filter is a pass-through, so its breakdown is identical without the column.
+ * Observed live on prod 2026-09-13: Supermetrics returned HTTP 500 (body just
+ * "Error:") for this query on the 2026 openWindow(), 2023-01-01..2029-12-31, on
+ * every render, while the same query without campaign_name succeeded on that
+ * window. It did not reproduce the next day (0 of 19), so it was a vendor fault
+ * lasting hours rather than a deterministic one, but persistent enough to
+ * outlast smQuery's own 5xx retries. This fallback is for a recurrence.
+ * campaign_name is only requested so filterByCampaign can scope the rows, and an
+ * unscoped client's filter is a pass-through, so its breakdown is identical
+ * without the column.
  *
  * A scoped client is never retried: rows with no campaign_name all normalize to
  * '' and match nothing, which would turn a failed query into the "may have been
  * renamed" accusation. That is also why the scope is an ARGUMENT rather than
  * read from the client in here: it is part of the cache key, so a fallback
  * entry can never be served to the same slug once a campaign list is configured.
+ *
+ * The fallback spends what is LEFT of SALESFORCE_TIMEOUT_MS, not a fresh one:
+ * call() in lib/supermetrics/client.ts keeps a retry chain inside one budget,
+ * and retrying up here would otherwise double this fetcher's ceiling to 120s on
+ * a page with no maxDuration of its own.
  */
 async function ownerRowsImpl(slug: string, campaignScoped: boolean): Promise<Record<string, string>[]> {
-  const query = (fields: string[]) => salesforceQuery(slug, fields, openWindow(), {
-    settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
+  const started = Date.now()
+  const query = (fields: string[], timeoutMs = SALESFORCE_TIMEOUT_MS) => salesforceQuery(slug, fields, openWindow(), {
+    settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs,
   })
   try {
     return await query(OWNER_FIELDS)
   } catch (e) {
     if (campaignScoped || !(e instanceof SmQueryError && (e.status ?? 0) >= 500)) throw e
     console.warn(`[salesforce] owner query failed with campaign_name for ${slug}, retrying without it:`, e)
-    return query(OWNER_FIELDS_UNSCOPED)
+    return query(OWNER_FIELDS_UNSCOPED, Math.max(SALESFORCE_TIMEOUT_MS - (Date.now() - started), 1_000))
   }
 }
 const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, {
