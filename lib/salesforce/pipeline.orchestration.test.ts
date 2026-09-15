@@ -1420,8 +1420,9 @@ describe('open stage query 5xx fallback', () => {
     // The fallback is deliberately limited to the two wide-window queries. The
     // natural way to wrap a won query passes a hardcoded `false` (wonStagesImpl
     // has no scope to pass), which reads every client as unscoped: a scoped
-    // client would drop the column on a 5xx and Closed Won would report the whole
-    // org's book as agency-sourced. Pinned on an unscoped client so ANY wrapping
+    // client would drop the column on a 5xx, match none of its campaigns, and
+    // dash Closed Won under the false "campaigns may have been renamed" caveat.
+    // Pinned on an unscoped client so ANY wrapping
     // of the won queries fails here and has to be a deliberate decision.
     ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
     ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')

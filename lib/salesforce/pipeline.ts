@@ -447,8 +447,8 @@ const CACHE_VERSION = 'v2'
  * year or less, the same probe got 200 for the year-to-date won query with
  * campaign_name, and the snapshot skew above would land on a year-over-year
  * delta rather than one absolute figure. Never wrap them with a hardcoded
- * `false`: that reads a scoped client as unscoped, and Closed Won would report
- * the whole org's book as agency-sourced.
+ * `false`: a scoped client would then drop the column on a 5xx, match none of
+ * its campaigns, and dash Closed Won under a false "renamed" caveat.
  */
 async function queryWithUnscopedFallback(
   slug: string,
