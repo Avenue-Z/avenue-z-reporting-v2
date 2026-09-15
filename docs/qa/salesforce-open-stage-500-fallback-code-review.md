@@ -1,8 +1,8 @@
 # Salesforce Open Stage Query 5xx Fallback: Code Review Record
 
-**Scope.** PR #243, branch `fix/salesforce-open-stage-500-fallback`, diff range `04885e5^..beb47e1` (three commits). Three files: `lib/salesforce/pipeline.ts` (+64 / -45 net across both commits), `lib/salesforce/pipeline.orchestration.test.ts` (+176 / -1), and a comment-only block in `scripts/set-renaissance-campaign-scope.ts` (+10). No unrelated code.
+**Scope.** PR #243, branch `fix/salesforce-open-stage-500-fallback`, diff range `04885e5^..ab35902` (four commits). Three files: `lib/salesforce/pipeline.ts`, `lib/salesforce/pipeline.orchestration.test.ts`, and `scripts/set-renaissance-campaign-scope.ts` (a header comment plus one output line). No unrelated code.
 
-**This document changes no code.** It compiles Thomas's review of PR #243 (2026-09-15, at `04885e5`), whose four follow-ups landed on the feature branch in `0958e5f`, with a comment-only correction in `beb47e1`. §5 records them as closed and lists what remains open. Thomas's review was a comment handing back to the author, not an approval, and he has not yet re-reviewed `0958e5f` or `beb47e1`.
+**This document changes no code.** It compiles Thomas's review of PR #243 (2026-09-15, at `04885e5`), whose four follow-ups landed on the feature branch in `0958e5f`, with a comment-only correction in `beb47e1`. Thomas re-reviewed `beb47e1` (round 2): he verified all four, confirmed the correction with his own probe, and raised one more ○ note (print the scoping warning in the script's output), which landed in `ab35902`. §5 records them as closed and lists what remains open. Neither round was an approval.
 
 Builds on PR #240 (owner query fallback), reviewed in `docs/qa/salesforce-owner-500-fallback-code-review.md`. This change moves #240's guard into a shared helper and applies it to the open stage query.
 
@@ -91,17 +91,17 @@ Supermetrics caches an extract per field set, so the two sides can come from sna
 
 - **Cache key.** `cached()` calls `cachedFn(today, ...args)`, so the new boolean changes both the positive and negative-memo keys for `openStages`. Every client cold-misses once after deploy, and a fallback entry can never be served to a client later scoped (Thomas confirmed against `lib/cache.ts`).
 - **Budget.** The observed 500s are ~2s each, so after `smQuery`'s two internal retries most of the 60s remains, against a measured 10–23s cold open query. A **slow** first failure defeats the fallback: at 14:14Z the owner fallback started with ~33s and timed out.
-- **Scoping switches it off.** `campaignNames` is absent for Renaissance in dev (`ep-still-tree-aqs8ui6d`), staging (`ep-restless-union-aqkw7ig0`) and prod (`ep-green-violet-aq11mz6s`) (Thomas). Running `scripts/set-renaissance-campaign-scope.ts` sets it, and both fallbacks stop applying to Renaissance. The script now says so (`set-renaissance-campaign-scope.ts:21`).
+- **Scoping switches it off.** `campaignNames` is absent for Renaissance in dev (`ep-still-tree-aqs8ui6d`), staging (`ep-restless-union-aqkw7ig0`) and prod (`ep-green-violet-aq11mz6s`) (Thomas). Running `scripts/set-renaissance-campaign-scope.ts` sets it, and both fallbacks stop applying to Renaissance. The script says so in its header comment (`set-renaissance-campaign-scope.ts:21`) and prints it after the write, so the person running it sees it too.
 
 ---
 
 ## 2. Verification method
 
-**Gates, run for this record at `0958e5f`** (`beb47e1` changes comments only; the orchestration spec, 66 passed, and `tsc` were re-run there): `npx vitest run` **1054 passed / 118 files**; `npx tsc --noEmit` exit 0; `npm run check:rsc` clean. Thomas reproduced 1052 / 118 at `04885e5`.
+**Gates, run for this record at `0958e5f`** (`beb47e1` changes comments only and `ab35902` one script output line; the orchestration spec, 66 passed, and `tsc` were re-run at `beb47e1`, `tsc` again at `ab35902`; Thomas reproduced 1054 / 118 at `beb47e1`): `npx vitest run` **1054 passed / 118 files**; `npx tsc --noEmit` exit 0; `npm run check:rsc` clean. Thomas reproduced 1052 / 118 at `04885e5`.
 
 **TDD record.** The five open-fallback tests were written before the implementation. The retry, both-fail and budget tests failed for the expected reason (1 open call where 2 were expected; `[60000]` where `[60000, 40000]` was expected). The scoped and non-5xx tests passed at RED, because the code never retried then, so they were checked by mutation. The two review tests (`:1395`, `:1419`) pin existing behaviour and were likewise checked by mutation.
 
-**Static anchors confirmed at `0958e5f`, unchanged at `beb47e1`** (`git show 0958e5f:<file> | grep -n`): `pipeline.ts:19`, `:59`, `:93`, `:112`, `:157`, `:268`, `:426`, `:448-449`, `:453`, `:460`, `:464`, `:465`, `:466`, `:470`, `:475`, `:479`, `:515`, `:520`, `:541`, `:550`, `:551`, `:570`, `:620`, `:632`, `:682`; `pipeline.orchestration.test.ts:254`, `:1272`, `:1309`, `:1324`, `:1337`, `:1355`, `:1372`, `:1395`, `:1419`; `pipeline-performance.tsx:67`; `campaign-filter.ts:65`, `:79`, `:105`; `set-renaissance-campaign-scope.ts:21`.
+**Static anchors confirmed at `0958e5f`, unchanged at `beb47e1` and `ab35902`** (`git show 0958e5f:<file> | grep -n`): `pipeline.ts:19`, `:59`, `:93`, `:112`, `:157`, `:268`, `:426`, `:448-449`, `:453`, `:460`, `:464`, `:465`, `:466`, `:470`, `:475`, `:479`, `:515`, `:520`, `:541`, `:550`, `:551`, `:570`, `:620`, `:632`, `:682`; `pipeline.orchestration.test.ts:254`, `:1272`, `:1309`, `:1324`, `:1337`, `:1355`, `:1372`, `:1395`, `:1419`; `pipeline-performance.tsx:67`; `campaign-filter.ts:65`, `:79`, `:105`; `set-renaissance-campaign-scope.ts:21`, `:78`.
 
 **Mutations.** Each was applied to a backed-up copy of `pipeline.ts` with the orchestration spec run and the file restored; none is part of the diff.
 
@@ -113,13 +113,13 @@ Supermetrics caches an extract per field set, so the two sides can come from sna
 | 4 | Fallback swallows its failure (`.catch(() => [])`) | author, Thomas | `04885e5` | 2 failed: owner + open both-fail |
 | 5 | Fallback gets a fresh 60s | author, Thomas | `04885e5` | 2 failed: owner + open budget |
 | 6 | Drop the `1_000` floor | Thomas | `04885e5` | **survived** |
-| 6′ | same | author | `0958e5f` | **1 failed**: `a fallback that starts with almost no budget left still gets the 1s floor` |
+| 6′ | same | author, Thomas | `0958e5f` / `beb47e1` | **1 failed**: `a fallback that starts with almost no budget left still gets the 1s floor` |
 | 7 | Strip the column in place (`splice`) | Thomas | `04885e5` | 8 failed |
 | 8 | `>= 500` → `> 500` | Thomas | `04885e5` | 6 failed |
 | 9 | Open label `'open stage'` → `'owner'` | Thomas | `04885e5` | 1 failed |
 | 10 | Capture `started` after the first attempt | Thomas | `04885e5` | 2 failed: owner + open |
 | 11 | Wrap `wonStagesImpl` in the helper with `false` | Thomas | `04885e5` | **survived** |
-| 11′ | same | author | `0958e5f` | **1 failed**: `a won query is never retried without campaign_name, even for an unscoped client` |
+| 11′ | same | author, Thomas | `0958e5f` / `beb47e1` | **1 failed**: `a won query is never retried without campaign_name, even for an unscoped client` |
 
 That every shared-guard mutation (2, 3, 4, 5, 8, 10) fails **both** the owner and open describes is the evidence the refactor preserves behaviour: the owner path runs through the same guard, not through a second copy.
 
@@ -140,7 +140,7 @@ Sev: **●** correctness · **○** cleanup/convention. Status: CONFIRMED (prove
 | 1 | ○ | CONFIRMED | `pipeline.ts:426` | At `04885e5` the docstring claimed an unscoped client's figures are "identical" without `campaign_name`. They are the same only up to snapshot skew between separately cached extracts ($654.96 on $181M), and the naive cold A/B is misleading ($118K false gap). **Closed in `0958e5f`.** |
 | 2 | ○ | CONFIRMED | `pipeline.ts:479` | Nothing pinned the won queries outside the fallback. Wrapping `wonStagesImpl` with a hardcoded `false` left all 64 spec tests green; a scoped client would then drop `campaign_name` on a 5xx, match none of its campaigns, and dash Closed Won under the false "may have been renamed" caveat (the review said it would report the whole book; corrected in §4). **Closed in `0958e5f`** (test `:1419`; docstring `:448-449`). |
 | 3 | ○ | CONFIRMED | `pipeline.ts:466` | The `1_000` budget floor was the only branch in the new helper with no test behind it; removing it left the suite green. Carried over from #240. **Closed in `0958e5f`** (test `:1395`). |
-| 4 | ○ | CONFIRMED | `pipeline.ts:541`, `set-renaissance-campaign-scope.ts:21` | The fallback protects Renaissance only while `campaignNames` is unset. Setting it (the #230 campaigns) silently turns both fallbacks off, and the tiles dash on the next vendor fault weeks later. **Documented** in the scope script and PR; correct behaviour, no code change. |
+| 4 | ○ | CONFIRMED | `pipeline.ts:541`, `set-renaissance-campaign-scope.ts:21`, `:78` | The fallback protects Renaissance only while `campaignNames` is unset. Setting it (the #230 campaigns) silently turns both fallbacks off, and the tiles dash on the next vendor fault weeks later. **Documented** in the scope script's header, its output, and the PR; correct behaviour, no change to the fallback. |
 | 5 | ○ | CONFIRMED | `pipeline.ts:475`, `:550` | The new argument changes every client's `openStages` cache key, so each cold-misses once after deploy (up to ~21s measured on a cold open query; staging has no warm cron). **Documented** in the PR. |
 | 6 | ○ | CONFIRMED | `pipeline.ts:465`, `lib/cache.ts` | A successful fallback is recorded as a healthy fetch, so `salesforce/openStages` stays green while the vendor fault persists. The only trace is `[salesforce] open stage query failed with campaign_name`. **Documented**; intended degradation. |
 | 7 | ○ | CONFIRMED | `pipeline.ts:466` | A slow first failure leaves the fallback too little budget, and it degrades exactly as without it. Observed live on the shared owner path: staging 14:14Z, `SmTimeoutError` after 33193ms. **No change**: correct degradation, not a rescue. |
@@ -161,7 +161,7 @@ No **●** correctness findings. Thomas described the refactor as the right call
 
 **Mechanism.** `queryWithUnscopedFallback` reads as generic. `wonStagesImpl` has no `campaignScoped` to pass, so the obvious wrap passes `false`, which tells the helper every client is unscoped. For a scoped client a won-query 5xx would drop `campaign_name`.
 
-**Correction to the review.** Thomas's comment, and the docstring as first written in `0958e5f`, said Closed Won would then report the whole org's book as agency-sourced. It would not. `filterByCampaign` reads the configured names, not `campaignScoped`, so campaign-less rows match nothing. Probed directly (§2): `kept: 0, active: true, unmatched: true`, and the composer's `wonValueUnknown` dashes the tile under the "campaigns may have been renamed" caveat. That is the same false accusation the scoped guard prevents on the open and owner queries. It's still worth pinning, but the harm is a wrong caveat, not an inflated number. The docstring and test comment were corrected in `beb47e1`.
+**Correction to the review.** Thomas's comment, and the docstring as first written in `0958e5f`, said Closed Won would then report the whole org's book as agency-sourced. It would not. `filterByCampaign` reads the configured names, not `campaignScoped`, so campaign-less rows match nothing. Probed directly (§2): `kept: 0, active: true, unmatched: true`, and the composer's `wonValueUnknown` dashes the tile under the "campaigns may have been renamed" caveat. That is the same false accusation the scoped guard prevents on the open and owner queries. It's still worth pinning, but the harm is a wrong caveat, not an inflated number. The docstring and test comment were corrected in `beb47e1`. Thomas confirmed the correction in round 2 with his own probe: a $9M whole-book closed-won row with no `campaign_name` came out as `closedWon` 0, `wonValueUnknown` true, `wonCampaignUnmatched` true.
 
 **Fix (landed).** Test on an **unscoped** client: both won queries (current and prior-year) reject with `SmQueryError('Supermetrics 500', 500)`; asserts two won calls in total, each carrying `campaign_name`, and `wonUnavailable` true. Pinned on an unscoped client so that any wrapping fails and must be a deliberate decision, not only the hardcoded-`false` one.
 
@@ -189,7 +189,7 @@ Operational consequences carried in the PR description; see §1.6. No code chang
 1. **Finding 1**: docstring reworded to snapshot skew, with the A/B trap.
 2. **Finding 2**: won queries pinned out of the fallback by test.
 3. **Finding 3**: 1s floor pinned by test.
-4. **Finding 4**: scoping side effect documented in the scope script.
+4. **Finding 4**: scoping side effect documented in the scope script's header and printed in its output (the output line was Thomas's round-2 note).
 
 **Operational, carried in the PR description (no code)**
 5. **Finding 6**: a green `salesforce/openStages` beacon is not evidence the fault ended; grep for `open stage query failed with campaign_name`.
@@ -206,4 +206,4 @@ Operational consequences carried in the PR description; see §1.6. No code chang
 **Unrelated, seen in both environments' logs**
 11. `numeric field "opportunity_amount" missing, defaulting to 0`. Not tracked elsewhere yet.
 
-**Blocking the ship:** none. All four review follow-ups are closed; Thomas has not yet re-reviewed `0958e5f` or `beb47e1`. #243 reaches staging and prod only through `dev → staging → main`.
+**Blocking the ship:** none. All review follow-ups are closed, including Thomas's round-2 output note (`ab35902`). Thomas has not yet approved. #243 reaches staging and prod only through `dev → staging → main`.
