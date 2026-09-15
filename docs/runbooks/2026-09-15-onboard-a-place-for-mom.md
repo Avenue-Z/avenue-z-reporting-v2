@@ -148,3 +148,35 @@ shows when nothing has been frozen yet.
 
 None of this blocks onboarding. The client can be created and Organic Social
 wired up now; the locked view is separate work on top.
+
+---
+
+## 7. The wider queue
+
+A Place For Mom is first. Two more Organic Social clients follow, supplied
+2026-09-15:
+
+| Client | Slug (proposed) | Dash brand id | Status |
+|---|---|---|---|
+| A Place For Mom | `a-place-for-mom` | `24350` | first, this runbook |
+| Joy of Life | `joy-of-life` | `27152` | queued |
+| Akara Living | `akara-living` | `27178` | queued |
+| _(Renaissance, existing)_ | `renaissance` | `26952` | live |
+
+All four ids sit in the same range, which is consistent with real Dash brand
+ids, though that is a weak signal and not verification. **None of the three new
+ids has been checked against the live API.** Each needs the §5 confirmation that
+the returned posts belong to that brand, because a wrong id renders as somebody
+else's content or an empty section rather than an error.
+
+Every one of these is the same shape: one `clients` row with
+`enabled_reports = ARRAY['organic-social']` and a `dash_social_config` holding
+only `brandId`, plus `users` rows. No code, no migration. Do them one at a time
+and verify each on dev before moving on, rather than batching all three.
+
+**Joy of Life is also the deck client.** The PowerPoint template analysed for the
+slide-deck automation work (`joy_of_life.pptx`, "Facebook Top Performers" on
+slides 19 and 20) is theirs. So onboarding Joy of Life and automating that deck
+are the same account, and the dashboard's Top Content data is what those slides
+are currently screenshotted from by hand.
+
