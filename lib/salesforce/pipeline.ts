@@ -423,7 +423,13 @@ const CACHE_VERSION = 'v2'
  * 200 without it on both. Persistent enough to outlast smQuery's own 5xx retries
  * for hours. campaign_name is only requested so filterByCampaign can scope the
  * rows, and an unscoped client's filter is a pass-through, so its figures are
- * identical without the column.
+ * the same without the column, up to snapshot skew. Supermetrics caches an
+ * extract per field set, so the two can come from snapshots taken at different
+ * times: measured $654.96 apart on a $181M total, 2026-09-15. Verifying this by
+ * A/B needs fresh calls on both arms. Perturbing end_date busts the aggregation
+ * layer but not the extract, and once produced a stale $118K gap that
+ * reproduced perfectly (the tell: stage counts differed, which no dimension can
+ * cause).
  *
  * A scoped client is never retried: rows with no campaign_name all normalize to
  * '' and match nothing, which would turn a failed query into the "may have been
@@ -437,8 +443,12 @@ const CACHE_VERSION = 'v2'
  * and retrying up here would otherwise double the fetcher's ceiling to 120s on
  * a page with no maxDuration of its own.
  *
- * The won queries do not take it: their windows are a year or less, and the
- * same probe got 200 for the year-to-date won query with campaign_name.
+ * The won queries do not take it, and a test pins that: their windows are a
+ * year or less, the same probe got 200 for the year-to-date won query with
+ * campaign_name, and the snapshot skew above would land on a year-over-year
+ * delta rather than one absolute figure. Never wrap them with a hardcoded
+ * `false`: that reads a scoped client as unscoped, and Closed Won would report
+ * the whole org's book as agency-sourced.
  */
 async function queryWithUnscopedFallback(
   slug: string,

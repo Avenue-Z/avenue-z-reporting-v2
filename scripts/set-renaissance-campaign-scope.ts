@@ -18,6 +18,16 @@
 // changes no tile today; it is in scope so the first deal it produces is counted
 // without another deploy.
 //
+// SIDE EFFECT: THIS TURNS OFF THE SUPERMETRICS 5xx FALLBACK FOR RENAISSANCE.
+// The open stage and owner queries retry without campaign_name when the vendor
+// 500s on it (queryWithUnscopedFallback in lib/salesforce/pipeline.ts, #240 and
+// #243), but only for UNSCOPED clients: a scoped client's rows need the column
+// to be filtered, so it must never drop it. Once this runs, Open Deals, Total
+// Pipeline, Weighted Pipeline and Open Deals by Owner go back to dashing
+// whenever that intermittent fault recurs (seen 2026-09-13 and 2026-09-15).
+// That is correct, but it looks unrelated to this change and shows up weeks
+// later, so check the logs for `query failed with campaign_name` first.
+//
 // Idempotent read-modify-write; safe to re-run. Equivalent raw SQL:
 //
 //   UPDATE clients SET salesforce_config = salesforce_config || jsonb_build_object(

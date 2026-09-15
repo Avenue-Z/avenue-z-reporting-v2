@@ -1391,4 +1391,52 @@ describe('open stage query 5xx fallback', () => {
       vi.useRealTimers()
     }
   })
+
+  test('a fallback that starts with almost no budget left still gets the 1s floor', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'))
+    try {
+      ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+      const openTimeouts: number[] = []
+      ;(salesforceQuery as Mock).mockImplementation(
+        (_s: string, fields: string[], dateRange: string, opts: { timeoutMs: number }) => {
+          if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+          if (dateRange === 'year_to_date') return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+          openTimeouts.push(opts.timeoutMs)
+          if (!fields.includes('campaign_name')) return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+          vi.setSystemTime(Date.now() + 59_500) // the first attempt burned all but 0.5s
+          return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+        },
+      )
+      await getSalesforcePipeline('acme')
+      // 60_000 - 59_500 = 500 without the floor.
+      expect(openTimeouts).toEqual([60_000, 1_000])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('a won query is never retried without campaign_name, even for an unscoped client', async () => {
+    // The fallback is deliberately limited to the two wide-window queries. The
+    // natural way to wrap a won query passes a hardcoded `false` (wonStagesImpl
+    // has no scope to pass), which reads every client as unscoped: a scoped
+    // client would drop the column on a 5xx and Closed Won would report the whole
+    // org's book as agency-sourced. Pinned on an unscoped client so ANY wrapping
+    // of the won queries fails here and has to be a deliberate decision.
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    const wonCalls: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date' || dateRange === '2025-01-01,2025-12-31') {
+        wonCalls.push(fields)
+        return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+      }
+      return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(wonCalls).toHaveLength(2) // current + prior-year, one attempt each
+    for (const fields of wonCalls) expect(fields).toContain('campaign_name')
+    expect(p.wonUnavailable).toBe(true)
+  })
 })
