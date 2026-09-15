@@ -1,7 +1,13 @@
-# Performance Decks: scope and open questions
+# Organic Social performance decks: snapshot scope and open questions
 
 Working doc for the `performance-decks-dashboard` branch. Code for the deck
 snapshot work lands here.
+
+**Reporting period is deliberately out of scope.** An earlier draft of this doc
+assumed a weekly cadence. That assumption is removed: the snapshot work should
+not hard-code or presume any period length. What the code needs to know is
+whether a window is CLOSED, not how long it is, so a monthly, weekly or arbitrary
+period all behave the same once the period is settled elsewhere.
 
 **No client identifiers in this repo.** Dash Social brand ids, and the identity
 of clients not already named in this codebase, are treated as secret and live
@@ -62,10 +68,14 @@ Verified read-only, 2026-09-15.
 
 ## 4. Open questions
 
-1. **Cadence.** The freeze logic keys off a window being closed, and rolling
-   windows are deliberately never frozen. A weekly deck therefore needs its
-   period defined as a closed week, not a rolling seven days, or nothing freezes.
-   Confirm the intended cadence before building the locked view.
+1. **Closed vs rolling, which is NOT a question about period length.** The freeze
+   logic keys off a window being closed, and rolling windows are deliberately
+   never frozen, because a rolling key shifts daily and writing it would
+   accumulate dead per-day rows. So whatever period is eventually chosen, it has
+   to resolve to fixed start and end dates rather than a "last N days" preset, or
+   nothing freezes and the deck reads live vendor data that can move between
+   building it and presenting it. Period LENGTH is out of scope here; this
+   constraint holds for any length.
 2. **Who triggers the freeze.** A period only freezes on the first render of a
    closed window, so somebody has to open it. It is not a scheduled job, and the
    cache-warm cron will not do it because that cron renders a rolling window. A
