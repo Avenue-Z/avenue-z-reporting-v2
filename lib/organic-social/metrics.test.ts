@@ -39,6 +39,17 @@ const EXPECTED: Record<DashChannel, Record<string, { allPosts: string; byPost: s
     engagements:     { allPosts: 'ENGAGEMENTS',       byPost: 'ENGAGEMENTS_BY_POST' },
     engagementRate:  { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' },
   },
+  // TikTok has NO _BY_POST variants: VIDEO_VIEWS_BY_POST, TOTAL_ENGAGEMENTS_BY_POST,
+  // LIKES_BY_POST, SHARES_BY_POST, COMMENTS_BY_POST, PROFILE_VIEWS_BY_POST and
+  // REACH_BY_POST all 400 (probed 2026-09-15). Both columns carry the bare name, and
+  // bare VIEWS 400s too, so exposure is VIDEO_VIEWS.
+  TIKTOK: {
+    followers:       { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' },
+    netNewFollowers: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' },
+    exposure:        { allPosts: 'VIDEO_VIEWS',       byPost: 'VIDEO_VIEWS' },
+    engagements:     { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS' },
+    engagementRate:  { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' },
+  },
 }
 
 // (A) Both basis columns are pinned data — this test never changes at the flip.

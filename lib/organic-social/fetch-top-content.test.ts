@@ -155,3 +155,85 @@ test('toTopContentRows maps normalized posts to the interim table rows', () => {
   const rows = toTopContentRows(posts)
   expect(rows[0]).toMatchObject({ id: 1, platform: 'Instagram', engagements: 50, views: 1200, sourceType: 'organic', publishDate: '2026-06-01' })
 })
+
+// --- TikTok (added with the channel, 2026-09-15) -------------------------------
+//
+// Field values copied from a live CONTENT probe of a TikTok-reporting brand
+// (2026-08-01..08-31, 21 posts). The decoy fields below are the ones a reasonable person would reach
+// for and that would be WRONG, so each assertion names what it is rejecting.
+const tiktokPost: DashContentPost = {
+  id: 7671768590479002893,
+  source: 'TIKTOK',
+  type: 'IMAGE',            // TikTok posts arrive typed IMAGE, see the media-type test
+  source_created_at: '2026-08-14T16:31:00Z',
+  media_group: null,
+  tiktok: {
+    caption: 'Nine years of Joy of Life, and every number tells a bigger story.',
+    share_url: 'https://www.tiktok.com/@joyoflifesurrogacy/video/7671768590479002893',
+    total_engagements: 7,
+    likes: 6, comments: 0, shares: 1,
+    // Real probe had views === organic_views (151) because this account runs no paid.
+    // Split here on purpose: equal values cannot distinguish the two fields, and an
+    // account with paid WOULD return views > organic_views.
+    views: 160,
+    organic_views: 151,
+    reach: 122,
+    engagement_rate: 0.05737704918032787,             // engagements / reach  <- the one Dash averages
+    views_based_engagement_rate: 0.046357615894039736, // engagements / views <- decoy
+    followers_based_engagement_rate: 0.0049,           // decoy
+    effectiveness: 1.2950819672131149,                 // ABOVE 1, not a fraction <- must be ignored
+    duration: 20.075,
+  },
+}
+
+test('TikTok engagements read total_engagements (= likes + comments + shares)', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.engagements).toBe(7)
+})
+
+test('TikTok views read organic_views, NOT bare views (organic-only, as Facebook does)', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.impressions).toBe(151)
+  expect(p.metrics.impressions).not.toBe(160)
+})
+
+// The tie-break that settled this: Dash's profile AVG_ENGAGEMENT_RATE came back
+// 0.01822442590214667, and the MEAN of per-post engagement_rate over the probed 21
+// posts is 0.01822443 (8dp match). The mean of views_based_engagement_rate is
+// 0.01600285 and does not match. Both reconcile arithmetically, so only this pins it.
+test('TikTok engagement rate reads engagement_rate, NOT views_based_engagement_rate', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.engagementRate).toBe(0.05737704918032787)
+  expect(p.metrics.engagementRate).not.toBe(0.046357615894039736)
+})
+
+// TikTok exposes an `effectiveness` field and it is NOT the 0..1 fraction every other
+// channel stores: probed range 1.0040 to 1.2951. Reading it would put "129.5%" on a
+// card. Dash has no TikTok effectiveness KPI either (EFFECTIVENESS / AVG_EFFECTIVENESS
+// both 400), so there is nothing to reconcile against. Null, like LinkedIn and X.
+test('TikTok effectiveness is null even though the payload carries an effectiveness field', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.effectiveness).toBeNull()
+  expect(tiktokPost.tiktok!.effectiveness).toBe(1.2950819672131149) // the decoy is really there
+})
+
+test('TikTok permalink reads share_url (the channel has no url key)', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.url).toBe('https://www.tiktok.com/@joyoflifesurrogacy/video/7671768590479002893')
+})
+
+test('TikTok caption and platform label resolve', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.caption).toBe('Nine years of Joy of Life, and every number tells a bigger story.')
+  expect(p.platform).toBe('TikTok')
+  expect(p.channel).toBe('TIKTOK')
+  expect(p.publishedAt).toBe('2026-08-14')
+})
+
+// Every TikTok post in the probed set came back type IMAGE with a post-level `image`
+// object and NO `video` object, despite being videos. Pinned so a future reader does
+// not "fix" it into VIDEO and expect a playable src that the payload never carries.
+test('TikTok posts normalize as IMAGE, matching what the vendor actually returns', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.mediaType).toBe('IMAGE')
+})

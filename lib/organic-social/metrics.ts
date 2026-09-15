@@ -19,7 +19,7 @@
 //  - Engagement-over-time (GRAPH, time_scale=DAILY, single channel):
 //      data.metrics[METRIC].ALL_CHANNELS[date]   (value | null per day)
 
-export const CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'] as const
+export const CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN', 'TIKTOK'] as const
 export type DashChannel = (typeof CHANNELS)[number]
 
 export const CHANNEL_LABEL: Record<DashChannel, string> = {
@@ -27,6 +27,7 @@ export const CHANNEL_LABEL: Record<DashChannel, string> = {
   FACEBOOK: 'Facebook',
   TWITTER: 'X',
   LINKEDIN: 'LinkedIn',
+  TIKTOK: 'TikTok',
 }
 
 /** Resolve the reportable Dash channels, honoring an optional lowercase allowlist.
@@ -159,6 +160,25 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
     { key: 'postClicks',      label: 'Post Clicks',     format: 'number',  metric: { allPosts: 'CLICKS_ALL_POSTS',    byPost: 'CLICKS_BY_POST' } },
     // No by-post variant (PAGE_VIEWS_BY_POST 400s) — page-level, inherently all-posts.
     { key: 'profileViews',    label: 'Profile Views',   format: 'number',  metric: { allPosts: 'PAGE_VIEWS_ALL_POSTS', byPost: 'PAGE_VIEWS_ALL_POSTS' } },
+  ],
+  TIKTOK: [
+    // Probed live 2026-09-15 (window 08-01..08-31). TikTok exposes NO
+    // _BY_POST variants at all: VIDEO_VIEWS_BY_POST, TOTAL_ENGAGEMENTS_BY_POST,
+    // LIKES_BY_POST, SHARES_BY_POST, COMMENTS_BY_POST, PROFILE_VIEWS_BY_POST and
+    // REACH_BY_POST every one 400s. So both basis columns carry the same bare name,
+    // as the Instagram/Facebook/X breakdown KPIs already do.
+    { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
+    { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+    // VIDEO_VIEWS, not VIEWS: bare VIEWS 400s on this channel.
+    { key: 'exposure',        label: 'Views',           format: 'number',  metric: { allPosts: 'VIDEO_VIEWS',      byPost: 'VIDEO_VIEWS' } },
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS' } },
+    { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+    { key: 'profileViews',    label: 'Profile Views',   format: 'number',  metric: { allPosts: 'PROFILE_VIEWS',    byPost: 'PROFILE_VIEWS' } },
+    // ORGANIC_LIKES / ORGANIC_COMMENTS: bare LIKES and COMMENTS 400 on this channel.
+    { key: 'likes',           label: 'Likes',           format: 'number',  metric: { allPosts: 'ORGANIC_LIKES',    byPost: 'ORGANIC_LIKES' } },
+    { key: 'comments',        label: 'Comments',        format: 'number',  metric: { allPosts: 'ORGANIC_COMMENTS', byPost: 'ORGANIC_COMMENTS' } },
+    { key: 'shares',          label: 'Shares',          format: 'number',  metric: { allPosts: 'SHARES',           byPost: 'SHARES' } },
+    { key: 'completionRate',  label: 'Avg Completion Rate', format: 'percent', metric: { allPosts: 'AVG_COMPLETION_RATE', byPost: 'AVG_COMPLETION_RATE' } },
   ],
 }
 

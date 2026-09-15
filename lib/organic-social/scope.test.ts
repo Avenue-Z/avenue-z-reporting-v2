@@ -3,12 +3,13 @@ import { resolveChannels, resolveTargets } from './metrics'
 import { onChannelError } from './headlines'
 import { onTrendChannelError } from './trends'
 
-const ALL = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'] as const
+const ALL = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN', 'TIKTOK'] as const
 
-test('absent allowlist ⇒ all four channels', () => {
-  expect(resolveChannels()).toEqual(['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'])
-  expect(resolveChannels(null)).toEqual(['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'])
-  expect(resolveChannels([])).toEqual(['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'])
+test('absent allowlist ⇒ every supported channel', () => {
+  const all = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN', 'TIKTOK']
+  expect(resolveChannels()).toEqual(all)
+  expect(resolveChannels(null)).toEqual(all)
+  expect(resolveChannels([])).toEqual(all)
 })
 
 test('partial allowlist ⇒ subset, in CHANNELS order', () => {
@@ -20,15 +21,19 @@ test('allowlist is case-insensitive', () => {
 })
 
 test('unknown entries are ignored', () => {
-  expect(resolveChannels(['tiktok', 'twitter'])).toEqual(['TWITTER'])
+  // 'youtube' is the stand-in for unsupported: Dash returns a youtube sub-object and
+  // base.ts maps it for display, but it is not in CHANNELS. 'tiktok' used to play this
+  // role and cannot any more, now that it is a supported channel.
+  expect(resolveChannels(['youtube', 'twitter'])).toEqual(['TWITTER'])
+  expect(resolveChannels(['tiktok', 'twitter'])).toEqual(['TWITTER', 'TIKTOK'])
 })
 
 // Documents intended behavior (review finding #3): a non-empty allowlist that matches NO
 // supported channel collapses to [] — NOT a silent fallback to all four. `[]` is the honest
 // answer to "report only these (unsupported) channels"; the safeguard against a typo'd config
 // is validation at config-write time, not masking it here. Inert today (no client sets `channels`).
-test('an all-unknown allowlist collapses to [] (not a fallback to all four)', () => {
-  expect(resolveChannels(['tiktok', 'myspace'])).toEqual([])
+test('an all-unknown allowlist collapses to [] (not a fallback to every channel)', () => {
+  expect(resolveChannels(['youtube', 'myspace'])).toEqual([])
 })
 
 // resolveTargets (review R2 #2): the empty-targets hole is now a surfaced error, not a blank.

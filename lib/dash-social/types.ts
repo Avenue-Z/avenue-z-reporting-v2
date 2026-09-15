@@ -67,6 +67,7 @@ export interface DashContentPost {
   facebook?: Record<string, unknown> | null
   linkedin?: Record<string, unknown> | null
   twitter?: Record<string, unknown> | null
+  tiktok?: Record<string, unknown> | null
 }
 export interface ContentResponse {
   data: { content: DashContentPost[] }
