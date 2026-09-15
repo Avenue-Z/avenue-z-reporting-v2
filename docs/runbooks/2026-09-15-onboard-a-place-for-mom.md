@@ -46,7 +46,7 @@ VALUES (
   'a-place-for-mom',
   'A Place For Mom',
   ARRAY['organic-social'],
-  '{"brandId": <BRAND_ID>}'::jsonb
+  '{"brandId": 24350}'::jsonb
 );
 ```
 
@@ -60,18 +60,25 @@ SELECT '<email>', '<ROLE>', id FROM clients WHERE slug = 'a-place-for-mom';
 
 Run against dev, then staging, then prod.
 
-## 3. Open item: the Dash brand id
+## 3. The Dash brand id: 24350
 
-`<BRAND_ID>` is the only unknown. Renaissance is `26952`.
+Supplied 2026-09-15. Renaissance is `26952` for comparison.
 
-It cannot be looked up from this repo. `DashSocialClient` exposes exactly two
-methods, `getMedia` and `getContent` (`lib/dash-social/client.ts:89`, `:97`), and
-both require a brand id you already have. **There is no brand-listing or
-brand-search call implemented.** The captured fixtures only contain brand `26952`
-and carry no brand-name field.
+**Corroborating signal, not proof:** `24350` is already the example brand id in
+the `DashSocialConfig` docstring (`lib/db/schema.ts:133`) and in the original
+plan doc (`docs/superpowers/plans/2026-06-23-renaissance-organic-social.md:388`).
+So it is a real Dash brand id that somebody had to hand in June. That confirms
+the shape is right. It does not confirm the brand is A Place For Mom.
 
-Get it from the Dash Social UI (it appears in the URL), or probe Dash's own
-brands endpoint with a real token.
+**It has not been verified against the live API.** `DASH_API_TOKEN` is empty in
+`.env.local`, so no call was made from here. It also could not have been looked
+up by name: `DashSocialClient` implements only `getMedia` and `getContent`
+(`lib/dash-social/client.ts:89`, `:97`), both of which require a brand id you
+already hold, and there is no brand-listing or brand-search call. The captured
+fixtures contain only brand `26952` and carry no brand-name field.
+
+Verify before prod, either with a real token (see §5) or by loading the page on
+dev and confirming the posts are A Place For Mom's.
 
 ## 4. Two things to get right
 
@@ -88,11 +95,28 @@ live data before trusting the tab.
 
 ## 5. Verification
 
+The brand id is unverified (§3), so verify on dev BEFORE staging or prod.
+
 1. Row exists with `enabled_reports = {organic-social}` and a non-null
    `dash_social_config`.
 2. `/dashboard/a-place-for-mom/reports/organic-social` loads.
-3. All four platform tabs show data, not empty states. An empty section is the
-   failure mode to watch, per §4.
+3. **The posts are recognisably A Place For Mom's.** This is the step that
+   actually validates `24350`. A wrong brand id returns a valid-looking response
+   for somebody else's brand, or an empty one, and neither raises an error.
+4. All four platform tabs show data, not empty states.
+
+With a real `DASH_API_TOKEN` this can be checked without creating any row, by
+calling CONTENT directly for brand `24350` and reading the captions:
+
+```
+GET https://dashboard.dashsocial.com/reports/data
+    ?brand_ids=24350&channels=FACEBOOK&metrics=TOTAL_ENGAGEMENTS
+    &report_type=CONTENT&start_date=<start>&end_date=<end>&limit=500
+Authorization: Bearer $DASH_API_TOKEN
+```
+
+`limit` is mandatory (omitting it silently returns 6 posts) and `aggregate_by`
+must never be sent (it returns 0 items). See `lib/dash-social/client.ts:97`.
 
 ---
 
