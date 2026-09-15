@@ -75,6 +75,7 @@ async function main() {
   console.log(`Scoped ${SLUG} CRM reporting to ${CAMPAIGN_NAMES.length} campaigns:`)
   for (const n of CAMPAIGN_NAMES) console.log(`  ${n}`)
   console.log(before.length ? `Previous scope: ${before.join(', ')}` : 'Previous scope: whole org (unscoped)')
+  console.log('Note: the Supermetrics 5xx fallback is now off for this client; if the open tiles or owner breakdown dash, check the logs for `query failed with campaign_name`.')
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1) })
