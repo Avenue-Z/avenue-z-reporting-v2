@@ -412,10 +412,55 @@ const NEGATIVE_TTL_SECONDS = 60
  */
 const CACHE_VERSION = 'v2'
 
-function openStagesImpl(slug: string): Promise<Record<string, string>[]> {
-  return salesforceQuery(slug, STAGE_FIELDS, openWindow(), {
-    settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs: SALESFORCE_TIMEOUT_MS,
-  })
+/**
+ * Runs a wide-window query, with one fallback: an unscoped client whose query
+ * 5xx's is retried WITHOUT campaign_name.
+ *
+ * Supermetrics has intermittently returned HTTP 500 (body just "Error:") for
+ * queries carrying campaign_name on the openWindow() range: the owner query on
+ * prod 2026-09-13 (cleared the next day, 0 of 19), then the open stage AND owner
+ * queries on staging 2026-09-15, where a raw probe got 500 with the column and
+ * 200 without it on both. Persistent enough to outlast smQuery's own 5xx retries
+ * for hours. campaign_name is only requested so filterByCampaign can scope the
+ * rows, and an unscoped client's filter is a pass-through, so its figures are
+ * identical without the column.
+ *
+ * A scoped client is never retried: rows with no campaign_name all normalize to
+ * '' and match nothing, which would turn a failed query into the "may have been
+ * renamed" accusation. That is also why the scope is an ARGUMENT to the cached
+ * fetchers rather than read from the client in here: it is part of the cache
+ * key, so a fallback entry can never be served to the same slug once a campaign
+ * list is configured.
+ *
+ * The fallback spends what is LEFT of SALESFORCE_TIMEOUT_MS, not a fresh one:
+ * call() in lib/supermetrics/client.ts keeps a retry chain inside one budget,
+ * and retrying up here would otherwise double the fetcher's ceiling to 120s on
+ * a page with no maxDuration of its own.
+ *
+ * The won queries do not take it: their windows are a year or less, and the
+ * same probe got 200 for the year-to-date won query with campaign_name.
+ */
+async function queryWithUnscopedFallback(
+  slug: string,
+  label: string,
+  fields: string[],
+  campaignScoped: boolean,
+  query: (fields: string[], timeoutMs: number) => Promise<Record<string, string>[]>,
+): Promise<Record<string, string>[]> {
+  const started = Date.now()
+  try {
+    return await query(fields, SALESFORCE_TIMEOUT_MS)
+  } catch (e) {
+    if (campaignScoped || !(e instanceof SmQueryError && (e.status ?? 0) >= 500)) throw e
+    console.warn(`[salesforce] ${label} query failed with campaign_name for ${slug}, retrying without it:`, e)
+    return query(fields.filter((f) => f !== 'campaign_name'), Math.max(SALESFORCE_TIMEOUT_MS - (Date.now() - started), 1_000))
+  }
+}
+
+function openStagesImpl(slug: string, campaignScoped: boolean): Promise<Record<string, string>[]> {
+  return queryWithUnscopedFallback(slug, 'open stage', STAGE_FIELDS, campaignScoped, (fields, timeoutMs) =>
+    salesforceQuery(slug, fields, openWindow(), { settings: OPEN_SETTINGS, maxRows: STAGE_MAX_ROWS, timeoutMs }),
+  )
 }
 const getOpenStages = cached('salesforce', 'openStages', openStagesImpl, {
   extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
@@ -456,45 +501,11 @@ const getWonStagesCompare = cached('salesforce', 'wonStagesCompare', wonStagesIm
   version: CACHE_VERSION,
 })
 
-const OWNER_FIELDS_UNSCOPED = OWNER_FIELDS.filter((f) => f !== 'campaign_name')
-
-/**
- * The owner query, with one fallback: an unscoped client whose query 5xx's is
- * retried WITHOUT campaign_name.
- *
- * Observed live on prod 2026-09-13: Supermetrics returned HTTP 500 (body just
- * "Error:") for this query on the 2026 openWindow(), 2023-01-01..2029-12-31, on
- * every render, while the same query without campaign_name succeeded on that
- * window. It did not reproduce the next day (0 of 19), so it was a vendor fault
- * lasting hours rather than a deterministic one, but persistent enough to
- * outlast smQuery's own 5xx retries. This fallback is for a recurrence.
- * campaign_name is only requested so filterByCampaign can scope the rows, and an
- * unscoped client's filter is a pass-through, so its breakdown is identical
- * without the column.
- *
- * A scoped client is never retried: rows with no campaign_name all normalize to
- * '' and match nothing, which would turn a failed query into the "may have been
- * renamed" accusation. That is also why the scope is an ARGUMENT rather than
- * read from the client in here: it is part of the cache key, so a fallback
- * entry can never be served to the same slug once a campaign list is configured.
- *
- * The fallback spends what is LEFT of SALESFORCE_TIMEOUT_MS, not a fresh one:
- * call() in lib/supermetrics/client.ts keeps a retry chain inside one budget,
- * and retrying up here would otherwise double this fetcher's ceiling to 120s on
- * a page with no maxDuration of its own.
- */
-async function ownerRowsImpl(slug: string, campaignScoped: boolean): Promise<Record<string, string>[]> {
-  const started = Date.now()
-  const query = (fields: string[], timeoutMs = SALESFORCE_TIMEOUT_MS) => salesforceQuery(slug, fields, openWindow(), {
-    settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs,
-  })
-  try {
-    return await query(OWNER_FIELDS)
-  } catch (e) {
-    if (campaignScoped || !(e instanceof SmQueryError && (e.status ?? 0) >= 500)) throw e
-    console.warn(`[salesforce] owner query failed with campaign_name for ${slug}, retrying without it:`, e)
-    return query(OWNER_FIELDS_UNSCOPED, Math.max(SALESFORCE_TIMEOUT_MS - (Date.now() - started), 1_000))
-  }
+/** The owner query, with the same unscoped 5xx fallback as the open stage query; see queryWithUnscopedFallback. */
+function ownerRowsImpl(slug: string, campaignScoped: boolean): Promise<Record<string, string>[]> {
+  return queryWithUnscopedFallback(slug, 'owner', OWNER_FIELDS, campaignScoped, (fields, timeoutMs) =>
+    salesforceQuery(slug, fields, openWindow(), { settings: OPEN_SETTINGS, maxRows: OWNER_MAX_ROWS, timeoutMs }),
+  )
 }
 const getOwnerRows = cached('salesforce', 'ownerRows', ownerRowsImpl, {
   extractTags: byClient, negativeTtlSeconds: NEGATIVE_TTL_SECONDS, version: CACHE_VERSION,
@@ -526,7 +537,7 @@ export async function getSalesforcePipelineImpl(slug: string): Promise<PipelineD
     // openUnavailable so the tiles read as unavailable, never as a confident 0.
     // The catch is OUTSIDE the cached wrapper on purpose: caught inside, the
     // null would become a fulfilled result and get cached as if it were data.
-    getOpenStages(slug).catch((e) => {
+    getOpenStages(slug, campaignScoped).catch((e) => {
       console.error(`[salesforce] open pipeline fetch failed for ${slug}:`, e)
       return null
     }),
