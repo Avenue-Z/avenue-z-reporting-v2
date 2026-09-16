@@ -711,6 +711,30 @@ deliberately left out of its scope so it stayed reviewable.
   `client.ts`, so it is not the home for it). Mind the `eventName` exception
   above when applying it.
 
+## Known Follow-ups — Salesforce / Executive Overview (from PR #243/#244 review)
+
+Surfaced reviewing the Salesforce open stage 5xx fallback (PR #243; record in
+`docs/qa/salesforce-open-stage-500-fallback-code-review.md`, follow-up 11). Out
+of that PR's scope, and the repo has GitHub Issues disabled, so it is tracked here.
+
+- [ ] **A missing `opportunity_amount` silently becomes $0 and still feeds the
+  pipeline totals** — `toNumber` (`lib/salesforce/num.ts:13-17`) turns any
+  missing numeric cell into `0`, logging only
+  `[salesforce] numeric field "opportunity_amount" missing, defaulting to 0:`.
+  That value feeds Total Pipeline and Weighted Pipeline through `toStageRows`
+  (`lib/salesforce/pipeline.ts:171`) and the owner breakdown's amounts through
+  `transformByOwner` (`pipeline.ts:302`), so the tiles render a confident figure
+  with nothing on screen saying part of it was defaulted. The warning shows up
+  in both staging's and prod's runtime logs for Renaissance (seen 2026-09-13 to
+  09-15). **Start by finding which rows it fires on:** Supermetrics returns
+  aggregated rows, grouped by the query's dimensions, so a missing amount may
+  just mean every deal in that group has no amount, in which case `0` is the
+  right sum and only the warning is noise. If instead real amounts are being dropped, surface it
+  the way `unrecognizedClosedFlags` does (count the defaulted rows on
+  `PipelineData` and caveat the tiles) rather than leaving the console warn as
+  the only signal. It is the only open item here that can quietly move a
+  client-facing number.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
