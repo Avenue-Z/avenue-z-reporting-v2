@@ -204,6 +204,6 @@ Operational consequences carried in the PR description; see §1.6. No code chang
 10. Before scoping Renaissance (#230), decide whether losing both fallbacks is acceptable or whether a scoped-safe degradation is needed.
 
 **Unrelated, seen in both environments' logs**
-11. `numeric field "opportunity_amount" missing, defaulting to 0`. Not tracked elsewhere yet.
+11. `numeric field "opportunity_amount" missing, defaulting to 0`: a missing amount silently becomes $0 and still feeds Total Pipeline, Weighted Pipeline and the owner amounts (`lib/salesforce/num.ts:13-17`). Tracked in `CLAUDE.md` → *Known Follow-ups — Salesforce / Executive Overview* (PR #248); GitHub Issues are disabled on this repo.
 
 **Blocking the ship:** none. All review follow-ups are closed, including Thomas's round-2 output note (`ab35902`). Thomas has not yet approved. #243 reaches staging and prod only through `dev → staging → main`.
