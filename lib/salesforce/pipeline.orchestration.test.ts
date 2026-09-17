@@ -251,7 +251,9 @@ describe('getSalesforcePipeline', () => {
     expect(salesforce).toHaveLength(4)
     return Promise.all(
       salesforce.map((c) =>
-        // Both arities: the won impl takes (slug, range), the other two (slug).
+        // Both arities: the won impl takes (slug, range), the open and owner
+        // impls (slug, campaignScoped). The truthy second arg reads as scoped,
+        // so no fallback runs and the rejection surfaces unchanged.
         expect(c.impl('acme', '2025-01-01,2025-12-31')).rejects.toThrow('vendor 500'),
       ),
     )
@@ -1264,5 +1266,178 @@ describe('owner query 5xx fallback', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('open stage query 5xx fallback', () => {
+  // Observed live on staging 2026-09-15, the day after #240 shipped the owner
+  // fallback: the open stage query 500'd on every render while Closed Won loaded,
+  // dashing Open Deals / Total Pipeline / Weighted. A raw probe the same hour
+  // returned 500 for STAGE_FIELDS on openWindow() and 200 (30 rows) for the same
+  // query without campaign_name. Same vendor fault as the owner query, same
+  // reasoning: campaign_name is only there for filterByCampaign, which is a
+  // pass-through for an unscoped client, so its open tiles are identical without it.
+  let warnSpy: ReturnType<typeof vi.spyOn>
+  let errorSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    ;(resolveCompareIso as Mock).mockReturnValue(null)
+  })
+  afterEach(() => {
+    warnSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  const client = (campaignNames?: string[]) =>
+    ({ salesforceConfig: { salesforceAccountId: '00D', campaignNames } }) as unknown as ReturnType<typeof getClientBySlug>
+
+  /** Records every open stage call's fields; the campaign_name one fails with `openError`. */
+  const failOpenWithCampaign = (openError: Error) => {
+    const openCalls: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date') return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+      openCalls.push(fields)
+      return fields.includes('campaign_name')
+        ? Promise.reject(openError)
+        : Promise.resolve([stageRow('Proposal Released', 10, 1000, 25)])
+    })
+    return openCalls
+  }
+
+  test('an unscoped client retries a 5xx open stage query without campaign_name and keeps its open tiles', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    const openCalls = failOpenWithCampaign(new SmQueryError('Supermetrics 500', 500))
+    const p = await getSalesforcePipeline('acme')
+    expect(openCalls).toHaveLength(2)
+    expect(openCalls[0]).toContain('campaign_name')
+    expect(openCalls[1]).not.toContain('campaign_name')
+    expect(p.openUnavailable).toBe(false)
+    expect(p.openDeals.value).toBe(10)
+    expect(p.totalPipeline.value).toBe(1000)
+    expect(p.weightedPipeline.value).toBeCloseTo(250, 2) // 1000 * 0.25
+    expect(p.openCampaignUnmatched).toBe(false)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[salesforce] open stage query'), expect.any(SmQueryError))
+  })
+
+  test('a campaign-scoped client never drops campaign_name: the open tiles stay unavailable', async () => {
+    // Rows without campaign_name all normalize to '' and match nothing, so a
+    // fallback here would dash the tiles under "the campaigns may have been
+    // renamed" over a query that simply failed. Also pins that the scope reaches
+    // the cached fetcher as an argument: dropped there, the impl would fall back.
+    ;(getClientBySlug as Mock).mockResolvedValue(client(['2026 - Inbound Prospecting']))
+    const openCalls = failOpenWithCampaign(new SmQueryError('Supermetrics 500', 500))
+    const p = await getSalesforcePipeline('acme')
+    expect(openCalls).toHaveLength(1)
+    expect(p.openUnavailable).toBe(true)
+    expect(p.openCampaignUnmatched).toBe(false)
+  })
+
+  test('a non-5xx open stage failure is not retried without campaign_name', async () => {
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    // Statusless SmQueryError pins `status ?? 0`; the plain Error carrying status
+    // 500 pins `instanceof SmQueryError` against a duck-typed status check.
+    const statusful = Object.assign(new Error('Supermetrics 500'), { status: 500 })
+    for (const e of [
+      new SmQueryError('Supermetrics 400', 400),
+      new SmQueryError('Supermetrics response had neither data nor schedule_id'),
+      statusful,
+      new Error('socket hang up'),
+    ]) {
+      const openCalls = failOpenWithCampaign(e)
+      const p = await getSalesforcePipeline('acme')
+      expect(openCalls).toHaveLength(1)
+      expect(p.openUnavailable).toBe(true)
+    }
+  })
+
+  test('when the open fallback also fails, the tiles are unavailable, not a confident zero', async () => {
+    // Swallowed to [] the tiles would render 0 / $0 / $0 as real figures;
+    // rejected, openUnavailable dashes them.
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    const openCalls: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date') return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+      openCalls.push(fields)
+      return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(openCalls).toHaveLength(2)
+    expect(p.openUnavailable).toBe(true)
+    expect(p.openValueUnknown).toBe(true)
+  })
+
+  test('the open fallback spends what is left of the 60s budget, not a fresh 60s', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'))
+    try {
+      ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+      const openTimeouts: number[] = []
+      ;(salesforceQuery as Mock).mockImplementation(
+        (_s: string, fields: string[], dateRange: string, opts: { timeoutMs: number }) => {
+          if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+          if (dateRange === 'year_to_date') return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+          openTimeouts.push(opts.timeoutMs)
+          if (!fields.includes('campaign_name')) return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+          vi.setSystemTime(Date.now() + 20_000) // the first attempt burned 20s
+          return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+        },
+      )
+      await getSalesforcePipeline('acme')
+      expect(openTimeouts).toEqual([60_000, 40_000])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('a fallback that starts with almost no budget left still gets the 1s floor', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'))
+    try {
+      ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+      const openTimeouts: number[] = []
+      ;(salesforceQuery as Mock).mockImplementation(
+        (_s: string, fields: string[], dateRange: string, opts: { timeoutMs: number }) => {
+          if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+          if (dateRange === 'year_to_date') return Promise.resolve([stageRow('Closed Won', 4, 400, 100, true)])
+          openTimeouts.push(opts.timeoutMs)
+          if (!fields.includes('campaign_name')) return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+          vi.setSystemTime(Date.now() + 59_500) // the first attempt burned all but 0.5s
+          return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+        },
+      )
+      await getSalesforcePipeline('acme')
+      // 60_000 - 59_500 = 500 without the floor.
+      expect(openTimeouts).toEqual([60_000, 1_000])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('a won query is never retried without campaign_name, even for an unscoped client', async () => {
+    // The fallback is deliberately limited to the two wide-window queries. The
+    // natural way to wrap a won query passes a hardcoded `false` (wonStagesImpl
+    // has no scope to pass), which reads every client as unscoped: a scoped
+    // client would drop the column on a 5xx, match none of its campaigns, and
+    // dash Closed Won under the false "campaigns may have been renamed" caveat.
+    // Pinned on an unscoped client so ANY wrapping
+    // of the won queries fails here and has to be a deliberate decision.
+    ;(getClientBySlug as Mock).mockResolvedValue(client(undefined))
+    ;(resolveCompareIso as Mock).mockReturnValue('2025-01-01,2025-12-31')
+    const wonCalls: string[][] = []
+    ;(salesforceQuery as Mock).mockImplementation((_s: string, fields: string[], dateRange: string) => {
+      if (fields.includes('opportunity_owner')) return Promise.resolve([ownerRow('Owner A', 5, 500)])
+      if (dateRange === 'year_to_date' || dateRange === '2025-01-01,2025-12-31') {
+        wonCalls.push(fields)
+        return Promise.reject(new SmQueryError('Supermetrics 500', 500))
+      }
+      return Promise.resolve([stageRow('Proposal Released', 10, 1000)])
+    })
+    const p = await getSalesforcePipeline('acme')
+    expect(wonCalls).toHaveLength(2) // current + prior-year, one attempt each
+    for (const fields of wonCalls) expect(fields).toContain('campaign_name')
+    expect(p.wonUnavailable).toBe(true)
   })
 })
