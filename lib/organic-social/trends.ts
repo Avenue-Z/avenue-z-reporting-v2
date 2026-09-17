@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { buildTrendSeries } from './trend-series'
 import { dashClientFor, isoRangeTz } from './base'
 import { CHANNEL_LABEL, metricForKey, resolveTargets, channelErrorPolicy, type DashChannel } from './metrics'
+import { assertSingleChannelGraph } from './graph-guard'
 import type { GraphMetric } from '@/lib/dash-social/types'
 import type { TrendSeries } from './types'
 
@@ -28,6 +29,7 @@ export const getEngagementTrend = cache(async (
       const metric = metricForKey(channel, 'engagements')
       const label = CHANNEL_LABEL[channel]
       try {
+        assertSingleChannelGraph('GRAPH', [channel])
         const res = await client.getReportsData<GraphMetric>({
           brandId,
           channels: [channel],
