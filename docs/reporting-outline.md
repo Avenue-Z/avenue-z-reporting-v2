@@ -132,9 +132,9 @@ platform tab has the same six blocks, in this order:
 |---|---|---|
 | Commentary | Commentary for the tab | Exists (the shared Commentary part) |
 | YTD Review | A year to date follower growth graph and a year to date views graph | Net new |
-| Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Four rows do not work as written; that is Jasmine's question 6 |
+| Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Four rows do not work as written; that is Jasmine's question 6 |
 | {Platform} Follower Growth Graph | "Needs to include annotations" | PR 252, waiting on Jasmine's question 9 |
-| {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics directly under: net new, not scoped in any PR yet |
+| {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics themselves already exist as Data tiles (TikTok's are on PR 247, and TikTok Reposts is not reported by Dash). They need moving directly under the graph, not building |
 | Top Performing Content | Top posts for the tab | Exists. How many per tab is question 7; sponsored posts are question 8 |
 
 Tabs per client:
@@ -145,9 +145,10 @@ Tabs per client:
   config for this client lists Instagram and Facebook, so the channel list is
   settled together with question 1.
 
-So the net-new builds are three: annotations (PR 252), YTD Review, and the
-engagement metrics under the engagement graph. Everything else is configuration
-or wiring of parts that exist.
+So the net-new builds are two: annotations (PR 252) and YTD Review. The
+engagement metrics under the engagement graph are not net new: they are Data tiles
+today and move under the graph for these three clients. Everything else is
+configuration or wiring of parts that exist.
 
 ## Date picker
 
@@ -188,8 +189,11 @@ Waiting on Jasmine (her decisions for approval doc, by question number):
 Engineering, mine to close:
 
 - an absent channel allowlist must stop resolving to every channel before TikTok
-  (PR 247) ships, per finding 1 above, without writing Renaissance's row
-- who builds YTD Review and the metrics under the engagement graph, and in which PR
+  (PR 247) ships, per finding 1 above, without writing Renaissance's row. Fixed on
+  PR 247 (`2871c94`): an absent allowlist now resolves to the original four channels
+- who builds YTD Review, and in which PR
+- moving the engagement metrics from the Data tiles to under the engagement graph,
+  planned on PR 255
 
 ## How this ships
 
