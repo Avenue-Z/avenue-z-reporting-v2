@@ -2,6 +2,8 @@
 
 > **For the executor:** run inline in this session with superpowers:executing-plans, task by task. No subagents. Steps use checkbox (`- [ ]`) syntax. Stop and ask at every step marked **STOP**.
 
+**Do not start until Jasmine has answered question 9 of the decisions for approval doc, as sent.** It asks about a dot on every posting day with hover. If she confirms it as written, stop: the spec and this plan change first (spec, "Jasmine's question 9, as she is reviewing it").
+
 **Goal:** Annotate the v2 Organic Social follower and engagement graphs the way the team's monthly deck does (top 2 follower days, top 3 engagement days, each with its value and the post behind it), behind one Annotations button, and let internal staff hide any single annotation from the client.
 
 **Architecture:** Pure functions turn a single-channel daily series plus the posts the section already fetches into annotations. The v2 parts fetch the series over the UTC month, build annotations, apply the team's hides on the server, and pass the result down; the shared chart renders a row of annotations and a dot per peak only when annotations are passed. Hides live in one new additive table behind a role-checked server action. v1, which Renaissance renders, is pinned by snapshot and request tests committed before any change.

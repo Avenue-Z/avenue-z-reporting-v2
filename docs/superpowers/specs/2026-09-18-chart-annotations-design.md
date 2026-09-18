@@ -1,6 +1,8 @@
 # Chart annotations: design
 
-Status: approved in chat on 2026-09-18, pending Jasmine's corrected question 9 (see Decisions).
+Status: approved in chat on 2026-09-18. Waiting on Jasmine: her question 9, as she is
+reviewing it, describes a different design (see the next section). Nothing is built until
+she answers.
 Supersedes `docs/chart-annotations.md`.
 
 ## Summary
@@ -14,6 +16,29 @@ team can hide any single annotation from the client.
 
 Renaissance does not change. It renders v1 of both graphs, and everything here lives in
 v2.
+
+## Jasmine's question 9, as she is reviewing it
+
+The decisions for approval doc Jasmine is reviewing asks, as question 9:
+
+> Your outlines ask for annotations on both graphs. Is this what you mean? A dot on every
+> day you posted, so you can see what went live when the line moved, and hovering it shows
+> the post. You could add your own notes too, like "influencer post went live", written by
+> your team and approved before a client sees it. One button hides them all, and any single
+> one can be hidden so you can share some and not others.
+
+That question went out before I read the team's June deck. This spec follows the deck
+instead: peaks, not every posting day, and a visible row instead of hover. The question was
+not reworded, so her answer is about the design it describes. How her answer maps:
+
+- **Yes, as written.** She wants a dot on every posting day with hover. That is closer to the
+  code already on this branch (commit `922a090`, one mark per posting day). I bring the
+  choice between that and this spec back to her before building, and revise the spec and
+  plan to whatever she picks.
+- **She prefers the deck's peaks, or leaves the shape to us.** This spec as written.
+- **Either way:** hiding a single annotation, the Renaissance guards and the UTC month stand,
+  since her question asks for the first and the other two are ours. Written notes wait for her
+  answer and follow the approval flow she confirms.
 
 ## What the team does today
 
@@ -49,7 +74,7 @@ client numbers and the repository is public.
 4. The team can hide any single annotation from the client.
 5. Guards that prove Renaissance's charts and data requests are unchanged.
 
-**Phase 2, after Jasmine answers the corrected question 9.** Written notes for spikes our
+**Phase 2, after Jasmine answers question 9.** Written notes for spikes our
 data cannot explain, with an approval flow like Commentary.
 
 **Deferred.** Red dots on zero-engagement days. It changes how every point on the shared
@@ -310,13 +335,13 @@ Renaissance is live in production and must not change. This rests on facts check
 
 | Decision | Decided by | Date | Status |
 |---|---|---|---|
-| Annotate peaks, not every post | Me, from the APFM June deck | 2026-09-18 | Pending Jasmine (corrected Q9) |
-| 2 follower and 3 engagement annotations | Me, from the deck | 2026-09-18 | Pending Jasmine (corrected Q9) |
-| v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Pending Jasmine (corrected Q9) |
+| Annotate peaks, not every post | Me, from the APFM June deck | 2026-09-18 | Pending Jasmine (Q9 as sent asks about every posting day) |
+| 2 follower and 3 engagement annotations | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9 as sent asks about every posting day) |
+| v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9 as sent asks about every posting day) |
 | v2 graphs use the UTC month | Me, after the probe | 2026-09-18 | Decided |
 | Titles and the Annotations button follow the outlines word for word | Jasmine's outlines | 2026-09-18 | Decided |
-| A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Decided, pending Jasmine (corrected Q9) |
-| The team can hide one annotation from the client; internal staff only; the team sees it faded | Me | 2026-09-17 and 2026-09-18 | Decided, pending Jasmine (corrected Q9) |
+| A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Decided, pending Jasmine (Q9) |
+| The team can hide one annotation from the client; internal staff only; the team sees it faded | Me | 2026-09-17 and 2026-09-18 | Decided, pending Jasmine (Q9) |
 | A hide attaches to the annotation's day on one chart, not to a post | Me | 2026-09-18 | Decided |
 | Hides stored in a new additive table | Me | 2026-09-17 | Decided |
 | Sponsored posts can be thumbnails | Default | 2026-09-18 | Pending Jasmine (Q8) |
