@@ -61,7 +61,8 @@ that are already frozen.
 `last_N_days` resolves `end` to yesterday (`lib/date-range.ts:64`), and
 `isPeriodOpen` treats yesterday as still open. That is deliberate and load
 bearing: rolling windows must stay live. A named period like `last_month`
-(`date-range.ts:78`) ends at least two days ago, so it is closed and it freezes.
+(`date-range.ts:78`) ends on the last day of the previous month. On the 1st that day is
+still yesterday, so the period counts as open; it closes and freezes from the 2nd.
 
 The default preset is `last_30_days`.
 
@@ -77,21 +78,21 @@ This is the real gap, and it is narrower than the section looks.
 
 | Surface | Frozen? |
 |---|---|
-| Top Content | **Yes.** `parts/top-content.tsx:67` calls `fetchTopContentFrozen` |
+| Top Content | **Yes, on `top-content@2` only.** `parts/top-content.tsx:67` calls `fetchTopContentFrozen`; v1 (`parts/top-content.tsx:19`) calls live `getTopContent`. A client's version comes from its `section_templates` row |
 | Followers | No. `lib/organic-social/followers.ts` queries live |
 | Trends | No. `lib/organic-social/trends.ts` queries live |
 | Headlines | No. `lib/organic-social/headlines.ts` queries live |
-| Trend series | No. `lib/organic-social/trend-series.ts` queries live |
+| Trend series | Not a vendor call. `lib/organic-social/trend-series.ts` only builds series from the followers and trends data |
 
 `fetchTopContentFrozen` has exactly one caller. Every other getter in
 `lib/organic-social/` goes straight to the vendor on every render.
 
-So on a closed month today, Top Content is frozen and the four other surfaces are
+So on a closed month today, Top Content is frozen and the three other surfaces are
 live. A client would see stable post rankings sitting next to follower and trend
 figures that can move underneath them. That is arguably worse than all-live,
 because the inconsistency is invisible.
 
-"Clients will not see live data" is not true until those four are covered too.
+"Clients will not see live data" is not true until those three are covered too.
 
 ## 5. The work, broken down
 
@@ -106,8 +107,8 @@ today, so it is one shared list for everyone. Drive it from the client's own
 config so the new clients get closed periods and every existing client falls
 through to today's exact list unchanged. This is what keeps §6 true.
 
-**C. Extend freezing to the other four surfaces.** Followers, trends, headlines
-and trend series need the same open/closed treatment as Top Content. The pattern
+**C. Extend freezing to the other three surfaces.** Followers, trends and
+headlines need the same open/closed treatment as Top Content. The pattern
 already exists and is proven; this is applying it, not inventing it. Each gets
 its own storage key on the same `(client, channel, range)` shape.
 
@@ -135,7 +136,9 @@ Proof, not assertion. There is a pre-change baseline of the Renaissance row in
 all three environments plus a hash of every file on its render path, and a
 read-only drift check that fails if either moved. The check runs against the
 production row, because staging is not a faithful mirror: Content Impact is
-hidden in prod and visible on staging.
+hidden in prod and visible on staging. The baseline and the check live outside
+this repo, on my machine, because the baseline holds production data and this
+repo is public.
 
 Known gap in that baseline: it does not yet cover shared components like the date
 picker. Widening it is a prerequisite for A and B, not a follow-up.
@@ -189,7 +192,7 @@ TikTok (question 5). The engineering questions below stay open alongside them.
 4. **Owned versus influencer.** Designations are re-resolved live rather than
    frozen, so a post reclassified after a period froze changes which posts appear
    in that frozen period. Decide whether designations freeze with the snapshot.
-5. **Do the other four surfaces need per-channel keys**, or does Overview's `ALL`
+5. **Do the other three surfaces need per-channel keys**, or does Overview's `ALL`
    sentinel cover them.
 
 ## 9. Out of scope here
