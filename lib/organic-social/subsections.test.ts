@@ -5,9 +5,9 @@ import type { Client, DashSocialConfig } from '@/lib/db/schema'
 const client = (over: Partial<Client> = {}): Client =>
   ({ dashSocialConfig: { brandId: 1, channels: undefined }, hiddenReports: [], ...over } as Client)
 
-test('order is Overview, Instagram, Facebook, LinkedIn, X', () => {
+test('order is Overview, Instagram, Facebook, LinkedIn, X, TikTok', () => {
   expect(ORGANIC_SOCIAL_SUBSECTIONS.map((s) => s.id)).toEqual(
-    [null, 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x'],
+    [null, 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x', 'organic-tiktok'],
   )
 })
 
