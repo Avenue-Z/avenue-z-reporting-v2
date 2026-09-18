@@ -86,22 +86,19 @@ and `users.clientId`. There is no unscoped UPDATE or DELETE on `clients`.
 Adding a client is three INSERTs against unique `clients.slug` and
 `users.email`, so it either inserts cleanly or fails loudly.
 
-**5. Every client's full row is shipped to every other client's browser.** Fixed on this PR
-(`8d7ffc6`, 2026-09-18): the layout now sends only the current client's six sidebar fields,
-and Renaissance's sidebar is proven byte-identical (see the PR description).
-`app/portal/[clientSlug]/layout.tsx:27` calls `getAllClients()` and passes the
-result to `PortalSidebar`, which is a client component. `getAllClientsImpl`
-(`lib/db/queries.ts:88`) is a `findMany` with `with: { users: true }` and no
-column narrowing, so the serialized prop carries every client's jsonb configs,
-shared password hash and env-var-name pointers, plus every user's email and
-role. The sidebar reads only its own client (`portal-sidebar.tsx:24`), but React
-serializes the whole prop regardless.
+**5. Every client's full row was shipped to every other client's browser.** Fixed on this
+PR (`8d7ffc6`, 2026-09-18). Before the fix, `app/portal/[clientSlug]/layout.tsx` called
+`getAllClients()` and passed the result to `PortalSidebar`, a client component.
+`getAllClientsImpl` (`lib/db/queries.ts:88`) is a `findMany` with `with: { users: true }`
+and no column narrowing, so the serialized prop carried every client's jsonb configs,
+shared password hash and env-var-name pointers, plus every user's email and role. The
+sidebar read only its own client (`portal-sidebar.tsx:24`), but React serialized the whole
+prop regardless.
 
-This is pre-existing and not introduced by this work. It matters here because
-adding three clients pushes three more clients' configs into the browser of
-every existing client, including Renaissance. Narrowing that prop is a strict
-improvement rather than a change, but it touches a shared component on
-Renaissance's render path, so it needs a decision and a drift check.
+This was pre-existing, not introduced by this work. It mattered here because adding three
+clients would have pushed three more clients' configs into the browser of every existing
+client, including Renaissance. The layout now sends only the current client's six sidebar
+fields, and Renaissance's sidebar is proven byte-identical (see the PR description).
 
 ## Baseline
 
