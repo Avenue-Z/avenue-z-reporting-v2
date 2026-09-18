@@ -2,7 +2,7 @@
 
 > **For the executor:** run inline in this session with superpowers:executing-plans. No subagents. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** The client portal sends the browser only the current client's seven sidebar fields, never every client's full record, and Renaissance's portal renders exactly as before.
+**Goal:** The client portal sends the browser only the current client's six sidebar fields, never every client's full record, and Renaissance's portal renders exactly as before.
 
 **Architecture:** A mapper decides the browser-bound fields; the layout loads one client and passes the mapped record; the sidebar takes one client; two tab helpers accept a structural type.
 
@@ -42,7 +42,7 @@
 
 ### Task 2: Trim what reaches the browser
 
-- [ ] **Step 1:** write `lib/portal/sidebar-client.test.ts` (fields, channels kept, no planted secret in the output, same Organic Social tabs) and `lib/portal/portal-layout.test.tsx` (the layout with `@/auth`, `next/navigation` and `@/lib/db/queries` mocked: `getAllClients` never called, the sidebar's props hold only the trimmed record). Run: they fail (no module; the layout still calls `getAllClients` and passes `clients`).
+- [ ] **Step 1:** write `lib/portal/sidebar-client.test.ts` (the six fields, channels kept, no planted secret in the output, same Organic Social tabs) and `lib/portal/portal-layout.test.tsx` (the layout with `@/auth`, `next/navigation` and `@/lib/db/queries` mocked: `getAllClients` never called, the sidebar's props hold only the trimmed record). Run: they fail (no module; the layout still calls `getAllClients` and passes `clients`).
 - [ ] **Step 2:** implement `lib/portal/sidebar-client.ts`; add `OrganicTabsClient` to `lib/constants.ts` and use it as the parameter type of `organicSocialSubsections` and `resolveOrganicSubsection`; change `PortalSidebar` to take `client: PortalSidebarClient | null`; change the layout to `getClientBySlug` plus `toPortalSidebarClient`.
 - [ ] **Step 3:** change the golden test's `renderSidebar` helper to the new props (`client={toPortalSidebarClient(ren)}`) and nothing else. Run: every snapshot passes unchanged, and the snapshot file's `shasum` is identical to Task 1 Step 3.
 - [ ] **Step 4:** gates (`npx vitest run`, `npx tsc --noEmit`, `npm run check:rsc`), then commit with the edge-case list.

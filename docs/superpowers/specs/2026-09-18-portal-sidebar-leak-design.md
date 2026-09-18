@@ -53,7 +53,7 @@ staff reach it, and staff can see every client anyway.
 
 ## Tests
 
-- The mapper returns exactly the seven fields, keeps the channel list, and none of the
+- The mapper returns exactly the six fields, keeps the channel list, and none of the
   secret values planted in a full fixture appear anywhere in its output.
 - A client's Organic Social tabs are the same from the trimmed record as from the full one.
 - The layout, with the database mocked: it never calls `getAllClients`, and the sidebar's
@@ -63,7 +63,7 @@ staff reach it, and staff can see every client anyway.
 
 Data crosses from the server to the browser here, a trust boundary:
 
-- **Security:** fix. Only the seven fields cross; secrets, other clients and users do not.
+- **Security:** fix. Only the six fields cross; secrets, other clients and users do not.
 - **Input boundaries:** decline. An unknown slug still gives no client and no sidebar, as
   today (a client user is already redirected away from another client's slug).
 - **External failure:** decline. `getClientBySlug` fails the same way `getAllClients` did.

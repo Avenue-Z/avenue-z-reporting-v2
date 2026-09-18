@@ -14,6 +14,7 @@ vi.mock('@/app/actions/auth', () => ({ signOutAction: vi.fn() }))
 
 import { usePathname, useSearchParams } from 'next/navigation'
 import { PortalSidebar } from '@/components/layout/portal-sidebar'
+import { toPortalSidebarClient } from '@/lib/portal/sidebar-client'
 import type { Client } from '@/lib/db/schema'
 
 // THE RENAISSANCE GUARD FOR THE PORTAL SIDEBAR. Written before the sidebar stopped receiving
@@ -26,20 +27,17 @@ const REN = {
   hiddenReports: ['technical-audit', 'content-impact'],
   dashSocialConfig: { brandId: 1 },
 } as unknown as Client
-const OTHER = {
-  slug: 'another-client', name: 'Another Client', logoUrl: null,
-  enabledReports: ['organic-social'], hiddenReports: [],
-  dashSocialConfig: { brandId: 2, channels: ['instagram'] },
-} as unknown as Client
 
 function at(url: string) {
   const u = new URL(url, 'https://portal.example.com')
   vi.mocked(usePathname).mockReturnValue(u.pathname)
   vi.mocked(useSearchParams).mockReturnValue(u.searchParams as unknown as ReturnType<typeof useSearchParams>)
 }
-// The one place the props are built, so the before and after runs differ only here.
+// The one place the props are built, so the before and after runs differ only here. Before the
+// fix this passed every client (clients={[ren, anotherClient]}); now the sidebar gets the trimmed record.
+// The snapshots were written against the old props and must still match.
 const renderSidebar = (ren: Client, userRole: string) =>
-  render(<PortalSidebar clients={[ren, OTHER]} userRole={userRole} />)
+  render(<PortalSidebar client={toPortalSidebarClient(ren)} userRole={userRole} />)
 
 test('reports landing, client viewer', () => {
   at('/portal/renaissance/reports')
