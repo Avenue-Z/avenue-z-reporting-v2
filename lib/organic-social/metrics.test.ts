@@ -39,7 +39,65 @@ const EXPECTED: Record<DashChannel, Record<string, { allPosts: string; byPost: s
     engagements:     { allPosts: 'ENGAGEMENTS',       byPost: 'ENGAGEMENTS_BY_POST' },
     engagementRate:  { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' },
   },
+  // TikTok has NO _BY_POST variants: VIDEO_VIEWS_BY_POST, TOTAL_ENGAGEMENTS_BY_POST,
+  // LIKES_BY_POST, SHARES_BY_POST, COMMENTS_BY_POST, PROFILE_VIEWS_BY_POST and
+  // REACH_BY_POST all 400 (probed 2026-09-15). Both columns carry the bare name, and
+  // bare VIEWS 400s too, so exposure is VIDEO_VIEWS.
+  TIKTOK: {
+    followers:       { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' },
+    netNewFollowers: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' },
+    exposure:        { allPosts: 'VIDEO_VIEWS',       byPost: 'TOTAL_VIDEO_VIEWS' },
+    engagements:     { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS' },
+    engagementRate:  { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' },
+  },
 }
+
+// TikTok breakdown KPIs under the active basis. Dash distinguishes the two bases by
+// LABEL, not by a _BY_POST suffix: "X - Total - All Posts" counts any video active in
+// the window (activity), "X - Total" counts videos PUBLISHED in it (post-based). TikTok
+// exposes no _BY_POST variant at all, which is why the suffix search came up empty.
+// Probed live 2026-09-17 on a real August window: the post-based likes + comments +
+// shares reconcile exactly with TOTAL_ENGAGEMENTS; the activity-based ones sum to more
+// and do not.
+const TIKTOK_BREAKDOWN: Record<string, { allPosts: string; byPost: string }> = {
+  likes:    { allPosts: 'ORGANIC_LIKES',    byPost: 'TOTAL_LIKES' },
+  comments: { allPosts: 'ORGANIC_COMMENTS', byPost: 'TOTAL_COMMENTS' },
+  shares:   { allPosts: 'SHARES',           byPost: 'TOTAL_SHARES' },
+}
+
+test('TikTok breakdown KPIs carry the post-based name under byPost', () => {
+  for (const [key, want] of Object.entries(TIKTOK_BREAKDOWN)) {
+    const spec = kpiFor('TIKTOK', key)
+    expect(spec.metric.allPosts).toBe(want.allPosts)
+    expect(spec.metric.byPost).toBe(want.byPost)
+  }
+})
+
+// Renaissance renders Instagram, Facebook, X and LinkedIn and must not move when
+// TikTok changes. Pins every metric name on those four so an edit that leaks out of
+// the TIKTOK block fails here rather than in a client's report.
+test('the non-TikTok channels are untouched by TikTok changes', () => {
+  const PINNED: Record<string, Record<string, [string, string]>> = {
+    INSTAGRAM: {
+      exposure: ['VIEWS', 'VIEWS'], engagements: ['TOTAL_ENGAGEMENTS', 'TOTAL_ENGAGEMENTS'],
+      likes: ['ORGANIC_LIKES', 'ORGANIC_LIKES'], comments: ['ORGANIC_COMMENTS', 'ORGANIC_COMMENTS'],
+      shares: ['SHARES', 'SHARES'], saves: ['SAVES', 'SAVES'], reposts: ['REPOSTS', 'REPOSTS'],
+    },
+    FACEBOOK: {
+      exposure: ['PAID_AND_ORGANIC_VIEWS_BY_POST', 'PAID_AND_ORGANIC_VIEWS_BY_POST'],
+      engagements: ['TOTAL_ENGAGEMENTS_POSTS_V2', 'TOTAL_ENGAGEMENTS_POSTS_V2'],
+      reactions: ['REACTIONS', 'REACTIONS'], comments: ['TOTAL_COMMENTS', 'TOTAL_COMMENTS'],
+      shares: ['SHARES', 'SHARES'], postClicks: ['POST_CLICKS', 'POST_CLICKS'],
+    },
+  }
+  for (const [channel, keys] of Object.entries(PINNED)) {
+    for (const [key, [allPosts, byPost]] of Object.entries(keys)) {
+      const spec = kpiFor(channel as DashChannel, key)
+      expect(`${channel}.${key}.allPosts=${spec.metric.allPosts}`).toBe(`${channel}.${key}.allPosts=${allPosts}`)
+      expect(`${channel}.${key}.byPost=${spec.metric.byPost}`).toBe(`${channel}.${key}.byPost=${byPost}`)
+    }
+  }
+})
 
 // (A) Both basis columns are pinned data — this test never changes at the flip.
 test('PLATFORM_KPIS pins both basis columns for every Overview KPI', () => {

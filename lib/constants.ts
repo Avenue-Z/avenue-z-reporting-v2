@@ -196,6 +196,9 @@ export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; cha
   { id: 'organic-facebook',    label: 'Facebook',  channel: 'FACEBOOK' },
   { id: 'organic-linkedin',    label: 'LinkedIn',  channel: 'LINKEDIN' },
   { id: 'organic-x',           label: 'X',         channel: 'TWITTER' },
+  // Last, so every existing tab keeps its place. Offered only to a client whose allowlist names
+  // TikTok: a client with no allowlist resolves to the four original channels (DEFAULT_CHANNELS).
+  { id: 'organic-tiktok',      label: 'TikTok',    channel: 'TIKTOK' },
 ]
 
 /** Overview + the platform tabs this client is configured for AND has not hidden. */

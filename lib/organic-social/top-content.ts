@@ -80,13 +80,18 @@ function subObject(post: DashContentPost, channel: DashChannel): Record<string, 
     case 'FACEBOOK':  return post.facebook ?? null
     case 'LINKEDIN':  return post.linkedin ?? null
     case 'TWITTER':   return post.twitter ?? null
+    case 'TIKTOK':    return post.tiktok ?? null
   }
 }
 
 function captionUrl(sub: Record<string, unknown> | null, channel: DashChannel): { caption: string; url: string | null } {
   if (!sub) return { caption: '', url: null }
   const capKey = channel === 'FACEBOOK' ? 'message' : channel === 'TWITTER' ? 'text' : 'caption'
-  const urlKey = channel === 'LINKEDIN' ? 'linkedin_link' : channel === 'TWITTER' ? 'permalink_url' : 'url'
+  // TikTok's permalink is `share_url`; it has no `url` key at all (probed 2026-09-15).
+  const urlKey = channel === 'LINKEDIN' ? 'linkedin_link'
+    : channel === 'TWITTER' ? 'permalink_url'
+    : channel === 'TIKTOK' ? 'share_url'
+    : 'url'
   return { caption: String(sub[capKey] ?? ''), url: str(sub[urlKey]) }
 }
 
@@ -101,7 +106,8 @@ const MEDIA_TYPES = new Set(['IMAGE', 'VIDEO', 'CAROUSEL'])
 export function normalizePost(post: DashContentPost, channel: DashChannel): TopContentPost {
   const sub = subObject(post, channel)
   const { caption, url } = captionUrl(sub, channel)
-  const effectivenessRaw = sub?.[CONTENT_EFFECTIVENESS_FIELD[channel]]
+  const effectivenessField = CONTENT_EFFECTIVENESS_FIELD[channel]
+  const effectivenessRaw = effectivenessField ? sub?.[effectivenessField] : undefined
   const rateRaw = sub?.[CONTENT_ENGAGEMENT_RATE_FIELD[channel]]
   const mediaType = MEDIA_TYPES.has(post.type) ? (post.type as TopContentPost['mediaType']) : 'IMAGE'
   return {
