@@ -50,7 +50,8 @@ explicitly names it.
 
 These are checked, not assumed. File and line are current as of this branch.
 
-**1. A null channel allowlist resolves to every channel.**
+**1. A null channel allowlist resolves to every channel.** Fixed on PR 247 (`e2ec740`): an
+absent allowlist now resolves to the original four channels, and Renaissance's row is untouched.
 `resolveChannels` (`lib/organic-social/metrics.ts:37`) returns `[...CHANNELS]`
 when the allowlist is absent or empty. Renaissance's `dash_social_config`
 has no `channels` key at all in dev, staging **and** production, and
