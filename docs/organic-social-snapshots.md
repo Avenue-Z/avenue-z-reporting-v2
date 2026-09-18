@@ -140,7 +140,42 @@ hidden in prod and visible on staging.
 Known gap in that baseline: it does not yet cover shared components like the date
 picker. Widening it is a prerequisite for A and B, not a follow-up.
 
-## 7. Open questions
+## 7. Decisions so far
+
+Each decision carries who made it and when, so it maps back to Jasmine, who
+approves every decision on this work. D1 to D7 went to her in the decisions for
+approval doc. None is final until she confirms.
+
+| # | Decision | Decided by | Date | Status |
+|---|---|---|---|---|
+| D1 | Renaissance does not change: not its config row, not what it renders. | Me | 2026-09-17 | Sent to Jasmine to confirm |
+| D2 | Three new clients, Organic Social only: A Place For Mom, Joy of Life, and a third the outline calls Kenect Nashville while our records say Akara Living. Which name to use is her question 1. | Me | 2026-09-17 | Sent to Jasmine |
+| D3 | Channels are per client and per channel, opt in. A client not named gains nothing. TikTok is for Joy of Life only. | Me | 2026-09-17 | Sent to Jasmine |
+| D4 | The date picker becomes month and year only. No rolling presets, no weeks, no quarters. | Kyleah, Organic Social team | 2026-09-17 | Sent to Jasmine to confirm |
+| D5 | The Organic Social team sees the current month live, updating daily. | Me | 2026-09-17 | Sent to Jasmine to confirm |
+| D6 | Clients see only finished months. A month opens to them on the 12th of the next month (August on 12 September), or the Monday after when the 12th falls on a weekend. This follows the team's cadence: wrapped by the 5th, presented on the 12th. | Me, from the Organic Social team's cadence | 2026-09-17 | Sent to Jasmine to confirm |
+| D7 | A month's numbers lock when it ends and never move again. | Me | 2026-09-17 | Sent to Jasmine to confirm |
+| D8 | Client visibility is enforced on the server and keyed on the client's own config, not on role, and not only in the dropdown. | Follows from D1 and D6 | 2026-09-17 | Follows |
+| D9 | Renaissance keeps today's live rolling picker. | Follows from D1 | 2026-09-17 | Follows |
+
+**Why D8 and D9 are not optional.** Renaissance has client logins in production,
+so a restriction keyed on role would change what its client sees, which D1
+forbids. Keying it on the client's own config lets Renaissance, which has none,
+fall through unchanged. And the date range is read from the URL with no
+validation today (`app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:118`),
+so filtering the dropdown alone would be cosmetic: a client could reach the
+current month by editing the URL.
+
+**What D7 depends on.** Only Top Content freezes today (§4). Whether the first
+release may lock top posts only, or everything must lock before clients see
+anything, is Jasmine's question 4.
+
+**Her other questions that shape this PR:** how far back a client can look
+(question 2), whether January to August use her sheet's numbers or what Dash
+returns today (question 3), and whether Joy of Life's August is redone with
+TikTok (question 5). The engineering questions below stay open alongside them.
+
+## 8. Open questions
 
 1. **How far back does the picker go?** A list of every month since the client
    was onboarded grows forever. A fixed window of the last N months is simpler
@@ -157,7 +192,7 @@ picker. Widening it is a prerequisite for A and B, not a follow-up.
 5. **Do the other four surfaces need per-channel keys**, or does Overview's `ALL`
    sentinel cover them.
 
-## 8. Out of scope here
+## 9. Out of scope here
 
 Client onboarding. Adding an Organic Social client is a database change only: one
 `clients` row with `enabled_reports` of `organic-social` and a
