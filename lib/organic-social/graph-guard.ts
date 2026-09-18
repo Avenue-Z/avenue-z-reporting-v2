@@ -1,3 +1,6 @@
+import type { DashSocialClient } from '@/lib/dash-social/client'
+import type { ReportsDataParams, ReportsDataResponse } from '@/lib/dash-social/types'
+
 /**
  * Guard for the one assumption every GRAPH reader in this folder makes.
  *
@@ -37,4 +40,15 @@ export function assertSingleChannelGraph(reportType: string | undefined, channel
       'TOTAL, which it does for a single channel only. Batching channels returns either no ' +
       'metrics key or a figure summed across channels, and neither raises an error.',
   )
+}
+
+/** The one way this folder sends a GRAPH request. Checks the params that are actually sent,
+ *  then sends exactly those, so batching channels into one request fails here, loudly,
+ *  instead of passing a check made on a separate literal (Paul's review of PR 254). */
+export async function getGraphData<M>(
+  client: Pick<DashSocialClient, 'getReportsData'>,
+  params: ReportsDataParams,
+): Promise<ReportsDataResponse<M>> {
+  assertSingleChannelGraph(params.reportType, params.channels)
+  return client.getReportsData<M>(params)
 }

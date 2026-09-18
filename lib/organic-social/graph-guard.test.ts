@@ -1,5 +1,5 @@
-import { expect, test } from 'vitest'
-import { assertSingleChannelGraph } from './graph-guard'
+import { expect, test, vi } from 'vitest'
+import { assertSingleChannelGraph, getGraphData } from './graph-guard'
 
 // The GRAPH readers here (followers.ts, trends.ts) read
 // data.metrics[METRIC].ALL_CHANNELS. That key exists only when Dash groups by TOTAL,
@@ -30,4 +30,27 @@ test('other report types are untouched, whatever the channel count', () => {
 
 test('an empty channel list on GRAPH throws too, rather than silently returning nothing', () => {
   expect(() => assertSingleChannelGraph('GRAPH', [])).toThrow(/exactly one channel/)
+})
+
+// Paul's review: the check must run on the request that is sent, not on a separate literal.
+const request = (channels: string[]) => ({
+  brandId: 1, channels, reportType: 'GRAPH' as const, timeScale: 'DAILY' as const,
+  metrics: ['TOTAL_FOLLOWERS'], startDate: 'S', endDate: 'E',
+})
+
+test('getGraphData refuses a multi-channel GRAPH request before anything is sent', async () => {
+  const getReportsData = vi.fn()
+  const client = { getReportsData } as unknown as Parameters<typeof getGraphData>[0]
+  await expect(getGraphData(client, request(['INSTAGRAM', 'FACEBOOK']))).rejects.toThrow(/ALL_CHANNELS/)
+  expect(getReportsData).not.toHaveBeenCalled()
+})
+
+test('getGraphData sends exactly the request it checked and returns the response', async () => {
+  const res = { data: {} }
+  const getReportsData = vi.fn<(params: unknown) => Promise<typeof res>>(async () => res)
+  const client = { getReportsData } as unknown as Parameters<typeof getGraphData>[0]
+  const params = request(['INSTAGRAM'])
+  await expect(getGraphData(client, params)).resolves.toBe(res)
+  expect(getReportsData).toHaveBeenCalledTimes(1)
+  expect(getReportsData.mock.calls[0][0]).toBe(params)
 })
