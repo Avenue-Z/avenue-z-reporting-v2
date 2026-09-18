@@ -19,7 +19,10 @@ const allOf = (ch: 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN', value: number | null =
 
 beforeEach(() => getReportsData.mockReset())
 
-test('one request per tab: shared tile metrics plus the extras, in the tiles request shape', async () => {
+// One getOutlineKpis call sends one request. That the Data part and the breakdown then share
+// it comes from React.cache within one server render, which a unit test cannot observe:
+// outside a render, cache does not dedupe.
+test('one getOutlineKpis call sends one request: shared tile metrics plus the extras, in the tiles request shape', async () => {
   getReportsData.mockResolvedValue({ data: { '1': { metrics: allOf('INSTAGRAM') } } })
   await getOutlineKpis('c', 'range-a', 'previous_period', 'INSTAGRAM')
   expect(getReportsData).toHaveBeenCalledTimes(1)
