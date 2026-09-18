@@ -192,11 +192,15 @@ Engineering, mine to close:
   (PR 247) ships, per finding 1 above, without writing Renaissance's row. Fixed on
   PR 247 (`2871c94`): an absent allowlist now resolves to the original four channels
 - who builds YTD Review, and in which PR
-- moving the engagement metrics from the Data tiles to under the engagement graph,
-  planned on PR 255
+- moving the engagement metrics from the Data tiles to under the engagement graph:
+  built on PR 255 as opt-in parts, with the outline's Data rows and labels. Each client
+  pins them on staging once PR 255 is there
 
 ## How this ships
 
-Three feature branches, one per client, each with its own PR, each reviewed
-independently. This doc is deliberately separate so the client branches stay
-reviewable on their own.
+The three clients' layout is one PR, PR 255: no Overview, the outline's Data block,
+and the engagement breakdown under the engagement graph. It is built as parts each
+client opts into in its own config, not as per-client branches, because the three
+share every block and differ only in rows (Kenect's Profile Clicks) and channels.
+TikTok is PR 247, annotations PR 252. This doc stays separate so each of those
+reviews on its own.
