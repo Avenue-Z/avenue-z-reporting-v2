@@ -50,7 +50,7 @@ explicitly names it.
 
 These are checked, not assumed. File and line are current as of this branch.
 
-**1. A null channel allowlist resolves to every channel.** Fixed on PR 247 (`e2ec740`): an
+**1. A null channel allowlist resolves to every channel.** Fixed on PR 247: an
 absent allowlist now resolves to the original four channels, and Renaissance's row is untouched.
 `resolveChannels` (`lib/organic-social/metrics.ts:37`) returns `[...CHANNELS]`
 when the allowlist is absent or empty. Renaissance's `dash_social_config`
@@ -191,7 +191,7 @@ Engineering, mine to close:
 
 - an absent channel allowlist must stop resolving to every channel before TikTok
   (PR 247) ships, per finding 1 above, without writing Renaissance's row. Fixed on
-  PR 247 (`2871c94`): an absent allowlist now resolves to the original four channels
+  PR 247: an absent allowlist now resolves to the original four channels
 - who builds YTD Review, and in which PR
 - moving the engagement metrics from the Data tiles to under the engagement graph:
   built on PR 255 as opt-in parts, with the outline's Data rows and labels. Each client
