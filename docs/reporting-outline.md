@@ -85,7 +85,9 @@ and `users.clientId`. There is no unscoped UPDATE or DELETE on `clients`.
 Adding a client is three INSERTs against unique `clients.slug` and
 `users.email`, so it either inserts cleanly or fails loudly.
 
-**5. Every client's full row is shipped to every other client's browser.**
+**5. Every client's full row is shipped to every other client's browser.** Fixed on this PR
+(`8d7ffc6`, 2026-09-18): the layout now sends only the current client's six sidebar fields,
+and Renaissance's sidebar is proven byte-identical (see the PR description).
 `app/portal/[clientSlug]/layout.tsx:27` calls `getAllClients()` and passes the
 result to `PortalSidebar`, which is a client component. `getAllClientsImpl`
 (`lib/db/queries.ts:88`) is a `findMany` with `with: { users: true }` and no
@@ -187,7 +189,6 @@ Engineering, mine to close:
 
 - an absent channel allowlist must stop resolving to every channel before TikTok
   (PR 247) ships, per finding 1 above, without writing Renaissance's row
-- whether to narrow the `getAllClients` prop before adding clients
 - who builds YTD Review and the metrics under the engagement graph, and in which PR
 
 ## How this ships
