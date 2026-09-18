@@ -77,7 +77,7 @@ outlines do not ask for.
 under" the engagement graph (Likes, Comments, Shares and so on). These are not net new:
 every one already renders today as a Data tile (TikTok's on PR 247, minus Reposts, which
 Dash does not report). For the three new clients they move from the tiles to under the
-graph, which is a layout change planned on PR 255, not part of annotations. The net-new
+graph, which is a layout change built on PR 255, not part of annotations. The net-new
 builds stay two: annotations and YTD Review. (Corrected on 2026-09-18; I first wrote that
 no part renders these metrics.)
 
