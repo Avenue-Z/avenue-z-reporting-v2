@@ -2,7 +2,7 @@
 
 > **For the executor:** run inline in this session with superpowers:executing-plans, task by task. No subagents. Steps use checkbox (`- [ ]`) syntax. Stop and ask at every step marked **STOP**.
 
-**Do not start until Jasmine has answered question 9 of the decisions for approval doc, as sent.** It asks about a dot on every posting day with hover. If she confirms it as written, stop: the spec and this plan change first (spec, "Jasmine's question 9, as she is reviewing it").
+**Do not start until Jasmine has answered question 9 of the decisions for approval doc.** It describes this design. If she changes anything, the spec and this plan change first (spec, "Jasmine's question 9").
 
 **Goal:** Annotate the v2 Organic Social follower and engagement graphs the way the team's monthly deck does (top 2 follower days, top 3 engagement days, each with its value and the post behind it), behind one Annotations button, and let internal staff hide any single annotation from the client.
 

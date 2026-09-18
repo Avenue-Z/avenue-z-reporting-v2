@@ -1,8 +1,8 @@
 # Chart annotations: design
 
-Status: approved in chat on 2026-09-18. Waiting on Jasmine: her question 9, as she is
-reviewing it, describes a different design (see the next section). Nothing is built until
-she answers.
+Status: approved in chat on 2026-09-18. Waiting on Jasmine's answer to question 9 of the
+decisions for approval doc, which describes this design (see the next section). Nothing is
+built until she answers.
 Supersedes `docs/chart-annotations.md`.
 
 ## Summary
@@ -17,28 +17,20 @@ team can hide any single annotation from the client.
 Renaissance does not change. It renders v1 of both graphs, and everything here lives in
 v2.
 
-## Jasmine's question 9, as she is reviewing it
+## Jasmine's question 9
 
 The decisions for approval doc Jasmine is reviewing asks, as question 9:
 
-> Your outlines ask for annotations on both graphs. Is this what you mean? A dot on every
-> day you posted, so you can see what went live when the line moved, and hovering it shows
-> the post. You could add your own notes too, like "influencer post went live", written by
-> your team and approved before a client sees it. One button hides them all, and any single
-> one can be hidden so you can share some and not others.
+> Annotations: is this what you want? Each Follower Growth and Engagement graph calls out
+> its top days (2 for followers, 3 for engagement) with the date, the number, and the post
+> from that day, like your team's monthly deck. The follower graph shows followers gained per
+> day, as the deck does. One button hides all the callouts, and your team can hide any single
+> one so the client never sees it. Written notes like "influencer post went live" come next,
+> approved before a client sees them, the way Commentary works.
 
-That question went out before I read the team's June deck. This spec follows the deck
-instead: peaks, not every posting day, and a visible row instead of hover. The question was
-not reworded, so her answer is about the design it describes. How her answer maps:
-
-- **Yes, as written.** She wants a dot on every posting day with hover. That is closer to the
-  code already on this branch (commit `922a090`, one mark per posting day). I bring the
-  choice between that and this spec back to her before building, and revise the spec and
-  plan to whatever she picks.
-- **She prefers the deck's peaks, or leaves the shape to us.** This spec as written.
-- **Either way:** hiding a single annotation, the Renaissance guards and the UTC month stand,
-  since her question asks for the first and the other two are ours. Written notes wait for her
-  answer and follow the approval flow she confirms.
+That is this spec. A yes approves it as written. Anything she changes goes into this spec
+and the plan before anything is built. Written notes follow the approval flow she confirms.
+Whether sponsored posts can be thumbnails follows her question 8.
 
 ## What the team does today
 
@@ -335,9 +327,9 @@ Renaissance is live in production and must not change. This rests on facts check
 
 | Decision | Decided by | Date | Status |
 |---|---|---|---|
-| Annotate peaks, not every post | Me, from the APFM June deck | 2026-09-18 | Pending Jasmine (Q9 as sent asks about every posting day) |
-| 2 follower and 3 engagement annotations | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9 as sent asks about every posting day) |
-| v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9 as sent asks about every posting day) |
+| Annotate peaks, not every post | Me, from the APFM June deck | 2026-09-18 | Pending Jasmine (Q9) |
+| 2 follower and 3 engagement annotations | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9) |
+| v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9) |
 | v2 graphs use the UTC month | Me, after the probe | 2026-09-18 | Decided |
 | Titles and the Annotations button follow the outlines word for word | Jasmine's outlines | 2026-09-18 | Decided |
 | A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Decided, pending Jasmine (Q9) |
