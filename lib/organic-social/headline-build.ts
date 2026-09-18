@@ -9,7 +9,7 @@ import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline, HeadlineKpi } from './types'
 
 /** Prior-period percent change from a Dash metric's value vs. its context, or undefined. */
-function delta(m: TotalMetric | undefined): number | undefined {
+export function delta(m: TotalMetric | undefined): number | undefined {
   if (!m) return undefined
   const cur = m.value ?? 0
   const prev = m.context
