@@ -234,9 +234,10 @@ test('TikTok caption and platform label resolve', () => {
 })
 
 // Every TikTok post in the probed set came back type IMAGE with a post-level `image`
-// object and NO `video` object, despite being videos. Pinned so a future reader does
-// not "fix" it into VIDEO and expect a playable src that the payload never carries.
-test('TikTok posts normalize as IMAGE, matching what the vendor actually returns', () => {
+// object and NO `video` object, despite being videos. This checks that such a payload
+// passes through as IMAGE, so a TikTok-specific override to VIDEO fails here. It does not
+// guard a mapping keyed on a field this fixture lacks.
+test('a TikTok payload typed IMAGE with no video object normalizes as IMAGE', () => {
   const p = normalizePost(tiktokPost, 'TIKTOK')
   expect(p.mediaType).toBe('IMAGE')
 })
