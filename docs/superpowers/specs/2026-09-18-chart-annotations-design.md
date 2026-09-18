@@ -74,9 +74,12 @@ chart is drawn, a wider change to a chart Renaissance also uses, for something t
 outlines do not ask for.
 
 **Not in this PR, flagged.** The outlines also ask for engagement metrics "directly
-under" the engagement graph (Likes, Comments, Shares and so on). No part renders that
-today and the outline scope doc (PR 250) does not list it, so it is a third net-new
-build alongside annotations and YTD Review.
+under" the engagement graph (Likes, Comments, Shares and so on). These are not net new:
+every one already renders today as a Data tile (TikTok's on PR 247, minus Reposts, which
+Dash does not report). For the three new clients they move from the tiles to under the
+graph, which is a layout change planned on PR 255, not part of annotations. The net-new
+builds stay two: annotations and YTD Review. (Corrected on 2026-09-18; I first wrote that
+no part renders these metrics.)
 
 ## Design
 
