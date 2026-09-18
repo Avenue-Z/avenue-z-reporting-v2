@@ -126,7 +126,12 @@ const MANY: TrendSeries = {
   })),
 }
 const EMPTY: TrendSeries = { channels: ['Instagram'], points: [] }
-const html = (el: ReactElement) => render(el).container.innerHTML
+// Recharts and React number the ids they generate with counters shared across this file, so an
+// id depends on how many charts rendered before it, and one failing test would shift every
+// snapshot after it. Normalizing those numbers makes each snapshot stand alone: a change shows
+// up only in the test it belongs to. Everything the chart draws is still captured exactly.
+const norm = (h: string) => h.replace(/recharts\d+-/g, 'recharts#-').replace(/_r_[0-9a-z]+_/g, '_r_#_')
+const html = (el: ReactElement) => norm(render(el).container.innerHTML)
 
 test('v1 follower graph, one channel', () => {
   const out = html(<FollowerGraph series={ONE} />)
@@ -149,17 +154,17 @@ test('v1 engagement graph, one channel (platform tab)', () => {
 test('v1 engagement graph, one channel toggled off, then all of them', () => {
   const { container } = render(<EngagementTrend series={MANY} />)
   fireEvent.click(screen.getByRole('button', { name: 'Facebook' }))
-  expect(container.innerHTML).toMatchSnapshot()
+  expect(norm(container.innerHTML)).toMatchSnapshot()
   for (const name of ['Instagram', 'X', 'LinkedIn']) fireEvent.click(screen.getByRole('button', { name }))
-  expect(container.innerHTML).toMatchSnapshot()
+  expect(norm(container.innerHTML)).toMatchSnapshot()
 })
 
 test('v1 follower graph, its only channel toggled off and back on', () => {
   const { container } = render(<FollowerGraph series={ONE} />)
   fireEvent.click(screen.getByRole('button', { name: 'Instagram' }))
-  expect(container.innerHTML).toMatchSnapshot()
+  expect(norm(container.innerHTML)).toMatchSnapshot()
   fireEvent.click(screen.getByRole('button', { name: 'Instagram' }))
-  expect(container.innerHTML).toMatchSnapshot()
+  expect(norm(container.innerHTML)).toMatchSnapshot()
 })
 
 test('Paid Media shaped chart, no marks', () => {
@@ -179,7 +184,7 @@ Expected: 7 passed, `Snapshots 9 written`.
 sed -i '' 's/title="Engagement Over Time"/title="Engagement over time"/' components/report-sections/organic-social/trends.tsx
 npx vitest run components/report-sections/organic-social/v1-render.golden.test.tsx
 ```
-Expected: 3 failed (the three engagement tests), `Snapshots 4 failed`.
+Expected: exactly the 3 engagement tests fail (`Snapshots 3 failed`); the follower and Paid Media tests pass. Without the id normalization the failures cascade into later tests, which is why it is there. Done on 2026-09-18: also proven with the follower title (exactly the 3 follower tests) and a line width in the shared `LineChart` (every test that draws a chart, 6 of 7).
 
 ```bash
 git checkout components/report-sections/organic-social/trends.tsx
