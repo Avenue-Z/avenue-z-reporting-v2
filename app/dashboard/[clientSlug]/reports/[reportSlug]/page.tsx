@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES } from '@/lib/constants'
+import { REPORT_NAMES, resolveOrganicSubsection } from '@/lib/constants'
+import type { DashChannel } from '@/lib/organic-social/metrics'
 import { Header } from '@/components/layout/header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -38,7 +39,7 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null) {
+function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null, organicChannel: DashChannel | null) {
   switch (reportSlug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -71,9 +72,11 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
     case 'bing-ads':
       return <BingAdsReport clientSlug={clientSlug} />
     case 'organic-social':
-      // Deep-links (/reports/organic-social) are Overview only — platform subpages route via
-      // the SPA route's ?subsection= param (Spec 1 §5.2). channel={null} documents that.
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={null} />
+      // A deep-link renders this client's landing tab, the same one the SPA route's
+      // ?subsection= param resolves to when it is absent (Spec 1 §5.2). Hard-coding Overview
+      // here rendered a tab a client that hides Overview cannot navigate to, and the health
+      // sweep and cache warmer fetch exactly this URL (Paul's review of PR 255).
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} />
     default:
       return null
   }
@@ -98,6 +101,7 @@ export default async function ReportPage({
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
+  const organicChannel = resolveOrganicSubsection(client, null).channel
 
   return (
     <>
@@ -115,7 +119,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, organicChannel)}
         </Suspense>
       </ReportErrorBoundary>
     </>
