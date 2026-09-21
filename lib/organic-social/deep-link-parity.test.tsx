@@ -72,9 +72,11 @@ function viewOf(tree: ReactNode, titleFrom: 'Header' | 'h1' | 'StickyReportHeade
 type Fixture = { channels: string[] | undefined; hidden: string[] }
 const FIXTURES: Record<string, Fixture> = {
   'renaissance-shaped (no allowlist, Overview shown)': { channels: undefined, hidden: ['technical-audit', 'content-impact'] },
-  'a-place-for-mom-shaped': { channels: ['instagram', 'facebook', 'linkedin'], hidden: ['organic-overview'] },
-  'joy-of-life-shaped': { channels: ['instagram', 'facebook', 'tiktok'], hidden: ['organic-overview'] },
-  'akara-shaped': { channels: ['instagram', 'facebook'], hidden: ['organic-overview'] },
+  // Shapes, not clients: any client with the same config behaves the same.
+  'instagram, facebook, linkedin; hides Overview': { channels: ['instagram', 'facebook', 'linkedin'], hidden: ['organic-overview'] },
+  'instagram, facebook, tiktok; hides Overview': { channels: ['instagram', 'facebook', 'tiktok'], hidden: ['organic-overview'] },
+  'instagram, facebook; hides Overview': { channels: ['instagram', 'facebook'], hidden: ['organic-overview'] },
+  'instagram only; hides Overview': { channels: ['instagram'], hidden: ['organic-overview'] },
   'hides Overview and Instagram': { channels: ['instagram', 'facebook'], hidden: ['organic-overview', 'organic-instagram'] },
   'nonsense allowlist (no platform tab left)': { channels: ['nonsense'], hidden: ['organic-overview'] },
   'empty allowlist (means every channel)': { channels: [], hidden: ['organic-overview'] },
@@ -133,8 +135,11 @@ test('anchor: Renaissance-shaped deep link is still Overview, titled Organic Soc
 })
 
 test('anchor: a client that hides Overview deep-links to its first platform tab, titled with it', async () => {
-  useClient(FIXTURES['a-place-for-mom-shaped'])
+  useClient(FIXTURES['instagram, facebook, linkedin; hides Overview'])
   expect(viewOf(await DashboardDeepLink(deepArgs() as never), 'Header'))
+    .toEqual({ channel: 'INSTAGRAM', title: 'Instagram', boundary: 'Instagram' })
+  useClient(FIXTURES['instagram only; hides Overview'])
+  expect(viewOf(await PortalDeepLink(deepArgs() as never), 'h1'))
     .toEqual({ channel: 'INSTAGRAM', title: 'Instagram', boundary: 'Instagram' })
   useClient(FIXTURES['hides Overview and Instagram'])
   expect(viewOf(await PortalDeepLink(deepArgs() as never), 'h1'))
