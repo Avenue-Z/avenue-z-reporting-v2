@@ -31,7 +31,9 @@ test('one getOutlineKpis call sends one request: shared tile metrics plus the ex
     brandId: 1, channels: ['INSTAGRAM'], reportType: 'TOTAL_GROUPED_METRIC', aggregateBy: 'BRAND', requirePosts: true,
     startDate: 'S', endDate: 'E', contextStartDate: 'CS', contextEndDate: 'CE',
   })
-  expect(p.metrics).toEqual([...PLATFORM_KPIS.INSTAGRAM.map(metricFor), 'PROFILE_CLICKS'])
+  // Engagement Rate follows the decks in the outline block (Jasmine, 2026-09-21); the rest are the shared tiles.
+  const shared = PLATFORM_KPIS.INSTAGRAM.map((k) => (k.key === 'engagementRate' ? 'AVG_ENGAGEMENT_RATE_VIEWS' : metricFor(k)))
+  expect(p.metrics).toEqual([...shared, 'PROFILE_CLICKS'])
 })
 
 test('a tab for a channel outside the client allowlist errors, as the tiles do', async () => {

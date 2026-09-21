@@ -17,6 +17,20 @@ export const OUTLINE_EXTRA_KPIS: Partial<Record<string, KpiSpec[]>> = {
   LINKEDIN: [{ key: 'videoViews', label: 'Video Views', format: 'number', metric: { allPosts: 'VIDEO_VIEWS_BY_POST', byPost: 'VIDEO_VIEWS_BY_POST' } }],
 }
 
+/** Engagement Rate in the outline block follows the team's monthly decks. Jasmine, 2026-09-21:
+ *  "engagement rate should divide by views not followers so just follow the deck". Checked against
+ *  the August decks in the tiles' own request shape: Instagram's views-based rate lands within 3% of
+ *  all three Instagram decks, LinkedIn's by-post rate within 3.4%, and both return a compare value in
+ *  the batched request, so the change arrow works. Facebook keeps its shared rate
+ *  (AVG_ENGAGEMENT_RATE_V2): it matches one of the two Facebook decks, and the other does not
+ *  reconcile on any tile yet. TikTok's (AVG_ENGAGEMENT_RATE) matched its deck. An entry swaps only the
+ *  metric of the shared tile with the same key, only inside the outline block: PLATFORM_KPIS, which
+ *  Renaissance reads, keeps AVG_ENGAGEMENT_RATE. */
+export const OUTLINE_KPI_OVERRIDES: Partial<Record<string, Record<string, KpiSpec['metric']>>> = {
+  INSTAGRAM: { engagementRate: { allPosts: 'AVG_ENGAGEMENT_RATE_VIEWS', byPost: 'AVG_ENGAGEMENT_RATE_VIEWS' } },
+  LINKEDIN: { engagementRate: { allPosts: 'AVG_ENGAGEMENT_RATE_ALL_POSTS', byPost: 'AVG_ENGAGEMENT_RATE_BY_POST' } },
+}
+
 const row = (key: string, label: string): OutlineRow => ({ key, label })
 const DATA_HEAD = [
   row('followers', 'Total Followers'), row('netNewFollowers', 'Net New Followers'), row('exposure', 'Views'),
@@ -50,16 +64,20 @@ export const OUTLINE_BREAKDOWN_ROWS: Partial<Record<string, OutlineRow[]>> = {
   TIKTOK: [row('likes', 'Likes'), COMMENTS, SHARES, row('completionRate', 'Completion Rate')], // Reposts: question 6
 }
 
-/** The outline rows that do not work as written. Jasmine's question 6, sent 2026-09-18. Not
- *  rendered until she answers; each answer is a one-line move into the rows above. */
+/** The outline rows not rendered yet (Jasmine's question 6, sent 2026-09-18). The reasons are as of
+ *  her answers on 2026-09-21. Each row is a one-line move into the rows above once its metric is
+ *  wired; until then it is left blank, her rule for missing data. */
 export const OUTLINE_PENDING_Q6 = [
-  { channel: 'INSTAGRAM', block: 'data', label: 'Video Views', why: 'always zero: Instagram folded video views into Views' },
-  { channel: 'FACEBOOK', block: 'data', label: 'Profile Views', why: 'Dash counts post views, not profile visits' },
-  { channel: 'TIKTOK', block: 'data', label: 'Video Views', why: 'the same number as Views' },
-  { channel: 'TIKTOK', block: 'breakdown', label: 'Reposts', why: 'no longer reported by Dash' },
+  { channel: 'INSTAGRAM', block: 'data', label: 'Video Views', why: 'Instagram retired organic video views (Dash labels them Discontinued); the replacement, Views on Reels, needs its own request, not built yet' },
+  { channel: 'FACEBOOK', block: 'data', label: 'Profile Views', why: "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet" },
+  { channel: 'TIKTOK', block: 'data', label: 'Video Views', why: "the same number as Views (Dash's TikTok views are video views, TOTAL_VIDEO_VIEWS); showing it is a separate change" },
+  { channel: 'TIKTOK', block: 'breakdown', label: 'Reposts', why: "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet" },
 ] as const
 
-/** Every tile spec an outline tab requests: the shared tiles, then the extra rows. */
+/** Every tile spec an outline tab requests: the shared tiles (with the outline overrides swapped
+ *  in by key), then the extra rows. */
 export function outlineSpecsFor(channel: DashChannel): KpiSpec[] {
-  return [...PLATFORM_KPIS[channel], ...(OUTLINE_EXTRA_KPIS[channel] ?? [])]
+  const overrides = OUTLINE_KPI_OVERRIDES[channel] ?? {}
+  const swapped = PLATFORM_KPIS[channel].map((k) => (overrides[k.key] ? { ...k, metric: overrides[k.key] } : k))
+  return [...swapped, ...(OUTLINE_EXTRA_KPIS[channel] ?? [])]
 }

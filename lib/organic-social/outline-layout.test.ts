@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest'
 import { CHANNELS, PLATFORM_KPIS, metricFor, type KpiSpec } from './metrics'
 import {
-  OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, OUTLINE_EXTRA_KPIS, OUTLINE_PENDING_Q6, outlineSpecsFor,
+  OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, OUTLINE_EXTRA_KPIS, OUTLINE_KPI_OVERRIDES, OUTLINE_PENDING_Q6,
+  outlineSpecsFor,
 } from './outline-layout'
 
 // Jasmine's three outlines, 2026-09-18. The labels are hers, word for word.
@@ -38,6 +39,14 @@ test("the four rows in Jasmine's question 6 are listed and never render", () => 
   expect(OUTLINE_PENDING_Q6.map((p) => `${p.channel} ${p.label}`)).toEqual([
     'INSTAGRAM Video Views', 'FACEBOOK Profile Views', 'TIKTOK Video Views', 'TIKTOK Reposts',
   ])
+  // The reasons as of her 2026-09-21 answers. The earlier "Dash counts post views, not profile
+  // visits" was withdrawn: nothing recorded which metric produced it.
+  expect(OUTLINE_PENDING_Q6.map((p) => p.why)).toEqual([
+    'Instagram retired organic video views (Dash labels them Discontinued); the replacement, Views on Reels, needs its own request, not built yet',
+    "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet",
+    "the same number as Views (Dash's TikTok views are video views, TOTAL_VIDEO_VIEWS); showing it is a separate change",
+    "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet",
+  ])
   for (const p of OUTLINE_PENDING_Q6) {
     const rows = p.block === 'data'
       ? [...(OUTLINE_DATA_ROWS.standard[p.channel] ?? []), ...(OUTLINE_DATA_ROWS.profileClicks[p.channel] ?? [])]
@@ -64,10 +73,46 @@ test('the extra rows never reuse a shared tile key, so the shared tiles stay as 
   }
 })
 
-test('the specs a tab requests are the shared tiles, then the probed extra names', () => {
+test('the specs a tab requests are the shared tiles (Engagement Rate per the decks), then the probed extra names', () => {
   const names = (ch: 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN') => outlineSpecsFor(ch).map(metricFor)
-  expect(names('INSTAGRAM')).toEqual([...PLATFORM_KPIS.INSTAGRAM.map(metricFor), 'PROFILE_CLICKS'])
+  const swapRate = (ch: 'INSTAGRAM' | 'LINKEDIN', to: string) =>
+    PLATFORM_KPIS[ch].map((k) => (k.key === 'engagementRate' ? to : metricFor(k)))
+  expect(names('INSTAGRAM')).toEqual([...swapRate('INSTAGRAM', 'AVG_ENGAGEMENT_RATE_VIEWS'), 'PROFILE_CLICKS'])
   expect(names('FACEBOOK')).toEqual([...PLATFORM_KPIS.FACEBOOK.map(metricFor), 'PAID_AND_ORGANIC_VIDEO_VIEWS'])
-  expect(names('LINKEDIN')).toEqual([...PLATFORM_KPIS.LINKEDIN.map(metricFor), 'VIDEO_VIEWS_BY_POST'])
+  expect(names('LINKEDIN')).toEqual([...swapRate('LINKEDIN', 'AVG_ENGAGEMENT_RATE_BY_POST'), 'VIDEO_VIEWS_BY_POST'])
   expect(outlineSpecsFor('TWITTER')).toEqual(PLATFORM_KPIS.TWITTER)
+})
+
+// Jasmine, 2026-09-21: "engagement rate should divide by views not followers so just follow the deck".
+test('Engagement Rate in the outline block follows the decks; the shared tiles keep theirs', () => {
+  const rate = (specs: KpiSpec[]) => specs.find((k) => k.key === 'engagementRate')?.metric
+  expect(rate(outlineSpecsFor('INSTAGRAM'))).toEqual({ allPosts: 'AVG_ENGAGEMENT_RATE_VIEWS', byPost: 'AVG_ENGAGEMENT_RATE_VIEWS' })
+  expect(rate(outlineSpecsFor('LINKEDIN'))).toEqual({ allPosts: 'AVG_ENGAGEMENT_RATE_ALL_POSTS', byPost: 'AVG_ENGAGEMENT_RATE_BY_POST' })
+  // Facebook keeps its shared rate (it matches one of the two Facebook decks; the other does not
+  // reconcile on any tile yet), so the outline block keeps it.
+  expect(rate(outlineSpecsFor('FACEBOOK'))).toEqual(rate(PLATFORM_KPIS.FACEBOOK))
+  // The shared tiles, which Renaissance reads, are untouched.
+  expect(rate(PLATFORM_KPIS.INSTAGRAM)).toEqual({ allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' })
+  expect(rate(PLATFORM_KPIS.LINKEDIN)).toEqual({ allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' })
+})
+
+test('an override swaps only the metric of a shared tile with the same key, in place', () => {
+  const overridden = Object.entries(OUTLINE_KPI_OVERRIDES)
+  expect(overridden.map(([ch]) => ch)).toEqual(['INSTAGRAM', 'LINKEDIN'])
+  for (const [ch, overrides] of overridden) {
+    const shared = (PLATFORM_KPIS as Record<string, KpiSpec[]>)[ch]
+    for (const key of Object.keys(overrides ?? {})) {
+      expect(shared.some((k) => k.key === key), `${ch} ${key} overrides nothing`).toBe(true)
+    }
+    const specs = outlineSpecsFor(ch as 'INSTAGRAM').slice(0, shared.length)
+    // Every field but the metric (label, format, footnote, anything added later) is the shared one.
+    expect(specs).toEqual(shared.map((k) => (overrides?.[k.key] ? { ...k, metric: overrides[k.key] } : k)))
+  }
+})
+
+test('a channel with no override requests exactly its shared tiles, whichever PRs have merged', () => {
+  for (const ch of CHANNELS) {
+    if (OUTLINE_KPI_OVERRIDES[ch]) continue
+    expect(outlineSpecsFor(ch).slice(0, PLATFORM_KPIS[ch].length)).toEqual(PLATFORM_KPIS[ch])
+  }
 })
