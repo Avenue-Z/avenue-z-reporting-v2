@@ -14,6 +14,8 @@ vi.mock('@/components/report-sections/organic-social', () => ({
 
 import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'
+import PortalDeepLink from '@/app/portal/[clientSlug]/reports/[reportSlug]/page'
+import DashboardDeepLink from '@/app/dashboard/[clientSlug]/reports/[reportSlug]/page'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { auth } from '@/auth'
@@ -126,5 +128,37 @@ describe('SPA routes', () => {
     as('CLIENT_VIEWER')
     getClientBySlug.mockResolvedValue({ ...OPTED, enabledReports: ['organic-social'] })
     expect(await redirectOf(spa(PortalSpa as Route, { dateRange: 'last_30_days' }))).toBe('/portal/c/reports?dateRange=last_30_days&section=organic-social')
+  })
+})
+
+describe('deep links', () => {
+  const deep = (Route: Route, q: Record<string, unknown>) =>
+    Route({ params: Promise.resolve({ clientSlug: 'c', reportSlug: 'organic-social' }), searchParams: Promise.resolve(Object.fromEntries(Object.entries(q).filter(([, v]) => v !== undefined))) } as never)
+
+  test('portal: the month picker with the session role; the raw range goes to the section, which enforces', async () => {
+    as('CLIENT_VIEWER')
+    const r = await runRoute(deep(PortalDeepLink as Route, { dateRange: LIVE }))
+    if (!('element' in r)) throw new Error('deep link redirected')
+    expect(pickerOf(r.element)).toMatchObject({ requested: LIVE, role: 'CLIENT_VIEWER' })
+    expect(sectionOf(r.element)).toMatchObject({ dateRange: LIVE })
+  })
+  test('dashboard: the month picker reads its own session', async () => {
+    as('INTERNAL_ADMIN')
+    const r = await runRoute(deep(DashboardDeepLink as Route, {}))
+    if (!('element' in r)) throw new Error('deep link redirected')
+    const picker = pickerOf(r.element)
+    expect(picker).toBeDefined()
+    expect('role' in picker!).toBe(false)
+  })
+  test('sweep: neither deep link ever redirects, for any input, role or health=1 (edges 7, 22)', async () => {
+    for (const role of ['CLIENT_VIEWER', 'INTERNAL_ADMIN'] as const) {
+      as(role)
+      for (const dateRange of INPUTS) for (const health of [undefined, '1']) {
+        for (const Route of [PortalDeepLink, DashboardDeepLink] as Route[]) {
+          const r = await runRoute(deep(Route, { dateRange, compareRange: 'previous_year', health }))
+          expect('element' in r).toBe(true)
+        }
+      }
+    }
   })
 })

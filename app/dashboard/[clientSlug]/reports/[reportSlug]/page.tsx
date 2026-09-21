@@ -21,6 +21,8 @@ import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { ReportDateRange } from './report-date-range'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 
 function ReportSkeleton() {
   return (
@@ -106,7 +108,9 @@ export default async function ReportPage({
             support), so the picker here would be a dead control for that slug only. */}
         {reportSlug !== 'executive-overview' && (
           <Suspense fallback={null}>
-            <ReportDateRange value={dateRange} compareValue={compareRange} />
+            {reportSlug === 'organic-social' && hasReportingMonths(client)
+              ? <OrganicRangeControl client={client} requested={dateRangeParam} />
+              : <ReportDateRange value={dateRange} compareValue={compareRange} />}
           </Suspense>
         )}
       </Header>
