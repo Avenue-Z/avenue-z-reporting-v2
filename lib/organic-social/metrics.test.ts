@@ -74,69 +74,65 @@ test('TikTok breakdown KPIs carry the post-based name under byPost', () => {
   }
 })
 
-// Renaissance renders Instagram, Facebook, X and LinkedIn and must not move when
-// TikTok changes. Pins every tile key and both metric names on those four, copied from
-// dev's PLATFORM_KPIS, so an edit that leaks out of the TIKTOK block, or adds or drops a
-// tile on one of them, fails here rather than in a client's report.
+// Renaissance renders Instagram, Facebook, X and LinkedIn and must not move when TikTok changes.
+// Pins every tile on those four as a WHOLE object, in order: key, label, format, both metric
+// names, footnote, and any field added to KpiSpec later. Copied from origin/dev's PLATFORM_KPIS on
+// 2026-09-21 and hard-coded, so the test never reads the module it guards. The first version pinned
+// only keys and metric names, so renaming "Profile Views" passed (Paul's re-review of PR 247).
+// Pinning the whole object closes that for every field at once, not one field at a time.
 test('the non-TikTok channels are untouched by TikTok changes', () => {
-  const PINNED: Record<string, Record<string, [string, string]>> = {
-    INSTAGRAM: {
-      followers: ['TOTAL_FOLLOWERS', 'TOTAL_FOLLOWERS'],
-      netNewFollowers: ['NET_NEW_FOLLOWERS', 'NET_NEW_FOLLOWERS'],
-      exposure: ['VIEWS', 'VIEWS'],
-      engagements: ['TOTAL_ENGAGEMENTS', 'TOTAL_ENGAGEMENTS'],
-      engagementRate: ['AVG_ENGAGEMENT_RATE', 'AVG_ENGAGEMENT_RATE'],
-      profileViews: ['PROFILE_VIEWS', 'PROFILE_VIEWS'],
-      likes: ['ORGANIC_LIKES', 'ORGANIC_LIKES'],
-      comments: ['ORGANIC_COMMENTS', 'ORGANIC_COMMENTS'],
-      shares: ['SHARES', 'SHARES'],
-      saves: ['SAVES', 'SAVES'],
-      reposts: ['REPOSTS', 'REPOSTS'],
-    },
-    FACEBOOK: {
-      followers: ['TOTAL_FOLLOWERS', 'TOTAL_FOLLOWERS'],
-      netNewFollowers: ['NET_NEW_FOLLOWERS', 'NET_NEW_FOLLOWERS'],
-      exposure: ['PAID_AND_ORGANIC_VIEWS_BY_POST', 'PAID_AND_ORGANIC_VIEWS_BY_POST'],
-      engagements: ['TOTAL_ENGAGEMENTS_POSTS_V2', 'TOTAL_ENGAGEMENTS_POSTS_V2'],
-      engagementRate: ['AVG_ENGAGEMENT_RATE_V2', 'AVG_ENGAGEMENT_RATE_V2'],
-      reactions: ['REACTIONS', 'REACTIONS'],
-      comments: ['TOTAL_COMMENTS', 'TOTAL_COMMENTS'],
-      shares: ['SHARES', 'SHARES'],
-      postClicks: ['POST_CLICKS', 'POST_CLICKS'],
-    },
-    TWITTER: {
-      followers: ['TOTAL_FOLLOWERS', 'TOTAL_FOLLOWERS'],
-      netNewFollowers: ['NET_NEW_FOLLOWERS', 'NET_NEW_FOLLOWERS'],
-      exposure: ['IMPRESSIONS', 'IMPRESSIONS_BY_POST'],
-      engagements: ['TOTAL_ENGAGEMENTS', 'TOTAL_ENGAGEMENTS_POSTS'],
-      engagementRate: ['AVG_ENGAGEMENT_RATE', 'AVG_ENGAGEMENT_RATE'],
-      profileClicks: ['PROFILE_CLICKS', 'PROFILE_CLICKS'],
-      likes: ['LIKES', 'LIKES'],
-      replies: ['REPLIES', 'REPLIES'],
-      reposts: ['RETWEETS', 'RETWEETS'],
-      linkClicks: ['LINK_CLICKS', 'LINK_CLICKS'],
-    },
-    LINKEDIN: {
-      followers: ['TOTAL_FOLLOWERS', 'TOTAL_FOLLOWERS'],
-      netNewFollowers: ['NET_NEW_FOLLOWERS', 'NET_NEW_FOLLOWERS'],
-      exposure: ['IMPRESSIONS', 'IMPRESSIONS_BY_POST'],
-      engagements: ['ENGAGEMENTS', 'ENGAGEMENTS_BY_POST'],
-      engagementRate: ['AVG_ENGAGEMENT_RATE', 'AVG_ENGAGEMENT_RATE'],
-      reactions: ['REACTIONS_ALL_POSTS', 'REACTIONS_BY_POST'],
-      comments: ['COMMENTS_ALL_POSTS', 'COMMENTS_BY_POST'],
-      shares: ['SHARES_ALL_POSTS', 'SHARES_BY_POST'],
-      postClicks: ['CLICKS_ALL_POSTS', 'CLICKS_BY_POST'],
-      profileViews: ['PAGE_VIEWS_ALL_POSTS', 'PAGE_VIEWS_ALL_POSTS'],
-    },
+  const RENAISSANCE_TILES = {
+    INSTAGRAM: [
+      { key: 'followers', label: 'Total Followers', format: 'number', metric: { allPosts: 'TOTAL_FOLLOWERS', byPost: 'TOTAL_FOLLOWERS' } },
+      { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+      { key: 'exposure', label: 'Views', format: 'number', metric: { allPosts: 'VIEWS', byPost: 'VIEWS' } },
+      { key: 'engagements', label: 'Engagements', format: 'number', metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS' } },
+      { key: 'engagementRate', label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+      { key: 'profileViews', label: 'Profile Views', format: 'number', metric: { allPosts: 'PROFILE_VIEWS', byPost: 'PROFILE_VIEWS' } },
+      { key: 'likes', label: 'Likes', format: 'number', metric: { allPosts: 'ORGANIC_LIKES', byPost: 'ORGANIC_LIKES' } },
+      { key: 'comments', label: 'Comments', format: 'number', metric: { allPosts: 'ORGANIC_COMMENTS', byPost: 'ORGANIC_COMMENTS' } },
+      { key: 'shares', label: 'Shares', format: 'number', metric: { allPosts: 'SHARES', byPost: 'SHARES' } },
+      { key: 'saves', label: 'Saves', format: 'number', metric: { allPosts: 'SAVES', byPost: 'SAVES' } },
+      { key: 'reposts', label: 'Reposts', format: 'number', metric: { allPosts: 'REPOSTS', byPost: 'REPOSTS' } },
+    ],
+    FACEBOOK: [
+      { key: 'followers', label: 'Total Followers', format: 'number', metric: { allPosts: 'TOTAL_FOLLOWERS', byPost: 'TOTAL_FOLLOWERS' } },
+      { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+      { key: 'exposure', label: 'Views', format: 'number', metric: { allPosts: 'PAID_AND_ORGANIC_VIEWS_BY_POST', byPost: 'PAID_AND_ORGANIC_VIEWS_BY_POST' } },
+      { key: 'engagements', label: 'Engagements', format: 'number', metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' }, footnote: 'Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive).' },
+      { key: 'engagementRate', label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE_V2', byPost: 'AVG_ENGAGEMENT_RATE_V2' } },
+      { key: 'reactions', label: 'Reactions', format: 'number', metric: { allPosts: 'REACTIONS', byPost: 'REACTIONS' } },
+      { key: 'comments', label: 'Comments', format: 'number', metric: { allPosts: 'TOTAL_COMMENTS', byPost: 'TOTAL_COMMENTS' } },
+      { key: 'shares', label: 'Shares', format: 'number', metric: { allPosts: 'SHARES', byPost: 'SHARES' } },
+      { key: 'postClicks', label: 'Post Clicks', format: 'number', metric: { allPosts: 'POST_CLICKS', byPost: 'POST_CLICKS' } },
+    ],
+    TWITTER: [
+      { key: 'followers', label: 'Total Followers', format: 'number', metric: { allPosts: 'TOTAL_FOLLOWERS', byPost: 'TOTAL_FOLLOWERS' } },
+      { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+      { key: 'exposure', label: 'Impressions', format: 'number', metric: { allPosts: 'IMPRESSIONS', byPost: 'IMPRESSIONS_BY_POST' } },
+      { key: 'engagements', label: 'Engagements', format: 'number', metric: { allPosts: 'TOTAL_ENGAGEMENTS', byPost: 'TOTAL_ENGAGEMENTS_POSTS' } },
+      { key: 'engagementRate', label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+      { key: 'profileClicks', label: 'Profile Clicks', format: 'number', metric: { allPosts: 'PROFILE_CLICKS', byPost: 'PROFILE_CLICKS' } },
+      { key: 'likes', label: 'Likes', format: 'number', metric: { allPosts: 'LIKES', byPost: 'LIKES' } },
+      { key: 'replies', label: 'Replies', format: 'number', metric: { allPosts: 'REPLIES', byPost: 'REPLIES' } },
+      { key: 'reposts', label: 'Reposts', format: 'number', metric: { allPosts: 'RETWEETS', byPost: 'RETWEETS' } },
+      { key: 'linkClicks', label: 'Link Clicks', format: 'number', metric: { allPosts: 'LINK_CLICKS', byPost: 'LINK_CLICKS' } },
+    ],
+    LINKEDIN: [
+      { key: 'followers', label: 'Total Followers', format: 'number', metric: { allPosts: 'TOTAL_FOLLOWERS', byPost: 'TOTAL_FOLLOWERS' } },
+      { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
+      { key: 'exposure', label: 'Impressions', format: 'number', metric: { allPosts: 'IMPRESSIONS', byPost: 'IMPRESSIONS_BY_POST' } },
+      { key: 'engagements', label: 'Engagements', format: 'number', metric: { allPosts: 'ENGAGEMENTS', byPost: 'ENGAGEMENTS_BY_POST' } },
+      { key: 'engagementRate', label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE', byPost: 'AVG_ENGAGEMENT_RATE' } },
+      { key: 'reactions', label: 'Reactions', format: 'number', metric: { allPosts: 'REACTIONS_ALL_POSTS', byPost: 'REACTIONS_BY_POST' } },
+      { key: 'comments', label: 'Comments', format: 'number', metric: { allPosts: 'COMMENTS_ALL_POSTS', byPost: 'COMMENTS_BY_POST' } },
+      { key: 'shares', label: 'Shares', format: 'number', metric: { allPosts: 'SHARES_ALL_POSTS', byPost: 'SHARES_BY_POST' } },
+      { key: 'postClicks', label: 'Post Clicks', format: 'number', metric: { allPosts: 'CLICKS_ALL_POSTS', byPost: 'CLICKS_BY_POST' } },
+      { key: 'profileViews', label: 'Profile Views', format: 'number', metric: { allPosts: 'PAGE_VIEWS_ALL_POSTS', byPost: 'PAGE_VIEWS_ALL_POSTS' } },
+    ],
   }
-  for (const [channel, keys] of Object.entries(PINNED)) {
-    // Same keys in the same order: no tile added to or dropped from a Renaissance channel.
-    expect(PLATFORM_KPIS[channel as DashChannel].map((s) => s.key)).toEqual(Object.keys(keys))
-    for (const [key, [allPosts, byPost]] of Object.entries(keys)) {
-      const spec = kpiFor(channel as DashChannel, key)
-      expect(`${channel}.${key}.allPosts=${spec.metric.allPosts}`).toBe(`${channel}.${key}.allPosts=${allPosts}`)
-      expect(`${channel}.${key}.byPost=${spec.metric.byPost}`).toBe(`${channel}.${key}.byPost=${byPost}`)
-    }
+  for (const [channel, tiles] of Object.entries(RENAISSANCE_TILES)) {
+    expect(PLATFORM_KPIS[channel as DashChannel], channel).toStrictEqual(tiles)
   }
 })
 
