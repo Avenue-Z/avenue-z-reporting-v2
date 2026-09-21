@@ -130,9 +130,9 @@ platform tab has the same six blocks, in this order:
 |---|---|---|
 | Commentary | Commentary for the tab | Exists (the shared Commentary part) |
 | YTD Review | A year to date follower growth graph and a year to date views graph | Net new |
-| Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Jasmine replied to question 6 on 2026-09-21. Instagram retired Video Views, so that row becomes Views on Reels; TikTok Video Views is the same Dash number as Views; Facebook Profile Views and TikTok Reposts are still open with her |
+| Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Jasmine replied to question 6 on 2026-09-21. Instagram retired Video Views, so that row becomes Views on Reels; TikTok Video Views is the same Dash number as Views; Facebook Profile Views and TikTok Reposts are not identified yet (see Still open). Engagement Rate follows her decks (views based) in the outline block, on PR 255 |
 | {Platform} Follower Growth Graph | "Needs to include annotations" | PR 252; Jasmine approved the design on 2026-09-21 once she sees it working |
-| {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics themselves already exist as Data tiles (TikTok's are on PR 247, and TikTok Reposts is not reported by Dash). They need moving directly under the graph, not building |
+| {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics themselves already exist as Data tiles (TikTok's are on PR 247; TikTok Reposts is not identified yet, see Still open). PR 255 moves them directly under the graph (`engagement-breakdown@1`) |
 | Top Performing Content | Top posts for the tab | Exists. Five posts per tab (question 7); collab posts get their own section at the bottom (question 8) |
 
 Tabs per client:
@@ -173,11 +173,14 @@ they need may already exist.
 
 ## Still open
 
-Jasmine answered the decisions doc on 2026-09-21. Still open with her:
+Jasmine answered the decisions doc on 2026-09-21, and my two follow-ups the same evening:
 
-- Facebook Profile Views and TikTok Reposts: not available through Dash's API; she was asked
-  where she sees them, with Facebook Viewers and TikTok Favorites offered as options
-- engagement rate: match her August decks (views based) or Renaissance (followers based)
+- engagement rate: "follow the deck" (views based). Done in the outline block on PR 255; the shared
+  tiles Renaissance reads are unchanged
+- Facebook Profile Views and TikTok Reposts: she sees them "on the dashboards I create". Neither
+  Dash's API nor its app code has them, and neither my login nor our API key can see her dashboards,
+  so the metric behind her widgets is not identified yet. Both rows stay blank until it is, her rule
+  for missing data
 
 Engineering, mine to close:
 
