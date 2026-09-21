@@ -35,7 +35,7 @@ export function OrganicSocialReport({
   // first paint no longer waits on either (PR #168 review R1 #6). `getClientBySlug` is React.cache-deduped.
   return (
     <div className="space-y-8">
-      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} />
+      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
       <Suspense fallback={<OverviewSkeleton />}>
         <OrganicSocialBody ctx={ctx} />
       </Suspense>

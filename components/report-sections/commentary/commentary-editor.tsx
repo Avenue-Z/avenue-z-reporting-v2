@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { saveCommentary } from '@/app/actions/commentary'
 import type { CommentaryEntry } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
+import { initialPeriod } from '@/lib/commentary/initial-period'
 
 const CONTENT_CLASS =
   'min-h-[8rem] p-3 text-sm text-white focus:outline-none [&_a]:underline [&_a]:text-blue-400 ' +
@@ -46,14 +47,17 @@ export function CommentaryEditor({
   viewKey,
   entry,
   onDone,
+  defaultPeriod,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
   entry?: CommentaryEntry
   onDone: () => void
+  defaultPeriod?: { start: string; end: string }
 }) {
-  const [periodStart, setPeriodStart] = useState(entry?.periodStart ?? '')
-  const [periodEnd, setPeriodEnd] = useState(entry?.periodEnd ?? '')
+  const start = initialPeriod(entry, defaultPeriod)
+  const [periodStart, setPeriodStart] = useState(start.start)
+  const [periodEnd, setPeriodEnd] = useState(start.end)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 

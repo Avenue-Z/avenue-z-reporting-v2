@@ -214,3 +214,20 @@ test('panel and editor HTML without the new optional props', () => {
     editEditor: html(createElement(CommentaryEditor, { clientSlug: 'acme', viewKey: 'peec-ai', entry: ENTRY, onDone: () => {} })),
   }).toMatchSnapshot()
 })
+
+test('the new optional props: empty text, the team note, and the month as a new entry\'s period', () => {
+  const empty = render(
+    <CommentaryPanel clientSlug="acme" viewKey="organic-social:instagram" entries={[]} initialId={null}
+      capabilities={{ canEdit: true, canApprove: false }} history={[]} emptyText="No commentary for September 2026 yet"
+      defaultPeriod={{ start: '2026-09-01', end: '2026-09-30' }} />,
+  )
+  expect(empty.container.textContent).toContain('No commentary for September 2026 yet')
+  fireEvent.click(empty.getByText('Add commentary'))
+  expect([...empty.container.querySelectorAll('input[type="date"]')].map((i) => (i as HTMLInputElement).value)).toEqual(['2026-09-01', '2026-09-30'])
+  empty.unmount()
+  const noted = render(
+    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={[ENTRY]} initialId={ENTRY.id}
+      capabilities={{ canEdit: true, canApprove: false }} history={[]} entryNotes={{ [ENTRY.id]: 'Clients see this from Nov 12' }} />,
+  )
+  expect(noted.container.textContent).toContain('Clients see this from Nov 12')
+})
