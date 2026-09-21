@@ -153,3 +153,24 @@ test('per-KPI delta computed from context; undefined when no context present', (
   expect(h.kpis.find((k) => k.key === 'followers')?.delta).toBeCloseTo(10)
   expect(h.kpis.find((k) => k.key === 'exposure')?.delta).toBeUndefined()
 })
+
+// TikTok's Avg Completion Rate is a 'percent' tile, so buildPlatformHeadline multiplies Dash's
+// value by 100 (headline-build.ts, `spec.format === 'percent' ? raw * 100 : raw`). That is right
+// only if Dash returns AVG_COMPLETION_RATE as a 0 to 1 fraction, like AVG_ENGAGEMENT_RATE; the
+// probe below is the evidence it does. Probed read only on 2026-09-21 with the tiles' report type
+// (TOTAL_GROUPED_METRIC, aggregated by brand, require_posts, TikTok only) over UTC calendar months,
+// recording the scale and never a figure: 6 of 6 non-null monthly values within 0 to 1 for
+// AVG_COMPLETION_RATE, March to August 2026 (control AVG_ENGAGEMENT_RATE, which the other channels'
+// tiles already render as a fraction: 6 of 6). Values alone cannot prove a scale: read as 0 to 100,
+// these would mean at most 1 percent completion every month, implausibly low for TikTok video. The
+// value below is synthetic. This test pins our side of that contract; it cannot see Dash's side,
+// so re-probe before changing this tile's format.
+test('TikTok completion rate: a 0 to 1 fraction from Dash renders as a percent', () => {
+  const metric = metricForKey('TIKTOK', 'completionRate')
+  const h = buildPlatformHeadline(
+    'TIKTOK', { [metric]: { value: 0.42, context: null, context_change: null } }, ['completionRate'], true,
+  )
+  const kpi = h.kpis.find((k) => k.key === 'completionRate')
+  expect(kpi?.format).toBe('percent')
+  expect(kpi?.value).toBeCloseTo(42)
+})
