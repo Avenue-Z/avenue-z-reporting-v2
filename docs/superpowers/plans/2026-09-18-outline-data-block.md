@@ -2,6 +2,10 @@
 
 > **For the executor:** run inline in this session with superpowers:executing-plans. No subagents. Steps use checkbox (`- [ ]`) syntax.
 
+**Update 2026-09-21.** The `OUTLINE_PENDING_Q6` reasons and the Engagement Rate rows below are the plan
+as of 2026-09-18. Jasmine answered on 2026-09-21: the reasons were rewritten from the evidence, and the
+outline block's Engagement Rate follows her decks (`OUTLINE_KPI_OVERRIDES`). See the spec's update note.
+
 **Goal:** The three new clients' platform tabs show the outline's Data rows with the outline's labels, and the engagement breakdown directly under the engagement graph, while Renaissance resolves to and renders exactly today's parts.
 
 **Architecture:** A pure layout module says which tiles each tab shows. A cached fetcher makes one Dash request per tab for the shared tile metrics plus three extra rows. Three unpublished part versions render it (`platform-headlines@2`, `@3`, `engagement-breakdown@1`); a client opts in through its own `report_section_config['organic-social:platform']`.

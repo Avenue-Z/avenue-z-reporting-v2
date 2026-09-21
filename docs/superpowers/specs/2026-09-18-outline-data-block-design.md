@@ -4,6 +4,26 @@ Status: approved in chat on 2026-09-18 ("yes go ahead with all three", task C), 
 standing rule: anything that follows Jasmine's outlines and leaves Renaissance untouched
 proceeds. On PR 255 with the Overview removal, so the three clients' layout ships as one PR.
 
+**Update 2026-09-21.** Jasmine answered the open questions this spec names.
+
+- **Engagement Rate** now follows the monthly decks in the outline block (her words: "engagement rate
+  should divide by views not followers so just follow the deck"). `OUTLINE_KPI_OVERRIDES` swaps in
+  Instagram `AVG_ENGAGEMENT_RATE_VIEWS` and LinkedIn `AVG_ENGAGEMENT_RATE_BY_POST`, checked against the
+  August decks and returning a compare value in the batched request. Facebook keeps its shared rate: it
+  matches one of the two Facebook decks, and the other does not reconcile on any tile yet. TikTok's
+  matched its deck. This supersedes "Engagement Rate keeps today's Dash metric per channel" below. The
+  shared tiles (`PLATFORM_KPIS`), which Renaissance reads, are unchanged. Not covered here: the Top
+  Content post cards on these tabs still show Instagram's per-post rate on the followers basis; that
+  field is shared with Renaissance, so moving it is a separate change.
+- **Question 6.** The Facebook Profile Views reason below ("Dash's metric counts post views") is
+  withdrawn: nothing recorded which metric produced it. Instagram retired organic video views; the
+  replacement is Views on Reels, a separate request, not built yet. TikTok Video Views is the same number
+  as Views. Facebook Profile Views and TikTok Reposts are found in neither Dash's API nor its app code;
+  Jasmine sees them on dashboards she builds, and the metric behind them is not identified yet. All four stay
+  unrendered; `OUTLINE_PENDING_Q6` carries the current reasons.
+- **Question 1** is answered (see the Overview removal spec's update). Question 3 (YTD Review) is its own
+  build.
+
 ## What the outlines ask for
 
 Every platform tab, in order: Commentary; YTD Review; Data; {Platform} Follower Growth Graph;

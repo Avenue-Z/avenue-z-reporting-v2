@@ -3,6 +3,11 @@
 Status: approved in chat on 2026-09-18, under the standing rule that work follows Jasmine's
 outlines and does not touch Renaissance.
 
+**Update 2026-09-21.** Jasmine answered question 1: the third client is labelled "Akara Living, Kenect
+Nashville", and the page the team manages is the Kenect Nashville Instagram. On staging the record now has that
+name and the channel list `["instagram"]`, which matches its outline. The table below is the record as of
+2026-09-18.
+
 ## The problem
 
 All three outlines (A Place For Mom, Joy of Life, Kenect Nashville) begin "[remove]

@@ -4,6 +4,9 @@
 
 **Goal:** A client whose hidden reports list `organic-overview` gets no Organic Social Overview and opens on its first platform tab; every other client, Renaissance included, is unchanged.
 
+**Update 2026-09-21.** The Kenect record's name and channel list, which Task 2, Step 3 says wait on Jasmine's question 1,
+are settled: "Akara Living, Kenect Nashville", `["instagram"]`, set on staging with my go.
+
 **Architecture:** One named id and a small change to `organicSocialSubsections`. The shared `visibleSubsections`, the resolver, the sidebars and the pages are untouched.
 
 **Tech Stack:** TypeScript strict, Vitest 3.
