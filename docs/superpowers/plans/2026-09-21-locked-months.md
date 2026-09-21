@@ -4,6 +4,8 @@
 
 **Goal:** Organic Social clients that opt in (`dash_social_config.reportingMonths`) get a month and year picker, month-to-month comparison, server-enforced client visibility (the 12th rule), and Commentary that follows the month; every other client, Renaissance included, is unchanged.
 
+**Executed dry run (2026-09-21):** Tasks 0 to 7 were executed literally in a throwaway worktree: 1153 tests pass, tsc and the RSC check clean, Task 0's snapshots byte-identical after Task 7. Its three improvements are folded in (the editor snapshot uses `createElement`, every section test asserts parts rendered, the edge 29 Commentary test).
+
 **Architecture:** One pure rules module (`lib/organic-social/reporting-months.ts`) decides the months, the served month and the comparison from the client's config, the viewer's role and one per-request clock. A thin server module (`locked-range.ts`) returns `null` for any client without the setting, which every caller treats as "do exactly what you do today". The SPA routes redirect or serve the month and swap the picker; the deep links swap the picker only; the Organic Social section re-checks as the last point before Dash; Commentary filters to the served month.
 
 **Tech Stack:** Next.js 16.1 App Router (RSC), React 19.2, TypeScript strict, Vitest 3.2 (jsdom) with @testing-library/react.
@@ -198,10 +200,13 @@ const FIXTURES = {
     dashSocialConfig: { brandId: 1 },
     reportSectionConfig: { 'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] } },
   },
+  // hiddenReports deliberately omits 'organic-overview': PR 255 changes that shape's landing tab on
+  // purpose, so pinning it here would tie this record to whether 255 merged first. The lock gates
+  // only on reportingMonths, so this shape exercises the same path.
   'new-client-shaped, no reportingMonths': {
     name: 'Client', slug: 'c', logoUrl: null,
     enabledReports: ['organic-social'],
-    hiddenReports: ['organic-overview'],
+    hiddenReports: [],
     dashSocialConfig: { brandId: 1, channels: ['instagram', 'facebook', 'linkedin'] },
     reportSectionConfig: { 'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] } },
   },
@@ -331,14 +336,14 @@ test('a failing auth() still throws, as today', async () => {
 
 - [ ] **Step 6: Append the panel and editor HTML snapshots to `commentary-panel.test.tsx`**
 
-Add at the end of the file (it already mocks `next/navigation` and `@/app/actions/commentary`; add `import { CommentaryEditor } from './commentary-editor'` next to its `CommentaryPanel` import):
+Add at the end of the file (it already mocks `next/navigation` and `@/app/actions/commentary`; add `import { CommentaryEditor } from './commentary-editor'` next to its `CommentaryPanel` import, and `import { createElement, type ReactElement } from 'react'`):
 
 ```tsx
 // Pre-change record for locked months (spec section 8): the panel and the editor render the same
 // HTML without the new optional props. Local-time stamps are normalised so the snapshot does not
 // depend on the machine's timezone (CI runs in UTC).
 const localTime = /[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M/g
-const html = (el: React.ReactElement) => render(el).container.innerHTML.replace(localTime, '<local time>')
+const html = (el: ReactElement) => render(el).container.innerHTML.replace(localTime, '<local time>')
 
 test('panel and editor HTML without the new optional props', () => {
   const SECOND: CommentaryEntry = { ...ENTRY, id: 'e2', periodStart: '2026-05-01', periodEnd: '2026-05-31', status: 'draft' }
@@ -350,13 +355,13 @@ test('panel and editor HTML without the new optional props', () => {
     editorTwoEntries: panel(true, [ENTRY, SECOND]),
     clientOneEntry: panel(false, [ENTRY]),
     editorEmpty: panel(true, []),
-    newEditor: html(<CommentaryEditor clientSlug="acme" viewKey="peec-ai" onDone={() => {}} />),
-    editEditor: html(<CommentaryEditor clientSlug="acme" viewKey="peec-ai" entry={ENTRY} onDone={() => {}} />),
+    // createElement, not JSX: scripts/check-rsc-props.ts scans test files too and flags a JSX
+    // function prop on a client component in a file without 'use client'.
+    newEditor: html(createElement(CommentaryEditor, { clientSlug: 'acme', viewKey: 'peec-ai', onDone: () => {} })),
+    editEditor: html(createElement(CommentaryEditor, { clientSlug: 'acme', viewKey: 'peec-ai', entry: ENTRY, onDone: () => {} })),
   }).toMatchSnapshot()
 })
 ```
-
-If the file does not already import React types, add `import type React from 'react'`.
 
 - [ ] **Step 7: Append the section output snapshot to `components/report-sections/organic-social/index.test.tsx`**
 
@@ -1293,6 +1298,7 @@ describe('locked months in the section', () => {
     as('INTERNAL_ADMIN'); getClientBySlug.mockResolvedValue(OPTED)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await OrganicSocialBody({ ctx: ctxFor('last_30_days') })
+    expect(seen.length).toBeGreaterThan(0)
     for (const c of seen) expect(c.dateRange).toBe(SEP)
     expect(warn).not.toHaveBeenCalled()
   })
@@ -1311,6 +1317,7 @@ describe('locked months in the section', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const ctx0 = ctxFor(LIVE)
     await OrganicSocialBody({ ctx: ctx0 })
+    expect(seen.length).toBeGreaterThan(0)
     for (const c of seen) expect(c).toEqual({ ...ctx0, role: 'CLIENT_VIEWER' })
   })
 
@@ -1331,6 +1338,7 @@ describe('locked months in the section', () => {
     as('INTERNAL_ADMIN'); getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08', opensOnDay: 3 } } })
     await OrganicSocialBody({ ctx: ctxFor('last_30_days') })
     expect(err).toHaveBeenLastCalledWith('[organic-social] reportingMonths setting is invalid slug=c key=opensOnDay')
+    expect(seen.length).toBeGreaterThan(0)
     for (const c of seen) expect(c.dateRange).toBe(SEP)
   })
 
@@ -1339,6 +1347,7 @@ describe('locked months in the section', () => {
     getClientBySlug.mockResolvedValue(OPTED)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     await OrganicSocialBody({ ctx: ctxFor(LIVE) })
+    expect(seen.length).toBeGreaterThan(0)
     for (const c of seen) expect(c.dateRange).toBe(SEP)
   })
 })
@@ -1951,6 +1960,18 @@ describe('Commentary follows the month (locked-months clients)', () => {
     }
     expect(withRange).toEqual(base)
     for (const [k, v] of Object.entries(optedOther)) expect(v).toEqual(base[k])
+  })
+  test('the team is told when clients will see a withheld entry; a client gets neither the entry nor any note (edge 29, spec 3.9 example)', async () => {
+    vi.setSystemTime(new Date('2026-09-15T14:00:00Z'))
+    const cross = E('aug-cross', '2026-08-01', '2026-09-05', 'approved', '2026-09-06T10:00:00.000Z')
+    ENTRIES.push(cross)
+    try {
+      const team = await run('INTERNAL_ADMIN', 'writer@avenuez.com', 'custom:2026-08-01,2026-08-31')
+      expect(team.props!.entryNotes).toEqual({ 'aug-cross': 'Clients see this from Oct 12' })
+      const client = await run('CLIENT_VIEWER', 'client@example.com', 'custom:2026-08-01,2026-08-31')
+      expect((client.props!.entries as CommentaryEntry[]).map((e) => e.id)).toEqual(['aug'])
+      expect(client.props!.entryNotes).toBeUndefined()
+    } finally { ENTRIES.pop() }
   })
   test('a failing auth() still throws for an opted-in client, as today', async () => {
     getClientBySlug.mockResolvedValue(OPTED)
