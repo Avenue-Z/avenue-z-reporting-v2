@@ -85,3 +85,16 @@ test('selectOutlineRows throws on a row with no tile', () => {
   const b = buildOutlineKpis('INSTAGRAM', allOf('INSTAGRAM'), outlineSpecsFor('INSTAGRAM'))
   expect(() => selectOutlineRows('INSTAGRAM', b, [{ key: 'nope', label: 'Nope' }])).toThrow(/nope/)
 })
+
+test('a flagged row becomes a blank tile carrying its flag, with no tile or metric behind it', () => {
+  const b = buildOutlineKpis('FACEBOOK',
+    Object.fromEntries(outlineSpecsFor('FACEBOOK').map((s) => [metricFor(s), { value: 5, context: null, context_change: null }])),
+    outlineSpecsFor('FACEBOOK'))
+  const h = selectOutlineRows('FACEBOOK', b, [
+    { key: 'followers', label: 'Total Followers' },
+    { key: 'profileViews', label: 'Profile Views', unavailable: 'Not available from Dash' },
+  ])
+  expect(h.kpis.map((k) => [k.label, k.unavailable])).toEqual([['Total Followers', undefined], ['Profile Views', 'Not available from Dash']])
+  // No value, no change arrow, nothing a number-printing component could show.
+  expect(h.kpis[1]).toEqual({ key: 'profileViews', label: 'Profile Views', format: 'number', value: null, unavailable: 'Not available from Dash' })
+})

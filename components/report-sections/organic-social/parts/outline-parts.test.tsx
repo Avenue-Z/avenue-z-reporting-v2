@@ -15,8 +15,11 @@ import { ORGANIC_SOCIAL_PARTS } from './registry'
 import { platformHeadlinesV1 } from './platform-headlines'
 import { OutlineDataSection } from './outline-data'
 import { BreakdownSection } from './engagement-breakdown'
-import { buildOutlineKpis } from '@/lib/organic-social/outline-headlines'
-import { outlineSpecsFor, OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS } from '@/lib/organic-social/outline-layout'
+import { buildOutlineKpis, selectOutlineRows } from '@/lib/organic-social/outline-headlines'
+import { PlatformHeadlines } from '../platform-headlines'
+import type { PlatformHeadline } from '@/lib/organic-social/types'
+import { OutlineTiles } from '../outline-tiles'
+import { outlineSpecsFor, OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, NOT_IN_DASH } from '@/lib/organic-social/outline-layout'
 import { metricFor } from '@/lib/organic-social/metrics'
 import { DashTimeoutError } from '@/lib/dash-social/client'
 import { FIXTURE_ORGANIC_SOCIAL_CTX } from './__fixtures__/organic-social-ctx'
@@ -26,6 +29,12 @@ const built = (value: number | null) => buildOutlineKpis('INSTAGRAM',
   Object.fromEntries(outlineSpecsFor('INSTAGRAM').map((s) => [metricFor(s), { value, context: null, context_change: null }])),
   outlineSpecsFor('INSTAGRAM'))
 const text = async (node: Promise<ReactNode>) => render(<>{await node}</>).container
+const builtFor = (ch: 'FACEBOOK' | 'INSTAGRAM', value: number) => buildOutlineKpis(ch,
+  Object.fromEntries(outlineSpecsFor(ch).map((s) => [metricFor(s), { value, context: null, context_change: null }])),
+  outlineSpecsFor(ch))
+/** The KpiCard whose title is exactly `title`. */
+const card = (c: HTMLElement, title: string) =>
+  ([...c.querySelectorAll('p')].find((p) => p.textContent === title)?.closest('div.rounded-lg') ?? null) as HTMLElement | null
 
 test('the registry adds three unpublished versions and leaves v1 as it was', () => {
   expect(Object.keys(ORGANIC_SOCIAL_PARTS['platform-headlines'])).toEqual(['1', '2', '3'])
@@ -83,4 +92,47 @@ test('v3 is v2 with Profile Clicks on Instagram', async () => {
   getOutlineKpis.mockResolvedValueOnce(built(10))
   const c = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.profileClicks.INSTAGRAM! }))
   expect(c.textContent).toContain('Profile Clicks')
+})
+
+test("Facebook's Profile Views is a blank tile with the flag, in the outline's place", async () => {
+  getOutlineKpis.mockResolvedValueOnce(builtFor('FACEBOOK', 10))
+  const c = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
+  const pv = card(c, 'Profile Views')
+  expect(pv).not.toBeNull()
+  const lines = [...pv!.querySelectorAll('p')].map((p) => p.textContent)
+  // Title, a blank value (a non-breaking space keeps the card's height), and the flag. No change arrow.
+  expect(lines).toEqual(['Profile Views', '\u00A0', NOT_IN_DASH])
+  const t = c.textContent ?? ''
+  expect(t.indexOf('Engagement Rate')).toBeLessThan(t.indexOf('Profile Views'))
+  expect(t.indexOf('Profile Views')).toBeLessThan(t.indexOf('Video Views'))
+})
+
+test("the Data block draws a tab with no flagged row exactly as the shared tiles do", async () => {
+  getOutlineKpis.mockResolvedValueOnce(builtFor('INSTAGRAM', 10))
+  const outline = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
+  const h = selectOutlineRows('INSTAGRAM', builtFor('INSTAGRAM', 10), OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
+  expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
+  const shared = render(<PlatformHeadlines headlines={[h as PlatformHeadline]} />).container
+  expect(outline.innerHTML).toBe(shared.innerHTML)
+})
+
+test('with no data, a tab with a flagged row shows only the no-data card, as the shared tiles do', async () => {
+  const empty = buildOutlineKpis('FACEBOOK',
+    Object.fromEntries(outlineSpecsFor('FACEBOOK').map((s) => [metricFor(s), { value: null, context: null, context_change: null }])),
+    outlineSpecsFor('FACEBOOK'))
+  getOutlineKpis.mockResolvedValueOnce(empty)
+  const c = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
+  expect(card(c, 'Profile Views')).toBeNull()
+  expect(c.textContent).not.toContain(NOT_IN_DASH)
+  const shared = render(<PlatformHeadlines headlines={[{ channel: 'FACEBOOK', label: 'Facebook', kpis: [], noData: true }]} />).container
+  expect(c.innerHTML).toBe(shared.innerHTML)
+})
+
+test('a flagged row under the graph is a blank tile with the flag too', () => {
+  const c = render(<OutlineTiles kpis={[
+    { key: 'likes', label: 'Likes', format: 'number', value: 7 },
+    { key: 'reposts', label: 'Reposts', format: 'number', value: null, unavailable: NOT_IN_DASH },
+  ]} />).container
+  expect([...card(c, 'Reposts')!.querySelectorAll('p')].map((p) => p.textContent)).toEqual(['Reposts', '\u00A0', NOT_IN_DASH])
+  expect(card(c, 'Likes')!.textContent).toContain('7')
 })

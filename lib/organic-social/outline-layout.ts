@@ -5,7 +5,16 @@
 // here before TikTok joins CHANNELS; they switch on when it does.
 import { PLATFORM_KPIS, type DashChannel, type KpiSpec } from './metrics'
 
-export type OutlineRow = { key: string; label: string }
+/** A row of the outline. `unavailable` marks a row Dash does not offer: it is shown blank with
+ *  that flag and never requested (Jasmine's rule for missing data: "flag it for review and leave
+ *  it blank"). */
+export type OutlineRow = { key: string; label: string; unavailable?: string }
+
+/** Facebook Profile Views and TikTok Reposts carry this flag. Jasmine says she sees them on
+ *  dashboards she builds (2026-09-21); Dash's own dashboard builder, read per channel the same day,
+ *  offers neither for Facebook or TikTok, only for Instagram. If her widget turns out to be a real
+ *  metric, wiring it is a one-line move out of the flag. */
+export const NOT_IN_DASH = 'Not available from Dash'
 export type OutlineVariant = 'standard' | 'profileClicks'
 
 /** Outline rows Dash has but the shared tiles do not. Probed 2026-09-18 in the tiles' own request
@@ -32,6 +41,7 @@ export const OUTLINE_KPI_OVERRIDES: Partial<Record<string, Record<string, KpiSpe
 }
 
 const row = (key: string, label: string): OutlineRow => ({ key, label })
+const notInDash = (key: string, label: string): OutlineRow => ({ key, label, unavailable: NOT_IN_DASH })
 const DATA_HEAD = [
   row('followers', 'Total Followers'), row('netNewFollowers', 'Net New Followers'), row('exposure', 'Views'),
   row('engagements', 'Total Engagements'), row('engagementRate', 'Engagement Rate'),
@@ -41,7 +51,7 @@ const VIDEO_VIEWS = row('videoViews', 'Video Views')
 
 const STANDARD: Partial<Record<string, OutlineRow[]>> = {
   INSTAGRAM: [...DATA_HEAD, PROFILE_VIEWS], // Video Views: question 6
-  FACEBOOK: [...DATA_HEAD, VIDEO_VIEWS], // Profile Views: question 6
+  FACEBOOK: [...DATA_HEAD, notInDash('profileViews', 'Profile Views'), VIDEO_VIEWS],
   LINKEDIN: [...DATA_HEAD, PROFILE_VIEWS, VIDEO_VIEWS],
   TIKTOK: [...DATA_HEAD, PROFILE_VIEWS], // Video Views: question 6
 }
@@ -61,17 +71,16 @@ export const OUTLINE_BREAKDOWN_ROWS: Partial<Record<string, OutlineRow[]>> = {
   INSTAGRAM: [row('likes', 'Likes'), COMMENTS, SHARES, row('saves', 'Saves'), row('reposts', 'Reposts')],
   FACEBOOK: PAGE_BREAKDOWN,
   LINKEDIN: PAGE_BREAKDOWN,
-  TIKTOK: [row('likes', 'Likes'), COMMENTS, SHARES, row('completionRate', 'Completion Rate')], // Reposts: question 6
+  TIKTOK: [row('likes', 'Likes'), COMMENTS, SHARES, notInDash('reposts', 'Reposts'), row('completionRate', 'Completion Rate')],
 }
 
-/** The outline rows not rendered yet (Jasmine's question 6, sent 2026-09-18). The reasons are as of
- *  her answers on 2026-09-21. Each row is a one-line move into the rows above once its metric is
- *  wired; until then it is left blank, her rule for missing data. */
+/** The outline rows not built yet (Jasmine's question 6, sent 2026-09-18, answered 2026-09-21).
+ *  Not rendered; each is a one-line move into the rows above once its metric is wired. The other
+ *  two rows from question 6 (Facebook Profile Views, TikTok Reposts) are in the rows above, shown
+ *  blank with the NOT_IN_DASH flag. */
 export const OUTLINE_PENDING_Q6 = [
   { channel: 'INSTAGRAM', block: 'data', label: 'Video Views', why: 'Instagram retired organic video views (Dash labels them Discontinued); the replacement, Views on Reels, needs its own request, not built yet' },
-  { channel: 'FACEBOOK', block: 'data', label: 'Profile Views', why: "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet" },
   { channel: 'TIKTOK', block: 'data', label: 'Video Views', why: "the same number as Views (Dash's TikTok views are video views, TOTAL_VIDEO_VIEWS); showing it is a separate change" },
-  { channel: 'TIKTOK', block: 'breakdown', label: 'Reposts', why: "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet" },
 ] as const
 
 /** Every tile spec an outline tab requests: the shared tiles (with the outline overrides swapped

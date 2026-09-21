@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { CHANNELS, PLATFORM_KPIS, metricFor, type KpiSpec } from './metrics'
 import {
   OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, OUTLINE_EXTRA_KPIS, OUTLINE_KPI_OVERRIDES, OUTLINE_PENDING_Q6,
-  outlineSpecsFor,
+  NOT_IN_DASH, outlineSpecsFor, type OutlineRow,
 } from './outline-layout'
 
 // Jasmine's three outlines, 2026-09-18. The labels are hers, word for word.
@@ -11,7 +11,7 @@ const DATA = ['Total Followers', 'Net New Followers', 'Views', 'Total Engagement
 
 test('the Data rows follow the outlines, in order, with their labels', () => {
   expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views'])
-  expect(labels(OUTLINE_DATA_ROWS.standard.FACEBOOK)).toEqual([...DATA, 'Video Views'])
+  expect(labels(OUTLINE_DATA_ROWS.standard.FACEBOOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.LINKEDIN)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views'])
 })
@@ -27,7 +27,7 @@ test('the metrics directly under the engagement graph follow the outlines', () =
   expect(labels(OUTLINE_BREAKDOWN_ROWS.INSTAGRAM)).toEqual(['Likes', 'Comments', 'Shares', 'Saves', 'Reposts'])
   expect(labels(OUTLINE_BREAKDOWN_ROWS.FACEBOOK)).toEqual(['Reactions', 'Comments', 'Shares', 'Post Clicks'])
   expect(labels(OUTLINE_BREAKDOWN_ROWS.LINKEDIN)).toEqual(['Reactions', 'Comments', 'Shares', 'Post Clicks'])
-  expect(labels(OUTLINE_BREAKDOWN_ROWS.TIKTOK)).toEqual(['Likes', 'Comments', 'Shares', 'Completion Rate'])
+  expect(labels(OUTLINE_BREAKDOWN_ROWS.TIKTOK)).toEqual(['Likes', 'Comments', 'Shares', 'Reposts', 'Completion Rate'])
 })
 
 test('no outline covers X, so it has no rows', () => {
@@ -35,23 +35,48 @@ test('no outline covers X, so it has no rows', () => {
   expect(OUTLINE_BREAKDOWN_ROWS.TWITTER).toBeUndefined()
 })
 
-test("the four rows in Jasmine's question 6 are listed and never render", () => {
-  expect(OUTLINE_PENDING_Q6.map((p) => `${p.channel} ${p.label}`)).toEqual([
-    'INSTAGRAM Video Views', 'FACEBOOK Profile Views', 'TIKTOK Video Views', 'TIKTOK Reposts',
-  ])
-  // The reasons as of her 2026-09-21 answers. The earlier "Dash counts post views, not profile
-  // visits" was withdrawn: nothing recorded which metric produced it.
+test("question 6's two rows still to build are listed and never render", () => {
+  expect(OUTLINE_PENDING_Q6.map((p) => `${p.channel} ${p.label}`)).toEqual(['INSTAGRAM Video Views', 'TIKTOK Video Views'])
   expect(OUTLINE_PENDING_Q6.map((p) => p.why)).toEqual([
     'Instagram retired organic video views (Dash labels them Discontinued); the replacement, Views on Reels, needs its own request, not built yet',
-    "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet",
     "the same number as Views (Dash's TikTok views are video views, TOTAL_VIDEO_VIEWS); showing it is a separate change",
-    "not found in Dash's API or its app code; Jasmine sees it on dashboards she builds, and the metric behind them is not identified yet",
   ])
   for (const p of OUTLINE_PENDING_Q6) {
     const rows = p.block === 'data'
       ? [...(OUTLINE_DATA_ROWS.standard[p.channel] ?? []), ...(OUTLINE_DATA_ROWS.profileClicks[p.channel] ?? [])]
       : OUTLINE_BREAKDOWN_ROWS[p.channel] ?? []
     expect(labels(rows)).not.toContain(p.label)
+  }
+})
+
+// Jasmine's rule for missing data: "flag it for review and leave it blank". Dash's own dashboard
+// builder offers neither metric (checked 2026-09-21), so these two show blank with the flag.
+const allRows = (): [string, string, OutlineRow][] => [
+  ...Object.entries(OUTLINE_DATA_ROWS).flatMap(([v, byCh]) =>
+    Object.entries(byCh).flatMap(([ch, rows]) => (rows ?? []).map((r): [string, string, OutlineRow] => [`${v} ${ch}`, 'data', r]))),
+  ...Object.entries(OUTLINE_BREAKDOWN_ROWS).flatMap(([ch, rows]) => (rows ?? []).map((r): [string, string, OutlineRow] => [ch, 'breakdown', r])),
+]
+
+test('the two rows Dash does not offer are shown blank and flagged, and only those', () => {
+  const flagged = allRows().filter(([, , r]) => r.unavailable).map(([where, block, r]) => `${where} ${block} ${r.label}`)
+  expect(flagged).toEqual(['standard FACEBOOK data Profile Views', 'profileClicks FACEBOOK data Profile Views', 'TIKTOK breakdown Reposts'])
+  for (const [, , r] of allRows()) if (r.unavailable) expect(r.unavailable).toBe(NOT_IN_DASH)
+  expect(NOT_IN_DASH).toBe('Not available from Dash')
+})
+
+test('a flagged row is never requested from Dash, on every channel the outlines name', () => {
+  const names = new Set([
+    ...Object.values(OUTLINE_DATA_ROWS).flatMap((byCh) => Object.keys(byCh)), ...Object.keys(OUTLINE_BREAKDOWN_ROWS),
+  ])
+  expect([...names]).toEqual(expect.arrayContaining(['FACEBOOK', 'TIKTOK']))
+  for (const ch of names) {
+    // TikTok joins PLATFORM_KPIS with PR 247; until then its shared tiles are none.
+    const shared = (PLATFORM_KPIS as Record<string, KpiSpec[]>)[ch] ?? []
+    const keys = new Set([...shared, ...(OUTLINE_EXTRA_KPIS[ch] ?? [])].map((s) => s.key))
+    const flagged = [
+      ...(OUTLINE_DATA_ROWS.standard[ch] ?? []), ...(OUTLINE_DATA_ROWS.profileClicks[ch] ?? []), ...(OUTLINE_BREAKDOWN_ROWS[ch] ?? []),
+    ].filter((r) => r.unavailable)
+    for (const r of flagged) expect(keys.has(r.key), `${ch} ${r.key}`).toBe(false)
   }
 })
 
@@ -62,7 +87,7 @@ test('every row resolves to a tile spec on every channel this build supports', (
       ...(OUTLINE_DATA_ROWS.standard[ch] ?? []), ...(OUTLINE_DATA_ROWS.profileClicks[ch] ?? []),
       ...(OUTLINE_BREAKDOWN_ROWS[ch] ?? []),
     ]
-    for (const r of rows) expect(keys.has(r.key), `${ch} ${r.key}`).toBe(true)
+    for (const r of rows.filter((x) => !x.unavailable)) expect(keys.has(r.key), `${ch} ${r.key}`).toBe(true)
   }
 })
 

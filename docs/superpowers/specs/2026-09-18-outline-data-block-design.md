@@ -19,10 +19,18 @@ proceeds. On PR 255 with the Overview removal, so the three clients' layout ship
   withdrawn: nothing recorded which metric produced it. Instagram retired organic video views; the
   replacement is Views on Reels, a separate request, not built yet. TikTok Video Views is the same number
   as Views. Facebook Profile Views and TikTok Reposts are found in neither Dash's API nor its app code;
-  Jasmine sees them on dashboards she builds, and the metric behind them is not identified yet. All four stay
-  unrendered; `OUTLINE_PENDING_Q6` carries the current reasons.
+  Jasmine sees them on dashboards she builds, and the metric behind them is not identified yet.
 - **Question 1** is answered (see the Overview removal spec's update). Question 3 (YTD Review) is its own
   build.
+- **Facebook Profile Views and TikTok Reposts are shown blank, flagged "Not available from Dash".** I read
+  every platform metric Dash's own dashboard builder offers, per channel, in my Dash login: neither exists
+  for Facebook or TikTok (both exist for Instagram only). Following Jasmine's rule for missing data ("flag it
+  for review and leave it blank"), the two rows now render in the outline's place as blank tiles with that
+  flag, and Dash is never asked for them. The Data block draws its tiles with `OutlineHeadlines`, whose
+  markup a test holds identical to the shared `PlatformHeadlines`; the shared component is not changed.
+  Instagram Video Views and TikTok Video Views stay unrendered; `OUTLINE_PENDING_Q6` carries their reasons.
+  This supersedes the rows table, the pending question 6 list, the "Engagement Rate keeps today's Dash
+  metric" line and the question 6 tests described below, which are the design as of 2026-09-18.
 
 ## What the outlines ask for
 

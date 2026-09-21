@@ -11,6 +11,12 @@ import type { TotalMetric } from '@/lib/dash-social/types'
 import type { HeadlineKpi, PlatformHeadline } from './types'
 
 export type OutlineKpis = { kpis: Record<string, HeadlineKpi>; noData: boolean }
+/** A row Dash does not offer: no value at all, shown blank with its flag. `value: null` keeps it
+ *  from type-checking as a HeadlineKpi, so it can never reach a component that would print a number. */
+export type FlaggedKpi = { key: string; label: string; format: 'number'; value: null; unavailable: string }
+/** A tile of an outline tab: a real tile, or a flagged row. */
+export type OutlineKpi = (HeadlineKpi & { unavailable?: undefined }) | FlaggedKpi
+export type OutlineHeadline = Omit<PlatformHeadline, 'kpis'> & { kpis: OutlineKpi[] }
 
 /** Pure. A requested metric missing from a 200 is a malformed payload: throw rather than show a
  *  made-up zero. Every metric present but null is a window with no data. */
@@ -39,9 +45,11 @@ export function buildOutlineKpis(
   return { kpis, noData }
 }
 
-/** The rows, in order, under the outline's labels, as the tile component's PlatformHeadline. */
-export function selectOutlineRows(channel: DashChannel, built: OutlineKpis, rows: readonly OutlineRow[]): PlatformHeadline {
-  const kpis = rows.map((r) => {
+/** The rows, in order, under the outline's labels. A flagged row has no tile behind it: it becomes
+ *  a FlaggedKpi, shown blank with its flag. */
+export function selectOutlineRows(channel: DashChannel, built: OutlineKpis, rows: readonly OutlineRow[]): OutlineHeadline {
+  const kpis = rows.map((r): OutlineKpi => {
+    if (r.unavailable) return { key: r.key, label: r.label, format: 'number', value: null, unavailable: r.unavailable }
     const k = built.kpis[r.key]
     if (!k) throw new Error(`${channel}: no tile for outline row '${r.key}'`)
     return { ...k, label: r.label }
