@@ -1,8 +1,8 @@
 # Locked months: design
 
-Status: design approved in chat 2026-09-21 (Approach 1). Revised the same day after four
-independent adversarial review rounds and two decisions of mine (section 13). Then planned, then
-built test first. Scope doc: `docs/organic-social-snapshots.md` (PR 253). Branch
+Status: APPROVED by me 2026-09-21, after four independent adversarial review rounds and two
+decisions of mine (section 13). Next: the implementation plan, reviewed the same way, then built
+test first. Scope doc: `docs/organic-social-snapshots.md` (PR 253). Branch
 `feat/os-locked-months`, PR into `organic-social-october`.
 
 No client identifiers in this document. Dash brand ids and client figures never enter this
