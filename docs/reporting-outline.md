@@ -12,7 +12,7 @@ layout:
 - A Place For Mom
 - Joy of Life
 - a third client the outline calls Kenect Nashville and our records call Akara
-  Living. Which name to use is Jasmine's question 1.
+  Living. Jasmine answered question 1 on 2026-09-21: label it "Akara Living, Kenect Nashville".
 
 All three are **Organic Social only**. None of them gets any other report
 section.
@@ -130,18 +130,17 @@ platform tab has the same six blocks, in this order:
 |---|---|---|
 | Commentary | Commentary for the tab | Exists (the shared Commentary part) |
 | YTD Review | A year to date follower growth graph and a year to date views graph | Net new |
-| Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Four rows do not work as written; that is Jasmine's question 6 |
-| {Platform} Follower Growth Graph | "Needs to include annotations" | PR 252, waiting on Jasmine's question 9 |
+| Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Jasmine replied to question 6 on 2026-09-21. Instagram retired Video Views, so that row becomes Views on Reels; TikTok Video Views is the same Dash number as Views; Facebook Profile Views and TikTok Reposts are still open with her |
+| {Platform} Follower Growth Graph | "Needs to include annotations" | PR 252; Jasmine approved the design on 2026-09-21 once she sees it working |
 | {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics themselves already exist as Data tiles (TikTok's are on PR 247, and TikTok Reposts is not reported by Dash). They need moving directly under the graph, not building |
-| Top Performing Content | Top posts for the tab | Exists. How many per tab is question 7; sponsored posts are question 8 |
+| Top Performing Content | Top posts for the tab | Exists. Five posts per tab (question 7); collab posts get their own section at the bottom (question 8) |
 
 Tabs per client:
 
 - **A Place For Mom:** Instagram, Facebook, LinkedIn.
 - **Joy of Life:** Instagram, Facebook, TikTok (TikTok is PR 247).
-- **Kenect Nashville / Akara Living:** Instagram only, per the outline. The staging
-  config for this client lists Instagram and Facebook, so the channel list is
-  settled together with question 1.
+- **Kenect Nashville / Akara Living:** Instagram only, per the outline. On staging the
+  client is now named "Akara Living, Kenect Nashville" and set to Instagram only (2026-09-21).
 
 So the net-new builds are two: annotations (PR 252) and YTD Review. The
 engagement metrics under the engagement graph are not net new: they are Data tiles
@@ -174,15 +173,11 @@ they need may already exist.
 
 ## Still open
 
-Waiting on Jasmine (her decisions for approval doc, by question number):
+Jasmine answered the decisions doc on 2026-09-21. Still open with her:
 
-- 1: Kenect Nashville or Akara Living, and with it that client's channel list
-- 2: how far back a client can look
-- 6: the four Data rows that do not work as written
-- 7: how many top posts per tab
-- 8: whether sponsored posts count as top posts
-- 9: what annotations mean (PR 252)
-- 10: who logs in, and whether clients get access at launch
+- Facebook Profile Views and TikTok Reposts: not available through Dash's API; she was asked
+  where she sees them, with Facebook Viewers and TikTok Favorites offered as options
+- engagement rate: match her August decks (views based) or Renaissance (followers based)
 
 Engineering, mine to close:
 
