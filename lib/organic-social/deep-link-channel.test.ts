@@ -1,58 +1,16 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { organicSocialSubsections, resolveOrganicSubsection } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 
 /**
- * The deep-link routes (`/reports/organic-social`) used to hard-code `channel={null}`, which is
- * Overview. A client that hides Overview has no Overview to show, so the deep link rendered a tab
- * nobody can navigate to, and the health sweep and cache warmer fetch exactly those URLs
- * (`app/api/health/sweep/route.ts`, `app/api/cache-warm/route.ts`). Paul's review of PR 255.
+ * Which tab a deep link (`/reports/organic-social`) resolves to, per client shape. These are pure
+ * resolver tests. That both routes actually USE this resolver for the tab they render and the
+ * title they show is proven in deep-link-parity.test.tsx, which runs the real route modules.
  *
- * Read as text because a Next page module can't be imported here: `app/` is outside this repo's
- * vitest `include` (only `app/actions/**`), and a page file exports only its default.
- * `process.cwd()` is the repo root under vitest, whose config sits there.
+ * The first version of this file matched the routes' source TEXT instead, on the belief that a
+ * page can't be imported under vitest. That was wrong (`include` only selects which test files
+ * run), and Paul's re-review of PR 255 showed the text match passing on two broken fixes.
  */
-const ROUTES = {
-  portal: 'app/portal/[clientSlug]/reports/[reportSlug]/page.tsx',
-  dashboard: 'app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx',
-}
-
-const source = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8')
-
-/** The `case 'organic-social':` arm only, so an unrelated `channel={null}` elsewhere can't mask a
- *  regression here and can't fail this test either. */
-function organicArm(src: string): string {
-  const CASE = "case 'organic-social':"
-  const start = src.indexOf(CASE)
-  expect(start, 'no organic-social case arm in this route').toBeGreaterThan(-1)
-  const rest = src.slice(start + CASE.length)
-  // Whichever bound comes FIRST ends the arm. Taking the next `case ` unconditionally would run
-  // past `default:` and swallow the rest of the file, which is what this helper exists to prevent.
-  const bounds = ['case ', 'default:'].map((b) => rest.indexOf(b)).filter((i) => i > -1)
-  return bounds.length ? rest.slice(0, Math.min(...bounds)) : rest
-}
-
-test('the arm extractor stops at the next case or default, whichever comes first', () => {
-  const arm = organicArm("case 'x':\n  case 'organic-social':\n    A\n    default:\n    B\n    case 'y':\n    C")
-  expect(arm).toContain('A')
-  expect(arm).not.toContain('B')
-  expect(arm).not.toContain('C')
-})
-
-test.each(Object.entries(ROUTES))(
-  'the %s deep link passes the landing tab, not a hard-coded Overview',
-  (_name, rel) => {
-    const src = source(rel)
-    expect(organicArm(src)).not.toContain('channel={null}')
-    expect(src).toContain('resolveOrganicSubsection(client, null).channel')
-  },
-)
-
-// What that resolved channel actually is, per client. This is the behaviour the wiring above
-// buys: Renaissance is unchanged (Overview, exactly today's hard-coded null), and a client that
-// hides Overview lands on its first platform tab instead of a hidden one.
 const client = (channels: string[] | undefined, hidden: string[]): Client =>
   ({ dashSocialConfig: { brandId: 1, channels }, hiddenReports: hidden } as unknown as Client)
 

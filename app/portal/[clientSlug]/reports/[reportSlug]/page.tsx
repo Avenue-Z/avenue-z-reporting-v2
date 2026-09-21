@@ -118,10 +118,18 @@ export default async function PortalReportPage({
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
 
-  const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
+  const organicEntry = resolveOrganicSubsection(client, null)
+  const organicChannel = organicEntry.channel
+  // Organic Social titles itself from the tab it lands on, the same rule as the SPA route's
+  // `pageTitle` (reports/page.tsx): Overview keeps the report name, a platform tab uses its label.
+  // The error boundary below reuses it, as the SPA's does. deep-link-parity.test.tsx holds the two
+  // routes together, so neither can drift from the other.
+  const reportName =
+    reportSlug === 'organic-social' && organicChannel != null
+      ? organicEntry.label
+      : (REPORT_NAMES[reportSlug] ?? reportSlug)
   const dateRange = dateRangeParam ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
-  const organicChannel = resolveOrganicSubsection(client, null).channel
 
   // Health mode is an internal-only probe surface (the cron sweep self-fetches
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
