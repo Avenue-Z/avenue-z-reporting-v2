@@ -5,6 +5,12 @@ decisions for approval doc, which describes this design (see the next section). 
 built until she answers.
 Supersedes `docs/chart-annotations.md`.
 
+**Update 2026-09-21.** Jasmine answered question 9: "This should be fine, need to see it in
+action." The design stands. The rebuild drops `922a090` and `annotations.test.tsx`, keeps v2
+unpublished, and gets demoed to her. On question 8 she reads sponsored as collab posts and
+wants them in their own section at the bottom of the dashboard; that section already exists
+(Influencer Posts).
+
 ## Summary
 
 The three new Organic Social outlines (A Place For Mom, Joy of Life, Kenect) say, on
@@ -330,16 +336,16 @@ Renaissance is live in production and must not change. This rests on facts check
 
 | Decision | Decided by | Date | Status |
 |---|---|---|---|
-| Annotate peaks, not every post | Me, from the APFM June deck | 2026-09-18 | Pending Jasmine (Q9) |
-| 2 follower and 3 engagement annotations | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9) |
-| v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Pending Jasmine (Q9) |
+| Annotate peaks, not every post | Me, from the APFM June deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
+| 2 follower and 3 engagement annotations | Me, from the deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
+| v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
 | v2 graphs use the UTC month | Me, after the probe | 2026-09-18 | Decided |
 | Titles and the Annotations button follow the outlines word for word | Jasmine's outlines | 2026-09-18 | Decided |
-| A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Decided, pending Jasmine (Q9) |
-| The team can hide one annotation from the client; internal staff only; the team sees it faded | Me | 2026-09-17 and 2026-09-18 | Decided, pending Jasmine (Q9) |
+| A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
+| The team can hide one annotation from the client; internal staff only; the team sees it faded | Me | 2026-09-17 and 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
 | A hide attaches to the annotation's day on one chart, not to a post | Me | 2026-09-18 | Decided |
 | Hides stored in a new additive table | Me | 2026-09-17 | Decided |
-| Sponsored posts can be thumbnails | Default | 2026-09-18 | Pending Jasmine (Q8) |
+| Sponsored posts can be thumbnails | Default | 2026-09-18 | Open: her Q8 answer (2026-09-21) is about Top Content, so I decide this at the rebuild |
 | No annotations on Overview | Me | 2026-09-18 | Decided |
 | Written notes wait for Phase 2 | Me | 2026-09-18 | Decided |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
