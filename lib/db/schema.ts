@@ -137,6 +137,9 @@ export interface DashSocialConfig {
    *  and silently blanks the whole Organic Social section. When the config-write path lands (M3/M4),
    *  validate this at write time (reject / warn on a zero-match allowlist) — resolveChannels stays honest. */
   channels?: string[]
+  /** Locked months for Organic Social (docs/superpowers/specs/2026-09-21-locked-months-design.md).
+   *  Present with any value means opted in; validated at runtime, so typed unknown. */
+  reportingMonths?: unknown
 }
 
 /**
