@@ -21,6 +21,7 @@ vi.mock('@/lib/db/queries', async (importOriginal) => ({
 
 import { OrganicSocialReport, OrganicSocialBody } from './index'
 import { buildOrganicSocialCtx } from './ctx'
+import { elementTree } from '@/lib/test-utils/element-tree'
 
 const ctx = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null })
 
@@ -75,4 +76,21 @@ test('a platform subpage keys commentary per channel while opting in via the bas
   const header = findByName(el, 'SharedPartsHeader')
   expect(header?.props.viewKey).toBe('organic-social:instagram')
   expect(header?.props.configKey).toBe('organic-social')
+})
+
+// Pre-change record for locked months (spec section 8): for a client without reportingMonths the
+// section's OUTPUT (every part and the ctx it receives) is unchanged, on the happy path and when
+// BOTH lookups fail. Extends the truthy-only test above.
+test('OrganicSocialBody output is unchanged for a client without reportingMonths', async () => {
+  const base = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: 'INSTAGRAM', dateRange: 'last_month', compareRange: 'previous_period' })
+  getSectionTemplate.mockResolvedValue(null)
+  getClientBySlug.mockResolvedValue({ slug: 'renaissance', dashSocialConfig: { brandId: 1 }, reportSectionConfig: {} })
+  const happy = elementTree(await OrganicSocialBody({ ctx: base }))
+  const overview = elementTree(await OrganicSocialBody({ ctx }))
+  getSectionTemplate.mockRejectedValue(new Error('DB down'))
+  getClientBySlug.mockRejectedValue(new Error('DB down'))
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const bothFail = elementTree(await OrganicSocialBody({ ctx: base }))
+  err.mockRestore()
+  expect({ happy, overview, bothFail }).toMatchSnapshot()
 })

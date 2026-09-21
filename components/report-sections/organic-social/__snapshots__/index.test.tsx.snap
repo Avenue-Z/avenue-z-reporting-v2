@@ -1,0 +1,338 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OrganicSocialBody output is unchanged for a client without reportingMonths 1`] = `
+{
+  "bothFail": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "follower-graph@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "FollowerSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+  "happy": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "follower-graph@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "FollowerSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_month",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+  "overview": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": null,
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_30_days",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": null,
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_30_days",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": null,
+                    "clientSlug": "renaissance",
+                    "compareRange": "previous_period",
+                    "dateRange": "last_30_days",
+                    "role": "CLIENT_VIEWER",
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+}
+`;
