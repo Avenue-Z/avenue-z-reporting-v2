@@ -43,8 +43,18 @@ export function assertSingleChannelGraph(reportType: string | undefined, channel
 }
 
 /** The one way this folder sends a GRAPH request. Checks the params that are actually sent,
- *  then sends exactly those, so batching channels into one request fails here, loudly,
- *  instead of passing a check made on a separate literal (Paul's review of PR 254). */
+ *  then sends exactly those, so batching channels into one request throws here instead of
+ *  passing a check made on a separate literal (Paul's review of PR 254).
+ *
+ *  Nothing logs that throw. The callers catch per channel and hand it to `channelErrorPolicy`.
+ *  On a platform tab it rethrows, and the graph part's `safe()` shows "Couldn't load this
+ *  section." in place of the chart: visible to whoever is looking, recorded nowhere. On Overview
+ *  it drops the failing channel's series from the engagement chart without a trace, and a
+ *  batching rewrite would fail every channel at once, leaving an empty chart that reads as
+ *  "no data". So the guard that actually stops a batched request is CI: the characterization and
+ *  wiring tests fail on one before it ships (Paul's re-review of PR 254). They cover the two GRAPH
+ *  readers here, followers.ts and trends.ts; a new GRAPH reader must send through this function
+ *  and get its own wiring test. */
 export async function getGraphData<M>(
   client: Pick<DashSocialClient, 'getReportsData'>,
   params: ReportsDataParams,
