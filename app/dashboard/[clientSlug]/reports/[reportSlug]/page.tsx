@@ -74,8 +74,8 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
     case 'organic-social':
       // A deep-link renders this client's landing tab, the same one the SPA route's
       // ?subsection= param resolves to when it is absent (Spec 1 §5.2). Hard-coding Overview
-      // here rendered a tab a client that hides Overview cannot navigate to, and the health
-      // sweep and cache warmer fetch exactly this URL (Paul's review of PR 255).
+      // here rendered a tab a client that hides Overview cannot navigate to. The health sweep
+      // and cache warmer fetch this route's portal twin, not this one (Paul's review of PR 255).
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} />
     default:
       return null

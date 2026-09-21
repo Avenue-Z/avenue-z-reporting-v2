@@ -4,7 +4,8 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react'
 /**
  * A deep link (`/reports/organic-social`) must BE the SPA landing page (`/reports?section=
  * organic-social`): same tab, same title, same error-boundary label. The health sweep and the
- * cache warmer fetch the deep link, so any drift means we monitor and warm a page no client sees.
+ * cache warmer fetch the portal deep link, so any drift means we monitor and warm a page no
+ * client sees.
  *
  * This test runs the real route modules, not their source text. Paul's review of PR 255 showed a
  * text match passing on two broken fixes (`channel={ null }`, and the resolver commented out).
@@ -31,6 +32,7 @@ import { Header } from '@/components/layout/header'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { auth } from '@/auth'
+import { REPORT_NAMES } from '@/lib/constants'
 
 /** Every element in a returned tree matching `pred`, walking props (children, element props). */
 function findAll(node: ReactNode, pred: (e: ReactElement<Record<string, unknown>>) => boolean) {
@@ -137,4 +139,24 @@ test('anchor: a client that hides Overview deep-links to its first platform tab,
   useClient(FIXTURES['hides Overview and Instagram'])
   expect(viewOf(await PortalDeepLink(deepArgs() as never), 'h1'))
     .toEqual({ channel: 'FACEBOOK', title: 'Facebook', boundary: 'Facebook' })
+})
+
+// The title rule is scoped to Organic Social. For a client that hides Overview, every OTHER deep
+// link must keep its own report name: without the `reportSlug === 'organic-social'` guard, a Web
+// Analytics deep link would be titled "Instagram". The final review before Paul's re-review deleted
+// that guard with every test still green; this pins its false side.
+test('other deep links keep their own report name for a client that hides Overview', async () => {
+  getClientBySlug.mockResolvedValue({
+    name: 'Client', slug: SLUG, logoUrl: null, enabledReports: ['organic-social', 'ga4'],
+    hiddenReports: ['organic-overview'], dashSocialConfig: { brandId: 1, channels: ['instagram', 'facebook'] },
+  })
+  const ga4 = { params: Promise.resolve({ clientSlug: SLUG, reportSlug: 'ga4' }), searchParams: Promise.resolve({}) }
+  const dash = await DashboardDeepLink(ga4 as never)
+  const portal = await PortalDeepLink(ga4 as never)
+  const expected = REPORT_NAMES.ga4
+  expect(expected).toBe('Web Analytics')
+  expect(only(dash, (e) => e.type === Header, 'Header').props.title).toBe(expected)
+  expect(only(dash, (e) => e.type === ReportErrorBoundary, 'ReportErrorBoundary').props.sectionName).toBe(expected)
+  expect(only(portal, (e) => e.type === 'h1', 'h1').props.children).toBe(expected)
+  expect(only(portal, (e) => e.type === ReportErrorBoundary, 'ReportErrorBoundary').props.sectionName).toBe(expected)
 })
