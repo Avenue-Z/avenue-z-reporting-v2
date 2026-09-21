@@ -12,7 +12,7 @@ repository; it is public.
 
 Organic Social clients that opt in get a month and year picker instead of rolling date ranges.
 Three clients opt in first; the mechanism is config driven and client agnostic, so adding a
-client later is a config change, never a code change (11.4).
+client later is a config change, never a code change (11.2).
 
 - The Organic Social team sees every month from the client's first reporting month onward, plus
   the current month live, and lands on the most recent finished month.
@@ -64,16 +64,24 @@ The value:
 
 | Key | Required | Values | Default |
 |---|---|---|---|
-| `firstMonth` | yes | `YYYY-MM`, not before `EARLIEST_REPORTING_MONTH` (`2026-08`, Jasmine's Q2) | none |
-| `opensOnDay` | no | integer 3 to 28: the day of the following month a finished month opens to clients | 12 |
+| `firstMonth` | yes | `YYYY-MM` (the opted-in clients use `2026-08`, Jasmine's Q2) | none |
+| `opensOnDay` | no | integer 4 to 28: the day of the following month a finished month opens to clients | 12 |
 | `weekendRule` | no | `next-monday` or `previous-friday`: where an opening day on a weekend moves | `next-monday` |
 | `comparison` | no | `previous-month` or `previous-year` | `previous-month` |
 
 The defaults are Jasmine's rules; the knobs are the variations the team's SOP names. The opted-in
-clients set only `firstMonth`. Unknown extra keys are ignored. Any listed key with a value outside
-its range makes the config **malformed**: the client is still opted in, gets no months (fail
-closed, 3.8), and one error is logged (4.2) with the slug and the key at fault only. The config
-object is never logged (it holds the brand id).
+clients set only `firstMonth`. Unknown extra keys are ignored. The list is bounded by
+`MAX_REPORTING_MONTHS = 36` (the newest 36 months are offered), a size bound with no product
+meaning, so no client's history rule is hard-coded in code.
+
+Validation fails closed, and one error is logged (4.2) with the slug and the key at fault only; the
+config object is never logged (it holds the brand id):
+
+- `firstMonth` missing or malformed (or the whole value `null`, `{}`, not an object): opted in, no
+  months for anyone (3.8).
+- An optional knob malformed: the team keeps its months (they do not depend on `opensOnDay` or
+  `weekendRule`, and a malformed `comparison` falls back to `previous-month` for the team); clients
+  get no months.
 
 ### 3.2 The clock
 
@@ -101,18 +109,27 @@ For month `M` (`YYYY-MM`), `first(M)` is its 1st and `last(M)` its last day.
 - **Finished**: `today > last(M)`.
 - **Live**: `M` is the current month (by `today`) and has at least one complete UTC day, that is
   `lastCompleteUtcDay >= first(M)`. Its range is `first(M)` to `lastCompleteUtcDay`.
-  Why UTC: Dash buckets days in UTC, and the freeze check (`isPeriodOpen`, `frozen.ts:14-18`)
-  treats a range as open exactly when it ends on or after yesterday in UTC. Ending the live month
-  there makes it open by the freeze check's own definition, so nothing (Top Content today, PR
-  252's graphs, the next build) can freeze it, and it compares full days with full days (D23).
-  Verified by computation, every 5 minutes from 2026 to 2028 across every DST change: the live
+  Why: the freeze check (`isPeriodOpen`, `frozen.ts:14-18`) treats a range as open exactly when it
+  ends on or after yesterday in UTC, so ending the live month there makes it open by the freeze
+  check's own definition. Nothing (Top Content today, PR 252's graphs, the next build) can freeze
+  it. Verified by computation every 5 minutes from 2026 to 2028 across every DST change: the live
   range never reads closed and its end never leaves its month. There is no live month from 00:00
   ET on the 1st until 00:00 UTC on the 2nd (20:00 or 19:00 ET on the 1st); the team still has the
   just-finished month.
+  What Dash receives: graph daily buckets are UTC days, and every day in the range is complete.
+  The headline tiles use Eastern windows (`isoRangeTz` appends `T04:00:00Z`,
+  `lib/organic-social/base.ts:40-47`) and Dash counts the end date inclusively, so for the first
+  four hours of each UTC day (about 20:00 to 24:00 ET) the last tile day is still in progress. The
+  comparison is then full days against full days except that one evening day: at most 4 hours in
+  `24 x d`, about -17% on the first evening a live month appears and under 2% from the 10th. That
+  is accepted (team only), and the label says so: when `lastCompleteUtcDay` equals `today`, the
+  live label reads "October 2026, through Oct 1 (in progress)".
 - **Opens to clients** (`opensOn(M)`): day `opensOnDay` of the month after `M`. If that falls on
   a Saturday or Sunday, `next-monday` moves it to the following Monday and `previous-friday` to
-  the Friday before. `opensOnDay >= 3` keeps a Friday shift after `last(M)`. Weekends only;
-  public holidays are not considered (Confirm 4 names weekends only).
+  the Friday before. `opensOnDay >= 4` keeps a Friday shift on the 2nd or later, when the freeze
+  check already reads the month as closed (with 3, a Sunday 3rd would open on Friday the 1st, before
+  the month freezes). Weekends only; public holidays are not considered (Confirm 4 names weekends
+  only).
 - **Client visible**: finished and `today >= opensOn(M)`.
 
 The months a viewer may pick, newest first:
@@ -144,8 +161,8 @@ a tampered comparison can never pull live or unopened totals into a change arrow
 - `previous-year`, finished `M`: the same month a year earlier. Live: the same days a year
   earlier, `min(d, days in that month)` (29 Feb 2028 compares with 1 to 28 Feb 2027).
 
-The first reporting month compares with the month before it (August with July). July is a
-comparison window only, never a pickable month.
+The first reporting month compares with the window before it (with `previous-month`, August with
+July). That window is for comparison only, never a pickable month.
 
 ### 3.7 Canonical form and matching a request
 
@@ -191,26 +208,36 @@ month on screen.
 - **Which month an entry belongs to**: the month containing its `periodStart`. An entry written
   for 1 Aug to 5 Sep (a deck-style adjusted window) belongs to August. Commentary already keeps
   one live approved version per period (`lib/commentary/select.ts`), so nothing new is stored.
-- **What the panel receives**: only entries that belong to the served month, after today's rules
-  (clients: approved only; the team: approved and drafts). The served month is always one the
-  viewer may pick, so a client can never receive Commentary for a month that has not opened: the
-  panel is given nothing from any other month.
-- **Default**: today's ordering (`pickDefaultEntry`) within that month.
+- **Client viewers**: an entry is eligible only when BOTH it belongs to the served month AND its
+  `periodEnd <= last(newest client-visible month)`. Membership alone is not enough: an entry for
+  1 Sep to 19 Oct belongs to September but describes the live month, so a client does not get it
+  until October opens. On these views a client-role viewer is treated as a non-editor for
+  Commentary whatever their email (approved entries only, redacted, no history), so an Avenue Z
+  email given a client role sees exactly what a client sees.
+- **What the panel receives**: only the eligible entries of the served month (the team: approved
+  and drafts of the served month). The panel is given nothing from any other month.
+- **Default**: an entry whose period is exactly `first(M)` to `last(M)` is preferred (today's
+  ordering, `pickDefaultEntry`, among those); otherwise today's ordering among the month's entries.
+  So a whole-month entry wins over an older rolling-window entry that happens to start in the same
+  month.
 - **Nothing for that month**: a client sees no Commentary panel (today's rule when nothing is
   approved); the team sees the panel with "No commentary for <Month YYYY> yet" and Add.
 - **Adding**: a new entry is prefilled with the month on screen, `first(M)` to `last(M)` (the
   whole month, also for the live month), and stays editable.
-- **Switching months** resets the panel's own selection (the panel is keyed by the month).
-- **Approver history** (the team's version log) is unchanged: it lists every period, approvers
-  only, as today.
+- **Switching months** resets the panel's own selection (the panel is keyed by the month). This
+  also discards unsaved editor text when the month changes; accepted.
+- **Approver history** (the team's version log) is unchanged for team viewers: it lists every
+  period, approvers only, as today. Client-role viewers get none (above).
 - **Entries in months outside the list** (for example July, before `firstMonth`) are never the
   served month, so the panel does not show them; approvers still see them in the history log.
-- Commentary permissions are by email (`lib/commentary/permissions.ts`) and the viewer rule is by
-  role. An Avenue Z email holding a client role would still get drafts and history for the served
-  month; that is staff-only exposure, unchanged by this build.
+- Saving a cross-month period is still allowed (`validateCommentaryInput`, `lib/commentary/
+  mutations.ts:5-15`, only checks start before end); the client filter above makes it safe, and
+  the prefill steers the team to whole months. Rejecting cross-month periods is not part of this
+  build.
 
-Non-opted clients, and every non-Organic Social view that uses Commentary (paid search, Meta,
-LinkedIn ads, AEO), run today's code.
+Non-opted clients, and every non-Organic Social view that uses Commentary (the six other
+`SharedPartsHeader` call sites: Meta ads, LinkedIn ads, paid search, and the three AEO views), run
+today's code.
 
 ## 4. Units
 
@@ -221,12 +248,12 @@ Each unit has one job and can be tested alone.
 No I/O, no React, no clock. Exports:
 
 ```ts
-export const EARLIEST_REPORTING_MONTH = '2026-08'
+export const MAX_REPORTING_MONTHS = 36
 export type Clock = { today: string; lastCompleteUtcDay: string }
 export type Viewer = 'team' | 'client'
 export type MonthOption = {
   key: string              // '2026-09'
-  label: string            // 'September 2026' (live: 'October 2026, through Oct 19')
+  label: string            // 'September 2026' (live: 'October 2026, through Oct 19', plus ' (in progress)' when it ends today)
   dateRange: string        // canonical, 'custom:2026-09-01,2026-09-30'
   compareRange: string     // 'custom:2026-08-01,2026-08-31'
   compareLabel: string     // 'vs August 2026' (live: 'vs Sep 1 to Sep 19')
@@ -352,9 +379,10 @@ try { lockClient = await getClientBySlug(rctx.clientSlug) } catch { lockReadFail
 so this returns the route's own result and adds no query. Then:
 
 - `lockReadFailed`: run today's path, for every viewer. It cannot leak: every Dash getter reaches
-  Dash only through the same memoized `getClientBySlug` (`dashClientFor`,
-  `lib/organic-social/base.ts:23-30`; `fetchTopContentFrozen`, `frozen.ts:33`), which has just
-  failed, so no data can load. This keeps Renaissance's failure output identical.
+  Dash only through `dashClientFor` (`lib/organic-social/base.ts:23-30`, which awaits the same
+  `getClientBySlug`; Top Content at `top-content.ts:136`), and React 19's `cache` hands back the same
+  rejected promise for the rest of the request, so no data can load. Snapshot reads need a client id
+  from the same lookup (`frozen.ts:33`). This keeps Renaissance's failure output identical.
 - `lockedRangeFor(lockClient, role, rctx.dateRange, requestClock())` is `null`: `rctx` untouched.
 - `reason` is `malformed-config`: `logMalformedConfig`, then the 3.8 line.
 - A month: `rctx.dateRange` and `rctx.compareRange` become the served ones; a `replaced`
@@ -372,23 +400,29 @@ other section passes:
    `requestedRange?: string`, copied into the shared context.
 2. `components/report-sections/shared/parts/registry.tsx`: `SharedCtx` gains optional
    `requestedRange`; the commentary part forwards it to `CommentarySection` only when defined.
-3. `components/report-sections/commentary/index.tsx`, `CommentarySection`: when
-   `hasReportingMonths(client)` and the view key is `organic-social` or `organic-social:*`, it
-   resolves the served month with `lockedRangeFor(client, role, requestedRange, requestClock())`
-   (same inputs and clock as the section, so the same month), keeps only `entriesForMonth`, picks
-   the default within them, keys the panel by the month, and passes `defaultPeriod` and the empty
-   text. With no served month it renders nothing for a client and the empty panel for the team.
-   Otherwise the existing code runs unchanged.
-4. `lib/commentary/month.ts` (new, pure): `monthOfEntry(entry)`, `entriesForMonth(entries, key)`.
-5. `components/report-sections/commentary/commentary-panel.tsx`: optional `defaultPeriod` and
-   `emptyText`; absent means today's behaviour.
-6. `components/report-sections/commentary/commentary-editor.tsx`: optional `defaultPeriod`, used
-   only for a new entry; absent means today's empty fields.
+3. `components/report-sections/commentary/index.tsx`, `CommentarySection`: its existing
+   `Promise.all([auth(), getClientBySlug(...)])` is untouched (a failing `auth()` still reaches the
+   error boundary, as today, for every client). After it, when `hasReportingMonths(client)` and the
+   view key is `organic-social` or `organic-social:*`: resolve the served month with
+   `lockedRangeFor(client, role, requestedRange, requestClock())` (same inputs and clock as the
+   section, so the same month); for a client-role viewer use non-editor capabilities; keep
+   `eligibleEntries` (3.9); pick the default with `pickMonthDefault`; history `[]` for a client
+   role; key the panel by the month; pass `defaultPeriod` and the empty text. With no served month
+   it renders nothing for a client and the empty panel for the team. Otherwise the existing code
+   runs unchanged.
+4. `lib/commentary/month.ts` (new, pure): `monthOfEntry(entry)`, `eligibleEntries(entries,
+   monthKey, clientCutoff | null)` and `pickMonthDefault(entries, monthKey)`.
+5. `components/report-sections/commentary/commentary-panel.tsx`: optional
+   `defaultPeriod?: { start: string; end: string }` and `emptyText?: string`; absent means today's
+   behaviour.
+6. `components/report-sections/commentary/commentary-editor.tsx`: optional
+   `defaultPeriod?: { start: string; end: string }`, used only for a new entry; absent means
+   today's empty fields.
 
 For Renaissance's Organic Social the header now receives `requestedRange`, which
 `CommentarySection` ignores for a client without the key. What reaches the browser
-(`CommentaryPanel`'s props) is pinned identical by a pre-change test (section 8). The five other
-sections that render Commentary pass nothing new.
+(`CommentaryPanel`'s props) is pinned identical by a pre-change test (section 8). The six other
+`SharedPartsHeader` call sites pass nothing new.
 
 ### 4.8 Schema type
 
@@ -443,9 +477,11 @@ Parts that receive the served range (all through `rctx`):
 Unchanged by construction, and what does change around it:
 
 - **Dash requests for non-opted clients**: section inputs are pinned (section 8); the getters,
-  `lib/date-range.ts`, `lib/ga4/client.ts` and `frozen.ts` are not edited. No opted-in range ends
-  in the future: finished months end in the past and the live month ends on the last complete UTC
-  day.
+  `lib/date-range.ts`, `lib/ga4/client.ts` and `frozen.ts` are not edited.
+- **Windows that reach past now**: finished months end in the past. The live month's headline
+  window can reach up to 4 hours past now in the first four UTC hours of a day (3.4). Dash already
+  accepts such windows: the existing `last_N_days` and `this_month` presets
+  (`lib/date-range.ts:56-63`, `:76-77`) send them every day.
 - **Top Content freezing timing for opted-in clients**: a finished month reads closed from 00:00
   UTC on the 2nd, which is 20:00 ET (EDT) or 19:00 ET (EST) on the 1st. The cache warmer (hourly)
   renders the portal deep link as an internal user, which now serves the team's default (the most
@@ -506,8 +542,10 @@ through the build (`lib/organic-social/locked-months-parity.test.tsx` and the fi
   Suspense key, and the absence of any new redirect. Captured before the first change; must not
   move.
 - `CommentarySection`: for a non-opted client with and without `requestedRange`, for an opted-in
-  client on a non-Organic Social view key, and for the other sections' view keys, the props handed
-  to `CommentaryPanel` are identical to today's.
+  client on a non-Organic Social view key, and for each of the six other `SharedPartsHeader` view
+  keys (`meta-ads`, `linkedin-ads`, `paid-search`, `peec-ai`, `peec-ai:pr-influence`,
+  `peec-ai:content-impact`), the props handed to `CommentaryPanel` are identical to today's, and a
+  failing `auth()` still throws as today.
 - `CommentaryPanel` and `CommentaryEditor` without the new optional props: rendered output identical
   (snapshot before and after).
 - `OrganicSocialBody` for a non-opted client: the parts receive the identical ctx, including when
@@ -527,29 +565,30 @@ clock; down through the routes, the section and Commentary to the Dash getters.
 
 | # | Category | What could break | Where | Disposition |
 |---|---|---|---|---|
-| 1 | external failure | `auth()` throws synchronously or rejects in the range control, section or Commentary | 4.4, 4.6, 4.7 | fix: both mean client; tests for a throw and a rejection |
+| 1 | external failure | `auth()` throws synchronously or rejects in the range control or the section | 4.4, 4.6 | fix: both mean client; tests for a throw and a rejection. Commentary keeps today's behaviour (the throw reaches the error boundary), so Renaissance's failure output does not change |
 | 2 | external failure | the template lookup fails and takes the client config with it, disabling the lock on deep links | 4.6 | fix: separate lock read; test "template fails, client, deep link, a hidden month never reaches the getters" |
 | 3 | external failure | the lock's own config read fails | 4.6 | fix: today's path for every viewer; test that no getter reaches Dash and Renaissance's failure output is unchanged |
 | 4 | operator visibility | a client reaching for a hidden month leaves no trace | 4.2 | fix: one log per request, one layer; test |
 | 5 | operator visibility | log noise from absent params, stale presets, several layers | 3.7, 4.2 | fix: hidden-month attempts only; malformed config from the section only; tests |
 | 6 | operator visibility | malformed config blanks the section silently | 3.1 | fix: error log with slug and key; test |
 | 7 | operator visibility | the health sweep marks the dashboard SPA down after a redirect | 4.5 | fix: resolve before the health branch, never redirect with `health=1`; test |
-| 8 | bounds | the month list size | 3.1 | fix: floor at `2026-08`; about 12 months a year after that |
+| 8 | bounds | the month list size, incl. an absurd `firstMonth` like `0001-01` | 3.1 | fix: `MAX_REPORTING_MONTHS = 36`, computed newest first and stopping at the cap |
 | 9 | bounds | redirect loop | 3.7 | fix: canonical is a fixed point; test sweeps every day from 2026-08-01 to 2027-12-31 at several hours, team and client |
 | 10 | input boundary | junk, partial, reversed, cross-month or impossible `custom:` dates | 3.7 | fix: resolve to default; tests per shape |
 | 11 | input boundary | a repeated `dateRange` arrives as an array | 3.7 | fix: normalised; test |
 | 12 | input boundary | `compareRange` tampering exposes live or unopened totals | 3.6 | fix: always derived; test |
-| 13 | input boundary | config `null`, `{}`, string, number, out-of-range knobs, before the floor, future | 3.1 | fix: fail closed or no months yet; tests per knob |
+| 13 | input boundary | config `null`, `{}`, string, number, out-of-range knobs, future `firstMonth` | 3.1 | fix: fail closed for clients (team keeps its months on a bad optional knob) or no months yet; tests per knob |
 | 14 | input boundary | existing: `resolveDateRange` throws a TypeError on `custom:` with no comma (`lib/date-range.ts:47-50`) | shared resolver | decline for this build: opted-in clients never pass it through (10); it is Renaissance's code path; file |
-| 15 | state | weekend opening days (Saturday, Sunday, both weekend rules), the 1st, month lengths, leap years, DST days | 3.4 to 3.6 | fix: table tests incl. 12 Sep 2026 and 12 Dec 2026 (Saturdays), 12 Sep 2027 (Sunday), 29 Feb 2028, 8 Mar and 1 Nov 2026, `previous-friday` and `opensOnDay` 3 and 28 |
+| 15 | state | weekend opening days (Saturday, Sunday, both weekend rules), the 1st, month lengths, leap years, DST days | 3.4 to 3.6 | fix: table tests incl. 12 Sep 2026 and 12 Dec 2026 (Saturdays), 12 Sep 2027 (Sunday), 29 Feb 2028, 8 Mar and 1 Nov 2026, `previous-friday` with `opensOnDay` 4 on a Sunday 4th (opens Friday the 2nd, after the freeze), `opensOnDay` 3 rejected, 28 accepted |
 | 16 | state | layers read the clock at different moments | 3.2 | fix: `requestClock()` once per request, passed down; `lockedRangeFor` takes the clock; tests pass a fixed clock (a `React.cache` outside a request does not memoise, so "once" is enforced by passing, not by the cache) |
 | 17 | state | the live month is frozen (New York and UTC disagree) | 3.4 | fix: the live month ends on the last complete UTC day; test "isPeriodOpen is true for the live range", sampled across a year incl. both DST changes |
+| 28 | state | the live month's last headline day is still in progress for about four hours each evening | 3.4 | accept: bias at most 4 hours in `24 x d`; labelled "(in progress)"; test for the label |
 | 18 | state | a request that straddles 00:00 UTC computes the live range a moment before the freeze check reads its own clock | 3.4 | accept: at most one Top Content snapshot for that day's window key, identical to live at that moment; the next request uses the new key; stale live links redirect to the current one |
 | 19 | state | a finished month freezes on the evening of the 1st, triggered by the cache warmer | 6 | accept: matches Confirm 5; timing for every number decided in the next build |
 | 20 | state | stale client config for up to 5 minutes after a write | 6 | accept: bounded by the TTL; in rollout |
 | 21 | state | the panel keeps a manual pick across months | 3.9 | fix: panel keyed by the month; test |
 | 22 | security | a client role reaches the live or an unopened month by URL, on any route family, with or without `health=1` | 4.5, 4.6 | fix: routes plus section; outer test runs the real routes as CLIENT_VIEWER |
-| 23 | security | Commentary shows a client a month that has not opened | 3.9, 4.7 | fix: only the served month's entries become props; test |
+| 23 | security | Commentary shows a client a month that has not opened, incl. a cross-month or rolling-window entry, the history log, or an Avenue Z email with a client role | 3.9, 4.7 | fix: served month membership AND `periodEnd` cutoff; non-editor capabilities and no history for client roles; tests per case |
 | 24 | security | untrusted `dateRange` in logs; config (with brand id) in logs | 4.2 | fix: normalised, cut, JSON-escaped incl. U+2028/9; config never logged; tests |
 | 25 | security | the staging write widens a payload that already sends whole client rows to every portal page | 6 | accept with order: write only on a staging build containing PR 250, payload checked |
 | 26 | security | nothing monitors what a client actually sees; the team cannot preview it | 6 | file: an internal-only client preview is a separate change |
@@ -569,7 +608,8 @@ existing read and the lock read), so tests use `mockResolvedValue`, not `mockRes
 - `lib/organic-social/reporting-months.test.ts`: every rule in section 3 as table tests with a fixed
   clock; the worked calendar in 3.4; every knob; the fixed-point sweep (edge 9); edge 17.
 - `lib/organic-social/locked-range.test.ts`: `null` for no key; logging (edges 4, 5, 6, 24).
-- `lib/commentary/month.test.ts`: `monthOfEntry` and `entriesForMonth`, incl. a cross-month period.
+- `lib/commentary/month.test.ts`: `monthOfEntry`, `eligibleEntries` (cross-month and rolling-window
+  entries, the client cutoff) and `pickMonthDefault` (whole-month entry preferred).
 - `components/report-sections/organic-social/month-picker.test.tsx`: order, labels, tags, the URL it
   pushes (keeps other params, drops `compareRange`), the disabled empty state.
 - `components/report-sections/organic-social/range-control.test.tsx`: edge 1.
@@ -587,13 +627,15 @@ zero-conflict proof.
 
 ## 11. Rollout
 
+### 11.1 Steps
+
 1. Code through the October branch, then dev and staging, with the rest of the set.
 2. On a staging build that contains PR 250, with the portal payload checked, and on my go, on
    staging only: pre-change snapshot, dry run, then add `reportingMonths: {"firstMonth": "2026-08"}`
-   to the opted-in clients (11.4), snapshot diff, drift check. Effective within 5 minutes.
+   to the opted-in clients (11.2), snapshot diff, drift check. Effective within 5 minutes.
 3. Production later, with the rest of the October work, on my express written consent.
 
-### 11.4 Adding a client
+### 11.2 Adding a client
 
 1. Add `reportingMonths` to the client's `dash_social_config` with its `firstMonth` and any SOP
    variation (3.1), using a generic host-guarded script that takes the slug and the values as
@@ -649,5 +691,19 @@ found for a client to reach a hidden month. New findings, all real:
 | V8 | PROCESS | D1 had to be decided before planning | Decided: D24 (3.9) |
 
 **Decisions after round 2** (mine, 2026-09-21): Commentary follows the month (D24); every mechanism is
-config driven and client agnostic (the `reportingMonths` knobs in 3.1, 11.4). **Round 3** reviews
-these additions before planning.
+config driven and client agnostic (the `reportingMonths` knobs in 3.1, 11.2).
+
+**Round 3** (one reviewer on `bfc6e2c`, the additions). V2 verified (React 19 `cache` returns the same
+rejected promise for the rest of the request; every Dash getter on this branch and on PRs 252, 254
+and 255 goes through `dashClientFor`). `previous-year` across leap years, the live-link matching rule,
+server action return values and the RSC safety of the new props all checked. New findings, all real:
+
+| # | Sev | Finding | Disposition |
+|---|---|---|---|
+| X1 | BLOCKER | The rewrite to "belongs to the month of `periodStart`" dropped round 1's `periodEnd` cutoff: an approved 1 Sep to 19 Oct entry would reach a client under September; an older rolling-window entry could become a month's default | Fixed: membership AND cutoff; whole-month entry preferred (3.9, 4.7, edge 23) |
+| X2 | MAJOR | "Full days against full days" and "no range ends in the future" were false for the headline tiles, which use Eastern windows | Fixed: stated exactly, bias bounded, "(in progress)" label (3.4, 6, edge 28) |
+| X3 | MAJOR | A client-role account with an approver email would get every month's Commentary history | Fixed: client roles get non-editor capabilities and no history on these views (3.9, 4.7) |
+| X4 | MINOR | `previous-friday` with `opensOnDay` 3 could open a month before it freezes | Fixed: range 4 to 28 (3.1, 3.4, edge 15) |
+| X5 | MINOR | A bad optional knob blanked the team; the `2026-08` floor hard-coded one client rule into code | Fixed: team keeps its months; a 36-month list cap replaces the floor (3.1, edges 8, 13) |
+| X6 | MINOR | Catching `auth()` in Commentary would change Renaissance's failure output | Fixed: Commentary keeps today's behaviour (4.7, edge 1) |
+| X7 | MINOR | Leftovers: round count, "five other sections" (six call sites), the July example, a line citation, `defaultPeriod`'s type, unsaved text on month switch, section numbering | Fixed throughout |
