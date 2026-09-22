@@ -48,7 +48,7 @@
 4. **The live month appears for the team** as a partial point when the team has the live month on screen; clients never see it (locked months never serves it to them, and YTD never goes past the month on screen).
 5. **Position:** first among the parts on each platform tab, directly under Commentary, as the outline orders the blocks.
 6. **A visible `YTD Review` heading** above the two graphs (the outline's block name). Not in the outline's words as a heading.
-7. **The team's live month is labelled `Oct (partial)`** so a partial month is never read as a whole one.
+7. **The team's live month is labelled `Oct (partial)`** so a partial month is never read as a whole one. Known gap, accepted: on a month's last evening (from 8 PM New York until midnight) locked months serves the still-live month with its whole-month range, so YTD labels it `Aug`, not `Aug (partial)`, for those hours; the numbers still match the Data block. Team only; the picker says "(in progress)" at the same moment.
 
 ## File Structure
 
@@ -335,4 +335,4 @@ export const ytdReviewV1: PartImpl<OrganicSocialCtx> = {
 
 **2026-09-21 review of the stacked version** (fresh adversarial review of `84b81ee`, one reviewer, read only; it ran 256's real `resolveLockedRange` in 12 cases and confirmed every YTD month's range and comparison equals what that month's Data block receives). Findings carried into this version: M1 (one-month YTD drew an empty follower card: `BarChart` under two points), M2 (no-data months plotted zeros: left off and named), M3 (a failed client read escaped: fallback card), m2 (Task 0 as presence and identity plus the golden render tests), m3 (parity by a test through the real section), m5 (heading and "(partial)" as Decisions 6 and 7), m6 (a new rollout script), m7 (request load and fallback copy stated). m1 (registry placement) holds: first line here, last line for the outline fixes.
 
-**2026-09-22 standalone rewrite:** pending one fresh review.
+**2026-09-22 standalone rewrite:** one fresh reviewer, read only. It merged 256 with this branch in a scratch worktree, ran the plan's `ytd.ts` against 256's real `resolveLockedRange` (team and client; every day 2026-07-25 to 2027-03-15 at four UTC hours; firstMonth 2026-08, 2026-11, 2027-01; comparison unset, previous-month, previous-year, bogus; opensOnDay unset, 4, 12, 28; both weekend rules; every offered month as the month on screen: 574,976 YTD entries) with 0 range or comparison mismatches and 0 months shown that the viewer is not offered. The plan's `ytd.test.ts` passes 10 of 10; the part on this branch alone passes tsc, `check:rsc` and the organic-social tests. One finding, the month-end label (Decision 7), accepted and stated.
