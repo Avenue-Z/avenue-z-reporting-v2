@@ -48,6 +48,7 @@ export async function setAnnotationHiddenAction(input: {
   const email = session?.user?.email
   if (!role || !canHideAnnotation(role)) return { ok: false, error: 'forbidden' }
 
+  if (typeof input.clientSlug !== 'string' || !input.clientSlug.trim()) return { ok: false, error: 'invalid client' }
   const valid = authorizeAnnotationHide(input)
   if (!valid.ok) return { ok: false, error: valid.error! }
 

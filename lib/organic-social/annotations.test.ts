@@ -160,9 +160,8 @@ test('a chart annotation carries only what the row draws, never the whole post',
     date: '2026-08-10', value: 50, label: '8/10 | 50 Engagements',
     thumb: { creative: { kind: 'image', thumb: 'https://cdn.example.com/t7.jpg', full: 'https://cdn.example.com/f7.jpg' }, mediaType: 'IMAGE', url: 'https://example.com/7' },
   })
-  for (const gone of ['caption', 'metrics', 'id', 'publishedAt', 'post', 'channel', 'sourceType']) {
-    expect(JSON.stringify(a)).not.toContain(gone)
-  }
+  expect(Object.keys(a).sort()).toEqual(['date', 'label', 'thumb', 'value'])
+  expect(Object.keys(a.thumb!).sort()).toEqual(['creative', 'mediaType', 'url'])
 })
 
 test('an annotation with no post has no thumbnail to send', () => {

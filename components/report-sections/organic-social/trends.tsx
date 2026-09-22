@@ -34,6 +34,15 @@ export function ChannelTrendChart({
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
   const [showAnnotations, setShowAnnotations] = useState(true)
+  // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
+  // same click, not on the next server render. Seeded from the server's answer.
+  const [hiddenDays, setHiddenDays] = useState<Set<string>>(() => new Set((annotations ?? []).filter((a) => a.hidden).map((a) => a.date)))
+  const setHidden = (day: string, hidden: boolean) => setHiddenDays((days) => {
+    const next = new Set(days)
+    if (hidden) next.add(day)
+    else next.delete(day)
+    return next
+  })
 
   const toggle = (channel: string) =>
     setActive((prev) => {
@@ -50,8 +59,9 @@ export function ChannelTrendChart({
   // undefined → a blank [0,'auto'] axis. Legend stays visible so the user can toggle back on.
   const activeEmpty = isEmptyTrend(series, activeChannels)
   const hasAnnotations = !!annotations && annotations.length > 0
+  const current = annotations?.map((a) => ({ ...a, hidden: hiddenDays.has(a.date) }))
   // Annotations explain the line, so they go when the line does (every channel toggled off).
-  const visible = hasAnnotations && showAnnotations && !activeEmpty ? annotations : undefined
+  const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
 
   return (
     <section className="space-y-3">
@@ -103,7 +113,7 @@ export function ChannelTrendChart({
               </button>
             )}
           </div>
-          {visible && <AnnotationCallouts items={visible} controls={annotationControls} />}
+          {visible && <AnnotationCallouts items={visible} controls={annotationControls} onToggle={setHidden} />}
           {activeEmpty ? (
             <NoData />
           ) : (

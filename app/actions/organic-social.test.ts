@@ -39,6 +39,12 @@ test('malformed input is refused before any write', async () => {
   expect(setAnnotationHidden).not.toHaveBeenCalled()
 })
 
+test('a payload with no client slug is refused before any write', async () => {
+  signedInAs('INTERNAL_ADMIN')
+  expect(await setAnnotationHiddenAction({ ...INPUT, clientSlug: '' })).toEqual({ ok: false, error: 'invalid client' })
+  expect(setAnnotationHidden).not.toHaveBeenCalled()
+})
+
 test('an unknown client is refused', async () => {
   signedInAs('INTERNAL_ADMIN')
   vi.mocked(getClientBySlug).mockResolvedValueOnce(undefined as never)

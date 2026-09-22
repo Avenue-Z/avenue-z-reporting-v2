@@ -18,7 +18,10 @@ export async function withHides(args: {
   const staff = canHideAnnotation(args.role)
   try {
     const client = await getClientBySlug(args.clientSlug)
-    const hidden = client ? await getAnnotationHides(client.id, args.channel) : new Set<string>()
+    // No client row means the hides cannot be read at all: fail closed, exactly as the catch below,
+    // so an annotation the team hid is never shown to a client by accident.
+    if (!client) throw new Error(`no client row for ${args.clientSlug}`)
+    const hidden = await getAnnotationHides(client.id, args.channel)
     return {
       items: applyHides(args.items, hidden, args.chart, staff ? 'staff' : 'client'),
       controls: staff ? { clientSlug: args.clientSlug, channel: args.channel, chart: args.chart } : undefined,

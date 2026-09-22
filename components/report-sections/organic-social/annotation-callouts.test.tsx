@@ -167,11 +167,13 @@ test('without controls there is no hide button', () => {
   expect(screen.queryByRole('button', { name: 'Hide from client' })).toBeNull()
 })
 
-test('staff can hide an annotation: one call, and it fades at once', async () => {
-  render(<AnnotationCallouts items={[A({ hidden: false })]} controls={CONTROLS} />)
+test('staff can hide an annotation: it fades, its dot goes, and one call is made', async () => {
+  render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A({ hidden: false })]} annotationControls={CONTROLS} />)
   fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
   expect(screen.getByText('Hidden from client')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
+  // The team sees the chart the client sees: the dot goes with the annotation, at once.
+  expect(lastMarks()).toEqual([])
   await waitFor(() => expect(setAnnotationHiddenAction).toHaveBeenCalledWith({ ...CONTROLS, day: '2026-08-10', hidden: true }))
 })
 
@@ -182,18 +184,19 @@ test('a hidden annotation shows faded, marked, with Unhide', () => {
   expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
 })
 
-test('a failed hide puts the annotation back, whether refused or errored', async () => {
+test('a failed hide puts the annotation and its dot back, whether refused or errored', async () => {
   vi.mocked(setAnnotationHiddenAction).mockResolvedValueOnce({ ok: false, error: 'forbidden' })
-  render(<AnnotationCallouts items={[A({ hidden: false })]} controls={CONTROLS} />)
+  render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A({ hidden: false })]} annotationControls={CONTROLS} />)
   fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Hide from client' })).toBeTruthy())
+  expect(lastMarks()).toEqual([{ x: '2026-08-10' }])
   vi.mocked(setAnnotationHiddenAction).mockRejectedValueOnce(new Error('network'))
   fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Hide from client' })).toBeTruthy())
   expect(screen.queryByText('Hidden from client')).toBeNull()
 })
 
-test('a hidden annotation gets no dot, so the team sees the chart the client sees', () => {
+test('an annotation the team already hid gets no dot, so the team sees the chart the client sees', () => {
   const items = [A({ hidden: true }), A({ date: '2026-08-11', label: '8/11 | 38 Engagements', hidden: false })]
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={items} annotationControls={CONTROLS} />)
   expect(lastMarks()).toEqual([{ x: '2026-08-11' }])

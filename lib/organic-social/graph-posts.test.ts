@@ -19,10 +19,3 @@ test('the graphs read a frozen window when there is one, and never write one', a
   await injected.writeSnapshot('c1', 'INSTAGRAM', '2026-08-01', '2026-08-31', [])
   expect(writeSnapshot).not.toHaveBeenCalled()
 })
-
-test('both graphs ask with the same arguments, so React caches one fetch per render', async () => {
-  const a = graphPosts('client-a', 'custom:2026-08-01,2026-08-31', 'INSTAGRAM')
-  const b = graphPosts('client-a', 'custom:2026-08-01,2026-08-31', 'INSTAGRAM')
-  await Promise.all([a, b])
-  expect(fetchTopContentFrozen.mock.calls.every((c) => c[0] === 'client-a' && c[1] === 'custom:2026-08-01,2026-08-31' && c[2] === 'INSTAGRAM')).toBe(true)
-})

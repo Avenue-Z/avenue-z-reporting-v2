@@ -57,14 +57,19 @@ function Thumb({ annotation }: { annotation: ChartAnnotation }) {
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
  *  comes from the action's revalidateTag('db'). */
-function AnnotationItem({ annotation, controls }: { annotation: ChartAnnotation; controls?: AnnotationControls }) {
-  const [hidden, setHidden] = useState(!!annotation.hidden)
+function AnnotationItem({ annotation, controls, onToggle }: {
+  annotation: ChartAnnotation
+  controls?: AnnotationControls
+  /** Set by the chart, which holds which days are hidden so the dot goes with the row. */
+  onToggle?: (day: string, hidden: boolean) => void
+}) {
+  const hidden = !!annotation.hidden
   const [pending, startTransition] = useTransition()
 
   function toggle() {
-    if (!controls) return
+    if (!controls || !onToggle) return
     const next = !hidden
-    setHidden(next) // optimistic
+    onToggle(annotation.date, next) // optimistic, in the chart above
     startTransition(async () => {
       let ok = false
       try {
@@ -72,7 +77,7 @@ function AnnotationItem({ annotation, controls }: { annotation: ChartAnnotation;
       } catch {
         ok = false
       }
-      if (!ok) setHidden(!next) // put it back
+      if (!ok) onToggle(annotation.date, !next) // put it back
     })
   }
 
@@ -97,11 +102,15 @@ function AnnotationItem({ annotation, controls }: { annotation: ChartAnnotation;
 
 /** The days that spiked, in date order, directly above the chart they explain. Not pinned
  *  to pixel positions over the line, which would break as the chart resizes on a phone. */
-export function AnnotationCallouts({ items, controls }: { items: ChartAnnotation[]; controls?: AnnotationControls }) {
+export function AnnotationCallouts({ items, controls, onToggle }: {
+  items: ChartAnnotation[]
+  controls?: AnnotationControls
+  onToggle?: (day: string, hidden: boolean) => void
+}) {
   if (items.length === 0) return null
   return (
     <ul aria-label="Annotations" className="flex flex-wrap gap-3">
-      {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} />)}
+      {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} onToggle={onToggle} />)}
     </ul>
   )
 }
