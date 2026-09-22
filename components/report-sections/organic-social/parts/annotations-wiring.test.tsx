@@ -8,6 +8,11 @@ vi.mock('@/lib/organic-social/followers', () => import('./__mocks__/followers'))
 vi.mock('@/lib/organic-social/trends', () => import('./__mocks__/trends'))
 const { graphPosts } = vi.hoisted(() => ({ graphPosts: vi.fn() }))
 vi.mock('@/lib/organic-social/graph-posts', () => ({ graphPosts }))
+// Nothing is hidden unless a test says so. The client lookup never reaches a database.
+const { getAnnotationHides } = vi.hoisted(() => ({ getAnnotationHides: vi.fn(async () => new Set<string>()) }))
+vi.mock('@/lib/organic-social/annotation-hides/select', () => ({ getAnnotationHides }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => ({ id: 'client-uuid' })) }))
+vi.mock('@/app/actions/organic-social', () => ({ setAnnotationHiddenAction: vi.fn(async () => ({ ok: true })) }))
 
 import { getFollowerGraph } from '@/lib/organic-social/followers'
 import { getEngagementTrend } from '@/lib/organic-social/trends'
@@ -67,7 +72,7 @@ test('no post ever crosses to the chart: only the day, the value, the label and 
   vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28 }))
   graphPosts.mockResolvedValueOnce([post(1, '2026-08-10', 40)])
   const [a] = annotationsOf(await FollowerSectionV2(AUG))!
-  expect(Object.keys(a).sort()).toEqual(['date', 'label', 'thumb', 'value'])
+  expect(Object.keys(a).sort()).toEqual(['date', 'hidden', 'label', 'thumb', 'value'])
   for (const gone of ['caption', 'metrics', 'publishedAt', 'sourceType']) expect(JSON.stringify(a)).not.toContain(gone)
 })
 
@@ -132,4 +137,54 @@ test('v2 engagement graph on a platform tab carries the outline title', async ()
   graphPosts.mockResolvedValueOnce([])
   render(<>{await TrendSectionV2(AUG)}</>)
   expect(screen.getByText('Instagram Engagement Graph')).toBeTruthy()
+})
+
+const controlsOf = (el: unknown) => (el as ReactElement<{ annotationControls?: unknown }>).props.annotationControls
+const STAFF = { ...AUG, role: 'INTERNAL_ADMIN' }
+
+test('a client never receives an annotation the team hid', async () => {
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28, '2026-08-20': 19 }))
+  graphPosts.mockResolvedValueOnce([])
+  getAnnotationHides.mockResolvedValueOnce(new Set(['followers|2026-08-10']))
+  const el = await FollowerSectionV2(AUG)
+  expect(summary(el)).toEqual([['8/20 | +19 Followers', null]])
+  expect(controlsOf(el)).toBeUndefined()
+})
+
+test('the team receives every annotation, the hidden one marked, with the controls', async () => {
+  vi.mocked(getEngagementTrend).mockResolvedValueOnce(ig({ '2026-08-10': 65, '2026-08-11': 38 }))
+  graphPosts.mockResolvedValueOnce([])
+  getAnnotationHides.mockResolvedValueOnce(new Set(['engagements|2026-08-10']))
+  const el = await TrendSectionV2(STAFF)
+  expect(annotationsOf(el)?.map((a) => [a.date, a.hidden])).toEqual([['2026-08-10', true], ['2026-08-11', false]])
+  expect(controlsOf(el)).toEqual({ clientSlug: 'fixture-client', channel: 'INSTAGRAM', chart: 'engagements' })
+})
+
+test('if the hides cannot be read, a client gets no annotations at all', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28 }))
+  graphPosts.mockResolvedValueOnce([])
+  getAnnotationHides.mockRejectedValueOnce(new Error('relation "chart_annotation_hides" does not exist'))
+  const el = await FollowerSectionV2(AUG)
+  expect(annotationsOf(el)).toEqual([])
+  expect(log).toHaveBeenCalled()
+  log.mockRestore()
+})
+
+test('if the hides cannot be read, the team gets every annotation but no controls', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28 }))
+  graphPosts.mockResolvedValueOnce([])
+  getAnnotationHides.mockRejectedValueOnce(new Error('timeout'))
+  const el = await FollowerSectionV2(STAFF)
+  expect(summary(el)).toEqual([['8/10 | +28 Followers', null]])
+  expect(controlsOf(el)).toBeUndefined()
+  log.mockRestore()
+})
+
+test('a chart with nothing to annotate never reads the hides', async () => {
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 0 }))
+  graphPosts.mockResolvedValueOnce([])
+  await FollowerSectionV2(AUG)
+  expect(getAnnotationHides).not.toHaveBeenCalled()
 })

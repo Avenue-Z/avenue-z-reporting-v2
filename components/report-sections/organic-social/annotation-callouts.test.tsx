@@ -1,11 +1,13 @@
 import { expect, test, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 // Recharts draws nothing in jsdom, so the chart is replaced by a stub that records its
 // props: the dots are asserted on what the chart is handed.
 vi.mock('@/components/charts/line-chart', () => ({ LineChart: vi.fn(() => null) }))
+vi.mock('@/app/actions/organic-social', () => ({ setAnnotationHiddenAction: vi.fn(async () => ({ ok: true })) }))
 
 import { LineChart } from '@/components/charts/line-chart'
+import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
 import { AnnotationCallouts } from './annotation-callouts'
 import { ChannelTrendChart, EngagementTrend } from './trends'
 import { FollowerGraph } from './follower-graph'
@@ -156,4 +158,43 @@ test('FollowerGraph keeps its "Followers" title unless given another', () => {
   unmount()
   render(<FollowerGraph series={SERIES} title="Instagram Follower Growth Graph" />)
   expect(screen.getByText('Instagram Follower Growth Graph')).toBeTruthy()
+})
+
+const CONTROLS = { clientSlug: 'a-client', channel: 'INSTAGRAM' as const, chart: 'engagements' as const }
+
+test('without controls there is no hide button', () => {
+  render(<AnnotationCallouts items={[A()]} />)
+  expect(screen.queryByRole('button', { name: 'Hide from client' })).toBeNull()
+})
+
+test('staff can hide an annotation: one call, and it fades at once', async () => {
+  render(<AnnotationCallouts items={[A({ hidden: false })]} controls={CONTROLS} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
+  expect(screen.getByText('Hidden from client')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
+  await waitFor(() => expect(setAnnotationHiddenAction).toHaveBeenCalledWith({ ...CONTROLS, day: '2026-08-10', hidden: true }))
+})
+
+test('a hidden annotation shows faded, marked, with Unhide', () => {
+  const { container } = render(<AnnotationCallouts items={[A({ hidden: true })]} controls={CONTROLS} />)
+  expect(container.querySelector('li')?.className).toContain('opacity-40')
+  expect(screen.getByText('Hidden from client')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
+})
+
+test('a failed hide puts the annotation back, whether refused or errored', async () => {
+  vi.mocked(setAnnotationHiddenAction).mockResolvedValueOnce({ ok: false, error: 'forbidden' })
+  render(<AnnotationCallouts items={[A({ hidden: false })]} controls={CONTROLS} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Hide from client' })).toBeTruthy())
+  vi.mocked(setAnnotationHiddenAction).mockRejectedValueOnce(new Error('network'))
+  fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Hide from client' })).toBeTruthy())
+  expect(screen.queryByText('Hidden from client')).toBeNull()
+})
+
+test('a hidden annotation gets no dot, so the team sees the chart the client sees', () => {
+  const items = [A({ hidden: true }), A({ date: '2026-08-11', label: '8/11 | 38 Engagements', hidden: false })]
+  render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={items} annotationControls={CONTROLS} />)
+  expect(lastMarks()).toEqual([{ x: '2026-08-11' }])
 })

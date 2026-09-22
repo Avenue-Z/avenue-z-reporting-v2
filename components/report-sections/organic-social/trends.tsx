@@ -6,7 +6,7 @@ import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
-import type { ChartAnnotation } from '@/lib/organic-social/annotations'
+import type { AnnotationControls, ChartAnnotation } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
 import { AnnotationCallouts } from './annotation-callouts'
 
@@ -28,8 +28,8 @@ export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0
 // before the prop existed, with no button, no row and no dots. That is what keeps every
 // client still pinned to v1 of these parts, Renaissance included, unchanged.
 export function ChannelTrendChart({
-  title, series, annotations,
-}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] }) {
+  title, series, annotations, annotationControls,
+}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls }) {
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
@@ -103,7 +103,7 @@ export function ChannelTrendChart({
               </button>
             )}
           </div>
-          {visible && <AnnotationCallouts items={visible} />}
+          {visible && <AnnotationCallouts items={visible} controls={annotationControls} />}
           {activeEmpty ? (
             <NoData />
           ) : (
@@ -111,7 +111,7 @@ export function ChannelTrendChart({
               data={series.points}
               xKey="date"
               yKeys={yKeys}
-              marks={visible?.map((a) => ({ x: a.date }))}
+              marks={visible?.filter((a) => !a.hidden).map((a) => ({ x: a.date }))}
             />
           )}
         </>
@@ -121,7 +121,7 @@ export function ChannelTrendChart({
 }
 
 export function EngagementTrend({
-  series, annotations, title = 'Engagement Over Time',
-}: { series: TrendSeries; annotations?: ChartAnnotation[]; title?: string }) {
-  return <ChannelTrendChart title={title} series={series} annotations={annotations} />
+  series, annotations, annotationControls, title = 'Engagement Over Time',
+}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; title?: string }) {
+  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} />
 }

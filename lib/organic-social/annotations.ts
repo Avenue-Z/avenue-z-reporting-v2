@@ -1,5 +1,6 @@
 import type { TrendSeries } from './types'
 import type { Creative, TopContentPost } from './content-types'
+import type { DashChannel } from './metrics'
 
 /** One day worth calling out on a trend chart. */
 export interface Peak {
@@ -48,6 +49,15 @@ export interface Annotation extends Peak {
   label: string
   /** The top post published that day, or null when nothing went live or the posts failed to load. */
   post: TopContentPost | null
+  /** Set for staff only: the team hid this annotation from the client. Clients never receive one. */
+  hidden?: boolean
+}
+
+/** What the hide control needs to address one chart's annotations. Present only for staff. */
+export interface AnnotationControls {
+  clientSlug: string
+  channel: DashChannel
+  chart: AnnotationChart
 }
 
 /** Every Follower Growth slide in the deck calls out 2 days; every Engagement slide 3. */
@@ -106,10 +116,12 @@ export interface ChartAnnotation {
 
 /** Annotations, trimmed for the client component that draws them. */
 export function toChartAnnotations(items: Annotation[]): ChartAnnotation[] {
-  return items.map(({ date, value, label, post }) => ({
+  return items.map(({ date, value, label, post, hidden }) => ({
     date,
     value,
     label,
+    // Staff only: set by the hides layer, so the row can fade it and the chart can drop its dot.
+    ...(hidden === undefined ? {} : { hidden }),
     thumb: post ? { creative: post.creative, mediaType: post.mediaType, url: post.url } : null,
   }))
 }

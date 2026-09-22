@@ -9,6 +9,7 @@ import { graphPosts } from '@/lib/organic-social/graph-posts'
 import { isoRange } from '@/lib/organic-social/base'
 import { CHANNEL_LABEL } from '@/lib/organic-social/metrics'
 import { pickPeaks, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from '@/lib/organic-social/annotations'
+import { withHides } from './annotation-hides'
 
 export async function FollowerSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   // Platform-only: never overlay every channel's follower count on one Overview chart.
@@ -45,7 +46,7 @@ export const followerGraphV1: PartImpl<OrganicSocialCtx> = {
  *  pinning follower-graph@2 in its own report_section_config, and an unpublished version can
  *  never be promoted into the shared template or frozen into a composition. The
  *  section_templates rows and the code templates pin v1. */
-export async function FollowerSectionV2({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
+export async function FollowerSectionV2({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
   if (!channel) return null
   const [graph, posts] = await Promise.all([
     safe(getFollowerGraph(clientSlug, dateRange, channel, 'netNewFollowers', 'utc')),
@@ -54,9 +55,17 @@ export async function FollowerSectionV2({ clientSlug, dateRange, channel }: Orga
   if (!graph.data) return <Fallback kind={graph.error!} />
   const { start, end } = isoRange(dateRange)
   const peaks = pickPeaks(graph.data, { limit: ANNOTATION_LIMIT.followers, from: start, to: end })
-  const annotations = toChartAnnotations(buildAnnotations(peaks, posts.data ?? null, 'followers'))
+  const built = buildAnnotations(peaks, posts.data ?? null, 'followers')
+  const { items, controls } = await withHides({ clientSlug, channel, chart: 'followers', role, items: built })
   // Jasmine's outline names this chart, word for word.
-  return <FollowerGraph series={graph.data} annotations={annotations} title={`${CHANNEL_LABEL[channel]} Follower Growth Graph`} />
+  return (
+    <FollowerGraph
+      series={graph.data}
+      annotations={toChartAnnotations(items)}
+      annotationControls={controls}
+      title={`${CHANNEL_LABEL[channel]} Follower Growth Graph`}
+    />
+  )
 }
 
 export const followerGraphV2: PartImpl<OrganicSocialCtx> = {

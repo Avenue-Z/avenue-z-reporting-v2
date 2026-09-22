@@ -9,6 +9,7 @@ import { graphPosts } from '@/lib/organic-social/graph-posts'
 import { isoRange } from '@/lib/organic-social/base'
 import { CHANNEL_LABEL } from '@/lib/organic-social/metrics'
 import { pickPeaks, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from '@/lib/organic-social/annotations'
+import { withHides } from './annotation-hides'
 
 async function TrendSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getEngagementTrend(clientSlug, dateRange, channel))
@@ -34,7 +35,7 @@ export const engagementTrendV1: PartImpl<OrganicSocialCtx> = {
  *  On Overview several platforms share one chart and a peak is ambiguous, so Overview gets no
  *  annotations and fetches no posts. Registered alongside v1 and UNPUBLISHED: pinned per
  *  client, never promoted or frozen; the section_templates rows and code templates pin v1. */
-export async function TrendSectionV2({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
+export async function TrendSectionV2({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
   if (!channel) {
     const trend = await safe(getEngagementTrend(clientSlug, dateRange, null, 'utc'))
     return trend.data ? <EngagementTrend series={trend.data} /> : <Fallback kind={trend.error!} />
@@ -46,9 +47,17 @@ export async function TrendSectionV2({ clientSlug, dateRange, channel }: Organic
   if (!trend.data) return <Fallback kind={trend.error!} />
   const { start, end } = isoRange(dateRange)
   const peaks = pickPeaks(trend.data, { limit: ANNOTATION_LIMIT.engagements, from: start, to: end })
-  const annotations = toChartAnnotations(buildAnnotations(peaks, posts.data ?? null, 'engagements'))
+  const built = buildAnnotations(peaks, posts.data ?? null, 'engagements')
+  const { items, controls } = await withHides({ clientSlug, channel, chart: 'engagements', role, items: built })
   // Jasmine's outline names this chart, word for word.
-  return <EngagementTrend series={trend.data} annotations={annotations} title={`${CHANNEL_LABEL[channel]} Engagement Graph`} />
+  return (
+    <EngagementTrend
+      series={trend.data}
+      annotations={toChartAnnotations(items)}
+      annotationControls={controls}
+      title={`${CHANNEL_LABEL[channel]} Engagement Graph`}
+    />
+  )
 }
 
 export const engagementTrendV2: PartImpl<OrganicSocialCtx> = {
