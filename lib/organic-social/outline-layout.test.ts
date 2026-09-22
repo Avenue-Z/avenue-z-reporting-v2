@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
 import { CHANNELS, PLATFORM_KPIS, metricFor, type KpiSpec } from './metrics'
 import {
-  OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, OUTLINE_EXTRA_KPIS, OUTLINE_KPI_OVERRIDES, OUTLINE_PENDING_Q6,
-  NOT_IN_DASH, outlineSpecsFor, type OutlineRow,
+  OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, OUTLINE_EXTRA_KPIS, OUTLINE_KPI_OVERRIDES, OUTLINE_MEDIA_KPIS,
+  NOT_IN_DASH, mediaRowsFor, outlineSpecsFor, type OutlineRow,
 } from './outline-layout'
 
 // Jasmine's three outlines, 2026-09-18. The labels are hers, word for word.
@@ -10,10 +10,10 @@ const labels = (rows?: { label: string }[]) => rows?.map((r) => r.label)
 const DATA = ['Total Followers', 'Net New Followers', 'Views', 'Total Engagements', 'Engagement Rate']
 
 test('the Data rows follow the outlines, in order, with their labels', () => {
-  expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views'])
+  expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.FACEBOOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.LINKEDIN)).toEqual([...DATA, 'Profile Views', 'Video Views'])
-  expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views'])
+  expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
 })
 
 test("Kenect's outline puts Profile Clicks where Video Views would be, on Instagram only", () => {
@@ -35,18 +35,13 @@ test('no outline covers X, so it has no rows', () => {
   expect(OUTLINE_BREAKDOWN_ROWS.TWITTER).toBeUndefined()
 })
 
-test("question 6's two rows still to build are listed and never render", () => {
-  expect(OUTLINE_PENDING_Q6.map((p) => `${p.channel} ${p.label}`)).toEqual(['INSTAGRAM Video Views', 'TIKTOK Video Views'])
-  expect(OUTLINE_PENDING_Q6.map((p) => p.why)).toEqual([
-    'Instagram retired organic video views (Dash labels them Discontinued); the replacement, Views on Reels, needs its own request, not built yet',
-    "the same number as Views (Dash's TikTok views are video views, TOTAL_VIDEO_VIEWS); showing it is a separate change",
-  ])
-  for (const p of OUTLINE_PENDING_Q6) {
-    const rows = p.block === 'data'
-      ? [...(OUTLINE_DATA_ROWS.standard[p.channel] ?? []), ...(OUTLINE_DATA_ROWS.profileClicks[p.channel] ?? [])]
-      : OUTLINE_BREAKDOWN_ROWS[p.channel] ?? []
-    expect(labels(rows)).not.toContain(p.label)
-  }
+test("question 6 is closed: Instagram Video Views is Views on Reels, TikTok's is its Views tile", () => {
+  expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views', 'Video Views'])
+  expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
+  expect(OUTLINE_MEDIA_KPIS.INSTAGRAM).toEqual([{ key: 'videoViews', label: 'Video Views', mediaType: 'reel', metric: 'VIEWS' }])
+  expect(OUTLINE_DATA_ROWS.standard.TIKTOK!.find((r) => r.key === 'videoViews')).toEqual({ key: 'videoViews', label: 'Video Views', from: 'exposure' })
+  expect(mediaRowsFor('INSTAGRAM', OUTLINE_DATA_ROWS.standard.INSTAGRAM!).map((m) => m.key)).toEqual(['videoViews'])
+  expect(mediaRowsFor('INSTAGRAM', OUTLINE_DATA_ROWS.profileClicks.INSTAGRAM!)).toEqual([])
 })
 
 // Jasmine's rule for missing data: "flag it for review and leave it blank". Dash's own dashboard
@@ -87,7 +82,9 @@ test('every row resolves to a tile spec on every channel this build supports', (
       ...(OUTLINE_DATA_ROWS.standard[ch] ?? []), ...(OUTLINE_DATA_ROWS.profileClicks[ch] ?? []),
       ...(OUTLINE_BREAKDOWN_ROWS[ch] ?? []),
     ]
-    for (const r of rows.filter((x) => !x.unavailable)) expect(keys.has(r.key), `${ch} ${r.key}`).toBe(true)
+    // A row resolves when it is a tile of the tab, an alias (`from`) of one, or a media row with its own request.
+    const media = new Set((OUTLINE_MEDIA_KPIS[ch] ?? []).map((m) => m.key))
+    for (const r of rows.filter((x) => !x.unavailable)) expect(keys.has(r.from ?? r.key) || media.has(r.key), `${ch} ${r.key}`).toBe(true)
   }
 })
 

@@ -73,11 +73,14 @@ test('percents scale by 100, deltas come from the context value, footnotes carry
 
 test('selectOutlineRows picks the rows in outline order with the outline labels', () => {
   const b = buildOutlineKpis('INSTAGRAM', allOf('INSTAGRAM'), outlineSpecsFor('INSTAGRAM'))
-  const h = selectOutlineRows('INSTAGRAM', b, OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
+  // The Data part merges Views on Reels (its own request) into the tiles before picking the rows.
+  const reels = { videoViews: { key: 'videoViews', label: 'Video Views', format: 'number' as const, value: 3 } }
+  const h = selectOutlineRows('INSTAGRAM', { ...b, kpis: { ...b.kpis, ...reels } }, OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
   expect(h).toMatchObject({ channel: 'INSTAGRAM', label: 'Instagram', noData: false })
   expect(h.kpis.map((k) => [k.key, k.label])).toEqual([
     ['followers', 'Total Followers'], ['netNewFollowers', 'Net New Followers'], ['exposure', 'Views'],
     ['engagements', 'Total Engagements'], ['engagementRate', 'Engagement Rate'], ['profileViews', 'Profile Views'],
+    ['videoViews', 'Video Views'],
   ])
 })
 

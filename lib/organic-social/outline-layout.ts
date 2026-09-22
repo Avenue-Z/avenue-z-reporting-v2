@@ -53,10 +53,10 @@ const PROFILE_VIEWS = row('profileViews', 'Profile Views')
 const VIDEO_VIEWS = row('videoViews', 'Video Views')
 
 const STANDARD: Partial<Record<string, OutlineRow[]>> = {
-  INSTAGRAM: [...DATA_HEAD, PROFILE_VIEWS], // Video Views: question 6
+  INSTAGRAM: [...DATA_HEAD, PROFILE_VIEWS, VIDEO_VIEWS],
   FACEBOOK: [...DATA_HEAD, notInDash('profileViews', 'Profile Views'), VIDEO_VIEWS],
   LINKEDIN: [...DATA_HEAD, PROFILE_VIEWS, VIDEO_VIEWS],
-  TIKTOK: [...DATA_HEAD, PROFILE_VIEWS], // Video Views: question 6
+  TIKTOK: [...DATA_HEAD, PROFILE_VIEWS, { key: 'videoViews', label: 'Video Views', from: 'exposure' }],
 }
 
 export const OUTLINE_DATA_ROWS: Record<OutlineVariant, Partial<Record<string, OutlineRow[]>>> = {
@@ -89,15 +89,6 @@ export function mediaRowsFor(channel: string, rows: readonly OutlineRow[]): Medi
   const keys = new Set(rows.filter((r) => !r.unavailable).map((r) => r.key))
   return (OUTLINE_MEDIA_KPIS[channel] ?? []).filter((m) => keys.has(m.key))
 }
-
-/** The outline rows not built yet (Jasmine's question 6, sent 2026-09-18, answered 2026-09-21).
- *  Not rendered; each is a one-line move into the rows above once its metric is wired. The other
- *  two rows from question 6 (Facebook Profile Views, TikTok Reposts) are in the rows above, shown
- *  blank with the NOT_IN_DASH flag. */
-export const OUTLINE_PENDING_Q6 = [
-  { channel: 'INSTAGRAM', block: 'data', label: 'Video Views', why: 'Instagram retired organic video views (Dash labels them Discontinued); the replacement, Views on Reels, needs its own request, not built yet' },
-  { channel: 'TIKTOK', block: 'data', label: 'Video Views', why: "the same number as Views (Dash's TikTok views are video views, TOTAL_VIDEO_VIEWS); showing it is a separate change" },
-] as const
 
 /** Every tile spec an outline tab requests: the shared tiles (with the outline overrides swapped
  *  in by key), then the extra rows. */

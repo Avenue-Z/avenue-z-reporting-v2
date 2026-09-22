@@ -1,17 +1,31 @@
 import { Suspense } from 'react'
 import type { PartImpl } from '@/lib/report-sections/types'
 import type { DashChannel } from '@/lib/organic-social/metrics'
-import { getOutlineKpis, selectOutlineRows } from '@/lib/organic-social/outline-headlines'
-import { OUTLINE_DATA_ROWS, type OutlineRow, type OutlineVariant } from '@/lib/organic-social/outline-layout'
+import { getOutlineKpis, selectOutlineRows, type OutlineHeadline } from '@/lib/organic-social/outline-headlines'
+import { getOutlineMediaKpis } from '@/lib/organic-social/outline-media'
+import { MEDIA_FAILED, OUTLINE_DATA_ROWS, mediaRowsFor, type OutlineRow, type OutlineVariant } from '@/lib/organic-social/outline-layout'
 import { OutlineHeadlines } from '../outline-tiles'
 import { HeadlinesSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { platformHeadlinesV1 } from './platform-headlines'
 import { safe, Fallback } from './shared'
 
+/** The tiles' request, plus Views on Reels when the rows show it. A failed Reels request flags only
+ *  its row; a failed tiles request (or a row with no tile) is the section's fallback card, as today. */
 export async function OutlineDataSection({ ctx, channel, rows }: { ctx: OrganicSocialCtx; channel: DashChannel; rows: readonly OutlineRow[] }) {
-  const r = await safe(getOutlineKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel).then((b) => selectOutlineRows(channel, b, rows)))
-  return r.data ? <OutlineHeadlines headline={r.data} /> : <Fallback kind={r.error!} />
+  const media = mediaRowsFor(channel, rows)
+  const [r, m] = await Promise.all([
+    safe(getOutlineKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel)),
+    media.length ? safe(getOutlineMediaKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel)) : safe(Promise.resolve({})),
+  ])
+  if (!r.data) return <Fallback kind={r.error!} />
+  if (!m.data) console.error(`[organic-social] Views on Reels failed slug=${ctx.clientSlug} channel=${channel} kind=${m.error}`)
+  const failed = new Set(m.data ? [] : media.map((x) => x.key))
+  const shown = rows.map((row) => (failed.has(row.key) ? { ...row, unavailable: MEDIA_FAILED } : row))
+  const built = { ...r.data, kpis: { ...r.data.kpis, ...(m.data ?? {}) } }
+  let headline: OutlineHeadline
+  try { headline = selectOutlineRows(channel, built, shown) } catch { return <Fallback kind="error" /> }
+  return <OutlineHeadlines headline={headline} />
 }
 
 /** The Data block as a client's outline defines it. On Overview, or a channel no outline covers,

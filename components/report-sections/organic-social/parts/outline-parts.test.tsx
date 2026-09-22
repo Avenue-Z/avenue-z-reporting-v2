@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest'
+import { beforeEach, expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
@@ -10,6 +10,8 @@ vi.mock('@/lib/organic-social/outline-headlines', async () => ({
   ...(await vi.importActual<typeof import('@/lib/organic-social/outline-headlines')>('@/lib/organic-social/outline-headlines')),
   getOutlineKpis,
 }))
+const { getOutlineMediaKpis } = vi.hoisted(() => ({ getOutlineMediaKpis: vi.fn() }))
+vi.mock('@/lib/organic-social/outline-media', () => ({ getOutlineMediaKpis }))
 
 import { ORGANIC_SOCIAL_PARTS } from './registry'
 import { platformHeadlinesV1 } from './platform-headlines'
@@ -19,7 +21,7 @@ import { buildOutlineKpis, selectOutlineRows } from '@/lib/organic-social/outlin
 import { PlatformHeadlines } from '../platform-headlines'
 import type { PlatformHeadline } from '@/lib/organic-social/types'
 import { OutlineTiles } from '../outline-tiles'
-import { outlineSpecsFor, OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, NOT_IN_DASH } from '@/lib/organic-social/outline-layout'
+import { outlineSpecsFor, OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, NOT_IN_DASH, MEDIA_FAILED } from '@/lib/organic-social/outline-layout'
 import { metricFor } from '@/lib/organic-social/metrics'
 import { DashTimeoutError } from '@/lib/dash-social/client'
 import { FIXTURE_ORGANIC_SOCIAL_CTX } from './__fixtures__/organic-social-ctx'
@@ -32,6 +34,9 @@ const text = async (node: Promise<ReactNode>) => render(<>{await node}</>).conta
 const builtFor = (ch: 'FACEBOOK' | 'INSTAGRAM', value: number) => buildOutlineKpis(ch,
   Object.fromEntries(outlineSpecsFor(ch).map((s) => [metricFor(s), { value, context: null, context_change: null }])),
   outlineSpecsFor(ch))
+/** Views on Reels, as the media request returns it. */
+const REELS = { videoViews: { key: 'videoViews', label: 'Video Views', format: 'number' as const, value: 1234 } }
+beforeEach(() => { getOutlineMediaKpis.mockReset(); getOutlineMediaKpis.mockResolvedValue(REELS) })
 /** The KpiCard whose title is exactly `title`. */
 const card = (c: HTMLElement, title: string) =>
   ([...c.querySelectorAll('p')].find((p) => p.textContent === title)?.closest('div.rounded-lg') ?? null) as HTMLElement | null
@@ -44,13 +49,31 @@ test('the registry adds three unpublished versions and leaves v1 as it was', () 
   expect(ORGANIC_SOCIAL_PARTS['platform-headlines'][3].published).toBe(false)
 })
 
-test('the Data part shows the outline rows and none of the breakdown', async () => {
+test('the Data part shows the outline rows, Video Views from Views on Reels, and none of the breakdown', async () => {
   getOutlineKpis.mockResolvedValueOnce(built(10))
   const c = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
   expect([...c.querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Instagram'])
   expect(c.textContent).toContain('Total Engagements')
   expect(c.textContent).toContain('Profile Views')
-  for (const gone of ['Likes', 'Saves', 'Reposts', 'Video Views']) expect(c.textContent).not.toContain(gone)
+  expect(card(c, 'Video Views')!.textContent).toContain('1,234')
+  expect(getOutlineMediaKpis).toHaveBeenCalledWith(IG.clientSlug, IG.dateRange, IG.compareRange, 'INSTAGRAM')
+  for (const gone of ['Likes', 'Saves', 'Reposts']) expect(c.textContent).not.toContain(gone)
+})
+
+test('a failed Views on Reels request flags only its row, and says so once in the log', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  for (const [failure, kind] of [[new Error('boom'), 'error'], [new DashTimeoutError(), 'timeout']] as const) {
+    err.mockClear()
+    getOutlineKpis.mockResolvedValueOnce(built(10))
+    getOutlineMediaKpis.mockRejectedValueOnce(failure)
+    const c = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
+    expect([...card(c, 'Video Views')!.querySelectorAll('p')].map((p) => p.textContent)).toEqual(['Video Views', '\u00A0', MEDIA_FAILED])
+    expect(card(c, 'Total Engagements')!.textContent).toContain('10')
+    expect(err).toHaveBeenCalledTimes(1)
+    expect(err).toHaveBeenCalledWith(`[organic-social] Views on Reels failed slug=${IG.clientSlug} channel=INSTAGRAM kind=${kind}`)
+  }
+  expect(MEDIA_FAILED).toBe('Could not load from Dash')
+  err.mockRestore()
 })
 
 test('the breakdown shows its rows in order with no heading', async () => {
@@ -88,10 +111,12 @@ test('on Overview or an uncovered channel the Data part is v1, and the breakdown
   }
 })
 
-test('v3 is v2 with Profile Clicks on Instagram', async () => {
+test('v3 is v2 with Profile Clicks on Instagram, and never asks for Views on Reels', async () => {
   getOutlineKpis.mockResolvedValueOnce(built(10))
   const c = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.profileClicks.INSTAGRAM! }))
   expect(c.textContent).toContain('Profile Clicks')
+  expect(c.textContent).not.toContain('Video Views')
+  expect(getOutlineMediaKpis).not.toHaveBeenCalled()
 })
 
 test("Facebook's Profile Views is a blank tile with the flag, in the outline's place", async () => {
@@ -110,7 +135,8 @@ test("Facebook's Profile Views is a blank tile with the flag, in the outline's p
 test("the Data block draws a tab with no flagged row exactly as the shared tiles do", async () => {
   getOutlineKpis.mockResolvedValueOnce(builtFor('INSTAGRAM', 10))
   const outline = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
-  const h = selectOutlineRows('INSTAGRAM', builtFor('INSTAGRAM', 10), OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
+  const b = builtFor('INSTAGRAM', 10)
+  const h = selectOutlineRows('INSTAGRAM', { ...b, kpis: { ...b.kpis, ...REELS } }, OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
   expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
   const shared = render(<PlatformHeadlines headlines={[h as PlatformHeadline]} />).container
   expect(outline.innerHTML).toBe(shared.innerHTML)
