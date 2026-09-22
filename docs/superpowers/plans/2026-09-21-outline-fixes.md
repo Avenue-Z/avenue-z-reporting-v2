@@ -45,7 +45,7 @@
 
 - Renaissance (and any client without the new pins or keys) renders and stores byte-for-byte what it does today. It never pins `top-content@3` or the outline Data parts, so neither path can reach it; Task 0's snapshots prove the shared paths are unchanged.
 - Never edit: `lib/organic-social/metrics.ts` (`PLATFORM_KPIS`), `lib/organic-social/frozen.ts`, `lib/organic-social/snapshot.ts`, `lib/db/schema.ts`, `lib/constants.ts`, the `normalizePost`/`subObject`/`captionUrl` bodies and the field maps in `content-types.ts` (PR 247 edits those lines), `parts/top-content.tsx`'s @1/@2 definitions, `designations/suggest.ts`.
-- In `parts/registry.ts` add only one import line directly after line 9 (`import { topContentV1, topContentV2 } from './top-content'`) and one entry inside `OUTLINE_PARTS`; PR 252 edits lines 7-8 and 13-14.
+- In `parts/registry.ts` add only one import line directly after line 9 (`import { topContentV1, topContentV2 } from './top-content'`) and one entry as the LAST line inside `OUTLINE_PARTS` (directly after line 23); PR 252 edits lines 7-8 and 13-14, and the YTD Review plan adds an import after line 5 and an entry as the FIRST line inside `OUTLINE_PARTS`.
 - In `lib/dash-social/types.ts` change only line 8 (the `reportType` union); PR 247 edits line 70.
 - Config is read at runtime from `dash_social_config` as `unknown` (no schema edit): `ownHandles` = `{ instagram?: string }`. The owned posts per platform row are capped at the part pin's threshold, `report_section_config['organic-social:platform'].thresholds['top-content']`, default 5, whole numbers 1 to 50. Influencer Posts keep today's paging (15 per page).
 - In `sortable-top-content.tsx` add only one optional prop, `ownedLimit`, threaded to the owned rows; absent means today's behaviour exactly. No open PR edits this file.
@@ -488,7 +488,7 @@ export const topContentV3: PartImpl<OrganicSocialCtx> = {
 
 `sortable-top-content.tsx`: `PlatformCardRow` gains `limit?: number`; its body becomes `const sorted = sortPosts(posts, sortKey, dir)` then `const pg = limit ? paginate(sorted.slice(0, limit), 0, limit) : paginate(sorted, page, pageSize)` (one page, so the pager's `pageCount > 1` guard hides it); `SortableTopContent` gains `ownedLimit?: number` in its props and passes `limit={section === 'owned' ? ownedLimit : undefined}` from `rows`. Absent `ownedLimit` leaves every row exactly as today.
 
-`registry.ts`: one line after line 9 `import { topContentV3 } from './top-content-outline'`, and inside `OUTLINE_PARTS` `'top-content': { 3: topContentV3 },`. Check at build time that `mergeRegistries` merges versions of one id across the two registries (it does for `platform-headlines`); prove it with the registry test.
+`registry.ts`: one line after line 9 `import { topContentV3 } from './top-content-outline'`, and `'top-content': { 3: topContentV3 },` as the last line inside `OUTLINE_PARTS` (directly after line 23). Check at build time that `mergeRegistries` merges versions of one id across the two registries (it does for `platform-headlines`); prove it with the registry test.
 - [ ] **Step 4: Run PASS**; whole suite; tsc; `check:rsc`.
 - [ ] **Step 5: Commit** `feat(organic-social): top-content@3 for outline clients (5 per page, collab by author, deck-basis rate)` (edge table below).
 
