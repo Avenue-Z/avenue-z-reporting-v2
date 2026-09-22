@@ -515,7 +515,7 @@ export const topContentV3: PartImpl<OrganicSocialCtx> = {
 ## Rollout (each step waits for my go; staging only)
 
 1. After 255 and this are on staging, in ONE go: pin `top-content@3` for the three clients in `report_section_config['organic-social:platform']` (merge `versions['top-content'] = 3` and `thresholds['top-content'] = 5` into the same override object PR 255's opt-in writes; assert that override has no `frozen` base, since `resolve.ts` ignores `versions` on a frozen base), and set `dash_social_config.ownHandles.instagram` for each (values read from Dash, never committed). Pre-change snapshot, dry run, write, then read back the resolved section for one tab of each client and confirm it resolves to `top-content@3` with threshold 5; drift check after.
-2. In the same go, right after step 1: delete the three clients' CLOSED Instagram Top Content snapshot rows on staging so they re-freeze with authors (Decision 3). Coordinate with the lock-every-number rollout if it lands first. Once lock every number ships (its plan, `feat/os-lock-every-number`, Decision 5), these clients' Top Content no longer reads `top_content_snapshots`, so this step is skipped; their locked Top Content answers carry authors from the start.
+2. In the same go, right after step 1: delete the three clients' CLOSED Instagram Top Content snapshot rows on staging so they re-freeze with authors (Decision 3). Coordinate with the lock-every-number rollout if it lands first. Once lock every number ships (its plan, on PR 256, Decision 5), these clients' Top Content no longer reads `top_content_snapshots`, so this step is skipped; their locked Top Content answers carry authors from the start.
 
 ## Review record
 
