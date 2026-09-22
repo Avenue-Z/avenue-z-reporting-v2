@@ -14,6 +14,8 @@ import { safe, Fallback } from './shared'
  *  its row; a failed tiles request (or a row with no tile) is the section's fallback card, as today. */
 export async function OutlineDataSection({ ctx, channel, rows }: { ctx: OrganicSocialCtx; channel: DashChannel; rows: readonly OutlineRow[] }) {
   const media = mediaRowsFor(channel, rows)
+  // Both requests gate the block (one Suspense), so a slow Reels call holds the tiles too. Accepted:
+  // it has the tiles' own timeout and retries, and its failure still blanks only its row.
   const [r, m] = await Promise.all([
     safe(getOutlineKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel)),
     media.length ? safe(getOutlineMediaKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel)) : safe(Promise.resolve({})),
