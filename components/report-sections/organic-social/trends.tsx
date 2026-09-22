@@ -18,6 +18,7 @@ export const CHANNEL_COLOR: Record<string, string> = {
   Facebook: PALETTE[1],
   X: PALETTE[2],
   LinkedIn: PALETTE[3],
+  TikTok: CHART_COLORS.tiktok,
 }
 export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
 
