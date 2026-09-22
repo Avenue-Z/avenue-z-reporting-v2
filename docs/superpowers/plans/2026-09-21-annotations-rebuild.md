@@ -11,7 +11,7 @@
 - **Paul's review of PR 252 (2026-09-18) and my replies** (private `replies-to-paul-2026-09-18.md`, "PR 252"): 4050225284 marks never forwarded on the engagement graph; 4050225288 v2 was `published: true`, must ship unpublished; 4050225292 "render or drop the label, and pass only `{date, count}` to the chart"; 4050225296 two test comments to fix or remove. My promise: "drop 922a090 and `annotations.test.tsx` and rebuild per the plan", keep `ebf3037`'s guard tests and the docs. Also in the PR description: "cache `fetchTopContentFrozen`, align the Top Content and graph date windows".
 - **Question 8 (D17):** keep the "Influencer Posts" section and its name.
 - **Memory:** `section_templates` rows pin Renaissance's graphs to v1 in all three environments; they win over the code template.
-- **The October plans** (their branches): locked months (PR 256), lock every number (`feat/os-lock-every-number`), outline fixes (`feat/os-outline-fixes`), YTD Review (`feat/os-ytd-review`).
+- **The October plans** (where they live, 2026-09-22): locked months and lock every number on PR 256 (`feat/os-locked-months`); outline fixes and YTD Review on PR 255 (`feat/organic-social-no-overview`). The stacked PRs #257, #258 and #259 are closed: every October PR stands alone and merges in any order.
 - Standing rules: Renaissance untouched, client agnostic, zero conflicts in any order, staging-only writes with my go.
 
 ## Before (at `2d65904`, this branch)
@@ -47,11 +47,11 @@ For opted-in clients the v2 graph requests (GRAPH, plain dates) and the posts be
 
 Unchanged for Renaissance: its `section_templates` rows pin v1. The three clients get v2 by adding `versions: { 'follower-graph': 2, 'engagement-trend': 2 }` to their `report_section_config['organic-social:platform']` (the override PR 255's opt-in writes), with my go, on staging, in the same scripted, host-guarded, snapshot-first write as the other outline pins (a new script that edits the existing key); assert that override has no `frozen` base (`lib/report-sections/resolve.ts` ignores `versions` on a frozen base). Read back one resolved tab per client; drift check. While v2 is unpublished the team cannot freeze those tabs' composition (the freeze action refuses an unpublished pin, `lib/report-sections/validate.ts:40`); that is expected. Replace the base plan's publish test with: `follower-graph@1` and `engagement-trend@1` are published, `@2` of both is not.
 
-### E. The hides table moves to one shared schema PR
+### E. The hides table ships in one migration commit shared with PR 256 (2026-09-22; replaces the shared schema PR)
 
-The base plan's Task 5 generates migration `0024` for `chart_annotation_hides`; the lock-every-number plan also generates a `0024` (for `dash_response_locks`). Two PRs each creating `drizzle/0024_*` and editing `drizzle/meta/_journal.json` conflict in any merge order. (The tables themselves sit in different places: the base plan adds its table after `export type PostDesignation`, `lib/db/schema.ts:372`; lock every number after `topContentSnapshots`.) So both tables and ONE migration live in one small shared PR, `feat/os-october-schema` off `organic-social-october`: both table definitions exactly as each plan writes them, in those places, one `npm run db:generate`, and `MIGRATIONS-PENDING.md` updated. This rebuild and lock every number both build on it (a build order, not a conflict).
+The base plan's Task 5 generates migration `0024` for `chart_annotation_hides`; the lock-every-number plan also generates a `0024` (for `dash_response_locks`). Two PRs each creating `drizzle/0024_*` and editing `drizzle/meta/_journal.json` conflict in any merge order. (The tables themselves sit in different places: the base plan adds its table after `export type PostDesignation`, `lib/db/schema.ts:372`; lock every number after `topContentSnapshots`.) A separate shared schema PR would make this PR and 256 depend on it, which the October set does not allow. So ONE commit adds both tables and ONE migration (the lock-every-number plan, Task 2, says exactly how: a local scratch branch off `organic-social-october`, both definitions exactly as each plan writes them, in those places, one `npm run db:generate`, `MIGRATIONS-PENDING.md` updated), and that SAME commit object is merged (`git merge --no-ff`, never cherry-picked) into this branch and into 256. Either PR can merge first; the other then merges clean and the migration runs once. This PR carries the locks table unused until 256 lands: empty and harmless.
 
-In the base plan's Task 5: Step 1 (add the table), Step 2 (generate the migration) and Step 12 (record the migration) move to the shared PR; Step 14 (apply to staging, my go) moves there too; Steps 3 to 11 and 13 stay. The lock-every-number plan is amended in the same step (its Task 2 drops the schema and migration to the shared PR and keeps the store; its Task 7 proof lists `feat/os-october-schema`). The migration is applied to staging only with my go (`npm run db:migrate:staging`).
+In the base plan's Task 5: Step 1 (add the table), Step 2 (generate the migration) and Step 12 (record the migration) are replaced by merging the October schema commit into this branch; Steps 3 to 11 and 13 stay. Step 14 (apply to staging, my go) runs once, from whichever of 252 or 256 reaches staging first. The migration is applied to staging only with my go (`npm run db:migrate:staging`).
 
 ### F. Thumbnails and Question 8
 
@@ -60,9 +60,9 @@ Thumbnails come from the tab's Top Content posts (owned and collab), as the spec
 ### G. Zero conflicts
 
 - PR 254 edits `followers.ts` and `trends.ts` at the import after line 4 and the `getReportsData` call (followers `:32`, trends `:31`); the base plan's Task 3 edits the `./base` import (line 3), line 6, the getter signature, the window line (`:25`, `:24`), the metric line (`:29`) and the gap rule (`:49-52`). A reviewer's 3-way `git merge-file` of the full Task 3 edits against 254 came out clean both ways for both files; repeat it before Task 3 and in the final proof.
-- `parts/registry.ts`: this branch edits lines 4-5 and 10-11 (the v2 imports and entries; lines 7-8 and 13-14 in PR 255's numbering); PR 255, the outline fixes and YTD Review touch other lines (a reviewer's sequential merge of this branch, 255, the outline fixes and YTD Review came out clean).
+- `parts/registry.ts`: this branch edits lines 4-5 and 10-11 (the v2 imports and entries; lines 7-8 and 13-14 in PR 255's numbering); PR 255 (with the outline fixes and YTD Review) touches other lines (a reviewer's sequential merge of this branch, 255, the outline fixes and YTD Review came out clean).
 - `frozen.ts` is not edited here (section A's cache is a new file).
-- The final proof: `git merge-tree --write-tree` of this branch with 247, 250, 253, 254, 255, 256, `feat/os-october-schema`, and the three plan branches once they hold code; all merged in two orders off `origin/dev`, same tree, tests, tsc, `check:rsc` green.
+- The final proof: `git merge-tree --write-tree` of this branch with 247, 250, 253, 254, 255 and 256 (each with their added work); all merged in two orders off `origin/dev`, same tree, tests, tsc, `check:rsc` green.
 
 ### H. The demo
 
@@ -77,7 +77,7 @@ After this is on staging and pinned (section D) with my go: open one platform ta
 ## Order of work
 
 1. `git revert` nothing; instead follow the base plan Tasks 0 to 6 on this branch, with sections A to G applied. Task 0 is already done (`ebf3037`); rerun it first to confirm green.
-2. Before Task 5: `feat/os-october-schema` exists and is merged into `organic-social-october`, and this branch is updated from `organic-social-october` by merge (no rebase, review threads stay).
+2. Before Task 5: the October schema commit exists (built first with lock every number, or here if this build comes first) and is merged into this branch with `git merge --no-ff` (no rebase, no cherry-pick, review threads stay). Also prove this branch stands alone: by itself on `organic-social-october` it passes tests, tsc and `check:rsc`.
 3. Task 6 as written, plus: `parts/annotations.test.tsx` is gone (deleted in Task 4); the gate counts are re-derived, not copied from the base plan; and `ebf3037`'s golden tests are also run against `origin/dev`'s `line-chart.tsx` (section A).
 4. Push only with my go; the PR stays draft until the demo.
 
