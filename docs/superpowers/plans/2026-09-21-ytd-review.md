@@ -48,7 +48,7 @@
 4. **The live month appears for the team** as a partial point when the team has the live month on screen (DFA Confirm 3: "Your team sees the current month live, updating daily"); clients never see it (locked months never serves it to them, and YTD never goes past the month on screen).
 5. **Position:** first among the parts on each platform tab, directly under Commentary: the outline's order.
 6. **A visible `YTD Review` heading** above the two graphs: the outline's block name and the decks' own section title ("YTD Review").
-7. **The team's live month is labelled `Oct (live)`**, the word the month picker already uses, so a partial month is never read as a whole one. Known gap, accepted: on a month's last evening (from 8 PM New York until midnight) locked months serves the still-live month with its whole-month range, so YTD labels it `Aug`, not `Aug (live)`, for those hours; the numbers still match the Data block. Team only; the picker says "(in progress)" at the same moment.
+7. **The team's live month is labelled `Oct (live)`**, the word the month picker already uses, so a partial month is never read as a whole one. Known gap, accepted: on a month's last evening (00:00 to 04:00 UTC: 8 PM to midnight New York in daylight time, 7 to 11 PM in winter) locked months serves the still-live month with its whole-month range, so YTD labels it `Aug`, not `Aug (live)`, for those hours; the numbers still match the Data block. Team only; the picker says "(in progress)" at the same moment.
 
 ## File Structure
 
