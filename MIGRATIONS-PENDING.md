@@ -237,3 +237,19 @@ Apply per environment, before merge, the same way as `0021`:
    points at (matching the `set-renaissance-campaign-scope.ts` precedent,
    which doesn't either) — double-check `--env-file` before running either
    one against production.
+
+## Add the October Organic Social tables (delivered, awaiting apply)
+
+`drizzle/0024_*.sql` adds two tables, both additive and both read only by clients that
+opt in:
+
+- `dash_response_locks` (lock every number, PR #256): the stored Dash answer for one
+  exact request of a locked month, per client. Only clients with `reportingMonths` read
+  or write it.
+- `chart_annotation_hides` (annotations, PR #252): one row per annotation the team has
+  hidden or unhidden on a v2 Organic Social graph.
+
+One migration for both, because Drizzle keeps a single migration list: the same commit
+is merged into #256 and #252, so whichever lands first applies it once. Nothing
+Renaissance renders reads either table. Apply on staging with `npm run db:migrate:staging`
+(host guarded, table list snapshot first), then production per the usual flow.
