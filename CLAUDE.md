@@ -711,6 +711,16 @@ deliberately left out of its scope so it stayed reviewable.
   `client.ts`, so it is not the home for it). Mind the `eventName` exception
   above when applying it.
 
+## Known Follow-ups: staff dashboard sidebar (from PR #250 review)
+
+- [ ] **The staff sidebar receives whole client rows.** `app/dashboard/layout.tsx:19` passes
+  `getVisibleClients()` rows into the client component `components/layout/sidebar.tsx`, which reads
+  only `name`, `slug`, `logoUrl`, `enabledReports` and `hiddenReports`. Props cross the
+  server-to-client boundary whether they render or not, so every other field of each visible
+  client is sent to the browser too. PR #250 fixed the portal's twin of this with a trimmed mapper;
+  give the dashboard sidebar the same treatment (a mapper to exactly the fields it reads, and a test
+  that fails if a full row is passed back). Staff-only today. Its own PR, off `dev`.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
