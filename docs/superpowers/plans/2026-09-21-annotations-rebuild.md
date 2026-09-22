@@ -49,9 +49,9 @@ Unchanged for Renaissance: its `section_templates` rows pin v1. The three client
 
 ### E. The hides table ships in one migration commit shared with PR 256 (2026-09-22; replaces the shared schema PR)
 
-The base plan's Task 5 generates migration `0024` for `chart_annotation_hides`; the lock-every-number plan also generates a `0024` (for `dash_response_locks`). Two PRs each creating `drizzle/0024_*` and editing `drizzle/meta/_journal.json` conflict in any merge order. (The tables themselves sit in different places: the base plan adds its table after `export type PostDesignation`, `lib/db/schema.ts:372`; lock every number after `topContentSnapshots`.) A separate shared schema PR would make this PR and 256 depend on it, which the October set does not allow. So ONE commit adds both tables and ONE migration (the lock-every-number plan on PR 256, Task 2, says exactly how: a local scratch branch cut from commit `100e6c7` EXACTLY, never the moving tip of `organic-social-october`, both definitions exactly as each plan writes them, in those places, one `npm run db:generate`, a mechanical check of the SQL, `MIGRATIONS-PENDING.md` updated, and a merge-base check before it is merged anywhere), and that SAME commit object is merged (`git merge --no-ff`, never cherry-picked) into this branch and into 256. Either PR can merge first; the other then merges clean and the migration runs once. This PR carries the locks table unused until 256 lands: empty and harmless. Once the commit is in both branches it is never amended; a later change to the hides table (for example from Paul's review) is a new migration made the same way and merged into both, never an edit on this branch alone.
+The base plan's Task 5 generates migration `0024` for `chart_annotation_hides`; the lock-every-number plan also generates a `0024` (for `dash_response_locks`). Two PRs each creating `drizzle/0024_*` and editing `drizzle/meta/_journal.json` conflict in any merge order. (The tables themselves sit in different places: the base plan adds its table after `export type PostDesignation`, `lib/db/schema.ts:372`; lock every number after `topContentSnapshots`.) A separate shared schema PR would make this PR and 256 depend on it, which the October set does not allow. So ONE commit adds both tables and ONE migration, and that same commit object is merged into this branch and into 256: the one named exception to "no PR carries another PR's commits" (D32). The full recipe and BOTH table definitions are in the appendix at the end of this file, word for word the same as the appendix in the lock every number plan on PR 256, so this build never reads another PR's branch.
 
-In the base plan's Task 5: Step 1 (add the table), Step 2 (generate the migration) and Step 12 (record the migration) are replaced by merging the October schema commit into this branch; Steps 3 to 11 and 13 stay. Step 14 (apply to staging, my go) runs once, from whichever of 252 or 256 reaches staging first. The migration is applied to staging only with my go (`npm run db:migrate:staging`).
+In the base plan's Task 5: Step 1 (add the table), Step 2 (generate the migration) and Step 12 (record the migration) are replaced by the appendix (steps 1 to 9): make the October schema commit, or merge the same commit if PR 256's build already made it; Steps 3 to 11 and 13 stay. Step 14 (apply to staging, my go) runs once, from whichever of 252 or 256 reaches staging first. The migration is applied to staging only with my go (`npm run db:migrate:staging`).
 
 ### F. Thumbnails and Question 8
 
@@ -99,3 +99,69 @@ Fresh adversarial review of `b353f88` (one reviewer, read only; its 3-way merges
 | m5 | MINOR | Line numbers, Task 3 edit list, the live-month wording, "one fetch per render" | Fixed |
 
 **Review of the 2026-09-22 restructure** (one fresh reviewer, read only): the simulated schema commit off `100e6c7` merged clean into this branch and 256, and the whole set in three orders gave one tree with a single `0024`. Fixed from its findings: the schema commit's base is pinned to `100e6c7` here as in the lock plan, and a later table change is a new shared migration, never a one-branch edit.
+
+**Audit fix 2026-09-22 (fresh audit, M1):** the schema commit recipe and both table definitions now live verbatim in this file's appendix, so the build never reads another PR's branch; the shared commit is recorded as the one named exception (D32).
+
+## Appendix: the October schema commit (this text is identical in the lock every number plan on PR 256 and the annotations rebuild plan on PR 252)
+
+**What it is.** Two October PRs each need a new table: PR 256 (`dash_response_locks`, lock every number) and PR 252 (`chart_annotation_hides`, annotation hides). Drizzle keeps one migration list (`drizzle/meta/_journal.json`), so two PRs that each generate their own `0024` conflict in any merge order, and a separate schema PR would make both depend on it. So ONE commit adds both tables and ONE migration, and that same commit object is merged into both PRs. Either PR can merge first; the other then merges clean and the migration runs once. Each PR carries one table it does not read until the other lands: empty, unused, harmless.
+
+**The one named exception to "no PR carries another PR's commits" (my decision, D32, 2026-09-22, "same commit in both").** This commit is the only commit two October PRs share. It is not another PR's work: it belongs to both equally, contains only the two tables and their migration, and neither PR needs the other to merge. Every other commit on every October PR is unique to that PR.
+
+**Everything the builder needs is here; nothing is read from the other PR's branch.**
+
+1. Cut a local scratch branch from commit `100e6c7` EXACTLY: `git switch -c local/october-schema 100e6c7`. Never from the moving tip of `organic-social-october`: once any PR has merged there, a commit cut from the tip would carry that PR's commits into 256 and 252.
+2. In `lib/db/schema.ts` (every helper used below is already imported on line 1 at `100e6c7`), directly after the line `export type PostDesignation = typeof postDesignations.$inferSelect`, add:
+
+```ts
+
+// One row per (client, platform, chart, day) the team has hidden or unhidden on a v2
+// Organic Social graph. hidden=true keeps that annotation from the client; the team still
+// sees it, faded, with an Unhide button. No row means never touched, i.e. shown. Mirrors
+// post_designations. Purely additive: nothing Renaissance renders reads it.
+export const chartAnnotationHides = pgTable('chart_annotation_hides', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),   // DashChannel, e.g. 'INSTAGRAM'
+  chart: text('chart').notNull(),       // 'followers' | 'engagements'
+  day: date('day').notNull(),           // the annotation's day, yyyy-mm-dd, the UTC day Dash counts
+  hidden: boolean('hidden').notNull(),
+  setBy: text('set_by').notNull(),      // email
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientCalloutUnique: unique('chart_annotation_hides_client_callout_key').on(table.clientId, table.channel, table.chart, table.day),
+  clientIdx: index('chart_annotation_hides_client_idx').on(table.clientId),
+}))
+
+export type ChartAnnotationHide = typeof chartAnnotationHides.$inferSelect
+```
+
+3. Directly after the `topContentSnapshots` table definition (the `}))` that closes it), add:
+
+```ts
+/** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
+ *  client. Written once (the first read after the lock day), then served forever. Only clients with
+ *  reportingMonths ever read or write it. */
+export const dashResponseLocks = pgTable('dash_response_locks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  requestKey: text('request_key').notNull(),
+  periodEnd: date('period_end').notNull(),
+  response: jsonb('response').notNull(),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientRequestUnique: unique('dash_response_locks_client_request_key').on(table.clientId, table.requestKey),
+}))
+```
+
+   and directly after the line `export type NewTopContentSnapshot = typeof topContentSnapshots.$inferInsert`, add `export type DashResponseLock = typeof dashResponseLocks.$inferSelect`.
+4. Run `npm run db:generate` once (no database). If it asks any question, STOP and bring it to me.
+5. Check it mechanically: `grep -iE 'create table|alter table|drop|rename' drizzle/0024_*.sql` shows only `CREATE TABLE "dash_response_locks"`, `CREATE TABLE "chart_annotation_hides"` and `ALTER TABLE` lines adding those two tables' foreign keys; read every other line (unique constraints, the hides index); `git diff --stat 100e6c7` lists only `lib/db/schema.ts`, `drizzle/0024_*.sql`, `drizzle/meta/0024_snapshot.json`, `drizzle/meta/_journal.json` and `MIGRATIONS-PENDING.md` (add both tables there).
+6. Commit `feat(db): October tables (dash_response_locks, chart_annotation_hides), one migration`.
+7. Before merging it anywhere: `git merge-base local/october-schema origin/dev` prints `100e6c7`, and `git rev-list --count 100e6c7..local/october-schema` prints `1`.
+8. `git merge --no-ff local/october-schema` into the PR branch being built. Whichever of 256 or 252 is built second merges the SAME commit (the branch stays local until both have it; recreate it from the first PR's history with `git branch local/october-schema <sha>` if needed). Never cherry-pick: a cherry-pick is a different commit, and the two `0024_snapshot.json` files would differ.
+9. Prove it: `git merge-tree --write-tree` of 256 and 252 is clean, and the two branches' `drizzle/` trees are byte-identical (`git diff 256-branch 252-branch -- drizzle` is empty).
+
+**After it is shared.** It is never amended. A later change to either table (for example from Paul's review) is a new migration `0025` made the same way (one commit on top of this one, merged into both), never an edit on one branch. If one of the two PRs is squash-merged into `organic-social-october`, the other still merges clean (both sides add byte-identical files); re-run `git merge-tree` at that time to confirm.
+
+**Staging.** The migration is applied once, from whichever of 256 or 252 reaches staging first, only with my go (`npm run db:migrate:staging`, host-guarded, table list snapshot first; confirm only the two tables were added).
