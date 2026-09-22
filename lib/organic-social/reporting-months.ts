@@ -85,6 +85,9 @@ export function clockFor(now: Date): Clock {
   return {
     today: `${part('year')}-${part('month')}-${part('day')}`,
     lastCompleteUtcDay: addDays(isoDay(now), -1),
+    // Not New York midnight, on purpose: every Dash window ends at a fixed T04:00:00Z all year
+    // (isoRangeTz, base.ts), so the live range's window is still open exactly while the UTC hour is
+    // before 4. In winter that window ends at 11 PM New York (spec 3.4, edge 27).
     liveDayInProgress: now.getUTCHours() < 4,
   }
 }

@@ -119,6 +119,16 @@ describe('months, defaults and comparison on 20 Oct 2026', () => {
     expect(resolveLockedRange(CFG, 'team', C('2026-10-20', '2026-10-20', true), undefined).months[0].label)
       .toBe('October 2026, through Oct 20 (in progress)')
   })
+  test('winter: "(in progress)" follows the Dash window, which ends at 04:00 UTC all year, not New York midnight (edges 27, 28)', () => {
+    // 10:30 PM EST on Jan 14: the live range ends Jan 14 and its Dash window runs to Jan 15 04:00 UTC, still open.
+    const open = clockFor(new Date('2027-01-15T03:30:00Z'))
+    expect(open).toEqual(C('2027-01-14', '2027-01-14', true))
+    expect(resolveLockedRange(CFG, 'team', open, undefined).months[0].label).toBe('January 2027, through Jan 14 (in progress)')
+    // 11:30 PM EST, still Jan 14 in New York, but that window closed at 04:00 UTC, so nothing new lands in it.
+    const closed = clockFor(new Date('2027-01-15T04:30:00Z'))
+    expect(closed).toEqual(C('2027-01-14', '2027-01-14', false))
+    expect(resolveLockedRange(CFG, 'team', closed, undefined).months[0].label).toBe('January 2027, through Jan 14')
+  })
   test('same days of last month, clamped; previous-year across a leap day', () => {
     expect(resolveLockedRange(CFG, 'team', C('2027-03-31', '2027-03-30'), undefined).months[0].compareRange).toBe('custom:2027-02-01,2027-02-28')
     const yearly = { firstMonth: '2026-08', comparison: 'previous-year' }
