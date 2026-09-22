@@ -7,14 +7,17 @@ import { PLATFORM_KPIS, type DashChannel, type KpiSpec } from './metrics'
 
 /** A row of the outline. `unavailable` marks a row Dash does not offer: it is shown blank with
  *  that flag and never requested (Jasmine's rule for missing data: "flag it for review and leave
- *  it blank"). */
-export type OutlineRow = { key: string; label: string; unavailable?: string }
+ *  it blank"). `from` reads another tile of the same tab. */
+export type OutlineRow = { key: string; label: string; unavailable?: string; from?: string }
 
 /** Facebook Profile Views and TikTok Reposts carry this flag. Jasmine says she sees them on
  *  dashboards she builds (2026-09-21); Dash's own dashboard builder, read per channel the same day,
  *  offers neither for Facebook or TikTok, only for Instagram. If her widget turns out to be a real
  *  metric, wiring it is a one-line move out of the flag. */
 export const NOT_IN_DASH = 'Not available from Dash'
+/** A row whose own Dash request failed (Views on Reels): blank with this flag, the rest of the
+ *  block unchanged. */
+export const MEDIA_FAILED = 'Could not load from Dash'
 export type OutlineVariant = 'standard' | 'profileClicks'
 
 /** Outline rows Dash has but the shared tiles do not. Probed 2026-09-18 in the tiles' own request
@@ -72,6 +75,19 @@ export const OUTLINE_BREAKDOWN_ROWS: Partial<Record<string, OutlineRow[]>> = {
   FACEBOOK: PAGE_BREAKDOWN,
   LINKEDIN: PAGE_BREAKDOWN,
   TIKTOK: [row('likes', 'Likes'), COMMENTS, SHARES, notInDash('reposts', 'Reposts'), row('completionRate', 'Completion Rate')],
+}
+
+/** A Data row that comes from its own Dash request, not the tiles' one. Instagram "Video Views"
+ *  is Views on Reels: Meta retired organic video views and Dash reports Reels views under
+ *  MULTI_METRIC_MEDIA_TYPE (probed 2026-09-21, with a compare value in the tiles' shape). */
+export type MediaKpiSpec = { key: string; label: string; mediaType: string; metric: string }
+export const OUTLINE_MEDIA_KPIS: Partial<Record<string, MediaKpiSpec[]>> = {
+  INSTAGRAM: [{ key: 'videoViews', label: 'Video Views', mediaType: 'reel', metric: 'VIEWS' }],
+}
+/** The media rows a tab's outline rows actually show (none for Kenect's Instagram). */
+export function mediaRowsFor(channel: string, rows: readonly OutlineRow[]): MediaKpiSpec[] {
+  const keys = new Set(rows.filter((r) => !r.unavailable).map((r) => r.key))
+  return (OUTLINE_MEDIA_KPIS[channel] ?? []).filter((m) => keys.has(m.key))
 }
 
 /** The outline rows not built yet (Jasmine's question 6, sent 2026-09-18, answered 2026-09-21).

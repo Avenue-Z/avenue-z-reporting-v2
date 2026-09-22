@@ -50,9 +50,9 @@ export function buildOutlineKpis(
 export function selectOutlineRows(channel: DashChannel, built: OutlineKpis, rows: readonly OutlineRow[]): OutlineHeadline {
   const kpis = rows.map((r): OutlineKpi => {
     if (r.unavailable) return { key: r.key, label: r.label, format: 'number', value: null, unavailable: r.unavailable }
-    const k = built.kpis[r.key]
+    const k = built.kpis[r.from ?? r.key]
     if (!k) throw new Error(`${channel}: no tile for outline row '${r.key}'`)
-    return { ...k, label: r.label }
+    return { ...k, key: r.key, label: r.label }
   })
   return { channel, label: CHANNEL_LABEL[channel], kpis, noData: built.noData }
 }

@@ -98,3 +98,10 @@ test('a flagged row becomes a blank tile carrying its flag, with no tile or metr
   // No value, no change arrow, nothing a number-printing component could show.
   expect(h.kpis[1]).toEqual({ key: 'profileViews', label: 'Profile Views', format: 'number', value: null, unavailable: 'Not available from Dash' })
 })
+
+test('an alias row reads the tile it names and keeps its own key and label', () => {
+  const built = buildOutlineKpis('INSTAGRAM', { A: { value: 7, context: 5, context_change: null } } as never,
+    [{ key: 'exposure', label: 'Views', format: 'number', metric: { allPosts: 'A', byPost: 'A' } }] as never)
+  const h = selectOutlineRows('INSTAGRAM', built, [{ key: 'videoViews', label: 'Video Views', from: 'exposure' }])
+  expect(h.kpis[0]).toMatchObject({ key: 'videoViews', label: 'Video Views', value: 7 })
+})
