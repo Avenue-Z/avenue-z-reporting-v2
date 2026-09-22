@@ -75,9 +75,8 @@ exports[`requests, shared tiles and rows that must not move 1`] = `
         "label": "Shares",
       },
       {
-        "key": "reposts",
-        "label": "Reposts",
-        "unavailable": "Not available from Dash",
+        "key": "favorites",
+        "label": "Favorites",
       },
       {
         "key": "completionRate",
@@ -105,11 +104,6 @@ exports[`requests, shared tiles and rows that must not move 1`] = `
     {
       "key": "engagementRate",
       "label": "Engagement Rate",
-    },
-    {
-      "key": "profileViews",
-      "label": "Profile Views",
-      "unavailable": "Not available from Dash",
     },
     {
       "key": "videoViews",

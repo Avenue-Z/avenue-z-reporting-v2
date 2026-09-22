@@ -119,17 +119,13 @@ test('v3 is v2 with Profile Clicks on Instagram, and never asks for Views on Ree
   expect(getOutlineMediaKpis).not.toHaveBeenCalled()
 })
 
-test("Facebook's Profile Views is a blank tile with the flag, in the outline's place", async () => {
+test("Facebook has no Profile Views tile: Jasmine removed the row, so the block goes straight to Video Views", async () => {
   getOutlineKpis.mockResolvedValueOnce(builtFor('FACEBOOK', 10))
   const c = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
-  const pv = card(c, 'Profile Views')
-  expect(pv).not.toBeNull()
-  const lines = [...pv!.querySelectorAll('p')].map((p) => p.textContent)
-  // Title, a blank value (a non-breaking space keeps the card's height), and the flag. No change arrow.
-  expect(lines).toEqual(['Profile Views', '\u00A0', NOT_IN_DASH])
+  expect(card(c, 'Profile Views')).toBeNull()
+  expect(c.textContent).not.toContain(NOT_IN_DASH)
   const t = c.textContent ?? ''
-  expect(t.indexOf('Engagement Rate')).toBeLessThan(t.indexOf('Profile Views'))
-  expect(t.indexOf('Profile Views')).toBeLessThan(t.indexOf('Video Views'))
+  expect(t.indexOf('Engagement Rate')).toBeLessThan(t.indexOf('Video Views'))
 })
 
 test("the Data block draws a tab with no flagged row exactly as the shared tiles do", async () => {

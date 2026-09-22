@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { CHANNELS, PLATFORM_KPIS, metricFor, type KpiSpec } from './metrics'
 import {
   OUTLINE_DATA_ROWS, OUTLINE_BREAKDOWN_ROWS, OUTLINE_EXTRA_KPIS, OUTLINE_KPI_OVERRIDES, OUTLINE_MEDIA_KPIS,
-  NOT_IN_DASH, mediaRowsFor, outlineSpecsFor, type OutlineRow,
+  mediaRowsFor, outlineSpecsFor, type OutlineRow,
 } from './outline-layout'
 
 // Jasmine's three outlines, 2026-09-18. The labels are hers, word for word.
@@ -11,7 +11,7 @@ const DATA = ['Total Followers', 'Net New Followers', 'Views', 'Total Engagement
 
 test('the Data rows follow the outlines, in order, with their labels', () => {
   expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views', 'Video Views'])
-  expect(labels(OUTLINE_DATA_ROWS.standard.FACEBOOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
+  expect(labels(OUTLINE_DATA_ROWS.standard.FACEBOOK)).toEqual([...DATA, 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.LINKEDIN)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
 })
@@ -27,7 +27,7 @@ test('the metrics directly under the engagement graph follow the outlines', () =
   expect(labels(OUTLINE_BREAKDOWN_ROWS.INSTAGRAM)).toEqual(['Likes', 'Comments', 'Shares', 'Saves', 'Reposts'])
   expect(labels(OUTLINE_BREAKDOWN_ROWS.FACEBOOK)).toEqual(['Reactions', 'Comments', 'Shares', 'Post Clicks'])
   expect(labels(OUTLINE_BREAKDOWN_ROWS.LINKEDIN)).toEqual(['Reactions', 'Comments', 'Shares', 'Post Clicks'])
-  expect(labels(OUTLINE_BREAKDOWN_ROWS.TIKTOK)).toEqual(['Likes', 'Comments', 'Shares', 'Reposts', 'Completion Rate'])
+  expect(labels(OUTLINE_BREAKDOWN_ROWS.TIKTOK)).toEqual(['Likes', 'Comments', 'Shares', 'Favorites', 'Completion Rate'])
 })
 
 test('no outline covers X, so it has no rows', () => {
@@ -44,19 +44,25 @@ test("question 6 is closed: Instagram Video Views is Views on Reels, TikTok's is
   expect(mediaRowsFor('INSTAGRAM', OUTLINE_DATA_ROWS.profileClicks.INSTAGRAM!)).toEqual([])
 })
 
-// Jasmine's rule for missing data: "flag it for review and leave it blank". Dash's own dashboard
-// builder offers neither metric (checked 2026-09-21), so these two show blank with the flag.
+// Jasmine, 2026-09-22 4:04 PM: "for FB, we can just remove all together and for TT can replace
+// reposts with favorites?". So no outline row is blank any more: Facebook's Profile Views row is
+// gone, and TikTok's Reposts row became Favorites (Dash TOTAL_FAVORITES, probed 2026-09-22).
 const allRows = (): [string, string, OutlineRow][] => [
   ...Object.entries(OUTLINE_DATA_ROWS).flatMap(([v, byCh]) =>
     Object.entries(byCh).flatMap(([ch, rows]) => (rows ?? []).map((r): [string, string, OutlineRow] => [`${v} ${ch}`, 'data', r]))),
   ...Object.entries(OUTLINE_BREAKDOWN_ROWS).flatMap(([ch, rows]) => (rows ?? []).map((r): [string, string, OutlineRow] => [ch, 'breakdown', r])),
 ]
 
-test('the two rows Dash does not offer are shown blank and flagged, and only those', () => {
-  const flagged = allRows().filter(([, , r]) => r.unavailable).map(([where, block, r]) => `${where} ${block} ${r.label}`)
-  expect(flagged).toEqual(['standard FACEBOOK data Profile Views', 'profileClicks FACEBOOK data Profile Views', 'TIKTOK breakdown Reposts'])
-  for (const [, , r] of allRows()) if (r.unavailable) expect(r.unavailable).toBe(NOT_IN_DASH)
-  expect(NOT_IN_DASH).toBe('Not available from Dash')
+test('no outline row is blank: every row on every tab has a real Dash metric behind it', () => {
+  expect(allRows().filter(([, , r]) => r.unavailable)).toEqual([])
+})
+
+test("Facebook has no Profile Views row at all, and TikTok's fourth engagement row is Favorites", () => {
+  for (const variant of ['standard', 'profileClicks'] as const) {
+    expect(labels(OUTLINE_DATA_ROWS[variant].FACEBOOK)).not.toContain('Profile Views')
+  }
+  expect(OUTLINE_BREAKDOWN_ROWS.TIKTOK![3]).toEqual({ key: 'favorites', label: 'Favorites' })
+  expect(OUTLINE_EXTRA_KPIS.TIKTOK).toEqual([{ key: 'favorites', label: 'Favorites', format: 'number', metric: { allPosts: 'TOTAL_FAVORITES', byPost: 'TOTAL_FAVORITES' } }])
 })
 
 test('a flagged row is never requested from Dash, on every channel the outlines name', () => {

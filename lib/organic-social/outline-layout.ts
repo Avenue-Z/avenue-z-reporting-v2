@@ -10,10 +10,11 @@ import { PLATFORM_KPIS, type DashChannel, type KpiSpec } from './metrics'
  *  it blank"). `from` reads another tile of the same tab. */
 export type OutlineRow = { key: string; label: string; unavailable?: string; from?: string }
 
-/** Facebook Profile Views and TikTok Reposts carry this flag. Jasmine says she sees them on
- *  dashboards she builds (2026-09-21); Dash's own dashboard builder, read per channel the same day,
- *  offers neither for Facebook or TikTok, only for Instagram. If her widget turns out to be a real
- *  metric, wiring it is a one-line move out of the flag. */
+/** No outline row carries this flag today. It was on Facebook Profile Views and TikTok Reposts,
+ *  neither of which Dash offers; Jasmine settled both on 2026-09-22 ("for FB, we can just remove all
+ *  together and for TT can replace reposts with favorites?"), so Facebook's row is gone and TikTok's
+ *  is Favorites. Kept because it is the documented way to show a row Dash cannot fill, if one ever
+ *  appears again. */
 export const NOT_IN_DASH = 'Not available from Dash'
 /** A row whose own Dash request failed (Views on Reels): blank with this flag, the rest of the
  *  block unchanged. */
@@ -27,6 +28,10 @@ export const OUTLINE_EXTRA_KPIS: Partial<Record<string, KpiSpec[]>> = {
   INSTAGRAM: [{ key: 'profileClicks', label: 'Profile Clicks', format: 'number', metric: { allPosts: 'PROFILE_CLICKS', byPost: 'PROFILE_CLICKS' } }],
   FACEBOOK: [{ key: 'videoViews', label: 'Video Views', format: 'number', metric: { allPosts: 'PAID_AND_ORGANIC_VIDEO_VIEWS', byPost: 'PAID_AND_ORGANIC_VIDEO_VIEWS' } }],
   LINKEDIN: [{ key: 'videoViews', label: 'Video Views', format: 'number', metric: { allPosts: 'VIDEO_VIEWS_BY_POST', byPost: 'VIDEO_VIEWS_BY_POST' } }],
+  // Jasmine, 2026-09-22: TikTok's Reposts row becomes Favorites. Dash's TikTok catalogue offers one
+  // favorites metric, TOTAL_FAVORITES ("Favorites - Total"); probed 2026-09-22 in the tiles' request
+  // shape on both bases, and it equals the sum of the per-post favorites field for the same window.
+  TIKTOK: [{ key: 'favorites', label: 'Favorites', format: 'number', metric: { allPosts: 'TOTAL_FAVORITES', byPost: 'TOTAL_FAVORITES' } }],
 }
 
 /** Engagement Rate in the outline block follows the team's monthly decks. Jasmine, 2026-09-21:
@@ -54,7 +59,8 @@ const VIDEO_VIEWS = row('videoViews', 'Video Views')
 
 const STANDARD: Partial<Record<string, OutlineRow[]>> = {
   INSTAGRAM: [...DATA_HEAD, PROFILE_VIEWS, VIDEO_VIEWS],
-  FACEBOOK: [...DATA_HEAD, notInDash('profileViews', 'Profile Views'), VIDEO_VIEWS],
+  // Facebook has no Profile Views row: Dash does not offer it and Jasmine removed it (2026-09-22).
+  FACEBOOK: [...DATA_HEAD, VIDEO_VIEWS],
   LINKEDIN: [...DATA_HEAD, PROFILE_VIEWS, VIDEO_VIEWS],
   TIKTOK: [...DATA_HEAD, PROFILE_VIEWS, { key: 'videoViews', label: 'Video Views', from: 'exposure' }],
 }
@@ -74,7 +80,7 @@ export const OUTLINE_BREAKDOWN_ROWS: Partial<Record<string, OutlineRow[]>> = {
   INSTAGRAM: [row('likes', 'Likes'), COMMENTS, SHARES, row('saves', 'Saves'), row('reposts', 'Reposts')],
   FACEBOOK: PAGE_BREAKDOWN,
   LINKEDIN: PAGE_BREAKDOWN,
-  TIKTOK: [row('likes', 'Likes'), COMMENTS, SHARES, notInDash('reposts', 'Reposts'), row('completionRate', 'Completion Rate')],
+  TIKTOK: [row('likes', 'Likes'), COMMENTS, SHARES, row('favorites', 'Favorites'), row('completionRate', 'Completion Rate')],
 }
 
 /** A Data row that comes from its own Dash request, not the tiles' one. Instagram "Video Views"
