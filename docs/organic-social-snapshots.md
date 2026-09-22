@@ -2,6 +2,27 @@
 
 Working doc for this branch. Code for the snapshot work lands here.
 
+> **Update, 2026-09-21 (evening).** This doc is now the scope record; the code does not land on this
+> branch. Where the work went:
+>
+> - **§5 A and B (closed periods, per-client picker)** are built as locked months, PR #256: a month and
+>   year picker for clients with `dash_social_config.reportingMonths`, clients see a finished month from
+>   the 12th (weekend: the Monday after), enforced on the server; every other client, Renaissance
+>   included, runs today's code. Spec `docs/superpowers/specs/2026-09-21-locked-months-design.md`.
+> - **§5 C (extend freezing to the other surfaces)** is replaced by one lock at the Dash client instead of
+>   a storage key per surface (my decision D28, "approach A"): every number of a finished month (tiles,
+>   both graphs, the engagement breakdown, Top Content, later YTD and annotations) locks on the team's
+>   wrap day, the 5th of the next month, the Friday before when the 5th is a weekend (D27). Plan
+>   `docs/superpowers/plans/2026-09-21-lock-every-number.md`, draft PR stacked on #256.
+> - **§5 D (who triggers the first freeze)** is answered by a lock sweep in the hourly cache warmer: it
+>   renders every tab of the two most recently locked months, so a month is captured in one run on its
+>   lock day (same plan).
+> - **§8 open questions:** (1) the picker lists at most 36 months, newest first, from `firstMonth`
+>   (August 2026 for the three clients); (2) an incomplete Dash answer is never locked; (3) the lock
+>   stores Dash's answer per exact request, so a new field is a new request, captured when first made
+>   and logged as a late lock; (4) designations stay live, not frozen, unchanged; (5) superseded: the
+>   lock keys on the exact request, not a channel.
+
 **The goal, in one line:** a client opening their Organic Social report sees the
 numbers for a settled past period, and those numbers do not move afterwards.
 Today they see a rolling window that shifts every day.
