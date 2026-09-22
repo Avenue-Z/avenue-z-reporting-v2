@@ -12,17 +12,28 @@ test('lock day: the 5th, the Friday before a weekend, never after the opening da
   // A lock day later than the opening day is clamped to the opening day.
   expect(lockOn('2026-09', 12, '2026-10-09')).toBe('2026-10-09')
 })
+// A sweep, so it collects and asserts once at the end rather than calling expect 1.5 million times:
+// the assertions were the cost, not the rules. Same combinations as before, and the count is asserted
+// so the test can never quietly check nothing.
 test('lock day is never after the opening day, for every month 2026 to 2030 and every valid pair', () => {
+  const bad: string[] = []
+  let checked = 0
   for (let y = 2026; y <= 2030; y++) for (let m = 1; m <= 12; m++) {
     const key = `${y}-${String(m).padStart(2, '0')}`
-    for (let open = 4; open <= 28; open++) for (const rule of ['next-monday', 'previous-friday'] as const) for (let lock = 4; lock <= 28; lock++) {
-      const o = opensOn(key, open, rule)
-      const l = lockOn(key, lock, o)
-      expect(l <= o).toBe(true)
-      expect(l > `${key}-31`).toBe(true) // always after the month ends
+    const monthEnd = `${key}-31`
+    for (let open = 4; open <= 28; open++) for (const rule of ['next-monday', 'previous-friday'] as const) {
+      const o = opensOn(key, open, rule) // the same for every lock day, so it is resolved once here
+      for (let lock = 4; lock <= 28; lock++) {
+        const l = lockOn(key, lock, o)
+        checked++
+        if (l > o) bad.push(`${key} open=${open} ${rule} lock=${lock}: locks ${l} after it opens ${o}`)
+        if (l <= monthEnd) bad.push(`${key} open=${open} ${rule} lock=${lock}: locks ${l}, inside the month`)
+      }
     }
   }
-}, 30000)
+  expect(bad.slice(0, 5)).toEqual([])
+  expect(checked).toBe(5 * 12 * 25 * 2 * 25)
+}, 30000) // 156ms alone; the generous limit is headroom for a loaded machine, not an expectation
 test('lockDay knob: default 5, integers 4 to 28, anything else is bad and falls back to 5', () => {
   expect(parseLockDay(CFG)).toEqual({ lockDay: 5, bad: false })
   expect(parseLockDay({ ...CFG, lockDay: 7 })).toEqual({ lockDay: 7, bad: false })

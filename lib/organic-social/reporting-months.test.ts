@@ -33,17 +33,22 @@ describe('clock', () => {
     expect(clockFor(new Date('2026-11-02T03:30:00Z'))).toEqual(C('2026-11-01', '2026-11-01', true))
     expect(clockFor(new Date('2026-03-08T07:30:00Z'))).toEqual(C('2026-03-08', '2026-03-07', false))
   })
+  // Collected and asserted once: the per-sample expect calls were the cost, not the rule.
   test('the live range is open to the freeze check at every sampled moment of 2026 (edge 17)', () => {
+    const closed: string[] = []
     let lives = 0
     for (let t = Date.UTC(2026, 0, 1); t < Date.UTC(2027, 0, 1); t += 3 * 3600 * 1000) {
       const now = new Date(t)
       const live = resolveLockedRange({ firstMonth: '2025-01' }, 'team', clockFor(now), undefined).months.find((m) => m.live)
       if (!live) continue
       lives++
-      expect(isPeriodOpen(live.dateRange.split(',')[1], now.toISOString().slice(0, 10))).toBe(true)
+      if (!isPeriodOpen(live.dateRange.split(',')[1], now.toISOString().slice(0, 10))) {
+        closed.push(`${now.toISOString()}: live range ${live.dateRange} reads closed to the freeze check`)
+      }
     }
+    expect(closed.slice(0, 5)).toEqual([])
     expect(lives).toBeGreaterThan(2800)
-  })
+  }, 30000)
 })
 
 describe('opening day', () => {
@@ -142,19 +147,28 @@ describe('months, defaults and comparison on 20 Oct 2026', () => {
 
 describe('matching a request', () => {
   const client = (req: unknown, clock = OCT20) => resolveLockedRange(CFG, 'client', clock, req)
+  // Collected and asserted once, so the run time is the resolutions themselves rather than thousands
+  // of expect calls. The count is asserted too, so the sweep can never quietly check nothing.
   test('the canonical string is a fixed point, every day and both viewers (edge 9)', () => {
+    const moved: string[] = []
+    let checked = 0
     for (let t = Date.UTC(2026, 7, 1); t < Date.UTC(2028, 0, 1); t += 86400000) {
       for (const hour of [2, 14]) {
         const clock = clockFor(new Date(t + hour * 3600000))
         for (const viewer of ['team', 'client'] as const) {
           for (const m of resolveLockedRange(CFG, viewer, clock, undefined).months) {
             const again = resolveLockedRange(CFG, viewer, clock, m.dateRange)
-            expect([again.outcome, again.month?.key]).toEqual(['canonical', m.key])
+            checked++
+            if (again.outcome !== 'canonical' || again.month?.key !== m.key) {
+              moved.push(`${clock.today} ${viewer} ${m.key}: ${m.dateRange} came back ${again.outcome} ${again.month?.key}`)
+            }
           }
         }
       }
     }
-  }, 30000) // ~1,500 resolutions: under 2s alone, but can pass 5s when the whole suite runs in parallel
+    expect(moved.slice(0, 5)).toEqual([])
+    expect(checked).toBe(17210) // every month offered on every sampled day, both viewers
+  }, 30000)
   test('a client reaching for the live month is a hidden-month attempt and gets the default', () => {
     expect(client('custom:2026-10-01,2026-10-19')).toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: true, month: { key: '2026-09' } })
     expect(client('custom:2026-10-01,2026-10-05')).toMatchObject({ hiddenMonthAttempt: true })
