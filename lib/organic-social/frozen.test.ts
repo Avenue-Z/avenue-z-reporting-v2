@@ -1,4 +1,6 @@
 import { expect, test, vi } from 'vitest'
+// The default responseLocked dependency reads the client row: keep every existing test database free.
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => null) }))
 import { isPeriodOpen, fetchTopContentFrozen } from './frozen'
 import type { TopContentPost } from './content-types'
 
@@ -107,4 +109,31 @@ test('a failed client lookup skips the snapshot and serves live', async () => {
   expect(out).toBe(live)
   expect(deps.readSnapshot).not.toHaveBeenCalled()
   expect(deps.writeSnapshot).not.toHaveBeenCalled()
+})
+
+// Lock every number (D27): a client on locked months locks Top Content with every other number, so
+// it never reads or writes the older freeze table.
+test('a locked-months client skips the freeze table entirely on a closed window', async () => {
+  const live = [p(9)]
+  const readSnapshot = vi.fn(); const writeSnapshot = vi.fn()
+  const out = await fetchTopContentFrozen('client-a', 'june', 'INSTAGRAM', {
+    today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
+    clientId: async () => 'c1', fetchLive: async () => live,
+    readSnapshot: readSnapshot as never, writeSnapshot: writeSnapshot as never,
+    responseLocked: async () => true,
+  })
+  expect(out).toEqual(live)
+  expect(readSnapshot).not.toHaveBeenCalled()
+  expect(writeSnapshot).not.toHaveBeenCalled()
+})
+
+test('fail closed: if the opt-in check fails, the error propagates rather than writing the old table', async () => {
+  const writeSnapshot = vi.fn()
+  await expect(fetchTopContentFrozen('client-a', 'june', 'INSTAGRAM', {
+    today: '2026-07-23', isoRange: () => ({ start: '2026-06-01', end: '2026-06-30' }),
+    clientId: async () => 'c1', fetchLive: async () => [p(9)],
+    readSnapshot: vi.fn() as never, writeSnapshot: writeSnapshot as never,
+    responseLocked: async () => { throw new Error('client read failed') },
+  })).rejects.toThrow('client read failed')
+  expect(writeSnapshot).not.toHaveBeenCalled()
 })
