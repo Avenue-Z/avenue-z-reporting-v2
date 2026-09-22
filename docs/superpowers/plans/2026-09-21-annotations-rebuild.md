@@ -57,6 +57,16 @@ In the base plan's Task 5: Step 1 (add the table), Step 2 (generate the migratio
 
 Thumbnails come from the tab's Top Content posts (owned and collab), as the spec says ("that day's top post"). Question 8 kept the Influencer Posts section visible to clients, so a collab post is already client-visible content and may be a thumbnail. (Decision 1.)
 
+### F2. Known gap: the tile and the graph windows (found in the build review, 2026-09-22)
+
+The Net New Followers TILE sends the Eastern window and the v2 Follower Growth GRAPH sends the UTC
+month, so the plotted daily gains do not always add up to the tile above them. Measured read only on
+real August data for the three clients: 0 to 4 followers per channel (nothing on a large account, up
+to a third on a small one), evidence `probes/tile-vs-graph-window-2026-09-22.out`. Not fixed here:
+the tiles' window is `headlines.ts`, which Renaissance renders, so changing it needs its own PR with
+a Renaissance proof. Tracked in CLAUDE.md Known Follow-ups and to be decided before a client sees
+the graphs.
+
 ### G. Zero conflicts
 
 - PR 254 edits `followers.ts` and `trends.ts` at the import after line 4 and the `getReportsData` call (followers `:32`, trends `:31`); the base plan's Task 3 edits the `./base` import (line 3), line 6, the getter signature, the window line (`:25`, `:24`), the metric line (`:29`) and the gap rule (`:49-52`). A reviewer's 3-way `git merge-file` of the full Task 3 edits against 254 came out clean both ways for both files; repeat it before Task 3 and in the final proof.
