@@ -27,7 +27,8 @@ vi.mock('./base', async () => {
 import { getFollowerGraph } from './followers'
 import { getEngagementTrend } from './trends'
 
-const AUG = '2026-08-01,2026-08-31'
+// The served canonical range locked months hands the parts (rebuild plan section B).
+const AUG = 'custom:2026-08-01,2026-08-31'
 const EASTERN = { start_date: '2026-08-01T04:00:00Z', end_date: '2026-08-31T04:00:00Z' }
 const sent = (i = 0) => Object.fromEntries(requests[i].searchParams)
 // Every test uses its own slug, so React's cache can never hand one test another's result.
@@ -75,4 +76,25 @@ test('v1 Overview engagement graph asks every configured platform, one request e
   const s = await getEngagementTrend('slug-e', AUG, null)
   expect(requests.map((u) => u.searchParams.get('channels')).sort()).toEqual(['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'TWITTER'])
   expect(s.channels).toEqual(['Instagram', 'Facebook', 'X', 'LinkedIn'])
+})
+
+// v2: what the new clients' graphs send.
+test('followers gained: NET_NEW_FOLLOWERS over the UTC month', async () => {
+  await getFollowerGraph('slug-f', AUG, 'INSTAGRAM', 'netNewFollowers', 'utc')
+  expect(sent()).toMatchObject({ metrics: 'NET_NEW_FOLLOWERS', start_date: '2026-08-01', end_date: '2026-08-31' })
+})
+
+test('followers gained treat a missing day as zero, not the last known value', async () => {
+  const s = await getFollowerGraph('slug-g', AUG, 'INSTAGRAM', 'netNewFollowers', 'utc')
+  expect(s.points.find((p) => p.date === '2026-08-02')).toEqual({ date: '2026-08-02', Instagram: 0 })
+})
+
+test('choosing the metric alone keeps the Eastern window', async () => {
+  await getFollowerGraph('slug-h', AUG, 'INSTAGRAM', 'netNewFollowers')
+  expect(sent()).toMatchObject({ metrics: 'NET_NEW_FOLLOWERS', ...EASTERN })
+})
+
+test('engagement graph over the UTC month', async () => {
+  await getEngagementTrend('slug-i', AUG, 'INSTAGRAM', 'utc')
+  expect(sent()).toMatchObject({ metrics: 'TOTAL_ENGAGEMENTS', start_date: '2026-08-01', end_date: '2026-08-31' })
 })
