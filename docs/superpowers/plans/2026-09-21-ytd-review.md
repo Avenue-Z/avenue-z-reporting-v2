@@ -6,7 +6,7 @@
 
 **Where this lives (2026-09-22):** on PR 255 itself (`feat/organic-social-no-overview`). Every PR in the October set must stand alone and merge in any order. This block is a part on 255's outline tabs and reads 255's Data request (`getOutlineKpis`), so it belongs in 255, and it is written to need NOTHING from locked months (PR 256): it reads the range on screen from the part context and the client's own `reportingMonths` setting directly. Draft PR #259, which needed both 255 and 256, is closed. This replaces the 2026-09-21 version of this plan (same decisions, same copy, same edge handling; the month logic no longer calls 256's `resolveLockedRange`).
 
-**Architecture:** One new unpublished part, `ytd-review@1`, pinned per client like 255's outline parts. The month on screen reuses the part context's own `dateRange` and `compareRange`, which are exactly what that tab's Data block sends. Each earlier month of the year (never before `firstMonth`) is the whole calendar month, compared the way locked months compares a finished month (the prior month, or the same month a year before when `comparison` is `previous-year`). For each month it calls `getOutlineKpis` and plots two tiles: Total Followers (a line) and Views (bars). With locked months, every point is that month's Data request, so it equals the tile and, once lock every number ships, locks with it.
+**Architecture:** One new unpublished part, `ytd-review@1`, pinned per client like 255's outline parts. The month on screen reuses the part context's own `dateRange` and `compareRange`, which are exactly what that tab's Data block sends. Each earlier month of the year (never before `firstMonth`) is the whole calendar month, compared the way locked months compares a finished month (the prior month, or the same month a year before when `comparison` is `previous-year`). For each month it calls `getOutlineKpis` and plots two tiles, each as a line through the months like the team's YTD slides: Total Followers and Views. With locked months, every point is that month's Data request, so it equals the tile and, once lock every number ships, locks with it.
 
 **Tech Stack:** Next.js 16 (RSC), React 19, TypeScript, Vitest 3, the existing `ChartCard`, `LineChart`, `BarChart` components.
 
@@ -34,21 +34,21 @@
 - Never edit: `getOutlineKpis`, `outline-layout.ts`, the chart components, any existing part.
 - The part renders nothing on Overview (`ctx.channel` null), for a channel the outline does not cover, for a client without a valid `reportingMonths.firstMonth` (one `console.warn` per render, by slug), and when the range on screen is not one month starting on the 1st (only possible before locked months ships, when the team picks a preset).
 - Year to date = the calendar year of the month on screen, from `firstMonth` at the earliest, through the month on screen. In January it shows January only. Never a month after the one on screen (so a client never sees more than locked months already shows them).
-- Copy: block heading `YTD Review`; chart titles `Follower Growth, Year to Date` and `Views, Year to Date`; a month on screen that ends before its last day (the team's live month) is labelled with its short name plus ` (partial)`.
+- Copy: block heading `YTD Review`; chart titles `Follower Growth, Year to Date` and `Views, Year to Date`; a month on screen that ends before its last day (the team's live month) is labelled with its short name plus ` (live)`, the word locked months' picker already uses for it ("Live, team only").
 - A failed month request, or a failed client read, shows the block's `Fallback` card; a partial graph is never drawn and nothing escapes the part's Suspense boundary.
 - A month whose Data block shows "No data for this period" (`noData`) is never plotted as zero: it is left off both graphs and named in one line under them (`No data for Aug`); if every month is `noData`, the block shows the `NoData` card.
-- With fewer than two plotted months the follower graph is a `BarChart` (same data and keys), because `LineChart` draws no dot for a single point (`components/charts/line-chart.tsx`, `dot={false}`).
+- With fewer than two plotted months both graphs are drawn as a `BarChart` (same data and keys), because `LineChart` draws no dot for a single point (`components/charts/line-chart.tsx`, `dot={false}`).
 - No em or en dashes in added lines. Tests first. Every commit ends with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 
-## Decisions made overnight (flagged for my yes)
+## Decisions (2026-09-22: each settled from the outlines, the decks, Jasmine's past answers or Renaissance; none needs a new question)
 
-1. **Follower growth is the month's Total Followers tile** (a line through each month's total), matching the team's sheet, not net new followers per month.
-2. **Views are the month's Views tile** (bars per month), matching the sheet.
-3. **Year to date resets each January** (the outline says "year to date"); it never reaches before `firstMonth`.
-4. **The live month appears for the team** as a partial point when the team has the live month on screen; clients never see it (locked months never serves it to them, and YTD never goes past the month on screen).
-5. **Position:** first among the parts on each platform tab, directly under Commentary, as the outline orders the blocks.
-6. **A visible `YTD Review` heading** above the two graphs (the outline's block name). Not in the outline's words as a heading.
-7. **The team's live month is labelled `Oct (partial)`** so a partial month is never read as a whole one. Known gap, accepted: on a month's last evening (from 8 PM New York until midnight) locked months serves the still-live month with its whole-month range, so YTD labels it `Aug`, not `Aug (partial)`, for those hours; the numbers still match the Data block. Team only; the picker says "(in progress)" at the same moment.
+1. **Follower growth is the month's Total Followers tile** (a line through each month's total), not net new followers per month. Evidence: the team's YTD sheet ("Follower Growth": one total per month) and the June APFM deck's "Instagram | YTD Review" slide (a line of monthly totals).
+2. **Views are the month's Views tile, drawn as a line** like Follower Growth. Evidence: the June APFM deck's YTD slide draws both graphs as lines with a shaded area, one point per month; Renaissance's Organic Social graphs use the same `LineChart`. (Changed 2026-09-22 from bars.)
+3. **Year to date resets each January**; it never reaches before `firstMonth`. Evidence: SOP "Year to date: January 1 through the end of the reporting month"; DFA Q2 "We only need starting August"; DFA Q3 "We don't need" (no January to July).
+4. **The live month appears for the team** as a partial point when the team has the live month on screen (DFA Confirm 3: "Your team sees the current month live, updating daily"); clients never see it (locked months never serves it to them, and YTD never goes past the month on screen).
+5. **Position:** first among the parts on each platform tab, directly under Commentary: the outline's order.
+6. **A visible `YTD Review` heading** above the two graphs: the outline's block name and the decks' own section title ("YTD Review").
+7. **The team's live month is labelled `Oct (live)`**, the word the month picker already uses, so a partial month is never read as a whole one. Known gap, accepted: on a month's last evening (from 8 PM New York until midnight) locked months serves the still-live month with its whole-month range, so YTD labels it `Aug`, not `Aug (live)`, for those hours; the numbers still match the Data block. Team only; the picker says "(in progress)" at the same moment.
 
 ## File Structure
 
@@ -124,13 +124,13 @@ test('December on screen gives twelve months, the most there can be', () => {
 const built = (followers: number, views: number, noData = false) =>
   ({ noData, kpis: { followers: { key: 'followers', label: 'F', format: 'number', value: followers }, exposure: { key: 'exposure', label: 'V', format: 'number', value: views } } }) as never
 
-test("the series takes each month's Total Followers and Views tiles; the live month is labelled partial", () => {
+test("the series takes each month's Total Followers and Views tiles; the live month is labelled live", () => {
   const months = ytdMonths('custom:2026-10-01,2026-10-19', 'custom:2026-09-01,2026-09-19', CFG)!
   const b = Object.fromEntries(months.map((m, i) => [m.key, built(100 + i, 10 * (i + 1))]))
   expect(ytdSeries(months, b)).toEqual({ noData: [], points: [
     { key: '2026-08', label: 'Aug', followers: 100, views: 10 },
     { key: '2026-09', label: 'Sep', followers: 101, views: 20 },
-    { key: '2026-10', label: 'Oct (partial)', followers: 102, views: 30 },
+    { key: '2026-10', label: 'Oct (live)', followers: 102, views: 30 },
   ] })
 })
 test('a no-data month is never plotted as zero; it is named instead', () => {
@@ -216,7 +216,7 @@ export function ytdSeries(months: YtdMonth[], built: Record<string, OutlineKpis 
     const v = b?.kpis.exposure
     if (!b || !f || !v) throw new Error(`YTD: no tiles for ${m.key}`)
     const short = SHORT[Number(m.key.slice(5, 7)) - 1]
-    const label = m.partial ? `${short} (partial)` : short
+    const label = m.partial ? `${short} (live)` : short
     if (b.noData) { noData.push(label); continue }
     points.push({ key: m.key, label, followers: f.value, views: v.value })
   }
@@ -231,11 +231,11 @@ export function ytdSeries(months: YtdMonth[], built: Record<string, OutlineKpis 
 **Files:** Create `components/report-sections/organic-social/parts/ytd-review.tsx`; modify `parts/registry.ts`; Test `parts/ytd-review.test.tsx`
 
 - [ ] **Step 1: Failing tests** (mock `@/lib/organic-social/outline-headlines` `getOutlineKpis` and `@/lib/db/queries` `getClientBySlug`; await `YtdReviewSection` directly as the other part tests do; chart assertions read the element tree's props `data`, `xKey`, `yKeys`, since Recharts' `ResponsiveContainer` renders nothing measurable in jsdom):
-  - a client with `reportingMonths: { firstMonth: '2026-08' }`, Instagram tab, ctx `dateRange 'custom:2026-09-01,2026-09-30'`, `compareRange 'custom:2026-08-01,2026-08-31'`: `getOutlineKpis` is called exactly with `('c', 'custom:2026-08-01,2026-08-31', 'custom:2026-07-01,2026-07-31', 'INSTAGRAM')` and `('c', 'custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', 'INSTAGRAM')`; the output has the heading `YTD Review`, both chart titles, a `LineChart` with followers and a `BarChart` with views over `Aug`, `Sep`;
-  - ctx `dateRange 'custom:2026-10-01,2026-10-19'`, `compareRange 'custom:2026-09-01,2026-09-19'`: three points, the last labelled `Oct (partial)`, and October's call uses ctx's two ranges unchanged;
+  - a client with `reportingMonths: { firstMonth: '2026-08' }`, Instagram tab, ctx `dateRange 'custom:2026-09-01,2026-09-30'`, `compareRange 'custom:2026-08-01,2026-08-31'`: `getOutlineKpis` is called exactly with `('c', 'custom:2026-08-01,2026-08-31', 'custom:2026-07-01,2026-07-31', 'INSTAGRAM')` and `('c', 'custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', 'INSTAGRAM')`; the output has the heading `YTD Review`, both chart titles, a `LineChart` with followers and a `LineChart` with views over `Aug`, `Sep`;
+  - ctx `dateRange 'custom:2026-10-01,2026-10-19'`, `compareRange 'custom:2026-09-01,2026-09-19'`: three points, the last labelled `Oct (live)`, and October's call uses ctx's two ranges unchanged;
   - Overview (`channel` null), a channel with no outline rows, a client without `reportingMonths` (one `console.warn` `[organic-social] ytd-review pinned without reportingMonths slug=<slug>`), and ctx `dateRange 'last_30_days'`: renders nothing (`null`) and `getOutlineKpis` is never called;
   - one month's request rejects, or `getClientBySlug` rejects: the block's `Fallback` card, no chart, nothing thrown;
-  - August on screen (one month): the follower chart is a `BarChart`, not a `LineChart`; two or more months: a `LineChart`;
+  - August on screen (one month): both charts are a `BarChart`, not a `LineChart`; two or more months: both are a `LineChart`;
   - a no-data month: left off, with `No data for Aug` under the charts; every month no-data: the `NoData` card;
   - parity through the real section on 255: render `OrganicSocialBody` (as `outline-composition.test.tsx` does) with `platform-headlines@2` and `ytd-review@1` pinned and a single-month ctx: the Data block's `getOutlineKpis` call equals the YTD part's last call, argument for argument;
   - the registry: `ytd-review@1` is unpublished; every existing part is the same object as before (Task 0).
@@ -278,16 +278,18 @@ export async function YtdReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   if (r.data.points.length === 0) return <NoData />
   const data = r.data.points.map((p) => ({ month: p.label, followers: p.followers, views: p.views }))
   const followerKeys = [{ key: 'followers', label: 'Total Followers' }]
+  const viewKeys = [{ key: 'views', label: 'Views' }]
+  // Both graphs are lines through the months, as on the team's YTD slides. LineChart draws no dot for a
+  // single point, so a one-month year (August at go-live, every January) is drawn as bars.
+  const chart = (yKeys: { key: string; label: string }[]) => data.length < 2
+    ? <BarChart data={data} xKey="month" yKeys={yKeys} />
+    : <LineChart data={data} xKey="month" yKeys={yKeys} />
   return (
     <section className="space-y-4">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
       <div className="grid gap-5 lg:grid-cols-2">
-        <ChartCard title="Follower Growth, Year to Date">
-          {data.length < 2
-            ? <BarChart data={data} xKey="month" yKeys={followerKeys} />
-            : <LineChart data={data} xKey="month" yKeys={followerKeys} />}
-        </ChartCard>
-        <ChartCard title="Views, Year to Date"><BarChart data={data} xKey="month" yKeys={[{ key: 'views', label: 'Views' }]} /></ChartCard>
+        <ChartCard title="Follower Growth, Year to Date">{chart(followerKeys)}</ChartCard>
+        <ChartCard title="Views, Year to Date">{chart(viewKeys)}</ChartCard>
       </div>
       {r.data.noData.length > 0 && <p className="text-xs text-text-muted">No data for {r.data.noData.join(', ')}</p>}
     </section>
