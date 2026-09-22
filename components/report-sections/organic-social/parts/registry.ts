@@ -7,6 +7,7 @@ import { platformHeadlinesV1 } from './platform-headlines'
 import { engagementTrendV1 } from './engagement-trend'
 import { followerGraphV1 } from './follower-graph'
 import { topContentV1, topContentV2 } from './top-content'
+import { topContentV3 } from './top-content-outline'
 
 const BASE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'platform-headlines': { 1: platformHeadlinesV1 },
@@ -21,6 +22,7 @@ const BASE_PARTS: PartRegistry<OrganicSocialCtx> = {
 const OUTLINE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'platform-headlines': { 2: platformHeadlinesV2, 3: platformHeadlinesV3 },
   'engagement-breakdown': { 1: engagementBreakdownV1 },
+  'top-content': { 3: topContentV3 },
 }
 
 export const ORGANIC_SOCIAL_PARTS: PartRegistry<OrganicSocialCtx> = mergeRegistries(BASE_PARTS, OUTLINE_PARTS)
