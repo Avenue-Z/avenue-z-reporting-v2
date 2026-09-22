@@ -30,12 +30,21 @@ export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0
 export function ChannelTrendChart({
   title, series, annotations, annotationControls,
 }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls }) {
+  // This chart's state is per view. The two seeds below run once, on mount, and are never re-run,
+  // which is right only because each tab and each month gets its own instance: both report pages
+  // wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
+  // .../reports/page.tsx). Keep that key. Without it the legend holds the previous tab's channel,
+  // which empties the chart, and the hides below hold the previous view's answer, with nothing on
+  // screen looking wrong. `trends.identity.test.tsx` pins both.
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
   const [showAnnotations, setShowAnnotations] = useState(true)
   // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
-  // same click, not on the next server render. Seeded from the server's answer.
+  // same click, not on the next server render. Seeded from the server's answer for this view. A
+  // new answer under the same key is not picked up, which takes an in-place refresh someone else
+  // caused; closing that needs useOptimistic or an override held per day, never one hash over the
+  // whole answer, which reverts a hide still in flight (pinned in the same test).
   const [hiddenDays, setHiddenDays] = useState<Set<string>>(() => new Set((annotations ?? []).filter((a) => a.hidden).map((a) => a.date)))
   const setHidden = (day: string, hidden: boolean) => setHiddenDays((days) => {
     const next = new Set(days)
