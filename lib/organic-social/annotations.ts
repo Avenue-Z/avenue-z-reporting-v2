@@ -1,5 +1,5 @@
 import type { TrendSeries } from './types'
-import type { TopContentPost } from './content-types'
+import type { Creative, TopContentPost } from './content-types'
 
 /** One day worth calling out on a trend chart. */
 export interface Peak {
@@ -90,4 +90,26 @@ export function topPostByDate(posts: TopContentPost[]): Map<string, TopContentPo
 export function buildAnnotations(peaks: Peak[], posts: TopContentPost[] | null, chart: AnnotationChart): Annotation[] {
   const byDate = posts ? topPostByDate(posts) : new Map<string, TopContentPost>()
   return peaks.map((p) => ({ ...p, label: annotationLabel(p.date, p.value, chart), post: byDate.get(p.date) ?? null }))
+}
+
+/** What the chart (a client component) receives for one annotation: its label, its day, and
+ *  just enough of the post to draw a thumbnail. The whole post never crosses the server to
+ *  client boundary: no caption, no metrics, no ids. */
+export interface ChartAnnotation {
+  date: string
+  value: number
+  label: string
+  /** Set by the hides layer; undefined means shown. */
+  hidden?: boolean
+  thumb: { creative: Creative | null; mediaType: TopContentPost['mediaType']; url: string | null } | null
+}
+
+/** Annotations, trimmed for the client component that draws them. */
+export function toChartAnnotations(items: Annotation[]): ChartAnnotation[] {
+  return items.map(({ date, value, label, post }) => ({
+    date,
+    value,
+    label,
+    thumb: post ? { creative: post.creative, mediaType: post.mediaType, url: post.url } : null,
+  }))
 }

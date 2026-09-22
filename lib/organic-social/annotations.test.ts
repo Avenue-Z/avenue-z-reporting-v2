@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, ANNOTATION_LIMIT } from './annotations'
+import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from './annotations'
 import type { TopContentPost } from './content-types'
 import type { TrendSeries } from './types'
 
@@ -150,4 +150,22 @@ test('when the posts could not be fetched, annotations still build without thumb
 
 test('the limits match the deck: 2 follower annotations, 3 engagement annotations', () => {
   expect(ANNOTATION_LIMIT).toEqual({ followers: 2, engagements: 3 })
+})
+
+// The server to client boundary is ChannelTrendChart's props (trends.tsx is 'use client'), so a
+// whole post must never cross it: only what the row draws.
+test('a chart annotation carries only what the row draws, never the whole post', () => {
+  const [a] = toChartAnnotations([{ date: '2026-08-10', value: 50, label: '8/10 | 50 Engagements', post: post(7, '2026-08-10', 40) }])
+  expect(a).toEqual({
+    date: '2026-08-10', value: 50, label: '8/10 | 50 Engagements',
+    thumb: { creative: { kind: 'image', thumb: 'https://cdn.example.com/t7.jpg', full: 'https://cdn.example.com/f7.jpg' }, mediaType: 'IMAGE', url: 'https://example.com/7' },
+  })
+  for (const gone of ['caption', 'metrics', 'id', 'publishedAt', 'post', 'channel', 'sourceType']) {
+    expect(JSON.stringify(a)).not.toContain(gone)
+  }
+})
+
+test('an annotation with no post has no thumbnail to send', () => {
+  expect(toChartAnnotations([{ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', post: null }])[0])
+    .toEqual({ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', thumb: null })
 })

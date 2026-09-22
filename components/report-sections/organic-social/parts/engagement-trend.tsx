@@ -5,8 +5,10 @@ import { EngagementTrend } from '../trends'
 import { TrendSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
-import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
-import { toPostMarks } from '@/lib/organic-social/post-marks'
+import { graphPosts } from '@/lib/organic-social/graph-posts'
+import { isoRange } from '@/lib/organic-social/base'
+import { CHANNEL_LABEL } from '@/lib/organic-social/metrics'
+import { pickPeaks, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from '@/lib/organic-social/annotations'
 
 async function TrendSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getEngagementTrend(clientSlug, dateRange, channel))
@@ -26,24 +28,34 @@ export const engagementTrendV1: PartImpl<OrganicSocialCtx> = {
 }
 
 
-/** v2 = v1 plus a mark on every day content went live, and a control to hide them.
- *  Same frozen Top Content fetch the section already makes, so no extra request and a
- *  closed month's marks freeze with its numbers. A failed post fetch loses the marks,
- *  never the chart. Registered alongside v1; the code templates still pin v1. */
+/** v2 = daily engagements over the UTC month, with the top days annotated, each with the
+ *  post behind it. Same `graphPosts` read the follower graph makes, so one fetch serves both
+ *  and neither freezes a window. A failed post read loses the thumbnails, never the chart.
+ *  On Overview several platforms share one chart and a peak is ambiguous, so Overview gets no
+ *  annotations and fetches no posts. Registered alongside v1 and UNPUBLISHED: pinned per
+ *  client, never promoted or frozen; the section_templates rows and code templates pin v1. */
 export async function TrendSectionV2({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
+  if (!channel) {
+    const trend = await safe(getEngagementTrend(clientSlug, dateRange, null, 'utc'))
+    return trend.data ? <EngagementTrend series={trend.data} /> : <Fallback kind={trend.error!} />
+  }
   const [trend, posts] = await Promise.all([
-    safe(getEngagementTrend(clientSlug, dateRange, channel)),
-    safe(fetchTopContentFrozen(clientSlug, dateRange, channel)),
+    safe(getEngagementTrend(clientSlug, dateRange, channel, 'utc')),
+    safe(graphPosts(clientSlug, dateRange, channel)),
   ])
   if (!trend.data) return <Fallback kind={trend.error!} />
-  return <EngagementTrend series={trend.data} marks={posts.data ? toPostMarks(posts.data) : undefined} />
+  const { start, end } = isoRange(dateRange)
+  const peaks = pickPeaks(trend.data, { limit: ANNOTATION_LIMIT.engagements, from: start, to: end })
+  const annotations = toChartAnnotations(buildAnnotations(peaks, posts.data ?? null, 'engagements'))
+  // Jasmine's outline names this chart, word for word.
+  return <EngagementTrend series={trend.data} annotations={annotations} title={`${CHANNEL_LABEL[channel]} Engagement Graph`} />
 }
 
 export const engagementTrendV2: PartImpl<OrganicSocialCtx> = {
   id: 'engagement-trend',
   version: 2,
-  published: true,
-  defaultLabel: 'Engagement Over Time',
+  published: false,
+  defaultLabel: 'Engagement Graph',
   render: (ctx) => (
     <Suspense fallback={<TrendSkeleton />}>
       <TrendSectionV2 {...ctx} />

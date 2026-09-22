@@ -19,7 +19,6 @@ import { money } from '@/lib/paid-media/format'
 export interface ChartMark {
   /** Must equal an x value present in `data`, else Recharts drops the dot silently. */
   x: string
-  label?: string
 }
 
 interface LineChartProps {
