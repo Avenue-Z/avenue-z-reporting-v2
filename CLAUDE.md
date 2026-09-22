@@ -567,6 +567,20 @@ per request.
 
 ---
 
+## Known Follow-ups: Organic Social annotations (from PR #252)
+
+- [ ] **The Net New Followers tile and the v2 Follower Growth Graph use different windows for the
+  same metric** (review of the annotations build, #252). The tiles send the Eastern window
+  (`isoRangeTz`, `lib/organic-social/headlines.ts:20`; the outline tiles on #255 the same way),
+  while the v2 graphs send the UTC month (`lib/organic-social/followers.ts:35`), which is the
+  window Top Content uses so a day on the chart and the post behind it agree. So adding up the
+  plotted daily gains does not always equal the tile above them. Measured on real August data for
+  the three clients: 0 to 4 followers per channel, which is nothing on a large account and up to a
+  third of the total on a small one. Fixing it means giving the tiles the same window, which
+  changes what Renaissance requests, so it needs its own PR with a Renaissance proof; a
+  client-scoped fix in the outline Data block alone would also work. Decide before the graphs go in
+  front of a client.
+
 ## Known Follow-ups — Configurable Dashboard (from PR #108 review)
 
 > **Feature overview:** for how the configurable dashboard actually works
