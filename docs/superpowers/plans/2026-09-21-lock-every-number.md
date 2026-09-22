@@ -6,6 +6,8 @@
 
 **Architecture (approach A, D28):** one lock at the single point every Organic Social number passes through: the Dash client `dashClientFor` hands out. For an opted-in client it returns a locking wrapper. A read whose every date falls on or before the last locked day is served from a new table, `dash_response_locks`, keyed by the client and a hash of the exact request. The first such read after the lock day fetches Dash once, stores the successful answer, and every later read returns that stored answer. Reads that touch any unlocked day (the live month, or a finished month before its lock day) go to Dash as today. Three rules keep a locked page consistent: an incomplete Dash answer is never stored; a lockable read never falls back to live numbers (a lock-table failure shows the section's error card instead); and a month's compare value is the prior month's LOCKED value whenever both are locked. A lock sweep in the hourly cache warmer renders every Organic Social tab of the two most recently locked months, so every number on a page is captured in the same run on the lock day. Top Content for these clients skips its older freeze table, so it locks on the same day as everything else.
 
+**Where this lives (2026-09-22):** this plan is built on PR 256 itself (`feat/os-locked-months`), not on a separate stacked PR. Every PR in the October set must stand alone and merge in any order, and this work builds on 256's `reporting-months.ts` and `locked-range.ts`, so it belongs in 256. Draft PR #258, which stacked it on 256, is closed.
+
 **Tech Stack:** Next.js 16 (RSC), React 19 `cache`, Drizzle ORM on Neon Postgres (one new table, one migration), Vitest 3.
 
 ## Sources (the premise; the reviewer checks the plan against these)
@@ -53,7 +55,7 @@
 | File | Responsibility |
 |---|---|
 | `lib/organic-social/lock-day.ts` (new) | Pure: `parseLockDay`, `lockOn`, `settledThrough`, `requestPeriodEnd`, `requestKey`, `isLateLock`, `priorParams` |
-| `lib/db/schema.ts`, `drizzle/0024_*.sql`, `drizzle/meta/*` | NOT on this branch: the `dashResponseLocks` table and its migration live in the shared schema PR `feat/os-october-schema` (with the annotations' hides table), which this branch builds on |
+| `lib/db/schema.ts`, `drizzle/0024_*.sql`, `drizzle/meta/*`, `MIGRATIONS-PENDING.md` | the October schema commit (Task 2): both new tables and ONE migration, the same commit object merged into this branch and into PR 252 |
 | `lib/organic-social/response-lock-store.ts` (new) | `readLock`, `writeLock` (insert on conflict do nothing, then the winner) |
 | `lib/organic-social/locking-client.ts` (new) | `lockingClient(inner, opts, deps)`: the wrapper |
 | `lib/organic-social/base.ts` | `dashClientFor` wraps the client for opted-in clients |
@@ -275,15 +277,17 @@ export function isLateLock(periodEnd: string, cfgValue: unknown, today: string):
 (`firstOf`, `lastOf`, `monthOf` and `opensOn` are exported by PR 256's `reporting-months.ts`; `parseReportingMonths` too.)
 - [ ] **Step 4: Run PASS.** Step 5: **Commit** `feat(organic-social): lock day rules (pure)`.
 
-### Task 2: The store (the table is in the shared schema PR)
+### Task 2: The October schema commit, then the store
 
 **Files:** Create `lib/organic-social/response-lock-store.ts`; Test `lib/organic-social/response-lock-store.test.ts`.
 
-**The shared schema PR (a prerequisite, not on this branch).** Two October PRs add a table: this one (`dash_response_locks`) and the annotations rebuild (`chart_annotation_hides`). Two PRs each generating `drizzle/0024_*` and editing `drizzle/meta/_journal.json` conflict in any merge order, so both tables and one migration live in one small PR, `feat/os-october-schema` off `organic-social-october` (its definition is in the annotations rebuild plan, section E). It carries the `dashResponseLocks` definition below exactly, placed directly after the `topContentSnapshots` table, plus the hides table after `export type PostDesignation`, one `npm run db:generate` (read every line of the SQL: it only creates the two tables, their foreign keys, unique constraints and the hides index), and `MIGRATIONS-PENDING.md`. This branch is built on `organic-social-october` after both PR 256 and the schema PR have merged into it (a build order, not a conflict).
+**The October schema commit (same commit on 256 and 252, decided 2026-09-22).** Two October PRs add a table: this one (`dash_response_locks`) and the annotations rebuild on PR 252 (`chart_annotation_hides`). Drizzle keeps one migration list (`drizzle/meta/_journal.json`), so two PRs each generating their own `0024` conflict in any merge order, and a separate schema PR would make both depend on it. So ONE commit adds both tables and ONE migration, and that same commit object is merged into this branch and into PR 252's branch. Either PR can merge first; the other then merges clean (git sees the commit already present), and the migration runs once. Each PR carries one table it does not read until the other lands: empty, unused, harmless.
+
+How: on a scratch branch `local/october-schema` cut from `origin/organic-social-october` (`100e6c7`), add the `dashResponseLocks` definition below exactly, directly after the `topContentSnapshots` table, and the hides table exactly as the annotations rebuild plan writes it, directly after `export type PostDesignation`; run `npm run db:generate` once (no database; if it asks any question, STOP and bring it to me); read every line of the SQL (it only creates the two tables, their foreign keys, unique constraints and the hides index); add both to `MIGRATIONS-PENDING.md`; commit `feat(db): October tables (dash_response_locks, chart_annotation_hides), one migration`. Then `git merge --no-ff` that commit into this branch (and, in the annotations build, into PR 252's branch). Never cherry-pick it: a cherry-pick is a different commit and the two `0024_snapshot.json` files would differ. The scratch branch stays local; it is not a PR.
 
 - [ ] **Step 1: Failing test** (mock `@/lib/db/client` with a fake `db` whose `select().from().where().limit()` and `insert().values().onConflictDoNothing().returning()` chains are `vi.fn`s): `readLock` returns `{ response }` for a row and `null` for none; `writeLock` returns the inserted response; when the insert returns no row (a concurrent writer won), `writeLock` reads and returns the stored winner.
 - [ ] **Step 2: Run, see FAIL.**
-- [ ] **Step 3: Implement.** The table (in the shared schema PR), directly after the `topContentSnapshots` table (ends line 393):
+- [ ] **Step 3: Implement.** The table (in the October schema commit), directly after the `topContentSnapshots` table (ends line 393):
 
 ```ts
 /** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
@@ -301,7 +305,7 @@ export const dashResponseLocks = pgTable('dash_response_locks', {
 }))
 ```
 
-and directly after line 399: `export type DashResponseLock = typeof dashResponseLocks.$inferSelect`. (Generated and committed in the shared schema PR, never on this branch.)
+and directly after line 399: `export type DashResponseLock = typeof dashResponseLocks.$inferSelect`. (Both are in the October schema commit; do not edit them on this branch.)
 
 On this branch, `response-lock-store.ts`:
 
@@ -534,12 +538,12 @@ In `cache-warm/route.ts`, after the existing `for (const client of clients)` URL
 
 - [ ] Full suite, `npx tsc --noEmit`, `npm run -s check:rsc`; Task 0 unchanged.
 - [ ] Renaissance drift check: RESULT no drift.
-- [ ] Zero conflicts: `git merge-tree --write-tree` with 247, 250, 252 (with the annotations rebuild), 253, 254, 255, the outline-fixes and YTD Review branches (256 and `feat/os-october-schema` are in the base); all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc, `check:rsc` green. No branch but the schema PR touches `drizzle/` or adds a table.
-- [ ] Nothing pushed without my go; then a stacked PR into `feat/os-locked-months`, retargeted to `organic-social-october` once 256 merges.
+- [ ] Zero conflicts: `git merge-tree --write-tree` with 247, 250, 252 (with the annotations rebuild), 253, 254, and 255 (with the outline fixes and YTD Review) (this is 256); all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc, `check:rsc` green. Also prove each PR stands alone: this branch by itself on `organic-social-october` passes tests, tsc and `check:rsc`. Only 256 and 252 touch `drizzle/`, and only through the same October schema commit.
+- [ ] Nothing pushed without my go. The commits go on PR 256 (`feat/os-locked-months` into `organic-social-october`); no separate PR.
 
 ## Rollout (each step waits for my go)
 
-1. Staging only, from the shared schema PR: pre-change snapshot of the staging database's table list; `npm run db:migrate:staging` (host-guarded: refuse unless the host is the staging endpoint); confirm only `dash_response_locks` and `chart_annotation_hides` were added; drift check.
+1. Staging only, from whichever of 256 or 252 reaches staging first (the migration is the same): pre-change snapshot of the staging database's table list; `npm run db:migrate:staging` (host-guarded: refuse unless the host is the staging endpoint); confirm only `dash_response_locks` and `chart_annotation_hides` were added; drift check.
 2. The code reaches staging with the rest of the October set, together (Decision 4). The migration is applied first (fail closed means a missing table shows error cards, never live numbers). The first warmer run after deploy captures every tab of the two most recently locked months. Read the late-lock warnings to confirm which months were captured late (Decision 1).
 3. If any October PR reaches staging after Oct 5, clear the three clients' September locks on staging once, with my go (`DELETE FROM dash_response_locks WHERE client_id IN (...) AND period_end BETWEEN '2026-09-01' AND '2026-09-30'`, host-guarded, snapshot first), and let the next warmer run recapture, before Oct 12.
 4. Production: migration first, then the code with the rest of the set, on my express written consent.
@@ -571,3 +575,5 @@ Fresh adversarial review of `0e949c8` (one reviewer, read only; it ran the plan'
 | m8 | MINOR | "logs once" was per call | Wording fixed |
 
 **Amendment after the annotations rebuild review (2026-09-21):** the table and its migration moved to one shared schema PR, `feat/os-october-schema`, with the annotations' hides table, because two PRs each generating `0024` conflict in any merge order (Task 2, Task 7, Rollout 1 updated).
+
+**Amendment 2026-09-22:** the shared schema PR is dropped, because it made this work and the annotations depend on it. The one migration is now a single commit merged into both 256 and 252 (Task 2), and this plan lives on 256 itself instead of the stacked PR #258.
