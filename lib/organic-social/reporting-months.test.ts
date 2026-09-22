@@ -144,7 +144,7 @@ describe('matching a request', () => {
         }
       }
     }
-  })
+  }, 30000) // ~1,500 resolutions: under 2s alone, but can pass 5s when the whole suite runs in parallel
   test('a client reaching for the live month is a hidden-month attempt and gets the default', () => {
     expect(client('custom:2026-10-01,2026-10-19')).toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: true, month: { key: '2026-09' } })
     expect(client('custom:2026-10-01,2026-10-05')).toMatchObject({ hiddenMonthAttempt: true })
