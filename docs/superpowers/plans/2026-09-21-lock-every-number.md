@@ -53,8 +53,7 @@
 | File | Responsibility |
 |---|---|
 | `lib/organic-social/lock-day.ts` (new) | Pure: `parseLockDay`, `lockOn`, `settledThrough`, `requestPeriodEnd`, `requestKey`, `isLateLock`, `priorParams` |
-| `lib/db/schema.ts` | `dashResponseLocks` table and its types |
-| `drizzle/0024_*.sql` + `drizzle/meta/*` (generated) | the migration (create table, unique index) |
+| `lib/db/schema.ts`, `drizzle/0024_*.sql`, `drizzle/meta/*` | NOT on this branch: the `dashResponseLocks` table and its migration live in the shared schema PR `feat/os-october-schema` (with the annotations' hides table), which this branch builds on |
 | `lib/organic-social/response-lock-store.ts` (new) | `readLock`, `writeLock` (insert on conflict do nothing, then the winner) |
 | `lib/organic-social/locking-client.ts` (new) | `lockingClient(inner, opts, deps)`: the wrapper |
 | `lib/organic-social/base.ts` | `dashClientFor` wraps the client for opted-in clients |
@@ -276,13 +275,15 @@ export function isLateLock(periodEnd: string, cfgValue: unknown, today: string):
 (`firstOf`, `lastOf`, `monthOf` and `opensOn` are exported by PR 256's `reporting-months.ts`; `parseReportingMonths` too.)
 - [ ] **Step 4: Run PASS.** Step 5: **Commit** `feat(organic-social): lock day rules (pure)`.
 
-### Task 2: The table, the migration, the store
+### Task 2: The store (the table is in the shared schema PR)
 
-**Files:** Modify `lib/db/schema.ts`; generate `drizzle/0024_*.sql` and `drizzle/meta/*`; create `lib/organic-social/response-lock-store.ts`; Test `lib/organic-social/response-lock-store.test.ts`
+**Files:** Create `lib/organic-social/response-lock-store.ts`; Test `lib/organic-social/response-lock-store.test.ts`.
+
+**The shared schema PR (a prerequisite, not on this branch).** Two October PRs add a table: this one (`dash_response_locks`) and the annotations rebuild (`chart_annotation_hides`). Two PRs each generating `drizzle/0024_*` and editing `drizzle/meta/_journal.json` conflict in any merge order, so both tables and one migration live in one small PR, `feat/os-october-schema` off `organic-social-october` (its definition is in the annotations rebuild plan, section E). It carries the `dashResponseLocks` definition below exactly, placed directly after the `topContentSnapshots` table, plus the hides table after `export type PostDesignation`, one `npm run db:generate` (read every line of the SQL: it only creates the two tables, their foreign keys, unique constraints and the hides index), and `MIGRATIONS-PENDING.md`. This branch is built on `organic-social-october` after both PR 256 and the schema PR have merged into it (a build order, not a conflict).
 
 - [ ] **Step 1: Failing test** (mock `@/lib/db/client` with a fake `db` whose `select().from().where().limit()` and `insert().values().onConflictDoNothing().returning()` chains are `vi.fn`s): `readLock` returns `{ response }` for a row and `null` for none; `writeLock` returns the inserted response; when the insert returns no row (a concurrent writer won), `writeLock` reads and returns the stored winner.
 - [ ] **Step 2: Run, see FAIL.**
-- [ ] **Step 3: Implement.** In `lib/db/schema.ts`, directly after the `topContentSnapshots` table (ends line 393):
+- [ ] **Step 3: Implement.** The table (in the shared schema PR), directly after the `topContentSnapshots` table (ends line 393):
 
 ```ts
 /** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
@@ -300,9 +301,9 @@ export const dashResponseLocks = pgTable('dash_response_locks', {
 }))
 ```
 
-and directly after line 399: `export type DashResponseLock = typeof dashResponseLocks.$inferSelect`. Run `npm run db:generate` (no database needed); commit the generated SQL and meta as is; read the SQL and confirm it only creates this table, its foreign key and its unique constraint.
+and directly after line 399: `export type DashResponseLock = typeof dashResponseLocks.$inferSelect`. (Generated and committed in the shared schema PR, never on this branch.)
 
-`response-lock-store.ts`:
+On this branch, `response-lock-store.ts`:
 
 ```ts
 import { and, eq } from 'drizzle-orm'
@@ -325,7 +326,7 @@ export async function writeLock(clientId: string, requestKey: string, periodEnd:
 }
 ```
 
-- [ ] **Step 4: Run PASS; `npx tsc --noEmit`.** Step 5: **Commit** `feat(organic-social): dash_response_locks table, migration and store`.
+- [ ] **Step 4: Run PASS; `npx tsc --noEmit`.** Step 5: **Commit** `feat(organic-social): dash_response_locks store`.
 
 ### Task 3: The locking client
 
@@ -533,12 +534,12 @@ In `cache-warm/route.ts`, after the existing `for (const client of clients)` URL
 
 - [ ] Full suite, `npx tsc --noEmit`, `npm run -s check:rsc`; Task 0 unchanged.
 - [ ] Renaissance drift check: RESULT no drift.
-- [ ] Zero conflicts: `git merge-tree --write-tree` with 247, 250, 252, 253, 254, 255 and the outline-fixes branch (256 is the base); all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc, `check:rsc` green.
+- [ ] Zero conflicts: `git merge-tree --write-tree` with 247, 250, 252 (with the annotations rebuild), 253, 254, 255, the outline-fixes and YTD Review branches (256 and `feat/os-october-schema` are in the base); all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc, `check:rsc` green. No branch but the schema PR touches `drizzle/` or adds a table.
 - [ ] Nothing pushed without my go; then a stacked PR into `feat/os-locked-months`, retargeted to `organic-social-october` once 256 merges.
 
 ## Rollout (each step waits for my go)
 
-1. Staging only: pre-change snapshot of the staging database's table list; `npm run db:migrate` against staging with a host guard (refuse unless the host is the staging endpoint); confirm only `dash_response_locks` was added; drift check.
+1. Staging only, from the shared schema PR: pre-change snapshot of the staging database's table list; `npm run db:migrate:staging` (host-guarded: refuse unless the host is the staging endpoint); confirm only `dash_response_locks` and `chart_annotation_hides` were added; drift check.
 2. The code reaches staging with the rest of the October set, together (Decision 4). The migration is applied first (fail closed means a missing table shows error cards, never live numbers). The first warmer run after deploy captures every tab of the two most recently locked months. Read the late-lock warnings to confirm which months were captured late (Decision 1).
 3. If any October PR reaches staging after Oct 5, clear the three clients' September locks on staging once, with my go (`DELETE FROM dash_response_locks WHERE client_id IN (...) AND period_end BETWEEN '2026-09-01' AND '2026-09-30'`, host-guarded, snapshot first), and let the next warmer run recapture, before Oct 12.
 4. Production: migration first, then the code with the rest of the set, on my express written consent.
@@ -568,3 +569,5 @@ Fresh adversarial review of `0e949c8` (one reviewer, read only; it ran the plan'
 | m6 | MINOR | Next's fetch cache can make a capture up to an hour old | Stated (edge 9) |
 | m7 | MINOR | A failed `responseLocked` wrote the old table | Fixed: fail closed |
 | m8 | MINOR | "logs once" was per call | Wording fixed |
+
+**Amendment after the annotations rebuild review (2026-09-21):** the table and its migration moved to one shared schema PR, `feat/os-october-schema`, with the annotations' hides table, because two PRs each generating `0024` conflict in any merge order (Task 2, Task 7, Rollout 1 updated).
