@@ -68,11 +68,11 @@ Thumbnails come from the tab's Top Content posts (owned and collab), as the spec
 
 After this is on staging and pinned (section D) with my go: open one platform tab per client as the team, for August and September, show the top days with thumbnails, the Annotations button, and hiding one annotation from the client (then unhide it). I record the steps and screenshots privately (no client figures in the repo); Jasmine sees it on staging.
 
-## Decisions made overnight (flagged for my yes)
+## Decisions (2026-09-22: each settled from the outlines, the decks, Jasmine's past answers or Renaissance; none needs a new question)
 
-1. Collab posts may be thumbnails (Question 8 keeps them client-visible).
-2. Hides are not locked: the team may change them after a month opens to clients.
-3. `LineChart`'s optional `marks` prop from `922a090` is reused (its `label` field removed); everything else from that commit is removed or replaced, and the commit stays in history.
+1. Collab posts may be thumbnails. Evidence: the approved Q9 design calls out "the post from that day, like your team's monthly deck", and the decks credit spikes to collab posts (APFM January deck: "Our larger follower spikes came from Good News Movement collab and Raymin Reyes collab"); DFA Q8 keeps collab posts client-visible in their own section.
+2. Hides are not locked: the team may change them after a month opens to clients. Evidence: the approved Q9 design, "your team can hide any single one so the client never sees it", a team control like Commentary; Confirm 5's lock is about numbers.
+3. `LineChart`'s optional `marks` prop from `922a090` is reused (its `label` field removed); everything else from that commit is removed or replaced, and the commit stays in history. Technical.
 
 ## Order of work
 
