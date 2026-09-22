@@ -24,6 +24,7 @@ export interface TopContentPost {
   creative: Creative | null  // resolved by resolveCreative (S2-C); null only on genuine failure
   metrics: { effectiveness: number | null; engagementRate: number | null; engagements: number; impressions: number }
   sourceType: SourceType     // hardcoded 'organic' here; the designation table sets it in S2-B
+  author?: string            // set only when the caller asks (outline Top Content); absent otherwise
 }
 
 /** The frozen Dash-sourced facts for one Top-Content card. Everything on TopContentPost

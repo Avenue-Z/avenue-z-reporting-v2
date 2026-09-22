@@ -3,6 +3,7 @@ import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
 import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD, CONTENT_IMPRESSIONS_FIELD, CONTENT_ENGAGEMENT_RATE_FIELD, CONTENT_EFFECTIVENESS_FIELD } from './content-types'
 import { resolveCreative } from './creative'
+import { authorOf } from './post-author'
 import type { DashContentPost, TopContentPost } from './content-types'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
@@ -124,6 +125,11 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
   }
 }
 
+const withAuthorIf = (post: TopContentPost, raw: DashContentPost, ch: DashChannel, on: boolean | undefined): TopContentPost => {
+  const a = on ? authorOf(raw, ch) : null
+  return a ? { ...post, author: a } : post
+}
+
 /** The seam behind which "where posts come from" lives (spec 2 §2). One getContent
  *  request per allowlisted channel with that channel's CONTENT-valid metric, normalized
  *  and engagement-sorted. Scoped (single-channel) views surface errors; Overview drops a
@@ -132,6 +138,7 @@ export async function fetchTopContent(
   slug: string,
   dateRange: string,
   channel: DashChannel | null,
+  opts: { withAuthor?: boolean } = {}, // the owned posts' author, for outline Top Content only
 ): Promise<TopContentPost[]> {
   const { client, brandId, channels } = await dashClientFor(slug)
   // resolveTargets (not a bare filter) so a scoped channel OUTSIDE the allowlist THROWS — the
@@ -153,7 +160,7 @@ export async function fetchTopContent(
           console.warn(`[organic-social] ${ch} top-content hit the ${CONTENT_FETCH_LIMIT}-post fetch cap; ` +
             `the set is truncated in fetch order and sort-then-cap may not reflect the true top posts — raise the cap or paginate.`)
         }
-        return content.map((p) => normalizePost(p, ch))
+        return content.map((p) => withAuthorIf(normalizePost(p, ch), p, ch, opts.withAuthor))
       } catch (e) {
         if (scoped) throw e // scoped view surfaces the error (spec 1 §4.3)
         return []           // Overview drops the bad channel
