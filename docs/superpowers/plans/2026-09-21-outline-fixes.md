@@ -4,7 +4,9 @@
 
 **Goal:** Close the last gaps between Jasmine's three outlines and the outline tabs: Instagram "Video Views" (Views on Reels), TikTok "Video Views", 5 top posts per platform row, the collab rule that matches the decks, and a views-based engagement rate on Instagram post cards. Every change is opt-in per client; Renaissance renders and stores exactly what it does today.
 
-**Architecture:** Stacked on PR 255 (`feat/organic-social-no-overview`, head `94b1708`), which owns the outline layout and the outline Data part. The Data block gains one optional second Dash request (Reels views) and an alias row (TikTok). Top Content gains an unpublished `top-content@3` part, pinned per client like 255's outline parts, which wraps today's @2 flow with three client-scoped changes. It is pinned on the platform tabs' config key, `report_section_config['organic-social:platform']` (`components/report-sections/organic-social/index.tsx:51`), the same override object PR 255's opt-in writes. The shared @2 part, the shared tiles (`PLATFORM_KPIS`) and the snapshot code stay as they are.
+**Where this lives (2026-09-22):** this plan is built on PR 255 itself (`feat/organic-social-no-overview`), not on a separate stacked PR. Every PR in the October set must stand alone and merge in any order, and this work edits files only 255 creates, so it belongs in 255. Draft PR #257, which stacked it on 255, is closed.
+
+**Architecture:** Built on PR 255 (`feat/organic-social-no-overview`, plan written at head `94b1708`), which owns the outline layout and the outline Data part. The Data block gains one optional second Dash request (Reels views) and an alias row (TikTok). Top Content gains an unpublished `top-content@3` part, pinned per client like 255's outline parts, which wraps today's @2 flow with three client-scoped changes. It is pinned on the platform tabs' config key, `report_section_config['organic-social:platform']` (`components/report-sections/organic-social/index.tsx:51`), the same override object PR 255's opt-in writes. The shared @2 part, the shared tiles (`PLATFORM_KPIS`) and the snapshot code stay as they are.
 
 **Tech Stack:** Next.js 16 App Router (RSC), React 19, TypeScript strict, Vitest 3 (jsdom).
 
@@ -508,7 +510,7 @@ export const topContentV3: PartImpl<OrganicSocialCtx> = {
 - [ ] Full suite, `npx tsc --noEmit`, `npm run -s check:rsc` on the branch; Task 0 snapshot files unchanged since Task 0.
 - [ ] Renaissance drift check (`REPO=$PWD bash ~/.claude/renaissance-baseline/check-drift.sh`): RESULT no drift.
 - [ ] Zero conflicts: `git merge-tree --write-tree` of this branch with each of 247, 250, 252, 253, 254, 256 (255 is its base), then all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc and `check:rsc` green there. Task 0's snapshots must pass on that merged build unchanged (they exclude TikTok on purpose). TikTok's Video Views row is exercised only there.
-- [ ] Nothing pushed without my go. Then a stacked PR into `feat/organic-social-no-overview`, retargeted to `organic-social-october` once 255 merges.
+- [ ] Nothing pushed without my go. The commits go on PR 255 (`feat/organic-social-no-overview` into `organic-social-october`); no separate PR.
 
 ## Rollout (each step waits for my go; staging only)
 
