@@ -26,6 +26,8 @@ import { NextResponse } from 'next/server'
 import { getAllClients } from '@/lib/db/queries'
 import { mintServiceCookie } from '@/lib/auth/service-cookie'
 import { mapWithConcurrency } from '@/lib/concurrency'
+import { lockSweepUrls } from '@/lib/organic-social/lock-sweep'
+import { clockFor } from '@/lib/organic-social/reporting-months'
 
 export const dynamic = 'force-dynamic'
 // Raised from 60s. The Executive Overview render waits out the Salesforce
@@ -125,6 +127,11 @@ export async function GET(req: Request) {
       }
     }
   }
+
+  // The lock sweep (D27): every Organic Social tab of the two most recently locked months, so a
+  // month's numbers are all captured in one run on its lock day. Empty for every other client.
+  const today = clockFor(new Date()).today
+  for (const client of clients) urls.push(...lockSweepUrls(baseUrl, client, today))
 
   const results = await mapWithConcurrency(urls, CONCURRENCY, (u) => warmOne(u, cookieHeader))
   const ok = results.filter((r) => r.ok).length
