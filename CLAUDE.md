@@ -721,6 +721,22 @@ deliberately left out of its scope so it stayed reviewable.
   give the dashboard sidebar the same treatment (a mapper to exactly the fields it reads, and a test
   that fails if a full row is passed back). Staff-only today. Its own PR, off `dev`.
 
+## Known Follow-ups: Organic Social (from the October set reviews, PRs #247 and #254)
+
+- [ ] **Overview's frozen Top Content key ignores the client's channel set** (Paul, #247).
+  `lib/organic-social/frozen.ts:54` keys Overview's frozen Top Content as `'ALL'`, so once a client's
+  channel allowlist changes (TikTok joining in #247, say), a window frozen earlier keeps serving the
+  old channel mix and disagrees with the platform tabs, with nothing on screen looking wrong. Fold
+  the sorted channel set into the key. `frozen.ts` is on Renaissance's path, so changing the key
+  changes Renaissance's cache: its own PR, with a Renaissance proof. (Clients on locked months stop
+  reading this table once lock every number ships on #256; every other client still does.)
+- [ ] **A failed Organic Social graph is never logged** (Paul, #254). On a platform tab the graph
+  parts wrap their getter in `safe()` (`components/report-sections/organic-social/parts/shared.tsx:3`),
+  which renders "Couldn't load this section." and logs nothing. On Overview,
+  `channelErrorPolicy` (`lib/organic-social/metrics.ts:58`) returns the degrade value and the
+  channel's series silently drops out. Log both with the client, channel and view. It runs on
+  Renaissance's Overview, and #247 edits `metrics.ts`: its own PR, off `dev`, once #247 is in.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
