@@ -4,6 +4,14 @@ Status: approved in chat on 2026-09-18 ("yes go ahead with all three", task C), 
 standing rule: anything that follows Jasmine's outlines and leaves Renaissance untouched
 proceeds. On PR 255 with the Overview removal, so the three clients' layout ships as one PR.
 
+**Update 2026-09-22.** Jasmine settled the two rows Dash cannot fill (Slack, 4:04 PM): "for FB, we can
+just remove all together and for TT can replace reposts with favorites?". So Facebook's Data block has
+no Profile Views row at all, and TikTok's fourth engagement row is Favorites, backed by Dash's
+`TOTAL_FAVORITES` (probed 2026-09-22: the only favorites metric its TikTok catalogue offers, accepted on
+both bases, and equal to the sum of the per-post favorites for the same window). No outline row is blank
+any more. The blank-and-flagged mechanism below is kept for a row that ever needs it again, and the
+paragraphs beneath this one are the record as written on 2026-09-18 and 2026-09-21.
+
 **Update 2026-09-21.** Jasmine answered the open questions this spec names.
 
 - **Engagement Rate** now follows the monthly decks in the outline block (her words: "engagement rate

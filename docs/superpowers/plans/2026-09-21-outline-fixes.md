@@ -56,6 +56,10 @@
 - No client handles, figures or brand ids in the repo; tests use invented handles (`brand_handle`, `creator_one`).
 - No em or en dashes in added lines. Tests first. Every commit ends with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 
+**Update 2026-09-22 (after this plan was built).** Jasmine settled the two flagged rows (Slack, 4:04 PM):
+Facebook Profile Views is removed from the outline entirely, and TikTok Reposts becomes Favorites
+(`TOTAL_FAVORITES`). Both changes are on this branch; the plan text below is the record as written.
+
 ## Decisions (2026-09-22: each settled from the outlines, the decks, Jasmine's past answers or Renaissance; none needs a new question)
 
 1. **5 top posts per platform row, a cap by the active sort.** DFA Q7, Jasmine: "Five or 6 would be perfect"; the decks show five per list. **Influencer Posts are NOT capped:** they keep today's paging (15 per page, as Renaissance's Influencer Posts do). Evidence: the decks recap every collab post, one slide each (APFM August: 9 collab slides for 9 collab posts), and Q7 was asked about top posts, not the collab section.
