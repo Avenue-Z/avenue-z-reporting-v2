@@ -89,3 +89,15 @@ test('a failed config read means no own handles: the #ad rule, no warning', asyn
   expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('no post authors'))
   warn.mockRestore()
 })
+
+test('a handle no post author matches (renamed or mistyped) is not trusted: #ad rule, one warning', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'old_handle' } } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' }), post(3, { caption: 'yay #ad' })])
+  await show()
+  expect(props().owned[0].posts.map((x) => x.id)).toEqual([1, 2])
+  expect(props().influencer[0].posts.map((x) => x.id)).toEqual([3])
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith('[organic-social] own handle matches no post author slug=client-a channel=INSTAGRAM; collab rule fell back to #ad')
+  warn.mockRestore()
+})

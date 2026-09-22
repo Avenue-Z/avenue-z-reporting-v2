@@ -9,7 +9,8 @@ export type OwnHandles = Partial<Record<'INSTAGRAM', string>>
 export function parseOwnHandles(cfg: unknown): OwnHandles {
   const h = (cfg as { ownHandles?: { instagram?: unknown } } | null)?.ownHandles
   const ig = h && typeof h === 'object' ? (h as { instagram?: unknown }).instagram : undefined
-  return typeof ig === 'string' && ig.trim() ? { INSTAGRAM: ig.trim().replace(/^@/, '').toLowerCase() } : {}
+  const handle = typeof ig === 'string' ? ig.trim().replace(/^@+/, '').toLowerCase() : ''
+  return handle ? { INSTAGRAM: handle } : {}
 }
 
 /** Stored designation first (a team member's choice), then the author rule when both the author and
@@ -44,4 +45,13 @@ export function ownedPostLimit(threshold: number | undefined): number {
 export function missingAuthors(posts: TopContentPost[], own: OwnHandles): boolean {
   const ig = posts.filter((p) => p.channel === 'INSTAGRAM')
   return Boolean(own.INSTAGRAM) && ig.length > 0 && ig.every((p) => !p.author)
+}
+
+/** True when an own handle is set and Instagram posts carry authors, but none of them is that
+ *  handle: the stored handle is stale (the account was renamed) or mistyped, and trusting it would
+ *  call every owned post a collab post. The caller then falls back to the #ad rule and logs it. */
+export function handleMatchesNoAuthor(posts: TopContentPost[], own: OwnHandles): boolean {
+  if (!own.INSTAGRAM) return false
+  const authors = posts.filter((p) => p.channel === 'INSTAGRAM' && p.author).map((p) => p.author)
+  return authors.length > 0 && !authors.includes(own.INSTAGRAM)
 }

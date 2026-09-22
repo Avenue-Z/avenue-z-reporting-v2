@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate } from './outline-top-content'
+import { handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate } from './outline-top-content'
 
 const P = (id: number, over: Record<string, unknown> = {}) => ({ id, channel: 'INSTAGRAM', platform: 'Instagram', publishedAt: '2026-08-02',
   caption: '', url: null, mediaType: 'IMAGE', mediaGroup: null, creative: null, sourceType: 'organic',
@@ -7,6 +7,8 @@ const P = (id: number, over: Record<string, unknown> = {}) => ({ id, channel: 'I
 
 test('own handles are read from config as lowercase without @; anything else is none', () => {
   expect(parseOwnHandles({ brandId: 1, ownHandles: { instagram: '@Brand_Handle' } })).toEqual({ INSTAGRAM: 'brand_handle' })
+  expect(parseOwnHandles({ ownHandles: { instagram: ' @@Brand_Handle ' } })).toEqual({ INSTAGRAM: 'brand_handle' })
+  expect(parseOwnHandles({ ownHandles: { instagram: '@' } })).toEqual({})
   for (const c of [{ brandId: 1 }, null, { ownHandles: 'x' }, { ownHandles: { instagram: 5 } }]) expect(parseOwnHandles(c)).toEqual({})
 })
 test('author rule: another author is a collab post; the client itself is not; unknown falls back to #ad', () => {
@@ -30,4 +32,12 @@ test('missing authors: an own handle is set, Instagram posts exist, none carries
   expect(missingAuthors([P(1, { author: 'brand_handle' })], { INSTAGRAM: 'brand_handle' })).toBe(false)
   expect(missingAuthors([P(1)], {})).toBe(false)
   expect(missingAuthors([], { INSTAGRAM: 'brand_handle' })).toBe(false)
+})
+test('a stale or mistyped own handle: posts carry authors but none is the handle, so it is not trusted', () => {
+  const own = { INSTAGRAM: 'old_handle' }
+  expect(handleMatchesNoAuthor([P(1, { author: 'brand_handle' }), P(2, { author: 'creator_one' }), P(3)], own)).toBe(true)
+  expect(handleMatchesNoAuthor([P(1, { author: 'old_handle' }), P(2, { author: 'creator_one' })], own)).toBe(false)
+  expect(handleMatchesNoAuthor([P(1), P(2)], own)).toBe(false)
+  expect(handleMatchesNoAuthor([P(1, { author: 'brand_handle' })], {})).toBe(false)
+  expect(handleMatchesNoAuthor([P(1, { author: 'brand_handle', channel: 'FACEBOOK' })], own)).toBe(false)
 })

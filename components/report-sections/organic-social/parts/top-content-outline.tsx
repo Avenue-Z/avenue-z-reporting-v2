@@ -4,7 +4,7 @@ import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { fetchTopContent } from '@/lib/organic-social/top-content'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
-import { missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
+import { handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
 import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
@@ -23,6 +23,10 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   try { own = parseOwnHandles((await getClientBySlug(clientSlug))?.dashSocialConfig) } catch { own = {} }
   if (missingAuthors(r.data, own)) {
     console.warn(`[organic-social] top content has no post authors slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)
+  }
+  if (handleMatchesNoAuthor(r.data, own)) {
+    console.warn(`[organic-social] own handle matches no post author slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)
+    own = {}
   }
   const posts = withViewsBasisRate(r.data)
   const stored = await loadDesignations(clientSlug, posts.map((p) => p.id))

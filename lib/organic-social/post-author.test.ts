@@ -5,6 +5,7 @@ const post = (fields: Record<string, unknown>) => ({ id: 1, ...fields }) as neve
 
 test("an Instagram post's author is its handle, lowercased, without @", () => {
   expect(authorOf(post({ instagram_user: { handle: '@Creator_One' } }), 'INSTAGRAM')).toBe('creator_one')
+  expect(authorOf(post({ instagram_user: { handle: '@@Creator_One' } }), 'INSTAGRAM')).toBe('creator_one')
   expect(authorOf(post({ instagram_user: { username: 'Brand_Handle' } }), 'INSTAGRAM')).toBe('brand_handle')
   expect(authorOf(post({ instagram_user: { handle: 'first', username: 'second' } }), 'INSTAGRAM')).toBe('first')
 })

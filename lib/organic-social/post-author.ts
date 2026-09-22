@@ -8,5 +8,6 @@ export function authorOf(raw: DashContentPost, channel: DashChannel): string | n
   if (channel !== 'INSTAGRAM') return null
   const u = (raw as unknown as { instagram_user?: { handle?: unknown; username?: unknown } | null }).instagram_user
   const h = typeof u?.handle === 'string' ? u.handle : typeof u?.username === 'string' ? u.username : null
-  return h ? h.replace(/^@/, '').toLowerCase() : null
+  const handle = h ? h.replace(/^@+/, '').toLowerCase() : ''
+  return handle || null
 }
