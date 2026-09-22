@@ -735,3 +735,29 @@ deliberately left out of its scope so it stayed reviewable.
 - shadcn/ui: https://ui.shadcn.com
 - Tremor: https://tremor.so
 - Next.js App Router: https://nextjs.org/docs/app
+## Known Follow-ups: Organic Social locked months (from PR #256)
+
+From the review of the lock every number build. None blocks the October set.
+
+- [ ] **On Overview, a lock store outage silently drops a platform instead of showing an error
+  card.** The locking client throws (`lib/organic-social/locking-client.ts`), which is right, but
+  Overview's per-channel policy swallows it: `channelErrorPolicy` (`lib/organic-social/metrics.ts:58`)
+  returns the degrade value, and the graph getters drop the channel's series. So a locked month's
+  Overview can render with a platform missing and no error on screen. The throw is now logged
+  (`lock store read failed ...`), which is the signal until this is fixed. It needs a lock-specific
+  error the getters rethrow, and those getters are on Renaissance's path: its own PR, with a
+  Renaissance proof. The three October clients hide Overview, so they are not exposed today.
+- [ ] **`settledThrough` ignores `firstMonth`**, so a custom range that ends before a client's first
+  reporting month is lockable and writes a row nothing will ever read
+  (`lib/organic-social/lock-day.ts:31`). Stray rows only: no number is wrong, and the lock sweep
+  already filters by `firstMonth`. Clamp it, and change its unreachable final `return lastOf(key)`
+  to `null` in the same pass (a lock day is at most the 28th, so the month before last has always
+  locked). The plan's own test asserts today's behaviour, so changing it is a deliberate decision,
+  not a silent fix.
+- [ ] **The lock sweep runs on every hourly warmer run, not only on lock days**
+  (`app/api/cache-warm/route.ts:133`). It adds two months times the client's tabs of full report
+  renders per opted-in client to every run. Cheap once a month is captured (every read is a lock
+  hit), but worth a ceiling before the opted-in client count grows.
+- [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts:31`, an
+  empty `data.content` array counts as complete). This matches the old freeze table's deliberate
+  frozen-empty behaviour, without that path's re-freeze escape. Revisit with the unlock tool.
