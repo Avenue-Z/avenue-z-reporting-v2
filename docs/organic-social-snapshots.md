@@ -13,7 +13,8 @@ Working doc for this branch. Code for the snapshot work lands here.
 >   a storage key per surface (my decision D28, "approach A"): every number of a finished month (tiles,
 >   both graphs, the engagement breakdown, Top Content, later YTD and annotations) locks on the team's
 >   wrap day, the 5th of the next month, the Friday before when the 5th is a weekend (D27). Plan
->   `docs/superpowers/plans/2026-09-21-lock-every-number.md`, draft PR #258 stacked on #256.
+>   `docs/superpowers/plans/2026-09-21-lock-every-number.md`, on PR #256 itself (2026-09-22: every October
+>   PR stands alone, so the stacked draft #258 is closed and the plan moved onto #256).
 > - **§5 D (who triggers the first freeze)** is answered by a lock sweep in the hourly cache warmer: it
 >   renders every tab of the two most recently locked months, so a month is captured in one run on its
 >   lock day (same plan).
