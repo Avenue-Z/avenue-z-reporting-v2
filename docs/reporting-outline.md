@@ -129,7 +129,7 @@ platform tab has the same six blocks, in this order:
 | Block | What the outline asks for | Today |
 |---|---|---|
 | Commentary | Commentary for the tab | Exists (the shared Commentary part) |
-| YTD Review | A year to date follower growth graph and a year to date views graph | Net new. Planned (2026-09-21): `ytd-review@1`, each month's point is that month's own Data request (Total Followers line, Views bars), August onward. Plan `docs/superpowers/plans/2026-09-21-ytd-review.md`, its own PR |
+| YTD Review | A year to date follower growth graph and a year to date views graph | Net new. Planned (2026-09-21): `ytd-review@1`, each month's point is that month's own Data request (Total Followers line, Views bars), August onward. Plan `docs/superpowers/plans/2026-09-21-ytd-review.md`, PR 259 |
 | Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Jasmine replied to question 6 on 2026-09-21. Instagram retired Video Views, so that row becomes Views on Reels; TikTok Video Views is the same Dash number as Views; Facebook Profile Views and TikTok Reposts show blank, flagged "Not available from Dash" (see Still open). Engagement Rate follows her decks (views based) in the outline block. Both on PR 255 |
 | {Platform} Follower Growth Graph | "Needs to include annotations" | PR 252; Jasmine approved the design on 2026-09-21 once she sees it working |
 | {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics themselves already exist as Data tiles (TikTok's are on PR 247; TikTok Reposts shows blank, flagged, see Still open). PR 255 moves them directly under the graph (`engagement-breakdown@1`) |
@@ -220,9 +220,9 @@ Update 2026-09-21: the October set merges into one branch, `organic-social-octob
 | Snapshots scope record | PR 253 |
 | Locked months (month picker, the 12th rule, Commentary follows the month) | PR 256 |
 | Annotations (rebuild plan updated for October) | PR 252 |
-| Outline fixes (Video Views, 5 top posts, collab rule, deck-basis post rate) | draft PR stacked on 255 |
-| Lock every number | draft PR stacked on 256, plus one shared schema PR for its table and the annotations' |
-| YTD Review | draft PR on 256 (built after 255 and 256 merge) |
+| Outline fixes (Video Views, 5 top posts, collab rule, deck-basis post rate) | PR 257, draft, stacked on 255 |
+| Lock every number | PR 258, draft, stacked on 256, plus one shared schema PR for its table and the annotations' |
+| YTD Review | PR 259, draft, on 256 (built after 255 and 256 merge) |
 
 This PR (250) targets `dev` directly; its portal sidebar trim must be on staging
 before the three clients' locked-months setting is written there.
