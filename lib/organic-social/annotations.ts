@@ -1,4 +1,5 @@
 import type { TrendSeries } from './types'
+import type { TopContentPost } from './content-types'
 
 /** One day worth calling out on a trend chart. */
 export interface Peak {
@@ -38,4 +39,55 @@ export function pickPeaks(
   }
   candidates.sort((a, b) => b.value - a.value || a.date.localeCompare(b.date))
   return candidates.slice(0, limit).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export type AnnotationChart = 'followers' | 'engagements'
+
+/** A peak ready to render: its value, its label, and the post that likely caused it. */
+export interface Annotation extends Peak {
+  label: string
+  /** The top post published that day, or null when nothing went live or the posts failed to load. */
+  post: TopContentPost | null
+}
+
+/** Every Follower Growth slide in the deck calls out 2 days; every Engagement slide 3. */
+export const ANNOTATION_LIMIT: Record<AnnotationChart, number> = { followers: 2, engagements: 3 }
+
+/**
+ * `8/10 | +12 Followers` or `8/9 | 35 Engagements`. No leading zeros and no year, since a
+ * report covers one month. The deck separates the engagement label with a dash; a pipe is
+ * used on both so the two charts read the same way.
+ */
+export function annotationLabel(date: string, value: number, chart: AnnotationChart): string {
+  const [, month, day] = date.split('-')
+  const when = `${Number(month)}/${Number(day)}`
+  const amount = value.toLocaleString('en-US')
+  if (chart === 'followers') return `${when} | +${amount} Follower${value === 1 ? '' : 's'}`
+  return `${when} | ${amount} Engagement${value === 1 ? '' : 's'}`
+}
+
+/**
+ * The top post published on each day, by engagements. Ties go to the lower post id so the
+ * choice never flips between renders. A post with no publish date is dropped: a guessed
+ * date would attach it to the wrong spike. publishedAt is the UTC date, which is the day
+ * Dash's daily series counts the post on (probed 2026-09-18).
+ */
+export function topPostByDate(posts: TopContentPost[]): Map<string, TopContentPost> {
+  const best = new Map<string, TopContentPost>()
+  for (const p of posts) {
+    if (!p.publishedAt) continue
+    const current = best.get(p.publishedAt)
+    const wins = !current
+      || p.metrics.engagements > current.metrics.engagements
+      || (p.metrics.engagements === current.metrics.engagements && p.id < current.id)
+    if (wins) best.set(p.publishedAt, p)
+  }
+  return best
+}
+
+/** Peaks plus their labels and posts. `posts` is null when the post fetch failed, in which
+ *  case every annotation still builds, just without a thumbnail. */
+export function buildAnnotations(peaks: Peak[], posts: TopContentPost[] | null, chart: AnnotationChart): Annotation[] {
+  const byDate = posts ? topPostByDate(posts) : new Map<string, TopContentPost>()
+  return peaks.map((p) => ({ ...p, label: annotationLabel(p.date, p.value, chart), post: byDate.get(p.date) ?? null }))
 }

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { pickPeaks } from './annotations'
+import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, ANNOTATION_LIMIT } from './annotations'
+import type { TopContentPost } from './content-types'
 import type { TrendSeries } from './types'
 
 // All numbers are made up.
@@ -83,4 +84,70 @@ test('a value that is not a finite number is skipped rather than ranked', () => 
     ],
   }
   expect(pickPeaks(s, { limit: 3, ...AUG })).toEqual([{ date: '2026-08-11', value: 12 }])
+})
+
+const post = (id: number, publishedAt: string, engagements: number): TopContentPost => ({
+  id, channel: 'INSTAGRAM', platform: 'Instagram', publishedAt, caption: `post ${id}`,
+  url: `https://example.com/${id}`, mediaType: 'IMAGE', mediaGroup: null,
+  creative: { kind: 'image', thumb: `https://cdn.example.com/t${id}.jpg`, full: `https://cdn.example.com/f${id}.jpg` },
+  metrics: { effectiveness: null, engagementRate: null, engagements, impressions: 0 },
+  sourceType: 'organic',
+})
+
+test('follower labels carry a plus sign and no leading zeros', () => {
+  expect(annotationLabel('2026-08-10', 12, 'followers')).toBe('8/10 | +12 Followers')
+  expect(annotationLabel('2026-08-05', 1204, 'followers')).toBe('8/5 | +1,204 Followers')
+})
+
+test('engagement labels carry no sign', () => {
+  expect(annotationLabel('2026-08-09', 35, 'engagements')).toBe('8/9 | 35 Engagements')
+  expect(annotationLabel('2026-08-26', 12345, 'engagements')).toBe('8/26 | 12,345 Engagements')
+})
+
+test('a value of exactly 1 reads in the singular', () => {
+  expect(annotationLabel('2026-08-05', 1, 'followers')).toBe('8/5 | +1 Follower')
+  expect(annotationLabel('2026-08-05', 1, 'engagements')).toBe('8/5 | 1 Engagement')
+})
+
+test('labels contain no em or en dash', () => {
+  const dashes = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`)
+  expect(annotationLabel('2026-08-09', 35, 'engagements')).not.toMatch(dashes)
+  expect(annotationLabel('2026-08-10', 12, 'followers')).not.toMatch(dashes)
+})
+
+test('the top post of each day is the one with the most engagements', () => {
+  const m = topPostByDate([post(1, '2026-08-10', 5), post(2, '2026-08-10', 90), post(3, '2026-08-11', 1)])
+  expect(m.get('2026-08-10')?.id).toBe(2)
+  expect(m.get('2026-08-11')?.id).toBe(3)
+})
+
+test('equal engagements on the same day go to the lower post id, so the choice is stable', () => {
+  expect(topPostByDate([post(9, '2026-08-10', 50), post(4, '2026-08-10', 50)]).get('2026-08-10')?.id).toBe(4)
+})
+
+test('a post with no publish date is left out rather than guessed', () => {
+  expect(topPostByDate([post(1, '', 999)]).size).toBe(0)
+})
+
+test('each annotation gets its label and the top post of that day', () => {
+  const peaks = [{ date: '2026-08-10', value: 50 }, { date: '2026-08-22', value: 26 }]
+  expect(buildAnnotations(peaks, [post(7, '2026-08-10', 40)], 'engagements')).toEqual([
+    { date: '2026-08-10', value: 50, label: '8/10 | 50 Engagements', post: expect.objectContaining({ id: 7 }) },
+    { date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', post: null },
+  ])
+})
+
+test('a peak day with no post gets an annotation with no thumbnail', () => {
+  expect(buildAnnotations([{ date: '2026-08-29', value: 20 }], [], 'engagements')[0].post).toBeNull()
+})
+
+// The post fetch can fail on its own. A missing picture must never cost the annotation.
+test('when the posts could not be fetched, annotations still build without thumbnails', () => {
+  expect(buildAnnotations([{ date: '2026-08-10', value: 50 }], null, 'followers')).toEqual([
+    { date: '2026-08-10', value: 50, label: '8/10 | +50 Followers', post: null },
+  ])
+})
+
+test('the limits match the deck: 2 follower annotations, 3 engagement annotations', () => {
+  expect(ANNOTATION_LIMIT).toEqual({ followers: 2, engagements: 3 })
 })
