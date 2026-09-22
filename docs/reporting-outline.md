@@ -129,7 +129,7 @@ platform tab has the same six blocks, in this order:
 | Block | What the outline asks for | Today |
 |---|---|---|
 | Commentary | Commentary for the tab | Exists (the shared Commentary part) |
-| YTD Review | A year to date follower growth graph and a year to date views graph | Net new |
+| YTD Review | A year to date follower growth graph and a year to date views graph | Net new. Planned (2026-09-21): `ytd-review@1`, each month's point is that month's own Data request (Total Followers line, Views bars), August onward. Plan `docs/superpowers/plans/2026-09-21-ytd-review.md`, its own PR |
 | Data | Tiles: Total Followers, Net New Followers, Views, Total Engagements, Engagement Rate, Profile Views, Video Views (Kenect: Profile Clicks instead of Video Views) | Exists as the platform headline tiles. Today those tiles also carry the engagement breakdown, which the outline moves under the engagement graph. Jasmine replied to question 6 on 2026-09-21. Instagram retired Video Views, so that row becomes Views on Reels; TikTok Video Views is the same Dash number as Views; Facebook Profile Views and TikTok Reposts show blank, flagged "Not available from Dash" (see Still open). Engagement Rate follows her decks (views based) in the outline block. Both on PR 255 |
 | {Platform} Follower Growth Graph | "Needs to include annotations" | PR 252; Jasmine approved the design on 2026-09-21 once she sees it working |
 | {Platform} Engagement Graph | "Needs to include annotations", plus engagement metrics "directly under": Likes, Comments, Shares, Saves, Reposts on Instagram; Reactions, Comments, Shares, Post Clicks on Facebook and LinkedIn; Likes, Comments, Shares, Reposts, Completion Rate on TikTok | Annotations: PR 252. The metrics themselves already exist as Data tiles (TikTok's are on PR 247; TikTok Reposts shows blank, flagged, see Still open). PR 255 moves them directly under the graph (`engagement-breakdown@1`) |
@@ -161,9 +161,16 @@ decided each and when, is section 7 of `docs/organic-social-snapshots.md` (PR 25
 - clients see only finished months, from the 12th of the next month (the Monday
   after when the 12th is a weekend)
 - a month's numbers lock when it ends, so "snapshot" means genuinely frozen stored
-  numbers, not a fixed window over live data
+  numbers, not a fixed window over live data. Refined 2026-09-21 (D27): they lock on the
+  team's wrap day, the 5th of the next month (the Friday before a weekend), before the
+  month opens to clients on the 12th
 - the preset list becomes per-client config. Renaissance has none and falls
   through to today's exact list, byte identical
+
+Update 2026-09-21: the picker is built as locked months, PR 256 (config
+`dash_social_config.reportingMonths`; Renaissance has none and runs today's code). Locking every
+number, not only Top Content, is planned as one lock at the Dash client
+(`docs/superpowers/plans/2026-09-21-lock-every-number.md`).
 
 Worth noting that `top_content_snapshots`
 (`lib/db/schema.ts:379`) is the only freeze table and `lib/organic-social/snapshot.ts`
@@ -188,7 +195,7 @@ Engineering, mine to close:
 - an absent channel allowlist must stop resolving to every channel before TikTok
   (PR 247) ships, per finding 1 above, without writing Renaissance's row. Fixed on
   PR 247: an absent allowlist now resolves to the original four channels
-- who builds YTD Review, and in which PR
+- who builds YTD Review, and in which PR: answered 2026-09-21, I do, in its own PR (plan above)
 - moving the engagement metrics from the Data tiles to under the engagement graph:
   built on PR 255 as opt-in parts, with the outline's Data rows and labels. Each client
   pins them on staging once PR 255 is there
@@ -201,3 +208,21 @@ client opts into in its own config, not as per-client branches, because the thre
 share every block and differ only in rows (Kenect's Profile Clicks) and channels.
 TikTok is PR 247, annotations PR 252. This doc stays separate so each of those
 reviews on its own.
+
+Update 2026-09-21: the October set merges into one branch, `organic-social-october`
+(cut from `dev`), then goes to `dev` as one reviewed unit. In that set:
+
+| Piece | Where |
+|---|---|
+| TikTok as a channel | PR 247 |
+| The outline layout (no Overview, Data block, breakdown) | PR 255 |
+| Single-channel graph guard | PR 254 |
+| Snapshots scope record | PR 253 |
+| Locked months (month picker, the 12th rule, Commentary follows the month) | PR 256 |
+| Annotations (rebuild plan updated for October) | PR 252 |
+| Outline fixes (Video Views, 5 top posts, collab rule, deck-basis post rate) | draft PR stacked on 255 |
+| Lock every number | draft PR stacked on 256, plus one shared schema PR for its table and the annotations' |
+| YTD Review | draft PR on 256 (built after 255 and 256 merge) |
+
+This PR (250) targets `dev` directly; its portal sidebar trim must be on staging
+before the three clients' locked-months setting is written there.
