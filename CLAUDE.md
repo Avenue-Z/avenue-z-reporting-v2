@@ -612,6 +612,21 @@ Still open:
   for a client that hides Overview lands on its first platform tab only. Add the tabs from
   `organicSocialSubsections(client)` (`lib/constants.ts:207`) so every tab, and its outline Data
   request, is probed and warmed. Lock every number (#256) also edits the warmer; land this after it.
+- [ ] **A single null metric still plots a zero on the YTD graphs** (review of the YTD build, #255).
+  `buildOutlineKpis` (`lib/organic-social/outline-headlines.ts`) marks a month `noData` only when
+  EVERY metric is null, and coerces each null to 0. So a month where Dash returns a null Total
+  Followers but other metrics have values is not `noData`: the tile reads 0 and the YTD line drops
+  to zero and back, which reads as a collapse rather than a gap. YTD cannot tell the difference (the
+  null is gone before it sees it); the fix belongs in the tiles' builder, which the YTD work must
+  not touch. Decide with the outline Data block, not here.
+- [ ] **The YTD block fails all or nothing across up to 12 requests** (same review).
+  `parts/ytd-review.tsx:30` fires one request per month in parallel and one rejection blanks the
+  whole block (a partial graph is deliberately never drawn). In August that is one request; by
+  December it is twelve, so the chance of hitting a timeout or a 429 grows with the year. Add a
+  small concurrency cap rather than degrading the graph.
+- [ ] **The timeout card tells a YTD viewer to shorten the date range** (same review), which they
+  cannot do: the block picks its own months (`parts/shared.tsx` `Fallback`). Needs copy that fits
+  both callers, or a per-block message.
 - [ ] **One Organic Social title rule instead of four copies** (from my own #255 work). The tab title
   rule lives in the two SPA routes (`pageTitle`, `app/dashboard/[clientSlug]/reports/page.tsx:176`,
   `app/portal/[clientSlug]/reports/page.tsx:212`) and the two deep-link routes (`reportName`,
