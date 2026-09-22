@@ -3,6 +3,7 @@ import type { OrganicSocialCtx } from '../ctx'
 import { mergeRegistries } from '@/lib/report-sections/registry'
 import { platformHeadlinesV2, platformHeadlinesV3 } from './outline-data'
 import { engagementBreakdownV1 } from './engagement-breakdown'
+import { ytdReviewV1 } from './ytd-review'
 import { platformHeadlinesV1 } from './platform-headlines'
 import { engagementTrendV1 } from './engagement-trend'
 import { followerGraphV1 } from './follower-graph'
@@ -20,6 +21,7 @@ const BASE_PARTS: PartRegistry<OrganicSocialCtx> = {
  *  the engagement breakdown under the engagement graph. A client pins them in its own config.
  *  Kept apart from the parts above so those lines stay exactly as they are. */
 const OUTLINE_PARTS: PartRegistry<OrganicSocialCtx> = {
+  'ytd-review': { 1: ytdReviewV1 },
   'platform-headlines': { 2: platformHeadlinesV2, 3: platformHeadlinesV3 },
   'engagement-breakdown': { 1: engagementBreakdownV1 },
   'top-content': { 3: topContentV3 },
