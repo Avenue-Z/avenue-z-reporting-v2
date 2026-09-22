@@ -4,6 +4,10 @@ import { DashSocialClient } from '@/lib/dash-social/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { resolveChannels, type DashChannel } from './metrics'
+import { hasReportingMonths } from './reporting-months'
+import { requestClock } from './locked-range'
+import { lockingClient, type DashReader } from './locking-client'
+import { isLateLock, parseLockDay, settledThrough } from './lock-day'
 
 export { num, pct } from '@/lib/supermetrics/format'
 
@@ -18,16 +22,25 @@ export function displayChannel(source: string): string {
   return CHANNEL_DISPLAY[prefix] ?? source
 }
 
+/** Lock every number (D27): the locking wrapper for a client on locked months. */
+function lockedClientFor(c: { id: string; dashSocialConfig: unknown }, slug: string, inner: DashSocialClient): DashReader {
+  const rm = (c.dashSocialConfig as { reportingMonths?: unknown }).reportingMonths
+  const today = requestClock().today
+  if (parseLockDay(rm).bad) console.error(`[organic-social] reportingMonths.lockDay is invalid slug=${slug}`)
+  return lockingClient(inner, { clientId: c.id, slug, settled: settledThrough(rm, today), late: (end) => isLateLock(end, rm, today) })
+}
+
 /** React.cache-wrapped for per-render dedup (matches getClientBySlug) — callers that need
  *  both the client and the channel list (e.g. getTopContent) resolve it once, not twice. */
 export const dashClientFor = cache(
-  async (slug: string): Promise<{ client: DashSocialClient; brandId: number; channels: DashChannel[] }> => {
+  async (slug: string): Promise<{ client: DashReader; brandId: number; channels: DashChannel[] }> => {
     const c = await getClientBySlug(slug)
     const cfg = c?.dashSocialConfig
     if (!cfg) throw new Error(`dash_social_config missing for ${slug}`)
     const token = process.env.DASH_API_TOKEN
     if (!token) throw new Error('Missing env var DASH_API_TOKEN')
-    return { client: new DashSocialClient({ token }), brandId: cfg.brandId, channels: resolveChannels(cfg.channels) }
+    const inner = new DashSocialClient({ token })
+    return { client: hasReportingMonths(c) ? lockedClientFor(c!, slug, inner) : inner, brandId: cfg.brandId, channels: resolveChannels(cfg.channels) }
   },
 )
 
