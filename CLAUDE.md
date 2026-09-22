@@ -620,6 +620,16 @@ Still open:
   `lib/organic-social/deep-link-parity.test.tsx`. Hoist it into one helper next to
   `resolveOrganicSubsection` (`lib/constants.ts:220`). It edits routes on Renaissance's live path: its
   own PR, with the parity test as the guard.
+- [ ] **UGC posts without #ad compete for the owned top 5 on outline tabs** (review of the outline
+  fixes build, #255). `top-content@3` sorts Instagram UGC (posts that tag the client) with no author
+  and no #ad into the owned rows, because UGC author fields are unproven, so the UGC line never
+  attaches one (`lib/organic-social/top-content.ts:188`). The deck match (9 of 9) was checked on the
+  owned feed only. Before the three clients go live, compare one month of their Instagram Top Content
+  on staging with the deck; if a tagged post takes an owned slot, send UGC to Influencer Posts for
+  pinned clients.
+- [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
+  `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
+  a 401, a 500 or a malformed answer. Add the error's name and status.
 
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 
