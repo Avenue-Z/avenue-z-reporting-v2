@@ -509,7 +509,7 @@ export const topContentV3: PartImpl<OrganicSocialCtx> = {
 
 - [ ] Full suite, `npx tsc --noEmit`, `npm run -s check:rsc` on the branch; Task 0 snapshot files unchanged since Task 0.
 - [ ] Renaissance drift check (`REPO=$PWD bash ~/.claude/renaissance-baseline/check-drift.sh`): RESULT no drift.
-- [ ] Zero conflicts: `git merge-tree --write-tree` of this branch with each of 247, 250, 252, 253, 254, 256 (255 is its base), then all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc and `check:rsc` green there. Task 0's snapshots must pass on that merged build unchanged (they exclude TikTok on purpose). TikTok's Video Views row is exercised only there.
+- [ ] Zero conflicts: `git merge-tree --write-tree` of this branch with each of 247, 250, 252, 253, 254, 256 (this is 255), then all merged in two orders on a scratch worktree off `origin/dev`, same tree, tests, tsc and `check:rsc` green there. Task 0's snapshots must pass on that merged build unchanged (they exclude TikTok on purpose). TikTok's Video Views row is exercised only there.
 - [ ] Nothing pushed without my go. The commits go on PR 255 (`feat/organic-social-no-overview` into `organic-social-october`); no separate PR.
 
 ## Rollout (each step waits for my go; staging only)

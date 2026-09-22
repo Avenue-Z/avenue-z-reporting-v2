@@ -73,7 +73,7 @@
 
 **Interfaces produced:** `ytdConfig(value: unknown): YtdConfig | null`; `ytdMonths(dateRange: string, compareRange: string, cfg: YtdConfig): YtdMonth[] | null` (oldest first); `ytdSeries(months: YtdMonth[], built: Record<string, OutlineKpis | undefined>): { points: YtdPoint[]; noData: string[] }` (`OutlineKpis` from `outline-headlines.ts`).
 
-- [ ] **Step 1: Failing tests** (dry run 2026-09-22 on 255 alone: 0 collected before the module exists, 10 of 10 pass after; tsc clean):
+- [ ] **Step 1: Failing tests** (dry run 2026-09-22 on 255 alone: 0 collected before the module exists, 11 of 11 pass after; tsc clean):
 
 ```ts
 import { expect, test } from 'vitest'
@@ -113,6 +113,9 @@ test('previous-year compares each earlier month with the same month a year befor
 test('a range that is not one month starting on the 1st is null (the block shows nothing)', () => {
   for (const r of ['last_30_days', 'custom:2026-09-02,2026-09-30', 'custom:2026-09-01,2026-10-01', 'custom:2026-09-30,2026-09-01', 'custom:2026-02-01,2026-02-30', 'custom:2026-09-01'])
     expect(ytdMonths(r, 'x', CFG)).toBeNull()
+})
+test('December 2026 on screen (the team in January, after locked months serves the newest finished month) shows August to December', () => {
+  expect(keys(ytdMonths('custom:2026-12-01,2026-12-31', 'custom:2026-11-01,2026-11-30', CFG))).toEqual(['2026-08', '2026-09', '2026-10', '2026-11', '2026-12'])
 })
 test('December on screen gives twelve months, the most there can be', () => {
   expect(ytdMonths('custom:2027-12-01,2027-12-31', 'x', CFG)).toHaveLength(12)
@@ -333,6 +336,6 @@ export const ytdReviewV1: PartImpl<OrganicSocialCtx> = {
 
 ## Review record
 
-**2026-09-21 review of the stacked version** (fresh adversarial review of `84b81ee`, one reviewer, read only; it ran 256's real `resolveLockedRange` in 12 cases and confirmed every YTD month's range and comparison equals what that month's Data block receives). Findings carried into this version: M1 (one-month YTD drew an empty follower card: `BarChart` under two points), M2 (no-data months plotted zeros: left off and named), M3 (a failed client read escaped: fallback card), m2 (Task 0 as presence and identity plus the golden render tests), m3 (parity by a test through the real section), m5 (heading and "(partial)" as Decisions 6 and 7), m6 (a new rollout script), m7 (request load and fallback copy stated). m1 (registry placement) holds: first line here, last line for the outline fixes.
+**2026-09-21 review of the stacked version** (fresh adversarial review of `84b81ee`, one reviewer, read only; it ran 256's real `resolveLockedRange` in 12 cases and confirmed every YTD month's range and comparison equals what that month's Data block receives). Findings carried into this version: M1 (one-month YTD drew an empty follower card: `BarChart` under two points), M2 (no-data months plotted zeros: left off and named), M3 (a failed client read escaped: fallback card), m2 (Task 0 as presence and identity plus the golden render tests), m3 (parity by a test through the real section), m5 (heading and "(partial)" as Decisions 6 and 7), m6 (a new rollout script), m7 (request load and fallback copy stated). m4 (missing cases): later firstMonth, previous-year and element-prop assertions carried; the "January, team sees August to December" case restored after the 2026-09-22 audit as the December 2026 test. m1 (registry placement) holds: first line here, last line for the outline fixes.
 
-**2026-09-22 standalone rewrite:** one fresh reviewer, read only. It merged 256 with this branch in a scratch worktree, ran the plan's `ytd.ts` against 256's real `resolveLockedRange` (team and client; every day 2026-07-25 to 2027-03-15 at four UTC hours; firstMonth 2026-08, 2026-11, 2027-01; comparison unset, previous-month, previous-year, bogus; opensOnDay unset, 4, 12, 28; both weekend rules; every offered month as the month on screen: 574,976 YTD entries) with 0 range or comparison mismatches and 0 months shown that the viewer is not offered. The plan's `ytd.test.ts` passes 10 of 10; the part on this branch alone passes tsc, `check:rsc` and the organic-social tests. One finding, the month-end label (Decision 7), accepted and stated.
+**2026-09-22 standalone rewrite:** one fresh reviewer, read only. It merged 256 with this branch in a scratch worktree, ran the plan's `ytd.ts` against 256's real `resolveLockedRange` (team and client; every day 2026-07-25 to 2027-03-15 at four UTC hours; firstMonth 2026-08, 2026-11, 2027-01; comparison unset, previous-month, previous-year, bogus; opensOnDay unset, 4, 12, 28; both weekend rules; every offered month as the month on screen: 574,976 YTD entries) with 0 range or comparison mismatches and 0 months shown that the viewer is not offered. The plan's `ytd.test.ts` passed 10 of 10 (11 of 11 with the December case restored after the audit); the part on this branch alone passes tsc, `check:rsc` and the organic-social tests. One finding, the month-end label (Decision 7), accepted and stated.
