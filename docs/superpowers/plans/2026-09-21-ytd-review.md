@@ -18,6 +18,8 @@
 
 ## Before (pre-change snapshot, at base `05fffa8` = PR 256 `97dce1e` merged with PR 255 `94b1708`, a local integration base)
 
+(This plan's branch is pushed off PR 256 with the plan only. `05fffa8` was a local merge used for the review; reproduce it with `git merge origin/feat/organic-social-no-overview` on top of PR 256. The build starts from `organic-social-october` once 255 and 256 are in it.)
+
 - No YTD part exists (`grep -rn "ytd" lib components` returns nothing but unrelated text; confirm at build time).
 - `lib/organic-social/outline-headlines.ts:60-86` `getOutlineKpis(slug, dateRange, compareRange, channel)` is React-cached and returns tiles keyed `followers`, `exposure`, ... for every outline channel (`PLATFORM_KPIS` keys, `metrics.ts`).
 - `lib/organic-social/reporting-months.ts` `resolveLockedRange` gives the viewer's months newest first, each with canonical `dateRange` and `compareRange`; `components/report-sections/organic-social/index.tsx` (256) serves the section with the served month's range, so a Data block's request for month M is `getOutlineKpis(slug, M.dateRange, M.compareRange, channel)`.
