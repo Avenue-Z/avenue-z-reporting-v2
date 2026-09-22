@@ -17,7 +17,12 @@ export function completeReportsData(p: ReportsDataParams, res: unknown): boolean
   if (!data || typeof data !== 'object') return false
   if (p.reportType === 'GRAPH') {
     const m = data.metrics as Record<string, unknown> | undefined
-    return !!m && p.metrics.every((k) => m[k] != null)
+    // ALL_CHANNELS is the key both graph getters read (followers.ts:41, trends.ts:41). A metric
+    // present but shaped any other way draws an empty chart, so it is not a lockable answer.
+    return !!m && p.metrics.every((k) => {
+      const entry = m[k]
+      return !!entry && typeof entry === 'object' && 'ALL_CHANNELS' in entry
+    })
   }
   const brand = data[String(p.brandId)] as { metrics?: Record<string, unknown> } | undefined
   if (!brand) return false
@@ -37,7 +42,11 @@ export function withLockedBaseline(answer: unknown, prior: unknown): unknown {
   if (!answer || typeof answer !== 'object' || Array.isArray(answer) || !prior || typeof prior !== 'object') return answer
   const a = answer as Record<string, unknown>
   const p = prior as Record<string, unknown>
-  if ('value' in a && 'context' in a && 'value' in p) return { ...a, context: p.value }
+  // context_change is Dash's percentage against ITS context, which we just replaced: keep the
+  // shape, drop the stale number. Nothing reads it (delta() recomputes from value and context).
+  if ('value' in a && 'context' in a && 'value' in p) {
+    return { ...a, context: p.value, ...('context_change' in a ? { context_change: null } : {}) }
+  }
   return Object.fromEntries(Object.entries(a).map(([k, v]) => [k, k in p ? withLockedBaseline(v, p[k]) : v]))
 }
 
@@ -49,7 +58,12 @@ export function lockingClient(inner: DashReader, opts: Opts, deps = { read: read
     if (!end || !opts.settled || end > opts.settled) return live()
     const key = requestKey(method, p)
     let answer: unknown
-    const hit = await deps.read(opts.clientId, key) // throws on failure: fail closed
+    // Fail closed, and say so: a lock store outage must never quietly serve live numbers, and on
+    // Overview the per-channel error policy swallows the throw, so the log line is the only signal.
+    const store = async <R>(what: string, run: () => Promise<R>): Promise<R> => {
+      try { return await run() } catch (e) { console.error(`[organic-social] lock store ${what} failed ${tag(end, key)}`); throw e }
+    }
+    const hit = await store('read', () => deps.read(opts.clientId, key))
     if (hit) {
       answer = hit.response
     } else {
@@ -58,12 +72,12 @@ export function lockingClient(inner: DashReader, opts: Opts, deps = { read: read
         console.warn(`[organic-social] lock skipped (incomplete answer) ${tag(end, key)}`)
         return res
       }
-      answer = await deps.write(opts.clientId, key, end, res) // throws on failure: fail closed
+      answer = await store('write', () => deps.write(opts.clientId, key, end, res))
       if (opts.late(end)) console.warn(`[organic-social] late lock ${tag(end, key)}`)
     }
     const prior = priorParams(p)
     if (prior) {
-      const before = await deps.read(opts.clientId, requestKey(method, prior))
+      const before = await store('read', () => deps.read(opts.clientId, requestKey(method, prior)))
       if (before) answer = withLockedBaseline(answer, before.response)
     }
     return answer as T

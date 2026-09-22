@@ -94,6 +94,32 @@ test('an incomplete answer is served, never stored, and warned once', async () =
   expect(deps.write).not.toHaveBeenCalled()
 })
 
+test('a graph answer whose metric has no ALL_CHANNELS is incomplete: the readers need that key', async () => {
+  const inner = innerFake(); const deps = depsFake()
+  const shallow = { data: { metrics: { TOTAL_FOLLOWERS: {} } } }
+  inner.getReportsData.mockResolvedValue(shallow)
+  warn.mockClear()
+  expect(await lockingClient(inner, OPTS, deps).getReportsData(graphParams)).toEqual(shallow)
+  expect(deps.write).not.toHaveBeenCalled()
+  expect(warn.mock.calls[0][0]).toContain('lock skipped (incomplete answer)')
+  expect(completeReportsData(graphParams, shallow)).toBe(false)
+  expect(completeReportsData(graphParams, { data: { metrics: { TOTAL_FOLLOWERS: { ALL_CHANNELS: {} } } } })).toBe(true)
+})
+
+test('a lock store failure is logged with the slug before it propagates, so an outage is visible', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const deps = depsFake(); deps.read.mockRejectedValueOnce(new Error('no table'))
+  await expect(lockingClient(innerFake(), OPTS, deps).getReportsData(SEPT)).rejects.toThrow('no table')
+  expect(err).toHaveBeenCalledTimes(1)
+  expect(err.mock.calls[0][0]).toMatch(/^\[organic-social\] lock store read failed slug=client-a period_end=2026-09-30 key=[0-9a-f]{12}$/)
+  err.mockClear()
+  const inner2 = innerFake(); const deps2 = depsFake()
+  inner2.getReportsData.mockResolvedValue(total(5, 4)); deps2.write.mockRejectedValueOnce(new Error('write failed'))
+  await expect(lockingClient(inner2, OPTS, deps2).getReportsData(SEPT)).rejects.toThrow('write failed')
+  expect(err.mock.calls[0][0]).toContain('lock store write failed slug=client-a')
+  err.mockRestore()
+})
+
 test('a media answer with the brand entry but no reels is complete: no reels is a real answer', async () => {
   const inner = innerFake(); const deps = depsFake()
   const noReels = { data: { [BRAND]: { metrics: {} } } }
@@ -154,6 +180,12 @@ test("without the prior month stored, Dash's own compare value is kept", async (
   inner.getReportsData.mockResolvedValue(total(100, 80))
   const answer = await lockingClient(inner, OPTS, deps).getReportsData(SEPT) as unknown as ReturnType<typeof total>
   expect(answer.data[BRAND].metrics.TOTAL_FOLLOWERS.context).toBe(80)
+})
+
+test('withLockedBaseline clears context_change, so no stale percentage sits beside a new baseline', () => {
+  expect(withLockedBaseline({ value: 40, context: 20, context_change: 100 }, { value: 40 }))
+    .toEqual({ value: 40, context: 40, context_change: null })
+  expect(withLockedBaseline({ value: 40, context: 20 }, { value: 40 })).toEqual({ value: 40, context: 40 })
 })
 
 test('withLockedBaseline only touches value/context pairs the prior answer also has', () => {
