@@ -604,6 +604,23 @@ Still open:
   returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
   (`lib/triplewhale/client.ts`)
 
+## Known Follow-ups: Organic Social outline tabs (from PR #255)
+
+- [ ] **The health sweep and cache warmer only reach the first platform tab for clients that hide
+  Overview** (Paul, #255). The per-client loops in `app/api/health/sweep/route.ts:65` and
+  `app/api/cache-warm/route.ts:114` build one Organic Social URL per client with no subsection, which
+  for a client that hides Overview lands on its first platform tab only. Add the tabs from
+  `organicSocialSubsections(client)` (`lib/constants.ts:207`) so every tab, and its outline Data
+  request, is probed and warmed. Lock every number (#256) also edits the warmer; land this after it.
+- [ ] **One Organic Social title rule instead of four copies** (from my own #255 work). The tab title
+  rule lives in the two SPA routes (`pageTitle`, `app/dashboard/[clientSlug]/reports/page.tsx:176`,
+  `app/portal/[clientSlug]/reports/page.tsx:212`) and the two deep-link routes (`reportName`,
+  `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:107`,
+  `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:127`), in two spellings held together by
+  `lib/organic-social/deep-link-parity.test.tsx`. Hoist it into one helper next to
+  `resolveOrganicSubsection` (`lib/constants.ts:220`). It edits routes on Renaissance's live path: its
+  own PR, with the parity test as the guard.
+
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 
 Surfaced reviewing the Web Analytics ↔ Overview channel-parity fix (PR #210).
