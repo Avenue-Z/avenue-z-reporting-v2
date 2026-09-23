@@ -5,15 +5,15 @@ import { platformHeadlinesV2, platformHeadlinesV3 } from './outline-data'
 import { engagementBreakdownV1 } from './engagement-breakdown'
 import { ytdReviewV1 } from './ytd-review'
 import { platformHeadlinesV1 } from './platform-headlines'
-import { engagementTrendV1 } from './engagement-trend'
-import { followerGraphV1 } from './follower-graph'
+import { engagementTrendV1, engagementTrendV2 } from './engagement-trend'
+import { followerGraphV1, followerGraphV2 } from './follower-graph'
 import { topContentV1, topContentV2 } from './top-content'
 import { topContentV3 } from './top-content-outline'
 
 const BASE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'platform-headlines': { 1: platformHeadlinesV1 },
-  'engagement-trend': { 1: engagementTrendV1 },
-  'follower-graph': { 1: followerGraphV1 },
+  'engagement-trend': { 1: engagementTrendV1, 2: engagementTrendV2 },
+  'follower-graph': { 1: followerGraphV1, 2: followerGraphV2 },
   'top-content': { 1: topContentV1, 2: topContentV2 },
 }
 

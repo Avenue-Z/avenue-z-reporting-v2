@@ -567,6 +567,36 @@ per request.
 
 ---
 
+## Known Follow-ups: Organic Social annotations (from PR #252)
+
+- [ ] **The Net New Followers tile and the v2 Follower Growth Graph use different windows for the
+  same metric** (review of the annotations build, #252). The tiles send the Eastern window
+  (`isoRangeTz`, `lib/organic-social/headlines.ts:20`; the outline tiles on #255 the same way),
+  while the v2 graphs send the UTC month (`lib/organic-social/followers.ts:35`), which is the
+  window Top Content uses so a day on the chart and the post behind it agree. So adding up the
+  plotted daily gains does not always equal the tile above them. Measured on real August data for
+  the three clients: 0 to 4 followers per channel, which is nothing on a large account and up to a
+  third of the total on a small one. Fixing it means giving the tiles the same window, which
+  changes what Renaissance requests, so it needs its own PR with a Renaissance proof; a
+  client-scoped fix in the outline Data block alone would also work. Decide before the graphs go in
+  front of a client.
+
+- [ ] **The trend charts' per-view state is correct only because the report pages key the section by
+  tab and month.** `ChannelTrendChart` seeds which channels are on and which days are hidden once,
+  on mount, and re-seeds neither (`components/report-sections/organic-social/trends.tsx`). Both
+  report pages wrap the section in a Suspense keyed on the resolved subsection and the date range
+  (`app/dashboard/[clientSlug]/reports/page.tsx`, `app/portal/[clientSlug]/reports/page.tsx`), so a
+  new tab or month is a new instance and both seeds are fresh. Verified by running it: through that
+  key a tab switch and a month change both carry the right hides and the right legend. What is left
+  is a new answer arriving under the SAME key, which takes an in-place refresh someone else caused
+  and clears on any navigation. Closing that means `useOptimistic` (react 19 is installed) or an
+  override held per day; a single hash over the whole answer looks right and is not, because it
+  reverts a hide still in flight whose write then succeeds. `trends.identity.test.tsx` pins all of
+  it, including that trap. No user-visible defect today, so this is a hardening item, not a fix.
+  The note belongs at the key itself as well, which is not done here: #256 rewrites that exact line
+  in both pages (the key takes the served locked range), so a comment there would be the one thing
+  in this set that does not merge cleanly in any order. Add it once #256 has landed.
+
 ## Known Follow-ups — Configurable Dashboard (from PR #108 review)
 
 > **Feature overview:** for how the configurable dashboard actually works
