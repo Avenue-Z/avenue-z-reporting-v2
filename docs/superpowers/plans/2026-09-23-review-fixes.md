@@ -57,6 +57,69 @@ and pass after.
 
 ---
 
+## §0b. SECOND adversarial review: §4, §7 and §8a are BLOCKED
+
+Run 2026-09-23 against the completed plan. It failed three sections outright. Each of the
+three below was verified in the tree before I accepted it, because two of them reverse a
+decision the plan had already argued for.
+
+**§8a is withdrawn.** Two halves are wrong and the third is undecidable here.
+
+1. *All-null headline metrics is NOT malformed, it is a modelled state.*
+   `headline-build.ts:49-51` says so in its own comment: "No data for the window when EVERY
+   requested metric came back present-but-null ... Distinct from the absent-key guard above
+   (malformed)." Treating it as incomplete means a client with a genuinely quiet month never
+   locks that month, serves live numbers for it forever, logs `lock skipped` on every render,
+   and fails the next month's `priorParams` baseline read. That is a worse bug than the one
+   being fixed, and there is no unlock tool to recover it.
+2. *The graph half contradicts a passing test the plan did not notice.*
+   `locking-client.test.ts:109` asserts `ALL_CHANNELS: {}` is **complete**. The plan proposed
+   the opposite while flagging only the media test at `:126`.
+3. *The media half contradicts `:126-134` too*, which the plan admitted while also calling the
+   media half mandatory. Under the plan's own tie-breaker the whole of §8a produces no change,
+   which the author would have discovered mid-implementation.
+
+Also missed: `CLAUDE.md` already tracks this as a follow-up and records that locking an empty
+answer "matches the old freeze table's deliberate frozen-empty behaviour". So Paul's second
+option, fold it into that follow-up, is the state that already exists, and option 1 reverses a
+deliberate decision. **§8a goes back to Paul as a question, not a change.**
+
+**§7 is gated on §8a, so it defers with it.** The lock write stores the raw response
+(`locking-client.ts:92`) *before* any builder parses it, and `completeReportsData` returns true
+for `MULTI_METRIC_MEDIA_TYPE` on the brand entry alone (`:29-31`). So a malformed media answer
+captured on lock day is stored permanently, and §7's new throw would then fire on every later
+render of that locked month, forever, with no unlock tool. Today's `?? 0` is wrong but
+recoverable. Shipping §7 without the media half of §8a converts a wrong number into a permanent
+error card. Separately, §7 would throw on a shape nobody has probed, in a codebase where every
+comparable throw cites a live probe.
+
+**§4 is blocked on a decision, not on code.** The proposed shape (distrust only when the
+distinct authors are exactly one) introduces a case Paul did not ask about: a renamed account
+whose window *also* contains a partner collab has two distinct authors, so the stale handle is
+trusted, every post is classed as a collab, and the client-facing owned Top 5 renders **empty**.
+Today's rule falls back to `#ad`, which is imperfect but never empty. And his own literal
+example, "a month where the client's only posts are collabs authored by partners", stays broken
+when there is one partner, which is the common case for a small brand. His shape does not close
+his own example. This needs his call between the two options he offered.
+
+**Three smaller corrections applied to the sections below rather than blocking them:**
+
+- §3's justification was factually wrong. This is Tailwind v4, which generates `space-y-*` as
+  `:where(& > :not(:last-child))` with `margin-block-end`, not a `[hidden]` sibling chain with
+  `margin-top`. The conclusion survives, but only because the `<ul>` is followed by the chart
+  and so is genuinely not the last child. The third `no-print` rule is load-bearing on that
+  ordering, which a class-string test will not catch.
+- §2's note belongs on #250, where the edge-27 follow-up actually lives. `CLAUDE.md` has no
+  edge-27 entry, so writing it there would be inventing a location Paul did not name.
+- §8b promised a test with no surface to write it against: the URL building is inline in `GET`
+  behind a bearer check and a live `fetch`, and the route has no test file. Either extracting a
+  pure `buildWarmUrls` is in scope, or the test claim is dropped.
+
+**What is implementable now, unchanged:** §3 (with the corrected rationale), §5, §6, §2, §8b.
+**What goes back to Paul:** §4, §7, §8a.
+
+---
+
 ## §2. Finding 2 (●, 256) — request-shape change silently misses every lock
 
 **Paul, verbatim:**
