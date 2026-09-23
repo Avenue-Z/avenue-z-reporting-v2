@@ -81,8 +81,11 @@ function AnnotationItem({ annotation, controls, onToggle }: {
     })
   }
 
+  // Export PDF is window.print() of the page in front of you, so anything staff-only has to
+  // carry `no-print` or it lands in a PDF exported from a client's view: a hidden row is shown
+  // to staff only so they can unhide it, and the toggle is a control rather than content.
   return (
-    <li className={cn('flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2', hidden && 'opacity-40')}>
+    <li className={cn('flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2', hidden && 'opacity-40 no-print')}>
       <Thumb annotation={annotation} />
       <span className="text-xs font-bold text-white">{annotation.label}</span>
       {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
@@ -91,7 +94,7 @@ function AnnotationItem({ annotation, controls, onToggle }: {
           type="button"
           onClick={toggle}
           disabled={pending}
-          className="whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
+          className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
         >
           {hidden ? 'Unhide' : 'Hide from client'}
         </button>
@@ -108,8 +111,11 @@ export function AnnotationCallouts({ items, controls, onToggle }: {
   onToggle?: (day: string, hidden: boolean) => void
 }) {
   if (items.length === 0) return null
+  // Hiding every row is not enough: the list is a non-last child of the chart's section, so
+  // Tailwind still gives it a margin and the printed page keeps a gap where the row was.
+  const allHidden = items.every((a) => a.hidden)
   return (
-    <ul aria-label="Annotations" className="flex flex-wrap gap-3">
+    <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', allHidden && 'no-print')}>
       {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} onToggle={onToggle} />)}
     </ul>
   )

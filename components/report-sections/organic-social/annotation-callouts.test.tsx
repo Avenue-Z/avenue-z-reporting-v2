@@ -201,3 +201,43 @@ test('an annotation the team already hid gets no dot, so the team sees the chart
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={items} annotationControls={CONTROLS} />)
   expect(lastMarks()).toEqual([{ x: '2026-08-11' }])
 })
+
+// --- Nothing the team hid may reach an exported PDF (Paul, 2026-09-23) ----------------------
+// Export PDF is window.print() of the page (components/export-pdf-button.tsx), and `.no-print`
+// is the existing convention for anything that must not print (app/globals.css). A hidden
+// callout is rendered for staff so they can unhide it, so without these classes a PDF exported
+// from a client's view carries the very callouts the team hid from that client.
+
+test('a hidden callout never prints, and a visible one still does', () => {
+  const { container } = render(
+    <AnnotationCallouts items={[A(), A({ date: '2026-08-22', hidden: true })]} controls={CONTROLS} />,
+  )
+  const rows = [...container.querySelectorAll('li')]
+  expect(rows).toHaveLength(2)
+  expect(rows[0].className).not.toContain('no-print')
+  expect(rows[1].className).toContain('no-print')
+})
+
+test('the Hide control never prints, on any row: it is a control, not content', () => {
+  const { container } = render(<AnnotationCallouts items={[A()]} controls={CONTROLS} />)
+  expect(container.querySelector('button')?.className).toContain('no-print')
+})
+
+test('an all-hidden list never prints, so the PDF gets no empty gap where it was', () => {
+  const allHidden = render(
+    <AnnotationCallouts items={[A({ hidden: true }), A({ date: '2026-08-22', hidden: true })]} controls={CONTROLS} />,
+  )
+  expect(allHidden.container.querySelector('ul')?.className).toContain('no-print')
+  // The list keeps its own margin when its rows are hidden (Tailwind v4 gives a non-last child
+  // margin-block-end), so hiding only the rows would leave a gap in the printed page.
+  const mixed = render(<AnnotationCallouts items={[A(), A({ date: '2026-08-22', hidden: true })]} controls={CONTROLS} />)
+  expect(mixed.container.querySelector('ul')?.className).not.toContain('no-print')
+})
+
+test('a client, who has no controls, sees no hidden rows at all: hides are applied on the server', () => {
+  // Belt and braces beside the print rules: the client payload should never carry a hidden item,
+  // so this pins that the print fix is a second line of defence, not the only one.
+  const { container } = render(<AnnotationCallouts items={[A(), A({ date: '2026-08-22', value: 26 })]} />)
+  expect(container.querySelectorAll('li')).toHaveLength(2)
+  expect(container.querySelector('button')).toBeNull()
+})

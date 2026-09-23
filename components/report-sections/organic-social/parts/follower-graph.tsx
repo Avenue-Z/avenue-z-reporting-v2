@@ -37,8 +37,13 @@ export const followerGraphV1: PartImpl<OrganicSocialCtx> = {
  *  with the post behind it, the way the team's Follower Growth slides do. Total followers
  *  is a near-flat line with nothing to annotate.
  *
- *  The posts come from `graphPosts`, the React-cached read both graphs of a tab share, so
- *  this costs no extra request and never freezes a window itself. If that read fails the
+ *  The posts come from `graphPosts`, the React-cached read both graphs of a tab share, so the
+ *  two graphs cost one read between them and neither freezes a window itself. That is the only
+ *  sharing claimed: Top Content calls `fetchTopContentFrozen` directly (top-content.tsx), a
+ *  second call path in the same render, and the two cannot simply be merged because they pass
+ *  different `writeSnapshot` behaviour on purpose (graph-posts.ts): only Top Content may freeze
+ *  a window. Merging them would change when a window freezes, so it is not a comment fix.
+ *  If that read fails the
  *  annotations still render, just without thumbnails: a missing picture is not a reason to
  *  lose the graph. Only the day, the value, the label and a thumbnail cross to the chart.
  *
