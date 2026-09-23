@@ -9,6 +9,13 @@ import { readLock, writeLock } from './response-lock-store'
 
 export type DashReader = Pick<DashSocialClient, 'getReportsData' | 'getContent' | 'getMedia'>
 type Opts = { clientId: string; slug: string; settled: string | null; late: (periodEnd: string) => boolean }
+/** `capture` is the reader the FIRST read of a locked month goes through: a second client whose
+ *  fetches cannot be served from Next's data cache. It has no default on purpose. Dash calls carry
+ *  `next: { revalidate: 3600 }`, and on a dynamic request Next serves an expired entry stale while
+ *  it revalidates behind it, so a capture through the ordinary client can store an answer Dash gave
+ *  days earlier and lock it forever, which is exactly what locking on the 5th (D27) exists to
+ *  prevent. Defaulting this to `inner` would reinstate that silently, so every caller names it. */
+type Deps = { read: typeof readLock; write: typeof writeLock; capture: DashReader }
 
 /** The shape every reader needs (headlines.ts:41, followers.ts:41, trends.ts:40, the outline
  *  getters), so an incomplete 200 is never locked. */
@@ -50,9 +57,9 @@ export function withLockedBaseline(answer: unknown, prior: unknown): unknown {
   return Object.fromEntries(Object.entries(a).map(([k, v]) => [k, k in p ? withLockedBaseline(v, p[k]) : v]))
 }
 
-export function lockingClient(inner: DashReader, opts: Opts, deps = { read: readLock, write: writeLock }): DashReader {
+export function lockingClient(inner: DashReader, opts: Opts, deps: Deps): DashReader {
   const tag = (end: string, key: string) => `slug=${opts.slug} period_end=${end} key=${key.slice(0, 12)}`
-  async function locked<T>(method: string, params: object, complete: (res: unknown) => boolean, live: () => Promise<T>): Promise<T> {
+  async function locked<T>(method: string, params: object, complete: (res: unknown) => boolean, live: () => Promise<T>, capture: () => Promise<T>): Promise<T> {
     const p = params as Record<string, unknown>
     const end = requestPeriodEnd(p)
     if (!end || !opts.settled || end > opts.settled) return live()
@@ -67,7 +74,17 @@ export function lockingClient(inner: DashReader, opts: Opts, deps = { read: read
     if (hit) {
       answer = hit.response
     } else {
-      const res = await live()
+      // Not `live()`: the answer about to be stored permanently must come from Dash now, not from
+      // whatever the data cache still holds. And unlike the reads around it, a failure here is
+      // otherwise silent, because the sweep that drives most captures is a cron whose pages return
+      // 200 even when a part errors, so nothing would report that a month went uncaptured.
+      let res: T
+      try {
+        res = await capture()
+      } catch (e) {
+        console.error(`[organic-social] lock capture failed ${tag(end, key)}`)
+        throw e
+      }
       if (!complete(res)) {
         console.warn(`[organic-social] lock skipped (incomplete answer) ${tag(end, key)}`)
         return res
@@ -84,10 +101,11 @@ export function lockingClient(inner: DashReader, opts: Opts, deps = { read: read
   }
   const reader: DashReader = {
     getReportsData<M = unknown>(p: ReportsDataParams): Promise<ReportsDataResponse<M>> {
-      return locked('getReportsData', p, (r) => completeReportsData(p, r), () => inner.getReportsData<M>(p))
+      return locked('getReportsData', p, (r) => completeReportsData(p, r),
+        () => inner.getReportsData<M>(p), () => deps.capture.getReportsData<M>(p))
     },
     getContent(p: Parameters<DashReader['getContent']>[0]): Promise<ContentResponse> {
-      return locked('getContent', p, completeContent, () => inner.getContent(p))
+      return locked('getContent', p, completeContent, () => inner.getContent(p), () => deps.capture.getContent(p))
     },
     getMedia(p: Parameters<DashReader['getMedia']>[0]) {
       return inner.getMedia(p)

@@ -26,7 +26,7 @@ beforeEach(() => {
   for (const f of [getClientBySlug, readLock, writeLock]) f.mockClear()
   vi.spyOn(DashSocialClient.prototype, 'getReportsData').mockResolvedValue({ data: { 7: { metrics: { TOTAL_FOLLOWERS: { value: 1, context: null, context_change: null } } } } } as never)
 })
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 test('a client on locked months reads September through the lock store', async () => {
   getClientBySlug.mockResolvedValue(client({ firstMonth: '2026-08' }))
@@ -65,5 +65,28 @@ test('a bad lockDay is logged by slug and falls back to the 5th', async () => {
   expect(err).toHaveBeenCalledWith('[organic-social] reportingMonths.lockDay is invalid slug=client-a')
   expect(err.mock.calls.every((c) => !String(c[0]).includes('7'))).toBe(true)
   await r.client.getReportsData(SEPT) // September locked on Oct 5, so it still locks
+  expect(writeLock).toHaveBeenCalledTimes(1)
+})
+
+// The wrapper can only be as good as what it is handed. Without this test, wiring `capture: inner`
+// in base.ts would leave every other test green while the stale-answer bug is fully back.
+test('the capture goes out with no-store, so base.ts cannot hand the wrapper a cached reader', async () => {
+  ;(DashSocialClient.prototype.getReportsData as unknown as { mockRestore: () => void }).mockRestore()
+  const inits: (RequestInit & { next?: { revalidate?: number } })[] = []
+  vi.stubGlobal('fetch', (async (_u: string | URL | Request, i?: RequestInit) => {
+    inits.push(i as RequestInit & { next?: { revalidate?: number } })
+    return new Response(JSON.stringify({ data: { 7: { metrics: { TOTAL_FOLLOWERS: { value: 1, context: null, context_change: null } } } } }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })
+  }) as unknown as typeof fetch)
+
+  getClientBySlug.mockResolvedValue(client({ firstMonth: '2026-08' }))
+  const r = await dashClientFor('client-a')
+  await r.client.getReportsData(SEPT)
+
+  // One request: the capture. The prior-month lookup is a lock-store read, not a Dash call.
+  expect(inits).toHaveLength(1)
+  expect(inits[0].cache).toBe('no-store')
+  expect(inits[0].next).toBeUndefined()
   expect(writeLock).toHaveBeenCalledTimes(1)
 })

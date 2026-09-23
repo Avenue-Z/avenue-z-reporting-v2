@@ -29,23 +29,26 @@ const innerFake = () => ({ getReportsData: vi.fn(), getContent: vi.fn(), getMedi
 const depsFake = () => ({
   read: vi.fn(async (_clientId: string, _key: string): Promise<{ response: unknown } | null> => null),
   write: vi.fn(async (_clientId: string, _key: string, _periodEnd: string, response: unknown): Promise<unknown> => response),
+  // The reader the capture goes through: a second client whose fetches cannot be served from
+  // Next's data cache. Separate from `inner` on purpose, so a test can prove which one was used.
+  capture: innerFake(),
 })
 let warn: ReturnType<typeof vi.spyOn>
 beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}) })
 
 test('a locked month: the first read stores Dash\'s answer, the next read never reaches Dash', async () => {
   const inner = innerFake(); const deps = depsFake()
-  inner.getReportsData.mockResolvedValue(total(100, 80))
+  deps.capture.getReportsData.mockResolvedValue(total(100, 80))
   const c = lockingClient(inner, OPTS, deps)
   expect(await c.getReportsData(SEPT)).toEqual(total(100, 80))
-  expect(inner.getReportsData).toHaveBeenCalledTimes(1)
+  expect(deps.capture.getReportsData).toHaveBeenCalledTimes(1)
   expect(deps.write).toHaveBeenCalledTimes(1)
   expect(deps.write.mock.calls[0][2]).toBe('2026-09-30')
   // Only this request is stored: the prior month is not, so the compare value stays Dash's.
   const own = requestKey('getReportsData', SEPT as unknown as Record<string, unknown>)
   deps.read.mockImplementation(async (_c, key) => (key === own ? { response: total(100, 80) } : null))
   expect(await c.getReportsData(SEPT)).toEqual(total(100, 80))
-  expect(inner.getReportsData).toHaveBeenCalledTimes(1)
+  expect(deps.capture.getReportsData).toHaveBeenCalledTimes(1)
 })
 
 test('never locked: the live month, a client with nothing settled, or a request with no end date', async () => {
@@ -61,13 +64,13 @@ test('never locked: the live month, a client with nothing settled, or a request 
 
 test('fail closed: a Dash error, a lock read failure and a lock write failure all propagate, and nothing is stored', async () => {
   const inner = innerFake(); const deps = depsFake()
-  inner.getReportsData.mockRejectedValueOnce(new Error('dash down'))
+  deps.capture.getReportsData.mockRejectedValueOnce(new Error('dash down'))
   await expect(lockingClient(inner, OPTS, deps).getReportsData(SEPT)).rejects.toThrow('dash down')
   expect(deps.write).not.toHaveBeenCalled()
   const deps2 = depsFake(); deps2.read.mockRejectedValueOnce(new Error('no table'))
   await expect(lockingClient(innerFake(), OPTS, deps2).getReportsData(SEPT)).rejects.toThrow('no table')
   const inner3 = innerFake(); const deps3 = depsFake()
-  inner3.getReportsData.mockResolvedValue(total(5, 4)); deps3.write.mockRejectedValueOnce(new Error('write failed'))
+  deps3.capture.getReportsData.mockResolvedValue(total(5, 4)); deps3.write.mockRejectedValueOnce(new Error('write failed'))
   await expect(lockingClient(inner3, OPTS, deps3).getReportsData(SEPT)).rejects.toThrow('write failed')
 })
 
@@ -81,7 +84,7 @@ test('an incomplete answer is served, never stored, and warned once', async () =
   ]
   for (const [, params, answer] of cases) {
     const inner = innerFake(); const deps = depsFake()
-    inner.getReportsData.mockResolvedValue(answer)
+    deps.capture.getReportsData.mockResolvedValue(answer)
     warn.mockClear()
     expect(await lockingClient(inner, OPTS, deps).getReportsData(params)).toEqual(answer)
     expect(deps.write).not.toHaveBeenCalled()
@@ -89,7 +92,7 @@ test('an incomplete answer is served, never stored, and warned once', async () =
     expect(warn.mock.calls[0][0]).toMatch(/^\[organic-social\] lock skipped \(incomplete answer\) slug=client-a period_end=2026-09-30 key=[0-9a-f]{12}$/)
   }
   const inner = innerFake(); const deps = depsFake()
-  inner.getContent.mockResolvedValue({ data: {} })
+  deps.capture.getContent.mockResolvedValue({ data: {} })
   expect(await lockingClient(inner, OPTS, deps).getContent(contentParams)).toEqual({ data: {} })
   expect(deps.write).not.toHaveBeenCalled()
 })
@@ -97,7 +100,7 @@ test('an incomplete answer is served, never stored, and warned once', async () =
 test('a graph answer whose metric has no ALL_CHANNELS is incomplete: the readers need that key', async () => {
   const inner = innerFake(); const deps = depsFake()
   const shallow = { data: { metrics: { TOTAL_FOLLOWERS: {} } } }
-  inner.getReportsData.mockResolvedValue(shallow)
+  deps.capture.getReportsData.mockResolvedValue(shallow)
   warn.mockClear()
   expect(await lockingClient(inner, OPTS, deps).getReportsData(graphParams)).toEqual(shallow)
   expect(deps.write).not.toHaveBeenCalled()
@@ -114,7 +117,7 @@ test('a lock store failure is logged with the slug before it propagates, so an o
   expect(err.mock.calls[0][0]).toMatch(/^\[organic-social\] lock store read failed slug=client-a period_end=2026-09-30 key=[0-9a-f]{12}$/)
   err.mockClear()
   const inner2 = innerFake(); const deps2 = depsFake()
-  inner2.getReportsData.mockResolvedValue(total(5, 4)); deps2.write.mockRejectedValueOnce(new Error('write failed'))
+  deps2.capture.getReportsData.mockResolvedValue(total(5, 4)); deps2.write.mockRejectedValueOnce(new Error('write failed'))
   await expect(lockingClient(inner2, OPTS, deps2).getReportsData(SEPT)).rejects.toThrow('write failed')
   expect(err.mock.calls[0][0]).toContain('lock store write failed slug=client-a')
   err.mockRestore()
@@ -123,7 +126,7 @@ test('a lock store failure is logged with the slug before it propagates, so an o
 test('a media answer with the brand entry but no reels is complete: no reels is a real answer', async () => {
   const inner = innerFake(); const deps = depsFake()
   const noReels = { data: { [BRAND]: { metrics: {} } } }
-  inner.getReportsData.mockResolvedValue(noReels)
+  deps.capture.getReportsData.mockResolvedValue(noReels)
   warn.mockClear()
   expect(await lockingClient(inner, OPTS, deps).getReportsData(mediaParams)).toEqual(noReels)
   expect(deps.write).toHaveBeenCalledTimes(1)
@@ -132,26 +135,26 @@ test('a media answer with the brand entry but no reels is complete: no reels is 
 
 test('Top Content locks the same way, and a complete answer is stored', async () => {
   const inner = innerFake(); const deps = depsFake()
-  inner.getContent.mockResolvedValue(content)
+  deps.capture.getContent.mockResolvedValue(content)
   const c = lockingClient(inner, OPTS, deps)
   expect(await c.getContent(contentParams)).toEqual(content)
   expect(deps.write).toHaveBeenCalledTimes(1)
   const own = requestKey('getContent', contentParams as unknown as Record<string, unknown>)
   deps.read.mockImplementation(async (_c, key) => (key === own ? { response: content } : null))
   expect(await c.getContent(contentParams)).toEqual(content)
-  expect(inner.getContent).toHaveBeenCalledTimes(1)
+  expect(deps.capture.getContent).toHaveBeenCalledTimes(1)
 })
 
 test('when another request stored this lock first, the stored winner is what every reader gets', async () => {
   const inner = innerFake(); const deps = depsFake()
-  inner.getReportsData.mockResolvedValue(total(100, 80))
+  deps.capture.getReportsData.mockResolvedValue(total(100, 80))
   deps.write.mockResolvedValueOnce(total(999, 80))
   expect(await lockingClient(inner, OPTS, deps).getReportsData(SEPT)).toEqual(total(999, 80))
 })
 
 test('a capture after the lock day warns once, on the capture only', async () => {
   const inner = innerFake(); const deps = depsFake()
-  inner.getReportsData.mockResolvedValue(total(100, 80))
+  deps.capture.getReportsData.mockResolvedValue(total(100, 80))
   const c = lockingClient(inner, { ...OPTS, late: () => true }, deps)
   await c.getReportsData(SEPT)
   const lateLines = warn.mock.calls.map((a) => String(a[0])).filter((l) => l.startsWith('[organic-social] late lock'))
@@ -167,7 +170,7 @@ test('a capture after the lock day warns once, on the capture only', async () =>
 test("a locked month compares against the prior month's locked value, not Dash's", async () => {
   const inner = innerFake(); const deps = depsFake()
   const august = total(90, 70)
-  inner.getReportsData.mockResolvedValue(total(100, 80))
+  deps.capture.getReportsData.mockResolvedValue(total(100, 80))
   const own = requestKey('getReportsData', SEPT as unknown as Record<string, unknown>)
   deps.read.mockImplementation(async (_c, key) => (key === own ? null : { response: august }))
   const answer = await lockingClient(inner, OPTS, deps).getReportsData(SEPT) as unknown as ReturnType<typeof total>
@@ -177,7 +180,7 @@ test("a locked month compares against the prior month's locked value, not Dash's
 
 test("without the prior month stored, Dash's own compare value is kept", async () => {
   const inner = innerFake(); const deps = depsFake()
-  inner.getReportsData.mockResolvedValue(total(100, 80))
+  deps.capture.getReportsData.mockResolvedValue(total(100, 80))
   const answer = await lockingClient(inner, OPTS, deps).getReportsData(SEPT) as unknown as ReturnType<typeof total>
   expect(answer.data[BRAND].metrics.TOTAL_FOLLOWERS.context).toBe(80)
 })
@@ -231,4 +234,62 @@ test('the completeness rules are exported and pure', () => {
   expect(completeContent(content)).toBe(true)
   expect(completeContent({ data: { content: 'nope' } })).toBe(false)
   expect(completeContent(null)).toBe(false)
+})
+
+// --- The capture must not be servable from Next's data cache (Paul, 2026-09-23) -------------
+// Dash calls carry `next: { revalidate: 3600 }`. On a dynamic request Next serves an expired
+// entry stale and revalidates behind it (patch-fetch.js:722-744), so the FIRST capture could
+// store an answer Dash gave days earlier and lock it forever. The capture therefore reads
+// through its own uncached reader; every other read stays cached, which is what keeps the
+// pages fast.
+
+test('the capture reads through the uncached reader, so a stale cached answer can never be locked', async () => {
+  const inner = innerFake(); const deps = depsFake()
+  // What the data cache would hand back: a stale answer, still perfectly well formed.
+  inner.getReportsData.mockResolvedValue(total(1, 1))
+  deps.capture.getReportsData.mockResolvedValue(total(100, 80))
+  const c = lockingClient(inner, OPTS, deps)
+  expect(await c.getReportsData(SEPT)).toEqual(total(100, 80))
+  expect(inner.getReportsData).not.toHaveBeenCalled()
+  expect(deps.capture.getReportsData).toHaveBeenCalledTimes(1)
+  expect(deps.write.mock.calls[0][3]).toEqual(total(100, 80))
+})
+
+test('a month that is not locked yet still reads through the cached reader', async () => {
+  const inner = innerFake(); const deps = depsFake()
+  inner.getReportsData.mockResolvedValue(total(1, 1))
+  expect(await lockingClient(inner, OPTS, deps).getReportsData(LIVE)).toEqual(total(1, 1))
+  expect(inner.getReportsData).toHaveBeenCalledTimes(1)
+  expect(deps.capture.getReportsData).not.toHaveBeenCalled()
+})
+
+test('a lock hit reads through neither: the stored answer is the answer', async () => {
+  const inner = innerFake(); const deps = depsFake()
+  const own = requestKey('getReportsData', SEPT as unknown as Record<string, unknown>)
+  deps.read.mockImplementation(async (_c, key) => (key === own ? { response: total(100, 80) } : null))
+  expect(await lockingClient(inner, OPTS, deps).getReportsData(SEPT)).toEqual(total(100, 80))
+  expect(inner.getReportsData).not.toHaveBeenCalled()
+  expect(deps.capture.getReportsData).not.toHaveBeenCalled()
+})
+
+test('a capture that throws stores nothing and says which client and month failed', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const inner = innerFake(); const deps = depsFake()
+  deps.capture.getReportsData.mockRejectedValueOnce(new Error('dash down'))
+  await expect(lockingClient(inner, OPTS, deps).getReportsData(SEPT)).rejects.toThrow('dash down')
+  expect(deps.write).not.toHaveBeenCalled()
+  // Without this line a capture failure is silent: the sweep is a cron, and its pages return 200
+  // even when a part errors, so nothing else reports that a month went uncaptured.
+  expect(err).toHaveBeenCalledTimes(1)
+  expect(err.mock.calls[0][0]).toMatch(/^\[organic-social\] lock capture failed slug=client-a period_end=2026-09-30 key=[0-9a-f]{12}$/)
+  err.mockRestore()
+})
+
+test('the capture path covers content too, not just reports data', async () => {
+  const inner = innerFake(); const deps = depsFake()
+  inner.getContent.mockResolvedValue({ data: { content: [] } })
+  deps.capture.getContent.mockResolvedValue(content)
+  expect(await lockingClient(inner, OPTS, deps).getContent(contentParams)).toEqual(content)
+  expect(inner.getContent).not.toHaveBeenCalled()
+  expect(deps.capture.getContent).toHaveBeenCalledTimes(1)
 })
