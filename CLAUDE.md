@@ -604,6 +604,87 @@ Still open:
   returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
   (`lib/triplewhale/client.ts`)
 
+## Known Follow-ups: Organic Social outline tabs (from PR #255)
+
+- [ ] **Validate the client's own Instagram handle when it is saved, instead of inferring trust
+  from that month's post authors.** `handleMatchesNoAuthor`
+  (`lib/organic-social/outline-top-content.ts:53`) distrusts a stored handle whenever the window's
+  Instagram posts carry authors and none is that handle, then falls back to the `#ad` rule. Paul
+  raised (PR #255, 2026-09-23) that this distrusts a CORRECT handle in any month whose only posts
+  are partner collabs, which puts collab posts without `#ad` into the client's owned Top 5. He is
+  right, and his suggested narrowing (distrust only when there is exactly one distinct author)
+  **cannot be implemented**: a renamed account with one partner collab, and a correct handle in a
+  month of partner collabs, need opposite answers and the rule cannot tell them apart, because it
+  only ever compares an author name to the handle for equality, so renaming every name at once
+  cannot change its answer, and renaming is the only difference between the two cases. (An earlier
+  version of this entry said the two hand the function "identical input". They do not: what
+  matched was a summary the test itself computed. Paul's correction, 2026-09-23. His narrowed rule
+  did fix a collab month with several partners; it failed on a single partner, and on the rename
+  case above.) The test
+  `the own-handle rule cannot separate a rename from a month of partner collabs`
+  (`lib/organic-social/outline-top-content.test.ts`) proves it, and `:38` in the same file is the
+  existing case his rule would break. Validating at save time works because the handle can be
+  checked against Dash directly rather than inferred from whoever happened to post. Write-path
+  change in the switch-on script and the admin surface, so its own PR.
+
+  **Before building that check, see whether Dash gives us a stable account id** (Paul, 2026-09-23).
+  If `instagram_user` carries an id alongside the handle, store and match the id instead: a rename
+  can then never make the stored value stale, and `handleMatchesNoAuthor` can be deleted outright
+  rather than validated around. That removes this class of problem instead of managing it.
+
+  It is genuinely unknown today, and here is why, so nobody re-derives it. `authorOf`
+  (`lib/organic-social/post-author.ts`) reads only `instagram_user.handle` then `.username`,
+  through a narrow cast, so the shape is never typed. Every `instagram_user` in the repo is a
+  hand-written test fixture carrying `{ handle }` only (`fetch-top-content-author.test.ts:38`,
+  `fetch-top-content-parity.test.ts:26`), so the tests cannot answer it. The one live probe that
+  touched this object (`probes/collab-posts-authors.ts`, 2026-09-21) read the same two named fields
+  and printed the derived handle, never the object or its keys, so its saved output does not
+  contain the answer either.
+
+  **The probe that settles it:** one read-only CONTENT call for a single Instagram post, printing
+  `Object.keys(post.instagram_user)`. Do that before designing the save-time check, because the
+  answer decides whether it is "validate a handle" or "store an id and stop caring".
+
+- [ ] **The health sweep and cache warmer only reach the first platform tab for clients that hide
+  Overview** (Paul, #255). The per-client loops in `app/api/health/sweep/route.ts:65` and
+  `app/api/cache-warm/route.ts:114` build one Organic Social URL per client with no subsection, which
+  for a client that hides Overview lands on its first platform tab only. Add the tabs from
+  `organicSocialSubsections(client)` (`lib/constants.ts:207`) so every tab, and its outline Data
+  request, is probed and warmed. Lock every number (#256) also edits the warmer; land this after it.
+- [ ] **A single null metric still plots a zero on the YTD graphs** (review of the YTD build, #255).
+  `buildOutlineKpis` (`lib/organic-social/outline-headlines.ts`) marks a month `noData` only when
+  EVERY metric is null, and coerces each null to 0. So a month where Dash returns a null Total
+  Followers but other metrics have values is not `noData`: the tile reads 0 and the YTD line drops
+  to zero and back, which reads as a collapse rather than a gap. YTD cannot tell the difference (the
+  null is gone before it sees it); the fix belongs in the tiles' builder, which the YTD work must
+  not touch. Decide with the outline Data block, not here.
+- [ ] **The YTD block fails all or nothing across up to 12 requests** (same review).
+  `parts/ytd-review.tsx:30` fires one request per month in parallel and one rejection blanks the
+  whole block (a partial graph is deliberately never drawn). In August that is one request; by
+  December it is twelve, so the chance of hitting a timeout or a 429 grows with the year. Add a
+  small concurrency cap rather than degrading the graph.
+- [ ] **The timeout card tells a YTD viewer to shorten the date range** (same review), which they
+  cannot do: the block picks its own months (`parts/shared.tsx` `Fallback`). Needs copy that fits
+  both callers, or a per-block message.
+- [ ] **One Organic Social title rule instead of four copies** (from my own #255 work). The tab title
+  rule lives in the two SPA routes (`pageTitle`, `app/dashboard/[clientSlug]/reports/page.tsx:176`,
+  `app/portal/[clientSlug]/reports/page.tsx:212`) and the two deep-link routes (`reportName`,
+  `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:107`,
+  `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:127`), in two spellings held together by
+  `lib/organic-social/deep-link-parity.test.tsx`. Hoist it into one helper next to
+  `resolveOrganicSubsection` (`lib/constants.ts:220`). It edits routes on Renaissance's live path: its
+  own PR, with the parity test as the guard.
+- [ ] **UGC posts without #ad compete for the owned top 5 on outline tabs** (review of the outline
+  fixes build, #255). `top-content@3` sorts Instagram UGC (posts that tag the client) with no author
+  and no #ad into the owned rows, because UGC author fields are unproven, so the UGC line never
+  attaches one (`lib/organic-social/top-content.ts:188`). The deck match (9 of 9) was checked on the
+  owned feed only. Before the three clients go live, compare one month of their Instagram Top Content
+  on staging with the deck; if a tagged post takes an owned slot, send UGC to Influencer Posts for
+  pinned clients.
+- [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
+  `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
+  a 401, a 500 or a malformed answer. Add the error's name and status.
+
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 
 Surfaced reviewing the Web Analytics ↔ Overview channel-parity fix (PR #210).
