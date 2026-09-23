@@ -6,22 +6,23 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, SHOW_LOCKED_REPORT_TEASERS, visibleSubsections, organicSocialSubsections, resolveOrganicSubsection } from '@/lib/constants'
-import type { Client } from '@/lib/db/schema'
+import type { PortalSidebarClient } from '@/lib/portal/sidebar-client'
 import { LogOut, Lock, Users } from 'lucide-react'
 
 interface PortalSidebarProps {
-  clients: Client[]
+  /** Only the current client, trimmed to what the sidebar reads (see toPortalSidebarClient). These
+   *  props reach the browser, so they never carry another client or anything secret. */
+  client: PortalSidebarClient | null
   userRole?: string
 }
 
-export function PortalSidebar({ clients, userRole }: PortalSidebarProps) {
+export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   // Extract client slug from /portal/[clientSlug]/...
   const pathParts = pathname.split('/')
   const clientSlug = pathParts[2] ?? ''
-  const client = clients.find((c) => c.slug === clientSlug)
 
   if (!client) return null
 
