@@ -36,3 +36,38 @@ test('one MULTI_METRIC_MEDIA_TYPE request in the tiles window shape, with requir
   expect('aggregateBy' in p).toBe(false)
   expect(k.videoViews).toMatchObject({ value: 5, delta: 25 })
 })
+
+// --- A malformed media answer is flagged, never shown as zero (Paul, 2026-09-23) -------------
+// "An absent `reel` entry correctly means zero. But if `reel` is present and
+// `metrics.VIEWS.ALL_CHANNELS` isn't, this also reads 0, with no flag and no log."
+// The optional chain collapsed four different situations into the same 0. Only the first is a
+// real zero; the other three are Dash answering in a shape we do not understand, and the row
+// should carry its "Could not load" flag rather than a number nobody can trust.
+
+test('a reel entry with no metrics at all throws rather than showing zero', () => {
+  expect(() => buildMediaKpis('INSTAGRAM', { ...brand, reel: {} }, 42, SPEC))
+    .toThrow('INSTAGRAM: Dash returned reel without VIEWS')
+})
+
+test('a reel entry whose metrics omit the one we asked for throws', () => {
+  expect(() => buildMediaKpis('INSTAGRAM', { ...brand, reel: { metrics: { SOMETHING_ELSE: { ALL_CHANNELS: { value: 1, context: null, context_change: null } } } } }, 42, SPEC))
+    .toThrow('INSTAGRAM: Dash returned reel without VIEWS')
+})
+
+test('a metric present without ALL_CHANNELS throws: that is the shape the readers need', () => {
+  expect(() => buildMediaKpis('INSTAGRAM', { ...brand, reel: { metrics: { VIEWS: {} } } }, 42, SPEC))
+    .toThrow('INSTAGRAM: Dash returned reel without VIEWS')
+})
+
+// The line between "flag it" and "it is genuinely zero" is the shape being absent, never the
+// value being falsy. A window where Dash has the metric and reports null is a real answer.
+test('ALL_CHANNELS present with a null value is still zero, and does not throw', () => {
+  const k = buildMediaKpis('INSTAGRAM', { ...brand, reel: { metrics: { VIEWS: { ALL_CHANNELS: { value: null, context: null, context_change: null } } } } }, 42, SPEC)
+  expect(k.videoViews).toMatchObject({ value: 0 })
+})
+
+// The brand guard and the per-media-type rule stay independent: the brand entry legitimately
+// carries an empty metrics object on every answer, including healthy ones.
+test("the brand entry's own empty metrics object is not a malformed media type", () => {
+  expect(() => buildMediaKpis('INSTAGRAM', brand, 42, SPEC)).not.toThrow()
+})
