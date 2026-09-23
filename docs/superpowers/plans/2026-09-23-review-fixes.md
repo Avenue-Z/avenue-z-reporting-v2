@@ -230,6 +230,107 @@ Unchanged in substance, with two corrections from the review:
 
 ---
 
+## §0d. FINAL resolutions, after the review of §0c
+
+§0c was reviewed and four of its five resolutions were wrong. These supersede it. Where §2,
+§4, §7, §8a and §8b below disagree with this section, **this section wins**; their bodies are
+left as the record of how the thinking moved.
+
+### §4 — option 1 EXACTLY, and the guard I invented is deleted
+
+The guard in §0c ("fall back to `#ad` if trusting the handle would empty the owned list") is
+withdrawn. It was wrong three ways:
+
+1. **It cancelled the fix in Paul's own example.** A month of collabs by two or more partners:
+   the new rule trusts the handle, `partitionByAuthor` stamps every post `influencer`, the owned
+   list is empty, the guard fires, and we are back on the `#ad` rule. Byte-identical to today.
+   The finding would have been closed with nothing changed.
+2. **It corrupts the one unambiguously correct answer.** A client who genuinely posted nothing
+   themselves *should* have an empty owned list. Option 1 alone gets that right for the first
+   time; the guard turns it back into `#ad`, which promotes partner posts lacking `#ad` into the
+   client's own Top 5. That is the exact wrong-result class Paul raised.
+3. **It is not implementable where §0c implied.** `handleMatchesNoAuthor` has neither the stored
+   designations nor a partition result, and `loadDesignations` runs *after* the handle decision,
+   so "the owned list is empty" cannot be evaluated there without partitioning twice.
+
+**So: implement Paul's option 1 as written, nothing added.** Distrust the stored handle only
+when the authored Instagram posts have exactly one distinct author and that author is not the
+stored handle.
+
+**Two limits stated in the code and on the PR, neither papered over:**
+- A renamed account whose window also contains a partner collab now has two distinct authors, so
+  the stale handle is trusted and the owned list renders empty where today it falls back to
+  `#ad`. This is a regression in that case, accepted because the alternative was the guard above.
+- Author names alone cannot separate a rename from a month whose only posts are collabs by ONE
+  partner, so Paul's example with a single partner is still distrusted.
+
+Both close properly with his option 2, validating the handle when it is saved. **Filed as a
+follow-up, with these two cases named, not built here.**
+
+### §7 — implement the throw; the completeness rule it was paired with is dropped
+
+The media completeness rule from §0c cannot be written safely and is withdrawn:
+
+- **It cannot be scoped to the shape §7 throws on.** The media request carries no media type
+  (`outline-media.ts` sends `reportType`, `metrics`, dates and brand, nothing else), so
+  `completeReportsData` knows `metrics === ['VIEWS']` but cannot know that only `reel` matters.
+  The rule would have to apply to every non-brand entry Dash returns.
+- **Over-strict in exactly the way this plan rejects elsewhere.** Any other media type returned
+  without `VIEWS.ALL_CHANNELS` would make the whole answer incomplete, so the month never locks
+  and is served live forever. That is the failure §8a rejects option 1 for.
+- **As worded it also broke the two tests §0c promised it preserved**, because the brand entry
+  legitimately carries `metrics: {}` and the rule as written would have failed it.
+
+**So: ship §7's throw alone**, which is Paul's sentence literally. Verified where it surfaces:
+`outline-data.tsx` catches it, logs, and flags every media row of that tab with `MEDIA_FAILED`;
+`selectOutlineRows` short-circuits on an `unavailable` row before its own throw, so the Data
+block is not blanked.
+
+**Disclosed on the PR:** because the lock stores the raw response before any builder parses it,
+a malformed media answer captured on lock day is stored permanently, and this throw then shows
+"Could not load" on that month forever. That is worse than today in permanence and better than
+today in honesty, since today shows a fabricated `0`. Paul asked for the visible flag. Named as
+a risk, with the unlock gap, rather than hidden.
+
+### §8a — both rejections stand, on better evidence than §0c gave
+
+§0c rejected the graph half because a passing test asserts the opposite. That argument is
+circular: the same commit Paul's comment cites wrote that assertion. **The rejection survives on
+the real reason**, which is the same one that kills the headline half: an empty series is what a
+genuinely quiet month looks like, and `isEmptyTrend` renders it as NoData. Making it incomplete
+stops a quiet month ever locking, serves it live forever and breaks the next month's baseline
+read.
+
+**Stated honestly on the PR, not dressed up:** a *transient* empty answer on lock day can still
+be locked permanently, with no unlock tool. That is a live risk. Separating a transient empty
+answer from a legitimately empty month needs a signal Paul has not specified and I do not have.
+The existing `CLAUDE.md` note covers Top Content only, so extending it to graphs and headlines
+is **recording a new decision, not citing an old one**, and it will say so.
+
+### §8b — take Paul's SECOND option, the sweep gets its own cron
+
+Reordering was his first option and it only moves the loss. `warmOne` has no timeout or abort,
+`maxDuration` is 300 and concurrency is 8, and the health sweep is scheduled around cache-warm
+on the assumption that it reads warm entries. Putting a slow lock-sweep render at the head of
+the queue means the client-facing warm URLs are what get cut, hourly, and the next health sweep
+probes cold pages and can report a section down that is fine.
+
+**So: his second option.** The lock sweep gets its own route and its own schedule, which removes
+the trade-off instead of flipping who loses. Bigger than a reorder, still his option, no drift.
+
+### §2 — fixture pinned precisely, and the note goes in both places
+
+- Freeze the clock, mock the client lookup, and assert the key the getter actually hands the lock
+  store rather than recomputing it in the test, which would pin params to hash instead of getter
+  to key.
+- **Five keys, not four:** `getContent` produces two, the owned read and the UGC read.
+- Pin the params object alongside each hash, so a failure reads as a changed request rather than
+  two hex strings that tell the reader nothing.
+- The note goes **both** on #250 and in the `CLAUDE.md` follow-up list. #250 is already merged,
+  so a note there alone lands in a closed thread.
+
+---
+
 ## §2. Finding 2 (●, 256) — request-shape change silently misses every lock
 
 **Paul, verbatim:**
