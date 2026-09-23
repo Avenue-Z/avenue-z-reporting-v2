@@ -621,11 +621,29 @@ Still open:
   matched was a summary the test itself computed. Paul's correction, 2026-09-23. His narrowed rule
   did fix a collab month with several partners; it failed on a single partner, and on the rename
   case above.) The test
-  `the own-handle rule cannot tell a rename from a month of partner collabs`
+  `the own-handle rule cannot separate a rename from a month of partner collabs`
   (`lib/organic-social/outline-top-content.test.ts`) proves it, and `:38` in the same file is the
   existing case his rule would break. Validating at save time works because the handle can be
   checked against Dash directly rather than inferred from whoever happened to post. Write-path
   change in the switch-on script and the admin surface, so its own PR.
+
+  **Before building that check, see whether Dash gives us a stable account id** (Paul, 2026-09-23).
+  If `instagram_user` carries an id alongside the handle, store and match the id instead: a rename
+  can then never make the stored value stale, and `handleMatchesNoAuthor` can be deleted outright
+  rather than validated around. That removes this class of problem instead of managing it.
+
+  It is genuinely unknown today, and here is why, so nobody re-derives it. `authorOf`
+  (`lib/organic-social/post-author.ts`) reads only `instagram_user.handle` then `.username`,
+  through a narrow cast, so the shape is never typed. Every `instagram_user` in the repo is a
+  hand-written test fixture carrying `{ handle }` only (`fetch-top-content-author.test.ts:38`,
+  `fetch-top-content-parity.test.ts:26`), so the tests cannot answer it. The one live probe that
+  touched this object (`probes/collab-posts-authors.ts`, 2026-09-21) read the same two named fields
+  and printed the derived handle, never the object or its keys, so its saved output does not
+  contain the answer either.
+
+  **The probe that settles it:** one read-only CONTENT call for a single Instagram post, printing
+  `Object.keys(post.instagram_user)`. Do that before designing the save-time check, because the
+  answer decides whether it is "validate a handle" or "store an id and stop caring".
 
 - [ ] **The health sweep and cache warmer only reach the first platform tab for clients that hide
   Overview** (Paul, #255). The per-client loops in `app/api/health/sweep/route.ts:65` and
