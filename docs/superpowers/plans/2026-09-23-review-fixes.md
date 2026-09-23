@@ -133,7 +133,7 @@ is `{ data: { [BRAND]: { metrics: {} } } }`, which has **no media-type entries a
 narrow rule below only constrains entries that are present, so "no reels this month" stays
 complete and stays lockable, exactly as that test asserts.
 
-### §4 resolution — own handle
+### §4 resolution: own handle
 
 **Implement Paul's option 1 as he wrote it**, plus one guard he did not ask for, because his
 shape introduces the case that guard prevents.
@@ -156,7 +156,7 @@ still distrusts a correct handle, and the guard above is what stops that being v
 client. Closing it properly needs his option 2, validating the handle when it is saved, which
 is a write-path change in the switch-on script and the admin surface. **Filed, not built here.**
 
-### §7 resolution — media throw
+### §7 resolution: media throw
 
 **Implement, narrowly, together with the §8a media rule below.** Zero only when the media type
 is absent from Dash's answer. If the media type is present but the requested metric or its
@@ -181,7 +181,7 @@ must land before that merge, and the composition gets a test there.
 probe Dash for a `reel` entry present with a missing or empty `metrics`, read only, and record
 the result. If the shape cannot occur, the throw is still correct but the plan says so honestly.
 
-### §8a resolution — empty-but-shaped answers
+### §8a resolution: empty-but-shaped answers
 
 **Take Paul's option 2, which is the one he offered second and the one the codebase already
 implements deliberately**, and add the narrow media rule §7 depends on.
@@ -200,7 +200,7 @@ implements deliberately**, and add the narrow media rule §7 depends on.
   an empty answer "matches the old freeze table's deliberate frozen-empty behaviour", to name
   the two shapes Paul identified and why each was left alone.
 
-### §8b resolution — sweep order
+### §8b resolution: sweep order
 
 Move the sweep URLs ahead of the regular warm URLs, which is his first option.
 
@@ -218,7 +218,7 @@ consumer was found that reads it positionally.
 was captured. That is an observability gap in `warmOne`, not something reordering fixes, and the
 capture-failure log added in Finding 1 already covers the case that matters.
 
-### §2 resolution — request-key test
+### §2 resolution: request-key test
 
 Unchanged in substance, with two corrections from the review:
 
@@ -236,7 +236,7 @@ Unchanged in substance, with two corrections from the review:
 §4, §7, §8a and §8b below disagree with this section, **this section wins**; their bodies are
 left as the record of how the thinking moved.
 
-### §4 — option 1 EXACTLY, and the guard I invented is deleted
+### §4: option 1 EXACTLY, and the guard I invented is deleted
 
 The guard in §0c ("fall back to `#ad` if trusting the handle would empty the owned list") is
 withdrawn. It was wrong three ways:
@@ -267,7 +267,7 @@ stored handle.
 Both close properly with his option 2, validating the handle when it is saved. **Filed as a
 follow-up, with these two cases named, not built here.**
 
-### §7 — implement the throw; the completeness rule it was paired with is dropped
+### §7: implement the throw; the completeness rule it was paired with is dropped
 
 The media completeness rule from §0c cannot be written safely and is withdrawn:
 
@@ -292,7 +292,7 @@ a malformed media answer captured on lock day is stored permanently, and this th
 today in honesty, since today shows a fabricated `0`. Paul asked for the visible flag. Named as
 a risk, with the unlock gap, rather than hidden.
 
-### §8a — both rejections stand, on better evidence than §0c gave
+### §8a: both rejections stand, on better evidence than §0c gave
 
 §0c rejected the graph half because a passing test asserts the opposite. That argument is
 circular: the same commit Paul's comment cites wrote that assertion. **The rejection survives on
@@ -307,7 +307,7 @@ answer from a legitimately empty month needs a signal Paul has not specified and
 The existing `CLAUDE.md` note covers Top Content only, so extending it to graphs and headlines
 is **recording a new decision, not citing an old one**, and it will say so.
 
-### §8b — take Paul's SECOND option, the sweep gets its own cron
+### §8b: take Paul's SECOND option, the sweep gets its own cron
 
 Reordering was his first option and it only moves the loss. `warmOne` has no timeout or abort,
 `maxDuration` is 300 and concurrency is 8, and the health sweep is scheduled around cache-warm
@@ -318,7 +318,7 @@ probes cold pages and can report a section down that is fine.
 **So: his second option.** The lock sweep gets its own route and its own schedule, which removes
 the trade-off instead of flipping who loses. Bigger than a reorder, still his option, no drift.
 
-### §2 — fixture pinned precisely, and the note goes in both places
+### §2: fixture pinned precisely, and the note goes in both places
 
 - Freeze the clock, mock the client lookup, and assert the key the getter actually hands the lock
   store rather than recomputing it in the test, which would pin params to hash instead of getter
@@ -331,7 +331,7 @@ the trade-off instead of flipping who loses. Bigger than a reorder, still his op
 
 ---
 
-## §2. Finding 2 (●, 256) — request-shape change silently misses every lock
+## §2. Finding 2 (●, 256): request-shape change silently misses every lock
 
 **Paul, verbatim:**
 > The lock key hashes the literal request: date strings with their `T04:00:00Z` suffix, the
@@ -366,7 +366,7 @@ itself. He asked for a test and a note.
 
 ---
 
-## §3. Finding 3 (●, 252) — hidden callouts print in an exported PDF
+## §3. Finding 3 (●, 252): hidden callouts print in an exported PDF
 
 **Paul, verbatim:**
 > Staff see hidden callouts faded, with their thumbnail, "Hidden from client" and the
@@ -412,7 +412,7 @@ quietly alter it.
 
 ---
 
-## §4. Finding 4 (● low, 255) — a correct handle is distrusted
+## §4. Finding 4 (● low, 255): a correct handle is distrusted
 
 **Paul, verbatim:**
 > (low) This distrusts a correct handle whenever no Instagram post in the window is authored by
@@ -452,7 +452,7 @@ to `missingAuthors` (`:48-51`), which is a different condition he did not raise.
 
 ---
 
-## §5. Finding 5 (○, 252) — fail-closed has no test
+## §5. Finding 5 (○, 252): fail-closed has no test
 
 **Paul, verbatim:**
 > `a0fea87`'s "fail closed without a client row" has no test. Reverting it to fail open still
@@ -472,7 +472,7 @@ annotations) is filed under §3, not changed here.
 
 ---
 
-## §6. Finding 6 (○, 252) — the comment about request sharing
+## §6. Finding 6 (○, 252): the comment about request sharing
 
 **Paul, verbatim:**
 > The comment says the post read costs no extra request, but Top Content and `graphPosts` each
@@ -503,7 +503,7 @@ rather than the pipeline merged.
 
 ---
 
-## §7. Finding 7 (○, 255) — a malformed media answer reads as zero
+## §7. Finding 7 (○, 255): a malformed media answer reads as zero
 
 **Paul, verbatim:**
 > An absent `reel` entry correctly means zero. But if `reel` is present and
@@ -531,7 +531,7 @@ type. The `MEDIA_FAILED` flag already exists.
 
 ---
 
-## §8. Finding 8 (○, 256) — two separate comments
+## §8. Finding 8 (○, 256): two separate comments
 
 ### 8a. Empty-but-shaped answers count as complete
 
