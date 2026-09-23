@@ -614,7 +614,13 @@ Still open:
   are partner collabs, which puts collab posts without `#ad` into the client's owned Top 5. He is
   right, and his suggested narrowing (distrust only when there is exactly one distinct author)
   **cannot be implemented**: a renamed account with one partner collab, and a correct handle in a
-  month of partner collabs, hand the function identical input and need opposite answers. The test
+  month of partner collabs, need opposite answers and the rule cannot tell them apart, because it
+  only ever compares an author name to the handle for equality, so renaming every name at once
+  cannot change its answer, and renaming is the only difference between the two cases. (An earlier
+  version of this entry said the two hand the function "identical input". They do not: what
+  matched was a summary the test itself computed. Paul's correction, 2026-09-23. His narrowed rule
+  did fix a collab month with several partners; it failed on a single partner, and on the rename
+  case above.) The test
   `the own-handle rule cannot tell a rename from a month of partner collabs`
   (`lib/organic-social/outline-top-content.test.ts`) proves it, and `:38` in the same file is the
   existing case his rule would break. Validating at save time works because the handle can be

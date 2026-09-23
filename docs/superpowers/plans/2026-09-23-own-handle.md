@@ -80,8 +80,16 @@ directly, instead of inferred from whoever happened to post this month.
 - The partner-collab-with-a-correct-handle case still distrusts, with a comment naming it as the
   known false positive and pointing at the follow-up. Pinning the wrong answer deliberately is
   the honest record: it is what the code does, and a test asserting otherwise would be fiction.
-- Both cases produce byte-identical inputs to the function, asserted directly, which is the proof
-  that no author-name rule can split them.
+- The rule's answer is unchanged when every author name and the handle are renamed together,
+  asserted through the function itself. That is the property that makes the two cases
+  inseparable, and it is stronger than the two fixtures: the rule only ever compares a name to
+  the handle for equality (`outline-top-content.ts:56`), so relabelling cannot change it, and
+  relabelling is the only difference between the two cases.
+
+  **Corrected after Paul's follow-up (2026-09-23).** The first version of this test compared a
+  three-field summary the test itself built, which no production change could make fail, and
+  described the two cases as "byte-identical input". They are not identical; what matched was
+  that summary. His wording is the accurate one and the claim above is his.
 
 ## Not done
 
