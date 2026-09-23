@@ -25,7 +25,13 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
     console.warn(`[organic-social] top content has no post authors slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)
   }
   if (handleMatchesNoAuthor(r.data, own)) {
-    console.warn(`[organic-social] own handle matches no post author slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)
+    // Two different situations reach this line and the author names cannot tell them apart: the
+    // stored handle is stale, or it is fine and nobody from the client posted in this window.
+    // The log used to name only the first, which sends whoever reads it after the wrong thing.
+    // Narrowing the rule cannot fix that (outline-top-content.test.ts proves it); validating the
+    // handle when it is saved can, and is tracked in CLAUDE.md.
+    console.warn(`[organic-social] own handle matches no post author slug=${clientSlug} channel=${channel ?? 'ALL'}; ` +
+      `it is either stale or nobody from the client posted in this window; collab rule fell back to #ad`)
     own = {}
   }
   const posts = withViewsBasisRate(r.data)

@@ -41,3 +41,39 @@ test('a stale or mistyped own handle: posts carry authors but none is the handle
   expect(handleMatchesNoAuthor([P(1, { author: 'brand_handle' })], {})).toBe(false)
   expect(handleMatchesNoAuthor([P(1, { author: 'brand_handle', channel: 'FACEBOOK' })], own)).toBe(false)
 })
+
+// --- Why the own-handle rule cannot be narrowed (Paul, PR 255, 2026-09-23) -------------------
+// He is right that this distrusts a correct handle when nobody from the client posted that
+// month, and he suggested narrowing it to "exactly one distinct author, and it is not the
+// stored handle", which is what a rename looks like. That cannot be implemented: the two cases
+// below hand the function IDENTICAL input and need OPPOSITE answers. The fix is his other
+// suggestion, validating the handle when it is saved, which works because at save time the
+// handle can be checked against Dash rather than inferred from whoever happened to post.
+// Tracked in CLAUDE.md. Until then this pins what the code actually does, including the case
+// it gets wrong, because a test asserting the answer we want would be fiction.
+
+test('the own-handle rule cannot tell a rename from a month of partner collabs', () => {
+  // A renamed account: the client DID post, as brand_handle, and there is one partner collab.
+  // Distrusting is correct here, and today it does.
+  const renamed = [P(1, { author: 'brand_handle' }), P(2, { author: 'creator_one' })]
+  expect(handleMatchesNoAuthor(renamed, { INSTAGRAM: 'old_handle' })).toBe(true)
+
+  // A correct handle, and this month's only posts are collabs by two partners. Distrusting is
+  // WRONG here (Paul's case) and today it does it anyway. Known false positive.
+  const allCollabs = [P(1, { author: 'creator_one' }), P(2, { author: 'creator_two' })]
+  expect(handleMatchesNoAuthor(allCollabs, { INSTAGRAM: 'brand_handle' })).toBe(true)
+
+  // The proof that no rule over author names separates them: from the function's point of view
+  // both are "some authors, none of them the stored handle, more than one distinct author".
+  const shape = (posts: ReturnType<typeof P>[], handle: string) => {
+    const authors = (posts as unknown as { channel: string; author?: string }[])
+      .filter((p) => p.channel === 'INSTAGRAM' && p.author).map((p) => p.author!)
+    return { count: authors.length, distinct: new Set(authors).size, includesHandle: authors.includes(handle) }
+  }
+  expect(shape(renamed, 'old_handle')).toEqual(shape(allCollabs, 'brand_handle'))
+
+  // And his narrower variant does not close his own example either: one partner looks exactly
+  // like a clean rename.
+  const onePartner = [P(1, { author: 'creator_one' }), P(2, { author: 'creator_one' })]
+  expect(shape(onePartner, 'brand_handle').distinct).toBe(1)
+})

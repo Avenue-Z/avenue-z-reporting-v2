@@ -606,6 +606,21 @@ Still open:
 
 ## Known Follow-ups: Organic Social outline tabs (from PR #255)
 
+- [ ] **Validate the client's own Instagram handle when it is saved, instead of inferring trust
+  from that month's post authors.** `handleMatchesNoAuthor`
+  (`lib/organic-social/outline-top-content.ts:53`) distrusts a stored handle whenever the window's
+  Instagram posts carry authors and none is that handle, then falls back to the `#ad` rule. Paul
+  raised (PR #255, 2026-09-23) that this distrusts a CORRECT handle in any month whose only posts
+  are partner collabs, which puts collab posts without `#ad` into the client's owned Top 5. He is
+  right, and his suggested narrowing (distrust only when there is exactly one distinct author)
+  **cannot be implemented**: a renamed account with one partner collab, and a correct handle in a
+  month of partner collabs, hand the function identical input and need opposite answers. The test
+  `the own-handle rule cannot tell a rename from a month of partner collabs`
+  (`lib/organic-social/outline-top-content.test.ts`) proves it, and `:38` in the same file is the
+  existing case his rule would break. Validating at save time works because the handle can be
+  checked against Dash directly rather than inferred from whoever happened to post. Write-path
+  change in the switch-on script and the admin surface, so its own PR.
+
 - [ ] **The health sweep and cache warmer only reach the first platform tab for clients that hide
   Overview** (Paul, #255). The per-client loops in `app/api/health/sweep/route.ts:65` and
   `app/api/cache-warm/route.ts:114` build one Organic Social URL per client with no subsection, which

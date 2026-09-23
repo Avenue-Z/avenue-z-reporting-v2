@@ -90,7 +90,10 @@ test('a failed config read means no own handles: the #ad rule, no warning', asyn
   warn.mockRestore()
 })
 
-test('a handle no post author matches (renamed or mistyped) is not trusted: #ad rule, one warning', async () => {
+// The warning names both situations that reach it, because the author names cannot tell them
+// apart: a stale handle, or a correct handle in a window nobody from the client posted in
+// (Paul, PR 255). lib/organic-social/outline-top-content.test.ts proves they are identical here.
+test('a handle no post author matches is not trusted: #ad rule, one warning naming both causes', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'old_handle' } } })
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' }), post(3, { caption: 'yay #ad' })])
@@ -98,6 +101,6 @@ test('a handle no post author matches (renamed or mistyped) is not trusted: #ad 
   expect(props().owned[0].posts.map((x) => x.id)).toEqual([1, 2])
   expect(props().influencer[0].posts.map((x) => x.id)).toEqual([3])
   expect(warn).toHaveBeenCalledTimes(1)
-  expect(warn).toHaveBeenCalledWith('[organic-social] own handle matches no post author slug=client-a channel=INSTAGRAM; collab rule fell back to #ad')
+  expect(warn).toHaveBeenCalledWith('[organic-social] own handle matches no post author slug=client-a channel=INSTAGRAM; it is either stale or nobody from the client posted in this window; collab rule fell back to #ad')
   warn.mockRestore()
 })
