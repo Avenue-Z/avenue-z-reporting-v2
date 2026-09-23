@@ -739,6 +739,17 @@ deliberately left out of its scope so it stayed reviewable.
 
 From the review of the lock every number build. None blocks the October set.
 
+- [ ] **Changing any getter's request shape orphans every lock already stored under the old key.**
+  `requestKey` hashes the literal request (`lib/organic-social/lock-day.ts:83`), so a new date
+  format, an added KPI or a different `limit` produces new keys, every existing lock for those
+  months becomes unreachable, and the months silently recapture from live Dash. The only runtime
+  signal is a `late lock` warning. **The edge-27 fix (raised by Paul on PR #250, now merged) does
+  exactly this**, and so does adding a KPI to a tab. `lib/organic-social/lock-key-pin.test.ts`
+  pins the five keys a scoped Instagram month produces, so a shape change now fails CI instead of
+  passing silently. When it does fail, the decision is deliberate: recapture is fine for a month
+  no client has seen, otherwise map the old keys forward first. Update the pinned hashes only
+  after making that call.
+
 - [ ] **On Overview, a lock store outage silently drops a platform instead of showing an error
   card.** The locking client throws (`lib/organic-social/locking-client.ts`), which is right, but
   Overview's per-channel policy swallows it: `channelErrorPolicy` (`lib/organic-social/metrics.ts:58`)
