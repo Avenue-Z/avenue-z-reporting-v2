@@ -67,3 +67,11 @@ test('not opted in under configKey → renders nothing', async () => {
   })
   expect(el).toBeNull()
 })
+
+test('requestedRange reaches Commentary only when passed', async () => {
+  getClientBySlug.mockResolvedValue(clientOptedInOnOverview)
+  const without = await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c' })
+  expect(findByName(without, 'CommentarySection')?.props).toEqual({ clientSlug: 'c', viewKey: 'organic-social' })
+  const withRange = await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c', requestedRange: 'custom:2026-09-01,2026-09-30' })
+  expect(findByName(withRange, 'CommentarySection')?.props).toEqual({ clientSlug: 'c', viewKey: 'organic-social', requestedRange: 'custom:2026-09-01,2026-09-30' })
+})

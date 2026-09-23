@@ -24,6 +24,8 @@ import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { PortalReportDateRange } from './report-date-range'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { HealthProbe } from '@/lib/health/probe'
 
 function ReportSkeleton() {
@@ -148,7 +150,9 @@ export default async function PortalReportPage({
             here would be a dead control for that slug only. */}
         {reportSlug !== 'executive-overview' && (
           <Suspense fallback={null}>
-            <PortalReportDateRange value={dateRange} />
+            {reportSlug === 'organic-social' && hasReportingMonths(client)
+              ? <OrganicRangeControl client={client} requested={dateRangeParam} role={session?.user?.role ?? null} />
+              : <PortalReportDateRange value={dateRange} />}
           </Suspense>
         )}
       </div>

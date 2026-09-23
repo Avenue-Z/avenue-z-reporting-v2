@@ -11,6 +11,9 @@ import { ORGANIC_SOCIAL_PARTS } from './parts/registry'
 import { CODE_TEMPLATES } from './template'
 import { buildOrganicSocialCtx, type OrganicSocialCtx } from './ctx'
 import { OverviewSkeleton } from './skeletons'
+import { lockedRangeFor, logHiddenMonthAttempt, logMalformedConfig, requestClock } from '@/lib/organic-social/locked-range'
+import { noMonthsText, viewerForRole } from '@/lib/organic-social/reporting-months'
+import { NoMonths } from './no-months'
 
 export function OrganicSocialReport({
   clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null,
@@ -32,7 +35,7 @@ export function OrganicSocialReport({
   // first paint no longer waits on either (PR #168 review R1 #6). `getClientBySlug` is React.cache-deduped.
   return (
     <div className="space-y-8">
-      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} />
+      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
       <Suspense fallback={<OverviewSkeleton />}>
         <OrganicSocialBody ctx={ctx} />
       </Suspense>
@@ -68,12 +71,28 @@ export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
     // template and quietly stops applying per-client overrides with no signal at all.
     console.error(`[organic-social] template/config lookup failed for '${key}'; using code template`, e)
   }
+  // Locked months (spec 4.6). The lock reads its config on its own, so a template-lookup failure
+  // cannot disable it. getClientBySlug is request-deduplicated and every route awaited it first, so
+  // this adds no query. If it still fails, today's path runs: every Dash getter needs the same
+  // lookup, so no data can load.
+  let lockClient: unknown
+  let lockReadFailed = false
+  try { lockClient = await getClientBySlug(rctx.clientSlug) } catch { lockReadFailed = true }
+  const locked = lockReadFailed ? null : lockedRangeFor(lockClient, role, rctx.dateRange, requestClock())
+  if (locked?.reason === 'malformed-config') logMalformedConfig(rctx.clientSlug, locked.malformedKey)
+  if (locked && !locked.month) return <NoMonths text={noMonthsText(locked, viewerForRole(role))} />
+  if (locked?.month && locked.outcome === 'replaced' && locked.hiddenMonthAttempt) {
+    logHiddenMonthAttempt(rctx.clientSlug, rctx.dateRange, locked.month.dateRange)
+  }
+  const pctx: OrganicSocialCtx = locked?.month
+    ? { ...rctx, dateRange: locked.month.dateRange, compareRange: locked.month.compareRange }
+    : rctx
   const resolved = resolveSection(template, override)
   return (
     <>
       {resolved.map((r) => {
         const impl = lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)
-        const node = impl?.render(rctx, r) ?? null
+        const node = impl?.render(pctx, r) ?? null
         return node == null ? null : <div key={`${r.id}@${r.version}`}>{node}</div>
       })}
     </>
