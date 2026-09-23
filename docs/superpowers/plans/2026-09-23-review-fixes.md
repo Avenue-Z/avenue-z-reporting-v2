@@ -120,6 +120,116 @@ his own example. This needs his call between the two options he offered.
 
 ---
 
+## §0c. RESOLUTIONS: nothing goes back to Paul unfixed
+
+§0b parked §4, §7 and §8a pending Paul's input. That was the wrong call and it is reversed
+here. A reviewer's suggestion having a hole means I write a rule that closes the hole, not
+that I hand the finding back. Every finding is fixed in this round. Where I depart from the
+option Paul suggested, the departure is stated on the PR, after the work, not before it.
+
+One claim in §0b was also overstated and is corrected: the media completeness change does
+**not** conflict with the passing test at `locking-client.test.ts:126-134`. That test's payload
+is `{ data: { [BRAND]: { metrics: {} } } }`, which has **no media-type entries at all**. The
+narrow rule below only constrains entries that are present, so "no reels this month" stays
+complete and stays lockable, exactly as that test asserts.
+
+### §4 resolution — own handle
+
+**Implement Paul's option 1 as he wrote it**, plus one guard he did not ask for, because his
+shape introduces the case that guard prevents.
+
+- His shape: distrust the stored handle only when the authored Instagram posts have exactly one
+  distinct author and that author is not the stored handle. This is what a rename looks like,
+  and it fixes the case he raised: a month whose posts are collabs by several partners now
+  keeps trusting a correct handle.
+- The guard, **beyond his words and labelled as such on the PR**: if trusting the handle would
+  leave the owned list empty while authored posts exist, fall back to `#ad` anyway. Without it,
+  a renamed account whose window also contains one partner collab has two distinct authors, so
+  the stale handle is trusted, every post is classed as a collab, and the client-facing owned
+  Top 5 renders empty. Today's rule falls back to `#ad` there, which is imperfect but never
+  empty, so his shape alone is a regression on a client-facing list.
+
+**Stated limit, in the code and on the PR:** author names alone cannot separate "the account was
+renamed" from "this month's only posts are collabs by one partner". Both look like every post
+belonging to one author who is not you. Paul's own example with a *single* partner therefore
+still distrusts a correct handle, and the guard above is what stops that being visible to a
+client. Closing it properly needs his option 2, validating the handle when it is saved, which
+is a write-path change in the switch-on script and the admin surface. **Filed, not built here.**
+
+### §7 resolution — media throw
+
+**Implement, narrowly, together with the §8a media rule below.** Zero only when the media type
+is absent from Dash's answer. If the media type is present but the requested metric or its
+`ALL_CHANNELS` is missing, throw.
+
+Verified where that throw surfaces: `outline-data.tsx:19-26` wraps the call in `safe`, logs
+`Views on Reels failed`, and flags every media row of that tab with `MEDIA_FAILED`
+("Could not load from Dash"). It does **not** blank the Data block or the tab. The accurate
+invariant is "every media row of that tab", which is one row today
+(`OUTLINE_MEDIA_KPIS.INSTAGRAM`), so the plan must not claim per-row precision the code does
+not have.
+
+**Why it must ship with the §8a media rule and not alone:** the lock stores Dash's raw response
+(`locking-client.ts:92`) before any builder parses it, and the media branch of `complete()`
+returns true on the brand entry alone. So a malformed media answer captured on lock day would be
+stored permanently and this new throw would then fire on every later render of that locked
+month, with no unlock tool. Today's `?? 0` is a wrong number but a recoverable one. The two
+changes are on different branches (255 and 256) and meet in `organic-social-october`, so both
+must land before that merge, and the composition gets a test there.
+
+**Probe first.** Every comparable throw in this codebase cites a live probe. Before shipping,
+probe Dash for a `reel` entry present with a missing or empty `metrics`, read only, and record
+the result. If the shape cannot occur, the throw is still correct but the plan says so honestly.
+
+### §8a resolution — empty-but-shaped answers
+
+**Take Paul's option 2, which is the one he offered second and the one the codebase already
+implements deliberately**, and add the narrow media rule §7 depends on.
+
+- **Rejected: option 1 for headline metrics.** All-null is a modelled state, not a malformed
+  one (`headline-build.ts:49-51` says so in its own words), so treating it as incomplete would
+  stop a genuinely quiet month ever locking, serve it live forever, and break the next month's
+  baseline read. Worse than the bug.
+- **Rejected: option 1 for graphs.** `locking-client.test.ts:109` asserts `ALL_CHANNELS: {}` is
+  complete. Reversing a passing assertion is a decision for Paul, and his option 2 makes it
+  unnecessary.
+- **Implemented: the narrow media rule.** A media-type entry that is present must carry the
+  requested metric with `ALL_CHANNELS`, or the answer is incomplete and is served without being
+  stored. Absent media types stay complete, so `:126-134` keeps passing unchanged.
+- **Documented:** extend the existing `CLAUDE.md` follow-up, which already records that locking
+  an empty answer "matches the old freeze table's deliberate frozen-empty behaviour", to name
+  the two shapes Paul identified and why each was left alone.
+
+### §8b resolution — sweep order
+
+Move the sweep URLs ahead of the regular warm URLs, which is his first option.
+
+**No test.** The URL list is built inline in `GET` behind a bearer check, `getAllClients()`, a
+minted cookie and a live `fetch`, and the route has no test file anywhere in the repo.
+Extracting a pure `buildWarmUrls` to create a test surface is a refactor Paul did not ask for,
+so under this plan's zero-drift rule it is not done. The reorder is two statements and is
+verified by reading the diff.
+
+**Side effect to state on the PR:** `mapWithConcurrency` returns results in input order, and the
+route echoes that array in its JSON, so the reorder changes the order of that response body. No
+consumer was found that reads it positionally.
+
+**Not done:** the second half of his comment, that the `ok` count cannot show whether a month
+was captured. That is an observability gap in `warmOne`, not something reordering fixes, and the
+capture-failure log added in Finding 1 already covers the case that matters.
+
+### §2 resolution — request-key test
+
+Unchanged in substance, with two corrections from the review:
+
+- The note goes **on #250**, where the edge-27 follow-up actually lives. `CLAUDE.md` has no
+  edge-27 entry, so writing it there would invent a location Paul did not name.
+- The test fixture is pinned explicitly, because a preset range would resolve against today and
+  go red daily: a `custom:` month, an explicit non-null compare range, a fixed brand id and a
+  fixed single channel.
+
+---
+
 ## §2. Finding 2 (●, 256) — request-shape change silently misses every lock
 
 **Paul, verbatim:**
