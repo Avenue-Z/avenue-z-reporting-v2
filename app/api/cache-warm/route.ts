@@ -24,10 +24,7 @@
  */
 import { NextResponse } from 'next/server'
 import { getAllClients } from '@/lib/db/queries'
-import { mintServiceCookie } from '@/lib/auth/service-cookie'
-import { mapWithConcurrency } from '@/lib/concurrency'
-import { lockSweepUrls } from '@/lib/organic-social/lock-sweep'
-import { clockFor } from '@/lib/organic-social/reporting-months'
+import { warmContext, runWarm } from '@/lib/cache-warm/run'
 
 export const dynamic = 'force-dynamic'
 // Raised from 60s. The Executive Overview render waits out the Salesforce
@@ -41,10 +38,6 @@ export const dynamic = 'force-dynamic'
 // app/api/discovery/sm-dimension-values/route.ts.
 export const maxDuration = 300
 
-// Max self-fetch renders in flight at once. Balances peak Neon load against
-// the maxDuration ceiling above (wall time ≈ ceil(urls / CONCURRENCY) × render).
-const CONCURRENCY = 8
-
 // peec-ai subsections that call cached fetchers (getAgentAnalytics) the
 // base /peec-ai page doesn't exercise. ga4 and inbound-funnel subsections
 // share fetchers with their base, so warming the base is sufficient.
@@ -52,65 +45,12 @@ const DASHBOARD_SUBSECTIONS: Record<string, string[]> = {
   'peec-ai': ['pr-influence', 'content-impact', 'technical-audit'],
 }
 
-interface WarmResult {
-  url:    string
-  status: number | null
-  ms:     number
-  ok:     boolean
-  error?: string
-}
-
-async function warmOne(url: string, cookie: string): Promise<WarmResult> {
-  const start = Date.now()
-  try {
-    const res = await fetch(url, {
-      headers:  { Cookie: cookie },
-      redirect: 'manual',
-    })
-    // Drain the body so all suspended Server Component boundaries resolve
-    // and their cached() calls finish populating the data cache.
-    await res.text()
-    const ms = Date.now() - start
-    const ok = res.status >= 200 && res.status < 400
-    return { url, status: res.status, ms, ok }
-  } catch (err) {
-    return {
-      url,
-      status: null,
-      ms:     Date.now() - start,
-      ok:     false,
-      error:  err instanceof Error ? err.message : String(err),
-    }
-  }
-}
-
 export async function GET(req: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return NextResponse.json({ error: 'CRON_SECRET not set' }, { status: 500 })
-  }
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-
-  const authSecret = process.env.AUTH_SECRET
-  if (!authSecret) {
-    return NextResponse.json({ error: 'AUTH_SECRET not set' }, { status: 500 })
-  }
-
-  // Self-fetch base URL. On Vercel, VERCEL_URL is set automatically.
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : (process.env.APP_URL ?? new URL(req.url).origin)
-
-  const isSecure = baseUrl.startsWith('https://')
-  const cookieName = isSecure ? '__Secure-authjs.session-token' : 'authjs.session-token'
-  const token = await mintServiceCookie(authSecret, cookieName, { email: 'cache-warm@avenuez.com', name: 'cache-warm' })
-  const cookieHeader = `${cookieName}=${token}`
+  const ctx = await warmContext(req)
+  if (ctx.error) return ctx.error
+  const { baseUrl, cookieHeader } = ctx
 
   const clients = await getAllClients()
-  const startedAt = Date.now()
 
   const urls: string[] = []
   for (const client of clients) {
@@ -128,20 +68,10 @@ export async function GET(req: Request) {
     }
   }
 
-  // The lock sweep (D27): every Organic Social tab of the two most recently locked months, so a
-  // month's numbers are all captured in one run on its lock day. Empty for every other client.
-  const today = clockFor(new Date()).today
-  for (const client of clients) urls.push(...lockSweepUrls(baseUrl, client, today))
+  // The lock sweep used to be appended here, which made it what got cut when a run overran
+  // (Paul, PR 256). It now has its own route and schedule, /api/lock-sweep at :00, so neither it
+  // nor the client-facing URLs above are starved by the other. lib/cache-warm/run.ts explains why
+  // putting it first instead would have moved the problem rather than fixed it.
 
-  const results = await mapWithConcurrency(urls, CONCURRENCY, (u) => warmOne(u, cookieHeader))
-  const ok = results.filter((r) => r.ok).length
-  const failed = results.length - ok
-
-  return NextResponse.json({
-    total:      results.length,
-    ok,
-    failed,
-    durationMs: Date.now() - startedAt,
-    results,
-  })
+  return NextResponse.json(await runWarm(urls, cookieHeader))
 }
