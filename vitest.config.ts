@@ -48,6 +48,7 @@ export default defineConfig({
       'lib/paid-search/keywords.test.ts',
       'lib/paid-search/campaigns.test.ts',
       'lib/organic-social/**/*.test.{ts,tsx}',
+      'lib/portal/**/*.test.{ts,tsx}',
       'lib/dash-social/content.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`

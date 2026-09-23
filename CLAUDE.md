@@ -711,6 +711,39 @@ deliberately left out of its scope so it stayed reviewable.
   `client.ts`, so it is not the home for it). Mind the `eventName` exception
   above when applying it.
 
+## Known Follow-ups: staff dashboard sidebar (from PR #250 review)
+
+- [ ] **The staff sidebar receives whole client rows.** `app/dashboard/layout.tsx:19` passes
+  `getVisibleClients()` rows into the client component `components/layout/sidebar.tsx`, which reads
+  only `name`, `slug`, `logoUrl`, `enabledReports` and `hiddenReports`. Props cross the
+  server-to-client boundary whether they render or not, so every other field of each visible
+  client is sent to the browser too. PR #250 fixed the portal's twin of this with a trimmed mapper;
+  give the dashboard sidebar the same treatment (a mapper to exactly the fields it reads, and a test
+  that fails if a full row is passed back). Staff-only today. Its own PR, off `dev`.
+
+## Known Follow-ups: Organic Social (from the October set reviews, PRs #247, #254 and #256)
+
+- [ ] **Overview's frozen Top Content key ignores the client's channel set** (Paul, #247).
+  `lib/organic-social/frozen.ts:54` keys Overview's frozen Top Content as `'ALL'`, so once a client's
+  channel allowlist changes (TikTok joining in #247, say), a window frozen earlier keeps serving the
+  old channel mix and disagrees with the platform tabs, with nothing on screen looking wrong. Fold
+  the sorted channel set into the key. `frozen.ts` is on Renaissance's path, so changing the key
+  changes Renaissance's cache: its own PR, with a Renaissance proof. (Clients on locked months stop
+  reading this table once lock every number ships on #256; every other client still does.)
+- [ ] **A failed Organic Social graph is never logged** (Paul, #254). On a platform tab the graph
+  parts wrap their getter in `safe()` (`components/report-sections/organic-social/parts/shared.tsx:3`),
+  which renders "Couldn't load this section." and logs nothing. On Overview,
+  `channelErrorPolicy` (`lib/organic-social/metrics.ts:58`) returns the degrade value and the
+  channel's series silently drops out. Log both with the client, channel and view. It runs on
+  Renaissance's Overview, and #247 edits `metrics.ts`: its own PR, off `dev`, once #247 is in.
+- [ ] **Dash windows use a fixed 04:00 UTC offset all year** (from Paul's #256 review; spec edge 27).
+  `isoRangeTz` and `resolveCompareIso` (`lib/organic-social/base.ts`) append a fixed `T04:00:00Z`,
+  which is New York midnight only in daylight time. From November to March every Organic Social
+  window starts and ends at 11 PM New York the evening before, so a post in a month's last hour
+  counts toward the next month. It is on Renaissance's path (every tile and graph request), so
+  fixing it changes Renaissance's numbers: its own PR, off `dev`, with a Renaissance proof. Locked
+  months' "(in progress)" label follows the window as sent (#256), so it moves with the fix.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports

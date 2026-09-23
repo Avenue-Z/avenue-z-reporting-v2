@@ -198,15 +198,22 @@ export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; cha
   { id: 'organic-x',           label: 'X',         channel: 'TWITTER' },
 ]
 
+/** What choosing a client's Organic Social tabs reads: its channel allowlist and hidden tabs.
+ *  A full `Client` fits, and so does the trimmed record the portal sidebar receives. */
+export type OrganicTabsClient = {
+  dashSocialConfig?: { channels?: string[] } | null
+  hiddenReports?: readonly string[] | null
+}
+
 /** Overview + the platform tabs this client is configured for AND has not hidden. */
-export function organicSocialSubsections(client: Client) {
+export function organicSocialSubsections(client: OrganicTabsClient) {
   const allowed = resolveChannels(client.dashSocialConfig?.channels)
   return visibleSubsections(ORGANIC_SOCIAL_SUBSECTIONS, client.hiddenReports)
     .filter((s) => s.channel == null || allowed.includes(s.channel))
 }
 
 /** Single source of truth for "which view is this?". Never null — unknown/hidden/unconfigured → Overview. */
-export function resolveOrganicSubsection(client: Client, subsection?: string | null) {
+export function resolveOrganicSubsection(client: OrganicTabsClient, subsection?: string | null) {
   const subs = organicSocialSubsections(client)
   return subs.find((s) => s.id === (subsection ?? null)) ?? subs[0]
 }
