@@ -85,8 +85,10 @@ client sees it.
 - **Notes:** 1 to 80 characters after trimming, counted as characters (an emoji counts once), one
   line, plain text rendered as text. Up to 2 post ids. A day that is not after today in UTC.
 - **Who:** team or client by role (`viewerForRole`); write needs `canEditCommentary(email)`;
-  approve and revoke need `canApproveCommentary(email)`. A client role is refused whatever its
-  email.
+  approve and revoke need `canApproveCommentary(email, ...)` checked against the notes' own
+  `CHART_NOTES_APPROVERS` list, never Commentary's `COMMENTARY_APPROVERS` (decided by me
+  2026-09-24: the organic social approvers differ from Commentary's). Unset means nobody can
+  approve a note: fail closed. A client role is refused whatever its email.
 - **One open draft per client, platform, chart and day**, enforced by the partial unique index
   `chart_notes_one_open_draft`.
 - **Public repo:** no client names, client figures, brand ids, database hosts or the staging URL
@@ -483,6 +485,16 @@ test('no role or an unknown role gets nothing', () => {
   expect(noteCapabilities(undefined, 'approver@avenuez.com', APPROVERS)).toEqual(none)
   expect(noteCapabilities('SUPERUSER', 'approver@avenuez.com', APPROVERS)).toEqual(none)
 })
+
+test('notes read their own list: Commentary\'s COMMENTARY_APPROVERS grants nothing here', () => {
+  process.env.COMMENTARY_APPROVERS = 'approver@avenuez.com'
+  delete process.env.CHART_NOTES_APPROVERS
+  expect(noteCapabilities('INTERNAL_ADMIN', 'approver@avenuez.com')).toEqual({ canEdit: true, canApprove: false })
+  process.env.CHART_NOTES_APPROVERS = 'approver@avenuez.com'
+  expect(noteCapabilities('INTERNAL_ADMIN', 'approver@avenuez.com')).toEqual({ canEdit: true, canApprove: true })
+  delete process.env.COMMENTARY_APPROVERS
+  delete process.env.CHART_NOTES_APPROVERS
+})
 ```
 
 `lib/organic-social/chart-notes/pick.test.ts`:
@@ -751,15 +763,21 @@ import { viewerForRole } from '../reporting-months'
 
 /** Commentary's rules, applied the way monthly Commentary applies them
  *  (components/report-sections/commentary/monthly.tsx:19-22): a client role is a client whatever
- *  its email; a team role writes with an @avenuez.com email and approves only when that email is on
- *  COMMENTARY_APPROVERS. `env` is only for tests. */
+ *  its email; a team role writes with an @avenuez.com email and approves only when that email is
+ *  on the notes' OWN allowlist, CHART_NOTES_APPROVERS. Not COMMENTARY_APPROVERS: the organic
+ *  social approvers differ from Commentary's (decided 2026-09-24), and neither list grants the
+ *  other's approvals. Unset means nobody approves: fail closed. `env` is only for tests. */
 export function noteCapabilities(
   role: unknown,
   email: string | null | undefined,
-  env: string | undefined = process.env.COMMENTARY_APPROVERS,
+  env: string | undefined = process.env.CHART_NOTES_APPROVERS,
 ): { canEdit: boolean; canApprove: boolean } {
   if (viewerForRole(role) !== 'team') return { canEdit: false, canApprove: false }
-  return { canEdit: canEditCommentary(email), canApprove: canApproveCommentary(email, env) }
+  // env ?? '' and never a bare env: canApproveCommentary's own default argument falls back to
+  // COMMENTARY_APPROVERS when it is passed undefined (lib/commentary/permissions.ts:25), which
+  // would hand Commentary's approvers the notes whenever the notes' var is unset. Proven by
+  // running it, 2026-09-24: the test "notes read their own list" fails on a bare env.
+  return { canEdit: canEditCommentary(email), canApprove: canApproveCommentary(email, env ?? '') }
 }
 ```
 
@@ -1126,9 +1144,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-09-24T15:00:00Z'))
-  process.env.COMMENTARY_APPROVERS = 'approver@avenuez.com'
+  process.env.CHART_NOTES_APPROVERS = 'approver@avenuez.com'
 })
-afterEach(() => { vi.useRealTimers(); delete process.env.COMMENTARY_APPROVERS })
+afterEach(() => { vi.useRealTimers(); delete process.env.CHART_NOTES_APPROVERS })
 
 test('a client role is refused by every action, even with an @avenuez.com email', async () => {
   as('CLIENT_ADMIN', 'approver@avenuez.com')
@@ -3339,7 +3357,11 @@ On one platform tab of one client's August (a locked month, which also proves no
 - Add a draft on a day that is not a peak, with one picked post. The screen shows `8/14` with
   `Draft: ...`, no dot, and no hover line; Export PDF leaves it out. Read back: one row, `draft`,
   not deleted, 1 post. Reload the page: it is still there.
-- If I am on `COMMENTARY_APPROVERS` in staging's environment, approve it: the dot and the hover
+- Prerequisite for approving: `CHART_NOTES_APPROVERS` set in Vercel's staging environment with
+  the notes approver(s) I name (its own list; Commentary's `COMMENTARY_APPROVERS` grants nothing
+  here), and the same value mirrored into the local `.env.staging` in the same step, my
+  credentials rule.
+- If I am on `CHART_NOTES_APPROVERS` in staging's environment, approve it: the dot and the hover
   line appear. Read back: the row is `approved`, with my email as approver. Edit it: the card keeps
   the approved text and adds `Draft: ...`. Read back: the approved row plus one new draft row.
   Revoke the approved one after deleting the draft: the dot and hover line go. Read back: no

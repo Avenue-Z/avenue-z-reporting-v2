@@ -415,8 +415,11 @@ what the approver was shown (P5), so a client never sees words nobody approved.
   `lib/dashboard/permissions.ts:8`).
 - **Write, edit, and delete a draft:** a team viewer whose email passes
   `canEditCommentary`, any `@avenuez.com` address (`lib/commentary/permissions.ts:18-20`).
-- **Approve and revoke:** `canApproveCommentary`, which needs an `@avenuez.com` address on
-  the `COMMENTARY_APPROVERS` allowlist (`permissions.ts:23-29`). Who is on that list is the
+- **Approve and revoke:** `canApproveCommentary`, the same check given a different list: the
+  notes' own `CHART_NOTES_APPROVERS` env var (decided 2026-09-24, because the organic social
+  approvers differ from Commentary's). The parser is Commentary's (`permissions.ts:23-29`),
+  passed the notes' value; Commentary's own `COMMENTARY_APPROVERS` stays untouched and grants
+  nothing here. Unset means nobody can approve a note. Whose emails go on the new list is the
   open question (P13).
 - **Anyone who cannot edit gets the client view:** approved notes only, with no author,
   time, status or id, as monthly Commentary redacts for a non-editor (`monthly.tsx:40`,
@@ -653,9 +656,12 @@ exist, and a note named by id must belong to it. Anything else is refused before
 
 ### P13. Open question
 
-Who is on `COMMENTARY_APPROVERS` for Organic Social. The comment on `canApproveCommentary`
-names two approvers (`lib/commentary/permissions.ts:22`). If Jasmine's team should approve
-notes, their emails join that list: an environment change, no code change.
+Whose emails go on `CHART_NOTES_APPROVERS`, the notes' own allowlist. Decided 2026-09-24:
+notes do NOT reuse Commentary's `COMMENTARY_APPROVERS`, because the organic social approvers
+differ from Commentary's; the new var is read by the new permissions module only, through
+Commentary's unchanged parser, and unset means nobody can approve a note. Naming the
+approver(s) is an environment change in Vercel (staging first, production later), no code
+change, plus the mirrored local `.env` copy.
 
 ## Renaissance
 
@@ -765,6 +771,7 @@ Renaissance is live in production and must not change. This rests on facts check
 | A note needs text even when posts are picked | Me | 2026-09-24 | Decided |
 | The team's buttons sit on each card (pinned or in the row); hidden and draft cards are pinned faded for the team only, never printed | Approved by the organic social team | 2026-09-24 | Decided |
 | The note sits on its own line under the date and number, and the connecting line is red, as in the approved sketch | The approved sketch | 2026-09-24 | Decided |
-| Who approves notes for Organic Social | Open | 2026-09-24 | Open: the `COMMENTARY_APPROVERS` list |
+| Notes get their own approver list, `CHART_NOTES_APPROVERS`, separate from Commentary's; unset approves nothing | Me | 2026-09-24 | Decided |
+| Who approves notes for Organic Social | Open | 2026-09-24 | Open: whose emails go on `CHART_NOTES_APPROVERS` |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
 
