@@ -15,12 +15,12 @@ import { SHARED_PARTS, type SharedCtx } from './parts/registry'
  *  so the per-tab keys don't each need their own opt-in entry. Renders nothing when the
  *  client hasn't opted in. Place in the section's RSC parent, above client children. */
 export async function SharedPartsHeader({
-  viewKey, configKey = viewKey, clientSlug,
-}: { viewKey: CommentaryViewKey; configKey?: CommentaryViewKey; clientSlug: string }) {
+  viewKey, configKey = viewKey, clientSlug, requestedRange,
+}: { viewKey: CommentaryViewKey; configKey?: CommentaryViewKey; clientSlug: string; requestedRange?: string }) {
   const client = await getClientBySlug(clientSlug) // React.cache-memoized: N headers → 1 fetch/render
   const resolved = resolveSharedParts(client?.reportSectionConfig?.[configKey]?.sharedParts, SHARED_PARTS as unknown as PartRegistry<unknown>)
   if (resolved.length === 0) return null
-  const ctx: SharedCtx = { slug: clientSlug, viewKey }
+  const ctx: SharedCtx = requestedRange === undefined ? { slug: clientSlug, viewKey } : { slug: clientSlug, viewKey, requestedRange }
   return (
     <>
       {resolved.map((r) => {

@@ -5,10 +5,17 @@ import { canEditCommentary, canApproveCommentary } from '@/lib/commentary/permis
 import { visibleEntries, pickDefaultEntry, historyEntries, toClientSafeEntry } from '@/lib/commentary/select'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { CommentaryPanel } from './commentary-panel'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { isOrganicSocialViewKey } from '@/lib/commentary/month'
+import { monthlyCommentary } from './monthly'
 
-export async function CommentarySection({ clientSlug, viewKey }: { clientSlug: string; viewKey: CommentaryViewKey }) {
+export async function CommentarySection({ clientSlug, viewKey, requestedRange }: { clientSlug: string; viewKey: CommentaryViewKey; requestedRange?: string }) {
   const [session, client] = await Promise.all([auth(), getClientBySlug(clientSlug)])
   if (!client) return null
+  // Locked months: Commentary follows the month on screen (spec 3.9). Everyone else runs the code below unchanged.
+  if (hasReportingMonths(client) && isOrganicSocialViewKey(viewKey)) {
+    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange })
+  }
 
   const email = session?.user?.email ?? null
   const capabilities = { canEdit: canEditCommentary(email), canApprove: canApproveCommentary(email) }

@@ -13,7 +13,7 @@ export type PlatformGroup = { platform: string; posts: TopContentPost[] }
  *  and page 2 is the next `pageSize`, never a fetch-order reshuffle. Its own `page` state is reset
  *  to 0 by the parent remounting it (keyed on sortKey+dir) whenever the sort changes. */
 function PlatformCardRow({
-  platform, posts, sortKey, dir, pageSize, clientSlug, canEdit,
+  platform, posts, sortKey, dir, pageSize, clientSlug, canEdit, limit,
 }: {
   platform: string
   posts: TopContentPost[]
@@ -22,9 +22,12 @@ function PlatformCardRow({
   pageSize: number
   clientSlug: string
   canEdit: boolean
+  /** Show only the top `limit` by the active sort, as one page with no pager (outline tabs). */
+  limit?: number
 }) {
   const [page, setPage] = useState(0)
-  const pg = paginate(sortPosts(posts, sortKey, dir), page, pageSize)
+  const sorted = sortPosts(posts, sortKey, dir)
+  const pg = limit ? paginate(sorted.slice(0, limit), 0, limit) : paginate(sorted, page, pageSize)
 
   return (
     <div className="space-y-2">
@@ -73,12 +76,16 @@ export function SortableTopContent({
   clientSlug,
   canEdit,
   pageSize = 15,
+  ownedLimit,
 }: {
   owned: PlatformGroup[]
   influencer: PlatformGroup[]
   clientSlug: string
   canEdit: boolean
   pageSize?: number
+  /** Cap each owned platform row at its top N (no pager). Absent: today's paging. Influencer rows
+   *  always page. */
+  ownedLimit?: number
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('engagements')
   const [dir, setDir] = useState<SortDir>('desc')
@@ -107,6 +114,7 @@ export function SortableTopContent({
         pageSize={pageSize}
         clientSlug={clientSlug}
         canEdit={canEdit}
+        limit={section === 'owned' ? ownedLimit : undefined}
       />
     ))
 

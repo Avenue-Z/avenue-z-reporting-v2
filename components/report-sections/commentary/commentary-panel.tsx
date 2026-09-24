@@ -36,6 +36,9 @@ export function CommentaryPanel({
   initialId,
   capabilities,
   history,
+  defaultPeriod,
+  emptyText,
+  entryNotes,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
@@ -43,6 +46,9 @@ export function CommentaryPanel({
   initialId: string | null
   capabilities: CommentaryCapabilities
   history: CommentaryPeriodHistory[]
+  defaultPeriod?: { start: string; end: string }
+  emptyText?: string
+  entryNotes?: Record<string, string>
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
@@ -93,7 +99,7 @@ export function CommentaryPanel({
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
           {editing === 'new' && (
-            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} />
+            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} />
           )}
 
           {editing !== 'new' && entries.length > 1 && (
@@ -110,12 +116,15 @@ export function CommentaryPanel({
             </select>
           )}
 
-          {editing !== 'new' && !selected && <p className="text-sm text-text-muted">No commentary yet.</p>}
+          {editing !== 'new' && !selected && <p className="text-sm text-text-muted">{emptyText ?? 'No commentary yet.'}</p>}
 
           {editing !== 'new' && selected && editing !== selected.id && (
             <article className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <span className="text-text-muted">Reporting period: {fmt(selected.periodStart)} – {fmt(selected.periodEnd)}</span>
+                {entryNotes?.[selected.id] && (
+                  <span className="rounded bg-white/10 px-2 py-0.5 font-semibold text-text-muted">{entryNotes[selected.id]}</span>
+                )}
                 {capabilities.canEdit && (
                   <span className={`rounded px-2 py-0.5 font-semibold ${selected.status === 'approved' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
                     {selected.status === 'approved' ? 'Approved' : 'Draft'}

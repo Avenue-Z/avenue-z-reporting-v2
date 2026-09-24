@@ -43,6 +43,9 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 
 import type { ReportSlug } from '@/lib/db/schema'
 import type { DashChannel } from '@/lib/organic-social/metrics'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organic-social/locked-range'
+import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 
 function SectionSkeleton() {
   return (
@@ -209,6 +212,23 @@ export default async function PortalReportPage({
     ? resolveOrganicSubsection(client, subsectionParam)
     : null
 
+  // Locked months, opted-in clients only (spec docs/superpowers/specs/2026-09-21-locked-months-design.md,
+  // 4.5). For everyone else `locked` is null and the served range is exactly the requested one.
+  const locked = activeSection === 'organic-social' && hasReportingMonths(client)
+    ? lockedRangeFor(client, session?.user?.role, dateRangeParam, requestClock())
+    : null
+  if (locked?.month && locked.outcome === 'replaced') {
+    if (locked.hiddenMonthAttempt) logHiddenMonthAttempt(clientSlug, dateRangeParam, locked.month.dateRange)
+    const sp = new URLSearchParams()
+    if (section)         sp.set('section', section)
+    if (subsectionParam) sp.set('subsection', subsectionParam)
+    if (modelsParam)     sp.set('models', modelsParam)
+    sp.set('dateRange', locked.month.dateRange)
+    redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
+  }
+  const servedDateRange    = locked?.month?.dateRange ?? dateRange
+  const servedCompareRange = locked?.month ? locked.month.compareRange : compareRange
+
   const pageTitle =
     (activeSection === 'organic-social' && organicEntry)
       ? (organicEntry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : organicEntry.label)
@@ -237,7 +257,9 @@ export default async function PortalReportPage({
         )}
         {activeSection === 'organic-social' && (
           <Suspense fallback={null}>
-            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+            {locked
+              ? <OrganicRangeControl client={client} requested={dateRangeParam} role={session?.user?.role ?? null} />
+              : <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />}
           </Suspense>
         )}
         {/* AEO honors the page date range; the model filter applies to Overview,
@@ -262,8 +284,8 @@ export default async function PortalReportPage({
             param — a disallowed/bogus subsection degrades to Overview and must key
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy, organicEntry?.channel ?? null)}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null)}
         </Suspense>
       </ReportErrorBoundary>
 

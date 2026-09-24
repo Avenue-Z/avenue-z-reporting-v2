@@ -41,3 +41,10 @@ export interface PlatformTopContent {
   platform: string           // display: 'Instagram'
   rows: TopContentRow[]
 }
+
+/** Which calendar a GRAPH request's days follow. 'eastern' is what every graph has always
+ *  sent (midnight US Eastern on both ends; Dash treats the end date as inclusive, so on
+ *  some channels the last evening lands on an extra UTC day). 'utc' sends plain dates, the
+ *  window Top Content uses: exactly the month's days, each a full UTC day, which is how
+ *  Dash buckets daily data (probed 2026-09-18). Only v2 graphs pass 'utc'. */
+export type DayWindow = 'eastern' | 'utc'

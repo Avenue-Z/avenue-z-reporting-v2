@@ -23,11 +23,12 @@ picker — commentary about June stays about June when someone changes the picke
 Body text is authored in Tiptap, stored as **sanitized HTML** (`sanitize.ts` — the
 XSS boundary), and passes through a `draft → approved` flow before a client can see it.
 
-Eleven views are in scope. Labels and service owners live in `COMMENTARY_VIEWS`
+Twelve views are in scope. Labels and service owners live in `COMMENTARY_VIEWS`
 ([views.ts](./views.ts)): AEO Overview, AEO PR Influence, AEO Content Impact, Paid
 Search, Meta, LinkedIn, Organic Social, and one per Organic Social platform subpage
-(Instagram / Facebook / X / LinkedIn), generated from the canonical `CHANNELS` list so a
-new Dash channel gets its view for free.
+(Instagram / Facebook / X / LinkedIn / TikTok), generated from the canonical `CHANNELS` list so a
+new Dash channel gets its view for free. A client only reaches the TikTok view if its channel
+allowlist names TikTok.
 
 ---
 
@@ -65,8 +66,8 @@ pin is how you enable it for anyone else.
 To enable commentary for a client, add the pin to each view's entry in that client's
 `report_section_config`. Use the rollout script as the reference for the shape.
 
-**Organic Social is the one exception to per-view opt-in.** Its five views (Overview +
-four platform subpages) opt in *once* under the base `organic-social` config key; the
+**Organic Social is the one exception to per-view opt-in.** Its six views (Overview +
+five platform subpages) opt in *once* under the base `organic-social` config key; the
 per-channel keys (`organic-social:instagram`, …) carry commentary content but are **not**
 read for opt-in. This differs from PEEC AI, where each subsection (`peec-ai`,
 `peec-ai:pr-influence`, `peec-ai:content-impact`) has its own opt-in entry. Consequence:
@@ -85,7 +86,7 @@ commentary is keyed by, and `configKey` (defaults to `viewKey`) is where the per
 opt-in pin is read from — `reportSectionConfig[configKey].sharedParts`. They match for
 every section except Organic Social, whose one call site computes a per-channel `viewKey`
 for the platform subpages while pinning `configKey="organic-social"`. That is why 7 call
-sites cover 11 views: the five Organic Social views share one opt-in but keep separate
+sites cover 12 views: the six Organic Social views share one opt-in but keep separate
 commentary streams.
 
 > **Orphaned code:** `resolveCommentaryView(slug, subsection)` in [views.ts](./views.ts)

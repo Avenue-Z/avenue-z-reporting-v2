@@ -33,6 +33,9 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam } from '@/lib/peec/models'
 import { SectionSkeleton } from './section-skeleton'
 import { HealthProbe } from '@/lib/health/probe'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organic-social/locked-range'
+import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -170,6 +173,14 @@ export default async function ReportPage({
     ? periodParam
     : 'monthly') as SummaryPeriod
 
+  // Locked months, opted-in clients only (spec 4.5). Resolved BEFORE the health branch, which serves
+  // the month in place; the redirect comes after it, so the health sweep never meets a redirect.
+  const locked = activeSection === 'organic-social' && hasReportingMonths(client)
+    ? lockedRangeFor(client, session?.user?.role, dateRangeParam, requestClock())
+    : null
+  const servedDateRange    = locked?.month?.dateRange ?? dateRange
+  const servedCompareRange = locked?.month ? locked.month.compareRange : compareRange
+
   // Title: subsection name takes precedence, then section name. Organic Social keys the title on
   // the resolved entry's channel (null → "Organic Social"; else the platform label) — no
   // SUBSECTION_NAMES map, which would reintroduce the title/body divergence (Spec 1 §5).
@@ -190,7 +201,7 @@ export default async function ReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)
+    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)
     return (
       <HealthProbe
         surface="dashboard"
@@ -199,6 +210,18 @@ export default async function ReportPage({
         element={element ?? <></>}
       />
     )
+  }
+
+  if (locked?.month && locked.outcome === 'replaced') {
+    if (locked.hiddenMonthAttempt) logHiddenMonthAttempt(clientSlug, dateRangeParam, locked.month.dateRange)
+    const sp = new URLSearchParams()
+    if (section)         sp.set('section', section)
+    if (subsectionParam) sp.set('subsection', subsectionParam)
+    if (periodParam)     sp.set('period', periodParam)
+    if (modelsParam)     sp.set('models', modelsParam)
+    if (healthParam)     sp.set('health', healthParam)
+    sp.set('dateRange', locked.month.dateRange)
+    redirect(`/dashboard/${clientSlug}/reports?${sp.toString()}`)
   }
 
   return (
@@ -224,7 +247,9 @@ export default async function ReportPage({
         )}
         {activeSection === 'organic-social' && (
           <Suspense fallback={null}>
-            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+            {locked
+              ? <OrganicRangeControl client={client} requested={dateRangeParam} role={session?.user?.role ?? null} />
+              : <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />}
           </Suspense>
         )}
         {activeSection === 'peec-ai' && (!subsection || subsection === 'pr-influence' || subsection === 'content-impact') && (
@@ -245,8 +270,8 @@ export default async function ReportPage({
             raw param — a disallowed/bogus subsection degrades to Overview and must key
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>
