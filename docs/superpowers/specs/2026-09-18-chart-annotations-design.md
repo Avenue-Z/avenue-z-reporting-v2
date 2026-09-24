@@ -448,7 +448,12 @@ because a card shows one draft.
   on one day needs only one, so notes cap it (P6).
 - **Approve** makes it visible to clients. The note shown for a day is the most recently
   approved one, ranked by approval time then last update, as `mostRecentApprovedPerPeriod`
-  ranks Commentary (`lib/commentary/select.ts:35-44`).
+  ranks Commentary (`lib/commentary/select.ts:35-44`). Approve carries the text and posts the
+  approver was shown, and only succeeds if the draft still holds exactly those; otherwise it says
+  "This note changed since you opened the page". Editing a draft changes that same row, so without
+  this an edit made after the approver opened the page would reach a client unread. This is the
+  one step away from Commentary, which approves by id alone (`app/actions/commentary.ts:122`,
+  update at `:136-140`).
 - **Edit an approved note** opens a draft, or edits the open one; the approved version stays
   visible to clients until the draft is approved, as `saveCommentary` does
   (`app/actions/commentary.ts:53-55`).
@@ -577,6 +582,7 @@ exist, and a note named by id must belong to it. Anything else is refused before
 | The notes cannot be read | Nobody sees a note; logged; the graphs are exactly Phase 1. |
 | A client role, or a team role without an `@avenuez.com` email, calls an action directly | Refused by the action. |
 | A client not on locked months (Renaissance) | Every action refuses it before any read or write, and its graphs never read notes. |
+| A draft edited after the approver opened the page | Approve is refused with "This note changed since you opened the page"; reload and approve what is there. |
 | Malformed input (unknown platform or chart, bad or future day, empty or long body) | Refused by the validator before any write. |
 | Overview | No notes. |
 | A locked month | Notes can still be added and changed; they never lock. |
@@ -619,7 +625,8 @@ exist, and a note named by id must belong to it. Anything else is refused before
 - The lifecycle: draft, approve, edit opens a draft while the approved version stays
   visible, a second save edits the open draft, revoke falls back to the earlier approved
   version, revoke refused while a draft is open, delete of a draft only, a lost race
-  reported as "not found", and a second concurrent draft refused.
+  reported as "not found", a second concurrent draft refused, and an approve
+  refused when the draft changed after the approver opened the page.
 - What each audience receives: non-editors get approved notes only, redacted, with nothing
   else in the props; the team gets drafts marked; a hide removes the day's note for
   clients.
@@ -746,6 +753,7 @@ Renaissance is live in production and must not change. This rests on facts check
 | Notes use Commentary's approval flow and permissions | Jasmine's question 9 | 2026-09-21 | Decided |
 | Note actions check the role as well as the email | Me, from `monthly.tsx:12-15` | 2026-09-24 | Decided |
 | Notes copy Commentary's logic and import its guard functions; no Commentary file or table changes | Me: keep Commentary's logic rather than write a new one | 2026-09-24 | Decided |
+| Approve only what the approver was shown (the one step away from Commentary) | Me, from the adversarial review of the plan | 2026-09-24 | Proposed: needs my okay before the build |
 | Notes only for clients on locked months, so none can be written or read for Renaissance | Me | 2026-09-24 | Decided |
 | One open draft per chart and day; revoke refused while one is open | Me | 2026-09-24 | Decided |
 | Notes are plain text, 1 to 80 characters | Me | 2026-09-24 | Decided |

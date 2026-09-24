@@ -3,10 +3,20 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans, inline in this session, task by task. No subagents and no background tasks (my standing rule). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 Written by me (Thomas) on 2026-09-24. Every file, function and line this plan names was read on
-`dev` at `df2cf05`. Two things were proven by running them before the plan was written, in a
-scratch copy outside the repo: the exact SQL `drizzle-kit generate` produces for the new table
-(Task 1 shows it), and that the hover box component type-checks against the installed Recharts
-3.7.0 under `strict`.
+`dev` at `df2cf05`. Seven things were proven by running them on 2026-09-24, in scratch copies or
+throwaway tests that were then deleted:
+1. The exact SQL `drizzle-kit generate` produces for the new table (Task 1 shows it), and that it
+   touches nothing else.
+2. The hover box component type-checks against the installed Recharts 3.7.0 under `strict`.
+3. Passing the Tooltip `content={undefined}` draws exactly what leaving it out draws, idle and on
+   hover (Task 7).
+4. Recharts puts day `i` of `n` at `plot.x + i / (n - 1) * plot.width` and a value at
+   `plot.y + (1 - (v - lo) / (hi - lo)) * plot.height`: three dots matched to the pixel (Task 8).
+5. A plain component inside the chart can call `usePlotArea()` and gets the real plot area (Task 8).
+6. The test DOM has no `window.matchMedia`, and nothing in the repo uses it, so every existing test
+   keeps rendering the callout row (Task 9).
+7. Drizzle sends `eq(chartNotes.postIds, [11, 12])` as `"post_ids" = $n` with `'{11,12}'` (and `'{}'`
+   for none), so approve matches the whole list of picked posts (Task 3).
 
 **Goal:** Let the team put a short, approved note on any day of a v2 Organic Social graph, with up
 to 2 of that day's posts, shown on the callout and in the chart's hover box; and pin every callout
@@ -31,12 +41,14 @@ client sees it.
 ## Global Constraints
 
 - **Renaissance is untouched.** Its graphs are v1 and never call the notes code. Every existing
-  golden snapshot stays byte-identical: `git diff --name-only origin/dev -- '*.snap'` prints
+  golden snapshot stays byte-identical: `git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap'` prints
   nothing at the end. The Renaissance drift check's `REN.*` lines stay identical on staging.
 - **Commentary is copied, never edited.** Notes follow Commentary's logic and import its guard
   functions (`lib/commentary/mutations.ts`, `lib/commentary/permissions.ts`) as they are. No file
   under `lib/commentary/`, `app/actions/commentary.ts`, `components/report-sections/commentary/`,
-  and no `report_commentary` column or row, changes. Renaissance runs Commentary.
+  and no `report_commentary` column or row, changes. Renaissance runs Commentary. Two additions of
+  our own, both in the new files only: one open draft per day, and approve matching what the
+  approver was shown (Task 3, `approveNote`; proposed, needs my okay).
 - **No note can be written or read for Renaissance.** Every action refuses a client that is not on
   locked months (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`), and
   `withNotes` skips one before reading. Renaissance's `dash_social_config` holds only `brandId` in
@@ -46,11 +58,15 @@ client sees it.
 
   ```bash
   npx vitest run components/report-sections/organic-social/v1-render.golden.test.tsx components/report-sections/organic-social/render-invariant.test.tsx components/report-sections/organic-social/parts/composition.golden.test.tsx components/report-sections/organic-social/parts/follower-graph.golden.test.tsx components/report-sections/organic-social/parts/engagement-trend.golden.test.tsx
-  git diff --name-only origin/dev -- '*.snap' 'lib/commentary/' 'app/actions/commentary.ts' 'components/report-sections/commentary/'
+  git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap' 'lib/commentary/' 'app/actions/commentary.ts' 'components/report-sections/commentary/'
   ```
 
-  Expected: every test passes, and the second command prints nothing. Each task also says, in one
-  line, what it touches that Renaissance could reach and why it cannot.
+  Expected: every test passes, and the second command prints nothing. It compares against where
+  this branch left `dev`, so other work merging to `dev` meanwhile cannot show up here. Each task
+  also says, in one line, what it touches that Renaissance could reach and why it cannot.
+- **An environment without 0025** (dev until I choose to migrate it, production until the
+  production step) shows no notes and logs `chart notes unreadable ...` from the v2 graphs: that is
+  the fail-closed path, by design. Renaissance never reads the table, so it logs nothing.
 - **Every shared change is optional and off by default:** the `LineChart` `notes` and `pins`
   props, the `email` field on `OrganicSocialCtx`, the new optional fields on `Annotation` and
   `ChartAnnotation`, the `noteControls` prop on the two chart components, the `LineChart`
@@ -104,6 +120,9 @@ client sees it.
    overlap and never leave the plot: neighbours stack into rows, edge days clamp inside. Pinned in
    Task 8 (`neighbouring days stack into rows`, `the first and last days stay inside the plot`), and
    the connector must end exactly on Recharts' own dot (`each connector ends exactly on its dot`).
+7. **A draft edited after the approver opened the page.** Approving must not publish words the
+   approver never saw. Pinned in Task 4 (`a note edited after the approver opened the page is not
+   approved`), with the database match proven offline (proof 7 above).
 
 ---
 
@@ -111,15 +130,21 @@ client sees it.
 
 **Files:** none changed.
 
-- [ ] **Step 1: Cut the branch from dev**
+- [ ] **Step 1: Keep the plan in reach, then cut the branch from dev**
+
+The plan and the spec live on PR #272's branch, not on `dev`, so they leave the working copy when
+the branch switches. Unless #272 has merged to `dev`, keep private read-only copies first:
 
 ```bash
+git status --porcelain
 git fetch origin
+git show origin/docs/annotation-notes-spec:docs/superpowers/plans/2026-09-24-chart-notes.md > ~/.claude/organic-social-work/build-plan-chart-notes.md
+git show origin/docs/annotation-notes-spec:docs/superpowers/specs/2026-09-18-chart-annotations-design.md > ~/.claude/organic-social-work/build-spec-chart-annotations.md
 git switch -c feat/os-chart-notes origin/dev
 git log --oneline -1
 ```
 
-Expected: the tip is `origin/dev`.
+Expected: the first command prints nothing (a clean tree), and the tip is `origin/dev`.
 
 - [ ] **Step 2: Record the baseline**
 
@@ -352,7 +377,7 @@ gh pr create --draft --base dev --title "feat(organic-social): written notes on 
     `ChartThumb | null` (same shape as today).
   - `limits.ts`: `NOTE_MAX_CHARS = 80`, `NOTE_MAX_POSTS = 2`.
   - `validate.ts`: `validateNoteInput(input, today): { ok: boolean; error?: string }`,
-    `isNoteId(id: unknown): id is string`, `todayUtc(now?: Date): string`.
+    `isNoteId(id: unknown): id is string`, `isSeenNote(seen: unknown)`, `todayUtc(now?: Date): string`.
   - `permissions.ts`: `noteCapabilities(role: unknown, email: string | null | undefined, env?: string): { canEdit: boolean; canApprove: boolean }`.
   - `pick.ts`: `latestApproved`, `notesByDay(rows, { chart, from, to, canEdit }): Map<string, DayNote>`, type `DayNote`.
 
@@ -362,7 +387,7 @@ gh pr create --draft --base dev --title "feat(organic-social): written notes on 
 
 ```ts
 import { expect, test } from 'vitest'
-import { isNoteId, todayUtc, validateNoteInput } from './validate'
+import { isNoteId, isSeenNote, todayUtc, validateNoteInput } from './validate'
 
 const TODAY = '2026-09-24'
 const OK = { channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14', body: 'Influencer post went live', postIds: [11, 12] }
@@ -415,6 +440,14 @@ test('at most 2 posts, each a positive whole number, no repeats', () => {
 test('a note id is a uuid, so a bad id never reaches the database', () => {
   expect(isNoteId('c7d8e0a1-1111-4111-8111-111111111111')).toBe(true)
   for (const id of ['', 'abc', "1' OR '1'='1", 7, null]) expect(isNoteId(id)).toBe(false)
+})
+
+test('what an approver was shown is a text and at most 2 post ids', () => {
+  expect(isSeenNote({ text: 'Went live', postIds: [11] })).toBe(true)
+  expect(isSeenNote({ text: '', postIds: [] })).toBe(true)
+  for (const bad of [null, 'x', { text: 1, postIds: [] }, { text: 'x' }, { text: 'x', postIds: [1, 2, 3] }, { text: 'x', postIds: [0] }]) {
+    expect(isSeenNote(bad)).toBe(false)
+  }
 })
 
 test('today is the UTC date', () => {
@@ -667,6 +700,15 @@ export function isNoteId(id: unknown): id is string {
   return typeof id === 'string' && NOTE_ID.test(id)
 }
 
+/** What an approver was shown: the draft's text and picked posts, sent back with Approve. Shape
+ *  only; the database match does the rest (approveNote). */
+export function isSeenNote(seen: unknown): seen is { text: string; postIds: number[] } {
+  if (!seen || typeof seen !== 'object') return false
+  const { text, postIds } = seen as { text?: unknown; postIds?: unknown }
+  return typeof text === 'string' && Array.isArray(postIds) && postIds.length <= NOTE_MAX_POSTS
+    && postIds.every((id) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0)
+}
+
 /** Every C0 control character and DEL, so a note stays one line of plain text. A code point
  *  check rather than a regex, which eslint's no-control-regex would flag. */
 function hasControl(text: string): boolean {
@@ -819,7 +861,7 @@ git push
   - `findOpenDraft(k: NoteKey): Promise<{ id: string } | undefined>`
   - `insertDraft(k: NoteKey & { body: string; postIds: number[]; by: string }): Promise<void>`
   - `updateDraft(id: string, a: { body: string; postIds: number[]; by: string }): Promise<boolean>`
-  - `approveNote(id: string, by: string): Promise<boolean>`
+  - `approveNote(id: string, by: string, seen: { text: string; postIds: number[] }): Promise<boolean>`
   - `revokeNote(id: string): Promise<boolean>`
   - `softDeleteDraft(id: string, by: string): Promise<boolean>`
   - `OPEN_DRAFT_INDEX = 'chart_notes_one_open_draft'`, `isOpenDraftConflict(e: unknown): boolean`
@@ -951,11 +993,19 @@ export async function updateDraft(id: string, a: { body: string; postIds: number
   return rows.length > 0
 }
 
-export async function approveNote(id: string, by: string): Promise<boolean> {
+/** Approve exactly what the approver was shown. Editing a draft changes that same row, so without
+ *  the text and posts in the match an edit made after the approver opened the page would be
+ *  approved unread, and a client would see words nobody approved. The one step away from
+ *  Commentary, which approves by id alone (approveCommentary, app/actions/commentary.ts:122,
+ *  its update at :136-140). */
+export async function approveNote(id: string, by: string, seen: { text: string; postIds: number[] }): Promise<boolean> {
   const rows = await db
     .update(chartNotes)
     .set({ status: 'approved', approvedBy: by, approvedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(chartNotes.id, id), isNull(chartNotes.deletedAt)))
+    .where(and(
+      eq(chartNotes.id, id), isNull(chartNotes.deletedAt),
+      eq(chartNotes.body, seen.text), eq(chartNotes.postIds, seen.postIds),
+    ))
     .returning({ id: chartNotes.id })
   return rows.length > 0
 }
@@ -1026,7 +1076,7 @@ files); a new export there would be missing from each of those mocks.
   `lib/commentary/mutations.ts:29`, `:43`, `:56`.
 - Produces (all `'use server'`, all return `{ ok: true } | { ok: false; error: string }`):
   - `saveChartNoteAction(input: { clientSlug: string; channel: string; chart: string; day: string; body: string; postIds: number[] })`
-  - `approveChartNoteAction(clientSlug: string, id: string)`
+  - `approveChartNoteAction(clientSlug: string, id: string, seen: { text: string; postIds: number[] })`
   - `revokeChartNoteAction(clientSlug: string, id: string)`
   - `deleteChartNoteDraftAction(clientSlug: string, id: string)`
 
@@ -1067,6 +1117,8 @@ const INPUT = { clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'followers'
 const session = (value: unknown) => (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(value)
 const as = (role: string, email: string | null = 'writer@avenuez.com') => session({ user: { role, email } })
 const ROW = { clientId: 'client-uuid', status: 'draft', deletedAt: null, channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14' }
+// What the approver was shown on the card: the draft's text and picked posts.
+const SEEN = { text: 'Influencer post went live', postIds: [11] }
 const FORBIDDEN = { ok: false, error: 'forbidden' }
 const writes = () => [m.insertDraft, m.updateDraft, m.approveNote, m.revokeNote, m.softDeleteDraft]
 
@@ -1081,7 +1133,7 @@ afterEach(() => { vi.useRealTimers(); delete process.env.COMMENTARY_APPROVERS })
 test('a client role is refused by every action, even with an @avenuez.com email', async () => {
   as('CLIENT_ADMIN', 'approver@avenuez.com')
   expect(await saveChartNoteAction(INPUT)).toEqual(FORBIDDEN)
-  expect(await approveChartNoteAction('a-client', ID)).toEqual(FORBIDDEN)
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual(FORBIDDEN)
   expect(await revokeChartNoteAction('a-client', ID)).toEqual(FORBIDDEN)
   expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual(FORBIDDEN)
   for (const w of writes()) expect(w).not.toHaveBeenCalled()
@@ -1093,7 +1145,7 @@ test('a client not on locked months, shaped like Renaissance, is refused by ever
   for (let i = 0; i < 4; i++) vi.mocked(getClientBySlug).mockResolvedValueOnce(renaissanceShaped as never)
   const NOT_ON = { ok: false, error: 'Notes are not on for this client.' }
   expect(await saveChartNoteAction(INPUT)).toEqual(NOT_ON)
-  expect(await approveChartNoteAction('a-client', ID)).toEqual(NOT_ON)
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual(NOT_ON)
   expect(await revokeChartNoteAction('a-client', ID)).toEqual(NOT_ON)
   expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual(NOT_ON)
   expect(m.findOpenDraft).not.toHaveBeenCalled()
@@ -1165,27 +1217,43 @@ test('save: any other database error still surfaces', async () => {
 
 test('approve: an editor who is not on the approvers list is refused', async () => {
   as('INTERNAL_ADMIN', 'writer@avenuez.com')
-  expect(await approveChartNoteAction('a-client', ID)).toEqual(FORBIDDEN)
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual(FORBIDDEN)
   expect(m.approveNote).not.toHaveBeenCalled()
 })
 
 test('approve: a malformed id, another client\'s note or a deleted note is "not found"', async () => {
   as('INTERNAL_ADMIN', 'approver@avenuez.com')
-  expect(await approveChartNoteAction('a-client', 'nope')).toEqual({ ok: false, error: 'not found' })
+  expect(await approveChartNoteAction('a-client', 'nope', SEEN)).toEqual({ ok: false, error: 'not found' })
   expect(m.findChartNote).not.toHaveBeenCalled()
   vi.mocked(m.findChartNote).mockResolvedValueOnce({ ...ROW, clientId: 'someone-else' } as never)
-  expect(await approveChartNoteAction('a-client', ID)).toEqual({ ok: false, error: 'not found' })
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: false, error: 'not found' })
   vi.mocked(m.findChartNote).mockResolvedValueOnce({ ...ROW, deletedAt: new Date() } as never)
-  expect(await approveChartNoteAction('a-client', ID)).toEqual({ ok: false, error: 'not found' })
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: false, error: 'not found' })
   expect(m.approveNote).not.toHaveBeenCalled()
 })
 
-test('approve: an approver approves, stamped with their email', async () => {
+test('approve: a malformed "what I saw" is refused before any read', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  for (const bad of [null, { text: 1, postIds: [] }, { text: 'x', postIds: [1, 2, 3] }, { text: 'x', postIds: ['1'] }]) {
+    expect(await approveChartNoteAction('a-client', ID, bad as never)).toEqual({ ok: false, error: 'not found' })
+  }
+  expect(m.findChartNote).not.toHaveBeenCalled()
+})
+
+test('approve: an approver approves exactly what they were shown, stamped with their email', async () => {
   as('INTERNAL_ADMIN', 'approver@avenuez.com')
   vi.mocked(m.findChartNote).mockResolvedValueOnce(ROW as never)
-  expect(await approveChartNoteAction('a-client', ID)).toEqual({ ok: true })
-  expect(m.approveNote).toHaveBeenCalledWith(ID, 'approver@avenuez.com')
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: true })
+  expect(m.approveNote).toHaveBeenCalledWith(ID, 'approver@avenuez.com', SEEN)
   expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
+})
+
+test('approve: a note edited after the approver opened the page is not approved', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(m.findChartNote).mockResolvedValueOnce(ROW as never)
+  vi.mocked(m.approveNote).mockResolvedValueOnce(false)
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: false, error: 'This note changed since you opened the page. Reload to see it.' })
+  expect(revalidateTag).not.toHaveBeenCalled()
 })
 
 test('revoke: refused while another draft is open on that day, so a day never holds two', async () => {
@@ -1245,7 +1313,7 @@ import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { authorizeRowForClient, canDeleteDraft, guardNotDeleted } from '@/lib/commentary/mutations'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
-import { isNoteId, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
+import { isNoteId, isSeenNote, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import {
   approveNote, findChartNote, findOpenDraft, insertDraft, isOpenDraftConflict,
@@ -1306,12 +1374,13 @@ export async function saveChartNoteAction(input: {
 }
 
 /** Approve a note for client view. Approvers only; the row must belong to the named client and
- *  must not be deleted. An older approval of the same day stays in the table, superseded, so a
- *  revoke falls back to it, as Commentary does. */
-export async function approveChartNoteAction(clientSlug: string, id: string): Promise<Result> {
+ *  must not be deleted, and it must still hold exactly what the approver was shown (`seen`, see
+ *  approveNote). An older approval of the same day stays in the table, superseded, so a revoke
+ *  falls back to it, as Commentary does. */
+export async function approveChartNoteAction(clientSlug: string, id: string, seen: { text: string; postIds: number[] }): Promise<Result> {
   const v = await viewer()
   if (!v.canApprove) return FORBIDDEN
-  if (!isNoteId(id)) return NOT_FOUND
+  if (!isNoteId(id) || !isSeenNote(seen)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
   if (!hasReportingMonths(client)) return NOT_ON
@@ -1320,7 +1389,9 @@ export async function approveChartNoteAction(clientSlug: string, id: string): Pr
   if (!mine.ok) return { ok: false, error: mine.error! }
   const alive = guardNotDeleted(row)
   if (!alive.ok) return { ok: false, error: alive.error! }
-  if (!(await approveNote(id, v.email!))) return NOT_FOUND
+  if (!(await approveNote(id, v.email!, seen))) {
+    return { ok: false, error: 'This note changed since you opened the page. Reload to see it.' }
+  }
   revalidateTag('db', 'max')
   return { ok: true }
 }
@@ -1395,8 +1466,8 @@ feat(organic-social): server actions to save, approve, revoke and delete chart n
 | 2 | operator visibility | a refused or failed action is not logged server-side | app/actions/chart-notes.ts | file: Commentary's actions do not log either; add both together |
 | 3 | bounds | note length and post count | lib/organic-social/chart-notes/validate.ts | fix: 80 characters, 2 posts |
 | 4 | input boundaries | every field of the payload, and the note id | validate.ts, isNoteId | fix: validated before any read; a bad id never reaches a uuid cast |
-| 5 | state and concurrency | two drafts on one day; a row deleted between read and write | chart_notes_one_open_draft, mutations.ts | fix: the index plus a clear message; every write reports whether it hit a row |
-| 6 | security | a client role, or a team role without an @avenuez.com email, calling an action directly | viewer() in chart-notes.ts | fix: role and email both checked; the author is taken from the session |
+| 5 | state and concurrency | two drafts on one day; a row deleted between read and write; a draft edited after the approver opened the page | chart_notes_one_open_draft, mutations.ts, approveNote | fix: the index plus a clear message; every write reports whether it hit a row; approve matches the text and posts the approver saw |
+| 6 | security | a client role, a team role without an @avenuez.com email, or a client not on locked months (Renaissance), calling an action directly | viewer() and hasReportingMonths in chart-notes.ts | fix: role, email and locked months all checked before any read; the author is taken from the session |
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 EOF
@@ -1982,7 +2053,7 @@ export function EngagementTrend({
 
 Run: `npx vitest run components/report-sections/`
 Expected: all pass. The golden snapshots are unchanged:
-`git diff --name-only origin/dev -- '*.snap'` prints nothing.
+`git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap'` prints nothing.
 
 - [ ] **Step 8: Renaissance stop, then commit**
 
@@ -2103,10 +2174,9 @@ and the `Tooltip` at `:110-119` to:
 - [ ] **Step 4: Run the tests and the Renaissance goldens**
 
 Run: `npx vitest run components/charts/line-chart.test.tsx components/report-sections/organic-social/v1-render.golden.test.tsx components/report-sections/organic-social/render-invariant.test.tsx`
-Expected: all pass, and `git diff --name-only origin/dev -- '*.snap'` prints nothing. If a
-snapshot changed, `content={undefined}` is not identical to no prop in this Recharts version:
-switch to spreading `{...(notes ? { content: ... } : {})}` with the callback typed as
-`(p: TooltipContentProps<ValueType, NameType>)`, and re-run.
+Expected: all pass, and `git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap'` prints nothing.
+`content={undefined}` was proven identical to leaving the prop out, idle and on hover, on
+2026-09-24; if a snapshot still changes, stop and find out why before going on.
 
 - [ ] **Step 5: Renaissance stop, then commit**
 
@@ -2448,7 +2518,7 @@ unchanged; do not write that comment into the file.
 - [ ] **Step 5: Run the tests and the Renaissance goldens**
 
 Run: `npx vitest run components/charts/line-chart.test.tsx components/report-sections/organic-social/v1-render.golden.test.tsx components/report-sections/organic-social/render-invariant.test.tsx`
-Expected: all pass, and `git diff --name-only origin/dev -- '*.snap'` prints nothing.
+Expected: all pass, and `git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap'` prints nothing.
 
 - [ ] **Step 6: Renaissance stop, then commit**
 
@@ -2658,7 +2728,7 @@ describe('on a phone-width screen: the row above the chart', () => {
     const ed = { approvedId: 'aid', approvedPostIds: [], draft: { id: 'did', text: 'New', postIds: [] } }
     const approver = draw([{ ...PEAK, note: 'Old', noteEditor: ed }], CONTROLS)
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-    await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did'))
+    await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did', { text: 'New', postIds: [] }))
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
     approver.unmount()
@@ -2871,7 +2941,7 @@ export function NoteActions({ annotation, controls, pinned, onEdit }: {
       </button>
       {ed?.draft && controls.canApprove && (
         <button type="button" className={BUTTON} disabled={pending} aria-label="Approve"
-          onClick={() => run(() => approveChartNoteAction(controls.clientSlug, ed.draft!.id))}>Approve</button>
+          onClick={() => run(() => approveChartNoteAction(controls.clientSlug, ed.draft!.id, { text: ed.draft!.text, postIds: ed.draft!.postIds }))}>Approve</button>
       )}
       {ed?.approvedId && controls.canApprove && (
         <button type="button" className={BUTTON} disabled={pending} aria-label="Revoke"
@@ -3112,7 +3182,7 @@ undefined, which Tasks 7 and 8 proved renders today's chart, and no row renders 
 
 Run: `npx vitest run components/`
 Expected: all pass, including `annotation-callouts.test.tsx`, `trends.identity.test.tsx` and every
-golden, unchanged. `git diff --name-only origin/dev -- '*.snap'` prints nothing.
+golden, unchanged. `git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap'` prints nothing.
 
 - [ ] **Step 8: Renaissance stop, then commit**
 
@@ -3145,9 +3215,10 @@ Expected: all clean; the test count is the Task 0 baseline plus the new tests, w
 - [ ] **Step 2: Renaissance and hygiene guards**
 
 ```bash
-git diff --name-only origin/dev -- '*.snap'
-git diff --name-only origin/dev | xargs grep -nP "\x{2014}|\x{2013}" || echo "no dashes"
-git diff origin/dev --stat
+git diff --name-only "$(git merge-base HEAD origin/dev)" -- '*.snap'
+BASE="$(git merge-base HEAD origin/dev)"
+git diff --name-only "$BASE" | xargs grep -nP "\x{2014}|\x{2013}" || echo "no dashes"
+git diff "$BASE" --stat
 ```
 
 Expected: no snapshot file listed; "no dashes"; only the files this plan names.
@@ -3169,30 +3240,36 @@ Make each edit, run the named test, see it fail, then `git checkout -- <file>`:
 | `layoutPins`: drop the clamp to `maxLeft` | `line-chart.test.tsx` "the first and last days stay inside the plot" |
 | `trends.tsx`: pin every shown callout, even one with no point | `chart-notes-ui.test.tsx` "a callout whose day has no point goes in the row" |
 | `validateNoteInput`: drop the future-day check | `validate.test.ts` "tomorrow is refused" |
+| `approveChartNoteAction`: treat a false `approveNote` as success | `chart-notes.test.ts` (actions) "a note edited after the approver opened the page is not approved" |
 
 - [ ] **Step 4: Prove the PR merges clean with every open PR, in any order**
 
 ```bash
-gh pr list --state open --json number,headRefName
+git fetch -q origin
+git merge-tree --write-tree HEAD origin/dev >/dev/null && echo "clean with dev" || echo "CONFLICT with dev"
 for b in $(gh pr list --state open --json headRefName -q '.[].headRefName'); do
   git fetch -q origin "$b"
-  git merge-tree --write-tree origin/dev HEAD "origin/$b" >/dev/null && echo "clean with $b" || echo "CONFLICT with $b"
+  git merge-tree --write-tree HEAD "origin/$b" >/dev/null && echo "clean with $b" || echo "CONFLICT with $b"
 done
 ```
 
-Expected: "clean with" every open branch.
+`git merge-tree --write-tree` takes exactly two commits, finds their merge base itself, and exits
+0 when they merge clean (git 2.54 here). Expected: "clean with" `dev` and every open branch.
 
 - [ ] **Step 5: My own adversarial review**
 
 Read the whole diff against spec P1 to P13 with fresh eyes, one section at a time, and write the
 comprehension summary for the PR: where a note comes from, who sees what, and why Renaissance
-cannot change. Anything found goes back through Tasks 2 to 9 before the PR is marked ready.
+cannot change. Anything found goes back through Tasks 2 to 9 before the PR is marked ready. If Paul
+wants the Stage 1 review record from the project CLAUDE.md, it is this review written up as
+`docs/qa/chart-notes-code-review.md` in its own docs PR off `dev`, changing no code.
 
 - [ ] **Step 6: The PR**
 
 Mark the draft ready, replace its body with: what it does and why; the before and after test
-counts with the raw tail of `npm test`; the Renaissance proof (no snapshot changed, v1 never reads
-notes, the `LineChart` prop is off by default); the edge-case table from the Task 4 commit; the
+counts with the raw tail of `npm test`; the Renaissance proof (no snapshot changed, no Commentary
+file changed, v1 never reads notes, every action refuses a client not on locked months, the
+`LineChart` props `notes`, `pins` and `pinHeight` are off by default); the edge-case table from the Task 4 commit; the
 migration note (staging on my written go, production only after Jasmine approves staging). Ask Paul
 to review. Nothing merges to `dev` until his review is resolved and CI is green.
 
@@ -3207,11 +3284,16 @@ gh pr ready
 
 Nothing here starts without my written go, and each numbered step that writes needs it.
 
+Steps 1 to 3 run once Paul's review is resolved and before the PR merges to `dev`, so the staging
+record lands in `MIGRATIONS-PENDING.md` on this branch. The table is additive, so it sitting on
+staging before the code arrives changes nothing there.
+
 - [ ] **Step 1: Host guard and preflight, read only**
 
 Write `~/.claude/organic-social-work/probes/staging-0025-preflight.ts` (private, never
-committed), modelled on `probes/staging-f3-delete-2026-09-24.ts`: refuse any host that is not the
-staging database, list the migration tags whose hash is missing from
+committed), modelled on `probes/staging-f3-delete-2026-09-24.ts`: take the address the migration
+script will use, `DATABASE_URL_UNPOOLED` if set, else `DATABASE_URL` (`scripts/migrate-http.ts:19`),
+and refuse any host that is not the staging database; list the migration tags whose hash is missing from
 `drizzle.__drizzle_migrations` (must be exactly `0025_chart_notes`), print Renaissance's `clients`
 row md5 and the keys of its `dash_social_config` (must be `brandId` only, so the locked-months
 stop refuses it), and write nothing.
@@ -3236,7 +3318,7 @@ Extend the preflight with a `--after` mode: `chart_notes` exists with the Task 1
 shows both indexes, the unique one with its `WHERE` clause; the check constraint exists; the ledger
 has the 0025 row; the table list differs from before by `chart_notes` only; `chart_notes` has no
 row for Renaissance; Renaissance's md5 and config keys are unchanged. Record the output in
-`MIGRATIONS-PENDING.md` ("staging applied <date>").
+`MIGRATIONS-PENDING.md` ("staging applied <date>") on this branch, commit and push.
 
 - [ ] **Step 4: Promote**
 
@@ -3267,8 +3349,9 @@ On one platform tab of one client's August (a locked month, which also proves no
   red line down to it, the note on its own line, neighbouring days stack, the first and last days
   stay inside the chart. The team's buttons are on each card, and a hidden or draft card shows
   faded with no dot. Hide from a pinned card: it fades and its dot goes at once. Export PDF from
-  the team's view: the shown cards print; the buttons, hidden cards and drafts do not. Phone width (the browser pane's mobile preset, reset to desktop after):
-  the row above the chart, as Phase 1 shows it today. Renaissance's tabs: unchanged at both widths.
+  the team's view: the shown cards print; the buttons, hidden cards and drafts do not. Phone width
+  (the browser pane's mobile preset, reset to desktop after): the row above the chart, as Phase 1
+  shows it today. Renaissance's tabs: unchanged at both widths.
 - Update the line in Jasmine's staging guide that says the callouts sit in a row above the graph:
   they now sit on their dots.
 - Two tabs saving on the same day: the second edits the first's open draft (last save wins). That
@@ -3276,11 +3359,14 @@ On one platform tab of one client's August (a locked month, which also proves no
   finds the draft first.
 - **The real error shape for `isOpenDraftConflict`** (unverified until now): a private probe,
   `~/.claude/organic-social-work/probes/staging-0025-conflict-shape.ts`, host-guarded like Step 1,
-  runs `db.batch([insert draft, insert the same draft])` for a made-up day far in the past
-  (2000-01-01) through the repo's own `db`. The batch is one transaction, so the failure rolls both
-  back. It prints `isOpenDraftConflict(e)` and the error's `code` and `constraint` fields, nothing
-  else, then reads back that no row for that day exists. Expected: `true`. If it prints `false`, fix
-  `isOpenDraftConflict` to the shape it shows, with a test, before going on.
+  runs one `db.insert(chartNotes).values([draft, sameDraft])` for a made-up day far in the past
+  (2000-01-01), through the repo's own `db`: the same insert path `insertDraft` uses. One statement
+  with two rows for the same day breaks the open-draft index, so it fails as a whole and stores
+  nothing. It prints `isOpenDraftConflict(e)` and the error's `code` and `constraint` fields,
+  nothing else, then reads back that no row for that day exists. Expected: `true`. If it prints
+  `false`, fix `isOpenDraftConflict` to the shape it shows, with a test, before going on.
+- Test notes deleted here stay in the table as deleted drafts, never shown, as Commentary keeps its
+  deleted entries.
 - **Unverified on staging:** what a client role sees, because staging has no client logins. The
   redaction is proven by the Task 5 and Task 9 tests only; say so in the staging report.
 
