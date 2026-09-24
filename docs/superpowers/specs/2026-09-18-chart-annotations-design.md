@@ -654,14 +654,16 @@ exist, and a note named by id must belong to it. Anything else is refused before
   approved row stays, revoke returns it to draft, delete sets `deleted_at` on a draft only, and no
   row ever exists for Renaissance.
 
-### P13. Open question
+### P13. Who approves (decided 2026-09-24)
 
-Whose emails go on `CHART_NOTES_APPROVERS`, the notes' own allowlist. Decided 2026-09-24:
-notes do NOT reuse Commentary's `COMMENTARY_APPROVERS`, because the organic social approvers
-differ from Commentary's; the new var is read by the new permissions module only, through
-Commentary's unchanged parser, and unset means nobody can approve a note. Naming the
-approver(s) is an environment change in Vercel (staging first, production later), no code
-change, plus the mirrored local `.env` copy.
+The organic social lead approves notes; I named her on 2026-09-24, and her email goes only into
+`CHART_NOTES_APPROVERS` in each environment, never into this public repo.
+
+Why a separate list: notes do NOT reuse Commentary's `COMMENTARY_APPROVERS`, because the organic
+social approvers differ from Commentary's. The new var is read by the new permissions module only,
+through Commentary's unchanged parser, and unset means nobody can approve a note. Setting it is an
+environment change in Vercel (staging first, production later), no code change, plus the mirrored
+local `.env` copy.
 
 ## Renaissance
 
@@ -772,6 +774,6 @@ Renaissance is live in production and must not change. This rests on facts check
 | The team's buttons sit on each card (pinned or in the row); hidden and draft cards are pinned faded for the team only, never printed | Approved by the organic social team | 2026-09-24 | Decided |
 | The note sits on its own line under the date and number, and the connecting line is red, as in the approved sketch | The approved sketch | 2026-09-24 | Decided |
 | Notes get their own approver list, `CHART_NOTES_APPROVERS`, separate from Commentary's; unset approves nothing | Me | 2026-09-24 | Decided |
-| Who approves notes for Organic Social | Open | 2026-09-24 | Open: whose emails go on `CHART_NOTES_APPROVERS` |
+| Who approves notes for Organic Social: the organic social lead, set in `CHART_NOTES_APPROVERS` (the email lives only in the environment, never in this public repo) | Me | 2026-09-24 | Decided |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
 
