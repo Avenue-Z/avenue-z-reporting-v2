@@ -1,5 +1,17 @@
-import { describe, expect, test } from 'vitest'
-import { niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
+import { describe, expect, test, vi } from 'vitest'
+import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
+import { layoutPins, PIN_CARD_WIDTH } from './pins'
+import type { ReactElement } from 'react'
+
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<typeof import('recharts')>('recharts')
+  const { cloneElement } = await import('react')
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
+      cloneElement(children, { width: 800, height: 300 }),
+  }
+})
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
@@ -62,7 +74,7 @@ describe('niceYDomain', () => {
   })
 })
 
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { DefaultTooltipContent } from 'recharts'
 import { NotedTooltip } from './line-chart'
@@ -91,5 +103,101 @@ describe('NotedTooltip', () => {
     const c = render(<NotedTooltip {...P} note={'x'.repeat(80)} />).container
     const note = [...c.querySelectorAll('p')].find((el) => el.textContent === 'x'.repeat(80)) as HTMLElement
     expect(note.style.whiteSpace).toBe('normal')
+  })
+})
+
+describe('layoutPins', () => {
+  const PLOT = { x: 60, width: 732 }
+
+  test('cards far apart share the top row, each centred on its dot', () => {
+    expect(layoutPins([{ x: 'a', px: 300 }, { x: 'b', px: 700 }], PLOT)).toEqual([
+      { x: 'a', left: 160, tier: 0 }, { x: 'b', left: 512, tier: 0 },
+    ])
+  })
+
+  test('neighbouring days stack into rows instead of overlapping', () => {
+    const r = layoutPins([{ x: 'a', px: 400 }, { x: 'b', px: 424 }, { x: 'c', px: 448 }], PLOT)
+    expect(r.map((p) => p.tier)).toEqual([0, 1, 2])
+  })
+
+  test('the first and last days stay inside the plot', () => {
+    const r = layoutPins([{ x: 'first', px: 60 }, { x: 'last', px: 792 }], PLOT)
+    expect(r).toEqual([{ x: 'first', left: 60, tier: 0 }, { x: 'last', left: 792 - PIN_CARD_WIDTH, tier: 0 }])
+  })
+
+  test('the order they arrive in does not matter', () => {
+    const a = layoutPins([{ x: 'b', px: 700 }, { x: 'a', px: 300 }], PLOT)
+    expect(a.map((p) => p.x)).toEqual(['a', 'b'])
+  })
+
+  test('a plot narrower than a card puts each card at its left edge, one per row', () => {
+    const r = layoutPins([{ x: 'a', px: 100 }, { x: 'b', px: 150 }], { x: 60, width: 200 })
+    expect(r).toEqual([{ x: 'a', left: 60, tier: 0 }, { x: 'b', left: 60, tier: 1 }])
+  })
+})
+
+describe('LineChart pins', () => {
+  // Invented values. Day i of 31 sits at 60 + i / 30 * 732 in an 800 wide chart.
+  const DAYS = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`)
+  const DATA = DAYS.map((date, i) => ({ date, v: 3 + ((i * 7) % 11) }))
+  const AT = [DAYS[0], DAYS[9], DAYS[30]]
+  const draw = () => render(
+    <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={AT.map((x) => ({ x }))}
+      pins={AT.map((x) => ({ x, content: <span>{`card ${x}`}</span> }))} />,
+  )
+  const num = (el: Element, a: string) => Number(el.getAttribute(a))
+
+  test('each connector ends exactly on its dot', () => {
+    const { container } = draw()
+    const dots = [...container.querySelectorAll('.recharts-reference-dot circle, .recharts-reference-dot-dot')]
+    const lines = [...container.querySelectorAll('line[data-pin-line]')]
+    expect(lines).toHaveLength(3)
+    lines.forEach((l, i) => {
+      expect(num(l, 'x2')).toBeCloseTo(num(dots[i], 'cx'), 1)
+      expect(num(l, 'y2')).toBeCloseTo(num(dots[i], 'cy'), 1)
+    })
+  })
+
+  test('cards sit above the plot, inside it, stacked only where they would overlap', () => {
+    const { container } = draw()
+    const cards = [...container.querySelectorAll<HTMLElement>('[data-pin-card]')]
+    expect(cards.map((c) => c.dataset.pinCard)).toEqual(AT)
+    expect(cards.map((c) => parseFloat(c.style.left))).toEqual([60, expect.closeTo(139.6, 1), 512])
+    expect(cards.map((c) => c.style.top)).toEqual(['0px', '88px', '0px'])
+  })
+
+  test('a card shows what it was given', () => {
+    draw()
+    expect(screen.getByText(`card ${DAYS[9]}`)).toBeTruthy()
+  })
+
+  test("a muted pin (the team's hidden or draft card) has a faded line, and neither line nor card prints", () => {
+    const { container } = render(
+      <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} pins={[{ x: DAYS[9], muted: true, content: <span>m</span> }]} />,
+    )
+    const line = container.querySelector('line[data-pin-line]')!
+    expect(line.getAttribute('class')).toContain('no-print')
+    expect(line.getAttribute('stroke-opacity')).toBe('0.4')
+    expect(container.querySelector('[data-pin-card]')!.className).toContain('no-print')
+  })
+
+  test('the line is the red of the approved sketch', () => {
+    const { container } = draw()
+    expect(container.querySelector('line[data-pin-line]')!.getAttribute('stroke')).toBe('#E24B4A')
+  })
+
+  test("the team's taller cards stack by their own height", () => {
+    const { container } = render(
+      <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} pinHeight={112}
+        pins={AT.map((x) => ({ x, content: <span>{x}</span> }))} />,
+    )
+    expect([...container.querySelectorAll<HTMLElement>('[data-pin-card]')].map((c) => c.style.top)).toEqual(['0px', '120px', '0px'])
+  })
+
+  test('with no pins there is no card, no connector and no extra wrapper', () => {
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[9] }]} />)
+    expect(container.querySelector('[data-pin-card]')).toBeNull()
+    expect(container.querySelector('line[data-pin-line]')).toBeNull()
+    expect(container.querySelector('.relative')).toBeNull()
   })
 })
