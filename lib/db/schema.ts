@@ -132,11 +132,15 @@ export interface SalesforceConfig {
 export interface DashSocialConfig {
   /** Dash Social brand id (digits), e.g. 24350. Selects the brand for the shared DASH_API_TOKEN. */
   brandId: number
-  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter'); defaults to all reportable channels.
+  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter','linkedin','tiktok'). Absent resolves to
+   *  DEFAULT_CHANNELS, the original four; a newer channel such as TikTok appears only when named here.
    *  FOLLOW-UP (PR #168 review #2): a non-empty allowlist matching NO supported channel resolves to []
    *  and silently blanks the whole Organic Social section. When the config-write path lands (M3/M4),
    *  validate this at write time (reject / warn on a zero-match allowlist) — resolveChannels stays honest. */
   channels?: string[]
+  /** Locked months for Organic Social (docs/superpowers/specs/2026-09-21-locked-months-design.md).
+   *  Present with any value means opted in; validated at runtime, so typed unknown. */
+  reportingMonths?: unknown
 }
 
 /**
@@ -370,6 +374,26 @@ export const postDesignations = pgTable('post_designations', {
 }))
 
 export type PostDesignation = typeof postDesignations.$inferSelect
+
+// One row per (client, platform, chart, day) the team has hidden or unhidden on a v2
+// Organic Social graph. hidden=true keeps that annotation from the client; the team still
+// sees it, faded, with an Unhide button. No row means never touched, i.e. shown. Mirrors
+// post_designations. Purely additive: nothing Renaissance renders reads it.
+export const chartAnnotationHides = pgTable('chart_annotation_hides', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),   // DashChannel, e.g. 'INSTAGRAM'
+  chart: text('chart').notNull(),       // 'followers' | 'engagements'
+  day: date('day').notNull(),           // the annotation's day, yyyy-mm-dd, the UTC day Dash counts
+  hidden: boolean('hidden').notNull(),
+  setBy: text('set_by').notNull(),      // email
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientCalloutUnique: unique('chart_annotation_hides_client_callout_key').on(table.clientId, table.channel, table.chart, table.day),
+  clientIdx: index('chart_annotation_hides_client_idx').on(table.clientId),
+}))
+
+export type ChartAnnotationHide = typeof chartAnnotationHides.$inferSelect
 export type NewPostDesignation = typeof postDesignations.$inferInsert
 
 // One row per (client, channel, resolved window, post). Freezes Dash-sourced facts for a
@@ -392,8 +416,23 @@ export const topContentSnapshots = pgTable('top_content_snapshots', {
   ),
 }))
 
+/** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
+ *  client. Written once (the first read after the lock day), then served forever. Only clients with
+ *  reportingMonths ever read or write it. */
+export const dashResponseLocks = pgTable('dash_response_locks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  requestKey: text('request_key').notNull(),
+  periodEnd: date('period_end').notNull(),
+  response: jsonb('response').notNull(),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientRequestUnique: unique('dash_response_locks_client_request_key').on(table.clientId, table.requestKey),
+}))
+
 export type TopContentSnapshot = typeof topContentSnapshots.$inferSelect
 export type NewTopContentSnapshot = typeof topContentSnapshots.$inferInsert
+export type DashResponseLock = typeof dashResponseLocks.$inferSelect
 
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert

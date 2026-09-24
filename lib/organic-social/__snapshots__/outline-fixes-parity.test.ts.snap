@@ -1,0 +1,586 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`requests, shared tiles and rows that must not move 1`] = `
+{
+  "breakdown": {
+    "FACEBOOK": [
+      {
+        "key": "reactions",
+        "label": "Reactions",
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+      },
+      {
+        "key": "shares",
+        "label": "Shares",
+      },
+      {
+        "key": "postClicks",
+        "label": "Post Clicks",
+      },
+    ],
+    "INSTAGRAM": [
+      {
+        "key": "likes",
+        "label": "Likes",
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+      },
+      {
+        "key": "shares",
+        "label": "Shares",
+      },
+      {
+        "key": "saves",
+        "label": "Saves",
+      },
+      {
+        "key": "reposts",
+        "label": "Reposts",
+      },
+    ],
+    "LINKEDIN": [
+      {
+        "key": "reactions",
+        "label": "Reactions",
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+      },
+      {
+        "key": "shares",
+        "label": "Shares",
+      },
+      {
+        "key": "postClicks",
+        "label": "Post Clicks",
+      },
+    ],
+    "TIKTOK": [
+      {
+        "key": "likes",
+        "label": "Likes",
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+      },
+      {
+        "key": "shares",
+        "label": "Shares",
+      },
+      {
+        "key": "favorites",
+        "label": "Favorites",
+      },
+      {
+        "key": "completionRate",
+        "label": "Completion Rate",
+      },
+    ],
+  },
+  "facebook": [
+    {
+      "key": "followers",
+      "label": "Total Followers",
+    },
+    {
+      "key": "netNewFollowers",
+      "label": "Net New Followers",
+    },
+    {
+      "key": "exposure",
+      "label": "Views",
+    },
+    {
+      "key": "engagements",
+      "label": "Total Engagements",
+    },
+    {
+      "key": "engagementRate",
+      "label": "Engagement Rate",
+    },
+    {
+      "key": "videoViews",
+      "label": "Video Views",
+    },
+  ],
+  "kenect": [
+    {
+      "key": "followers",
+      "label": "Total Followers",
+    },
+    {
+      "key": "netNewFollowers",
+      "label": "Net New Followers",
+    },
+    {
+      "key": "exposure",
+      "label": "Views",
+    },
+    {
+      "key": "engagements",
+      "label": "Total Engagements",
+    },
+    {
+      "key": "engagementRate",
+      "label": "Engagement Rate",
+    },
+    {
+      "key": "profileViews",
+      "label": "Profile Views",
+    },
+    {
+      "key": "profileClicks",
+      "label": "Profile Clicks",
+    },
+  ],
+  "linkedin": [
+    {
+      "key": "followers",
+      "label": "Total Followers",
+    },
+    {
+      "key": "netNewFollowers",
+      "label": "Net New Followers",
+    },
+    {
+      "key": "exposure",
+      "label": "Views",
+    },
+    {
+      "key": "engagements",
+      "label": "Total Engagements",
+    },
+    {
+      "key": "engagementRate",
+      "label": "Engagement Rate",
+    },
+    {
+      "key": "profileViews",
+      "label": "Profile Views",
+    },
+    {
+      "key": "videoViews",
+      "label": "Video Views",
+    },
+  ],
+  "requests": {
+    "FACEBOOK": [
+      "TOTAL_FOLLOWERS",
+      "NET_NEW_FOLLOWERS",
+      "PAID_AND_ORGANIC_VIEWS_BY_POST",
+      "TOTAL_ENGAGEMENTS_POSTS_V2",
+      "AVG_ENGAGEMENT_RATE_V2",
+      "REACTIONS",
+      "TOTAL_COMMENTS",
+      "SHARES",
+      "POST_CLICKS",
+      "PAID_AND_ORGANIC_VIDEO_VIEWS",
+    ],
+    "INSTAGRAM": [
+      "TOTAL_FOLLOWERS",
+      "NET_NEW_FOLLOWERS",
+      "VIEWS",
+      "TOTAL_ENGAGEMENTS",
+      "AVG_ENGAGEMENT_RATE_VIEWS",
+      "PROFILE_VIEWS",
+      "ORGANIC_LIKES",
+      "ORGANIC_COMMENTS",
+      "SHARES",
+      "SAVES",
+      "REPOSTS",
+      "PROFILE_CLICKS",
+    ],
+    "LINKEDIN": [
+      "TOTAL_FOLLOWERS",
+      "NET_NEW_FOLLOWERS",
+      "IMPRESSIONS_BY_POST",
+      "ENGAGEMENTS_BY_POST",
+      "AVG_ENGAGEMENT_RATE_BY_POST",
+      "REACTIONS_BY_POST",
+      "COMMENTS_BY_POST",
+      "SHARES_BY_POST",
+      "CLICKS_BY_POST",
+      "PAGE_VIEWS_ALL_POSTS",
+      "VIDEO_VIEWS_BY_POST",
+    ],
+  },
+  "shared": {
+    "FACEBOOK": [
+      {
+        "format": "number",
+        "key": "followers",
+        "label": "Total Followers",
+        "metric": {
+          "allPosts": "TOTAL_FOLLOWERS",
+          "byPost": "TOTAL_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "netNewFollowers",
+        "label": "Net New Followers",
+        "metric": {
+          "allPosts": "NET_NEW_FOLLOWERS",
+          "byPost": "NET_NEW_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "exposure",
+        "label": "Views",
+        "metric": {
+          "allPosts": "PAID_AND_ORGANIC_VIEWS_BY_POST",
+          "byPost": "PAID_AND_ORGANIC_VIEWS_BY_POST",
+        },
+      },
+      {
+        "footnote": "Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive).",
+        "format": "number",
+        "key": "engagements",
+        "label": "Engagements",
+        "metric": {
+          "allPosts": "TOTAL_ENGAGEMENTS_POSTS_V2",
+          "byPost": "TOTAL_ENGAGEMENTS_POSTS_V2",
+        },
+      },
+      {
+        "format": "percent",
+        "key": "engagementRate",
+        "label": "Engagement Rate",
+        "metric": {
+          "allPosts": "AVG_ENGAGEMENT_RATE_V2",
+          "byPost": "AVG_ENGAGEMENT_RATE_V2",
+        },
+      },
+      {
+        "format": "number",
+        "key": "reactions",
+        "label": "Reactions",
+        "metric": {
+          "allPosts": "REACTIONS",
+          "byPost": "REACTIONS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "comments",
+        "label": "Comments",
+        "metric": {
+          "allPosts": "TOTAL_COMMENTS",
+          "byPost": "TOTAL_COMMENTS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "shares",
+        "label": "Shares",
+        "metric": {
+          "allPosts": "SHARES",
+          "byPost": "SHARES",
+        },
+      },
+      {
+        "format": "number",
+        "key": "postClicks",
+        "label": "Post Clicks",
+        "metric": {
+          "allPosts": "POST_CLICKS",
+          "byPost": "POST_CLICKS",
+        },
+      },
+    ],
+    "INSTAGRAM": [
+      {
+        "format": "number",
+        "key": "followers",
+        "label": "Total Followers",
+        "metric": {
+          "allPosts": "TOTAL_FOLLOWERS",
+          "byPost": "TOTAL_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "netNewFollowers",
+        "label": "Net New Followers",
+        "metric": {
+          "allPosts": "NET_NEW_FOLLOWERS",
+          "byPost": "NET_NEW_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "exposure",
+        "label": "Views",
+        "metric": {
+          "allPosts": "VIEWS",
+          "byPost": "VIEWS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "engagements",
+        "label": "Engagements",
+        "metric": {
+          "allPosts": "TOTAL_ENGAGEMENTS",
+          "byPost": "TOTAL_ENGAGEMENTS",
+        },
+      },
+      {
+        "format": "percent",
+        "key": "engagementRate",
+        "label": "Engagement Rate",
+        "metric": {
+          "allPosts": "AVG_ENGAGEMENT_RATE",
+          "byPost": "AVG_ENGAGEMENT_RATE",
+        },
+      },
+      {
+        "format": "number",
+        "key": "profileViews",
+        "label": "Profile Views",
+        "metric": {
+          "allPosts": "PROFILE_VIEWS",
+          "byPost": "PROFILE_VIEWS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "likes",
+        "label": "Likes",
+        "metric": {
+          "allPosts": "ORGANIC_LIKES",
+          "byPost": "ORGANIC_LIKES",
+        },
+      },
+      {
+        "format": "number",
+        "key": "comments",
+        "label": "Comments",
+        "metric": {
+          "allPosts": "ORGANIC_COMMENTS",
+          "byPost": "ORGANIC_COMMENTS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "shares",
+        "label": "Shares",
+        "metric": {
+          "allPosts": "SHARES",
+          "byPost": "SHARES",
+        },
+      },
+      {
+        "format": "number",
+        "key": "saves",
+        "label": "Saves",
+        "metric": {
+          "allPosts": "SAVES",
+          "byPost": "SAVES",
+        },
+      },
+      {
+        "format": "number",
+        "key": "reposts",
+        "label": "Reposts",
+        "metric": {
+          "allPosts": "REPOSTS",
+          "byPost": "REPOSTS",
+        },
+      },
+    ],
+    "LINKEDIN": [
+      {
+        "format": "number",
+        "key": "followers",
+        "label": "Total Followers",
+        "metric": {
+          "allPosts": "TOTAL_FOLLOWERS",
+          "byPost": "TOTAL_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "netNewFollowers",
+        "label": "Net New Followers",
+        "metric": {
+          "allPosts": "NET_NEW_FOLLOWERS",
+          "byPost": "NET_NEW_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "exposure",
+        "label": "Impressions",
+        "metric": {
+          "allPosts": "IMPRESSIONS",
+          "byPost": "IMPRESSIONS_BY_POST",
+        },
+      },
+      {
+        "format": "number",
+        "key": "engagements",
+        "label": "Engagements",
+        "metric": {
+          "allPosts": "ENGAGEMENTS",
+          "byPost": "ENGAGEMENTS_BY_POST",
+        },
+      },
+      {
+        "format": "percent",
+        "key": "engagementRate",
+        "label": "Engagement Rate",
+        "metric": {
+          "allPosts": "AVG_ENGAGEMENT_RATE",
+          "byPost": "AVG_ENGAGEMENT_RATE",
+        },
+      },
+      {
+        "format": "number",
+        "key": "reactions",
+        "label": "Reactions",
+        "metric": {
+          "allPosts": "REACTIONS_ALL_POSTS",
+          "byPost": "REACTIONS_BY_POST",
+        },
+      },
+      {
+        "format": "number",
+        "key": "comments",
+        "label": "Comments",
+        "metric": {
+          "allPosts": "COMMENTS_ALL_POSTS",
+          "byPost": "COMMENTS_BY_POST",
+        },
+      },
+      {
+        "format": "number",
+        "key": "shares",
+        "label": "Shares",
+        "metric": {
+          "allPosts": "SHARES_ALL_POSTS",
+          "byPost": "SHARES_BY_POST",
+        },
+      },
+      {
+        "format": "number",
+        "key": "postClicks",
+        "label": "Post Clicks",
+        "metric": {
+          "allPosts": "CLICKS_ALL_POSTS",
+          "byPost": "CLICKS_BY_POST",
+        },
+      },
+      {
+        "format": "number",
+        "key": "profileViews",
+        "label": "Profile Views",
+        "metric": {
+          "allPosts": "PAGE_VIEWS_ALL_POSTS",
+          "byPost": "PAGE_VIEWS_ALL_POSTS",
+        },
+      },
+    ],
+    "TWITTER": [
+      {
+        "format": "number",
+        "key": "followers",
+        "label": "Total Followers",
+        "metric": {
+          "allPosts": "TOTAL_FOLLOWERS",
+          "byPost": "TOTAL_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "netNewFollowers",
+        "label": "Net New Followers",
+        "metric": {
+          "allPosts": "NET_NEW_FOLLOWERS",
+          "byPost": "NET_NEW_FOLLOWERS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "exposure",
+        "label": "Impressions",
+        "metric": {
+          "allPosts": "IMPRESSIONS",
+          "byPost": "IMPRESSIONS_BY_POST",
+        },
+      },
+      {
+        "format": "number",
+        "key": "engagements",
+        "label": "Engagements",
+        "metric": {
+          "allPosts": "TOTAL_ENGAGEMENTS",
+          "byPost": "TOTAL_ENGAGEMENTS_POSTS",
+        },
+      },
+      {
+        "format": "percent",
+        "key": "engagementRate",
+        "label": "Engagement Rate",
+        "metric": {
+          "allPosts": "AVG_ENGAGEMENT_RATE",
+          "byPost": "AVG_ENGAGEMENT_RATE",
+        },
+      },
+      {
+        "format": "number",
+        "key": "profileClicks",
+        "label": "Profile Clicks",
+        "metric": {
+          "allPosts": "PROFILE_CLICKS",
+          "byPost": "PROFILE_CLICKS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "likes",
+        "label": "Likes",
+        "metric": {
+          "allPosts": "LIKES",
+          "byPost": "LIKES",
+        },
+      },
+      {
+        "format": "number",
+        "key": "replies",
+        "label": "Replies",
+        "metric": {
+          "allPosts": "REPLIES",
+          "byPost": "REPLIES",
+        },
+      },
+      {
+        "format": "number",
+        "key": "reposts",
+        "label": "Reposts",
+        "metric": {
+          "allPosts": "RETWEETS",
+          "byPost": "RETWEETS",
+        },
+      },
+      {
+        "format": "number",
+        "key": "linkClicks",
+        "label": "Link Clicks",
+        "metric": {
+          "allPosts": "LINK_CLICKS",
+          "byPost": "LINK_CLICKS",
+        },
+      },
+    ],
+  },
+}
+`;

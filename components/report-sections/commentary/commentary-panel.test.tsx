@@ -1,6 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { CommentaryPanel } from './commentary-panel'
+import { CommentaryEditor } from './commentary-editor'
+import { createElement, type ReactElement } from 'react'
 import type { CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }))
@@ -188,4 +190,44 @@ describe('history disclosure', () => {
     expect(screen.getByText('superseded')).toBeTruthy()
     expect(screen.getByText('deleted')).toBeTruthy()
   })
+})
+
+// Pre-change record for locked months (spec section 8): the panel and the editor render the same
+// HTML without the new optional props. Local-time stamps are normalised so the snapshot does not
+// depend on the machine's timezone (CI runs in UTC).
+const localTime = /[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M/g
+const html = (el: ReactElement) => render(el).container.innerHTML.replace(localTime, '<local time>')
+
+test('panel and editor HTML without the new optional props', () => {
+  const SECOND: CommentaryEntry = { ...ENTRY, id: 'e2', periodStart: '2026-05-01', periodEnd: '2026-05-31', status: 'draft' }
+  const panel = (canEdit: boolean, entries: CommentaryEntry[]) => html(
+    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={entries} initialId={entries[0]?.id ?? null}
+      capabilities={{ canEdit, canApprove: false }} history={[]} />,
+  )
+  expect({
+    editorTwoEntries: panel(true, [ENTRY, SECOND]),
+    clientOneEntry: panel(false, [ENTRY]),
+    editorEmpty: panel(true, []),
+    // createElement, not JSX: scripts/check-rsc-props.ts scans test files too and flags a JSX
+    // function prop on a client component in a file without 'use client'.
+    newEditor: html(createElement(CommentaryEditor, { clientSlug: 'acme', viewKey: 'peec-ai', onDone: () => {} })),
+    editEditor: html(createElement(CommentaryEditor, { clientSlug: 'acme', viewKey: 'peec-ai', entry: ENTRY, onDone: () => {} })),
+  }).toMatchSnapshot()
+})
+
+test('the new optional props: empty text, the team note, and the month as a new entry\'s period', () => {
+  const empty = render(
+    <CommentaryPanel clientSlug="acme" viewKey="organic-social:instagram" entries={[]} initialId={null}
+      capabilities={{ canEdit: true, canApprove: false }} history={[]} emptyText="No commentary for September 2026 yet"
+      defaultPeriod={{ start: '2026-09-01', end: '2026-09-30' }} />,
+  )
+  expect(empty.container.textContent).toContain('No commentary for September 2026 yet')
+  fireEvent.click(empty.getByText('Add commentary'))
+  expect([...empty.container.querySelectorAll('input[type="date"]')].map((i) => (i as HTMLInputElement).value)).toEqual(['2026-09-01', '2026-09-30'])
+  empty.unmount()
+  const noted = render(
+    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={[ENTRY]} initialId={ENTRY.id}
+      capabilities={{ canEdit: true, canApprove: false }} history={[]} entryNotes={{ [ENTRY.id]: 'Clients see this from Nov 12' }} />,
+  )
+  expect(noted.container.textContent).toContain('Clients see this from Nov 12')
 })

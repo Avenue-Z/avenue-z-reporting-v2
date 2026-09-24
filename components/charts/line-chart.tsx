@@ -9,14 +9,23 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceDot,
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { money } from '@/lib/paid-media/format'
+
+/** A day to flag on the x axis. Optional everywhere: a chart given no marks renders
+ *  exactly as it did before this prop existed. */
+export interface ChartMark {
+  /** Must equal an x value present in `data`, else Recharts drops the dot silently. */
+  x: string
+}
 
 interface LineChartProps {
   data: Record<string, string | number>[]
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
+  marks?: ChartMark[]
   height?: number
   /** 'currency-cents' formats the Y axis + tooltip via money(); default = raw number. */
   valueFormat?: 'currency-cents'
@@ -75,7 +84,7 @@ export function niceYDomain(
   return [lo, hi]
 }
 
-export function LineChart({ data, xKey, yKeys, height = 300, valueFormat }: LineChartProps) {
+export function LineChart({ data, xKey, yKeys, marks, height = 300, valueFormat }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
@@ -120,6 +129,22 @@ export function LineChart({ data, xKey, yKeys, height = 300, valueFormat }: Line
               dot={false}
             />
           ))}
+          {/* Marks ride the FIRST series, so a multi-series chart gets one dot per day
+              rather than one per line. A mark whose x is not in `data` is skipped here
+              rather than handed to Recharts, which would drop it without saying so. */}
+          {(marks ?? [])
+            .filter((m) => data.some((d) => d[xKey] === m.x))
+            .map((m) => (
+              <ReferenceDot
+                key={`mark-${m.x}`}
+                x={m.x}
+                y={Number(data.find((d) => d[xKey] === m.x)?.[yKeys[0].key] ?? 0)}
+                r={5}
+                fill={CHART_COLORS.primary}
+                stroke="#0B0B0B"
+                strokeWidth={2}
+              />
+            ))}
         </RechartsLineChart>
       </ResponsiveContainer>
     </div>

@@ -35,7 +35,7 @@ export const topContentV1: PartImpl<OrganicSocialCtx> = {
 /** Group posts (creative preserved) by platform, ordered by the canonical channel order (or the
  *  single scoped channel). NOT capped here — the client sorts by the chosen metric first, then caps
  *  (sort-then-cap in SortableTopContent), so the top-N reflects the active sort, not the fetch order. */
-function groupPostsByPlatform(posts: TopContentPost[], channel: DashChannel | null) {
+export function groupPostsByPlatform(posts: TopContentPost[], channel: DashChannel | null) {
   const order = (channel ? [channel] : [...CHANNELS]).map((c) => CHANNEL_LABEL[c])
   const by = new Map<string, TopContentPost[]>()
   for (const p of posts) {
@@ -50,7 +50,7 @@ function groupPostsByPlatform(posts: TopContentPost[], channel: DashChannel | nu
 /** Best-effort designations: a designation-table/read failure (e.g. the migration hasn't been
  *  applied) degrades to "no stored designations" — every post falls to the #ad suggestion /
  *  organic — rather than blanking the whole section. Logged so a missed migration stays visible. */
-async function loadDesignations(clientSlug: string, postIds: number[]): Promise<Map<number, SourceType>> {
+export async function loadDesignations(clientSlug: string, postIds: number[]): Promise<Map<number, SourceType>> {
   try {
     const client = await getClientBySlug(clientSlug)
     return client ? await getDesignations(client.id, postIds) : new Map<number, SourceType>()

@@ -1,0 +1,938 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`dashboard deep link, new-client-shaped, no reportingMonths: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "337a1b529dbd4b19",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "4f8d9e5ba35815ff",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "bcfee9815d81c302",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "1f1139e56a681b2f",
+    "CLIENT_VIEWER "junk" -": "88167626273e59e9",
+    "CLIENT_VIEWER "junk" previous_year": "a05e10a68b1a7bcb",
+    "CLIENT_VIEWER "last_30_days" -": "92211518f762d9ea",
+    "CLIENT_VIEWER "last_30_days" previous_year": "b87de696f55c5abe",
+    "CLIENT_VIEWER "last_month" -": "e608bcac1a80ae06",
+    "CLIENT_VIEWER "last_month" previous_year": "f30cafcd72fbf528",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "9b1c9f1b9fd1aa26",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "e698074d32fa8c12",
+    "CLIENT_VIEWER undefined -": "92211518f762d9ea",
+    "CLIENT_VIEWER undefined previous_year": "b87de696f55c5abe",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "337a1b529dbd4b19",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "4f8d9e5ba35815ff",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "bcfee9815d81c302",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "1f1139e56a681b2f",
+    "INTERNAL_ADMIN "junk" -": "88167626273e59e9",
+    "INTERNAL_ADMIN "junk" previous_year": "a05e10a68b1a7bcb",
+    "INTERNAL_ADMIN "last_30_days" -": "92211518f762d9ea",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "b87de696f55c5abe",
+    "INTERNAL_ADMIN "last_month" -": "e608bcac1a80ae06",
+    "INTERNAL_ADMIN "last_month" previous_year": "f30cafcd72fbf528",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "9b1c9f1b9fd1aa26",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "e698074d32fa8c12",
+    "INTERNAL_ADMIN undefined -": "92211518f762d9ea",
+    "INTERNAL_ADMIN undefined previous_year": "b87de696f55c5abe",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": null,
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "compareValue": null,
+                      "value": "last_30_days",
+                    },
+                    "type": "ReportDateRange",
+                  },
+                  "fallback": null,
+                },
+                "type": "react.suspense",
+              },
+              "subtitle": "Client",
+              "title": "Organic Social",
+            },
+            "type": "Header",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "divider-full mb-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": null,
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "ReportSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+        ],
+      },
+      "type": "react.fragment",
+    },
+  },
+}
+`;
+
+exports[`dashboard deep link, renaissance-shaped: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "337a1b529dbd4b19",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "4f8d9e5ba35815ff",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "bcfee9815d81c302",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "1f1139e56a681b2f",
+    "CLIENT_VIEWER "junk" -": "88167626273e59e9",
+    "CLIENT_VIEWER "junk" previous_year": "a05e10a68b1a7bcb",
+    "CLIENT_VIEWER "last_30_days" -": "92211518f762d9ea",
+    "CLIENT_VIEWER "last_30_days" previous_year": "b87de696f55c5abe",
+    "CLIENT_VIEWER "last_month" -": "e608bcac1a80ae06",
+    "CLIENT_VIEWER "last_month" previous_year": "f30cafcd72fbf528",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "9b1c9f1b9fd1aa26",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "e698074d32fa8c12",
+    "CLIENT_VIEWER undefined -": "92211518f762d9ea",
+    "CLIENT_VIEWER undefined previous_year": "b87de696f55c5abe",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "337a1b529dbd4b19",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "4f8d9e5ba35815ff",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "bcfee9815d81c302",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "1f1139e56a681b2f",
+    "INTERNAL_ADMIN "junk" -": "88167626273e59e9",
+    "INTERNAL_ADMIN "junk" previous_year": "a05e10a68b1a7bcb",
+    "INTERNAL_ADMIN "last_30_days" -": "92211518f762d9ea",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "b87de696f55c5abe",
+    "INTERNAL_ADMIN "last_month" -": "e608bcac1a80ae06",
+    "INTERNAL_ADMIN "last_month" previous_year": "f30cafcd72fbf528",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "9b1c9f1b9fd1aa26",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "e698074d32fa8c12",
+    "INTERNAL_ADMIN undefined -": "92211518f762d9ea",
+    "INTERNAL_ADMIN undefined previous_year": "b87de696f55c5abe",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": null,
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "compareValue": null,
+                      "value": "last_30_days",
+                    },
+                    "type": "ReportDateRange",
+                  },
+                  "fallback": null,
+                },
+                "type": "react.suspense",
+              },
+              "subtitle": "Client",
+              "title": "Organic Social",
+            },
+            "type": "Header",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "divider-full mb-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": null,
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "ReportSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+        ],
+      },
+      "type": "react.fragment",
+    },
+  },
+}
+`;
+
+exports[`dashboard spa, new-client-shaped, no reportingMonths: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "030cd6e078b5b3c5",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "3b8b65cea4e8ec47",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "b7b7aa8fba21ac8c",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "f3751ed68f33cd6f",
+    "CLIENT_VIEWER "junk" -": "b84b532a1bfc1038",
+    "CLIENT_VIEWER "junk" previous_year": "05a53a17d67f7044",
+    "CLIENT_VIEWER "last_30_days" -": "33b8f1993e6391ff",
+    "CLIENT_VIEWER "last_30_days" previous_year": "292e715eca949b61",
+    "CLIENT_VIEWER "last_month" -": "86ec457139c88420",
+    "CLIENT_VIEWER "last_month" previous_year": "6044fbdea8d7c4be",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "0be456cb9289bf6e",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "05f5e685681bf8f2",
+    "CLIENT_VIEWER health": "33b8f1993e6391ff",
+    "CLIENT_VIEWER undefined -": "33b8f1993e6391ff",
+    "CLIENT_VIEWER undefined previous_year": "292e715eca949b61",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "030cd6e078b5b3c5",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "3b8b65cea4e8ec47",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "b7b7aa8fba21ac8c",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "f3751ed68f33cd6f",
+    "INTERNAL_ADMIN "junk" -": "b84b532a1bfc1038",
+    "INTERNAL_ADMIN "junk" previous_year": "05a53a17d67f7044",
+    "INTERNAL_ADMIN "last_30_days" -": "33b8f1993e6391ff",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "292e715eca949b61",
+    "INTERNAL_ADMIN "last_month" -": "86ec457139c88420",
+    "INTERNAL_ADMIN "last_month" previous_year": "6044fbdea8d7c4be",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "0be456cb9289bf6e",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "05f5e685681bf8f2",
+    "INTERNAL_ADMIN health": "c62db1c4f426f57b",
+    "INTERNAL_ADMIN undefined -": "33b8f1993e6391ff",
+    "INTERNAL_ADMIN undefined previous_year": "292e715eca949b61",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": [
+                null,
+                null,
+                null,
+                {
+                  "key": null,
+                  "props": {
+                    "children": {
+                      "key": null,
+                      "props": {
+                        "compareRange": null,
+                        "dateRange": "last_30_days",
+                      },
+                      "type": "GA4DatePicker",
+                    },
+                    "fallback": null,
+                  },
+                  "type": "react.suspense",
+                },
+                null,
+              ],
+              "logoUrl": null,
+              "subtitle": "Client",
+              "title": "Organic Social",
+            },
+            "type": "StickyReportHeader",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "h-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": "organic-social::last_30_days::",
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "SectionSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+        ],
+        "delayDuration": 150,
+        "skipDelayDuration": 50,
+      },
+      "type": "TooltipProvider",
+    },
+  },
+}
+`;
+
+exports[`dashboard spa, renaissance-shaped: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "030cd6e078b5b3c5",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "3b8b65cea4e8ec47",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "b7b7aa8fba21ac8c",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "f3751ed68f33cd6f",
+    "CLIENT_VIEWER "junk" -": "b84b532a1bfc1038",
+    "CLIENT_VIEWER "junk" previous_year": "05a53a17d67f7044",
+    "CLIENT_VIEWER "last_30_days" -": "33b8f1993e6391ff",
+    "CLIENT_VIEWER "last_30_days" previous_year": "292e715eca949b61",
+    "CLIENT_VIEWER "last_month" -": "86ec457139c88420",
+    "CLIENT_VIEWER "last_month" previous_year": "6044fbdea8d7c4be",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "0be456cb9289bf6e",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "05f5e685681bf8f2",
+    "CLIENT_VIEWER health": "33b8f1993e6391ff",
+    "CLIENT_VIEWER undefined -": "33b8f1993e6391ff",
+    "CLIENT_VIEWER undefined previous_year": "292e715eca949b61",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "030cd6e078b5b3c5",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "3b8b65cea4e8ec47",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "b7b7aa8fba21ac8c",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "f3751ed68f33cd6f",
+    "INTERNAL_ADMIN "junk" -": "b84b532a1bfc1038",
+    "INTERNAL_ADMIN "junk" previous_year": "05a53a17d67f7044",
+    "INTERNAL_ADMIN "last_30_days" -": "33b8f1993e6391ff",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "292e715eca949b61",
+    "INTERNAL_ADMIN "last_month" -": "86ec457139c88420",
+    "INTERNAL_ADMIN "last_month" previous_year": "6044fbdea8d7c4be",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "0be456cb9289bf6e",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "05f5e685681bf8f2",
+    "INTERNAL_ADMIN health": "c62db1c4f426f57b",
+    "INTERNAL_ADMIN undefined -": "33b8f1993e6391ff",
+    "INTERNAL_ADMIN undefined previous_year": "292e715eca949b61",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": [
+                null,
+                null,
+                null,
+                {
+                  "key": null,
+                  "props": {
+                    "children": {
+                      "key": null,
+                      "props": {
+                        "compareRange": null,
+                        "dateRange": "last_30_days",
+                      },
+                      "type": "GA4DatePicker",
+                    },
+                    "fallback": null,
+                  },
+                  "type": "react.suspense",
+                },
+                null,
+              ],
+              "logoUrl": null,
+              "subtitle": "Client",
+              "title": "Organic Social",
+            },
+            "type": "StickyReportHeader",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "h-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": "organic-social::last_30_days::",
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "SectionSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+        ],
+        "delayDuration": 150,
+        "skipDelayDuration": 50,
+      },
+      "type": "TooltipProvider",
+    },
+  },
+}
+`;
+
+exports[`portal deep link, new-client-shaped, no reportingMonths: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "53694c7497aefa02",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "5b63e2778d937628",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "3b8c49c5eb21243e",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "128b5602b285f9ab",
+    "CLIENT_VIEWER "junk" -": "2cab47f142c8bd44",
+    "CLIENT_VIEWER "junk" previous_year": "228cd2ad0a065653",
+    "CLIENT_VIEWER "last_30_days" -": "a0e4f2523621d118",
+    "CLIENT_VIEWER "last_30_days" previous_year": "60da3f39f56ac58d",
+    "CLIENT_VIEWER "last_month" -": "10db3ce9f5b318da",
+    "CLIENT_VIEWER "last_month" previous_year": "a004c09efa99fe90",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "75ee607dadf29451",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "a85561020cd29324",
+    "CLIENT_VIEWER health": "a0e4f2523621d118",
+    "CLIENT_VIEWER undefined -": "a0e4f2523621d118",
+    "CLIENT_VIEWER undefined previous_year": "60da3f39f56ac58d",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "53694c7497aefa02",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "5b63e2778d937628",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "3b8c49c5eb21243e",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "128b5602b285f9ab",
+    "INTERNAL_ADMIN "junk" -": "2cab47f142c8bd44",
+    "INTERNAL_ADMIN "junk" previous_year": "228cd2ad0a065653",
+    "INTERNAL_ADMIN "last_30_days" -": "a0e4f2523621d118",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "60da3f39f56ac58d",
+    "INTERNAL_ADMIN "last_month" -": "10db3ce9f5b318da",
+    "INTERNAL_ADMIN "last_month" previous_year": "a004c09efa99fe90",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "75ee607dadf29451",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "a85561020cd29324",
+    "INTERNAL_ADMIN health": "4f567a492bb1b024",
+    "INTERNAL_ADMIN undefined -": "a0e4f2523621d118",
+    "INTERNAL_ADMIN undefined previous_year": "60da3f39f56ac58d",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": [
+                {
+                  "key": null,
+                  "props": {
+                    "children": [
+                      {
+                        "key": null,
+                        "props": {
+                          "children": "Client",
+                          "className": "text-sm font-bold uppercase tracking-widest text-text-muted",
+                        },
+                        "type": "p",
+                      },
+                      {
+                        "key": null,
+                        "props": {
+                          "children": "Organic Social",
+                          "className": "text-3xl font-extrabold uppercase text-white",
+                        },
+                        "type": "h1",
+                      },
+                    ],
+                  },
+                  "type": "div",
+                },
+                {
+                  "key": null,
+                  "props": {
+                    "children": {
+                      "key": null,
+                      "props": {
+                        "value": "last_30_days",
+                      },
+                      "type": "PortalReportDateRange",
+                    },
+                    "fallback": null,
+                  },
+                  "type": "react.suspense",
+                },
+              ],
+              "className": "mb-6 flex items-end justify-between",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "divider-full mb-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": null,
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "ReportSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+        ],
+        "className": "mx-auto max-w-6xl px-8 py-12",
+      },
+      "type": "div",
+    },
+  },
+}
+`;
+
+exports[`portal deep link, renaissance-shaped: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "53694c7497aefa02",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "5b63e2778d937628",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "3b8c49c5eb21243e",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "128b5602b285f9ab",
+    "CLIENT_VIEWER "junk" -": "2cab47f142c8bd44",
+    "CLIENT_VIEWER "junk" previous_year": "228cd2ad0a065653",
+    "CLIENT_VIEWER "last_30_days" -": "a0e4f2523621d118",
+    "CLIENT_VIEWER "last_30_days" previous_year": "60da3f39f56ac58d",
+    "CLIENT_VIEWER "last_month" -": "10db3ce9f5b318da",
+    "CLIENT_VIEWER "last_month" previous_year": "a004c09efa99fe90",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "75ee607dadf29451",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "a85561020cd29324",
+    "CLIENT_VIEWER health": "a0e4f2523621d118",
+    "CLIENT_VIEWER undefined -": "a0e4f2523621d118",
+    "CLIENT_VIEWER undefined previous_year": "60da3f39f56ac58d",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "53694c7497aefa02",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "5b63e2778d937628",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "3b8c49c5eb21243e",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "128b5602b285f9ab",
+    "INTERNAL_ADMIN "junk" -": "2cab47f142c8bd44",
+    "INTERNAL_ADMIN "junk" previous_year": "228cd2ad0a065653",
+    "INTERNAL_ADMIN "last_30_days" -": "a0e4f2523621d118",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "60da3f39f56ac58d",
+    "INTERNAL_ADMIN "last_month" -": "10db3ce9f5b318da",
+    "INTERNAL_ADMIN "last_month" previous_year": "a004c09efa99fe90",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "75ee607dadf29451",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "a85561020cd29324",
+    "INTERNAL_ADMIN health": "4f567a492bb1b024",
+    "INTERNAL_ADMIN undefined -": "a0e4f2523621d118",
+    "INTERNAL_ADMIN undefined previous_year": "60da3f39f56ac58d",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": [
+                {
+                  "key": null,
+                  "props": {
+                    "children": [
+                      {
+                        "key": null,
+                        "props": {
+                          "children": "Client",
+                          "className": "text-sm font-bold uppercase tracking-widest text-text-muted",
+                        },
+                        "type": "p",
+                      },
+                      {
+                        "key": null,
+                        "props": {
+                          "children": "Organic Social",
+                          "className": "text-3xl font-extrabold uppercase text-white",
+                        },
+                        "type": "h1",
+                      },
+                    ],
+                  },
+                  "type": "div",
+                },
+                {
+                  "key": null,
+                  "props": {
+                    "children": {
+                      "key": null,
+                      "props": {
+                        "value": "last_30_days",
+                      },
+                      "type": "PortalReportDateRange",
+                    },
+                    "fallback": null,
+                  },
+                  "type": "react.suspense",
+                },
+              ],
+              "className": "mb-6 flex items-end justify-between",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "divider-full mb-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": null,
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "ReportSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+        ],
+        "className": "mx-auto max-w-6xl px-8 py-12",
+      },
+      "type": "div",
+    },
+  },
+}
+`;
+
+exports[`portal spa, new-client-shaped, no reportingMonths: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "ba61d5f0172d1f27",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "c1fd9f65f09d219f",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "e1c46b727da7770a",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "843f04a169d5e478",
+    "CLIENT_VIEWER "junk" -": "b077d8a669bf8896",
+    "CLIENT_VIEWER "junk" previous_year": "f63a7fbed123e476",
+    "CLIENT_VIEWER "last_30_days" -": "a858d7a7ac2ccd94",
+    "CLIENT_VIEWER "last_30_days" previous_year": "c383f7de9ba1cf7c",
+    "CLIENT_VIEWER "last_month" -": "7a0c1d5da277ac3b",
+    "CLIENT_VIEWER "last_month" previous_year": "d45688cc648d53f6",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "2967c027ecd24179",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "52bf4a40eb1e83fe",
+    "CLIENT_VIEWER undefined -": "a858d7a7ac2ccd94",
+    "CLIENT_VIEWER undefined previous_year": "c383f7de9ba1cf7c",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "ba61d5f0172d1f27",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "c1fd9f65f09d219f",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "e1c46b727da7770a",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "843f04a169d5e478",
+    "INTERNAL_ADMIN "junk" -": "b077d8a669bf8896",
+    "INTERNAL_ADMIN "junk" previous_year": "f63a7fbed123e476",
+    "INTERNAL_ADMIN "last_30_days" -": "a858d7a7ac2ccd94",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "c383f7de9ba1cf7c",
+    "INTERNAL_ADMIN "last_month" -": "7a0c1d5da277ac3b",
+    "INTERNAL_ADMIN "last_month" previous_year": "d45688cc648d53f6",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "2967c027ecd24179",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "52bf4a40eb1e83fe",
+    "INTERNAL_ADMIN undefined -": "a858d7a7ac2ccd94",
+    "INTERNAL_ADMIN undefined previous_year": "c383f7de9ba1cf7c",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": [
+                null,
+                null,
+                {
+                  "key": null,
+                  "props": {
+                    "children": {
+                      "key": null,
+                      "props": {
+                        "compareRange": null,
+                        "dateRange": "last_30_days",
+                      },
+                      "type": "GA4DatePicker",
+                    },
+                    "fallback": null,
+                  },
+                  "type": "react.suspense",
+                },
+                null,
+                null,
+                {
+                  "key": null,
+                  "props": {},
+                  "type": "ExportPdfButton",
+                },
+              ],
+              "logoUrl": null,
+              "subtitle": "Client",
+              "title": "Organic Social",
+            },
+            "type": "StickyReportHeader",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "h-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": "organic-social::last_30_days::",
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "SectionSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+          null,
+        ],
+        "delayDuration": 150,
+        "skipDelayDuration": 50,
+      },
+      "type": "TooltipProvider",
+    },
+  },
+}
+`;
+
+exports[`portal spa, renaissance-shaped: returned tree is unchanged 1`] = `
+{
+  "digests": {
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" -": "ba61d5f0172d1f27",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-15" previous_year": "c1fd9f65f09d219f",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" -": "e1c46b727da7770a",
+    "CLIENT_VIEWER "custom:2026-08-01,2026-08-31" previous_year": "843f04a169d5e478",
+    "CLIENT_VIEWER "junk" -": "b077d8a669bf8896",
+    "CLIENT_VIEWER "junk" previous_year": "f63a7fbed123e476",
+    "CLIENT_VIEWER "last_30_days" -": "a858d7a7ac2ccd94",
+    "CLIENT_VIEWER "last_30_days" previous_year": "c383f7de9ba1cf7c",
+    "CLIENT_VIEWER "last_month" -": "7a0c1d5da277ac3b",
+    "CLIENT_VIEWER "last_month" previous_year": "d45688cc648d53f6",
+    "CLIENT_VIEWER ["last_30_days","x"] -": "2967c027ecd24179",
+    "CLIENT_VIEWER ["last_30_days","x"] previous_year": "52bf4a40eb1e83fe",
+    "CLIENT_VIEWER undefined -": "a858d7a7ac2ccd94",
+    "CLIENT_VIEWER undefined previous_year": "c383f7de9ba1cf7c",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" -": "ba61d5f0172d1f27",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-15" previous_year": "c1fd9f65f09d219f",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" -": "e1c46b727da7770a",
+    "INTERNAL_ADMIN "custom:2026-08-01,2026-08-31" previous_year": "843f04a169d5e478",
+    "INTERNAL_ADMIN "junk" -": "b077d8a669bf8896",
+    "INTERNAL_ADMIN "junk" previous_year": "f63a7fbed123e476",
+    "INTERNAL_ADMIN "last_30_days" -": "a858d7a7ac2ccd94",
+    "INTERNAL_ADMIN "last_30_days" previous_year": "c383f7de9ba1cf7c",
+    "INTERNAL_ADMIN "last_month" -": "7a0c1d5da277ac3b",
+    "INTERNAL_ADMIN "last_month" previous_year": "d45688cc648d53f6",
+    "INTERNAL_ADMIN ["last_30_days","x"] -": "2967c027ecd24179",
+    "INTERNAL_ADMIN ["last_30_days","x"] previous_year": "52bf4a40eb1e83fe",
+    "INTERNAL_ADMIN undefined -": "a858d7a7ac2ccd94",
+    "INTERNAL_ADMIN undefined previous_year": "c383f7de9ba1cf7c",
+  },
+  "representative": {
+    "tree": {
+      "key": null,
+      "props": {
+        "children": [
+          {
+            "key": null,
+            "props": {
+              "children": [
+                null,
+                null,
+                {
+                  "key": null,
+                  "props": {
+                    "children": {
+                      "key": null,
+                      "props": {
+                        "compareRange": null,
+                        "dateRange": "last_30_days",
+                      },
+                      "type": "GA4DatePicker",
+                    },
+                    "fallback": null,
+                  },
+                  "type": "react.suspense",
+                },
+                null,
+                null,
+                {
+                  "key": null,
+                  "props": {},
+                  "type": "ExportPdfButton",
+                },
+              ],
+              "logoUrl": null,
+              "subtitle": "Client",
+              "title": "Organic Social",
+            },
+            "type": "StickyReportHeader",
+          },
+          {
+            "key": null,
+            "props": {
+              "className": "h-8",
+            },
+            "type": "div",
+          },
+          {
+            "key": null,
+            "props": {
+              "children": {
+                "key": "organic-social::last_30_days::",
+                "props": {
+                  "children": {
+                    "key": null,
+                    "props": {
+                      "channel": null,
+                      "clientSlug": "c",
+                      "compareRange": null,
+                      "dateRange": "last_30_days",
+                    },
+                    "type": "OrganicSocialReport",
+                  },
+                  "fallback": {
+                    "key": null,
+                    "props": {},
+                    "type": "SectionSkeleton",
+                  },
+                },
+                "type": "react.suspense",
+              },
+              "sectionName": "Organic Social",
+            },
+            "type": "ReportErrorBoundary",
+          },
+          null,
+        ],
+        "delayDuration": 150,
+        "skipDelayDuration": 50,
+      },
+      "type": "TooltipProvider",
+    },
+  },
+}
+`;
+
+exports[`renaissance-shaped: another section on the SPA routes is unchanged 1`] = `
+{
+  "dash": "cd45f1779e0792c2",
+  "portal": "51eba82bf8fe2d0f",
+}
+`;

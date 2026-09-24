@@ -2,6 +2,7 @@ import { fetchTopContent } from './top-content'
 import { readSnapshot, writeSnapshot } from './snapshot'
 import { isoRange } from './base'
 import { getClientBySlug } from '@/lib/db/queries'
+import { hasReportingMonths } from './reporting-months'
 import type { DashChannel } from './metrics'
 import type { TopContentPost } from './content-types'
 
@@ -24,6 +25,9 @@ interface Deps {
   fetchLive: (slug: string, dateRange: string, channel: DashChannel | null) => Promise<TopContentPost[]>
   readSnapshot: typeof readSnapshot
   writeSnapshot: typeof writeSnapshot
+  /** Lock every number (D27): true for a client on locked months, whose Top Content answer is
+   *  locked with every other number instead of frozen here. */
+  responseLocked: (slug: string) => Promise<boolean>
 }
 
 function defaultDeps(): Deps {
@@ -34,6 +38,7 @@ function defaultDeps(): Deps {
     fetchLive: fetchTopContent,
     readSnapshot,
     writeSnapshot,
+    responseLocked: async (slug) => hasReportingMonths(await getClientBySlug(slug)),
   }
 }
 
@@ -50,6 +55,9 @@ export async function fetchTopContentFrozen(
   slug: string, dateRange: string, channel: DashChannel | null, injected?: Partial<Deps>,
 ): Promise<TopContentPost[]> {
   const d = { ...defaultDeps(), ...injected }
+  // Lock every number (D27): a client on locked months has its Top Content answer locked with every
+  // other number (dash_response_locks, via the locking client), so it skips this older freeze table.
+  if (await d.responseLocked(slug)) return d.fetchLive(slug, dateRange, channel)
   const { start, end } = d.isoRange(dateRange)
   const key = channel ?? 'ALL'
   let clientId: string | null = null
