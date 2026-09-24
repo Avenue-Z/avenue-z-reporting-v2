@@ -48,7 +48,7 @@ client sees it.
   under `lib/commentary/`, `app/actions/commentary.ts`, `components/report-sections/commentary/`,
   and no `report_commentary` column or row, changes. Renaissance runs Commentary. Two additions of
   our own, both in the new files only: one open draft per day, and approve matching what the
-  approver was shown (Task 3, `approveNote`; proposed, needs my okay).
+  approver was shown (Task 3, `approveNote`; approved by me 2026-09-24).
 - **No note can be written or read for Renaissance.** Every action refuses a client that is not on
   locked months (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`), and
   `withNotes` skips one before reading. Renaissance's `dash_social_config` holds only `brandId` in
@@ -654,7 +654,7 @@ export interface NoteControls {
 }
 ```
 
-In `interface ChartAnnotation` (`:108-116`), change the `thumb` line to `thumb: ChartThumb | null`
+In `interface ChartAnnotation` (`:108-115`), change the `thumb` line to `thumb: ChartThumb | null`
 and add after it:
 
 ```ts
@@ -995,9 +995,9 @@ export async function updateDraft(id: string, a: { body: string; postIds: number
 
 /** Approve exactly what the approver was shown. Editing a draft changes that same row, so without
  *  the text and posts in the match an edit made after the approver opened the page would be
- *  approved unread, and a client would see words nobody approved. The one step away from
- *  Commentary, which approves by id alone (approveCommentary, app/actions/commentary.ts:122,
- *  its update at :136-140). */
+ *  approved unread, and a client would see words nobody approved. Commentary approves by id
+ *  alone (approveCommentary, app/actions/commentary.ts:122, its update at :136-140); this check is
+ *  one of the two additions of our own, and lives only in the notes code. */
 export async function approveNote(id: string, by: string, seen: { text: string; postIds: number[] }): Promise<boolean> {
   const rows = await db
     .update(chartNotes)
@@ -1670,7 +1670,7 @@ Expected: FAIL, `thumbSrc` is not exported and `./chart-notes` cannot be resolve
 
 - [ ] **Step 3: Add `thumbOf`, `thumbSrc` and extend `toChartAnnotations`**
 
-In `lib/organic-social/annotations.ts`, replace `toChartAnnotations` (`:118-128`) with:
+In `lib/organic-social/annotations.ts`, replace `toChartAnnotations` (`:118-127`, the end of the file) with:
 
 ```ts
 /** What the row draws for one post: its picture and its link, nothing else. */

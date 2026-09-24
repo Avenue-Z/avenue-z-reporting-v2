@@ -294,8 +294,9 @@ draft and approve lifecycle (an edit of an approved note leaves it showing until
 approved; a revoke falls back to the version before), the same race guards, and Commentary's own
 guard functions imported as they are (`authorizeRowForClient`, `guardNotDeleted`, `canDeleteDraft`,
 `lib/commentary/mutations.ts:29`, `:43`, `:56`). No Commentary file and no Commentary table
-changes, because Renaissance runs Commentary. The one addition is one open draft per day (P5),
-because a card shows one draft.
+changes, because Renaissance runs Commentary. Two additions of our own, both in the new files
+only: one open draft per day (P5), because a card shows one draft; and approve matching exactly
+what the approver was shown (P5), so a client never sees words nobody approved.
 
 ### P1. What a note is
 
@@ -451,9 +452,9 @@ because a card shows one draft.
   ranks Commentary (`lib/commentary/select.ts:35-44`). Approve carries the text and posts the
   approver was shown, and only succeeds if the draft still holds exactly those; otherwise it says
   "This note changed since you opened the page". Editing a draft changes that same row, so without
-  this an edit made after the approver opened the page would reach a client unread. This is the
-  one step away from Commentary, which approves by id alone (`app/actions/commentary.ts:122`,
-  update at `:136-140`).
+  this an edit made after the approver opened the page would reach a client unread. Commentary
+  approves by id alone (`app/actions/commentary.ts:122`, update at `:136-140`); this check lives
+  only in the new notes code.
 - **Edit an approved note** opens a draft, or edits the open one; the approved version stays
   visible to clients until the draft is approved, as `saveCommentary` does
   (`app/actions/commentary.ts:53-55`).
@@ -753,7 +754,7 @@ Renaissance is live in production and must not change. This rests on facts check
 | Notes use Commentary's approval flow and permissions | Jasmine's question 9 | 2026-09-21 | Decided |
 | Note actions check the role as well as the email | Me, from `monthly.tsx:12-15` | 2026-09-24 | Decided |
 | Notes copy Commentary's logic and import its guard functions; no Commentary file or table changes | Me: keep Commentary's logic rather than write a new one | 2026-09-24 | Decided |
-| Approve only what the approver was shown (the one step away from Commentary) | Me, from the adversarial review of the plan | 2026-09-24 | Proposed: needs my okay before the build |
+| Approve only what the approver was shown (one of our two additions to Commentary's logic) | Me, from the adversarial review of the plan | 2026-09-24 | Decided: approved 2026-09-24 |
 | Notes only for clients on locked months, so none can be written or read for Renaissance | Me | 2026-09-24 | Decided |
 | One open draft per chart and day; revoke refused while one is open | Me | 2026-09-24 | Decided |
 | Notes are plain text, 1 to 80 characters | Me | 2026-09-24 | Decided |
