@@ -32,14 +32,14 @@ export function OutlineTiles({ kpis }: { kpis: OutlineKpi[] }) {
   )
 }
 
-/** The outline's Data block: the same markup as the shared PlatformHeadlines for one platform
- *  (a test holds the two together), drawn with OutlineTiles so a flagged row can show blank. The
- *  shared component, which Renaissance renders, is not changed. */
+/** The outline's Data block: the same markup as the shared PlatformHeadlines for one platform (a
+ *  test holds the two together) under the outline's heading "Data", not the platform name, drawn
+ *  with OutlineTiles so a flagged row can show blank. The shared component is not changed. */
 export function OutlineHeadlines({ headline }: { headline: OutlineHeadline }) {
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{headline.label}</h3>
+        <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Data</h3>
         {headline.noData ? <NoData /> : <OutlineTiles kpis={headline.kpis} />}
       </section>
     </div>

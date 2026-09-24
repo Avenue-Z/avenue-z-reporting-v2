@@ -17,7 +17,7 @@ vi.mock('@/lib/organic-social/top-content', () => ({ fetchTopContent, getTopCont
 vi.mock('../sortable-top-content', () => ({ SortableTopContent }))
 
 import { TopContentOutlineSection, topContentV3 } from './top-content-outline'
-import { topContentV1, topContentV2 } from './top-content'
+import { TopContentV2Section, topContentV1, topContentV2 } from './top-content'
 import { ORGANIC_SOCIAL_PARTS } from './registry'
 
 const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, role: 'INTERNAL_ADMIN' }
@@ -112,4 +112,14 @@ test('a UGC post is never an owned post on outline tabs', async () => {
   await show()
   expect(props().owned.flatMap((r) => r.posts.map((p) => p.id))).toEqual([1])
   expect(props().influencer.flatMap((r) => r.posts.map((p) => p.id))).toEqual([2])
+})
+
+// Jasmine's three outlines name this block "Top Performing Content". Only top-content@3, which only
+// the outline clients pin, says so; @2, which Renaissance renders, keeps "Top Content".
+test('top-content@3 is headed "Top Performing Content"; @2 keeps "Top Content"', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1)])
+  const c = (await show()).container
+  expect([...c.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Performing Content'])
+  const v2 = render(<>{await TopContentV2Section(IG)}</>).container
+  expect([...v2.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Content'])
 })
