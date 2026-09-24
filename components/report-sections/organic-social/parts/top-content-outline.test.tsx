@@ -44,14 +44,14 @@ test('top-content@3 is registered unpublished; @1 and @2 are the same objects as
   expect(ORGANIC_SOCIAL_PARTS['top-content'][2]).toBe(topContentV2)
 })
 
-test('the frozen fetch gets a live fetch that asks for authors', async () => {
+test('the frozen fetch gets a live fetch that asks for authors and UGC marking', async () => {
   fetchTopContentFrozen.mockResolvedValue([])
   await show()
   expect(fetchTopContentFrozen).toHaveBeenCalledTimes(1)
   const [slug, range, ch, injected] = fetchTopContentFrozen.mock.calls[0] as unknown as [string, string, string, { fetchLive: (...a: unknown[]) => unknown }]
   expect([slug, range, ch]).toEqual([IG.clientSlug, IG.dateRange, 'INSTAGRAM'])
   await injected.fetchLive('s', 'd', 'INSTAGRAM')
-  expect(fetchTopContent).toHaveBeenCalledWith('s', 'd', 'INSTAGRAM', { withAuthor: true })
+  expect(fetchTopContent).toHaveBeenCalledWith('s', 'd', 'INSTAGRAM', { withAuthor: true, markUgc: true })
 })
 
 test('owned rows get the cap and no page size; an author post is an influencer post; Instagram rates are views based', async () => {
@@ -103,4 +103,13 @@ test('a handle no post author matches is not trusted: #ad rule, one warning nami
   expect(warn).toHaveBeenCalledTimes(1)
   expect(warn).toHaveBeenCalledWith('[organic-social] own handle matches no post author slug=client-a channel=INSTAGRAM; it is either stale or nobody from the client posted in this window; collab rule fell back to #ad')
   warn.mockRestore()
+})
+
+// Plan 2026-09-24-qa-fixes §4 (F1): a tagged (UGC) post without author or #ad renders under
+// Influencer Posts, never in an owned slot.
+test('a UGC post is never an owned post on outline tabs', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { ugc: true })])
+  await show()
+  expect(props().owned.flatMap((r) => r.posts.map((p) => p.id))).toEqual([1])
+  expect(props().influencer.flatMap((r) => r.posts.map((p) => p.id))).toEqual([2])
 })

@@ -16,7 +16,7 @@ import { groupPostsByPlatform, loadDesignations } from './top-content'
 export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: OrganicSocialCtx; ownedLimit: number }) {
   const { clientSlug, dateRange, channel, role } = ctx
   const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel, {
-    fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true }),
+    fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true, markUgc: true }),
   }))
   if (!r.data) return <Fallback kind={r.error!} />
   let own: OwnHandles = {}

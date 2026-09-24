@@ -144,7 +144,7 @@ export async function fetchTopContent(
   slug: string,
   dateRange: string,
   channel: DashChannel | null,
-  opts: { withAuthor?: boolean } = {}, // the owned posts' author, for outline Top Content only
+  opts: { withAuthor?: boolean; markUgc?: boolean } = {}, // outline Top Content only: owned authors, and UGC marked as UGC
 ): Promise<TopContentPost[]> {
   const { client, brandId, channels } = await dashClientFor(slug)
   // resolveTargets (not a bare filter) so a scoped channel OUTSIDE the allowlist THROWS — the
@@ -191,7 +191,7 @@ export async function fetchTopContent(
         console.warn(`[organic-social] Instagram UGC top-content hit the ${CONTENT_FETCH_LIMIT}-post fetch cap; ` +
           `the set is truncated in fetch order and sort-then-cap may not reflect the true top posts — raise the cap or paginate.`)
       }
-      ugc = content.map((p) => normalizePost(p, 'INSTAGRAM'))
+      ugc = content.map((p) => { const post = normalizePost(p, 'INSTAGRAM'); return opts.markUgc ? { ...post, ugc: true as const } : post })
     } catch (e) {
       if (scoped) throw e // scoped Instagram view surfaces the error
     }

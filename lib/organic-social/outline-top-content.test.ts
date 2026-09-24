@@ -91,3 +91,25 @@ test('the own-handle rule cannot separate a rename from a month of partner colla
       .toBe(handleMatchesNoAuthor(posts, { INSTAGRAM: handle }))
   }
 })
+
+// Plan 2026-09-24-qa-fixes §4 (F1): a post another account made that tags the client (UGC) is never
+// an owned post, whatever its author field or caption says; a team member's stored choice still wins.
+test('a tagged (UGC) post with no author and no #ad is a collab post, not an owned one', () => {
+  const own = { INSTAGRAM: 'brand_handle' }
+  const { owned, influencer } = partitionByAuthor([P(1, { author: 'brand_handle' }), P(2, { ugc: true })], new Map(), own)
+  expect(owned.map((p: { id: number }) => p.id)).toEqual([1])
+  expect(influencer.map((p: { id: number }) => p.id)).toEqual([2])
+  // With no own handle set the author rule cannot run, and UGC is still never owned.
+  expect(partitionByAuthor([P(3, { ugc: true })], new Map(), {}).influencer.map((p: { id: number }) => p.id)).toEqual([3])
+})
+// Guard: breaks if post.ugc were checked before the stored designation.
+test('a stored designation on a UGC post still wins', () => {
+  const { owned } = partitionByAuthor([P(1, { ugc: true })], new Map([[1, 'organic']]), { INSTAGRAM: 'brand_handle' })
+  expect(owned.map((p: { id: number }) => p.id)).toEqual([1])
+})
+test('missing authors ignores tagged posts: a month of only UGC is not "missing authors"', () => {
+  const own = { INSTAGRAM: 'brand_handle' }
+  expect(missingAuthors([P(1, { ugc: true }), P(2, { ugc: true })], own)).toBe(false)
+  // Owned posts without an author are still reported.
+  expect(missingAuthors([P(1, { ugc: true }), P(2)], own)).toBe(true)
+})
