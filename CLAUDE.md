@@ -707,13 +707,22 @@ Still open:
   `lib/organic-social/deep-link-parity.test.tsx`. Hoist it into one helper next to
   `resolveOrganicSubsection` (`lib/constants.ts:220`). It edits routes on Renaissance's live path: its
   own PR, with the parity test as the guard.
-- [ ] **UGC posts without #ad compete for the owned top 5 on outline tabs** (review of the outline
-  fixes build, #255). `top-content@3` sorts Instagram UGC (posts that tag the client) with no author
-  and no #ad into the owned rows, because UGC author fields are unproven, so the UGC line never
-  attaches one (`lib/organic-social/top-content.ts:188`). The deck match (9 of 9) was checked on the
-  owned feed only. Before the three clients go live, compare one month of their Instagram Top Content
-  on staging with the deck; if a tagged post takes an owned slot, send UGC to Influencer Posts for
-  pinned clients.
+- [x] **UGC posts without #ad compete for the owned top 5 on outline tabs: RESOLVED** (F1 in
+  `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The staging QA found a tagged post in an owned
+  slot on two clients, the trigger this entry named. `top-content@3` now asks `fetchTopContent` to mark
+  UGC (`markUgc`, `lib/organic-social/top-content.ts:194`), and `partitionByAuthor` sends a UGC post to
+  Influencer Posts unless a team member stored another choice
+  (`lib/organic-social/outline-top-content.ts:25`). UGC author fields stay unproven and unused.
+- [ ] **A `top-content@3` client without locked months would still show tagged posts as owned in
+  windows frozen earlier** (Paul, #267). The UGC fix above holds for every client on locked months,
+  which skip the older freeze table (`lib/organic-social/frozen.ts:60`), and every client pinned to
+  `top-content@3` today is one. A client pinned to it without `reportingMonths` is served the frozen
+  snapshot of a finished window (`frozen.ts:74-75`). A window frozen before `markUgc`, or by
+  `top-content@2` under the same key (`components/report-sections/organic-social/parts/top-content.tsx:67`),
+  carries no `ugc` mark, so a tagged post falls back to the `#ad` rule. Post authors already have the
+  same gap, which the part logs (`top-content-outline.tsx:24-26`). No such client exists, and nothing
+  stops the pin. Either refuse the `top-content@3` pin without `reportingMonths`, or re-freeze a window
+  when the part version changes.
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
   a 401, a 500 or a malformed answer. Add the error's name and status.
