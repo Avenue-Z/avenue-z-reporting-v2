@@ -5,7 +5,7 @@ import type { AnnotationChart } from '../annotations'
 
 const CHARTS = new Set<string>(['followers', 'engagements'])
 
-function isRealDay(day: string): boolean {
+export function isRealDay(day: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false
   const d = new Date(`${day}T00:00:00Z`)
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day
