@@ -61,3 +61,35 @@ describe('niceYDomain', () => {
     expect(niceYDomain([{ v: 'n/a' }], [{ key: 'v' }])).toBeUndefined()
   })
 })
+
+import { render } from '@testing-library/react'
+import type { ComponentProps } from 'react'
+import { DefaultTooltipContent } from 'recharts'
+import { NotedTooltip } from './line-chart'
+
+// Invented values. The box is rendered directly: Recharts only shows it on a real hover.
+const P = {
+  active: true, label: '2026-09-21', contentStyle: { background: '#272727' },
+  payload: [{ name: 'Instagram', value: 9, dataKey: 'Instagram', color: '#ffffff' }],
+} as unknown as ComponentProps<typeof NotedTooltip>
+
+describe('NotedTooltip', () => {
+  test('with no note, the hover box is exactly the default one', () => {
+    const noted = render(<NotedTooltip {...P} />).container.innerHTML
+    const plain = render(<DefaultTooltipContent {...(P as ComponentProps<typeof DefaultTooltipContent>)} />).container.innerHTML
+    expect(noted).toBe(plain)
+  })
+
+  test('with a note, the box shows the date, the value, then the note under them', () => {
+    const text = render(<NotedTooltip {...P} note="Influencer post went live" />).container.textContent ?? ''
+    expect(text).toContain('2026-09-21')
+    expect(text).toContain('Instagram')
+    expect(text.indexOf('Influencer post went live')).toBeGreaterThan(text.indexOf('Instagram'))
+  })
+
+  test('a long note wraps inside the box instead of stretching it', () => {
+    const c = render(<NotedTooltip {...P} note={'x'.repeat(80)} />).container
+    const note = [...c.querySelectorAll('p')].find((el) => el.textContent === 'x'.repeat(80)) as HTMLElement
+    expect(note.style.whiteSpace).toBe('normal')
+  })
+})

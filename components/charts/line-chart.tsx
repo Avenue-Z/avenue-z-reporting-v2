@@ -10,6 +10,8 @@ import {
   Tooltip,
   Legend,
   ReferenceDot,
+  DefaultTooltipContent,
+  type DefaultTooltipContentProps,
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { money } from '@/lib/paid-media/format'
@@ -26,6 +28,9 @@ interface LineChartProps {
   xKey: string
   yKeys: { key: string; color?: string; label?: string }[]
   marks?: ChartMark[]
+  /** The team's approved notes, keyed by x value, shown under the value in the hover box. Optional
+   *  everywhere: a chart given no notes renders exactly the Tooltip it rendered before this prop. */
+  notes?: Record<string, string>
   height?: number
   /** 'currency-cents' formats the Y axis + tooltip via money(); default = raw number. */
   valueFormat?: 'currency-cents'
@@ -84,7 +89,21 @@ export function niceYDomain(
   return [lo, hi]
 }
 
-export function LineChart({ data, xKey, yKeys, marks, height = 300, valueFormat }: LineChartProps) {
+/** The default hover box, plus the day's note under the value when there is one. Recharts passes a
+ *  function `content` the same props it passes its own box, so with no note this is that box. Typed
+ *  for string or number values, which is what this chart's Tooltip passes (its `formatter` takes a
+ *  number or a string); Recharts' default value type also allows arrays, which tsc rejects there. */
+export function NotedTooltip({ note, ...props }: DefaultTooltipContentProps<string | number, string | number> & { note?: string }) {
+  if (!note) return <DefaultTooltipContent {...props} />
+  return (
+    <div style={{ margin: 0, padding: 10, ...props.contentStyle }}>
+      <DefaultTooltipContent {...props} contentStyle={{ ...props.contentStyle, border: 'none', background: 'transparent', padding: 0 }} />
+      <p style={{ margin: '6px 0 0', maxWidth: 240, whiteSpace: 'normal' }}>{note}</p>
+    </div>
+  )
+}
+
+export function LineChart({ data, xKey, yKeys, marks, notes, height = 300, valueFormat }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
@@ -116,6 +135,7 @@ export function LineChart({ data, xKey, yKeys, marks, height = 300, valueFormat 
               color: '#FFFFFF',
               fontSize: '13px',
             }}
+            content={notes ? (p) => <NotedTooltip {...p} note={notes[String(p.label)]} /> : undefined}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {yKeys.map((series) => (
