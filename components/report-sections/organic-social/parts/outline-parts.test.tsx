@@ -52,7 +52,8 @@ test('the registry adds three unpublished versions and leaves v1 as it was', () 
 test('the Data part shows the outline rows, Video Views from Views on Reels, and none of the breakdown', async () => {
   getOutlineKpis.mockResolvedValueOnce(built(10))
   const c = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
-  expect([...c.querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Instagram'])
+  // Jasmine's outlines name this block "Data"; the shared tiles, which Renaissance renders, keep the platform name.
+  expect([...c.querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Data'])
   expect(c.textContent).toContain('Total Engagements')
   expect(c.textContent).toContain('Profile Views')
   expect(card(c, 'Video Views')!.textContent).toContain('1,234')
@@ -128,17 +129,18 @@ test("Facebook has no Profile Views tile: Jasmine removed the row, so the block 
   expect(t.indexOf('Engagement Rate')).toBeLessThan(t.indexOf('Video Views'))
 })
 
-test("the Data block draws a tab with no flagged row exactly as the shared tiles do", async () => {
+test("the Data block draws a tab with no flagged row exactly as the shared tiles do, under the heading \"Data\"", async () => {
   getOutlineKpis.mockResolvedValueOnce(builtFor('INSTAGRAM', 10))
   const outline = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
   const b = builtFor('INSTAGRAM', 10)
   const h = selectOutlineRows('INSTAGRAM', { ...b, kpis: { ...b.kpis, ...REELS } }, OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
   expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
-  const shared = render(<PlatformHeadlines headlines={[h as PlatformHeadline]} />).container
+  // Identical markup except the heading text: the shared tiles drawn under the outline's heading.
+  const shared = render(<PlatformHeadlines headlines={[{ ...h, label: 'Data' } as PlatformHeadline]} />).container
   expect(outline.innerHTML).toBe(shared.innerHTML)
 })
 
-test('with no data, a tab with a flagged row shows only the no-data card, as the shared tiles do', async () => {
+test('with no data, a tab with a flagged row shows only the no-data card, as the shared tiles do, under "Data"', async () => {
   const empty = buildOutlineKpis('FACEBOOK',
     Object.fromEntries(outlineSpecsFor('FACEBOOK').map((s) => [metricFor(s), { value: null, context: null, context_change: null }])),
     outlineSpecsFor('FACEBOOK'))
@@ -146,7 +148,7 @@ test('with no data, a tab with a flagged row shows only the no-data card, as the
   const c = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
   expect(card(c, 'Profile Views')).toBeNull()
   expect(c.textContent).not.toContain(NOT_IN_DASH)
-  const shared = render(<PlatformHeadlines headlines={[{ channel: 'FACEBOOK', label: 'Facebook', kpis: [], noData: true }]} />).container
+  const shared = render(<PlatformHeadlines headlines={[{ channel: 'FACEBOOK', label: 'Data', kpis: [], noData: true }]} />).container
   expect(c.innerHTML).toBe(shared.innerHTML)
 })
 

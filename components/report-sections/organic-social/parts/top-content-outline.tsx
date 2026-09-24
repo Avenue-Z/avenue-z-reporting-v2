@@ -12,7 +12,7 @@ import { safe, Fallback } from './shared'
 import { groupPostsByPlatform, loadDesignations } from './top-content'
 
 /** top-content@3: @2 plus the outline's rules (5 owned posts per platform row, collab by author,
- *  deck-basis Instagram rate). Unpublished: pinned per client. */
+ *  deck-basis Instagram rate, the outline's heading). Unpublished: pinned per client. */
 export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: OrganicSocialCtx; ownedLimit: number }) {
   const { clientSlug, dateRange, channel, role } = ctx
   const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel, {
@@ -39,7 +39,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const { owned, influencer } = partitionByAuthor(posts, stored, own)
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
+      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
       <SortableTopContent owned={groupPostsByPlatform(owned, channel)} influencer={groupPostsByPlatform(influencer, channel)}
         clientSlug={clientSlug} canEdit={canSetDesignation(role)} ownedLimit={ownedLimit} />
     </section>
