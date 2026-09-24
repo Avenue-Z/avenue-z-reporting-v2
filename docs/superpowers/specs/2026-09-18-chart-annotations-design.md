@@ -12,8 +12,9 @@ wants them in their own section at the bottom of the dashboard; that section alr
 (Influencer Posts).
 
 **Update 2026-09-24.** Phase 1 is on staging. Phase 2, written notes, is specified below in
-"Phase 2: written notes", and the team confirmed the reading the same day (Kyleah). The build plan
-is `docs/superpowers/plans/2026-09-24-chart-notes.md`. Nothing of Phase 2 is built yet.
+"Phase 2: written notes", and the team confirmed the reading the same day (Kyleah). The same day I
+decided the callouts move onto their dots, like the deck (section 6, P2.8). The build plan is
+`docs/superpowers/plans/2026-09-24-chart-notes.md`. Nothing of Phase 2 is built yet.
 
 ## Summary
 
@@ -205,6 +206,14 @@ every channel is toggled off, the annotations go with the chart. This row replac
 hover card considered earlier, to match the deck. Phase 2 also puts a written note in the
 chart's own hover box (see Phase 2).
 
+**Changed 2026-09-24 (I confirmed it that day): the callouts move onto their dots, like the
+deck.** On a wide screen each callout is a card in a band above the plot, joined by a line down
+to its dot, always visible and printed as it appears; neighbouring days stack into rows instead of
+overlapping, and the first and last days stay inside the chart. The pixel concern above is handled
+by computing positions from the chart's own plot area on every render (Phase 2, P2.8). On a
+phone-width screen, under 640px, the row above the chart stays exactly as described here. This
+applies to the automatic top days and to the team's notes alike.
+
 ### 7. Titles and the Annotations button
 
 Titles follow Jasmine's outlines word for word, on v2 only:
@@ -350,7 +359,20 @@ because a card shows one draft.
    `no-print`, the way a hidden callout does (`annotation-callouts.tsx:84-88`). A card whose
    only note is a draft, on a day that is not a peak, has nothing for a client, so the
    whole card carries `no-print`; a row with nothing printable carries it too, extending
-   the rule at `annotation-callouts.tsx:114-118`.
+   the rule at `annotation-callouts.tsx:114-118`. On a wide screen the pinned cards are the
+   printed callouts, and the team's row under the chart (P2.8) is `no-print` as a whole.
+8. **Pinned to their dots, like the deck** (confirmed 2026-09-24). On a wide screen every callout
+   a client may see (a top day, or a day with an approved note, not hidden) is a card in a band
+   above the plot, joined by a line down to its dot. The card shows the post picture(s) and
+   `7/13 | +5 Followers | the note`, cut at three lines; the full text is in its title and the
+   hover box. Cards that would overlap stack into rows; the first and last days stay inside the
+   chart. The positions come from the chart's own plot area: Recharts places day `i` of `n` at
+   `plot.x + i / (n - 1) * plot.width`, which was proven on 2026-09-24 against Recharts' own dots
+   at a fixed size. The team's controls (Hide, notes, drafts) sit in the existing row under the
+   chart, without pictures. A callout whose day has no point on the series has no dot to join, so
+   it goes in the row above the chart. On a phone-width screen (under 640px) the row above the
+   chart is used, exactly as Phase 1 shows it today. The shared `LineChart` gains an optional
+   `pins` prop for this; absent, it draws exactly what it draws today (P11).
 
 ### P3. Adding and changing a note
 
@@ -366,8 +388,9 @@ because a card shows one draft.
      an influencer's post on their own account that does not tag the client, cannot be
      picked; the note names it instead ("What the team does today", above).
   3. **The text.**
-- **On a card**, the same viewer gets Edit, and Delete on a draft; an approver also gets
-  Approve on a draft and Revoke on an approved note.
+- **On each callout in the team's row** (under the chart on a wide screen, above it on a phone),
+  the same viewer gets Add note or Edit, and Delete on a draft; an approver also gets Approve on
+  a draft and Revoke on an approved note. Hide from client stays where it is today, in that row.
 - **Every control carries `no-print`**, like the Hide toggle (`annotation-callouts.tsx:97`).
 - **After each action** the page refreshes the way the Commentary panel does:
   `router.refresh()` once the action returns, after the action's `revalidateTag` has busted
@@ -540,6 +563,10 @@ exist, and a note named by id must belong to it. Anything else is refused before
 | The day is hidden | Clients get neither callout nor note; the team sees both, faded. |
 | A note added on a day the team had already hidden | The client never receives it. The team sees it unfaded, with its dot, until the next navigation: the chart seeds hidden days once (`trends.tsx:44-49`), the open "per-view state" item in CLAUDE.md. The plan closes that item or accepts it. |
 | Every channel toggled off, or the Annotations button off | Notes, dots and hover lines go with the callouts. |
+| Neighbouring top days, or notes a day apart | Their pinned cards stack into rows above the plot instead of overlapping. |
+| A callout on the first or last day of the month | Its pinned card stays inside the chart; the line still ends on the dot. |
+| Many callouts in one month | The band above the plot grows a row at a time; nothing is dropped. |
+| A phone-width screen | The row above the chart, as Phase 1 today. A phone renders wide first and switches once it loads. |
 | The notes cannot be read | Nobody sees a note; logged; the graphs are exactly Phase 1. |
 | A client role, or a team role without an `@avenuez.com` email, calls an action directly | Refused by the action. |
 | A client not on locked months (Renaissance) | Every action refuses it before any read or write, and its graphs never read notes. |
@@ -556,10 +583,11 @@ exist, and a note named by id must belong to it. Anything else is refused before
 - **Its graphs are v1** (section "Renaissance" below) and render no annotations, so they
   render no notes. The notes read runs only in the v2 parts (P7).
 - **Every shared change is optional and does nothing by default:**
-  - the new `LineChart` prop: absent means today's `Tooltip`. Its three callers are
-    `trends.tsx`, `components/report-sections/paid-media/overview/trend.tsx` and
-    `components/report-sections/organic-social/parts/ytd-review.tsx`; only `trends.tsx`
-    passes it, and only for approved notes (P2.4);
+  - the two new `LineChart` props, `notes` and `pins`: absent means today's `Tooltip`, no band,
+    no card and no connector. Its three callers are `trends.tsx`,
+    `components/report-sections/paid-media/overview/trend.tsx` and
+    `components/report-sections/organic-social/parts/ytd-review.tsx`; only `trends.tsx` passes
+    them, and only for callouts a client may see (P2.4, P2.8);
   - the optional email on the context (P4);
   - the new optional fields on `ChartAnnotation` (`lib/organic-social/annotations.ts:108`).
     A chart given no annotations already renders exactly as before (`trends.tsx:28-30`).
@@ -594,8 +622,11 @@ exist, and a note named by id must belong to it. Anything else is refused before
   and controls carry `no-print`, and a draft-only row prints nothing.
 - Picking posts: up to 2, a pick replaces the top post, a vanished pick is skipped and all
   vanished falls back to the top post, and a client's page carries thumbnails only.
-- `LineChart` with no notes renders exactly as today; with notes, the hover box shows the
-  day's note.
+- `LineChart` with no notes and no pins renders exactly as today; with notes, the hover box
+  shows the day's note; with pins, each connector ends exactly on Recharts' own dot, cards stay
+  inside the plot and stack instead of overlapping.
+- The layout by screen: pinned on a wide screen with the team's row under the chart and no row for
+  a client; the row above the chart on a phone; a callout with no point on the series in the row.
 - A read failure: no notes and no note controls for anyone, logged, graphs unchanged.
 - The migration: applied to staging, then a read-only check that the table, its check and
   its partial unique index exist as in P6, and that no other table changed.
@@ -713,6 +744,9 @@ Renaissance is live in production and must not change. This rests on facts check
 | The team picks up to 2 of that day's posts; none picked means the top post | The team's request; 2 from the deck screenshots | 2026-09-24 | Decided |
 | Notes never lock | Me | 2026-09-24 | Decided |
 | The reading of Phase 2: any day, the team picks that day's posts, a short note, on the callout and on hover, approved first | Confirmed with the team (Kyleah) | 2026-09-24 | Confirmed |
+| Callouts pinned to their dots like the deck, for top days and notes, always visible, printed as shown; phones keep the row | Me, from the deck | 2026-09-24 | Decided |
+| A note needs text even when posts are picked | Me | 2026-09-24 | Decided |
+| The team's controls stay in the existing row, under a pinned chart, without pictures, never printed | Me, so Phase 1's row and its tests stay as they are | 2026-09-24 | Decided |
 | Who approves notes for Organic Social | Open | 2026-09-24 | Open: the `COMMENTARY_APPROVERS` list |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
 

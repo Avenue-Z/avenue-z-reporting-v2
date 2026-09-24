@@ -1,6 +1,6 @@
 # Written notes on the annotated graphs: implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans, inline in this session, task by task. No subagents and no background tasks (my standing rule). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 Written by me (Thomas) on 2026-09-24. Every file, function and line this plan names was read on
 `dev` at `df2cf05`. Two things were proven by running them before the plan was written, in a
@@ -9,13 +9,16 @@ scratch copy outside the repo: the exact SQL `drizzle-kit generate` produces for
 3.7.0 under `strict`.
 
 **Goal:** Let the team put a short, approved note on any day of a v2 Organic Social graph, with up
-to 2 of that day's posts, shown on the callout and in the chart's hover box.
+to 2 of that day's posts, shown on the callout and in the chart's hover box; and pin every callout
+(the automatic top days and the notes) to its dot, the way the team's deck does.
 
 **Architecture:** A new additive table, `chart_notes`, holds notes with Commentary's draft and
 approve lifecycle. The two v2 graph parts read them once per platform and merge them into the
 annotation list they already build, before the existing hides layer runs, so a hide still wins.
 Four server actions write them, each checking the role and the email. The shared `LineChart` gains
-one optional prop for the hover box; with the prop absent it renders exactly what it renders today.
+two optional props, one for the hover box and one for cards pinned to their dots; with both absent
+it renders exactly what it renders today. On a phone-width screen the callouts stay in the row
+above the chart, as Phase 1 shows them now.
 
 **Tech Stack:** Next.js 16 App Router, React 19.2.3, TypeScript strict, Drizzle ORM 0.45.2 on Neon
 (`drizzle-orm/neon-http`), Recharts 3.7.0, Vitest 3 with Testing Library.
@@ -48,9 +51,18 @@ client sees it.
 
   Expected: every test passes, and the second command prints nothing. Each task also says, in one
   line, what it touches that Renaissance could reach and why it cannot.
-- **Every shared change is optional and off by default:** the `LineChart` `notes` prop, the
-  `email` field on `OrganicSocialCtx`, the new optional fields on `Annotation` and
-  `ChartAnnotation`, and the `noteControls` prop on the two chart components.
+- **Every shared change is optional and off by default:** the `LineChart` `notes` and `pins`
+  props, the `email` field on `OrganicSocialCtx`, the new optional fields on `Annotation` and
+  `ChartAnnotation`, the `noteControls` prop on the two chart components, and the `compact` prop on
+  `AnnotationCallouts`.
+- **Layout (confirmed 2026-09-24):** on a wide screen every callout a client may see is a card
+  pinned to its dot, joined by a line, always visible, printed as it appears; the Annotations
+  button shows or hides them all; the team's controls sit in a row under the chart, without
+  pictures and never printed. On a phone-width screen (under 640px) the row above the chart, as
+  today. A note needs 1 to 80 characters of text, even when posts are picked.
+- **Front end:** use the chart's existing styles (`CHART_COLORS` in `lib/constants.ts`, the card
+  classes already in `annotation-callouts.tsx`); load the `frontend:brand-coherence` skill before
+  Tasks 8 and 9.
 - **Notes:** 1 to 80 characters after trimming, counted as characters (an emoji counts once), one
   line, plain text rendered as text. Up to 2 post ids. A day that is not after today in UTC.
 - **Who:** team or client by role (`viewerForRole`); write needs `canEditCommentary(email)`;
@@ -85,6 +97,10 @@ client sees it.
    as a clear message, not a thrown error. Pinned in Task 4.
 5. **The live month.** The form must never offer a day after today, and the server must refuse one
    sent directly. Pinned in Tasks 2 and 5.
+6. **Neighbouring top days, and the first and last day of the month.** Pinned cards must never
+   overlap and never leave the plot: neighbours stack into rows, edge days clamp inside. Pinned in
+   Task 8 (`neighbouring days stack into rows`, `the first and last days stay inside the plot`), and
+   the connector must end exactly on Recharts' own dot (`each connector ends exactly on its dot`).
 
 ---
 
@@ -806,7 +822,7 @@ git push
   - `OPEN_DRAFT_INDEX = 'chart_notes_one_open_draft'`, `isOpenDraftConflict(e: unknown): boolean`
 
 The database writes are exercised through the action tests (Task 4, mocked) and on staging
-(Task 10). Only the pure error check has a unit test, the same split the hides module uses
+(Task 11). Only the pure error check has a unit test, the same split the hides module uses
 (`setAnnotationHidden` has no unit test; `authorizeAnnotationHide` does).
 
 - [ ] **Step 1: Write the failing test**
@@ -817,7 +833,7 @@ The database writes are exercised through the action tests (Task 4, mocked) and 
 import { expect, test } from 'vitest'
 import { isOpenDraftConflict } from './mutations'
 
-// Unverified until staging (Task 10): the exact shape neon-http gives a unique violation. The
+// Unverified until staging (Task 11): the exact shape neon-http gives a unique violation. The
 // check accepts the constraint name in either the `constraint` field or the message, and walks
 // `cause`, because Drizzle 0.45 wraps driver errors in DrizzleQueryError
 // (node_modules/drizzle-orm/errors.d.ts:9-14).
@@ -1020,7 +1036,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
 // An October-shaped client: on locked months. Renaissance's config has no reportingMonths.
-const ON = { id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } }
+// vi.hoisted, because vi.mock is hoisted above every plain const in the file.
+const { ON } = vi.hoisted(() => ({ ON: { id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } } }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => ON) }))
 vi.mock('@/lib/organic-social/chart-notes/mutations', async () => {
   const actual = await vi.importActual<typeof import('@/lib/organic-social/chart-notes/mutations')>(
@@ -1371,7 +1388,7 @@ feat(organic-social): server actions to save, approve, revoke and delete chart n
 
 | # | Category | What breaks | Where | Disposition |
 |---|---|---|---|---|
-| 1 | external failure | a database error mid-write | app/actions/chart-notes.ts | fix: the index race returns a message; anything else throws to the caller, which shows a generic retry line (Task 8) |
+| 1 | external failure | a database error mid-write | app/actions/chart-notes.ts | fix: the index race returns a message; anything else throws to the caller, which shows a generic retry line (Task 9) |
 | 2 | operator visibility | a refused or failed action is not logged server-side | app/actions/chart-notes.ts | file: Commentary's actions do not log either; add both together |
 | 3 | bounds | note length and post count | lib/organic-social/chart-notes/validate.ts | fix: 80 characters, 2 posts |
 | 4 | input boundaries | every field of the payload, and the note id | validate.ts, isNoteId | fix: validated before any read; a bad id never reaches a uuid cast |
@@ -1736,7 +1753,7 @@ git push
 - Modify: `components/report-sections/organic-social/parts/engagement-trend.tsx:38-61`
 - Modify: `components/report-sections/organic-social/follower-graph.tsx`,
   `components/report-sections/organic-social/trends.tsx:31-33`, `:143-147` (a pass-through
-  `noteControls` prop only; the chart uses it in Task 8)
+  `noteControls` prop only; the chart uses it in Task 9)
 - Modify: `components/report-sections/organic-social/parts/annotations-wiring.test.tsx`
 
 **Interfaces:**
@@ -1947,7 +1964,7 @@ export function FollowerGraph({
 ```
 
 `trends.tsx`: add `NoteControls` to the type import at `:9`; add `noteControls?: NoteControls` to
-the props TYPE of `ChannelTrendChart` (`:33`) without destructuring it yet (Task 8 does), so nothing
+the props TYPE of `ChannelTrendChart` (`:33`) without destructuring it yet (Task 9 does), so nothing
 is unused in between; and change `EngagementTrend` (`:143-147`) to:
 
 ```tsx
@@ -2100,11 +2117,335 @@ git push
 
 ---
 
-### Task 8: The callout row, the dots and the forms
+### Task 8: Callout cards pinned to their dots (the shared chart)
+
+The deck layout: each card sits in a band above the plot, joined by a line down to its day's dot.
+This task only teaches the shared `LineChart` to draw that when it is given `pins`; Task 9 decides
+what goes in them.
+
+Two facts it rests on were proven by running them on 2026-09-24 against the installed Recharts
+3.7.0, in throwaway tests that were then deleted:
+- A category x axis puts day `i` of `n` at `plot.x + i / (n - 1) * plot.width`, and a value `v`
+  at `plot.y + (1 - (v - lo) / (hi - lo)) * plot.height`. At 800 by 300, three `ReferenceDot`s drew
+  at exactly those points (60, 279.6 and 792 across a plot 60 to 792).
+- A plain component placed inside the chart can call `usePlotArea()` (exported,
+  `node_modules/recharts/types/index.d.ts:119`) and gets the real plot area, top margin included.
+
+**Files:**
+- Create: `components/charts/pins.ts`
+- Modify: `components/charts/line-chart.tsx` (imports `:3-15`, props `:24-32`, body `:87-152`)
+- Modify: `components/charts/line-chart.test.tsx` (append; mock `ResponsiveContainer` at the top)
+
+**Interfaces:**
+- Produces: `ChartPin { x: string; content: ReactNode }` and the `LineChart` prop
+  `pins?: ChartPin[]`; from `pins.ts`: `layoutPins(dots, plot, width?, gap?): PinPlace[]`,
+  `pinBand(tiers): number`, `PIN_CARD_WIDTH = 280`, `PIN_CARD_HEIGHT = 80`, `PIN_GAP = 8`,
+  `PinPlace { x: string; left: number; tier: number }`.
+
+- [ ] **Step 1: Write the failing tests**
+
+At the top of `components/charts/line-chart.test.tsx`, after the existing imports, add the same
+fixed-size mock the goldens use (`v1-render.golden.test.tsx:7-15`), since Recharts draws nothing
+at 0 by 0:
+
+```tsx
+import type { ReactElement } from 'react'
+
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<typeof import('recharts')>('recharts')
+  const { cloneElement } = await import('react')
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
+      cloneElement(children, { width: 800, height: 300 }),
+  }
+})
+```
+
+Add `vi` to the file's `vitest` import, `LineChart` to its `./line-chart` import, `screen` to the
+`@testing-library/react` import Task 7 added, and `import { layoutPins, PIN_CARD_WIDTH } from './pins'`.
+Then append:
+
+```tsx
+describe('layoutPins', () => {
+  const PLOT = { x: 60, width: 732 }
+
+  test('cards far apart share the top row, each centred on its dot', () => {
+    expect(layoutPins([{ x: 'a', px: 300 }, { x: 'b', px: 700 }], PLOT)).toEqual([
+      { x: 'a', left: 160, tier: 0 }, { x: 'b', left: 512, tier: 0 },
+    ])
+  })
+
+  test('neighbouring days stack into rows instead of overlapping', () => {
+    const r = layoutPins([{ x: 'a', px: 400 }, { x: 'b', px: 424 }, { x: 'c', px: 448 }], PLOT)
+    expect(r.map((p) => p.tier)).toEqual([0, 1, 2])
+  })
+
+  test('the first and last days stay inside the plot', () => {
+    const r = layoutPins([{ x: 'first', px: 60 }, { x: 'last', px: 792 }], PLOT)
+    expect(r).toEqual([{ x: 'first', left: 60, tier: 0 }, { x: 'last', left: 792 - PIN_CARD_WIDTH, tier: 0 }])
+  })
+
+  test('the order they arrive in does not matter', () => {
+    const a = layoutPins([{ x: 'b', px: 700 }, { x: 'a', px: 300 }], PLOT)
+    expect(a.map((p) => p.x)).toEqual(['a', 'b'])
+  })
+
+  test('a plot narrower than a card puts each card at its left edge, one per row', () => {
+    const r = layoutPins([{ x: 'a', px: 100 }, { x: 'b', px: 150 }], { x: 60, width: 200 })
+    expect(r).toEqual([{ x: 'a', left: 60, tier: 0 }, { x: 'b', left: 60, tier: 1 }])
+  })
+})
+
+describe('LineChart pins', () => {
+  // Invented values. Day i of 31 sits at 60 + i / 30 * 732 in an 800 wide chart.
+  const DAYS = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`)
+  const DATA = DAYS.map((date, i) => ({ date, v: 3 + ((i * 7) % 11) }))
+  const AT = [DAYS[0], DAYS[9], DAYS[30]]
+  const draw = () => render(
+    <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={AT.map((x) => ({ x }))}
+      pins={AT.map((x) => ({ x, content: <span>{`card ${x}`}</span> }))} />,
+  )
+  const num = (el: Element, a: string) => Number(el.getAttribute(a))
+
+  test('each connector ends exactly on its dot', () => {
+    const { container } = draw()
+    const dots = [...container.querySelectorAll('.recharts-reference-dot circle, .recharts-reference-dot-dot')]
+    const lines = [...container.querySelectorAll('line[data-pin-line]')]
+    expect(lines).toHaveLength(3)
+    lines.forEach((l, i) => {
+      expect(num(l, 'x2')).toBeCloseTo(num(dots[i], 'cx'), 1)
+      expect(num(l, 'y2')).toBeCloseTo(num(dots[i], 'cy'), 1)
+    })
+  })
+
+  test('cards sit above the plot, inside it, stacked only where they would overlap', () => {
+    const { container } = draw()
+    const cards = [...container.querySelectorAll<HTMLElement>('[data-pin-card]')]
+    expect(cards.map((c) => c.dataset.pinCard)).toEqual(AT)
+    expect(cards.map((c) => parseFloat(c.style.left))).toEqual([60, expect.closeTo(139.6, 1), 512])
+    expect(cards.map((c) => c.style.top)).toEqual(['0px', '88px', '0px'])
+  })
+
+  test('a card shows what it was given', () => {
+    draw()
+    expect(screen.getByText(`card ${DAYS[9]}`)).toBeTruthy()
+  })
+
+  test('with no pins there is no card, no connector and no extra wrapper', () => {
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[9] }]} />)
+    expect(container.querySelector('[data-pin-card]')).toBeNull()
+    expect(container.querySelector('line[data-pin-line]')).toBeNull()
+    expect(container.querySelector('.relative')).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `npx vitest run components/charts/line-chart.test.tsx`
+Expected: FAIL, `./pins` cannot be resolved.
+
+- [ ] **Step 3: Write the layout**
+
+`components/charts/pins.ts`:
+
+```ts
+/** Callout cards pinned above a chart, the way the team's deck lays them out: each card in a band
+ *  above the plot, joined by a line down to its day's dot. */
+export const PIN_CARD_WIDTH = 280
+export const PIN_CARD_HEIGHT = 80
+export const PIN_GAP = 8
+
+/** Where one card goes: its left edge, and its row in the band (0 is the top row). */
+export interface PinPlace { x: string; left: number; tier: number }
+
+/** Left to right by dot, each card centred on its dot and kept inside the plot, on the first row
+ *  where it overlaps no card already placed. Clamping keeps the lefts in order, so each row only
+ *  needs its last card's right edge. Pure, so it is tested without a chart. */
+export function layoutPins(
+  dots: { x: string; px: number }[],
+  plot: { x: number; width: number },
+  width = PIN_CARD_WIDTH,
+  gap = PIN_GAP,
+): PinPlace[] {
+  const minLeft = plot.x
+  const maxLeft = Math.max(plot.x, plot.x + plot.width - width)
+  const rowEnds: number[] = []
+  return [...dots].sort((a, b) => a.px - b.px).map((d) => {
+    const left = Math.min(Math.max(d.px - width / 2, minLeft), maxLeft)
+    let tier = rowEnds.findIndex((end) => left >= end + gap)
+    if (tier === -1) tier = rowEnds.length
+    rowEnds[tier] = left + width
+    return { x: d.x, left, tier }
+  })
+}
+
+/** The height of the band above the plot for this many rows of cards. */
+export function pinBand(tiers: number): number {
+  return tiers * (PIN_CARD_HEIGHT + PIN_GAP)
+}
+```
+
+- [ ] **Step 4: Teach `LineChart` to draw pins**
+
+In `components/charts/line-chart.tsx`:
+
+1. Imports: add `usePlotArea`, `useYAxisDomain` to the `recharts` import; change the React type
+   import from Task 7 to `import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'`;
+   add `import { layoutPins, pinBand, PIN_CARD_HEIGHT, PIN_CARD_WIDTH, PIN_GAP, type PinPlace } from './pins'`.
+2. Add after `ChartMark` (`:22`):
+
+```tsx
+/** A callout card drawn in a band above the plot, joined by a line to the dot of day `x`. Optional
+ *  everywhere: a chart given no pins renders exactly as it did before this prop existed. */
+export interface ChartPin {
+  /** Must equal an x value present in `data`, or the pin is skipped. */
+  x: string
+  content: ReactNode
+}
+
+type PinLayout = { places: PinPlace[]; tiers: number }
+```
+
+3. Add `pins?: ChartPin[]` to `LineChartProps`, with the doc line "Callout cards pinned to their
+   dots, like the deck. Absent: no band, no cards, no connectors, and the chart is unchanged."
+4. Add above `export function LineChart`:
+
+```tsx
+/** Inside the chart, where Recharts knows the plot area and the y domain. A category point sits at
+ *  plot.x + i / (n - 1) * plot.width and a value at plot.y + (1 - (v - lo) / (hi - lo)) * plot.height
+ *  (proven against Recharts' own ReferenceDot, line-chart.test.tsx "each connector ends exactly on
+ *  its dot"). Draws each card's connector and reports where the cards go. Pins ride the first series,
+ *  as the marks do. */
+function PinLayer({ pins, data, xKey, yKey, onLayout }: {
+  pins: ChartPin[]
+  data: Record<string, string | number>[]
+  xKey: string
+  yKey: string
+  onLayout: (layout: PinLayout) => void
+}) {
+  const plot = usePlotArea()
+  const domain = useYAxisDomain()
+  const n = data.length
+  const lo = Array.isArray(domain) ? Number(domain[0]) : NaN
+  const hi = Array.isArray(domain) ? Number(domain[domain.length - 1]) : NaN
+  const dots = plot
+    ? pins.flatMap((p) => {
+        const i = data.findIndex((d) => d[xKey] === p.x)
+        if (i < 0) return []
+        const px = plot.x + (n > 1 ? (i / (n - 1)) * plot.width : plot.width / 2)
+        const v = Number(data[i][yKey])
+        const py = Number.isFinite(v) && hi > lo ? plot.y + (1 - (v - lo) / (hi - lo)) * plot.height : plot.y + plot.height
+        return [{ x: p.x, px, py }]
+      })
+    : []
+  const places = plot ? layoutPins(dots, plot) : []
+  const tiers = places.reduce((m, p) => Math.max(m, p.tier + 1), 0)
+  const key = JSON.stringify(places)
+  // `key` describes places and tiers completely; onLayout is a state setter.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { onLayout({ places, tiers }) }, [key])
+  return (
+    <g>
+      {dots.map((d) => {
+        const at = places.find((p) => p.x === d.x)!
+        return (
+          <line key={d.x} data-pin-line={d.x} x1={d.px} y1={at.tier * (PIN_CARD_HEIGHT + PIN_GAP) + PIN_CARD_HEIGHT}
+            x2={d.px} y2={d.py} stroke={CHART_COLORS.primary} strokeWidth={1.5} />
+        )
+      })}
+    </g>
+  )
+}
+```
+
+5. Replace the body of `LineChart` (`:87-152`) so the chart element is built once and wrapped only
+   when there are pins. Everything inside `RechartsLineChart` stays as it is (Task 7's `Tooltip`
+   included), plus the `PinLayer` line:
+
+```tsx
+export function LineChart({ data, xKey, yKeys, marks, notes, pins, height = 300, valueFormat }: LineChartProps) {
+  const yDomain = niceYDomain(data, yKeys)
+  const fmt =
+    valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
+  const [pinLayout, setPinLayout] = useState<PinLayout | null>(null)
+  const pinned = !!pins && pins.length > 0 && yKeys.length > 0
+  // The band above the plot grows by one row of cards per tier; 0 without pins, so the margin and
+  // the height are exactly today's.
+  const band = pinned ? pinBand(Math.max(1, pinLayout?.tiers ?? 1)) : 0
+  const chart = (
+    <ResponsiveContainer width="100%" height={height + band}>
+      <RechartsLineChart data={data} margin={{ top: 8 + band, right: 8, bottom: 0, left: 0 }}>
+        {/* CartesianGrid, XAxis, YAxis, Tooltip, Legend, the Lines and the marks: unchanged */}
+        {pinned && <PinLayer pins={pins!} data={data} xKey={xKey} yKey={yKeys[0].key} onLayout={setPinLayout} />}
+      </RechartsLineChart>
+    </ResponsiveContainer>
+  )
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
+      {pinned ? (
+        <div className="relative">
+          {chart}
+          {pinLayout?.places.map((p) => {
+            const pin = pins!.find((q) => q.x === p.x)
+            return pin ? (
+              <div key={p.x} data-pin-card={p.x} className="absolute"
+                style={{ left: p.left, top: p.tier * (PIN_CARD_HEIGHT + PIN_GAP), width: PIN_CARD_WIDTH, height: PIN_CARD_HEIGHT }}>
+                {pin.content}
+              </div>
+            ) : null
+          })}
+        </div>
+      ) : chart}
+    </div>
+  )
+}
+```
+
+The comment line inside `RechartsLineChart` stands for the existing children, which move over
+unchanged; do not write that comment into the file.
+
+- [ ] **Step 5: Run the tests and the Renaissance goldens**
+
+Run: `npx vitest run components/charts/line-chart.test.tsx components/report-sections/organic-social/v1-render.golden.test.tsx components/report-sections/organic-social/render-invariant.test.tsx`
+Expected: all pass, and `git diff --name-only origin/dev -- '*.snap'` prints nothing.
+
+- [ ] **Step 6: Renaissance stop, then commit**
+
+Renaissance: `LineChart` draws Renaissance's v1 graphs and its Paid Media trend, and none of them
+passes `pins`. Without pins the band is 0, so the margin and height are exactly today's, there is
+no wrapper, no `PinLayer` and no card; the new state never reaches the page. The goldens, including
+the Paid Media shaped chart, prove it byte for byte. Run the Renaissance stop (Global
+Constraints); it must pass before the commit below.
+
+```bash
+git add components/charts/pins.ts components/charts/line-chart.tsx components/charts/line-chart.test.tsx
+git commit -m "feat(charts): callout cards pinned to their dots, like the deck" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git push
+```
+
+---
+
+### Task 9: The callout row, the pinned cards, the dots and the forms
+
+Where the callouts go, by screen:
+- **Wide screen, everyone:** each callout the client may see is a card pinned to its dot (Task 8).
+- **Wide screen, the team:** the same pinned cards, plus the existing row under the chart as the
+  team's controls (Hide, notes, drafts), without pictures and marked `no-print`, so a PDF carries
+  only the pinned cards.
+- **Phone-width screen:** the existing row above the chart, exactly as Phase 1 shows it today.
+- **A callout whose day has no point on the series** has no dot to join, so it goes in the row
+  above the chart on any screen.
+
+Keeping the existing row for phones and for the team's controls leaves every Phase 1 row behaviour
+and its tests (`annotation-callouts.test.tsx`, `trends.identity.test.tsx`) as they are: the test
+DOM has no `matchMedia`, so those tests keep rendering the row.
 
 **Files:**
 - Create: `components/report-sections/organic-social/note-form.tsx`
 - Create: `components/report-sections/organic-social/note-actions.tsx`
+- Create: `components/report-sections/organic-social/use-wide-chart.ts`
 - Modify: `components/report-sections/organic-social/annotation-callouts.tsx:46-54`, `:60-122`
 - Modify: `components/report-sections/organic-social/trends.tsx:31-139`
 - Create: `components/report-sections/organic-social/chart-notes-ui.test.tsx`
@@ -2112,8 +2453,9 @@ git push
 **Interfaces:**
 - Consumes: the four actions (Task 4); `NOTE_MAX_CHARS`, `NOTE_MAX_POSTS` (Task 2); `dayLabel`,
   `thumbSrc`, `NoteControls`, `ChartAnnotation`, `ChartThumb` (Tasks 2 and 5); `LineChart.notes`
-  (Task 7).
-- Produces: `NoteForm({ controls, fixedDay?, initial?, onClose })`, `NoteActions({ annotation, controls })`.
+  (Task 7); `LineChart.pins` and `ChartPin` (Task 8).
+- Produces: `NoteForm({ controls, fixedDay?, initial?, onClose })`, `NoteActions({ annotation, controls })`,
+  `CalloutCard({ annotation })`, the `compact` prop on `AnnotationCallouts`, `useWideChart(): boolean`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2250,7 +2592,52 @@ test('an approver gets Approve on a draft and Revoke on an approved note; an edi
   expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull()
   expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
 })
+
+describe('on a wide screen', () => {
+  // The test DOM has no matchMedia, so a chart renders the row by default; these stub a wide screen.
+  const real = window.matchMedia
+  beforeEach(() => {
+    window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+  })
+  afterEach(() => { window.matchMedia = real })
+
+  test('each callout a client may see is pinned to its dot, and a client gets no row', () => {
+    draw([PEAK, QUIET({ note: 'Event' })])
+    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10', '2026-08-14'])
+    expect(screen.queryByRole('list', { name: 'Annotations' })).toBeNull()
+  })
+
+  test('a hidden day and a draft-only day are never pinned', () => {
+    const draftOnly = QUIET({ date: '2026-08-20', noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
+    draw([PEAK, draftOnly, QUIET({ date: '2026-08-22', note: 'Hidden one', hidden: true })])
+    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10'])
+  })
+
+  test('a callout whose day has no point goes in the row above the chart, since it has no dot', () => {
+    draw([PEAK, QUIET({ date: '2026-08-31', label: '8/31', note: 'Late' })])
+    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10'])
+    expect(screen.getByText('8/31 | Late')).toBeTruthy()
+  })
+
+  test("the team's controls sit in a row under the chart, without pictures, and never print", () => {
+    draw([PEAK], CONTROLS)
+    const strip = screen.getByRole('list', { name: 'Annotations' })
+    expect(strip.closest('.no-print')).toBeTruthy()
+    expect(strip.querySelector('img')).toBeNull()
+    expect(within(strip).getByRole('button', { name: 'Add note' })).toBeTruthy()
+    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10'])
+  })
+
+  test('the Annotations button takes the pinned cards away too', () => {
+    draw([PEAK])
+    fireEvent.click(screen.getByRole('button', { name: 'Annotations' }))
+    expect(chart().pins).toBeUndefined()
+  })
+})
 ```
+
+In that file's imports, add `afterEach`, `describe` to the `vitest` import and `within` to the
+`@testing-library/react` import.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -2422,8 +2809,8 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
 }
 ```
 
-3. In `AnnotationItem`, add `noteControls?: NoteControls` to its props, and replace the returned
-   `<li>` (`:87-102`) with:
+3. In `AnnotationItem`, add `noteControls?: NoteControls` and `compact?: boolean` to its props, and
+   replace the returned `<li>` (`:87-102`) with:
 
 ```tsx
   // A day shown only for its note, with no approved note yet, has nothing for a client: like a
@@ -2438,7 +2825,7 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
   // to staff only so they can unhide it, and the toggle is a control rather than content.
   return (
     <li className={cn('flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2', hidden && 'opacity-40 no-print', !hidden && draftOnly && 'no-print')}>
-      {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
+      {!compact && thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
       <span className="text-xs font-bold text-white">{text}</span>
       {draft && <span className="no-print text-[11px] text-text-muted">Draft: {draft.text}</span>}
       {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
@@ -2460,14 +2847,16 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
 4. Replace `AnnotationCallouts` (`:106-122`) with:
 
 ```tsx
-/** The days that spiked, and the days the team wrote a note on, in date order, directly above the
- *  chart they explain. Not pinned to pixel positions over the line, which would break as the chart
- *  resizes on a phone. */
-export function AnnotationCallouts({ items, controls, noteControls, onToggle }: {
+/** The days that spiked, and the days the team wrote a note on, in date order. The row: above the
+ *  chart on a phone-width screen, and under a pinned chart as the team's controls (trends.tsx). On
+ *  a wide screen a client sees the pinned cards (CalloutCard) instead. `compact` leaves out the
+ *  pictures, which the pinned cards already show. */
+export function AnnotationCallouts({ items, controls, noteControls, onToggle, compact }: {
   items: ChartAnnotation[]
   controls?: AnnotationControls
   noteControls?: NoteControls
   onToggle?: (day: string, hidden: boolean) => void
+  compact?: boolean
 }) {
   if (items.length === 0) return null
   // Hiding every row is not enough: the list is a non-last child of the chart's section, so
@@ -2476,20 +2865,66 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle }: 
   const nothingPrintable = items.every((a) => a.hidden || (a.noteOnly && !a.note))
   return (
     <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
-      {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} />)}
+      {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} compact={compact} />)}
     </ul>
   )
 }
 ```
 
+5. Add after `AnnotationCallouts`:
+
+```tsx
+/** One callout as a client sees it: its pictures, and its label with the note after a second pipe.
+ *  What a card pinned to its dot shows (trends.tsx, LineChart pins). Sized to the pin card, 280 by
+ *  80: a 64px picture plus 6px padding and a 1px border each side is 78, so nothing is cut. The text
+ *  is cut at three lines; the full text is in its title and the hover box. */
+export function CalloutCard({ annotation }: { annotation: ChartAnnotation }) {
+  const text = annotation.note ? `${annotation.label} | ${annotation.note}` : annotation.label
+  const thumbs = annotation.thumbs ?? (annotation.thumb ? [annotation.thumb] : [])
+  return (
+    <div title={text} className="flex h-full items-center gap-2 overflow-hidden rounded-lg border border-white/[0.08] bg-bg-surface p-1.5">
+      {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
+      <span className="line-clamp-3 text-xs font-bold text-white">{text}</span>
+    </div>
+  )
+}
+```
+
 The `li` gains `flex-wrap` so an open form can take its own line; nothing else about a card
-without a note changes.
+without a note changes, and `compact` is off unless the pinned chart's team row sets it.
 
 - [ ] **Step 6: The chart: Add note, dots and hover notes**
 
+Write `components/report-sections/organic-social/use-wide-chart.ts`:
+
+```ts
+import { useSyncExternalStore } from 'react'
+
+const WIDE = '(min-width: 640px)'
+
+function subscribe(onChange: () => void): () => void {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {}
+  const m = window.matchMedia(WIDE)
+  m.addEventListener('change', onChange)
+  return () => m.removeEventListener('change', onChange)
+}
+
+/** True on a screen wide enough to pin callouts to their dots, like the deck (Tailwind's `sm`,
+ *  640px). The server renders wide, which is what a desktop gets; a phone switches to the row once
+ *  it hydrates. A browser without matchMedia, such as the test DOM, gets the row. */
+export function useWideChart(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => typeof window.matchMedia === 'function' && window.matchMedia(WIDE).matches,
+    () => true,
+  )
+}
+```
+
 In `trends.tsx`:
 
-1. `import { NoteForm } from './note-form'`.
+1. `import { NoteForm } from './note-form'`, `import { useWideChart } from './use-wide-chart'`, and
+   add `CalloutCard` to the `./annotation-callouts` import.
 2. In `ChannelTrendChart`, add `noteControls` to the destructured props (`:32`) and add after the
    `showAnnotations` state (`:43`):
 
@@ -2506,7 +2941,18 @@ In `trends.tsx`:
   const shown = visible?.filter((a) => !a.hidden && (!a.noteOnly || !!a.note))
   const noted = shown?.filter((a) => a.note)
   const notes = noted && noted.length > 0 ? Object.fromEntries(noted.map((a) => [a.date, a.note!])) : undefined
+  // Wide screens pin each shown callout to its dot, like the deck (Task 8). A callout whose day has
+  // no point on the series has no dot to join, so it goes in the row above the chart; so does every
+  // callout on a phone-width screen.
+  const wide = useWideChart()
+  const onSeries = new Set(series.points.map((p) => String(p.date)))
+  const pinned = wide ? shown?.filter((a) => onSeries.has(a.date)) : undefined
+  const unpinned = wide ? shown?.filter((a) => !onSeries.has(a.date)) : undefined
+  const staff = !!annotationControls || !!noteControls
 ```
+
+`useWideChart` is a hook, so it sits with the others at the top of the component in the real edit,
+not after `visible`; it is shown here next to what reads it.
 
 4. After the Annotations button block (after `:124`, still inside the button row `div`), add:
 
@@ -2527,7 +2973,8 @@ In `trends.tsx`:
 
 ```tsx
           {adding && noteControls && <NoteForm controls={noteControls} onClose={() => setAdding(false)} />}
-          {visible && <AnnotationCallouts items={visible} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} />}
+          {!wide && visible && <AnnotationCallouts items={visible} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} />}
+          {wide && unpinned && unpinned.length > 0 && <AnnotationCallouts items={unpinned} />}
 ```
 
 ```tsx
@@ -2537,12 +2984,24 @@ In `trends.tsx`:
               yKeys={yKeys}
               marks={shown?.map((a) => ({ x: a.date }))}
               notes={notes}
+              pins={pinned && pinned.length > 0 ? pinned.map((a) => ({ x: a.date, content: <CalloutCard annotation={a} /> })) : undefined}
             />
 ```
 
-With no annotations (every v1 chart, Renaissance included), `visible`, `shown` and `notes` are all
-undefined, so `LineChart` gets `marks={undefined}` as today and `notes={undefined}`, which Task 7
-proved renders today's Tooltip.
+6. After the `activeEmpty` ternary (before the closing `</>` at `:137`), add the team's row under a
+   pinned chart:
+
+```tsx
+          {wide && staff && visible && (
+            <div className="no-print">
+              <AnnotationCallouts compact items={visible} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} />
+            </div>
+          )}
+```
+
+With no annotations (every v1 chart, Renaissance included), `visible`, `shown`, `notes` and
+`pinned` are all undefined, so `LineChart` gets `marks`, `notes` and `pins` all undefined, which
+Tasks 7 and 8 proved renders today's chart, and no row renders on any screen.
 
 - [ ] **Step 7: Run everything touched**
 
@@ -2552,7 +3011,7 @@ golden. `git diff --name-only origin/dev -- '*.snap'` prints nothing.
 
 - [ ] **Step 8: Renaissance stop, then commit**
 
-Renaissance: `trends.tsx` and `annotation-callouts.tsx` render Renaissance's v1 graphs. With no annotations, which is every v1 chart, nothing new renders: no Add note, no draft line, `marks` and `notes` both undefined. The goldens prove it. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
+Renaissance: `trends.tsx` and `annotation-callouts.tsx` render Renaissance's v1 graphs. With no annotations, which is every v1 chart, nothing new renders on any screen: no Add note, no draft line, no pinned card, no team row, and `marks`, `notes` and `pins` all undefined. The screen-width hook only decides where annotations go, and v1 has none. The goldens prove it. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add components/report-sections/organic-social/
@@ -2563,7 +3022,7 @@ git push
 
 ---
 
-### Task 9: Full verification, my own review, and the PR
+### Task 10: Full verification, my own review, and the PR
 
 **Files:** none new.
 
@@ -2601,6 +3060,9 @@ Make each edit, run the named test, see it fail, then `git checkout -- <file>`:
 | `toChartAnnotations`: always spread `noteEditor` | `annotations.test.ts` "a client receives the approved note ... never the editor ids" |
 | `saveChartNoteAction`: remove the `isOpenDraftConflict` branch | `chart-notes.test.ts` (actions) "losing the race" |
 | `trends.tsx`: drop `(!a.noteOnly \|\| !!a.note)` | `chart-notes-ui.test.tsx` "a dot marks ..." |
+| `PinLayer`: use `i / n` instead of `i / (n - 1)` | `line-chart.test.tsx` "each connector ends exactly on its dot" |
+| `layoutPins`: drop the clamp to `maxLeft` | `line-chart.test.tsx` "the first and last days stay inside the plot" |
+| `trends.tsx`: pin every shown callout, even one with no point | `chart-notes-ui.test.tsx` "a callout whose day has no point goes in the row" |
 | `validateNoteInput`: drop the future-day check | `validate.test.ts` "tomorrow is refused" |
 
 - [ ] **Step 4: Prove the PR merges clean with every open PR, in any order**
@@ -2619,7 +3081,7 @@ Expected: "clean with" every open branch.
 
 Read the whole diff against spec P1 to P13 with fresh eyes, one section at a time, and write the
 comprehension summary for the PR: where a note comes from, who sees what, and why Renaissance
-cannot change. Anything found goes back through Tasks 2 to 8 before the PR is marked ready.
+cannot change. Anything found goes back through Tasks 2 to 9 before the PR is marked ready.
 
 - [ ] **Step 6: The PR**
 
@@ -2636,7 +3098,7 @@ gh pr ready
 
 ---
 
-### Task 10: Staging (only on my written go)
+### Task 11: Staging (only on my written go)
 
 Nothing here starts without my written go, and each numbered step that writes needs it.
 
@@ -2696,6 +3158,13 @@ On one platform tab of one client's August (a locked month, which also proves no
   Revoke the approved one after deleting the draft: the dot and hover line go. Read back: no
   approved row left.
 - Delete the remaining draft. Read back: every row for that day is marked deleted, none approved.
+- **The layout**, on the same tab. Desktop width: each callout is a card pinned to its dot with a
+  line down to it, neighbouring days stack, the first and last days stay inside the chart, and the
+  team's row sits under the chart without pictures. Export PDF: the pinned cards print, the team's
+  row and any draft do not. Phone width (the browser pane's mobile preset, reset to desktop after):
+  the row above the chart, as Phase 1 shows it today. Renaissance's tabs: unchanged at both widths.
+- Update the line in Jasmine's staging guide that says the callouts sit in a row above the graph:
+  they now sit on their dots.
 - Two tabs saving on the same day: the second edits the first's open draft (last save wins). That
   is the designed behaviour, and it cannot produce the index conflict, because the second save
   finds the draft first.
@@ -2707,7 +3176,7 @@ On one platform tab of one client's August (a locked month, which also proves no
   else, then reads back that no row for that day exists. Expected: `true`. If it prints `false`, fix
   `isOpenDraftConflict` to the shape it shows, with a test, before going on.
 - **Unverified on staging:** what a client role sees, because staging has no client logins. The
-  redaction is proven by the Task 5 and Task 8 tests only; say so in the staging report.
+  redaction is proven by the Task 5 and Task 9 tests only; say so in the staging report.
 
 - [ ] **Step 6: Renaissance**
 
