@@ -710,6 +710,16 @@ Still open:
   UGC (`markUgc`, `lib/organic-social/top-content.ts:194`), and `partitionByAuthor` sends a UGC post to
   Influencer Posts unless a team member stored another choice
   (`lib/organic-social/outline-top-content.ts:25`). UGC author fields stay unproven and unused.
+- [ ] **A `top-content@3` client without locked months would still show tagged posts as owned in
+  windows frozen earlier** (Paul, #267). The UGC fix above holds for every client on locked months,
+  which skip the older freeze table (`lib/organic-social/frozen.ts:60`), and every client pinned to
+  `top-content@3` today is one. A client pinned to it without `reportingMonths` is served the frozen
+  snapshot of a finished window (`frozen.ts:74-75`). A window frozen before `markUgc`, or by
+  `top-content@2` under the same key (`components/report-sections/organic-social/parts/top-content.tsx:67`),
+  carries no `ugc` mark, so a tagged post falls back to the `#ad` rule. Post authors already have the
+  same gap, which the part logs (`top-content-outline.tsx:24-26`). No such client exists, and nothing
+  stops the pin. Either refuse the `top-content@3` pin without `reportingMonths`, or re-freeze a window
+  when the part version changes.
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
   a 401, a 500 or a malformed answer. Add the error's name and status.
