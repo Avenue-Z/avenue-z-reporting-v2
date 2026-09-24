@@ -83,9 +83,9 @@ export const getOutlineKpis = cache(async (
   const metrics = res.data?.[String(brandId)]?.metrics
   // Not an empty state. Probed live 2026-09-22 with this exact request (28 GETs: a channel the brand
   // has no account on, zero-post windows, a future month, one-day windows): Dash always returned the
-  // brand entry with every requested metric, and an empty window came back all null (noData). So a
-  // missing entry is a malformed answer and the error card is right. (#254's absent key was the GRAPH
-  // report, which differs.)
+  // brand entry with every requested metric. A window with no data at all came back all null; a quiet
+  // window still reports account-level metrics (ACCOUNT_METRICS, locking-client.ts). So a missing
+  // entry is malformed and the error card is right. (#254's absent key was the GRAPH report.)
   if (!metrics) throw new Error(`${channel}: Dash returned no metrics for this brand`)
   return buildOutlineKpis(channel, metrics, specs)
 })

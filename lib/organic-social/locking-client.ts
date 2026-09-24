@@ -17,6 +17,15 @@ type Opts = { clientId: string; slug: string; settled: string | null; late: (per
  *  prevent. Defaulting this to `inner` would reinstate that silently, so every caller names it. */
 type Deps = { read: typeof readLock; write: typeof writeLock; capture: DashReader }
 
+/** Account-level metrics: Dash reports them every day for a connected account, whether or not
+ *  anything was posted. Probed 2026-09-24 in the tiles' request shape, with and without
+ *  prior-period dates, on every channel tab of the October clients, including many days with no
+ *  posts: none of these was ever null, value or prior, on a channel that requests it, while every
+ *  post-level metric was null on the no-post days. So a null here is a transient blank from
+ *  Dash, not a quiet month, and locking it would show a wrong number for good (it happened on
+ *  staging: a follower tile locked as 0). */
+const ACCOUNT_METRICS: readonly string[] = ['TOTAL_FOLLOWERS', 'NET_NEW_FOLLOWERS', 'PROFILE_VIEWS', 'PAGE_VIEWS_ALL_POSTS']
+
 /** The shape every reader needs (headlines.ts:41, followers.ts:41, trends.ts:40, the outline
  *  getters), so an incomplete 200 is never locked. */
 export function completeReportsData(p: ReportsDataParams, res: unknown): boolean {
@@ -37,7 +46,10 @@ export function completeReportsData(p: ReportsDataParams, res: unknown): boolean
   // lib/dash-social/types.ts, which this branch must not edit. A media answer carries its numbers
   // per media type, not under the brand's metrics, so the brand entry is the whole check.
   if (String(p.reportType) === 'MULTI_METRIC_MEDIA_TYPE') return true
-  return !!brand.metrics && p.metrics.every((k) => k in brand.metrics!)
+  if (!brand.metrics || !p.metrics.every((k) => k in brand.metrics!)) return false
+  // A requested account-level metric without a value is a transient blank (see ACCOUNT_METRICS).
+  return p.metrics.every((k) => !ACCOUNT_METRICS.includes(k)
+    || (brand.metrics![k] as { value?: unknown } | null | undefined)?.value != null)
 }
 export function completeContent(res: unknown): boolean {
   return Array.isArray((res as { data?: { content?: unknown } } | null)?.data?.content)
