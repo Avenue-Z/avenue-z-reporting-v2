@@ -258,3 +258,18 @@ file gives for staging above, not `npm run db:migrate:staging` (that runs the ti
 `.env.staging`). Before: a read-only check that 0024 was the only unrecorded migration. After:
 a direct read of the tables and the migration ledger. Production goes the same way, before the
 production merge, per the usual flow.
+
+## Add chart notes (annotations Phase 2; staging pending; production pending)
+
+`drizzle/0025_chart_notes.sql` adds one table, `chart_notes`: the team's written notes on the v2
+Organic Social graphs, with Commentary's draft and approve lifecycle. Additive: no existing table,
+column or row changes, and nothing Renaissance renders reads it. It reuses the existing
+`commentary_status` enum. A partial unique index keeps at most one open draft per client,
+platform, chart and day, and a check keeps a deleted note a draft.
+
+Staging, only on my written go and before the code reaches staging:
+`CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`. That script does not
+check which database it points at, so a host guard runs first. Before: a read-only check that
+0025 is the only unrecorded migration. After: a read-only check of the table, its check, both
+indexes and the ledger. Production goes the same way, before the production merge, only on my
+written go and only after Jasmine approves staging.

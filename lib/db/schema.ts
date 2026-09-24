@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { SnapshotPayload } from '@/lib/organic-social/content-types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
@@ -394,6 +394,39 @@ export const chartAnnotationHides = pgTable('chart_annotation_hides', {
 }))
 
 export type ChartAnnotationHide = typeof chartAnnotationHides.$inferSelect
+
+// One row per written note on a v2 Organic Social graph (annotations Phase 2), keyed like
+// chart_annotation_hides by client, platform, chart and day. Commentary's lifecycle: a note is
+// saved as a draft, approved before a client sees it, and only a draft is ever soft deleted. A day
+// can hold several approved rows (a client sees the most recently approved) but at most one open
+// draft, enforced by the partial unique index below. Purely additive: nothing Renaissance renders
+// reads it.
+export const chartNotes = pgTable('chart_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),   // DashChannel, e.g. 'INSTAGRAM'
+  chart: text('chart').notNull(),       // 'followers' | 'engagements'
+  day: date('day').notNull(),           // yyyy-mm-dd, the UTC day Dash counts
+  body: text('body').notNull(),         // 1 to 80 characters of plain text, checked by the action
+  postIds: bigint('post_ids', { mode: 'number' }).array().notNull().default(sql`'{}'::bigint[]`), // Dash post ids, at most 2
+  status: commentaryStatusEnum('status').notNull().default('draft'),
+  createdBy: text('created_by').notNull(),
+  updatedBy: text('updated_by').notNull(),
+  approvedBy: text('approved_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  deletedBy: text('deleted_by'),
+}, (table) => ({
+  clientChannelIdx: index('chart_notes_client_channel_idx').on(table.clientId, table.channel),
+  oneOpenDraft: uniqueIndex('chart_notes_one_open_draft')
+    .on(table.clientId, table.channel, table.chart, table.day)
+    .where(sql`status = 'draft' AND deleted_at IS NULL`),
+  noDeletedApproved: check('chart_notes_no_deleted_approved', sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`),
+}))
+
+export type ChartNote = typeof chartNotes.$inferSelect
 export type NewPostDesignation = typeof postDesignations.$inferInsert
 
 // One row per (client, channel, resolved window, post). Freezes Dash-sourced facts for a
