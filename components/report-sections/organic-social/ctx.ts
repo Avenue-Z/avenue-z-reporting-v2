@@ -11,6 +11,10 @@ export type OrganicSocialCtx = {
    *  to a client role so a missing session never exposes an edit control; the server action
    *  re-checks regardless. */
   role: string
+  /** The viewer's email, set only when the session has one. Read only by the written notes on the
+   *  v2 graphs (Commentary's email rules, lib/commentary/permissions.ts); every other part ignores
+   *  it. */
+  email?: string
 }
 
 /** Synchronous, total; no I/O, no throwing. `channel` is ALREADY resolved by the route (M3). */

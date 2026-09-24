@@ -6,7 +6,7 @@ import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
-import type { AnnotationControls, ChartAnnotation } from '@/lib/organic-social/annotations'
+import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
 import { AnnotationCallouts } from './annotation-callouts'
 
@@ -30,7 +30,7 @@ export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0
 // client still pinned to v1 of these parts, Renaissance included, unchanged.
 export function ChannelTrendChart({
   title, series, annotations, annotationControls,
-}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls }) {
+}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls }) {
   // This chart's state is per view. The two seeds below run once, on mount, and are never re-run,
   // which is right only because each tab and each month gets its own instance: both report pages
   // wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
@@ -141,7 +141,7 @@ export function ChannelTrendChart({
 }
 
 export function EngagementTrend({
-  series, annotations, annotationControls, title = 'Engagement Over Time',
-}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; title?: string }) {
-  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} />
+  series, annotations, annotationControls, noteControls, title = 'Engagement Over Time',
+}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls; title?: string }) {
+  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} noteControls={noteControls} />
 }
