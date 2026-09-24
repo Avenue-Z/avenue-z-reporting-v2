@@ -53,13 +53,16 @@ client sees it.
   line, what it touches that Renaissance could reach and why it cannot.
 - **Every shared change is optional and off by default:** the `LineChart` `notes` and `pins`
   props, the `email` field on `OrganicSocialCtx`, the new optional fields on `Annotation` and
-  `ChartAnnotation`, the `noteControls` prop on the two chart components, and the `compact` prop on
-  `AnnotationCallouts`.
-- **Layout (confirmed 2026-09-24):** on a wide screen every callout a client may see is a card
-  pinned to its dot, joined by a line, always visible, printed as it appears; the Annotations
-  button shows or hides them all; the team's controls sit in a row under the chart, without
-  pictures and never printed. On a phone-width screen (under 640px) the row above the chart, as
-  today. A note needs 1 to 80 characters of text, even when posts are picked.
+  `ChartAnnotation`, the `noteControls` prop on the two chart components, the `LineChart`
+  `pinHeight` prop, and the `onEdit` prop on `AnnotationCallouts`.
+- **Layout: option B, approved 2026-09-24 (the sketch).** On a wide screen every callout a client
+  may see is a card on the chart joined by a red line to its dot: the date and number on the first
+  line, the note on its own line under it, and the post picture(s). Always visible, printed as it
+  appears; the Annotations button shows or hides them all. The team's buttons (Hide from client or
+  Unhide, Add or Edit note, Approve, Revoke, Delete draft) sit on each card; the team's hidden and
+  draft cards are pinned too, faded, never printed, with no dot. The Add note and Edit form opens
+  above the chart. On a phone-width screen (under 640px) the row above the chart, as today, with
+  the same buttons. A note needs 1 to 80 characters of text, even when posts are picked.
 - **Front end:** use the chart's existing styles (`CHART_COLORS` in `lib/constants.ts`, the card
   classes already in `annotation-callouts.tsx`); load the `frontend:brand-coherence` skill before
   Tasks 8 and 9.
@@ -86,8 +89,8 @@ client sees it.
 
 ## Review Focus
 
-1. **A note on a day that lost followers, or had none.** The card must read `8/14 | the note`,
-   never `+-3 Followers`. Pinned in Task 5 (`a day that lost followers keeps its note and never
+1. **A note on a day that lost followers, or had none.** The card must read `8/14` with the note
+   under it, never `+-3 Followers`. Pinned in Task 5 (`a day that lost followers keeps its note and never
    gets a signed number`).
 2. **A picked post that is from another day, or that Dash no longer returns.** It must never show;
    when every pick is gone the card keeps the day's top post. Pinned in Task 5.
@@ -622,7 +625,7 @@ In `interface ChartAnnotation` (`:108-116`), change the `thumb` line to `thumb: 
 and add after it:
 
 ```ts
-  /** Phase 2: the approved note, joined to the label after a second pipe. */
+  /** Phase 2: the approved note, shown on its own line under the label. */
   note?: string
   /** Phase 2: the picked posts' thumbnails, drawn instead of `thumb`. */
   thumbs?: ChartThumb[]
@@ -2139,8 +2142,10 @@ Two facts it rests on were proven by running them on 2026-09-24 against the inst
 **Interfaces:**
 - Produces: `ChartPin { x: string; content: ReactNode }` and the `LineChart` prop
   `pins?: ChartPin[]`; from `pins.ts`: `layoutPins(dots, plot, width?, gap?): PinPlace[]`,
-  `pinBand(tiers): number`, `PIN_CARD_WIDTH = 280`, `PIN_CARD_HEIGHT = 80`, `PIN_GAP = 8`,
-  `PinPlace { x: string; left: number; tier: number }`.
+  `pinBand(tiers, height?): number`, `PIN_CARD_WIDTH = 280`, `PIN_CARD_HEIGHT = 80`,
+  `PIN_TEAM_CARD_HEIGHT = 112`, `PIN_GAP = 8`, `PIN_LINE_COLOR = '#E24B4A'`,
+  `PinPlace { x: string; left: number; tier: number }`; the `LineChart` props `pinHeight?: number`
+  and `ChartPin.muted?: boolean`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2232,6 +2237,29 @@ describe('LineChart pins', () => {
     expect(screen.getByText(`card ${DAYS[9]}`)).toBeTruthy()
   })
 
+  test("a muted pin (the team's hidden or draft card) has a faded line, and neither line nor card prints", () => {
+    const { container } = render(
+      <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} pins={[{ x: DAYS[9], muted: true, content: <span>m</span> }]} />,
+    )
+    const line = container.querySelector('line[data-pin-line]')!
+    expect(line.getAttribute('class')).toContain('no-print')
+    expect(line.getAttribute('stroke-opacity')).toBe('0.4')
+    expect(container.querySelector('[data-pin-card]')!.className).toContain('no-print')
+  })
+
+  test('the line is the red of the approved sketch', () => {
+    const { container } = draw()
+    expect(container.querySelector('line[data-pin-line]')!.getAttribute('stroke')).toBe('#E24B4A')
+  })
+
+  test("the team's taller cards stack by their own height", () => {
+    const { container } = render(
+      <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} pinHeight={112}
+        pins={AT.map((x) => ({ x, content: <span>{x}</span> }))} />,
+    )
+    expect([...container.querySelectorAll<HTMLElement>('[data-pin-card]')].map((c) => c.style.top)).toEqual(['0px', '120px', '0px'])
+  })
+
   test('with no pins there is no card, no connector and no extra wrapper', () => {
     const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[9] }]} />)
     expect(container.querySelector('[data-pin-card]')).toBeNull()
@@ -2255,7 +2283,12 @@ Expected: FAIL, `./pins` cannot be resolved.
  *  above the plot, joined by a line down to its day's dot. */
 export const PIN_CARD_WIDTH = 280
 export const PIN_CARD_HEIGHT = 80
+/** The team's cards carry a row of buttons under the picture: 64 + 8 gap + 22 + 12 padding + 2
+ *  border is 108, rounded up. */
+export const PIN_TEAM_CARD_HEIGHT = 112
 export const PIN_GAP = 8
+/** The connecting line: red, as in the approved sketch and the team's deck. */
+export const PIN_LINE_COLOR = '#E24B4A'
 
 /** Where one card goes: its left edge, and its row in the band (0 is the top row). */
 export interface PinPlace { x: string; left: number; tier: number }
@@ -2281,9 +2314,9 @@ export function layoutPins(
   })
 }
 
-/** The height of the band above the plot for this many rows of cards. */
-export function pinBand(tiers: number): number {
-  return tiers * (PIN_CARD_HEIGHT + PIN_GAP)
+/** The height of the band above the plot for this many rows of cards of this height. */
+export function pinBand(tiers: number, height = PIN_CARD_HEIGHT): number {
+  return tiers * (height + PIN_GAP)
 }
 ```
 
@@ -2293,7 +2326,7 @@ In `components/charts/line-chart.tsx`:
 
 1. Imports: add `usePlotArea`, `useYAxisDomain` to the `recharts` import; change the React type
    import from Task 7 to `import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'`;
-   add `import { layoutPins, pinBand, PIN_CARD_HEIGHT, PIN_CARD_WIDTH, PIN_GAP, type PinPlace } from './pins'`.
+   add `import { layoutPins, pinBand, PIN_CARD_HEIGHT, PIN_CARD_WIDTH, PIN_GAP, PIN_LINE_COLOR, type PinPlace } from './pins'`.
 2. Add after `ChartMark` (`:22`):
 
 ```tsx
@@ -2303,13 +2336,17 @@ export interface ChartPin {
   /** Must equal an x value present in `data`, or the pin is skipped. */
   x: string
   content: ReactNode
+  /** The team's hidden or draft card: its line is faded, and neither line nor card prints. */
+  muted?: boolean
 }
 
 type PinLayout = { places: PinPlace[]; tiers: number }
 ```
 
 3. Add `pins?: ChartPin[]` to `LineChartProps`, with the doc line "Callout cards pinned to their
-   dots, like the deck. Absent: no band, no cards, no connectors, and the chart is unchanged."
+   dots, like the deck. Absent: no band, no cards, no connectors, and the chart is unchanged.", and
+   `pinHeight?: number` with "Card height; the team's cards are taller to fit their buttons.
+   Defaults to PIN_CARD_HEIGHT."
 4. Add above `export function LineChart`:
 
 ```tsx
@@ -2318,11 +2355,12 @@ type PinLayout = { places: PinPlace[]; tiers: number }
  *  (proven against Recharts' own ReferenceDot, line-chart.test.tsx "each connector ends exactly on
  *  its dot"). Draws each card's connector and reports where the cards go. Pins ride the first series,
  *  as the marks do. */
-function PinLayer({ pins, data, xKey, yKey, onLayout }: {
+function PinLayer({ pins, data, xKey, yKey, height, onLayout }: {
   pins: ChartPin[]
   data: Record<string, string | number>[]
   xKey: string
   yKey: string
+  height: number
   onLayout: (layout: PinLayout) => void
 }) {
   const plot = usePlotArea()
@@ -2337,7 +2375,7 @@ function PinLayer({ pins, data, xKey, yKey, onLayout }: {
         const px = plot.x + (n > 1 ? (i / (n - 1)) * plot.width : plot.width / 2)
         const v = Number(data[i][yKey])
         const py = Number.isFinite(v) && hi > lo ? plot.y + (1 - (v - lo) / (hi - lo)) * plot.height : plot.y + plot.height
-        return [{ x: p.x, px, py }]
+        return [{ x: p.x, px, py, muted: !!p.muted }]
       })
     : []
   const places = plot ? layoutPins(dots, plot) : []
@@ -2351,8 +2389,9 @@ function PinLayer({ pins, data, xKey, yKey, onLayout }: {
       {dots.map((d) => {
         const at = places.find((p) => p.x === d.x)!
         return (
-          <line key={d.x} data-pin-line={d.x} x1={d.px} y1={at.tier * (PIN_CARD_HEIGHT + PIN_GAP) + PIN_CARD_HEIGHT}
-            x2={d.px} y2={d.py} stroke={CHART_COLORS.primary} strokeWidth={1.5} />
+          <line key={d.x} data-pin-line={d.x} x1={d.px} y1={at.tier * (height + PIN_GAP) + height}
+            x2={d.px} y2={d.py} stroke={PIN_LINE_COLOR} strokeWidth={1.5}
+            strokeOpacity={d.muted ? 0.4 : 1} className={d.muted ? 'no-print' : undefined} />
         )
       })}
     </g>
@@ -2365,7 +2404,7 @@ function PinLayer({ pins, data, xKey, yKey, onLayout }: {
    included), plus the `PinLayer` line:
 
 ```tsx
-export function LineChart({ data, xKey, yKeys, marks, notes, pins, height = 300, valueFormat }: LineChartProps) {
+export function LineChart({ data, xKey, yKeys, marks, notes, pins, pinHeight = PIN_CARD_HEIGHT, height = 300, valueFormat }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
@@ -2373,12 +2412,12 @@ export function LineChart({ data, xKey, yKeys, marks, notes, pins, height = 300,
   const pinned = !!pins && pins.length > 0 && yKeys.length > 0
   // The band above the plot grows by one row of cards per tier; 0 without pins, so the margin and
   // the height are exactly today's.
-  const band = pinned ? pinBand(Math.max(1, pinLayout?.tiers ?? 1)) : 0
+  const band = pinned ? pinBand(Math.max(1, pinLayout?.tiers ?? 1), pinHeight) : 0
   const chart = (
     <ResponsiveContainer width="100%" height={height + band}>
       <RechartsLineChart data={data} margin={{ top: 8 + band, right: 8, bottom: 0, left: 0 }}>
         {/* CartesianGrid, XAxis, YAxis, Tooltip, Legend, the Lines and the marks: unchanged */}
-        {pinned && <PinLayer pins={pins!} data={data} xKey={xKey} yKey={yKeys[0].key} onLayout={setPinLayout} />}
+        {pinned && <PinLayer pins={pins!} data={data} xKey={xKey} yKey={yKeys[0].key} height={pinHeight} onLayout={setPinLayout} />}
       </RechartsLineChart>
     </ResponsiveContainer>
   )
@@ -2390,8 +2429,8 @@ export function LineChart({ data, xKey, yKeys, marks, notes, pins, height = 300,
           {pinLayout?.places.map((p) => {
             const pin = pins!.find((q) => q.x === p.x)
             return pin ? (
-              <div key={p.x} data-pin-card={p.x} className="absolute"
-                style={{ left: p.left, top: p.tier * (PIN_CARD_HEIGHT + PIN_GAP), width: PIN_CARD_WIDTH, height: PIN_CARD_HEIGHT }}>
+              <div key={p.x} data-pin-card={p.x} className={pin.muted ? 'absolute no-print' : 'absolute'}
+                style={{ left: p.left, top: p.tier * (pinHeight + PIN_GAP), width: PIN_CARD_WIDTH, height: pinHeight }}>
                 {pin.content}
               </div>
             ) : null
@@ -2427,20 +2466,26 @@ git push
 
 ---
 
-### Task 9: The callout row, the pinned cards, the dots and the forms
+### Task 9: The cards on their dots, the team's buttons, and the forms
 
-Where the callouts go, by screen:
-- **Wide screen, everyone:** each callout the client may see is a card pinned to its dot (Task 8).
-- **Wide screen, the team:** the same pinned cards, plus the existing row under the chart as the
-  team's controls (Hide, notes, drafts), without pictures and marked `no-print`, so a PDF carries
-  only the pinned cards.
-- **Phone-width screen:** the existing row above the chart, exactly as Phase 1 shows it today.
-- **A callout whose day has no point on the series** has no dot to join, so it goes in the row
-  above the chart on any screen.
+This is option B as approved on 2026-09-24 (the sketch: each card on the chart, joined by a line to
+its dot, the date and number on the first line and the note on its own line under it). By screen:
+- **Wide screen, a client:** every callout they may see is a card pinned to its dot (Task 8). No
+  buttons.
+- **Wide screen, the team:** the same cards with the team's buttons on each one (Hide from client
+  or Unhide, Add or Edit note, Approve, Revoke, Delete draft), plus the team's hidden and draft
+  cards pinned too, faded, never printed and with no dot. Team cards are taller, to fit the
+  buttons.
+- **Phone-width screen:** the row above the chart, as Phase 1 shows it today, with the same
+  buttons on each card for the team.
+- **A callout whose day has no point on the series** has no dot to join, so it goes in the row above
+  the chart on any screen.
+- **The Add note and Edit form** opens above the chart, never inside a card.
 
-Keeping the existing row for phones and for the team's controls leaves every Phase 1 row behaviour
-and its tests (`annotation-callouts.test.tsx`, `trends.identity.test.tsx`) as they are: the test
-DOM has no `matchMedia`, so those tests keep rendering the row.
+The pinned card and the row card are one component (`AnnotationItem`), so the Hide behaviour Phase 1
+already tests (optimistic, puts itself back on failure, never printed) is the same in both places.
+The test DOM has no `matchMedia` (checked 2026-09-24), so every existing Phase 1 test keeps
+rendering the row and keeps passing unchanged.
 
 **Files:**
 - Create: `components/report-sections/organic-social/note-form.tsx`
@@ -2452,18 +2497,20 @@ DOM has no `matchMedia`, so those tests keep rendering the row.
 
 **Interfaces:**
 - Consumes: the four actions (Task 4); `NOTE_MAX_CHARS`, `NOTE_MAX_POSTS` (Task 2); `dayLabel`,
-  `thumbSrc`, `NoteControls`, `ChartAnnotation`, `ChartThumb` (Tasks 2 and 5); `LineChart.notes`
-  (Task 7); `LineChart.pins` and `ChartPin` (Task 8).
-- Produces: `NoteForm({ controls, fixedDay?, initial?, onClose })`, `NoteActions({ annotation, controls })`,
-  `CalloutCard({ annotation })`, the `compact` prop on `AnnotationCallouts`, `useWideChart(): boolean`.
+  `thumbSrc`, `NoteControls`, `ChartAnnotation`, `ChartThumb`, `AnnotationControls` (Tasks 2 and
+  5); `LineChart.notes` (Task 7); `LineChart.pins`, `LineChart.pinHeight`, `ChartPin`,
+  `PIN_TEAM_CARD_HEIGHT` (Task 8).
+- Produces: `NoteForm({ controls, fixedDay?, initial?, onClose })`;
+  `NoteActions({ annotation, controls, pinned?, onEdit })`; `PinnedCallout(props)`;
+  the `onEdit` prop on `AnnotationCallouts`; `useWideChart(): boolean`.
 
 - [ ] **Step 1: Write the failing tests**
 
 `components/report-sections/organic-social/chart-notes-ui.test.tsx`:
 
 ```tsx
-import { beforeEach, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // Recharts draws nothing in jsdom, so the chart is a stub that records its props.
 vi.mock('@/components/charts/line-chart', () => ({ LineChart: vi.fn(() => null) }))
@@ -2479,8 +2526,10 @@ const refresh = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 
 import { LineChart } from '@/components/charts/line-chart'
+import { PIN_TEAM_CARD_HEIGHT } from '@/components/charts/pins'
+import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
 import { ChannelTrendChart } from './trends'
-import type { ChartAnnotation, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
+import type { AnnotationControls, ChartAnnotation, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
 import type { TrendSeries } from '@/lib/organic-social/types'
 
 // Every value is invented.
@@ -2495,6 +2544,7 @@ const IMG = (n: number): ChartThumb => ({
 const PEAK: ChartAnnotation = { date: '2026-08-10', value: 50, label: '8/10 | 50 Engagements', hidden: false, thumb: IMG(1) }
 const QUIET = (over: Partial<ChartAnnotation>): ChartAnnotation =>
   ({ date: '2026-08-14', value: -3, label: '8/14', hidden: false, thumb: null, noteOnly: true, ...over })
+const DRAFT = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } }
 const CONTROLS: NoteControls = {
   clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements', canApprove: true,
   days: [
@@ -2502,130 +2552,173 @@ const CONTROLS: NoteControls = {
     { day: '2026-08-14', posts: [] },
   ],
 }
+const HIDES: AnnotationControls = { clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements' }
 const chart = () => vi.mocked(LineChart).mock.lastCall![0]
-const draw = (annotations: ChartAnnotation[], noteControls?: NoteControls) =>
-  render(<ChannelTrendChart title="T" series={SERIES} annotations={annotations} noteControls={noteControls} />)
+const draw = (annotations: ChartAnnotation[], noteControls?: NoteControls, annotationControls?: AnnotationControls) =>
+  render(<ChannelTrendChart title="T" series={SERIES} annotations={annotations} noteControls={noteControls} annotationControls={annotationControls} />)
 
 beforeEach(() => vi.clearAllMocks())
 
-test('an approved note joins its top-day callout after a second pipe', () => {
-  draw([{ ...PEAK, note: 'Influencer post went live' }])
-  expect(screen.getByText('8/10 | 50 Engagements | Influencer post went live')).toBeTruthy()
-})
+describe('on a phone-width screen: the row above the chart', () => {
+  test('an approved note sits on its own line under the date and number', () => {
+    draw([{ ...PEAK, note: 'Influencer post went live' }])
+    const label = screen.getByText('8/10 | 50 Engagements')
+    const note = screen.getByText('Influencer post went live')
+    expect(label).not.toBe(note)
+    expect(note.closest('li')).toBe(label.closest('li'))
+  })
 
-test('a note-only day shows the date and the note, and no number', () => {
-  draw([QUIET({ note: 'Event' })])
-  expect(screen.getByText('8/14 | Event')).toBeTruthy()
-  expect(screen.queryByText(/-3/)).toBeNull()
-})
+  test('a note-only day shows the date and the note, and no number', () => {
+    draw([QUIET({ note: 'Event' })])
+    expect(screen.getByText('8/14')).toBeTruthy()
+    expect(screen.getByText('Event')).toBeTruthy()
+    expect(screen.queryByText(/-3/)).toBeNull()
+  })
 
-test('picked posts replace the top post on the card', () => {
-  const { container } = draw([{ ...PEAK, note: 'x', thumbs: [IMG(2), IMG(3)] }])
-  expect([...container.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual([
-    'https://cdn.example.com/t2.jpg', 'https://cdn.example.com/t3.jpg',
-  ])
-})
+  test('picked posts replace the top post on the card', () => {
+    const { container } = draw([{ ...PEAK, note: 'x', thumbs: [IMG(2), IMG(3)] }])
+    expect([...container.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual([
+      'https://cdn.example.com/t2.jpg', 'https://cdn.example.com/t3.jpg',
+    ])
+  })
 
-test('a dot marks top days and approved note days; a draft-only or hidden day gets none', () => {
-  const draftOnly = QUIET({ date: '2026-08-20', noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
-  draw([PEAK, QUIET({ note: 'Event' }), draftOnly, QUIET({ date: '2026-08-22', note: 'Hidden one', hidden: true })])
-  expect(chart().marks).toEqual([{ x: '2026-08-10' }, { x: '2026-08-14' }])
-})
+  test('a dot marks top days and approved note days; a draft-only or hidden day gets none', () => {
+    draw([PEAK, QUIET({ note: 'Event' }), QUIET({ date: '2026-08-20', noteEditor: DRAFT }), QUIET({ date: '2026-08-22', note: 'Hidden one', hidden: true })])
+    expect(chart().marks).toEqual([{ x: '2026-08-10' }, { x: '2026-08-14' }])
+  })
 
-test('the hover box gets approved notes on shown days only, and nothing when there are none', () => {
-  draw([PEAK, QUIET({ note: 'Event' }), QUIET({ date: '2026-08-22', note: 'Hidden one', hidden: true })])
-  expect(chart().notes).toEqual({ '2026-08-14': 'Event' })
-  draw([PEAK])
-  expect(chart().notes).toBeUndefined()
-})
+  test('the hover box gets approved notes on shown days only, and nothing when there are none', () => {
+    const first = draw([PEAK, QUIET({ note: 'Event' }), QUIET({ date: '2026-08-22', note: 'Hidden one', hidden: true })])
+    expect(chart().notes).toEqual({ '2026-08-14': 'Event' })
+    first.unmount()
+    draw([PEAK])
+    expect(chart().notes).toBeUndefined()
+  })
 
-test('a draft-only card never reaches a PDF; an approved note-only card does', () => {
-  const draftOnly = QUIET({ date: '2026-08-20', noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
-  draw([QUIET({ note: 'Event' }), draftOnly], CONTROLS)
-  expect(screen.getByText('8/14 | Event').closest('li')?.className).not.toContain('no-print')
-  expect(screen.getByText('8/20').closest('li')?.className).toContain('no-print')
-  expect(screen.getByText('Draft: Soon').className).toContain('no-print')
-})
+  test('a draft-only card is faded and never reaches a PDF; an approved note-only card does', () => {
+    draw([QUIET({ note: 'Event' }), QUIET({ date: '2026-08-20', label: '8/20', noteEditor: DRAFT })], CONTROLS)
+    expect(screen.getByText('Event').closest('li')?.className).not.toContain('no-print')
+    const draftCard = screen.getByText('8/20').closest('li')?.className ?? ''
+    expect(draftCard).toContain('no-print')
+    expect(draftCard).toContain('opacity-40')
+    expect(screen.getByText('Draft: Soon').className).toContain('no-print')
+  })
 
-test('a client sees no note controls and no draft text', () => {
-  draw([{ ...PEAK, note: 'Event' }])
-  expect(screen.queryByRole('button', { name: 'Add note' })).toBeNull()
-  expect(screen.queryByText(/^Draft:/)).toBeNull()
-})
+  test('a client sees no buttons and no draft text', () => {
+    draw([{ ...PEAK, note: 'Event' }])
+    expect(screen.queryByRole('button', { name: 'Add note' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Hide from client' })).toBeNull()
+    expect(screen.queryByText(/^Draft:/)).toBeNull()
+  })
 
-test('Add note saves the day, up to 2 posts and the text, then refreshes the page', async () => {
-  draw([PEAK], CONTROLS)
-  fireEvent.click(screen.getAllByRole('button', { name: 'Add note' })[0])
-  fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-08-10' } })
-  fireEvent.click(screen.getByLabelText('Post 1'))
-  fireEvent.click(screen.getByLabelText('Post 2'))
-  expect((screen.getByLabelText('Post 3') as HTMLInputElement).disabled).toBe(true)
-  fireEvent.change(screen.getByLabelText('Note text'), { target: { value: 'Went live' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
-  await waitFor(() => expect(refresh).toHaveBeenCalled())
-  expect(actions.saveChartNoteAction).toHaveBeenCalledWith({
-    clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements', day: '2026-08-10', body: 'Went live', postIds: [11, 12],
+  test('Add note saves the day, up to 2 posts and the text, then refreshes the page', async () => {
+    draw([PEAK], CONTROLS)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add note' })[0])
+    fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-08-10' } })
+    fireEvent.click(screen.getByLabelText('Post 1'))
+    fireEvent.click(screen.getByLabelText('Post 2'))
+    expect((screen.getByLabelText('Post 3') as HTMLInputElement).disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Note text'), { target: { value: 'Went live' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(actions.saveChartNoteAction).toHaveBeenCalledWith({
+      clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements', day: '2026-08-10', body: 'Went live', postIds: [11, 12],
+    })
+  })
+
+  test('a note cannot be saved without text, even with posts picked', () => {
+    draw([PEAK], CONTROLS)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add note' })[0])
+    fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-08-10' } })
+    fireEvent.click(screen.getByLabelText('Post 1'))
+    expect((screen.getByRole('button', { name: 'Save draft' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  test('a refused save shows the reason and does not refresh', async () => {
+    actions.saveChartNoteAction.mockResolvedValueOnce({ ok: false, error: 'A draft is already open on this day. Reload to see it.' } as never)
+    draw([PEAK], CONTROLS)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add note' })[0])
+    fireEvent.change(screen.getByLabelText('Note text'), { target: { value: 'x' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('A draft is already open on this day')
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  test('Edit opens the form above the chart, fixed to that day and filled with the draft', () => {
+    draw([{ ...PEAK, note: 'Old', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: { id: 'did', text: 'New', postIds: [] } } }], CONTROLS)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit note' }))
+    expect((screen.getByLabelText('Note text') as HTMLInputElement).value).toBe('New')
+    const day = screen.getByLabelText('Day') as HTMLSelectElement
+    expect(day.value).toBe('2026-08-10')
+    expect(day.disabled).toBe(true)
+    expect(screen.getByRole('group', { name: 'Note' }).closest('li')).toBeNull()
+  })
+
+  test('an approver gets Approve on a draft and Revoke on an approved note; an editor gets neither', async () => {
+    const ed = { approvedId: 'aid', approvedPostIds: [], draft: { id: 'did', text: 'New', postIds: [] } }
+    const approver = draw([{ ...PEAK, note: 'Old', noteEditor: ed }], CONTROLS)
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did'))
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
+    approver.unmount()
+
+    draw([{ ...PEAK, note: 'Old', noteEditor: ed }], { ...CONTROLS, canApprove: false })
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
   })
 })
 
-test('a refused save shows the reason and does not refresh', async () => {
-  actions.saveChartNoteAction.mockResolvedValueOnce({ ok: false, error: 'A draft is already open on this day. Reload to see it.' } as never)
-  draw([PEAK], CONTROLS)
-  fireEvent.click(screen.getAllByRole('button', { name: 'Add note' })[0])
-  fireEvent.change(screen.getByLabelText('Note text'), { target: { value: 'x' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
-  expect((await screen.findByRole('alert')).textContent).toContain('A draft is already open on this day')
-  expect(refresh).not.toHaveBeenCalled()
-})
-
-test('an approver gets Approve on a draft and Revoke on an approved note; an editor gets neither', async () => {
-  const ed = { approvedId: 'aid', approvedPostIds: [], draft: { id: 'did', text: 'New', postIds: [] } }
-  const approver = draw([{ ...PEAK, note: 'Old', noteEditor: ed }], CONTROLS)
-  fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-  await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did'))
-  expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
-  approver.unmount()
-
-  draw([{ ...PEAK, note: 'Old', noteEditor: ed }], { ...CONTROLS, canApprove: false })
-  expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
-  expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
-})
-
-describe('on a wide screen', () => {
+describe('on a wide screen: option B, cards pinned to their dots', () => {
   // The test DOM has no matchMedia, so a chart renders the row by default; these stub a wide screen.
   const real = window.matchMedia
   beforeEach(() => {
     window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
   })
   afterEach(() => { window.matchMedia = real })
+  const cardOf = (i: number) => render(<>{chart().pins![i].content}</>).container
 
-  test('each callout a client may see is pinned to its dot, and a client gets no row', () => {
+  test('a client gets every callout they may see pinned to its dot, no row and no buttons', () => {
     draw([PEAK, QUIET({ note: 'Event' })])
-    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10', '2026-08-14'])
+    expect(chart().pins?.map((p) => [p.x, !!p.muted])).toEqual([['2026-08-10', false], ['2026-08-14', false]])
+    expect(chart().pinHeight).toBeUndefined()
     expect(screen.queryByRole('list', { name: 'Annotations' })).toBeNull()
+    expect(cardOf(0).querySelector('button')).toBeNull()
   })
 
-  test('a hidden day and a draft-only day are never pinned', () => {
-    const draftOnly = QUIET({ date: '2026-08-20', noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
-    draw([PEAK, draftOnly, QUIET({ date: '2026-08-22', note: 'Hidden one', hidden: true })])
-    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10'])
+  test('a pinned card shows the date and number, and the note on its own line', () => {
+    draw([{ ...PEAK, note: 'JOL Fortune Cookie' }])
+    const card = cardOf(0)
+    expect(within(card).getByText('8/10 | 50 Engagements')).not.toBe(within(card).getByText('JOL Fortune Cookie'))
+  })
+
+  test("the team's buttons are on each pinned card, and team cards are taller to fit them", () => {
+    draw([PEAK], CONTROLS, HIDES)
+    const card = cardOf(0)
+    expect(within(card).getByRole('button', { name: 'Hide from client' })).toBeTruthy()
+    expect(within(card).getByRole('button', { name: 'Add note' })).toBeTruthy()
+    expect(chart().pinHeight).toBe(PIN_TEAM_CARD_HEIGHT)
+  })
+
+  test('the team also gets its hidden and draft cards pinned, faded and never printed, with no dot', () => {
+    draw([PEAK, QUIET({ date: '2026-08-20', label: '8/20', noteEditor: DRAFT }), QUIET({ date: '2026-08-22', label: '8/22', note: 'Hidden one', hidden: true })], CONTROLS, HIDES)
+    expect(chart().pins?.map((p) => [p.x, !!p.muted])).toEqual([['2026-08-10', false], ['2026-08-20', true], ['2026-08-22', true]])
+    expect(chart().marks).toEqual([{ x: '2026-08-10' }])
+  })
+
+  test('Hide on a pinned card fades it, takes its dot at once, and makes one call', async () => {
+    draw([PEAK], CONTROLS, HIDES)
+    fireEvent.click(within(cardOf(0)).getByRole('button', { name: 'Hide from client' }))
+    expect(chart().marks).toEqual([])
+    expect(chart().pins?.map((p) => [p.x, !!p.muted])).toEqual([['2026-08-10', true]])
+    await waitFor(() => expect(setAnnotationHiddenAction).toHaveBeenCalledWith({ ...HIDES, day: '2026-08-10', hidden: true }))
   })
 
   test('a callout whose day has no point goes in the row above the chart, since it has no dot', () => {
     draw([PEAK, QUIET({ date: '2026-08-31', label: '8/31', note: 'Late' })])
     expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10'])
-    expect(screen.getByText('8/31 | Late')).toBeTruthy()
-  })
-
-  test("the team's controls sit in a row under the chart, without pictures, and never print", () => {
-    draw([PEAK], CONTROLS)
-    const strip = screen.getByRole('list', { name: 'Annotations' })
-    expect(strip.closest('.no-print')).toBeTruthy()
-    expect(strip.querySelector('img')).toBeNull()
-    expect(within(strip).getByRole('button', { name: 'Add note' })).toBeTruthy()
-    expect(chart().pins?.map((p) => p.x)).toEqual(['2026-08-10'])
+    expect(screen.getByText('Late')).toBeTruthy()
   })
 
   test('the Annotations button takes the pinned cards away too', () => {
@@ -2636,13 +2729,10 @@ describe('on a wide screen', () => {
 })
 ```
 
-In that file's imports, add `afterEach`, `describe` to the `vitest` import and `within` to the
-`@testing-library/react` import.
-
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `npx vitest run components/report-sections/organic-social/chart-notes-ui.test.tsx`
-Expected: FAIL: no joined label, no controls, `chart().notes` missing.
+Expected: FAIL: no note line, no buttons, no `pins`.
 
 - [ ] **Step 3: Write the form**
 
@@ -2728,7 +2818,7 @@ export function NoteForm({ controls, fixedDay, initial, onClose }: {
 }
 ```
 
-- [ ] **Step 4: Write the per-card actions**
+- [ ] **Step 4: Write the per-card note buttons**
 
 `components/report-sections/organic-social/note-actions.tsx`:
 
@@ -2739,18 +2829,24 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveChartNoteAction, deleteChartNoteDraftAction, revokeChartNoteAction } from '@/app/actions/chart-notes'
 import type { ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
-import { NoteForm } from './note-form'
 
 const BUTTON = 'no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50'
 
-/** A card's note controls, for someone who can edit: add or edit the note, delete a draft, and for
- *  an approver, approve a draft or revoke an approved note. Each action re-checks the session. */
-export function NoteActions({ annotation, controls }: { annotation: ChartAnnotation; controls: NoteControls }) {
+/** A card's note buttons, for someone who can edit: add or edit the note, delete a draft, and for an
+ *  approver, approve a draft or revoke an approved note. Each action re-checks the session. The form
+ *  itself opens above the chart (`onEdit`), never inside the card. On a pinned card the visible
+ *  words are shorter to fit; the accessible names stay the same everywhere. */
+export function NoteActions({ annotation, controls, pinned, onEdit }: {
+  annotation: ChartAnnotation
+  controls: NoteControls
+  pinned?: boolean
+  onEdit: (day: string, initial?: { text: string; postIds: number[] }) => void
+}) {
   const router = useRouter()
-  const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const ed = annotation.noteEditor
+  const say = (full: string, short: string) => (pinned ? short : full)
 
   const run = (act: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
@@ -2769,29 +2865,31 @@ export function NoteActions({ annotation, controls }: { annotation: ChartAnnotat
 
   return (
     <>
-      <button type="button" className={BUTTON} disabled={pending} onClick={() => setEditing((v) => !v)}>
-        {ed ? 'Edit note' : 'Add note'}
+      <button type="button" className={BUTTON} disabled={pending} aria-label={ed ? 'Edit note' : 'Add note'}
+        onClick={() => onEdit(annotation.date, initial)}>
+        {ed ? say('Edit note', 'Edit') : say('Add note', 'Note')}
       </button>
       {ed?.draft && controls.canApprove && (
-        <button type="button" className={BUTTON} disabled={pending}
+        <button type="button" className={BUTTON} disabled={pending} aria-label="Approve"
           onClick={() => run(() => approveChartNoteAction(controls.clientSlug, ed.draft!.id))}>Approve</button>
       )}
       {ed?.approvedId && controls.canApprove && (
-        <button type="button" className={BUTTON} disabled={pending}
+        <button type="button" className={BUTTON} disabled={pending} aria-label="Revoke"
           onClick={() => run(() => revokeChartNoteAction(controls.clientSlug, ed.approvedId!))}>Revoke</button>
       )}
       {ed?.draft && (
-        <button type="button" className={BUTTON} disabled={pending}
-          onClick={() => run(() => deleteChartNoteDraftAction(controls.clientSlug, ed.draft!.id))}>Delete draft</button>
+        <button type="button" className={BUTTON} disabled={pending} aria-label="Delete draft"
+          onClick={() => run(() => deleteChartNoteDraftAction(controls.clientSlug, ed.draft!.id))}>
+          {say('Delete draft', 'Delete')}
+        </button>
       )}
       {error && <span role="alert" className="no-print text-[11px] text-red-400">{error}</span>}
-      {editing && <NoteForm controls={controls} fixedDay={annotation.date} initial={initial} onClose={() => setEditing(false)} />}
     </>
   )
 }
 ```
 
-- [ ] **Step 5: Draw the note on the card**
+- [ ] **Step 5: One card for the row and the pin**
 
 In `annotation-callouts.tsx`:
 
@@ -2809,91 +2907,97 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
 }
 ```
 
-3. In `AnnotationItem`, add `noteControls?: NoteControls` and `compact?: boolean` to its props, and
+3. `AnnotationItem` (`:60-104`): add to its props `noteControls?: NoteControls`,
+   `onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void`,
+   `as?: 'li' | 'div'` and `pinned?: boolean`. Keep its hide logic (`:66-82`) exactly as it is, and
    replace the returned `<li>` (`:87-102`) with:
 
 ```tsx
   // A day shown only for its note, with no approved note yet, has nothing for a client: like a
-  // hidden row it must not reach a PDF exported from the team's view.
+  // hidden card it is faded for the team and must not reach a PDF exported from the team's view.
   const draftOnly = !!annotation.noteOnly && !annotation.note
-  const text = annotation.note ? `${annotation.label} | ${annotation.note}` : annotation.label
   const thumbs = annotation.thumbs ?? (annotation.thumb ? [annotation.thumb] : [])
   const draft = annotation.noteEditor?.draft
+  const Tag = as ?? 'li'
 
   // Export PDF is window.print() of the page in front of you, so anything staff-only has to
-  // carry `no-print` or it lands in a PDF exported from a client's view: a hidden row is shown
+  // carry `no-print` or it lands in a PDF exported from a client's view: a hidden card is shown
   // to staff only so they can unhide it, and the toggle is a control rather than content.
   return (
-    <li className={cn('flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2', hidden && 'opacity-40 no-print', !hidden && draftOnly && 'no-print')}>
-      {!compact && thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
-      <span className="text-xs font-bold text-white">{text}</span>
-      {draft && <span className="no-print text-[11px] text-text-muted">Draft: {draft.text}</span>}
-      {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
+    <Tag className={cn(
+      'flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2',
+      pinned && 'h-full content-start overflow-hidden bg-bg-surface p-1.5',
+      hidden && 'opacity-40 no-print',
+      !hidden && draftOnly && 'opacity-40 no-print',
+    )}>
+      {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-xs font-bold text-white">{annotation.label}</span>
+        {annotation.note && <span className={cn('text-xs text-white', pinned && 'line-clamp-2')}>{annotation.note}</span>}
+        {draft && <span className="no-print text-[11px] text-text-muted">Draft: {draft.text}</span>}
+        {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
+      </span>
       {controls && (
         <button
           type="button"
           onClick={toggle}
           disabled={pending}
+          aria-label={hidden ? 'Unhide' : 'Hide from client'}
           className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
         >
-          {hidden ? 'Unhide' : 'Hide from client'}
+          {hidden ? 'Unhide' : pinned ? 'Hide' : 'Hide from client'}
         </button>
       )}
-      {noteControls && <NoteActions annotation={annotation} controls={noteControls} />}
-    </li>
+      {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} pinned={pinned} onEdit={onEdit} />}
+    </Tag>
   )
 ```
+
+   The label keeps its own element, so every Phase 1 test that finds a card by its label text
+   (`annotation-callouts.test.tsx`) still finds it; the note is a second line under it.
 
 4. Replace `AnnotationCallouts` (`:106-122`) with:
 
 ```tsx
-/** The days that spiked, and the days the team wrote a note on, in date order. The row: above the
- *  chart on a phone-width screen, and under a pinned chart as the team's controls (trends.tsx). On
- *  a wide screen a client sees the pinned cards (CalloutCard) instead. `compact` leaves out the
- *  pictures, which the pinned cards already show. */
-export function AnnotationCallouts({ items, controls, noteControls, onToggle, compact }: {
+/** The row of callouts: above the chart on a phone-width screen, and on any screen for a callout
+ *  whose day has no point on the series (trends.tsx). On a wide screen every other callout is a
+ *  card pinned to its dot (PinnedCallout). */
+export function AnnotationCallouts({ items, controls, noteControls, onToggle, onEdit }: {
   items: ChartAnnotation[]
   controls?: AnnotationControls
   noteControls?: NoteControls
   onToggle?: (day: string, hidden: boolean) => void
-  compact?: boolean
+  onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   if (items.length === 0) return null
-  // Hiding every row is not enough: the list is a non-last child of the chart's section, so
+  // Hiding every card is not enough: the list is a non-last child of the chart's section, so
   // Tailwind still gives it a margin and the printed page keeps a gap where the row was. A
   // draft-only day prints nothing either.
   const nothingPrintable = items.every((a) => a.hidden || (a.noteOnly && !a.note))
   return (
     <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
-      {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} compact={compact} />)}
+      {items.map((a) => (
+        <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} onEdit={onEdit} />
+      ))}
     </ul>
   )
 }
-```
 
-5. Add after `AnnotationCallouts`:
-
-```tsx
-/** One callout as a client sees it: its pictures, and its label with the note after a second pipe.
- *  What a card pinned to its dot shows (trends.tsx, LineChart pins). Sized to the pin card, 280 by
- *  80: a 64px picture plus 6px padding and a 1px border each side is 78, so nothing is cut. The text
- *  is cut at three lines; the full text is in its title and the hover box. */
-export function CalloutCard({ annotation }: { annotation: ChartAnnotation }) {
-  const text = annotation.note ? `${annotation.label} | ${annotation.note}` : annotation.label
-  const thumbs = annotation.thumbs ?? (annotation.thumb ? [annotation.thumb] : [])
-  return (
-    <div title={text} className="flex h-full items-center gap-2 overflow-hidden rounded-lg border border-white/[0.08] bg-bg-surface p-1.5">
-      {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
-      <span className="line-clamp-3 text-xs font-bold text-white">{text}</span>
-    </div>
-  )
+/** One callout as a card pinned to its dot, option B (trends.tsx, LineChart pins): the same card as
+ *  the row, so hiding, notes and print rules are identical, sized to the pin with the note cut at
+ *  two lines (the full note is in the hover box). */
+export function PinnedCallout(props: {
+  annotation: ChartAnnotation
+  controls?: AnnotationControls
+  noteControls?: NoteControls
+  onToggle?: (day: string, hidden: boolean) => void
+  onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+}) {
+  return <AnnotationItem {...props} as="div" pinned />
 }
 ```
 
-The `li` gains `flex-wrap` so an open form can take its own line; nothing else about a card
-without a note changes, and `compact` is off unless the pinned chart's team row sets it.
-
-- [ ] **Step 6: The chart: Add note, dots and hover notes**
+- [ ] **Step 6: The chart: where each card goes, dots, hover notes and the form**
 
 Write `components/report-sections/organic-social/use-wide-chart.ts`:
 
@@ -2909,9 +3013,9 @@ function subscribe(onChange: () => void): () => void {
   return () => m.removeEventListener('change', onChange)
 }
 
-/** True on a screen wide enough to pin callouts to their dots, like the deck (Tailwind's `sm`,
- *  640px). The server renders wide, which is what a desktop gets; a phone switches to the row once
- *  it hydrates. A browser without matchMedia, such as the test DOM, gets the row. */
+/** True on a screen wide enough to pin callouts to their dots, option B (Tailwind's `sm`, 640px).
+ *  The server renders wide, which is what a desktop gets; a phone switches to the row once it
+ *  hydrates. A browser without matchMedia, such as the test DOM, gets the row. */
 export function useWideChart(): boolean {
   return useSyncExternalStore(
     subscribe,
@@ -2923,36 +3027,38 @@ export function useWideChart(): boolean {
 
 In `trends.tsx`:
 
-1. `import { NoteForm } from './note-form'`, `import { useWideChart } from './use-wide-chart'`, and
-   add `CalloutCard` to the `./annotation-callouts` import.
-2. In `ChannelTrendChart`, add `noteControls` to the destructured props (`:32`) and add after the
-   `showAnnotations` state (`:43`):
+1. Imports: `import { NoteForm } from './note-form'`, `import { useWideChart } from './use-wide-chart'`,
+   `import { PIN_TEAM_CARD_HEIGHT } from '@/components/charts/pins'`, and `PinnedCallout` beside
+   `AnnotationCallouts` in the `./annotation-callouts` import; add `NoteControls` to the type import
+   at `:9`.
+2. In `ChannelTrendChart`, add `noteControls` to the destructured props (`:32`), and with the other
+   hooks after `showAnnotations` (`:43`):
 
 ```tsx
-  const [adding, setAdding] = useState(false)
+  // The Add note or Edit form, open above the chart: {} for a new note, or the day and its text.
+  const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
+  const wide = useWideChart()
 ```
 
 3. Replace `:74` (`const visible = ...`) with:
 
 ```tsx
   const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
-  // A dot marks what a client sees: a top day, or a day with an approved note. A day shown only for
-  // a draft gets no dot, and a hidden day gets none, so the team's chart matches the client's.
+  // A dot marks what a client sees: a top day, or a day with an approved note. A draft-only day and a
+  // hidden day get none, so the team's chart matches the client's.
   const shown = visible?.filter((a) => !a.hidden && (!a.noteOnly || !!a.note))
   const noted = shown?.filter((a) => a.note)
   const notes = noted && noted.length > 0 ? Object.fromEntries(noted.map((a) => [a.date, a.note!])) : undefined
-  // Wide screens pin each shown callout to its dot, like the deck (Task 8). A callout whose day has
-  // no point on the series has no dot to join, so it goes in the row above the chart; so does every
-  // callout on a phone-width screen.
-  const wide = useWideChart()
+  // Option B: on a wide screen every callout this viewer may see is pinned to its dot. A client's
+  // list holds only what they may see (the server removes the rest); the team's also holds its
+  // hidden and draft cards, pinned faded and never printed. A callout whose day has no point has no
+  // dot to join, so it goes in the row above the chart, as every callout does on a phone.
   const onSeries = new Set(series.points.map((p) => String(p.date)))
-  const pinned = wide ? shown?.filter((a) => onSeries.has(a.date)) : undefined
-  const unpinned = wide ? shown?.filter((a) => !onSeries.has(a.date)) : undefined
-  const staff = !!annotationControls || !!noteControls
+  const pinned = wide ? visible?.filter((a) => onSeries.has(a.date)) : undefined
+  const inRow = wide ? visible?.filter((a) => !onSeries.has(a.date)) : visible
+  const team = !!annotationControls || !!noteControls
+  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => setForm({ day, initial })
 ```
-
-`useWideChart` is a hook, so it sits with the others at the top of the component in the real edit,
-not after `visible`; it is shown here next to what reads it.
 
 4. After the Annotations button block (after `:124`, still inside the button row `div`), add:
 
@@ -2960,8 +3066,8 @@ not after `visible`; it is shown here next to what reads it.
             {noteControls && noteControls.days.length > 0 && (
               <button
                 type="button"
-                onClick={() => setAdding((v) => !v)}
-                aria-expanded={adding}
+                onClick={() => setForm((f) => (f ? null : {}))}
+                aria-expanded={!!form}
                 className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
               >
                 Add note
@@ -2972,9 +3078,12 @@ not after `visible`; it is shown here next to what reads it.
 5. Replace `:126` and the `LineChart` at `:130-135` with:
 
 ```tsx
-          {adding && noteControls && <NoteForm controls={noteControls} onClose={() => setAdding(false)} />}
-          {!wide && visible && <AnnotationCallouts items={visible} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} />}
-          {wide && unpinned && unpinned.length > 0 && <AnnotationCallouts items={unpinned} />}
+          {form && noteControls && (
+            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} onClose={() => setForm(null)} />
+          )}
+          {inRow && inRow.length > 0 && (
+            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
+          )}
 ```
 
 ```tsx
@@ -2984,39 +3093,35 @@ not after `visible`; it is shown here next to what reads it.
               yKeys={yKeys}
               marks={shown?.map((a) => ({ x: a.date }))}
               notes={notes}
-              pins={pinned && pinned.length > 0 ? pinned.map((a) => ({ x: a.date, content: <CalloutCard annotation={a} /> })) : undefined}
+              pins={pinned && pinned.length > 0
+                ? pinned.map((a) => ({
+                    x: a.date,
+                    muted: !!a.hidden || (!!a.noteOnly && !a.note),
+                    content: <PinnedCallout annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
+                  }))
+                : undefined}
+              pinHeight={pinned && pinned.length > 0 && team ? PIN_TEAM_CARD_HEIGHT : undefined}
             />
 ```
 
-6. After the `activeEmpty` ternary (before the closing `</>` at `:137`), add the team's row under a
-   pinned chart:
-
-```tsx
-          {wide && staff && visible && (
-            <div className="no-print">
-              <AnnotationCallouts compact items={visible} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} />
-            </div>
-          )}
-```
-
-With no annotations (every v1 chart, Renaissance included), `visible`, `shown`, `notes` and
-`pinned` are all undefined, so `LineChart` gets `marks`, `notes` and `pins` all undefined, which
-Tasks 7 and 8 proved renders today's chart, and no row renders on any screen.
+With no annotations (every v1 chart, Renaissance included), `visible`, `shown`, `notes`, `pinned`
+and `inRow` are all undefined, so `LineChart` gets `marks`, `notes`, `pins` and `pinHeight` all
+undefined, which Tasks 7 and 8 proved renders today's chart, and no row renders on any screen.
 
 - [ ] **Step 7: Run everything touched**
 
 Run: `npx vitest run components/`
 Expected: all pass, including `annotation-callouts.test.tsx`, `trends.identity.test.tsx` and every
-golden. `git diff --name-only origin/dev -- '*.snap'` prints nothing.
+golden, unchanged. `git diff --name-only origin/dev -- '*.snap'` prints nothing.
 
 - [ ] **Step 8: Renaissance stop, then commit**
 
-Renaissance: `trends.tsx` and `annotation-callouts.tsx` render Renaissance's v1 graphs. With no annotations, which is every v1 chart, nothing new renders on any screen: no Add note, no draft line, no pinned card, no team row, and `marks`, `notes` and `pins` all undefined. The screen-width hook only decides where annotations go, and v1 has none. The goldens prove it. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
+Renaissance: `trends.tsx` and `annotation-callouts.tsx` render Renaissance's v1 graphs. With no annotations, which is every v1 chart, nothing new renders on any screen: no Add note, no form, no draft line, no pinned card, no row, and `marks`, `notes`, `pins` and `pinHeight` all undefined. The screen-width hook only decides where annotations go, and v1 has none. The goldens prove it. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add components/report-sections/organic-social/
 git status --porcelain
-git commit -m "feat(organic-social): notes on the callouts, dots and forms for the team" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git commit -m "feat(organic-social): callout cards on their dots (option B), with the team's buttons and notes" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git push
 ```
 
@@ -3159,9 +3264,10 @@ On one platform tab of one client's August (a locked month, which also proves no
   approved row left.
 - Delete the remaining draft. Read back: every row for that day is marked deleted, none approved.
 - **The layout**, on the same tab. Desktop width: each callout is a card pinned to its dot with a
-  line down to it, neighbouring days stack, the first and last days stay inside the chart, and the
-  team's row sits under the chart without pictures. Export PDF: the pinned cards print, the team's
-  row and any draft do not. Phone width (the browser pane's mobile preset, reset to desktop after):
+  red line down to it, the note on its own line, neighbouring days stack, the first and last days
+  stay inside the chart. The team's buttons are on each card, and a hidden or draft card shows
+  faded with no dot. Hide from a pinned card: it fades and its dot goes at once. Export PDF from
+  the team's view: the shown cards print; the buttons, hidden cards and drafts do not. Phone width (the browser pane's mobile preset, reset to desktop after):
   the row above the chart, as Phase 1 shows it today. Renaissance's tabs: unchanged at both widths.
 - Update the line in Jasmine's staging guide that says the callouts sit in a row above the graph:
   they now sit on their dots.
