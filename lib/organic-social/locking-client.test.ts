@@ -3,6 +3,8 @@ import { completeContent, completeReportsData, lockingClient, withLockedBaseline
 import { requestKey } from './lock-day'
 import { buildPlatformHeadline } from './headline-build'
 import { normalizePost } from './top-content'
+import { CHANNELS, PLATFORM_KPIS } from './metrics'
+import { outlineSpecsFor } from './outline-layout'
 import type { ReportsDataParams } from '@/lib/dash-social/types'
 
 const BRAND = 7
@@ -349,4 +351,23 @@ test('a request asking for no account-level metric keeps the key-presence rule',
 // (no prior) from ever locking.
 test('an account-level number with a value but no prior value still locks', () => {
   expect(completeReportsData(TILES, tiles({ NET_NEW_FOLLOWERS: tm(10, null) }))).toBe(true)
+})
+
+// Guard (Paul, #266): ACCOUNT_METRICS is kept by hand, apart from the KPI specs. If a follower or
+// profile-views tile moved to a metric name the list does not hold, a blank on it would lock as 0
+// again with nothing failing. This walks every tile that asks for one: every channel, both basis
+// columns, the shared tiles (PLATFORM_KPIS) and the outline tiles (outlineSpecsFor) alike.
+test('every follower and profile-views tile, on every channel and basis, is guarded against a blank', () => {
+  const ACCOUNT_KEYS = ['followers', 'netNewFollowers', 'profileViews']
+  const tiles = CHANNELS.flatMap((channel) => [...PLATFORM_KPIS[channel], ...outlineSpecsFor(channel)]
+    .filter((spec) => ACCOUNT_KEYS.includes(spec.key))
+    .flatMap((spec) => Object.values(spec.metric).map((metric) => ({ channel, key: spec.key, metric }))))
+  expect(new Set(tiles.map((t) => t.channel))).toEqual(new Set(CHANNELS))
+  for (const { channel, key, metric } of tiles) {
+    const name = `${channel} ${key} ${metric}`
+    const params: ReportsDataParams = { ...SEPT, channels: [channel], metrics: [metric] }
+    const answer = (value: number | null) => ({ data: { [BRAND]: { metrics: { [metric]: tm(value, 5) } } } })
+    expect(completeReportsData(params, answer(null)), name).toBe(false)
+    expect(completeReportsData(params, answer(3)), name).toBe(true)
+  }
 })
