@@ -714,6 +714,14 @@ Still open:
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
   a 401, a 500 or a malformed answer. Add the error's name and status.
+- [ ] **Renaissance's tiles still flip the change arrow on a negative prior** (from the QA fixes, F2
+  in `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The outline tiles now use `outlineDelta`
+  (`lib/organic-social/outline-delta.ts`), which divides by the size of the prior value. The shared
+  `delta()` (`lib/organic-social/headline-build.ts:12-18`) still divides by the signed prior, so in a
+  month after a net follower loss Renaissance's Net New Followers tile, and an outline client's v1
+  fallback tab (Overview or X), shows a red "down" arrow for a rise. Fixing it changes what
+  Renaissance renders, so it is my call under the golden rule; `outline-delta.test.ts` pins today's
+  behaviour so it cannot change by accident.
 
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 

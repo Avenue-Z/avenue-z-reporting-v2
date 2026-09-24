@@ -1,11 +1,11 @@
 // The outline parts' data (platform-headlines@2/@3, engagement-breakdown@1). One Dash request per
 // tab for the channel's shared tile metrics plus its outline extras, in the same request shape as
-// getPlatformHeadlines, and built by the same rules as buildPlatformHeadline. Both parts call
-// getOutlineKpis with the same arguments, so React's cache makes it one request per tab.
+// getPlatformHeadlines, built as buildPlatformHeadline builds except the change (outlineDelta, by
+// the prior's size). Both parts call getOutlineKpis alike, so React's cache makes it one request.
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
 import { CHANNEL_LABEL, metricFor, resolveTargets, type DashChannel, type KpiSpec } from './metrics'
-import { delta } from './headline-build'
+import { outlineDelta } from './outline-delta'
 import { outlineSpecsFor, type OutlineRow } from './outline-layout'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { HeadlineKpi, PlatformHeadline } from './types'
@@ -38,7 +38,7 @@ export function buildOutlineKpis(
       label: spec.label,
       format: spec.format,
       value: spec.format === 'percent' ? raw * 100 : raw,
-      delta: delta(m),
+      delta: outlineDelta(m),
       footnote: spec.footnote, // outline tabs are always one channel, where footnotes show
     }
   }
