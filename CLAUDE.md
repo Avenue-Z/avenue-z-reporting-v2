@@ -687,7 +687,10 @@ Still open:
   Followers but other metrics have values is not `noData`: the tile reads 0 and the YTD line drops
   to zero and back, which reads as a collapse rather than a gap. YTD cannot tell the difference (the
   null is gone before it sees it); the fix belongs in the tiles' builder, which the YTD work must
-  not touch. Decide with the outline Data block, not here.
+  not touch. Decide with the outline Data block, not here. Since the QA fixes (F3), a locked month
+  can no longer store a null Total Followers; a live month still shows it as 0
+  (`outline-headlines.ts:35`), and the YTD Views line reads a post-level metric
+  (`lib/organic-social/metrics.ts:110,123,160,184`), so a blank there can still lock as 0.
 - [ ] **The YTD block fails all or nothing across up to 12 requests** (same review).
   `parts/ytd-review.tsx:30` fires one request per month in parallel and one rejection blanks the
   whole block (a partial graph is deliberately never drawn). In August that is one request; by
@@ -704,16 +707,39 @@ Still open:
   `lib/organic-social/deep-link-parity.test.tsx`. Hoist it into one helper next to
   `resolveOrganicSubsection` (`lib/constants.ts:220`). It edits routes on Renaissance's live path: its
   own PR, with the parity test as the guard.
-- [ ] **UGC posts without #ad compete for the owned top 5 on outline tabs** (review of the outline
-  fixes build, #255). `top-content@3` sorts Instagram UGC (posts that tag the client) with no author
-  and no #ad into the owned rows, because UGC author fields are unproven, so the UGC line never
-  attaches one (`lib/organic-social/top-content.ts:188`). The deck match (9 of 9) was checked on the
-  owned feed only. Before the three clients go live, compare one month of their Instagram Top Content
-  on staging with the deck; if a tagged post takes an owned slot, send UGC to Influencer Posts for
-  pinned clients.
+- [x] **UGC posts without #ad compete for the owned top 5 on outline tabs: RESOLVED** (F1 in
+  `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The staging QA found a tagged post in an owned
+  slot on two clients, the trigger this entry named. `top-content@3` now asks `fetchTopContent` to mark
+  UGC (`markUgc`, `lib/organic-social/top-content.ts:194`), and `partitionByAuthor` sends a UGC post to
+  Influencer Posts unless a team member stored another choice
+  (`lib/organic-social/outline-top-content.ts:25`). UGC author fields stay unproven and unused.
+- [ ] **A `top-content@3` client without locked months would still show tagged posts as owned in
+  windows frozen earlier** (Paul, #267). The UGC fix above holds for every client on locked months,
+  which skip the older freeze table (`lib/organic-social/frozen.ts:60`), and every client pinned to
+  `top-content@3` today is one. A client pinned to it without `reportingMonths` is served the frozen
+  snapshot of a finished window (`frozen.ts:74-75`). A window frozen before `markUgc`, or by
+  `top-content@2` under the same key (`components/report-sections/organic-social/parts/top-content.tsx:67`),
+  carries no `ugc` mark, so a tagged post falls back to the `#ad` rule. Post authors already have the
+  same gap, which the part logs (`top-content-outline.tsx:24-26`). No such client exists, and nothing
+  stops the pin. Either refuse the `top-content@3` pin without `reportingMonths`, or re-freeze a window
+  when the part version changes.
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
   a 401, a 500 or a malformed answer. Add the error's name and status.
+- [ ] **Renaissance's tiles still flip the change arrow on a negative prior** (from the QA fixes, F2
+  in `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The outline tiles now use `outlineDelta`
+  (`lib/organic-social/outline-delta.ts`), which divides by the size of the prior value. The shared
+  `delta()` (`lib/organic-social/headline-build.ts:12-18`) still divides by the signed prior, so in a
+  month after a net follower loss Renaissance's Net New Followers tile, and an outline client's v1
+  fallback tab (Overview or X), shows a red "down" arrow for a rise. Fixing it changes what
+  Renaissance renders, so it is my call (Thomas) under the golden rule; `outline-delta.test.ts` pins
+  today's behaviour so it cannot change by accident. Paul (#268) suggests choosing the signed or the
+  size-based change by client (for example `hasReportingMonths`,
+  `lib/organic-social/reporting-months.ts:75`, or the pinned part) instead of by builder, which would
+  also fix an outline client's Overview card and X tab while Renaissance keeps today's arrow. That same
+  change is the moment to keep the rule in one place (also Paul, #268): it has three copies today,
+  `computeDelta` (`lib/metrics.ts:7`), `delta()` and `outlineDelta`, and a size-based option on
+  `computeDelta` with the other two as thin wrappers would leave one.
 
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 
@@ -889,12 +915,20 @@ From the review of the lock every number build. None blocks the October set.
   is permanently wrong:
   1. **A briefly empty Top Content answer.** An empty `data.content` array counts as complete
      (`lib/organic-social/locking-client.ts`, `completeContent`), so an empty panel locks.
-  2. **A briefly empty but well-formed headline or graph answer.** All-null headline metrics and a
-     graph whose `ALL_CHANNELS` is `{}` both count as complete, deliberately: that is also what a
-     genuinely quiet month looks like (`lib/organic-social/headline-build.ts:48-51`, and
-     `locking-client.test.ts:109` asserts the graph case). Treating either as incomplete would stop
-     a quiet month ever locking, which is why the widening was declined. The cost of declining it
-     is this row.
+  2. **A briefly empty but well-formed headline or graph answer.** Since the QA fixes (F3 in
+     `docs/superpowers/plans/2026-09-24-qa-fixes.md`), a headline answer with a null account-level
+     metric (Total Followers, Net New Followers, Profile Views, LinkedIn page views) no longer counts
+     as complete: probes showed those are never null for a connected account, even on days with no
+     posts, and one had locked as 0 on staging (`ACCOUNT_METRICS` in
+     `lib/organic-social/locking-client.ts`). Still open: a null post-level metric (legitimately null
+     in a quiet period, so it can't be told apart), a null account-level prior value (blocking on it
+     would stop an account's first month locking), and a graph whose `ALL_CHANNELS` is `{}` or has
+     null days (the v2 Net New Followers graph fills a null day with 0,
+     `lib/organic-social/followers.ts:64`; `locking-client.test.ts:109` asserts the `{}` case).
+     The flip side: a month whose account-level metric is genuinely null (an X account, an
+     account's first days in Dash, an allowlisted channel with no account, or a metric Dash stops
+     reporting) never locks. Every view and the hourly sweep re-read Dash uncached, and the
+     `lock skipped (incomplete answer)` warning is the only signal.
   3. **A malformed media answer captured on lock day.** The lock stores Dash's raw response before
      any builder parses it, and the media branch of `completeReportsData` accepts a media answer on
      the brand entry alone, so a malformed one is stored and PR #255's new throw then shows
@@ -952,6 +986,6 @@ From the review of the lock every number build. None blocks the October set.
   scheduling fix, and not addressed by it: the capture-failure log
   (`lock capture failed ...`, added in the same PR) is the signal until this is fixed.
 
-- [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts:31`, an
+- [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts`, `completeContent`, an
   empty `data.content` array counts as complete). This matches the old freeze table's deliberate
   frozen-empty behaviour, without that path's re-freeze escape. Revisit with the unlock tool.

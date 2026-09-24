@@ -13,16 +13,16 @@ export function parseOwnHandles(cfg: unknown): OwnHandles {
   return handle ? { INSTAGRAM: handle } : {}
 }
 
-/** Stored designation first (a team member's choice), then the author rule when both the author and
- *  the client's own handle are known (matches the decks: a post authored by someone else is a collab
- *  post), otherwise today's #ad suggestion. */
+/** Stored designation first (a team member's choice); then a tagged post (UGC, another account's) is
+ *  a collab post; then the author rule when both the author and the client's own handle are known
+ *  (matches the decks: a post by someone else is a collab post); otherwise today's #ad suggestion. */
 export function partitionByAuthor(posts: TopContentPost[], stored: Map<number, SourceType>, own: OwnHandles) {
   const owned: TopContentPost[] = []
   const influencer: TopContentPost[] = []
   for (const post of posts) {
     const mine = own[post.channel as 'INSTAGRAM']
     const sourceType: SourceType = stored.get(post.id)
-      ?? (post.author && mine ? (post.author !== mine ? 'influencer' : 'organic') : resolveDesignation(post, stored))
+      ?? (post.ugc ? 'influencer' : post.author && mine ? (post.author !== mine ? 'influencer' : 'organic') : resolveDesignation(post, stored))
     ;(sourceType === 'influencer' ? influencer : owned).push({ ...post, sourceType })
   }
   return { owned, influencer }
@@ -40,10 +40,10 @@ export function ownedPostLimit(threshold: number | undefined): number {
   return typeof threshold === 'number' && Number.isInteger(threshold) && threshold >= 1 && threshold <= 50 ? threshold : 5
 }
 
-/** True when the author rule cannot run: an own handle is set, Instagram posts exist, and none has an
- *  author (a window frozen before top-content@3 was pinned). The caller logs it. */
+/** True when the author rule cannot run: an own handle is set, owned Instagram posts exist (UGC is left
+ *  out: it never carries an author), and none has an author (frozen before top-content@3). Logged. */
 export function missingAuthors(posts: TopContentPost[], own: OwnHandles): boolean {
-  const ig = posts.filter((p) => p.channel === 'INSTAGRAM')
+  const ig = posts.filter((p) => p.channel === 'INSTAGRAM' && !p.ugc)
   return Boolean(own.INSTAGRAM) && ig.length > 0 && ig.every((p) => !p.author)
 }
 

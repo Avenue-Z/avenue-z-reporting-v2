@@ -1,11 +1,11 @@
 // The outline parts' data (platform-headlines@2/@3, engagement-breakdown@1). One Dash request per
 // tab for the channel's shared tile metrics plus its outline extras, in the same request shape as
-// getPlatformHeadlines, and built by the same rules as buildPlatformHeadline. Both parts call
-// getOutlineKpis with the same arguments, so React's cache makes it one request per tab.
+// getPlatformHeadlines, built as buildPlatformHeadline builds except the change (outlineDelta, by
+// the prior's size). Both parts call getOutlineKpis alike, so React's cache makes it one request.
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
 import { CHANNEL_LABEL, metricFor, resolveTargets, type DashChannel, type KpiSpec } from './metrics'
-import { delta } from './headline-build'
+import { outlineDelta } from './outline-delta'
 import { outlineSpecsFor, type OutlineRow } from './outline-layout'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { HeadlineKpi, PlatformHeadline } from './types'
@@ -38,7 +38,7 @@ export function buildOutlineKpis(
       label: spec.label,
       format: spec.format,
       value: spec.format === 'percent' ? raw * 100 : raw,
-      delta: delta(m),
+      delta: outlineDelta(m),
       footnote: spec.footnote, // outline tabs are always one channel, where footnotes show
     }
   }
@@ -83,9 +83,9 @@ export const getOutlineKpis = cache(async (
   const metrics = res.data?.[String(brandId)]?.metrics
   // Not an empty state. Probed live 2026-09-22 with this exact request (28 GETs: a channel the brand
   // has no account on, zero-post windows, a future month, one-day windows): Dash always returned the
-  // brand entry with every requested metric, and an empty window came back all null (noData). So a
-  // missing entry is a malformed answer and the error card is right. (#254's absent key was the GRAPH
-  // report, which differs.)
+  // brand entry with every requested metric. A window with no data at all came back all null; a quiet
+  // window still reports account-level metrics (ACCOUNT_METRICS, locking-client.ts). So a missing
+  // entry is malformed and the error card is right. (#254's absent key was the GRAPH report.)
   if (!metrics) throw new Error(`${channel}: Dash returned no metrics for this brand`)
   return buildOutlineKpis(channel, metrics, specs)
 })

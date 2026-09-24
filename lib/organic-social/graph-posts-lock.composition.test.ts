@@ -7,8 +7,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 // to look the same everywhere, and both are asserted here through the real code paths:
 //
 // 1. The graphs and Top Content hand the lock store the SAME keys. Top Content v3 asks for
-//    authors (withAuthor: true) and the graphs do not, but withAuthor is applied to the answer
-//    after the fetch (top-content.ts, withAuthorIf), not sent in the request, so it cannot split
+//    authors and UGC marking (withAuthor, markUgc) and the graphs do not, but both are applied to
+//    the answer after the fetch (top-content.ts), not sent in the request, so they cannot split
 //    the lock into two rows that could disagree.
 // 2. Whichever reader captures the month first, the other can still build its view from the
 //    stored row. The row is Dash's raw answer, which carries instagram_user, so Top Content gets
@@ -81,7 +81,7 @@ const keysReadBy = async (run: () => Promise<unknown>) => {
 
 // Top Content v3's exact call (parts/top-content-outline.tsx).
 const topContentV3 = () => fetchTopContentFrozen('client-a', MONTH, 'INSTAGRAM', {
-  fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true }),
+  fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true, markUgc: true }),
 })
 
 test('on a locked month the graphs and Top Content read the same lock rows', async () => {
@@ -120,4 +120,24 @@ test('the other order holds too: Top Content captures, the graphs read its row',
   const posts = await graphPosts('client-a', MONTH, 'INSTAGRAM')
   expect(dashCalls).toBe(2)
   expect(posts.map((p) => p.id)).toEqual([11])
+})
+
+// Plan 2026-09-24-qa-fixes §4 (F1): on a locked month the UGC marking happens after the stored row is
+// read back, so a month the graphs captured first still comes back with its UGC post marked. Only this
+// test serves a UGC post; the shared fixture above stays empty.
+test('a UGC post in a month the graphs captured first comes back marked as UGC from the locked row', async () => {
+  const ugcPost = { id: 51, source: 'INSTAGRAM', type: 'IMAGE', source_created_at: '2026-08-12T12:00:00Z',
+    instagram: { caption: 'tagged the brand', sum_total_engagements: 30, views: 300 } }
+  vi.mocked(DashSocialClient.prototype.getContent).mockImplementation(async (p) => {
+    dashCalls++
+    return (p.channel === 'INSTAGRAM_UGC' ? { data: { content: [ugcPost] } } : OWNED) as never
+  })
+  await graphPosts('client-a', MONTH, 'INSTAGRAM')
+  expect(dashCalls).toBe(2)
+  const posts = await topContentV3()
+  expect(dashCalls).toBe(2) // served from the rows the graphs stored
+  expect(posts.find((p) => p.id === 51)?.ugc).toBe(true)
+  const own = posts.find((p) => p.id === 11)
+  expect(own).toBeDefined()
+  expect('ugc' in own!).toBe(false)
 })

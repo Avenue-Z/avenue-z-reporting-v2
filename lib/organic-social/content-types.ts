@@ -25,6 +25,7 @@ export interface TopContentPost {
   metrics: { effectiveness: number | null; engagementRate: number | null; engagements: number; impressions: number }
   sourceType: SourceType     // hardcoded 'organic' here; the designation table sets it in S2-B
   author?: string            // set only when the caller asks (outline Top Content); absent otherwise
+  ugc?: true                 // set only when the caller asks (outline Top Content): another account's post tagging the client
 }
 
 /** The frozen Dash-sourced facts for one Top-Content card. Everything on TopContentPost

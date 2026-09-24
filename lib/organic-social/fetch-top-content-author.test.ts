@@ -1,8 +1,8 @@
 import { expect, test, vi } from 'vitest'
 
 // fetchTopContent with { withAuthor: true }: owned Instagram posts carry their author, UGC posts
-// never do, even with a user field (UGC author fields are unproven, so they keep the #ad rule), and
-// nothing else moves.
+// never do, even with a user field (UGC author fields are unproven); with { markUgc: true } UGC posts
+// carry ugc: true instead, which the outline rule reads (never an owned post). Nothing else moves.
 // Mock seam as in fetch-top-content-parity.test.ts.
 const { getContent } = vi.hoisted(() => ({ getContent: vi.fn() }))
 
@@ -63,5 +63,26 @@ test('the author is the only difference, and not asking (or asking false) is the
     for (const p of plain) expect('author' in p).toBe(false)
     expect(await fetchTopContent('c', 'june', channel, { withAuthor: false })).toEqual(plain)
     expect(strip(await fetchTopContent('c', 'june', channel, { withAuthor: true }))).toEqual(plain)
+  }
+})
+
+// Plan 2026-09-24-qa-fixes §4 (F1).
+test('asked to mark UGC: every UGC post carries ugc: true and no owned post does', async () => {
+  getContent.mockReset()
+  getContent.mockImplementation(async (a: { channel: string }) => answer(a.channel))
+  for (const channel of [null, 'INSTAGRAM'] as const) {
+    const posts = await fetchTopContent('c', 'june', channel, { withAuthor: true, markUgc: true })
+    expect(posts.filter((p) => p.ugc).map((p) => p.id).sort()).toEqual([51, 52])
+    for (const p of posts.filter((q) => !UGC_IDS.has(q.id))) expect('ugc' in p).toBe(false)
+  }
+})
+// Guard: breaks if the field were always present (e.g. ugc: Boolean(opts.markUgc)).
+test('not asked to mark UGC, no post has the key at all: the path Renaissance uses', async () => {
+  getContent.mockReset()
+  getContent.mockImplementation(async (a: { channel: string }) => answer(a.channel))
+  for (const channel of [null, 'INSTAGRAM'] as const) {
+    for (const opts of [undefined, { withAuthor: true }, { markUgc: false }]) {
+      for (const p of await fetchTopContent('c', 'june', channel, opts)) expect('ugc' in p).toBe(false)
+    }
   }
 })
