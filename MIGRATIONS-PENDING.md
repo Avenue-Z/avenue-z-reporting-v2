@@ -238,7 +238,7 @@ Apply per environment, before merge, the same way as `0021`:
    which doesn't either) — double-check `--env-file` before running either
    one against production.
 
-## Add the October Organic Social tables (delivered, awaiting apply)
+## Add the October Organic Social tables (staging applied 2026-09-24; production pending)
 
 `drizzle/0024_*.sql` adds two tables, both additive and both read only by clients that
 opt in:
@@ -251,5 +251,10 @@ opt in:
 
 One migration for both, because Drizzle keeps a single migration list: the same commit
 is merged into #256 and #252, so whichever lands first applies it once. Nothing
-Renaissance renders reads either table. Apply on staging with `npm run db:migrate:staging`
-(host guarded, table list snapshot first), then production per the usual flow.
+Renaissance renders reads either table. Applied on staging on 2026-09-24 with
+`CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`, the command this
+file gives for staging above, not `npm run db:migrate:staging` (that runs the timestamp-gated
+`drizzle-kit migrate` this file bans, and it refuses without `DATABASE_URL_UNPOOLED` in
+`.env.staging`). Before: a read-only check that 0024 was the only unrecorded migration. After:
+a direct read of the tables and the migration ledger. Production goes the same way, before the
+production merge, per the usual flow.
