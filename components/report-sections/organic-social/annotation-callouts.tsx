@@ -3,8 +3,9 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
-import type { AnnotationControls, ChartAnnotation } from '@/lib/organic-social/annotations'
+import type { AnnotationControls, ChartAnnotation, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
+import { NoteActions } from './note-actions'
 
 const TILE = 'h-16 w-16 shrink-0 rounded-md'
 
@@ -45,10 +46,8 @@ function Picture({ creative, alt }: { creative: Creative | null; alt: string }) 
 
 /** The annotation's own label describes the picture: no caption crosses the server to client
  *  boundary (only the day, the value and the thumbnail do). */
-function Thumb({ annotation }: { annotation: ChartAnnotation }) {
-  const thumb = annotation.thumb
-  if (!thumb) return null
-  const picture = <Picture creative={thumb.creative} alt={annotation.label} />
+function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
+  const picture = <Picture creative={thumb.creative} alt={alt} />
   const href = safeHref(thumb.url)
   return href ? <a href={href} target="_blank" rel="noopener noreferrer">{picture}</a> : picture
 }
@@ -57,11 +56,15 @@ function Thumb({ annotation }: { annotation: ChartAnnotation }) {
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
  *  comes from the action's revalidateTag('db'). */
-function AnnotationItem({ annotation, controls, onToggle }: {
+function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, pinned }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   /** Set by the chart, which holds which days are hidden so the dot goes with the row. */
   onToggle?: (day: string, hidden: boolean) => void
+  noteControls?: NoteControls
+  onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+  as?: 'li' | 'div'
+  pinned?: boolean
 }) {
   const hidden = !!annotation.hidden
   const [pending, startTransition] = useTransition()
@@ -81,42 +84,79 @@ function AnnotationItem({ annotation, controls, onToggle }: {
     })
   }
 
+  // A day shown only for its note, with no approved note yet, has nothing for a client: like a
+  // hidden card it is faded for the team and must not reach a PDF exported from the team's view.
+  const draftOnly = !!annotation.noteOnly && !annotation.note
+  const thumbs = annotation.thumbs ?? (annotation.thumb ? [annotation.thumb] : [])
+  const draft = annotation.noteEditor?.draft
+  const Tag = as ?? 'li'
+
   // Export PDF is window.print() of the page in front of you, so anything staff-only has to
-  // carry `no-print` or it lands in a PDF exported from a client's view: a hidden row is shown
+  // carry `no-print` or it lands in a PDF exported from a client's view: a hidden card is shown
   // to staff only so they can unhide it, and the toggle is a control rather than content.
   return (
-    <li className={cn('flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2', hidden && 'opacity-40 no-print')}>
-      <Thumb annotation={annotation} />
-      <span className="text-xs font-bold text-white">{annotation.label}</span>
-      {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
+    <Tag className={cn(
+      'flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2',
+      pinned && 'h-full content-start overflow-hidden bg-bg-surface p-1.5',
+      hidden && 'opacity-40 no-print',
+      !hidden && draftOnly && 'opacity-40 no-print',
+    )}>
+      {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-xs font-bold text-white">{annotation.label}</span>
+        {annotation.note && <span className={cn('text-xs text-white', pinned && 'line-clamp-2')}>{annotation.note}</span>}
+        {draft && <span className="no-print text-[11px] text-text-muted">Draft: {draft.text}</span>}
+        {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
+      </span>
       {controls && (
         <button
           type="button"
           onClick={toggle}
           disabled={pending}
+          aria-label={hidden ? 'Unhide' : 'Hide from client'}
           className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
         >
-          {hidden ? 'Unhide' : 'Hide from client'}
+          {hidden ? 'Unhide' : pinned ? 'Hide' : 'Hide from client'}
         </button>
       )}
-    </li>
+      {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} pinned={pinned} onEdit={onEdit} />}
+    </Tag>
   )
 }
 
-/** The days that spiked, in date order, directly above the chart they explain. Not pinned
- *  to pixel positions over the line, which would break as the chart resizes on a phone. */
-export function AnnotationCallouts({ items, controls, onToggle }: {
+/** The row of callouts: above the chart on a phone-width screen, and on any screen for a callout
+ *  whose day has no point on the series (trends.tsx). On a wide screen every other callout is a
+ *  card pinned to its dot (PinnedCallout). */
+export function AnnotationCallouts({ items, controls, noteControls, onToggle, onEdit }: {
   items: ChartAnnotation[]
   controls?: AnnotationControls
+  noteControls?: NoteControls
   onToggle?: (day: string, hidden: boolean) => void
+  onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   if (items.length === 0) return null
-  // Hiding every row is not enough: the list is a non-last child of the chart's section, so
-  // Tailwind still gives it a margin and the printed page keeps a gap where the row was.
-  const allHidden = items.every((a) => a.hidden)
+  // Hiding every card is not enough: the list is a non-last child of the chart's section, so
+  // Tailwind still gives it a margin and the printed page keeps a gap where the row was. A
+  // draft-only day prints nothing either.
+  const nothingPrintable = items.every((a) => a.hidden || (a.noteOnly && !a.note))
   return (
-    <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', allHidden && 'no-print')}>
-      {items.map((a) => <AnnotationItem key={a.date} annotation={a} controls={controls} onToggle={onToggle} />)}
+    <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
+      {items.map((a) => (
+        <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} onEdit={onEdit} />
+      ))}
     </ul>
   )
+}
+
+/** One callout as a card pinned to its dot, option B (trends.tsx, LineChart pins): the same card as
+ *  the row, so hiding, notes and print rules are identical, sized to the pin with the note cut at
+ *  two lines (the full note is in the hover box). */
+export function PinnedCallout(props: {
+  annotation: ChartAnnotation
+  controls?: AnnotationControls
+  noteControls?: NoteControls
+  onToggle?: (day: string, hidden: boolean) => void
+  onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+}) {
+  return <AnnotationItem {...props} as="div" pinned />
 }

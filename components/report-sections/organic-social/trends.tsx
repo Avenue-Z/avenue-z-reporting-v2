@@ -2,13 +2,16 @@
 
 import { useState } from 'react'
 import { LineChart } from '@/components/charts/line-chart'
+import { PIN_TEAM_CARD_HEIGHT } from '@/components/charts/pins'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
 import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
-import { AnnotationCallouts } from './annotation-callouts'
+import { AnnotationCallouts, PinnedCallout } from './annotation-callouts'
+import { NoteForm } from './note-form'
+import { useWideChart } from './use-wide-chart'
 
 export const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
@@ -29,7 +32,7 @@ export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0
 // before the prop existed, with no button, no row and no dots. That is what keeps every
 // client still pinned to v1 of these parts, Renaissance included, unchanged.
 export function ChannelTrendChart({
-  title, series, annotations, annotationControls,
+  title, series, annotations, annotationControls, noteControls,
 }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls }) {
   // This chart's state is per view. The two seeds below run once, on mount, and are never re-run,
   // which is right only because each tab and each month gets its own instance: both report pages
@@ -41,6 +44,9 @@ export function ChannelTrendChart({
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
   const [showAnnotations, setShowAnnotations] = useState(true)
+  // The Add note or Edit form, open above the chart: {} for a new note, or the day and its text.
+  const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
+  const wide = useWideChart()
   // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
   // same click, not on the next server render. Seeded from the server's answer for this view. A
   // new answer under the same key is not picked up, which takes an in-place refresh someone else
@@ -72,6 +78,20 @@ export function ChannelTrendChart({
   const current = annotations?.map((a) => ({ ...a, hidden: hiddenDays.has(a.date) }))
   // Annotations explain the line, so they go when the line does (every channel toggled off).
   const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
+  // A dot marks what a client sees: a top day, or a day with an approved note. A draft-only day and a
+  // hidden day get none, so the team's chart matches the client's.
+  const shown = visible?.filter((a) => !a.hidden && (!a.noteOnly || !!a.note))
+  const noted = shown?.filter((a) => a.note)
+  const notes = noted && noted.length > 0 ? Object.fromEntries(noted.map((a) => [a.date, a.note!])) : undefined
+  // Option B: on a wide screen every callout this viewer may see is pinned to its dot. A client's
+  // list holds only what they may see (the server removes the rest); the team's also holds its
+  // hidden and draft cards, pinned faded and never printed. A callout whose day has no point has no
+  // dot to join, so it goes in the row above the chart, as every callout does on a phone.
+  const onSeries = new Set(series.points.map((p) => String(p.date)))
+  const pinned = wide ? visible?.filter((a) => onSeries.has(a.date)) : undefined
+  const inRow = wide ? visible?.filter((a) => !onSeries.has(a.date)) : visible
+  const team = !!annotationControls || !!noteControls
+  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => setForm({ day, initial })
 
   return (
     <section className="space-y-3">
@@ -122,8 +142,23 @@ export function ChannelTrendChart({
                 Annotations
               </button>
             )}
+            {noteControls && noteControls.days.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setForm((f) => (f ? null : {}))}
+                aria-expanded={!!form}
+                className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
+              >
+                Add note
+              </button>
+            )}
           </div>
-          {visible && <AnnotationCallouts items={visible} controls={annotationControls} onToggle={setHidden} />}
+          {form && noteControls && (
+            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} onClose={() => setForm(null)} />
+          )}
+          {inRow && inRow.length > 0 && (
+            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
+          )}
           {activeEmpty ? (
             <NoData />
           ) : (
@@ -131,7 +166,16 @@ export function ChannelTrendChart({
               data={series.points}
               xKey="date"
               yKeys={yKeys}
-              marks={visible?.filter((a) => !a.hidden).map((a) => ({ x: a.date }))}
+              marks={shown?.map((a) => ({ x: a.date }))}
+              notes={notes}
+              pins={pinned && pinned.length > 0
+                ? pinned.map((a) => ({
+                    x: a.date,
+                    muted: !!a.hidden || (!!a.noteOnly && !a.note),
+                    content: <PinnedCallout annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
+                  }))
+                : undefined}
+              pinHeight={pinned && pinned.length > 0 && team ? PIN_TEAM_CARD_HEIGHT : undefined}
             />
           )}
         </>
