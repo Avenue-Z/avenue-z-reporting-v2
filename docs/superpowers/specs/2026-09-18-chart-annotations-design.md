@@ -280,6 +280,14 @@ number; and the team picks which of that day's posts show with it, since the old
 sometimes pictured two posts on one callout. Every file and line cited below was read on
 `dev` at `df2cf05`.
 
+**It copies Commentary's logic rather than inventing a new one:** the same permissions, the same
+draft and approve lifecycle (an edit of an approved note leaves it showing until the new draft is
+approved; a revoke falls back to the version before), the same race guards, and Commentary's own
+guard functions imported as they are (`authorizeRowForClient`, `guardNotDeleted`, `canDeleteDraft`,
+`lib/commentary/mutations.ts:29`, `:43`, `:56`). No Commentary file and no Commentary table
+changes, because Renaissance runs Commentary. The one addition is one open draft per day (P5),
+because a card shows one draft.
+
 ### P1. What a note is
 
 - A short line of plain text the team attaches to one day on one graph: client, platform,
@@ -391,6 +399,12 @@ sometimes pictured two posts on one callout. Every file and line cited below was
   (`monthly.tsx:12-15`). A hidden control is not an authorization boundary.
 - **A note named by id must belong to the client in the call**, as `authorizeRowForClient`
   checks for Commentary (`lib/commentary/mutations.ts:29`).
+- **No note can be written or read for a client that is not on locked months**
+  (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`): every action refuses it
+  and the read skips it. The October clients are on locked months. Renaissance is not: its
+  `dash_social_config` holds only `brandId` in dev, staging and prod (the 2026-09-17 Renaissance
+  baselines, unchanged by every drift check since). So nothing in this feature can write a row for
+  Renaissance or read one for it, whoever calls the code.
 - **The viewer's email.** `OrganicSocialCtx` carries the role but not the email
   (`components/report-sections/organic-social/ctx.ts:3-14`). `OrganicSocialBody` already
   reads the session for the role (`index.tsx:51-53`); it adds the email as an optional
@@ -528,12 +542,17 @@ exist, and a note named by id must belong to it. Anything else is refused before
 | Every channel toggled off, or the Annotations button off | Notes, dots and hover lines go with the callouts. |
 | The notes cannot be read | Nobody sees a note; logged; the graphs are exactly Phase 1. |
 | A client role, or a team role without an `@avenuez.com` email, calls an action directly | Refused by the action. |
+| A client not on locked months (Renaissance) | Every action refuses it before any read or write, and its graphs never read notes. |
 | Malformed input (unknown platform or chart, bad or future day, empty or long body) | Refused by the validator before any write. |
 | Overview | No notes. |
 | A locked month | Notes can still be added and changed; they never lock. |
 
 ### P11. Renaissance
 
+- **Nothing can be written or read for it.** Every note action refuses a client that is not on
+  locked months, and the read skips one (P4). Renaissance is not on locked months.
+- **Nothing it runs changes behaviour.** No Commentary file or table is edited. The migration
+  creates one new table and changes nothing else (P6).
 - **Its graphs are v1** (section "Renaissance" below) and render no annotations, so they
   render no notes. The notes read runs only in the v2 parts (P7).
 - **Every shared change is optional and does nothing by default:**
@@ -549,6 +568,11 @@ exist, and a note named by id must belong to it. Anything else is refused before
   Paid Media shaped `LineChart` at `:79-81`), `render-invariant.test.tsx`,
   `parts/composition.golden.test.tsx`, `parts/follower-graph.golden.test.tsx` and
   `parts/engagement-trend.golden.test.tsx`.
+- **Checked at every build step, not only at the end:** those snapshots are run and must be
+  byte-identical before every commit; a test pins that v1 never reads notes; a test pins that every
+  action refuses a Renaissance-shaped client; and on staging, after every step, a read-only check
+  that no `chart_notes` row exists for Renaissance, its `clients` row is unchanged, its config still
+  has no `reportingMonths`, and the drift check's `REN.*` lines are identical.
 
 ### P12. Testing
 
@@ -575,6 +599,10 @@ exist, and a note named by id must belong to it. Anything else is refused before
 - A read failure: no notes and no note controls for anyone, logged, graphs unchanged.
 - The migration: applied to staging, then a read-only check that the table, its check and
   its partial unique index exist as in P6, and that no other table changed.
+- The database, read back on staging after each step: a save stores a draft row, a reload still
+  shows it, approve marks it approved, an edit of an approved note adds a draft beside it while the
+  approved row stays, revoke returns it to draft, delete sets `deleted_at` on a draft only, and no
+  row ever exists for Renaissance.
 
 ### P13. Open question
 
@@ -678,6 +706,8 @@ Renaissance is live in production and must not change. This rests on facts check
 | A note also shows in the chart's hover box | The team's request | 2026-09-24 | Decided |
 | Notes use Commentary's approval flow and permissions | Jasmine's question 9 | 2026-09-21 | Decided |
 | Note actions check the role as well as the email | Me, from `monthly.tsx:12-15` | 2026-09-24 | Decided |
+| Notes copy Commentary's logic and import its guard functions; no Commentary file or table changes | Me: keep Commentary's logic rather than write a new one | 2026-09-24 | Decided |
+| Notes only for clients on locked months, so none can be written or read for Renaissance | Me | 2026-09-24 | Decided |
 | One open draft per chart and day; revoke refused while one is open | Me | 2026-09-24 | Decided |
 | Notes are plain text, 1 to 80 characters | Me | 2026-09-24 | Decided |
 | The team picks up to 2 of that day's posts; none picked means the top post | The team's request; 2 from the deck screenshots | 2026-09-24 | Decided |

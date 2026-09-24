@@ -30,6 +30,24 @@ client sees it.
 - **Renaissance is untouched.** Its graphs are v1 and never call the notes code. Every existing
   golden snapshot stays byte-identical: `git diff --name-only origin/dev -- '*.snap'` prints
   nothing at the end. The Renaissance drift check's `REN.*` lines stay identical on staging.
+- **Commentary is copied, never edited.** Notes follow Commentary's logic and import its guard
+  functions (`lib/commentary/mutations.ts`, `lib/commentary/permissions.ts`) as they are. No file
+  under `lib/commentary/`, `app/actions/commentary.ts`, `components/report-sections/commentary/`,
+  and no `report_commentary` column or row, changes. Renaissance runs Commentary.
+- **No note can be written or read for Renaissance.** Every action refuses a client that is not on
+  locked months (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`), and
+  `withNotes` skips one before reading. Renaissance's `dash_social_config` holds only `brandId` in
+  dev, staging and prod (the 2026-09-17 baselines in `~/.claude/renaissance-baseline/`).
+- **The Renaissance stop**, run at the end of every task before its commit. It must pass, or the
+  task is not done:
+
+  ```bash
+  npx vitest run components/report-sections/organic-social/v1-render.golden.test.tsx components/report-sections/organic-social/render-invariant.test.tsx components/report-sections/organic-social/parts/composition.golden.test.tsx components/report-sections/organic-social/parts/follower-graph.golden.test.tsx components/report-sections/organic-social/parts/engagement-trend.golden.test.tsx
+  git diff --name-only origin/dev -- '*.snap' 'lib/commentary/' 'app/actions/commentary.ts' 'components/report-sections/commentary/'
+  ```
+
+  Expected: every test passes, and the second command prints nothing. Each task also says, in one
+  line, what it touches that Renaissance could reach and why it cannot.
 - **Every shared change is optional and off by default:** the `LineChart` `notes` prop, the
   `email` field on `OrganicSocialCtx`, the new optional fields on `Annotation` and
   `ChartAnnotation`, and the `noteControls` prop on the two chart components.
@@ -92,6 +110,10 @@ npm test 2>&1 | tail -6
 
 Expected: every test passes. Write the "Test Files" and "Tests" counts into the PR description
 later, as the before numbers.
+
+- [ ] **Step 3: Renaissance stop, as the green start**
+
+Run the Renaissance stop (Global Constraints). Every later stop compares against this.
 
 ---
 
@@ -273,7 +295,9 @@ indexes and the ledger. Production goes the same way, before the production merg
 written go and only after Jasmine approves staging.
 ```
 
-- [ ] **Step 7: Commit, push, open the draft PR**
+- [ ] **Step 7: Renaissance stop, then commit**
+
+Renaissance: One new table; no existing table, column or row changes. The migration test proves every statement is about `chart_notes`. No Renaissance code or data is involved. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add lib/db/schema.ts drizzle/0025_chart_notes.sql drizzle/meta/0025_snapshot.json drizzle/meta/_journal.json lib/organic-social/chart-notes/migration.test.ts MIGRATIONS-PENDING.md
@@ -747,7 +771,9 @@ Run: `npx vitest run lib/organic-social/`
 Expected: all pass, including the existing `annotations.test.ts` label tests and
 `annotation-hides/mutations.test.ts`.
 
-- [ ] **Step 7: Commit and push**
+- [ ] **Step 7: Renaissance stop, then commit**
+
+Renaissance: New files, plus two edits on shared files that change no behaviour: `isRealDay` gains `export`, and `annotationLabel` builds its date with `dayLabel` (identical output, pinned by `annotations.test.ts:97-116`). v1 never builds annotation labels. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add lib/organic-social/annotation-hides/mutations.ts lib/organic-social/annotations.ts lib/organic-social/chart-notes/
@@ -954,7 +980,9 @@ export function isOpenDraftConflict(e: unknown): boolean {
 Run: `npx vitest run lib/organic-social/chart-notes/`
 Expected: all pass.
 
-- [ ] **Step 6: Commit and push**
+- [ ] **Step 6: Renaissance stop, then commit**
+
+Renaissance: New files only. Nothing Renaissance runs imports them. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add lib/organic-social/chart-notes/select.ts lib/organic-social/chart-notes/mutations.ts lib/organic-social/chart-notes/mutations.test.ts
@@ -991,7 +1019,9 @@ files); a new export there would be missing from each of those mocks.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
-vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => ({ id: 'client-uuid' })) }))
+// An October-shaped client: on locked months. Renaissance's config has no reportingMonths.
+const ON = { id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } }
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => ON) }))
 vi.mock('@/lib/organic-social/chart-notes/mutations', async () => {
   const actual = await vi.importActual<typeof import('@/lib/organic-social/chart-notes/mutations')>(
     '@/lib/organic-social/chart-notes/mutations',
@@ -1034,6 +1064,20 @@ test('a client role is refused by every action, even with an @avenuez.com email'
   expect(await approveChartNoteAction('a-client', ID)).toEqual(FORBIDDEN)
   expect(await revokeChartNoteAction('a-client', ID)).toEqual(FORBIDDEN)
   expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual(FORBIDDEN)
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+
+test('a client not on locked months, shaped like Renaissance, is refused by every action; nothing is read or written', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  const renaissanceShaped = { id: 'another-uuid', dashSocialConfig: { brandId: 1 } }
+  for (let i = 0; i < 4; i++) vi.mocked(getClientBySlug).mockResolvedValueOnce(renaissanceShaped as never)
+  const NOT_ON = { ok: false, error: 'Notes are not on for this client.' }
+  expect(await saveChartNoteAction(INPUT)).toEqual(NOT_ON)
+  expect(await approveChartNoteAction('a-client', ID)).toEqual(NOT_ON)
+  expect(await revokeChartNoteAction('a-client', ID)).toEqual(NOT_ON)
+  expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual(NOT_ON)
+  expect(m.findOpenDraft).not.toHaveBeenCalled()
+  expect(m.findChartNote).not.toHaveBeenCalled()
   for (const w of writes()) expect(w).not.toHaveBeenCalled()
 })
 
@@ -1182,6 +1226,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { authorizeRowForClient, canDeleteDraft, guardNotDeleted } from '@/lib/commentary/mutations'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
 import { isNoteId, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import {
   approveNote, findChartNote, findOpenDraft, insertDraft, isOpenDraftConflict,
   revokeNote, softDeleteDraft, updateDraft, type NoteKey,
@@ -1193,6 +1238,9 @@ type Result = { ok: true } | { ok: false; error: string }
 
 const FORBIDDEN: Result = { ok: false, error: 'forbidden' }
 const NOT_FOUND: Result = { ok: false, error: 'not found' }
+// Notes are only for clients on locked months (the October set). Renaissance is not on locked
+// months, so no action here can ever write a row for it, whoever calls the action.
+const NOT_ON: Result = { ok: false, error: 'Notes are not on for this client.' }
 
 /** Every action checks the role AND the email: the hide action checks only the role
  *  (app/actions/organic-social.ts:49), the Commentary actions only the email
@@ -1217,6 +1265,7 @@ export async function saveChartNoteAction(input: {
 
   const client = await getClientBySlug(input.clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
+  if (!hasReportingMonths(client)) return NOT_ON
 
   const key: NoteKey = { clientId: client.id, channel: input.channel as DashChannel, chart: input.chart as AnnotationChart, day: input.day }
   const body = input.body.trim()
@@ -1245,6 +1294,7 @@ export async function approveChartNoteAction(clientSlug: string, id: string): Pr
   if (!isNoteId(id)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
+  if (!hasReportingMonths(client)) return NOT_ON
   const row = await findChartNote(id)
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }
@@ -1263,6 +1313,7 @@ export async function revokeChartNoteAction(clientSlug: string, id: string): Pro
   if (!isNoteId(id)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
+  if (!hasReportingMonths(client)) return NOT_ON
   const row = await findChartNote(id)
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }
@@ -1287,6 +1338,7 @@ export async function deleteChartNoteDraftAction(clientSlug: string, id: string)
   if (!isNoteId(id)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
+  if (!hasReportingMonths(client)) return NOT_ON
   const row = await findChartNote(id)
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }
@@ -1303,7 +1355,9 @@ export async function deleteChartNoteDraftAction(clientSlug: string, id: string)
 Run: `npx vitest run app/actions/`
 Expected: all pass, including the existing `organic-social.test.ts`.
 
-- [ ] **Step 5: Commit with the edge-case list, and push**
+- [ ] **Step 5: Renaissance stop, then commit**
+
+Renaissance: A new actions file, with the locked-months stop. The test "a client not on locked months, shaped like Renaissance, is refused by every action" proves no note can be written for Renaissance. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 This change crosses a process boundary and takes untrusted input, so the commit body carries the
 six-category list (my global rule):
@@ -1422,7 +1476,8 @@ const EDITOR = { ...BASE, role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com' }
 
 let err: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
-  getClientBySlug.mockReset().mockResolvedValue({ id: 'client-uuid' })
+  // On locked months, like the October clients. Renaissance's config has no reportingMonths.
+  getClientBySlug.mockReset().mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } })
   getChartNotes.mockReset().mockResolvedValue([])
   err = vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -1497,6 +1552,13 @@ test('unreadable notes fail closed for everyone, and say which chart', async () 
   expect(String(err.mock.calls[0][0])).toContain('chart notes unreadable for a-client INSTAGRAM followers')
 })
 
+test('a client not on locked months, shaped like Renaissance, never reads notes and gets no controls', async () => {
+  getClientBySlug.mockResolvedValue({ id: 'another-uuid', dashSocialConfig: { brandId: 1 } })
+  expect(await withNotes(EDITOR)).toEqual({ items: [PEAK] })
+  expect(getChartNotes).not.toHaveBeenCalled()
+  expect(err).not.toHaveBeenCalled()
+})
+
 test('no client row fails the same way', async () => {
   getClientBySlug.mockResolvedValue(null)
   expect(await withNotes(EDITOR)).toEqual({ items: [PEAK] })
@@ -1561,6 +1623,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { getChartNotes } from '@/lib/organic-social/chart-notes/select'
 import { notesByDay, type DayNote } from '@/lib/organic-social/chart-notes/pick'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { dayLabel, thumbOf, topPostByDate } from '@/lib/organic-social/annotations'
 import type { Annotation, AnnotationChart, NoteControls } from '@/lib/organic-social/annotations'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
@@ -1604,6 +1667,9 @@ export async function withNotes(args: {
   try {
     const client = await getClientBySlug(args.clientSlug)
     if (!client) throw new Error(`no client row for ${args.clientSlug}`)
+    // Notes are only for clients on locked months. Renaissance is not, so its graphs never read
+    // the table, whoever renders them. Not an error: nothing to log.
+    if (!hasReportingMonths(client)) return { items: args.items }
     const rows = await getChartNotes(client.id, args.channel)
     const byDay = notesByDay(rows, { chart: args.chart, from: args.from, to: args.to, canEdit: caps.canEdit })
     const posts = args.posts ?? []
@@ -1648,7 +1714,9 @@ export async function withNotes(args: {
 Run: `npx vitest run lib/organic-social/ components/report-sections/organic-social/parts/`
 Expected: all pass, including the existing `toChartAnnotations` tests at `annotations.test.ts:157-170`.
 
-- [ ] **Step 6: Commit and push**
+- [ ] **Step 6: Renaissance stop, then commit**
+
+Renaissance: `toChartAnnotations` gains fields that appear only when a note exists, and v1 never calls it. `withNotes` is new and skips a client not on locked months before any read (its test proves it). Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add lib/organic-social/annotations.ts lib/organic-social/annotations.test.ts components/report-sections/organic-social/parts/chart-notes.ts components/report-sections/organic-social/parts/chart-notes.test.ts
@@ -1678,7 +1746,17 @@ git push
 
 - [ ] **Step 1: Write the failing tests**
 
-In `annotations-wiring.test.tsx`, after the hides mock (`:12-13`) add:
+In `annotations-wiring.test.tsx`, change the client mock at `:14` so the fixture client is on
+locked months, like the October clients (the hides layer only reads its `id`, so nothing else in
+the file changes):
+
+```ts
+vi.mock('@/lib/db/queries', () => ({
+  getClientBySlug: vi.fn(async () => ({ id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } })),
+}))
+```
+
+After the hides mock (`:12-13`) add:
 
 ```ts
 const { getChartNotes } = vi.hoisted(() => ({ getChartNotes: vi.fn(async () => [] as unknown[]) }))
@@ -1886,7 +1964,9 @@ Run: `npx vitest run components/report-sections/`
 Expected: all pass. The golden snapshots are unchanged:
 `git diff --name-only origin/dev -- '*.snap'` prints nothing.
 
-- [ ] **Step 8: Commit and push**
+- [ ] **Step 8: Renaissance stop, then commit**
+
+Renaissance: `OrganicSocialBody` is on Renaissance's path: it now also reads the email in the same guarded call and adds it only when present. No part Renaissance renders reads `email`, and the new test "v1 never reads notes" pins that its graph never touches the notes read. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add components/report-sections/organic-social/
@@ -2008,7 +2088,9 @@ snapshot changed, `content={undefined}` is not identical to no prop in this Rech
 switch to spreading `{...(notes ? { content: ... } : {})}` with the callback typed as
 `(p: TooltipContentProps<ValueType, NameType>)`, and re-run.
 
-- [ ] **Step 5: Commit and push**
+- [ ] **Step 5: Renaissance stop, then commit**
+
+Renaissance: `LineChart` is shared with Renaissance's v1 graphs and its Paid Media trend. With `notes` absent it renders the same Tooltip; the goldens, including the Paid Media shaped chart, prove it byte for byte. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add components/charts/line-chart.tsx components/charts/line-chart.test.tsx
@@ -2468,7 +2550,9 @@ Run: `npx vitest run components/`
 Expected: all pass, including `annotation-callouts.test.tsx`, `trends.identity.test.tsx` and every
 golden. `git diff --name-only origin/dev -- '*.snap'` prints nothing.
 
-- [ ] **Step 8: Commit and push**
+- [ ] **Step 8: Renaissance stop, then commit**
+
+Renaissance: `trends.tsx` and `annotation-callouts.tsx` render Renaissance's v1 graphs. With no annotations, which is every v1 chart, nothing new renders: no Add note, no draft line, `marks` and `notes` both undefined. The goldens prove it. Run the Renaissance stop (Global Constraints); it must pass before the commit below.
 
 ```bash
 git add components/report-sections/organic-social/
@@ -2562,7 +2646,8 @@ Write `~/.claude/organic-social-work/probes/staging-0025-preflight.ts` (private,
 committed), modelled on `probes/staging-f3-delete-2026-09-24.ts`: refuse any host that is not the
 staging database, list the migration tags whose hash is missing from
 `drizzle.__drizzle_migrations` (must be exactly `0025_chart_notes`), print Renaissance's `clients`
-row md5, and write nothing.
+row md5 and the keys of its `dash_social_config` (must be `brandId` only, so the locked-months
+stop refuses it), and write nothing.
 
 ```bash
 npx tsx --env-file=.env.staging ~/.claude/organic-social-work/probes/staging-0025-preflight.ts
@@ -2582,8 +2667,9 @@ Expected: `apply  0025_chart_notes (4 stmt) ... done`, then `applied 1 migration
 
 Extend the preflight with a `--after` mode: `chart_notes` exists with the Task 1 columns; `pg_indexes`
 shows both indexes, the unique one with its `WHERE` clause; the check constraint exists; the ledger
-has the 0025 row; the table list differs from before by `chart_notes` only; Renaissance's md5 is
-unchanged. Record the output in `MIGRATIONS-PENDING.md` ("staging applied <date>").
+has the 0025 row; the table list differs from before by `chart_notes` only; `chart_notes` has no
+row for Renaissance; Renaissance's md5 and config keys are unchanged. Record the output in
+`MIGRATIONS-PENDING.md` ("staging applied <date>").
 
 - [ ] **Step 4: Promote**
 
@@ -2592,13 +2678,24 @@ and merge it with `gh pr merge --merge --match-head-commit <sha>` once its check
 
 - [ ] **Step 5: Verify on staging, as the team**
 
-Coordinate with Jasmine's QA first so a test note never surprises her. On one platform tab of one
-client's closed month:
-- Add a draft on a day that is not a peak, with one picked post. It shows as `8/14` with
-  `Draft: ...`, no dot, and no hover line. Export PDF leaves it out.
+Coordinate with Jasmine's QA first so a test note never surprises her. Write a private, read-only
+probe, `~/.claude/organic-social-work/probes/staging-chart-notes-readback.ts <slug> <CHANNEL>
+<chart> <yyyy-mm-dd>`, host-guarded like Step 1. It prints that day's `chart_notes` rows (status,
+whether deleted, text length, number of posts, who approved), then three Renaissance lines: its
+`chart_notes` row count (must be 0), its `clients` row md5 (must match Step 1), and its config keys
+(must be `brandId` only). Run it after every action below, so the database is checked, not only the
+screen.
+
+On one platform tab of one client's August (a locked month, which also proves notes do not lock):
+- Add a draft on a day that is not a peak, with one picked post. The screen shows `8/14` with
+  `Draft: ...`, no dot, and no hover line; Export PDF leaves it out. Read back: one row, `draft`,
+  not deleted, 1 post. Reload the page: it is still there.
 - If I am on `COMMENTARY_APPROVERS` in staging's environment, approve it: the dot and the hover
-  line appear. Revoke it: they go.
-- Delete the draft. It is gone.
+  line appear. Read back: the row is `approved`, with my email as approver. Edit it: the card keeps
+  the approved text and adds `Draft: ...`. Read back: the approved row plus one new draft row.
+  Revoke the approved one after deleting the draft: the dot and hover line go. Read back: no
+  approved row left.
+- Delete the remaining draft. Read back: every row for that day is marked deleted, none approved.
 - Two tabs saving on the same day: the second edits the first's open draft (last save wins). That
   is the designed behaviour, and it cannot produce the index conflict, because the second save
   finds the draft first.
@@ -2620,7 +2717,8 @@ REPO=$PWD ~/.claude/renaissance-baseline/check-drift.sh
 
 Judge the `REN.*` lines only (the production leg is blocked by the classifier, which is fine).
 Then click through Renaissance's Organic Social tabs on staging: no Add note button, no dots, no
-change.
+change. The read-back probe's three Renaissance lines must still read 0 rows, the same md5, and
+`brandId` only.
 
 - [ ] **Step 7: Stop**
 
