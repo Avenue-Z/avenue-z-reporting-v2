@@ -12,7 +12,8 @@ wants them in their own section at the bottom of the dashboard; that section alr
 (Influencer Posts).
 
 **Update 2026-09-24.** Phase 1 is on staging. Phase 2, written notes, is specified below in
-"Phase 2: written notes". Nothing of Phase 2 is built yet.
+"Phase 2: written notes", and the team confirmed the reading the same day (Kyleah). The build plan
+is `docs/superpowers/plans/2026-09-24-chart-notes.md`. Nothing of Phase 2 is built yet.
 
 ## Summary
 
@@ -681,6 +682,7 @@ Renaissance is live in production and must not change. This rests on facts check
 | Notes are plain text, 1 to 80 characters | Me | 2026-09-24 | Decided |
 | The team picks up to 2 of that day's posts; none picked means the top post | The team's request; 2 from the deck screenshots | 2026-09-24 | Decided |
 | Notes never lock | Me | 2026-09-24 | Decided |
+| The reading of Phase 2: any day, the team picks that day's posts, a short note, on the callout and on hover, approved first | Confirmed with the team (Kyleah) | 2026-09-24 | Confirmed |
 | Who approves notes for Organic Social | Open | 2026-09-24 | Open: the `COMMENTARY_APPROVERS` list |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
 
