@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from './annotations'
+import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT, thumbSrc } from './annotations'
 import type { TopContentPost } from './content-types'
 import type { TrendSeries } from './types'
 
@@ -167,4 +167,28 @@ test('a chart annotation carries only what the row draws, never the whole post',
 test('an annotation with no post has no thumbnail to send', () => {
   expect(toChartAnnotations([{ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', post: null }])[0])
     .toEqual({ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', thumb: null })
+})
+
+test('a client receives the approved note and the picked thumbnails, never the editor ids', () => {
+  const [a] = toChartAnnotations([{
+    date: '2026-08-14', value: -3, label: '8/14', post: null, hidden: false, noteOnly: true,
+    note: { text: 'Event', posts: [post(2, '2026-08-14', 5)] },
+  }])
+  expect(Object.keys(a).sort()).toEqual(['date', 'hidden', 'label', 'note', 'noteOnly', 'thumb', 'thumbs', 'value'])
+  expect(a.note).toBe('Event')
+  expect(a.thumbs?.map((t) => t.url)).toEqual(['https://example.com/2'])
+})
+
+test('a day with only a draft sends no note text to anyone', () => {
+  const editor = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Draft', postIds: [] } }
+  const [a] = toChartAnnotations([{ date: '2026-08-14', value: 0, label: '8/14', post: null, noteOnly: true, note: { text: null, posts: [], editor } }])
+  expect(a.note).toBeUndefined()
+  expect(a.noteEditor).toEqual(editor)
+})
+
+test('the thumbnail source is the image thumb or the video poster', () => {
+  expect(thumbSrc({ creative: { kind: 'image', thumb: 't', full: 'f' }, mediaType: 'IMAGE', url: null })).toBe('t')
+  expect(thumbSrc({ creative: { kind: 'video', src: 's', poster: 'p' }, mediaType: 'VIDEO', url: null })).toBe('p')
+  expect(thumbSrc({ creative: { kind: 'video', src: 's', poster: null }, mediaType: 'VIDEO', url: null })).toBeNull()
+  expect(thumbSrc({ creative: null, mediaType: 'IMAGE', url: null })).toBeNull()
 })

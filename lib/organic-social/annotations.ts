@@ -169,14 +169,33 @@ export interface ChartAnnotation {
   noteEditor?: NoteEditorState
 }
 
-/** Annotations, trimmed for the client component that draws them. */
+/** What the row draws for one post: its picture and its link, nothing else. */
+export function thumbOf(post: TopContentPost): ChartThumb {
+  return { creative: post.creative, mediaType: post.mediaType, url: post.url }
+}
+
+/** The small picture for a post, or null when there is none to show: an image's thumb, a video's
+ *  poster. */
+export function thumbSrc(t: ChartThumb): string | null {
+  const c = t.creative
+  if (!c) return null
+  return c.kind === 'image' ? c.thumb : c.poster
+}
+
+/** Annotations, trimmed for the client component that draws them. A note adds only its approved
+ *  text and its picked posts' thumbnails; the ids and the draft go to editors only, because
+ *  notesByDay attaches `editor` only for someone who can edit. */
 export function toChartAnnotations(items: Annotation[]): ChartAnnotation[] {
-  return items.map(({ date, value, label, post, hidden }) => ({
+  return items.map(({ date, value, label, post, hidden, note, noteOnly }) => ({
     date,
     value,
     label,
     // Staff only: set by the hides layer, so the row can fade it and the chart can drop its dot.
     ...(hidden === undefined ? {} : { hidden }),
-    thumb: post ? { creative: post.creative, mediaType: post.mediaType, url: post.url } : null,
+    thumb: post ? thumbOf(post) : null,
+    ...(note?.text ? { note: note.text } : {}),
+    ...(note && note.posts.length > 0 ? { thumbs: note.posts.map(thumbOf) } : {}),
+    ...(noteOnly ? { noteOnly } : {}),
+    ...(note?.editor ? { noteEditor: note.editor } : {}),
   }))
 }
