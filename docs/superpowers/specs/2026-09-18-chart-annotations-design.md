@@ -273,9 +273,11 @@ graph accepted marks and never passed them to the chart.
 
 Specified 2026-09-24. Not built. Question 9 promised it: "Written notes like 'influencer post
 went live' come next, approved before a client sees them, the way Commentary works." The
-team added two details on 2026-09-24: a note can go on any day, and it shows in the chart's
+team added three details on 2026-09-24: a note can go on any day; it shows in the chart's
 hover box as well as in the callout, the way the old decks named the post or event after the
-number. Every file and line cited below was read on `dev` at `df2cf05`.
+number; and the team picks which of that day's posts show with it, since the old decks
+sometimes pictured two posts on one callout. Every file and line cited below was read on
+`dev` at `df2cf05`.
 
 ### P1. What a note is
 
@@ -291,6 +293,11 @@ number. Every file and line cited below was read on `dev` at `df2cf05`.
   when its own month is on screen.
 - 1 to 80 characters after trimming, one line of plain text. It is rendered as text, never
   as HTML, so it needs no sanitizer (Commentary's HTML body does).
+- Up to 2 of that day's posts, picked by the team (P3). Two is the most one callout pictures
+  in the deck screenshots the team shared on 2026-09-24. None picked means the day's top post,
+  as Phase 1 already shows.
+  The picks are part of the note, so they go through the same draft and approval (P5): a
+  client sees the picks of the approved version only.
 - Per chart and day, at most one approved note shows and at most one draft is open (P5, P6).
 
 ### P2. Where a note shows
@@ -299,9 +306,13 @@ number. Every file and line cited below was read on `dev` at `df2cf05`.
    `8/10 | +12 Followers | Influencer post went live` (made-up example). `annotationLabel`
    (`annotations.ts:71-77`) does not change; the card appends the note after the label it
    already renders (`components/report-sections/organic-social/annotation-callouts.tsx:90`).
+   Posts the team picked replace the automatic top post on that card, which also gives the
+   team a way around the known case of another account's tagged post being the day's top
+   post (Edge cases, below).
 2. **On any other day**, it gets its own card in the same row, in date order: the date, the
-   note, and the day's top post thumbnail from `topPostByDate` (`annotations.ts:85-96`) when
-   a post went live, for example `8/14 | Influencer post went live`. It shows no number,
+   note, and the posts the team picked, or when none is picked the day's top post from
+   `topPostByDate` (`annotations.ts:85-96`) if a post went live, for example
+   `8/14 | Influencer post went live`. It shows no number,
    because that day can be a zero or a loss: `annotationLabel` always writes a plus on
    followers (`annotations.ts:75`) and a peak's value is documented as always positive
    (`:9`), so reusing it would print `+-3 Followers`. The hover box gives that day's number.
@@ -335,8 +346,17 @@ number. Every file and line cited below was read on `dev` at `df2cf05`.
 ### P3. Adding and changing a note
 
 - **Add.** A team viewer who can edit (P4) gets an **Add note** button beside the
-  Annotations button, on v2 platform graphs only. It opens a small form: a day from the
-  graph's window (P1) and the text. Clients never receive it.
+  Annotations button, on v2 platform graphs only. Clients never receive it. It opens a small
+  form:
+  1. **The day**, from the graph's window (P1), each listed with how many posts went live
+     that day, so the days with posts stand out.
+  2. **That day's posts**, as thumbnails, to pick up to 2. They come from `graphPosts`
+     (`lib/organic-social/graph-posts.ts:13-14`), the fetch the callout thumbnails already
+     use: Dash's Top Content for that platform and window (`fetchTopContentFrozen`, capped
+     at 500 posts, `lib/organic-social/top-content.ts:19`). A post outside that feed, such as
+     an influencer's post on their own account that does not tag the client, cannot be
+     picked; the note names it instead ("What the team does today", above).
+  3. **The text.**
 - **On a card**, the same viewer gets Edit, and Delete on a draft; an approver also gets
   Approve on a draft and Revoke on an approved note.
 - **Every control carries `no-print`**, like the Hide toggle (`annotation-callouts.tsx:97`).
@@ -420,6 +440,7 @@ A new table, `chart_notes`, purely additive: no existing table, column or row ch
 | `chart` | text | `followers` or `engagements` |
 | `day` | date | the UTC day Dash counts, as hides store it |
 | `body` | text | 1 to 80 characters, plain text |
+| `post_ids` | bigint[] | up to 2 Dash post ids, the id `TopContentPost` carries (`lib/organic-social/content-types.ts:16`) and `post_designations.post_id` stores (`lib/db/schema.ts:367`); empty means none picked |
 | `status` | `commentary_status` | reuses the enum, `draft` or `approved` (`lib/db/schema.ts:321`) |
 | `created_by`, `updated_by` | text | emails |
 | `approved_by` | text, nullable | email |
@@ -453,6 +474,12 @@ production before the merge to `main`, only on my written go, and recorded in
   `withHides` over that list. `withHides` skips its read when the list is empty
   (`components/report-sections/organic-social/parts/annotation-hides.ts:17`); that stays
   right, because a note day is in the list before it runs.
+- **Picked posts are drawn from the posts already loaded.** Each id is looked up among that
+  day's posts from `graphPosts`; one that is no longer there is skipped, and a card whose
+  picks are all gone falls back to the day's top post. Every picked post is trimmed to its
+  thumbnail on the server the way `toChartAnnotations` trims the top post today
+  (`annotations.ts:118-125`), so no caption, metrics or id reaches a client's page. Only the
+  Add note and Edit forms, which clients never receive, carry the candidates' ids.
 - **Fails closed, as hides do for clients** (`parts/annotation-hides.ts:29-36`): if the
   notes cannot be read, nobody sees a note, team included, the team gets no note controls, the error is logged, and the
   graphs render exactly as Phase 1 does.
@@ -472,8 +499,10 @@ Pure and unit tested, like `authorizeAnnotationHide`
 (`lib/organic-social/annotation-hides/mutations.ts:16-24`). The three checks it makes today
 (`:19-21`): a known platform, a known chart, a real calendar day (`isRealDay`, `:8-12`). New
 for notes: the day is not after today in UTC, and the body is 1 to 80 characters after
-trimming, with no control characters (so no line breaks). The client must exist, and a note
-named by id must belong to it. Anything else is refused before any write.
+trimming, with no control characters (so no line breaks), and at most 2 post ids, each a
+positive integer, no repeats. Whether each id is a post of that day is checked at render,
+where the posts are already loaded (P7), so the action makes no Dash call. The client must
+exist, and a note named by id must belong to it. Anything else is refused before any write.
 
 ### P10. Edge cases
 
@@ -483,6 +512,10 @@ named by id must belong to it. Anything else is refused before any write.
 | A note on another day | Its own card: date, note, and a thumbnail if a post went live. No number. |
 | That day lost followers, or had none | The card shows as usual, with no number, so never `+-3`. The hover box gives the value. |
 | The day has no point on the series | Card only: no dot, no hover line. |
+| The team picked posts | They replace the automatic top post on that card. |
+| A picked post is no longer in Dash's answer | Skipped; if none remain, the day's top post shows. |
+| No post went live that day | No thumbnail; the note alone. |
+| An influencer's post on their own account | Cannot be picked (not in the feed); the note names it. |
 | The day is outside the window on screen | Not shown; it shows with its own month. |
 | A draft only | The team sees it marked Draft, with no dot and no hover line, never printed. Clients get nothing. |
 | An approved note is edited | Clients keep the approved text until the new draft is approved. |
@@ -534,6 +567,8 @@ named by id must belong to it. Anything else is refused before any write.
   (including a negative and a zero day), the dot only when approved and the day is in the
   data, the hover box with approved notes only; the Annotations button hides them; drafts
   and controls carry `no-print`, and a draft-only row prints nothing.
+- Picking posts: up to 2, a pick replaces the top post, a vanished pick is skipped and all
+  vanished falls back to the top post, and a client's page carries thumbnails only.
 - `LineChart` with no notes renders exactly as today; with notes, the hover box shows the
   day's note.
 - A read failure: no notes and no note controls for anyone, logged, graphs unchanged.
@@ -644,6 +679,7 @@ Renaissance is live in production and must not change. This rests on facts check
 | Note actions check the role as well as the email | Me, from `monthly.tsx:12-15` | 2026-09-24 | Decided |
 | One open draft per chart and day; revoke refused while one is open | Me | 2026-09-24 | Decided |
 | Notes are plain text, 1 to 80 characters | Me | 2026-09-24 | Decided |
+| The team picks up to 2 of that day's posts; none picked means the top post | The team's request; 2 from the deck screenshots | 2026-09-24 | Decided |
 | Notes never lock | Me | 2026-09-24 | Decided |
 | Who approves notes for Organic Social | Open | 2026-09-24 | Open: the `COMMENTARY_APPROVERS` list |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
