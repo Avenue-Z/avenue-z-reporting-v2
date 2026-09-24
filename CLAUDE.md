@@ -726,6 +726,20 @@ Still open:
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
   a 401, a 500 or a malformed answer. Add the error's name and status.
+- [ ] **Renaissance's tiles still flip the change arrow on a negative prior** (from the QA fixes, F2
+  in `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The outline tiles now use `outlineDelta`
+  (`lib/organic-social/outline-delta.ts`), which divides by the size of the prior value. The shared
+  `delta()` (`lib/organic-social/headline-build.ts:12-18`) still divides by the signed prior, so in a
+  month after a net follower loss Renaissance's Net New Followers tile, and an outline client's v1
+  fallback tab (Overview or X), shows a red "down" arrow for a rise. Fixing it changes what
+  Renaissance renders, so it is my call (Thomas) under the golden rule; `outline-delta.test.ts` pins
+  today's behaviour so it cannot change by accident. Paul (#268) suggests choosing the signed or the
+  size-based change by client (for example `hasReportingMonths`,
+  `lib/organic-social/reporting-months.ts:75`, or the pinned part) instead of by builder, which would
+  also fix an outline client's Overview card and X tab while Renaissance keeps today's arrow. That same
+  change is the moment to keep the rule in one place (also Paul, #268): it has three copies today,
+  `computeDelta` (`lib/metrics.ts:7`), `delta()` and `outlineDelta`, and a size-based option on
+  `computeDelta` with the other two as thin wrappers would leave one.
 
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 

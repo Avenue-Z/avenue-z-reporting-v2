@@ -3,7 +3,7 @@
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
 import { resolveTargets, type DashChannel } from './metrics'
-import { delta } from './headline-build'
+import { outlineDelta } from './outline-delta'
 import { OUTLINE_MEDIA_KPIS, type MediaKpiSpec } from './outline-layout'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { HeadlineKpi } from './types'
@@ -26,12 +26,12 @@ export function buildMediaKpis(channel: DashChannel, data: MediaData, brandId: n
     const row = { key: s.key, label: s.label, format: 'number' as const }
     const entry = data[s.mediaType]
     if (!entry) {
-      out[s.key] = { ...row, value: 0, delta: delta(undefined) }
+      out[s.key] = { ...row, value: 0, delta: outlineDelta(undefined) }
       continue
     }
     const m = entry.metrics?.[s.metric]?.ALL_CHANNELS
     if (!m) throw new Error(`${channel}: Dash returned ${s.mediaType} without ${s.metric}`)
-    out[s.key] = { ...row, value: m.value ?? 0, delta: delta(m) }
+    out[s.key] = { ...row, value: m.value ?? 0, delta: outlineDelta(m) }
   }
   return out
 }
