@@ -293,3 +293,60 @@ test('the capture path covers content too, not just reports data', async () => {
   expect(inner.getContent).not.toHaveBeenCalled()
   expect(deps.capture.getContent).toHaveBeenCalledTimes(1)
 })
+
+// Plan 2026-09-24-qa-fixes §3 (F3): an account-level metric that comes back null is a transient blank
+// from Dash, never a quiet month, so the answer must not lock. Every number here is invented.
+const TILES: ReportsDataParams = { ...SEPT, metrics: ['TOTAL_FOLLOWERS', 'NET_NEW_FOLLOWERS', 'VIEWS', 'TOTAL_ENGAGEMENTS', 'PROFILE_VIEWS', 'PAGE_VIEWS_ALL_POSTS'] }
+const tm = (value: number | null, context: number | null = value) => ({ value, context, context_change: null })
+const tiles = (over: Record<string, unknown>) => ({ data: { [BRAND]: { metrics: {
+  TOTAL_FOLLOWERS: tm(500, 490), NET_NEW_FOLLOWERS: tm(10, 8), VIEWS: tm(900, 800), TOTAL_ENGAGEMENTS: tm(40, 30),
+  PROFILE_VIEWS: tm(60, 50), PAGE_VIEWS_ALL_POSTS: tm(70, 65), ...over,
+} } } })
+
+test('a blank account-level number is never locked: served, not stored, warned once', async () => {
+  const blanks: [string, unknown][] = [
+    ['NET_NEW_FOLLOWERS value null', tiles({ NET_NEW_FOLLOWERS: tm(null, null) })],
+    ['TOTAL_FOLLOWERS value null', tiles({ TOTAL_FOLLOWERS: tm(null, 490) })],
+    ['PROFILE_VIEWS value null', tiles({ PROFILE_VIEWS: tm(null, 50) })],
+    ['PAGE_VIEWS_ALL_POSTS value null', tiles({ PAGE_VIEWS_ALL_POSTS: tm(null, 65) })],
+    ['NET_NEW_FOLLOWERS a bare null', tiles({ NET_NEW_FOLLOWERS: null })],
+  ]
+  for (const [name, answer] of blanks) {
+    expect(completeReportsData(TILES, answer), name).toBe(false)
+    const inner = innerFake(); const deps = depsFake()
+    deps.capture.getReportsData.mockResolvedValue(answer)
+    warn.mockClear()
+    expect(await lockingClient(inner, OPTS, deps).getReportsData(TILES), name).toEqual(answer)
+    expect(deps.write, name).not.toHaveBeenCalled()
+    expect(warn, name).toHaveBeenCalledTimes(1)
+  }
+})
+
+test('an all-null tiles answer is a blank for a connected account, so it does not lock', () => {
+  const allNull = tiles(Object.fromEntries(TILES.metrics.map((k) => [k, tm(null, null)])))
+  expect(completeReportsData(TILES, allNull)).toBe(false)
+})
+
+// Guard: breaks if any null became incomplete, or if `!= null` became a truthy check (a 0 is a quiet
+// month's normal answer, not a blank).
+test('a quiet month still locks: post-level metrics null, account-level numbers present, zeros included', async () => {
+  const quiet = tiles({ VIEWS: tm(null, null), TOTAL_ENGAGEMENTS: tm(null, null), NET_NEW_FOLLOWERS: tm(0, 0), PROFILE_VIEWS: tm(0, 3) })
+  expect(completeReportsData(TILES, quiet)).toBe(true)
+  const inner = innerFake(); const deps = depsFake()
+  deps.capture.getReportsData.mockResolvedValue(quiet)
+  await lockingClient(inner, OPTS, deps).getReportsData(TILES)
+  expect(deps.write).toHaveBeenCalledTimes(1)
+})
+
+// Guard: breaks if any null became incomplete.
+test('a request asking for no account-level metric keeps the key-presence rule', () => {
+  const params: ReportsDataParams = { ...SEPT, metrics: ['VIEWS', 'TOTAL_ENGAGEMENTS'] }
+  const answer = { data: { [BRAND]: { metrics: { VIEWS: tm(null, null), TOTAL_ENGAGEMENTS: tm(5, 4) } } } }
+  expect(completeReportsData(params, answer)).toBe(true)
+})
+
+// Guard: breaks if the prior value were required too, which would stop an account's first month
+// (no prior) from ever locking.
+test('an account-level number with a value but no prior value still locks', () => {
+  expect(completeReportsData(TILES, tiles({ NET_NEW_FOLLOWERS: tm(10, null) }))).toBe(true)
+})

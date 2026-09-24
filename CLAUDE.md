@@ -687,7 +687,10 @@ Still open:
   Followers but other metrics have values is not `noData`: the tile reads 0 and the YTD line drops
   to zero and back, which reads as a collapse rather than a gap. YTD cannot tell the difference (the
   null is gone before it sees it); the fix belongs in the tiles' builder, which the YTD work must
-  not touch. Decide with the outline Data block, not here.
+  not touch. Decide with the outline Data block, not here. Since the QA fixes (F3), a locked month
+  can no longer store a null Total Followers; a live month still shows it as 0
+  (`outline-headlines.ts:35`), and the YTD Views line reads a post-level metric
+  (`lib/organic-social/metrics.ts:110,123,160,184`), so a blank there can still lock as 0.
 - [ ] **The YTD block fails all or nothing across up to 12 requests** (same review).
   `parts/ytd-review.tsx:30` fires one request per month in parallel and one rejection blanks the
   whole block (a partial graph is deliberately never drawn). In August that is one request; by
@@ -889,12 +892,20 @@ From the review of the lock every number build. None blocks the October set.
   is permanently wrong:
   1. **A briefly empty Top Content answer.** An empty `data.content` array counts as complete
      (`lib/organic-social/locking-client.ts`, `completeContent`), so an empty panel locks.
-  2. **A briefly empty but well-formed headline or graph answer.** All-null headline metrics and a
-     graph whose `ALL_CHANNELS` is `{}` both count as complete, deliberately: that is also what a
-     genuinely quiet month looks like (`lib/organic-social/headline-build.ts:48-51`, and
-     `locking-client.test.ts:109` asserts the graph case). Treating either as incomplete would stop
-     a quiet month ever locking, which is why the widening was declined. The cost of declining it
-     is this row.
+  2. **A briefly empty but well-formed headline or graph answer.** Since the QA fixes (F3 in
+     `docs/superpowers/plans/2026-09-24-qa-fixes.md`), a headline answer with a null account-level
+     metric (Total Followers, Net New Followers, Profile Views, LinkedIn page views) no longer counts
+     as complete: probes showed those are never null for a connected account, even on days with no
+     posts, and one had locked as 0 on staging (`ACCOUNT_METRICS` in
+     `lib/organic-social/locking-client.ts`). Still open: a null post-level metric (legitimately null
+     in a quiet period, so it can't be told apart), a null account-level prior value (blocking on it
+     would stop an account's first month locking), and a graph whose `ALL_CHANNELS` is `{}` or has
+     null days (the v2 Net New Followers graph fills a null day with 0,
+     `lib/organic-social/followers.ts:64`; `locking-client.test.ts:109` asserts the `{}` case).
+     The flip side: a month whose account-level metric is genuinely null (an X account, an
+     account's first days in Dash, an allowlisted channel with no account, or a metric Dash stops
+     reporting) never locks. Every view and the hourly sweep re-read Dash uncached, and the
+     `lock skipped (incomplete answer)` warning is the only signal.
   3. **A malformed media answer captured on lock day.** The lock stores Dash's raw response before
      any builder parses it, and the media branch of `completeReportsData` accepts a media answer on
      the brand entry alone, so a malformed one is stored and PR #255's new throw then shows
@@ -952,6 +963,6 @@ From the review of the lock every number build. None blocks the October set.
   scheduling fix, and not addressed by it: the capture-failure log
   (`lock capture failed ...`, added in the same PR) is the signal until this is fixed.
 
-- [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts:31`, an
+- [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts`, `completeContent`, an
   empty `data.content` array counts as complete). This matches the old freeze table's deliberate
   frozen-empty behaviour, without that path's re-freeze escape. Revisit with the unlock tool.
