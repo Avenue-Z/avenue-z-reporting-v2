@@ -123,6 +123,23 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     }
   })
 
+  // Paul's review of #273 (C3): Approve sends the draft's picks, so the card shows them to the approver.
+  test("the approver sees the draft's own picked posts on the card, the ones Approve sends", async () => {
+    const ed = { approvedId: 'aid', approvedPostIds: [11], draft: { id: 'did', text: 'New', postIds: [12, 13] }, draftThumbs: [IMG(2), IMG(3)] }
+    draw([{ ...PEAK, note: 'Old', thumbs: [IMG(1)], noteEditor: ed }], CONTROLS)
+    const card = cardOf(PEAK.date)
+    const pics = within(card).getByLabelText("Draft's posts")
+    expect([...pics.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(['https://cdn.example.com/t2.jpg', 'https://cdn.example.com/t3.jpg'])
+    expect(pics.className).toContain('no-print')
+    fireEvent.click(within(card).getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did', { text: 'New', postIds: [12, 13] }))
+  })
+
+  test('a draft with no picked posts shows no draft pictures', () => {
+    draw([{ ...PEAK, noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } }], CONTROLS)
+    expect(within(cardOf(PEAK.date)).queryByLabelText("Draft's posts")).toBeNull()
+  })
+
   test('a client sees no buttons, no draft text and no faint dots', () => {
     draw([{ ...PEAK, note: 'Event' }])
     expect(cardOf(PEAK.date).querySelector('button')).toBeNull()

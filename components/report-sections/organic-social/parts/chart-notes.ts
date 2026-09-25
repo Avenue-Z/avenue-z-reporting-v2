@@ -4,7 +4,7 @@ import { notesByDay, type DayNote } from '@/lib/organic-social/chart-notes/pick'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { dayLabel, thumbOf, topPostByDate } from '@/lib/organic-social/annotations'
-import type { Annotation, AnnotationChart, NoteControls } from '@/lib/organic-social/annotations'
+import type { Annotation, AnnotationChart, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 import type { TrendSeries } from '@/lib/organic-social/types'
@@ -21,13 +21,22 @@ export function windowDays(from: string, to: string): string[] {
   return out
 }
 
+/** A draft's pick Dash no longer returns: the approver still sees a tile for it (the placeholder). */
+const GONE: ChartThumb = { creative: null, mediaType: 'IMAGE', url: null }
+
 function attach(a: Annotation, dn: DayNote | undefined, dayPosts: TopContentPost[]): Annotation {
   if (!dn) return a
   // A pick counts only if it is one of this day's posts in Dash's answer; the rest are skipped.
   const picks = (dn.approved?.postIds ?? [])
     .map((id) => dayPosts.find((p) => p.id === id))
     .filter((p): p is TopContentPost => !!p)
-  return { ...a, note: { text: dn.approved?.text ?? null, posts: picks, ...(dn.editor ? { editor: dn.editor } : {}) } }
+  // The card pictures the approved note, and Approve sends the draft's picks, so an editor also gets
+  // the draft's picks as pictures, to show under the draft line (Paul's review of #273, C3).
+  const draftIds = dn.editor?.draft?.postIds ?? []
+  const editor = dn.editor && draftIds.length > 0
+    ? { ...dn.editor, draftThumbs: draftIds.map((id) => { const p = dayPosts.find((q) => q.id === id); return p ? thumbOf(p) : GONE }) }
+    : dn.editor
+  return { ...a, note: { text: dn.approved?.text ?? null, posts: picks, ...(editor ? { editor } : {}) } }
 }
 
 /** Merges the team's notes into one chart's annotations, before the hides layer runs, so a hide on

@@ -154,3 +154,16 @@ test('windowDays is inclusive, empty when reversed, and bounded', () => {
   expect(windowDays('2026-09-02', '2026-09-01')).toEqual([])
   expect(windowDays('2026-01-01', '2027-12-31')).toHaveLength(400)
 })
+
+// Paul's review of #273 (C3): the card showed the approved note's pictures while Approve sent the
+// draft's picks, so an approver could approve posts they were never shown.
+test("an editor's draft carries its own picked posts as pictures, a pick Dash no longer returns as a placeholder", async () => {
+  getChartNotes.mockResolvedValue([row({ id: 'd', status: 'draft', approvedAt: null, approvedBy: null, postIds: [11, 99] })])
+  const r = await withNotes({ ...EDITOR, posts: [post(11, '2026-08-14', 5)] })
+  const editor = r.items.find((a) => a.date === '2026-08-14')!.note!.editor!
+  expect(editor.draftThumbs).toEqual([
+    { creative: { kind: 'image', thumb: 'https://cdn.example.com/t11.jpg', full: 'https://cdn.example.com/f11.jpg' }, mediaType: 'IMAGE', url: 'https://example.com/11' },
+    { creative: null, mediaType: 'IMAGE', url: null },
+  ])
+})
+

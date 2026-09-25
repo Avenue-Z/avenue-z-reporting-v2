@@ -78,6 +78,9 @@ export interface NoteEditorState {
   approvedId: string | null
   approvedPostIds: number[]
   draft: { id: string; text: string; postIds: number[] } | null
+  /** The draft's picked posts as pictures, in pick order: what Approve would approve (Paul's review of
+   *  #273, C3). A pick Dash no longer returns is a placeholder. Present only when the draft has picks. */
+  draftThumbs?: ChartThumb[]
 }
 
 /** One day's note on the server, before it is trimmed for the chart. */

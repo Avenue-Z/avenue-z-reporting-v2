@@ -17,18 +17,18 @@ const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url
  *  shows the placeholder, never a broken image. onError catches a load that fails after
  *  hydration; the ref catches one that failed before React attached the handler. A video
  *  with no poster keeps a muted video tile, as the card keeps a live video. */
-function Picture({ creative, alt }: { creative: Creative | null; alt: string }) {
+function Picture({ creative, alt, tile = TILE }: { creative: Creative | null; alt: string; tile?: string }) {
   const [broken, setBroken] = useState(false)
   if (broken || !creative) {
     return (
-      <div className={`${TILE} flex items-center justify-center bg-white/[0.04] p-1 text-center text-[9px] leading-tight text-text-muted`}>
+      <div className={`${tile} flex items-center justify-center bg-white/[0.04] p-1 text-center text-[9px] leading-tight text-text-muted`}>
         creative no longer available
       </div>
     )
   }
   if (creative.kind === 'video' && !creative.poster) {
     return (
-      <video className={`${TILE} object-cover`} src={creative.src} muted playsInline preload="metadata"
+      <video className={`${tile} object-cover`} src={creative.src} muted playsInline preload="metadata"
         aria-label={alt} onError={() => setBroken(true)} />
     )
   }
@@ -37,7 +37,7 @@ function Picture({ creative, alt }: { creative: Creative | null; alt: string }) 
     <img
       src={src}
       alt={alt}
-      className={`${TILE} object-cover`}
+      className={`${tile} object-cover`}
       ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setBroken(true) }}
       onError={() => setBroken(true)}
     />
@@ -112,6 +112,12 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
         <span className="text-xs font-bold text-white">{annotation.label}</span>
         {annotation.note && <span className="break-words text-xs text-white">{annotation.note}</span>}
         {draft && <span className="no-print break-words text-[11px] text-text-muted">Draft: {draft.text}</span>}
+        {draft && annotation.noteEditor?.draftThumbs && annotation.noteEditor.draftThumbs.length > 0 && (
+          // The draft's own picked posts: what Approve would approve (Paul's review of #273, C3).
+          <span aria-label="Draft's posts" className="no-print flex flex-wrap gap-1">
+            {annotation.noteEditor.draftThumbs.map((t, i) => <Picture key={i} creative={t.creative} alt="" tile="h-10 w-10 shrink-0 rounded" />)}
+          </span>
+        )}
         {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
       </span>
       {/* The team's buttons get a row of their own under the picture and the text: beside them the
