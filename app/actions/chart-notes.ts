@@ -51,9 +51,10 @@ export async function saveChartNoteAction(input: {
   const body = input.body.trim()
   try {
     const open = await findOpenDraft(key)
-    if (open) {
-      if (!(await updateDraft(open.id, { body, postIds: input.postIds, by: v.email! }))) return NOT_FOUND
-    } else {
+    // The open draft can be approved or deleted between this read and the write. The edit is then
+    // saved as a new draft rather than lost behind a bare 'not found' (Paul's review of #273, C7); if
+    // yet another draft opened meanwhile, the index refuses it and the message below says so.
+    if (!open || !(await updateDraft(open.id, { body, postIds: input.postIds, by: v.email! }))) {
       await insertDraft({ ...key, body, postIds: input.postIds, by: v.email! })
     }
   } catch (e) {

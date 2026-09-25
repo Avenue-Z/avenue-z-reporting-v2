@@ -116,11 +116,26 @@ test('save: with an open draft, that draft is edited in place', async () => {
   expect(m.insertDraft).not.toHaveBeenCalled()
 })
 
-test('save: a draft deleted between the read and the write is reported, not faked', async () => {
+// Paul's review of #273 (C7): a draft approved or deleted between the read and the write returned a bare
+// 'not found' and lost the edit. The edit is now saved as a new draft.
+test('save: a draft approved or deleted between the read and the write is saved as a new draft', async () => {
   as('INTERNAL_ANALYST')
-  vi.mocked(m.findOpenDraft).mockResolvedValueOnce({ id: ID })
+  vi.mocked(m.findOpenDraft).mockResolvedValueOnce({ id: ID } as never)
   vi.mocked(m.updateDraft).mockResolvedValueOnce(false)
-  expect(await saveChartNoteAction(INPUT)).toEqual({ ok: false, error: 'not found' })
+  expect(await saveChartNoteAction(INPUT)).toEqual({ ok: true })
+  expect(m.insertDraft).toHaveBeenCalledWith({
+    clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14',
+    body: 'Influencer post went live', postIds: [11], by: 'writer@avenuez.com',
+  })
+  expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
+})
+
+test('save: if another draft opened on that day meanwhile, the new draft gets the clear conflict message', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(m.findOpenDraft).mockResolvedValueOnce({ id: ID } as never)
+  vi.mocked(m.updateDraft).mockResolvedValueOnce(false)
+  vi.mocked(m.insertDraft).mockRejectedValueOnce({ code: '23505', constraint: 'chart_notes_one_open_draft' })
+  expect(await saveChartNoteAction(INPUT)).toEqual({ ok: false, error: 'A draft is already open on this day. Reload to see it.' })
   expect(revalidateTag).not.toHaveBeenCalled()
 })
 
