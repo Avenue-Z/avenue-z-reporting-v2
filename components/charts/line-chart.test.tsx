@@ -408,6 +408,26 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(card(a)).toBeNull()
   })
 
+  // Paul's second review of #273 (R5): C8 closed the card on a tap or click elsewhere, not on the keyboard.
+  // Enter on one graph's dot, Tab to the other graph's dot, Enter: both cards stayed open.
+  test("focus moving from this chart's card to another chart closes this chart's card", () => {
+    const one = () => <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} />
+    const { container } = render(<><div data-chart="a">{one()}</div><div data-chart="b">{one()}</div></>)
+    const a = container.querySelector('[data-chart="a"]') as HTMLElement
+    const b = container.querySelector('[data-chart="b"]') as HTMLElement
+    fireEvent.keyDown(hit(a, DAYS[9]), { key: 'Enter' })
+    expect(document.activeElement).toBe(card(a))
+    act(() => { hit(b, DAYS[0]).focus() })
+    expect(card(a)).toBeNull()
+  })
+
+  test("focus moving within this chart keeps its card open", () => {
+    const { container } = draw()
+    fireEvent.keyDown(hit(container, DAYS[9]), { key: 'Enter' })
+    act(() => { hit(container, DAYS[0]).focus() })
+    expect(card(container)!.dataset.calloutCard).toBe(DAYS[9])
+  })
+
   // Paul's review of #273 (C15): CLAUDE.md keeps every chart colour in CHART_COLORS.
   test('the red line and the faint dots take their colours from CHART_COLORS', () => {
     expect(PIN_LINE_COLOR).toBe(CHART_COLORS.callout)

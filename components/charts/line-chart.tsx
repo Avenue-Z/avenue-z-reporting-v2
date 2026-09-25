@@ -425,7 +425,13 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   })
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
-      <div className="relative" ref={wrapRef}>
+      {/* Focus moving to anything outside this chart closes its card, as a tap outside does (C8): with the
+          keyboard, Tab to the other graph's dot then Enter left both cards open (Paul's second review,
+          R5). Focus lost to nothing (the window, a removed element) leaves the card as it is. */}
+      <div className="relative" ref={wrapRef} onBlur={(e) => {
+        const next = e.relatedTarget
+        if (open && next instanceof Node && !e.currentTarget.contains(next)) { clear(); setOpen(null) }
+      }}>
         {chart}
         {hitAreas}
         {card}
