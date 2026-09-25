@@ -129,10 +129,10 @@ export function NotedTooltip({ note, ...props }: DefaultTooltipContentProps<stri
 /** Inside the chart, where Recharts knows the plot area and the y domain. A category point sits at
  *  plot.x + i / (n - 1) * plot.width and a value at plot.y + (1 - (v - lo) / (hi - lo)) * plot.height
  *  (proven against Recharts' own ReferenceDot, line-chart.test.tsx "each hit area sits exactly on
- *  Recharts' own dot"). Callouts ride the first series, as the marks do. Draws each callout's hit area
- *  (a focusable button over its dot), the team's faint dots, and the red line to the open card, and
- *  reports where the dots are so the card can be placed beside its own. */
-function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout, hits, on }: {
+ *  Recharts' own dot"). Callouts ride the first series, as the marks do. Draws the team's faint dots
+ *  and the red line to the open card, and reports where the dots are, so the hit areas and the card
+ *  can be placed in the HTML layer above the chart (LineChart). */
+function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout }: {
   callouts: ChartCallout[]
   data: Record<string, string | number>[]
   xKey: string
@@ -140,13 +140,6 @@ function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout, hits, 
   open: string | null
   side: 'above' | 'below'
   onLayout: (layout: CalloutLayout) => void
-  hits: Map<string, SVGCircleElement>
-  on: {
-    enter: (x: string, e: PointerEvent<SVGCircleElement>) => void
-    leave: (e: PointerEvent<SVGCircleElement>) => void
-    tap: (x: string) => void
-    key: (x: string, e: KeyboardEvent<SVGCircleElement>) => void
-  }
 }) {
   const plot = usePlotArea()
   const domain = useYAxisDomain()
@@ -180,14 +173,6 @@ function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout, hits, 
         <line data-callout-stub={at.x} className="no-print" x1={at.px} y1={at.py + (side === 'above' ? -PIN_STUB : PIN_STUB)}
           x2={at.px} y2={at.py} stroke={PIN_LINE_COLOR} strokeWidth={1.5} />
       )}
-      {spots.map((s) => (
-        <circle key={`hit-${s.x}`} data-callout-hit={s.x} cx={s.px} cy={s.py} r={14} fill="transparent"
-          role="button" tabIndex={0} aria-label={byX.get(s.x)!.label} aria-expanded={open === s.x}
-          className="outline-none focus-visible:stroke-white" strokeWidth={1.5} style={{ cursor: 'pointer' }}
-          ref={(el) => { if (el) hits.set(s.x, el); else hits.delete(s.x) }}
-          onPointerEnter={(e) => on.enter(s.x, e)} onPointerLeave={on.leave}
-          onClick={() => on.tap(s.x)} onKeyDown={(e) => on.key(s.x, e)} />
-      ))}
     </g>
   )
 }
@@ -210,7 +195,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   // One stable map of the dots' hit areas, to hand focus back on Escape (not a ref read during render).
-  const [hits] = useState(() => new Map<string, SVGCircleElement>())
+  const [hits] = useState(() => new Map<string, HTMLButtonElement>())
   const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null } }
   const later = (ms: number, fn: () => void) => { clear(); timer.current = setTimeout(() => { timer.current = null; fn() }, ms) }
   const close = (refocus: boolean) => {
@@ -244,15 +229,15 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   // D12: opened from the keyboard, focus moves into the card so its buttons are next in Tab order.
   useLayoutEffect(() => { if (open?.by === 'key') cardRef.current?.focus() }, [open])
   const on = {
-    enter: (x: string, e: PointerEvent<SVGCircleElement>) => {
+    enter: (x: string, e: PointerEvent<HTMLButtonElement>) => {
       if (!isMouse(e)) return
       if (open?.x === x) { clear(); return }
       later(OPEN_DELAY, () => setOpen({ x, by: 'pointer' }))
     },
-    leave: (e: PointerEvent<SVGCircleElement>) => { if (isMouse(e)) later(CLOSE_GRACE, () => setOpen(null)) },
+    leave: (e: PointerEvent<HTMLButtonElement>) => { if (isMouse(e)) later(CLOSE_GRACE, () => setOpen(null)) },
     // A tap or click only ever opens: a touchscreen fires a simulated mouse-enter before the click.
     tap: (x: string) => { clear(); setOpen({ x, by: 'pointer' }) },
-    key: (x: string, e: KeyboardEvent<SVGCircleElement>) => {
+    key: (x: string, e: KeyboardEvent<HTMLButtonElement>) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clear(); setOpen({ x, by: 'key' }) }
       else if (e.key === 'Escape') close(true)
     },
@@ -317,7 +302,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           ))}
         {hasCallouts && (
           <CalloutLayer callouts={callouts!} data={data} xKey={xKey} yKey={yKeys[0].key} open={open?.x ?? null}
-            side={placed.side} onLayout={setLayout} hits={hits} on={on} />
+            side={placed.side} onLayout={setLayout} />
         )}
       </RechartsLineChart>
     </ResponsiveContainer>
@@ -344,10 +329,25 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
       </div>
     )
   }
+  // The hit areas live in the HTML layer above the chart, not in its SVG: Recharts paints its line and
+  // dots after any extra children, so inside the SVG they covered a dot's centre and a real mouse never
+  // reached the hit area (found live, 2026-09-24). Real buttons also bring native focus and keys.
+  const hitAreas = layout?.spots.map((s) => {
+    const c = callouts!.find((q) => q.x === s.x)!
+    return (
+      <button key={`hit-${s.x}`} type="button" data-callout-hit={s.x} aria-label={c.label} aria-expanded={open?.x === s.x}
+        className="no-print absolute z-10 h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-white"
+        style={{ left: s.px, top: s.py }}
+        ref={(el) => { if (el) hits.set(s.x, el); else hits.delete(s.x) }}
+        onPointerEnter={(e) => on.enter(s.x, e)} onPointerLeave={on.leave}
+        onClick={() => on.tap(s.x)} onKeyDown={(e) => on.key(s.x, e)} />
+    )
+  })
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <div className="relative">
         {chart}
+        {hitAreas}
         {card}
       </div>
     </div>

@@ -97,7 +97,9 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
   return (
     <Tag className={cn(
       'flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2',
-      floating && 'bg-bg-surface',
+      // Over the graph (#272727), the card takes the darker brand surface and a clearer border, so it
+      // stands apart as a card rather than blending into the chart (seen live, 2026-09-24).
+      floating && 'border-white/[0.14] bg-bg-subtle shadow-lg shadow-black/40',
       hidden && 'opacity-40 no-print',
       !hidden && draftOnly && 'opacity-40 no-print',
     )}>

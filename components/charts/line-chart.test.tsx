@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
-import { PIN_CARD_WIDTH, PIN_LINE_COLOR } from './pins'
+import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
 import type { ReactElement } from 'react'
 
 vi.mock('recharts', async () => {
@@ -121,7 +121,10 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     { x: MUTED, label: `label ${MUTED}`, muted: true, content: <span>{`card ${MUTED}`}</span> },
   ]
   const draw = () => render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} />)
-  const hit = (c: HTMLElement, x: string) => c.querySelector(`[data-callout-hit="${x}"]`) as SVGCircleElement
+  const hit = (c: HTMLElement, x: string) => c.querySelector(`[data-callout-hit="${x}"]`) as HTMLButtonElement
+  // A hit area is a button in the HTML layer above the chart, centred on its dot by left and top.
+  const hx = (el: HTMLElement) => parseFloat(el.style.left)
+  const hy = (el: HTMLElement) => parseFloat(el.style.top)
   const card = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-callout-card]')
   const num = (el: Element, a: string) => Number(el.getAttribute(a))
   const wait = (ms: number) => act(() => { vi.advanceTimersByTime(ms) })
@@ -140,21 +143,30 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     const { container } = draw()
     const dots = [...container.querySelectorAll('.recharts-reference-dot circle, .recharts-reference-dot-dot')]
     SHOWN.forEach((x, i) => {
-      expect(num(hit(container, x), 'cx')).toBeCloseTo(num(dots[i], 'cx'), 1)
-      expect(num(hit(container, x), 'cy')).toBeCloseTo(num(dots[i], 'cy'), 1)
+      expect(hx(hit(container, x))).toBeCloseTo(num(dots[i], 'cx'), 1)
+      expect(hy(hit(container, x))).toBeCloseTo(num(dots[i], 'cy'), 1)
     })
   })
 
-  test('every dot is a focusable button named by its callout, with a pointer cursor and a 28px hit area', () => {
+  test('every dot is a real button named by its callout, with a pointer cursor and a 28px hit area', () => {
     const { container } = draw()
     const h = hit(container, DAYS[9])
-    expect(h.getAttribute('role')).toBe('button')
+    expect(h.tagName).toBe('BUTTON')
+    expect(h.getAttribute('type')).toBe('button')
     expect(h.getAttribute('aria-label')).toBe(`label ${DAYS[9]}`)
-    expect(h.getAttribute('tabindex')).toBe('0')
     expect(h.getAttribute('aria-expanded')).toBe('false')
-    expect(num(h, 'r')).toBe(14)
-    expect(h.style.cursor).toBe('pointer')
+    for (const c of ['h-7', 'w-7', 'cursor-pointer', 'no-print']) expect(h.className).toContain(c)
     expect(container.querySelectorAll('[data-callout-hit]')).toHaveLength(4)
+  })
+
+  // Found live on 2026-09-24: inside the SVG, Recharts paints its line and dots after any extra
+  // children, so at a dot's centre they sat on top and a real mouse never reached the hit area.
+  test("the hit areas sit above the chart, outside its SVG, so Recharts' own layers can never cover them", () => {
+    const { container } = draw()
+    const h = hit(container, DAYS[9])
+    expect(h.closest('svg')).toBeNull()
+    expect(h.parentElement!.className).toContain('relative')
+    expect(h.parentElement!.querySelector('svg')).not.toBeNull()
   })
 
   test('a mouse resting on a dot opens its card after 100ms, not before, so a sweep never flashes cards', () => {
@@ -180,7 +192,7 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
   test('the card is centred on its dot and kept inside the plot at the edges', () => {
     const { container } = draw()
     const leftOf = (x: string) => { fireEvent.click(hit(container, x)); return parseFloat(card(container)!.style.left) }
-    expect(leftOf(DAYS[9])).toBeCloseTo(num(hit(container, DAYS[9]), 'cx') - PIN_CARD_WIDTH / 2, 1)
+    expect(leftOf(DAYS[9])).toBeCloseTo(hx(hit(container, DAYS[9])) - PIN_CARD_WIDTH / 2, 1)
     expect(leftOf(DAYS[0])).toBe(60)
     expect(leftOf(DAYS[30])).toBe(60 + 732 - PIN_CARD_WIDTH)
     expect(card(container)!.style.width).toBe(`${PIN_CARD_WIDTH}px`)
@@ -188,14 +200,14 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
 
   test('the card sits above its dot when it fits there, and below when it does not (its measured height)', () => {
     const { container } = draw()
-    const cy = num(hit(container, DAYS[9]), 'cy')
+    const cy = hy(hit(container, DAYS[9]))
     cardHeight = 40
     fireEvent.click(hit(container, DAYS[9]))
-    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy - 12 - 40, 1)
+    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy - PIN_STUB - 40, 1)
     fireEvent.keyDown(card(container)!, { key: 'Escape' })
     cardHeight = 400
     fireEvent.click(hit(container, DAYS[9]))
-    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy + 12, 1)
+    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy + PIN_STUB, 1)
   })
 
   test('leaving closes the card after 150ms, and moving into the card keeps it open', () => {
@@ -256,7 +268,7 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     const faint = container.querySelector(`[data-callout-faint="${MUTED}"]`)!
     expect(faint.getAttribute('class')).toContain('no-print')
     expect(faint.getAttribute('stroke-dasharray')).toBeTruthy()
-    expect(num(faint, 'cx')).toBeCloseTo(num(hit(container, MUTED), 'cx'), 1)
+    expect(num(faint, 'cx')).toBeCloseTo(hx(hit(container, MUTED)), 1)
     fireEvent.click(hit(container, MUTED))
     expect(card(container)!.dataset.calloutCard).toBe(MUTED)
   })
@@ -266,9 +278,11 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     fireEvent.click(hit(container, DAYS[9]))
     const stub = container.querySelector('line[data-callout-stub]')!
     expect(stub.getAttribute('stroke')).toBe(PIN_LINE_COLOR)
-    expect(num(stub, 'x1')).toBeCloseTo(num(hit(container, DAYS[9]), 'cx'), 1)
-    expect(num(stub, 'y2')).toBeCloseTo(num(hit(container, DAYS[9]), 'cy'), 1)
+    expect(num(stub, 'x1')).toBeCloseTo(hx(hit(container, DAYS[9])), 1)
+    expect(num(stub, 'y2')).toBeCloseTo(hy(hit(container, DAYS[9])), 1)
     expect(stub.getAttribute('class')).toContain('no-print')
+    // Seen live: at 12px the dot (r 5, stroke 2) covered half the line. 20px shows it past the dot.
+    expect(Math.abs(num(stub, 'y1') - num(stub, 'y2'))).toBe(20)
     expect(card(container)!.className).toContain('no-print')
   })
 

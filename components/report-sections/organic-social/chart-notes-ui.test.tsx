@@ -68,6 +68,16 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     expect(within(card).queryByText(/-3/)).toBeNull()
   })
 
+  // Seen live: the card was the graph's own colour (#272727) with an 8% border, so it did not stand
+  // apart. A card that opens over the graph takes the darker brand surface and a clearer border.
+  test('a card stands apart from the graph: the darker brand surface and a clearer border', () => {
+    draw([PEAK])
+    const cls = cardOf(PEAK.date).firstElementChild!.className
+    expect(cls).toContain('bg-bg-subtle')
+    expect(cls).toContain('border-white/[0.14]')
+    expect(cls).not.toContain('bg-white/[0.03]')
+  })
+
   test('picked posts replace the top post on the card', () => {
     draw([{ ...PEAK, note: 'x', thumbs: [IMG(2), IMG(3)] }])
     expect([...cardOf(PEAK.date).querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual([
