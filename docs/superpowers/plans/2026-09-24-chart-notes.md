@@ -3579,12 +3579,12 @@ before planning; nothing here is from memory.
   (the default), so these dots never change the axis. A callout on a day with no numeric value keeps
   today's behaviour: it sits at the bottom of the plot, still reachable. Charts with no callouts render
   exactly as today (CalloutLayer is not rendered).
-- D18 (F-A, F-B). Saving (Add or Edit) closes the panel and shows one status line in its place, above
+- D18 (F-A, F-B). [The exact lines are review item 5 below; the quotes here are the first draft.] Saving (Add or Edit) closes the panel and shows one status line in its place, above
   the chart, team only, `no-print`, `role="status"`: new note "Saved a draft for 8/24. It shows as a
   faint dot until it's approved."; a day that already had a note "Updated the note for 8/7. It shows as
   a draft until it's approved." When the viewer can approve, it adds "Hover its dot to approve it."
   It clears after 8 seconds, or when the panel is opened again.
-- D19 (F-D). One note per chart per day stays (the schema, Commentary's lifecycle). The Add panel
+- D19 (F-D). [The exact notice and the picks rule are review item 6 below, and the amendment at the end of this bullet.] One note per chart per day stays (the schema, Commentary's lifecycle). The Add panel
   makes it visible: picking a post from a day that already has a note (a draft or an approved note)
   shows "8/7 already has a note. Saving updates it." and fills the text box with that note's text
   (its draft if any, else the approved text) if the box is empty; typed text is never overwritten.
