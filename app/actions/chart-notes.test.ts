@@ -100,6 +100,14 @@ test('save: with no open draft, a trimmed draft is created by the signed-in edit
   expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
 })
 
+// The outlines' other platforms: the draft is stored against the graph it was written on.
+test.each(['FACEBOOK', 'LINKEDIN', 'TIKTOK'])('save: a note on a %s graph is stored for that platform', async (channel) => {
+  as('INTERNAL_ANALYST')
+  expect(await saveChartNoteAction({ ...INPUT, channel })).toEqual({ ok: true })
+  expect(m.findOpenDraft).toHaveBeenCalledWith({ clientId: 'client-uuid', channel, chart: 'followers', day: '2026-08-14' })
+  expect(m.insertDraft).toHaveBeenCalledWith(expect.objectContaining({ channel }))
+})
+
 test('save: with an open draft, that draft is edited in place', async () => {
   as('INTERNAL_ANALYST')
   vi.mocked(m.findOpenDraft).mockResolvedValueOnce({ id: ID })

@@ -10,6 +10,12 @@ test('a real platform, chart, past day, short note and two posts pass', () => {
   expect(v({ chart: 'engagements', postIds: [] })).toEqual({ ok: true })
 })
 
+// Jasmine's outlines put annotations on the Instagram, Facebook, LinkedIn and TikTok graphs (the
+// October clients' tabs), so a note must save on every one of them, not only Instagram.
+test.each(['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'TIKTOK'])('a note on a %s graph passes', (channel) => {
+  expect(v({ channel })).toEqual({ ok: true })
+})
+
 test('today passes; tomorrow is refused even when sent directly', () => {
   expect(v({ day: TODAY })).toEqual({ ok: true })
   expect(v({ day: '2026-09-25' })).toEqual({ ok: false, error: 'That day has not happened yet.' })

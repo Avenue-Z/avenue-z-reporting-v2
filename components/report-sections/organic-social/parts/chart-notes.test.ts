@@ -51,6 +51,16 @@ test('a day that lost followers keeps its note and never gets a signed number', 
   expect(items[1].label).not.toContain('+')
 })
 
+// Jasmine's outlines put annotations on the Instagram, Facebook, LinkedIn and TikTok graphs. Each
+// graph reads its own platform's notes, and the team's controls save to that platform.
+test.each(['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'TIKTOK'] as const)('a %s graph reads that platform\'s notes and its controls name it', async (channel) => {
+  getChartNotes.mockResolvedValue([row({ channel })])
+  const r = await withNotes({ ...EDITOR, channel })
+  expect(getChartNotes).toHaveBeenCalledWith('client-uuid', channel)
+  expect(r.items.map((a) => a.date)).toEqual(['2026-08-10', '2026-08-14'])
+  expect(r.controls?.channel).toBe(channel)
+})
+
 test('a client gets approved notes only, with no editor state and no controls', async () => {
   getChartNotes.mockResolvedValue([row({}), row({ id: 'd', day: '2026-08-20', status: 'draft', approvedAt: null, approvedBy: null })])
   const r = await withNotes(CLIENT)
