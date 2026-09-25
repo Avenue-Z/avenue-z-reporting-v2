@@ -252,6 +252,8 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   const [placed, setPlaced] = useState<{ side: 'above' | 'below'; h: number }>({ side: 'above', h: 0 })
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
+  // This chart's own layer of dots and card, so a tap on another chart's dot counts as outside (C8).
+  const wrapRef = useRef<HTMLDivElement | null>(null)
   // One stable map of the dots' hit areas, to hand focus back on Escape (not a ref read during render).
   const [hits] = useState(() => new Map<string, HTMLButtonElement>())
   const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null } }
@@ -269,7 +271,9 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     const outside = (e: Event) => {
       const t = e.target
       if (t instanceof Node && cardRef.current?.contains(t)) return
-      if (t instanceof Element && t.closest('[data-callout-hit]')) return
+      // Only this chart's dots are spared: a tap on another graph's dot closes this card, one card at a
+      // time on the page (Paul's review of #273, C8).
+      if (t instanceof Element && t.closest('[data-callout-hit]') && wrapRef.current?.contains(t)) return
       clear()
       setOpen(null)
     }
@@ -413,7 +417,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   })
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
-      <div className="relative">
+      <div className="relative" ref={wrapRef}>
         {chart}
         {hitAreas}
         {card}

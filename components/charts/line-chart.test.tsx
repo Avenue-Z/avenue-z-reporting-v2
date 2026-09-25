@@ -364,6 +364,19 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(card(container)).toBeNull()
   })
 
+  // Paul's review of #273 (C8): the outside-tap check spared any dot on the page, so a tap on the other
+  // graph's dot left this graph's card open too.
+  test("a tap on another chart's dot closes this chart's card: one card at a time on the page", () => {
+    const one = () => <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} />
+    const { container } = render(<><div data-chart="a">{one()}</div><div data-chart="b">{one()}</div></>)
+    const a = container.querySelector('[data-chart="a"]') as HTMLElement
+    const b = container.querySelector('[data-chart="b"]') as HTMLElement
+    fireEvent.click(hit(a, DAYS[9]))
+    expect(card(a)).toBeTruthy()
+    fireEvent.pointerDown(hit(b, DAYS[0]))
+    expect(card(a)).toBeNull()
+  })
+
   test('one card at a time', () => {
     const { container } = draw()
     fireEvent.click(hit(container, DAYS[0]))
