@@ -273,3 +273,10 @@ check which database it points at, so a host guard runs first. Before: a read-on
 0025 is the only unrecorded migration. After: a read-only check of the table, its check, both
 indexes and the ledger. Production goes the same way, before the production merge, only on my
 written go and only after Jasmine approves staging.
+
+Dev: `0024` and `0025` applied to the dev database on 2026-09-24, on my written go, so we could
+test chart notes on our own local app first (dev is where every feature is tried before staging).
+A dev-only host guard and a dry run first (exactly `0024` and `0025` pending); read back: the three
+tables, both `chart_notes` indexes (the partial one's `WHERE` intact) and its check present, the
+ledger up by two. Renaissance's dev row unchanged before and after. Staging and production: not
+applied.
