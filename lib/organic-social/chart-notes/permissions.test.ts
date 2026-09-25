@@ -1,8 +1,12 @@
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { noteCapabilities } from './permissions'
 
 const APPROVERS = 'approver@avenuez.com'
 const none = { canEdit: false, canApprove: false }
+
+// vi.stubEnv restores each variable, even after a failed expect, and never deletes one the runner set
+// (Paul's second review of #273, R8).
+afterEach(() => { vi.unstubAllEnvs() })
 
 test('any team member with an @avenuez.com email can write; approving also needs the list', () => {
   expect(noteCapabilities('INTERNAL_ANALYST', 'writer@avenuez.com', APPROVERS)).toEqual({ canEdit: true, canApprove: false })
@@ -25,11 +29,9 @@ test('no role or an unknown role gets nothing', () => {
 })
 
 test('notes read their own list: Commentary\'s COMMENTARY_APPROVERS grants nothing here', () => {
-  process.env.COMMENTARY_APPROVERS = 'approver@avenuez.com'
-  delete process.env.CHART_NOTES_APPROVERS
+  vi.stubEnv('COMMENTARY_APPROVERS', 'approver@avenuez.com')
+  vi.stubEnv('CHART_NOTES_APPROVERS', undefined)
   expect(noteCapabilities('INTERNAL_ADMIN', 'approver@avenuez.com')).toEqual({ canEdit: true, canApprove: false })
-  process.env.CHART_NOTES_APPROVERS = 'approver@avenuez.com'
+  vi.stubEnv('CHART_NOTES_APPROVERS', 'approver@avenuez.com')
   expect(noteCapabilities('INTERNAL_ADMIN', 'approver@avenuez.com')).toEqual({ canEdit: true, canApprove: true })
-  delete process.env.COMMENTARY_APPROVERS
-  delete process.env.CHART_NOTES_APPROVERS
 })
