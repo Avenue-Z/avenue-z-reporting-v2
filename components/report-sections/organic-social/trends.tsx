@@ -42,7 +42,7 @@ export function ChannelTrendChart({
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
   const [showAnnotations, setShowAnnotations] = useState(true)
-  // The Add note or Edit form, open above the chart: {} for a new note, or the day and its text.
+  // The Add annotation or Edit form, open above the chart: {} for a new note, or the day and its text.
   const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
   // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
   // same click, not on the next server render. Seeded from the server's answer for this view. A
@@ -145,7 +145,7 @@ export function ChannelTrendChart({
                 aria-expanded={!!form}
                 className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
               >
-                Add note
+                Add annotation
               </button>
             )}
           </div>

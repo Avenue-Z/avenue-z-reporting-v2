@@ -128,7 +128,7 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     expect(cardOf(PEAK.date).querySelector('button')).toBeNull()
     expect(screen.queryByText(/^Draft:/)).toBeNull()
     expect(chart().callouts!.every((c) => !c.muted)).toBe(true)
-    expect(screen.queryByRole('button', { name: 'Add note' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
   })
 
   test('an approver gets Approve on a draft and Revoke on an approved note; an editor gets neither', async () => {
@@ -227,12 +227,21 @@ describe("the team's buttons sit on their own row, so the date, number and note 
   })
 })
 
-describe('the Add note panel: pick a post by its picture, days with posts only (Phase 2b)', () => {
-  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
+describe('the Add annotation panel: pick a post by its picture, days with posts only (Phase 2b)', () => {
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
   const panel = () => screen.getByRole('group', { name: 'Note' })
   const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
   const save = () => within(panel()).getByRole('button', { name: 'Save draft' }) as HTMLButtonElement
   const type = (value: string) => fireEvent.change(within(panel()).getByLabelText('Note text'), { target: { value } })
+
+  // It adds what the Annotations toggle beside it shows (my call, 2026-09-24). A card's own button
+  // writes on an annotation that already exists, so it keeps its name.
+  test('the button above the chart reads Add annotation; a card keeps its Note button', () => {
+    draw([PEAK], CONTROLS)
+    expect(screen.getByRole('button', { name: 'Add annotation' }).textContent).toBe('Add annotation')
+    expect(screen.queryByRole('button', { name: 'Add note' })).toBeNull()
+    expect(within(cardOf(PEAK.date)).getByRole('button', { name: 'Add note' }).textContent).toBe('Note')
+  })
 
   test('only days with posts appear, oldest first, each picture with its date, and no date list', () => {
     draw([PEAK], { ...CONTROLS, days: [CONTROLS.days[0], { day: '2026-08-14', posts: [] }, CONTROLS.days[1]] })
@@ -248,7 +257,7 @@ describe('the Add note panel: pick a post by its picture, days with posts only (
     expect(postButtons()[0].parentElement!.className).toContain('overflow-x-auto')
   })
 
-  test('Add note saves the picked day, up to 2 of its posts and the text, then refreshes the page', async () => {
+  test('Add annotation saves the picked day, up to 2 of its posts and the text, then refreshes the page', async () => {
     draw([PEAK], CONTROLS)
     open()
     fireEvent.click(postButtons()[0])
