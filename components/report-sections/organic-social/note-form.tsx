@@ -6,6 +6,7 @@ import { saveChartNoteAction } from '@/app/actions/chart-notes'
 import { NOTE_MAX_CHARS, NOTE_MAX_POSTS } from '@/lib/organic-social/chart-notes/limits'
 import { dayLabel, type NoteControls } from '@/lib/organic-social/annotations'
 import { Picture } from './annotation-callouts'
+import { PILL as BUTTON } from './pill'
 import { cn } from '@/lib/utils'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
@@ -24,7 +25,6 @@ export function savedLine({ day, had }: SavedNote, canApprove: boolean): string 
     : `Saved a draft for ${d}. Clients see it once it's approved.`
   return canApprove ? `${first} Hover its dot to approve it.` : first
 }
-const BUTTON = 'rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50'
 
 /** Add or edit a day's note (Phase 2b, the approved mockup). A new note starts from a post: the month's
  *  posts as pictures with their dates, only days with posts, oldest first, in one row that scrolls

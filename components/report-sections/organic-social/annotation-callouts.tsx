@@ -6,6 +6,7 @@ import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
 import type { AnnotationControls, ChartAnnotation, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
 import { NoteActions } from './note-actions'
+import { CARD_PILL } from './pill'
 
 const TILE = 'h-16 w-16 shrink-0 rounded-md'
 
@@ -131,7 +132,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
               onClick={toggle}
               disabled={pending}
               aria-label={hidden ? 'Unhide' : 'Hide from client'}
-              className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
+              className={CARD_PILL}
             >
               {hidden ? 'Unhide' : floating ? 'Hide' : 'Hide from client'}
             </button>

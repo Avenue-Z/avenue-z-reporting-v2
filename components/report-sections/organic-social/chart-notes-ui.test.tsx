@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 import { LineChart } from '@/components/charts/line-chart'
 import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
 import { ChannelTrendChart } from './trends'
+import { CARD_PILL, PILL } from './pill'
 import type { AnnotationControls, ChartAnnotation, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
 import type { TrendSeries } from '@/lib/organic-social/types'
 
@@ -549,6 +550,16 @@ describe('after a save, one line says what happened; a day with a note loads it 
     const first = postButtons()[0]
     fireEvent.error(first.querySelector('img')!)
     expect(within(first).getByText('creative no longer available')).toBeTruthy()
+  })
+
+  // Paul's review of #273 (C13): one pill style for every notes button, the card's also never printed.
+  test("every button on a card and in the panel uses the one pill style", () => {
+    draw([{ ...PEAK, note: 'Old', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: { id: 'd', text: 'New', postIds: [] } } }], CONTROLS, HIDES)
+    const buttons = within(cardOf(PEAK.date)).getAllByRole('button')
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Hide from client', 'Edit note', 'Approve', 'Delete draft'])
+    for (const b of buttons) expect(b.className).toBe(CARD_PILL)
+    open()
+    for (const name of ['Save draft', 'Cancel']) expect(within(panel()).getByRole('button', { name }).className).toBe(PILL)
   })
 
   test('a day without a note shows no notice and fills nothing', () => {

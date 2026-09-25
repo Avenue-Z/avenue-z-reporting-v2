@@ -4,8 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveChartNoteAction, deleteChartNoteDraftAction, revokeChartNoteAction } from '@/app/actions/chart-notes'
 import type { ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
-
-const BUTTON = 'no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50'
+import { CARD_PILL as BUTTON } from './pill'
 
 /** A card's note buttons, for someone who can edit: add or edit the note, delete a draft, and for an
  *  approver, approve a draft or revoke an approved note. Each action re-checks the session. The form
