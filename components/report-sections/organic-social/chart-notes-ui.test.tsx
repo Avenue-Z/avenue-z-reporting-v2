@@ -251,10 +251,14 @@ describe('the Add annotation panel: pick a post by its picture, days with posts 
     expect(within(panel()).queryByLabelText('Day')).toBeNull()
   })
 
-  test('the pictures sit in one row that scrolls sideways when a month has many posts', () => {
+  // Seen live: the browser's own scrollbar showed as a bright white bar under the pictures. The row
+  // takes the site's dark scrollbar, the one the sidebars use (app/globals.css .scrollbar-dark).
+  test('the pictures sit in one row that scrolls sideways, on the site\'s dark scrollbar', () => {
     draw([PEAK], CONTROLS)
     open()
-    expect(postButtons()[0].parentElement!.className).toContain('overflow-x-auto')
+    const row = postButtons()[0].parentElement!.className.split(' ')
+    expect(row).toContain('overflow-x-auto')
+    expect(row).toContain('scrollbar-dark')
   })
 
   test('Add annotation saves the picked day, up to 2 of its posts and the text, then refreshes the page', async () => {

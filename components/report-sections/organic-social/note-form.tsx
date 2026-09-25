@@ -68,7 +68,7 @@ export function NoteForm({ controls, fixedDay, initial, onClose }: {
     <div role="group" aria-label="Note" className="no-print w-full space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
       {posts.length > 0 ? (
         <>
-          <div className="flex gap-3 overflow-x-auto pb-1">
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-dark">
             {posts.map((p) => {
               const on = picked.includes(p.id)
               const src = thumbSrc(p.thumb)
