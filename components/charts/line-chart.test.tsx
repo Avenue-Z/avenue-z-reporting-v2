@@ -314,6 +314,36 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy + PIN_STUB, 1)
   })
 
+  // Paul's second review of #273 (R4): the side was chosen only when the card opened or a dot moved, so a
+  // card that grew afterwards (Hide adds a line, an error its message, a refresh the draft's pictures)
+  // kept rising above its dot past the top of the screen. It is re-placed whenever the card resizes.
+  test('a card above its dot that grows past the room above moves below it, and stops being watched when it closes', () => {
+    const watchers: { cb: () => void; els: Element[]; disconnect: ReturnType<typeof vi.fn> }[] = []
+    vi.stubGlobal('ResizeObserver', class {
+      cb: () => void; els: Element[] = []; disconnect = vi.fn()
+      constructor(cb: () => void) { this.cb = cb; watchers.push(this) }
+      observe(el: Element) { this.els.push(el) }
+      unobserve() {}
+    })
+    try {
+      wrapperTop = 300
+      cardHeight = 100
+      const { container } = draw()
+      const cy = hy(hit(container, DAYS[9]))
+      fireEvent.click(hit(container, DAYS[9]))
+      expect(card(container)!.style.top).toBe('')
+      cardHeight = 1000
+      act(() => { for (const w of watchers) if (w.els.includes(card(container)!)) w.cb() })
+      expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy + PIN_STUB, 1)
+      fireEvent.pointerDown(document.body)
+      expect(card(container)).toBeNull()
+      expect(watchers.length).toBeGreaterThan(0)
+      for (const w of watchers) expect(w.disconnect).toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   test('an open card sits above the sticky report header (z-40 over its z-30)', () => {
     const { container } = draw()
     fireEvent.click(hit(container, DAYS[9]))

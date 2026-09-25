@@ -249,7 +249,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   // tracks props, so the same day coming back later does not reopen it (Paul's review of #273, C1).
   const openLive = open && callouts?.some((c) => c.x === open.x) ? open : null
   if (open && !openLive) setOpen(null)
-  const [placed, setPlaced] = useState<{ side: 'above' | 'below'; h: number }>({ side: 'above', h: 0 })
+  const [side, setSide] = useState<'above' | 'below'>('above')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   // This chart's own layer of dots and card, so a tap on another chart's dot counts as outside (C8).
@@ -283,15 +283,23 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   // D2, D16: above the dot, as in the approved mockup, rising past the top of the chart box when
   // needed; below only when the screen has no room above. Settled from the card's measured height
   // before it is first painted. (Callouts are the top days, near the top of the chart, so "above when
-  // it fits in the chart" sent nearly every card below, over the graph: amended 2026-09-24.)
+  // it fits in the chart" sent nearly every card below, over the graph: amended 2026-09-24.) Settled
+  // again whenever the open card changes size, since a card that grows (Hide adds a line, an error its
+  // message, a refresh the draft's pictures) can outgrow the room above (Paul's second review, R4).
   useLayoutEffect(() => {
     const spot = layout?.spots.find((s) => s.x === openLive?.x)
     const el = cardRef.current
     if (!openLive || !spot || !el?.parentElement) return
-    const h = el.offsetHeight
-    const dotOnScreen = el.parentElement.getBoundingClientRect().top + spot.py
-    const side = dotOnScreen - PIN_STUB - h - areaTop(el) >= SCREEN_MARGIN ? 'above' : 'below'
-    setPlaced((p) => (p.side === side && p.h === h ? p : { side, h }))
+    const wrap = el.parentElement
+    const settle = () => {
+      const dotOnScreen = wrap.getBoundingClientRect().top + spot.py
+      setSide(dotOnScreen - PIN_STUB - el.offsetHeight - areaTop(el) >= SCREEN_MARGIN ? 'above' : 'below')
+    }
+    settle()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(settle)
+    watch.observe(el)
+    return () => watch.disconnect()
   }, [openLive, layout])
   // D12: opened from the keyboard, focus moves into the card so its buttons are next in Tab order.
   useLayoutEffect(() => { if (openLive?.by === 'key') cardRef.current?.focus() }, [openLive])
@@ -369,7 +377,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           ))}
         {hasCallouts && (
           <CalloutLayer callouts={callouts!} data={data} xKey={xKey} yKey={yKeys[0].key} open={openLive?.x ?? null}
-            side={placed.side} onLayout={setLayout} />
+            side={side} onLayout={setLayout} />
         )}
       </RechartsLineChart>
     </ResponsiveContainer>
@@ -389,7 +397,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     // Above its dot the card is anchored by its bottom, just above the red line, so a card that grows
     // after opening (Hide adds a line, a failed Approve its message) grows upward and never covers the
     // dot (Paul's review of #273, C6). Below its dot it hangs from its top, as before.
-    const place = placed.side === 'above' ? { bottom: `calc(100% - ${spot.py - PIN_STUB}px)` } : { top: spot.py + PIN_STUB }
+    const place = side === 'above' ? { bottom: `calc(100% - ${spot.py - PIN_STUB}px)` } : { top: spot.py + PIN_STUB }
     card = (
       <div ref={cardRef} data-callout-card={callout.x} role="group" aria-label={callout.label} tabIndex={-1}
         className="no-print absolute z-40 outline-none" style={{ left, width: w, ...place }}
