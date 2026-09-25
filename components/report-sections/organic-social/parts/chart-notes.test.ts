@@ -180,3 +180,10 @@ test('when the posts loaded, even none, the controls carry no flag', async () =>
   expect((await withNotes({ ...EDITOR, posts: [post(11, '2026-08-14', 5)] })).controls).not.toHaveProperty('postsFailed')
 })
 
+// Paul's review of #273 (C14): the day's posts are grouped once; this pins what the grouping must keep.
+test("the panel's days list each day's posts in Dash's order, and a post with no date is on no day", async () => {
+  const undated = { ...post(30, '2026-08-14', 1), publishedAt: null } as unknown as TopContentPost
+  const r = await withNotes({ ...EDITOR, posts: [post(21, '2026-08-14', 1), post(12, '2026-08-10', 9), undated, post(20, '2026-08-14', 3)] })
+  expect(r.controls!.days.map((d) => [d.day, d.posts.map((p) => p.id)])).toEqual([['2026-08-10', [12]], ['2026-08-14', [21, 20]]])
+})
+

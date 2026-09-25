@@ -61,7 +61,16 @@ export async function withNotes(args: {
     const rows = await getChartNotes(client.id, args.channel)
     const byDay = notesByDay(rows, { chart: args.chart, from: args.from, to: args.to, canEdit: caps.canEdit })
     const posts = args.posts ?? []
-    const postsOn = (day: string) => posts.filter((p) => p.publishedAt === day)
+    // Each day's posts, grouped once, in Dash's order; a post with no date is on no day (Paul's review
+    // of #273, C14: a filter per call scanned every post once per item and twice per window day).
+    const byPostDay = new Map<string, TopContentPost[]>()
+    for (const p of posts) {
+      if (!p.publishedAt) continue
+      const list = byPostDay.get(p.publishedAt)
+      if (list) list.push(p)
+      else byPostDay.set(p.publishedAt, [p])
+    }
+    const postsOn = (day: string) => byPostDay.get(day) ?? []
     const key = args.series.channels[0]
     const values = new Map(args.series.points.map((p) => [String(p.date), Number(key ? p[key] : NaN)]))
     const top = topPostByDate(posts)
