@@ -180,14 +180,6 @@ export function thumbOf(post: TopContentPost): ChartThumb {
   return { creative: post.creative, mediaType: post.mediaType, url: post.url }
 }
 
-/** The small picture for a post, or null when there is none to show: an image's thumb, a video's
- *  poster. */
-export function thumbSrc(t: ChartThumb): string | null {
-  const c = t.creative
-  if (!c) return null
-  return c.kind === 'image' ? c.thumb : c.poster
-}
-
 /** Annotations, trimmed for the client component that draws them. A note adds only its approved
  *  text and its picked posts' thumbnails; the ids and the draft go to editors only, because
  *  notesByDay attaches `editor` only for someone who can edit. */

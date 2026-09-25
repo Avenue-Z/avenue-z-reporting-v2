@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveChartNoteAction } from '@/app/actions/chart-notes'
 import { NOTE_MAX_CHARS, NOTE_MAX_POSTS } from '@/lib/organic-social/chart-notes/limits'
-import { dayLabel, thumbSrc, type NoteControls } from '@/lib/organic-social/annotations'
+import { dayLabel, type NoteControls } from '@/lib/organic-social/annotations'
+import { Picture } from './annotation-callouts'
 import { cn } from '@/lib/utils'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
@@ -111,14 +112,15 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
           <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-dark">
             {posts.map((p) => {
               const on = picked.includes(p.id)
-              const src = thumbSrc(p.thumb)
               return (
                 <button key={p.id} type="button" aria-pressed={on} aria-label={`Post from ${dayLabel(p.day)}`}
                   disabled={pending || (!on && full && p.day === day)} onClick={() => pick(p.id, p.day)}
                   className="shrink-0 cursor-pointer rounded-md text-center outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40">
-                  {src
-                    ? <img src={src} alt="" className={cn('h-14 w-14 rounded-md object-cover', on && 'ring-2 ring-brand-cyan')} />
-                    : <span className={cn('flex h-14 w-14 items-center justify-center rounded-md bg-white/[0.04] text-[10px] text-text-muted', on && 'ring-2 ring-brand-cyan')}>No preview</span>}
+                  {/* The card's own Picture, so a purged Dash thumbnail shows the same placeholder here as on
+                      the card, not a broken image (Paul's review of #273, C11). The ring marks a pick. */}
+                  <span className={cn('block rounded-md', on && 'ring-2 ring-brand-cyan')}>
+                    <Picture creative={p.thumb.creative} alt="" tile="h-14 w-14 shrink-0 rounded-md" />
+                  </span>
                   <span className={cn('mt-1 block text-[11px]', on ? 'text-white' : 'text-text-muted')}>{dayLabel(p.day)}</span>
                 </button>
               )

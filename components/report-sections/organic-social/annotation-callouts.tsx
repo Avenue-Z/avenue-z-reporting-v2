@@ -17,7 +17,7 @@ const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url
  *  shows the placeholder, never a broken image. onError catches a load that fails after
  *  hydration; the ref catches one that failed before React attached the handler. A video
  *  with no poster keeps a muted video tile, as the card keeps a live video. */
-function Picture({ creative, alt, tile = TILE }: { creative: Creative | null; alt: string; tile?: string }) {
+export function Picture({ creative, alt, tile = TILE }: { creative: Creative | null; alt: string; tile?: string }) {
   const [broken, setBroken] = useState(false)
   if (broken || !creative) {
     return (

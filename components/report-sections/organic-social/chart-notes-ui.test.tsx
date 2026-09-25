@@ -533,6 +533,24 @@ describe('after a save, one line says what happened; a day with a note loads it 
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ body: 'Old, fixed', postIds: [11, 12] })))
   })
 
+  // Paul's review of #273 (C11): the picker drew a raw image, so a purged Dash thumbnail showed a broken
+  // image there while the card showed its placeholder. It now uses the card's own Picture.
+  test("a post whose picture is gone shows the card's placeholder in the picker", () => {
+    draw([PEAK], { ...CONTROLS, days: [{ day: '2026-08-10', posts: [{ id: 11, thumb: { creative: null, mediaType: 'IMAGE', url: null } }, { id: 12, thumb: IMG(2) }] }] })
+    open()
+    const [gone, ok] = postButtons()
+    expect(within(gone).getByText('creative no longer available')).toBeTruthy()
+    expect(ok.querySelector('img')!.getAttribute('src')).toBe('https://cdn.example.com/t2.jpg')
+  })
+
+  test('a picture that fails to load in the picker falls back to the placeholder', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    const first = postButtons()[0]
+    fireEvent.error(first.querySelector('img')!)
+    expect(within(first).getByText('creative no longer available')).toBeTruthy()
+  })
+
   test('a day without a note shows no notice and fills nothing', () => {
     draw([PEAK], CONTROLS)
     open(); fireEvent.click(postButtons()[0])

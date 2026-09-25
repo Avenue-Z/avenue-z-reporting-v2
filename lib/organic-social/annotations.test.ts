@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT, thumbSrc } from './annotations'
+import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from './annotations'
 import type { TopContentPost } from './content-types'
 import type { TrendSeries } from './types'
 
@@ -184,11 +184,4 @@ test('a day with only a draft sends no note text to anyone', () => {
   const [a] = toChartAnnotations([{ date: '2026-08-14', value: 0, label: '8/14', post: null, noteOnly: true, note: { text: null, posts: [], editor } }])
   expect(a.note).toBeUndefined()
   expect(a.noteEditor).toEqual(editor)
-})
-
-test('the thumbnail source is the image thumb or the video poster', () => {
-  expect(thumbSrc({ creative: { kind: 'image', thumb: 't', full: 'f' }, mediaType: 'IMAGE', url: null })).toBe('t')
-  expect(thumbSrc({ creative: { kind: 'video', src: 's', poster: 'p' }, mediaType: 'VIDEO', url: null })).toBe('p')
-  expect(thumbSrc({ creative: { kind: 'video', src: 's', poster: null }, mediaType: 'VIDEO', url: null })).toBeNull()
-  expect(thumbSrc({ creative: null, mediaType: 'IMAGE', url: null })).toBeNull()
 })
