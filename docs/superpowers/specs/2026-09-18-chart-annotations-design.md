@@ -1,8 +1,8 @@
 # Chart annotations: design
 
-Status: approved in chat on 2026-09-18. Waiting on Jasmine's answer to question 9 of the
-decisions for approval doc, which describes this design (see the next section). Nothing is
-built until she answers.
+Status: built. Phase 1 (the annotations) shipped with PR #252 and is on staging. Phase 2 (written
+notes), and the way every callout now opens from its dot, is PR #273. This document describes what
+PR #273 builds; how the design got there is in "History of the design" at the end of Phase 2.
 Supersedes `docs/chart-annotations.md`.
 
 **Update 2026-09-21.** Jasmine answered question 9: "This should be fine, need to see it in
@@ -10,6 +10,9 @@ action." The design stands. The rebuild drops `922a090` and `annotations.test.ts
 unpublished, and gets demoed to her. On question 8 she reads sponsored as collab posts and
 wants them in their own section at the bottom of the dashboard; that section already exists
 (Influencer Posts).
+
+**Update 2026-09-25.** Phase 2 is built in PR #273, after my local QA and an adversarial audit. The
+build plan is `docs/superpowers/plans/2026-09-24-chart-notes.md` (Phases 2, 2b and 2c).
 
 ## Summary
 
@@ -73,7 +76,8 @@ client numbers and the repository is public.
 5. Guards that prove Renaissance's charts and data requests are unchanged.
 
 **Phase 2, after Jasmine answers question 9.** Written notes for spikes our
-data cannot explain, with an approval flow like Commentary.
+data cannot explain, with an approval flow like Commentary. She answered on 2026-09-21;
+specified in "Phase 2: written notes" below.
 
 **Deferred.** Red dots on zero-engagement days. It changes how every point on the shared
 chart is drawn, a wider change to a chart Renaissance also uses, for something the
@@ -193,11 +197,23 @@ already makes, so an annotation adds no request.
 
 ### 6. Where annotations appear
 
-The annotations sit in a row directly above the chart, in date order, each with its
-date, value and thumbnail, and each peak day gets a dot on the line. They are not pinned
-to pixel positions over the line, which would break as the chart resizes on a phone. If
-every channel is toggled off, the annotations go with the chart. This row replaces the
-hover card considered earlier, to match the deck.
+The graph shows a dot on each annotated day. Hovering a dot (after 100ms), tapping it, or reaching it
+with Tab and pressing Enter opens that day's card above the dot, joined to it by a short red line: the
+post picture(s), the date and value, and an approved note if there is one. One card is open at a time.
+It stays open while the pointer is on the dot or the card and closes when the pointer leaves both (after
+150ms), on Escape (focus goes back to the dot), or on a tap outside. It opens below the dot only when the
+screen has no room above it, and it never runs past the chart's sides. While a card is open the chart's
+own hover box hides. A callout whose day has no point on the series has no dot to open, so its card sits
+in a row above the chart instead. If every channel is toggled off, the annotations go with the chart.
+Cards never print: an exported PDF shows the dots.
+
+Each dot's position comes from Recharts itself (a `ReferenceDot` per callout reports the exact point
+Recharts draws), so the hit area, the red line and the card sit on the dot even when Recharts widens
+the axis to whole ticks. Code: `components/charts/line-chart.tsx` (`callouts`, `CalloutLayer`,
+`SpotProbe`) and `components/report-sections/organic-social/trends.tsx`.
+
+Phase 1 shipped with a row of cards above the chart; PR #273 replaces it with the dots and cards above,
+for top days and notes alike.
 
 ### 7. Titles and the Annotations button
 
@@ -222,9 +238,9 @@ annotation, so every v1 chart looks exactly as it does today.
   boundary.
 - **What the client sees.** A hidden annotation is removed on the server before the page
   is sent: no card, no dot, nothing in the page source.
-- **What the team sees.** The hidden annotation stays in place, faded, marked "Hidden
-  from client", with an Unhide button. Its dot is not drawn, so the chart the team sees
-  matches the client's.
+- **What the team sees.** A hidden day keeps a faint, dashed dot that only the team receives. Its
+  card, opened from that dot, stays solid with its contents faded, marked "Hidden from client",
+  with an Unhide button. Its real dot is not drawn, so the chart the team sees matches the client's.
 - **What it is attached to.** The annotation's day on one chart: client, platform, chart
   (followers or engagements) and day. Hiding the follower annotation for 8/10 does not
   hide the engagement one. It works whether or not the annotation has a post.
@@ -233,17 +249,21 @@ annotation, so every v1 chart looks exactly as it does today.
   `post_designations`. It is purely additive: no existing table, column or row changes.
   Not `post_designations` (a stored row there would override the #ad suggestion and
   change Top Content) and not the `clients` row (Renaissance's row lives there).
-- **Where the control lives.** Inside the v2 annotation row only. Never on the Top
-  Content post card, which Renaissance renders.
+- **Where the control lives.** On the v2 annotation cards only (the card that opens from a dot, or a
+  row card for a day with no point). Never on the Top Content post card, which Renaissance renders.
 - **Locked months.** Hides are live, like designations: hiding on a closed month still
   applies.
 - **Failure.** If the hides cannot be read (a transient error, or an environment where
   the migration has not been applied yet), clients see no annotations at all rather than
   risk showing one the team hid. The team sees every annotation without hide controls,
   and the error is logged.
-- **Migration.** Applied to staging with `npm run db:migrate:staging`, which refuses any
-  other database. Dev and prod need my written go-ahead and are recorded in
-  `MIGRATIONS-PENDING.md`. Nothing runs automatically on merge.
+- **Migration.** Applied to staging on 2026-09-24 with
+  `CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`, the command
+  `MIGRATIONS-PENDING.md` gives for staging (`:195`, `:254-256`), not
+  `npm run db:migrate:staging`, which runs the timestamp-gated `drizzle-kit migrate` that file
+  bans. (Corrected 2026-09-24: this line first named `npm run db:migrate:staging`.) Dev and prod
+  need my written go-ahead and are recorded in `MIGRATIONS-PENDING.md`. Nothing runs
+  automatically on merge.
 
 ### 9. What freezes on a locked month
 
@@ -259,6 +279,410 @@ still needed from it, the post for a given day, becomes "the top post of that da
 the optional marks prop on the shared line chart (unchanged) and the v2 parts reading
 posts from the frozen fetch. It also fixes a bug in that earlier commit: the engagement
 graph accepted marks and never passed them to the chart.
+
+## Phase 2: written notes
+
+Built in PR #273. Question 9 promised it: "Written notes like 'influencer post
+went live' come next, approved before a client sees them, the way Commentary works." The
+team added three details on 2026-09-24: a note can go on any day; it shows in the chart's
+hover box as well as in the callout, the way the old decks named the post or event after the
+number; and the team picks which of that day's posts show with it, since the old decks
+sometimes pictured two posts on one callout. Line cites in P1 and P4 to P9 were read on `dev` at
+`df2cf05`; P2, P3 and P10 to P12 name the code PR #273 adds, by file and symbol.
+
+**It copies Commentary's logic rather than inventing a new one:** the same permissions, the same
+draft and approve lifecycle (an edit of an approved note leaves it showing until the new draft is
+approved; a revoke falls back to the version before), the same race guards, and Commentary's own
+guard functions imported as they are (`authorizeRowForClient`, `guardNotDeleted`, `canDeleteDraft`,
+`lib/commentary/mutations.ts:29`, `:43`, `:56`). No Commentary file and no Commentary table
+changes, because Renaissance runs Commentary. Two additions of our own, both in the new files
+only: one open draft per day (P5), because a card shows one draft; and approve matching exactly
+what the approver was shown (P5), so a client never sees words nobody approved.
+
+### P1. What a note is
+
+- A short line of plain text the team attaches to one day on one graph: client, platform,
+  chart (`followers` or `engagements`) and day. That is the same key a hide uses
+  (`chart_annotation_hides`, `lib/db/schema.ts:382-394`), so a hide on that chart and day
+  covers the note too (P2.7).
+- Any day inside the window the graph already annotates: the same `isoRange(dateRange)`
+  start and end the peaks are picked from
+  (`components/report-sections/organic-social/parts/follower-graph.tsx:61-62`,
+  `parts/engagement-trend.tsx:48-49`, enforced in `pickPeaks`,
+  `lib/organic-social/annotations.ts:36`). A note outside that window stays stored and shows
+  when its own month is on screen.
+- 1 to 80 characters after trimming, one line of plain text. It is rendered as text, never
+  as HTML, so it needs no sanitizer (Commentary's HTML body does).
+- Up to 2 of that day's posts, picked by the team (P3). Two is the most one callout pictures
+  in the deck screenshots the team shared on 2026-09-24. None picked means the day's top post,
+  as Phase 1 already shows.
+  The picks are part of the note, so they go through the same draft and approval (P5): a
+  client sees the picks of the approved version only.
+- Per chart and day, at most one approved note shows and at most one draft is open (P5, P6).
+
+### P2. Where a note shows
+
+1. **On a top day**, the note sits on its own line under that day's date and value, on the day's card:
+   `8/10 | +12 Followers`, then `Influencer post went live` (made-up example). `annotationLabel`
+   (`lib/organic-social/annotations.ts`) does not change. Posts the team picked replace the
+   automatic top post on that card, which also gives the team a way around another account's tagged
+   post being the day's top post (Edge cases, below).
+2. **On any other day**, the day gets its own card: the date, the note, and the posts the team
+   picked, or when none is picked the day's top post from `topPostByDate` if a post went live. It
+   shows no number, because that day can be a zero or a loss: `annotationLabel` always writes a plus
+   on followers, so reusing it would print `+-3 Followers`. The hover box gives that day's number.
+3. **A dot** marks every day a client may see: a top day, or a day with an approved note, that is not
+   hidden (`trends.tsx`, `shown`). The card opens from it, as section 6 describes. A day with no point
+   on the series has no dot; its card sits in the row above the chart.
+4. **The note and any draft show whole on the card**, never cut: the card takes its natural height,
+   and the hover box, which also carries the note, hides while a card is open.
+5. **In the hover box.** Hovering a day with an approved note shows the note under the value
+   (`NotedTooltip`, `components/charts/line-chart.tsx`), for the team and the client alike. Drafts
+   never reach it. `LineChart` gains the optional `notes` prop for this; absent, it renders exactly the
+   `Tooltip` it rendered before.
+6. **The Annotations button** (`trends.tsx`) shows and hides notes, their dots and cards with the
+   callouts, on the viewer's screen only. It appears only when a chart has something to show, and
+   note days count, so a chart with notes and no peaks still gets it. When every channel is toggled
+   off, notes go with the callouts.
+7. **Hides win.** A hide is per chart and day, and clients never receive a hidden day
+   (`lib/organic-social/annotation-hides/apply.ts`). So hiding a day removes its callout and its note
+   from the client, peak or not.
+8. **The team's view** is the same chart. The team's hidden days and draft-only days get a faint,
+   dashed dot that opens the same way; their cards stay solid with the contents dimmed (a hidden day
+   more, 40%; a draft-only day less, 80%). Clients never receive those days (removed on the server).
+   Under a draft the card shows the pictures clients will get once it is approved: the draft's picks
+   Dash still returns for that day, else the day's top post, else none (`attach`,
+   `components/report-sections/organic-social/parts/chart-notes.ts`), the same rule the client's card
+   follows (`cardThumbs`, `lib/organic-social/annotations.ts`).
+9. **Printing** (Export PDF is `window.print()`): the dots print; cards, faint dots, drafts and every
+   control carry `no-print`. A card in the row above the chart prints unless its day is hidden or has
+   only a draft.
+
+### P3. Adding and changing a note
+
+- **Add.** A team viewer who can edit (P4) gets an **Add annotation** button beside the Annotations
+  button, on v2 platform graphs only, when the month has at least one post. Clients never receive it.
+  It opens a panel above the chart (`note-form.tsx`):
+  1. **The month's posts as pictures**, each with its date, only days with at least one post, oldest
+     first, in one row that scrolls sideways. Picking a picture sets the day. Up to 2 posts, all from
+     that day; picking a post from another day moves the note there. The posts come from `graphPosts`
+     (`lib/organic-social/graph-posts.ts`), the fetch the callout thumbnails already use: Dash's Top
+     Content for that platform and window, capped at 500 posts. A post outside that feed, such as an
+     influencer's post on their own account that does not tag the client, cannot be picked; the note
+     names it instead ("What the team does today", above).
+  2. **The text**, with a live `n/80` counter; the box stops at 80. **Save draft** needs a picked post
+     and text.
+- **One note per chart per day** (P5). Picking a post from a day that already has a note loads that
+  note: its text (only if the box is empty) and all its picked posts, plus the new pick if there is room.
+  The panel says so: "8/7 already has a draft. Saving updates it." or "8/7 already has an approved
+  note. Saving drafts a change to it." Text the panel filled in and the user left as it was goes with
+  its day (moving to another day, or unpicking every post, drops it); text the user wrote stays.
+- **On each card** the same viewer gets Hide (or Unhide), Note (or Edit), and Delete on a draft; an
+  approver also gets Approve on a draft, and Revoke on an approved note when no draft is open on that
+  day. Note or Edit opens the panel fixed to that card's day with its text and picks; a day with no
+  post says "No posts went live this day" and saves with the text alone.
+- **The panel never drops a saved pick by itself.** A pick Dash does not return this time (a failed,
+  empty or partial answer) shows first in the row as the card's placeholder tile, pressed; it counts
+  toward the 2 and leaves only when clicked. With no post on screen but picks kept, the panel says
+  "Posts could not load, so this note keeps its picked posts."
+- **Every control carries `no-print`**, like the Hide toggle.
+- **After a save** the panel closes and one line says what happened, team only, never printed:
+  "Saved a draft for 8/24. Clients see it once it's approved."; "Updated the draft for 8/7. Clients
+  see it once it's approved."; or, when the day had only an approved note, "Saved a draft for 8/7.
+  Clients keep seeing the approved note until this one is approved." An approver also reads "Hover its
+  dot to approve it." The line clears after 8 seconds or when the panel opens again.
+- **After each action** the page refreshes the way the Commentary panel does: `router.refresh()` once
+  the action returns, after the action's `revalidateTag` has busted the cache
+  (`components/report-sections/commentary/commentary-panel.tsx`). The new notes arrive through the
+  chart's `annotations` prop.
+
+### P4. Who can do what: Commentary's rules, reused
+
+- **Team or client** is decided by role, as monthly Commentary does
+  (`components/report-sections/commentary/monthly.tsx:19-22`, `viewerForRole`,
+  `lib/organic-social/reporting-months.ts:69-71`). Its team roles are the same two that
+  `isInternalStaff` allows for hides (`reporting-months.ts:35`,
+  `lib/dashboard/permissions.ts:8`).
+- **Write, edit, and delete a draft:** a team viewer whose email passes
+  `canEditCommentary`, any `@avenuez.com` address (`lib/commentary/permissions.ts:18-20`).
+- **Approve and revoke:** `canApproveCommentary`, the same check given a different list: the
+  notes' own `CHART_NOTES_APPROVERS` env var (decided 2026-09-24, because the organic social
+  approvers differ from Commentary's). The parser is Commentary's (`permissions.ts:23-29`),
+  passed the notes' value; Commentary's own `COMMENTARY_APPROVERS` stays untouched and grants
+  nothing here. Unset means nobody can approve a note. Whose emails go on the new list is the
+  open question (P13).
+- **Anyone who cannot edit gets the client view:** approved notes only, with no author,
+  time, status or id, as monthly Commentary redacts for a non-editor (`monthly.tsx:40`,
+  `toClientSafeEntry`, `lib/commentary/select.ts:46-61`). The reason in that comment holds
+  here: a field that crosses to the browser can be read whatever the JSX renders, so the
+  redaction happens on the server.
+- **Every server action checks the role and the email.** The hide action checks the role
+  (`app/actions/organic-social.ts:49`); the Commentary actions check the email
+  (`app/actions/commentary.ts:58`, `:125`, `:155`, `:191`). A note action does both, so a
+  client role is refused whatever its email, the line monthly Commentary draws for reads
+  (`monthly.tsx:12-15`). A hidden control is not an authorization boundary.
+- **A note named by id must belong to the client in the call**, as `authorizeRowForClient`
+  checks for Commentary (`lib/commentary/mutations.ts:29`).
+- **No note can be written or read for a client that is not on locked months**
+  (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`): every action refuses it
+  and the read skips it. The October clients are on locked months. Renaissance is not: its
+  `dash_social_config` holds only `brandId` in dev, staging and prod (the 2026-09-17 Renaissance
+  baselines, unchanged by every drift check since). So nothing in this feature can write a row for
+  Renaissance or read one for it, whoever calls the code.
+- **The viewer's email.** `OrganicSocialCtx` carries the role but not the email
+  (`components/report-sections/organic-social/ctx.ts:3-14`). `OrganicSocialBody` already
+  reads the session for the role (`index.tsx:51-53`); it adds the email as an optional
+  field, default null. Only the notes read it.
+
+### P5. Lifecycle: Commentary's, with one open draft per day
+
+- **Save** with no open draft on that chart and day creates a draft; with one open, it
+  edits that draft in place. Commentary creates a new draft whenever no row is named
+  (`app/actions/commentary.ts:81`, `:99`), which allows several drafts per period. One line
+  on one day needs only one, so notes cap it (P6).
+- **Approve** makes it visible to clients. The note shown for a day is the most recently
+  approved one, ranked by approval time then last update, as `mostRecentApprovedPerPeriod`
+  ranks Commentary (`lib/commentary/select.ts:35-44`). Approve carries the text and posts the
+  approver was shown, and only succeeds if the row is still a draft holding exactly those; otherwise it says
+  "This note changed since you opened the page". Editing a draft changes that same row, so without
+  this an edit made after the approver opened the page would reach a client unread. Commentary
+  approves by id alone (`app/actions/commentary.ts:122`, update at `:136-140`); this check lives
+  only in the new notes code.
+- **Edit an approved note** opens a draft, or edits the open one; the approved version stays
+  visible to clients until the draft is approved, as `saveCommentary` does
+  (`app/actions/commentary.ts:53-55`).
+- **Revoke** returns an approved note to draft (`revokeCommentary`, `:150-152`). Clients then
+  see the note approved before it, if there was one, because Commentary keeps superseded
+  approvals so a revoke falls back (`select.ts:18-20`). To take a note down for good, revoke
+  each approved version, or hide the day. If a draft is already open on that day, revoke is
+  refused with a message to delete or approve that draft first, so a day never holds two
+  drafts. Revoke acts only on the approval clients see: the row must be approved and not deleted,
+  and no approved row of that day may rank after it, checked in the same statement as the write
+  (`revokeNoteQuery`). A Revoke from a page opened before a newer approval says "This note changed
+  since you opened the page" and changes nothing.
+- **Delete** is for drafts only, and is a soft delete (`deleteCommentaryDraft`, `:188`), with
+  Commentary's database check that a deleted row is a draft
+  (`report_commentary_no_deleted_approved`, `lib/db/schema.ts:353`).
+- **What the team sees** per chart and day: the approved note if there is one, and the open
+  draft under it marked Draft (`visibleEntries` keeps drafts for editors,
+  `lib/commentary/select.ts:21-30`).
+- **Races:** every write re-asserts the state it expects and uses `.returning()`, so a lost race
+  reports "not found" or "This note changed since you opened the page" instead of a false success
+  (`app/actions/commentary.ts:17-34`). A save whose open draft was approved or deleted in between is
+  saved as a new draft.
+  Two people opening a draft on the same day at once: the second insert fails the unique
+  index (P6), and the action returns "a draft is already open on this day" instead of
+  throwing.
+- **Freshness:** `revalidateTag('db', 'max')` after every write, as hides do
+  (`app/actions/organic-social.ts:62`) and Commentary does (`commentary.ts:111`).
+
+### P6. Storage
+
+A new table, `chart_notes`, purely additive: no existing table, column or row changes.
+
+| Column | Type | Note |
+| --- | --- | --- |
+| `id` | uuid | primary key |
+| `client_id` | uuid | references `clients`, cascade on delete |
+| `channel` | text | a `DashChannel` |
+| `chart` | text | `followers` or `engagements` |
+| `day` | date | the UTC day Dash counts, as hides store it |
+| `body` | text | 1 to 80 characters, plain text |
+| `post_ids` | bigint[] | up to 2 Dash post ids, the id `TopContentPost` carries (`lib/organic-social/content-types.ts:16`) and `post_designations.post_id` stores (`lib/db/schema.ts:367`); empty means none picked |
+| `status` | `commentary_status` | reuses the enum, `draft` or `approved` (`lib/db/schema.ts:321`) |
+| `created_by`, `updated_by` | text | emails |
+| `approved_by` | text, nullable | email |
+| `created_at`, `updated_at` | timestamptz | |
+| `approved_at` | timestamptz, nullable | |
+| `deleted_at`, `deleted_by` | timestamptz, text, nullable | soft delete |
+
+- An index on (`client_id`, `channel`), the shape of the one read (P7).
+- A check that a deleted row is a draft, as `report_commentary_no_deleted_approved`.
+- A partial unique index on (`client_id`, `channel`, `chart`, `day`) where
+  `status = 'draft'` and `deleted_at` is null: at most one open draft per day. The pinned
+  drizzle-orm (0.45.2) declares an index condition with `.where()`
+  (`node_modules/drizzle-orm/pg-core/indexes.d.ts:67`). Nothing in `schema.ts` uses one
+  yet, so the plan checks the generated SQL.
+
+Not `report_commentary`: its rows are HTML with a reporting period and a view key, a
+different shape. Nothing Renaissance renders reads the new table.
+
+Migration `0025` (the journal ends at `0024_yielding_outlaw_kid`,
+`drizzle/meta/_journal.json`). Applied to staging with
+`CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`
+(`MIGRATIONS-PENDING.md:195`, `:254-256`) before the code reaches staging; applied to
+production before the merge to `main`, only on my written go, and recorded in
+`MIGRATIONS-PENDING.md`.
+
+### P7. Loading and failure
+
+- **One read per platform per render**, React-cached like `getAnnotationHides`
+  (`lib/organic-social/annotation-hides/select.ts:12`), shared by the tab's two graphs.
+- **Order:** notes first, then the day list (the peaks plus note days in the window), then
+  `withHides` over that list. `withHides` skips its read when the list is empty
+  (`components/report-sections/organic-social/parts/annotation-hides.ts:17`); that stays
+  right, because a note day is in the list before it runs.
+- **Picked posts are drawn from the posts already loaded.** Each id is looked up among that
+  day's posts from `graphPosts`; one that is no longer there is skipped, and a card whose
+  picks are all gone falls back to the day's top post. Every picked post is trimmed to its
+  thumbnail on the server the way `toChartAnnotations` trims the top post today
+  (`annotations.ts:118-125`), so no caption, metrics or id reaches a client's page. Only the
+  Add annotation panel and a card's Edit, which clients never receive, carry the candidates' ids.
+- **Fails closed, as hides do for clients** (`parts/annotation-hides.ts:29-36`): if the
+  notes cannot be read, nobody sees a note, team included, the team gets no note controls, the error is logged, and the
+  graphs render exactly as Phase 1 does.
+- **Only in the v2 parts on platform tabs:** `FollowerSectionV2`
+  (`parts/follower-graph.tsx:54-74`) and `TrendSectionV2` (`parts/engagement-trend.tsx:38-61`).
+  On Overview both return before any annotation is built (`follower-graph.tsx:55`,
+  `engagement-trend.tsx:39-42`), so Overview gets no notes.
+
+### P8. Locked months
+
+Notes are the team's words, not Dash numbers, so they never lock, like hides (section 8)
+and Commentary. The team can add a note to August after August locks.
+
+### P9. Validation
+
+Pure and unit tested, like `authorizeAnnotationHide`
+(`lib/organic-social/annotation-hides/mutations.ts:16-24`). The three checks it makes today
+(`:19-21`): a known platform, a known chart, a real calendar day (`isRealDay`, `:8-12`). New
+for notes: the day is not after today in UTC, and the body is 1 to 80 characters after
+trimming, with no control characters (so no line breaks), and at most 2 post ids, each a
+positive integer, no repeats. Whether each id is a post of that day is checked at render,
+where the posts are already loaded (P7), so the action makes no Dash call. The client must
+exist, and a note named by id must belong to it. Anything else is refused before any write.
+
+### P10. Edge cases
+
+| Case | Behaviour |
+|---|---|
+| A note on a top day | Its own line under the callout's date and number. |
+| A note on another day | Its own card: date, note, and a thumbnail if a post went live. No number. |
+| That day lost followers, or had none | The card shows as usual, with no number, so never `+-3`. The hover box gives the value. |
+| The day has no point on the series | Its card sits in the row above the chart: no dot, no hover line. |
+| The team picked posts | They replace the automatic top post on that card. |
+| A picked post is no longer in Dash's answer | Skipped; if none remain, the day's top post shows. |
+| No post went live that day | No thumbnail; the note alone. |
+| An influencer's post on their own account | Cannot be picked (not in the feed); the note names it. |
+| The day is outside the window on screen | Not shown; it shows with its own month. |
+| A draft only | The team sees a faint dot and a card marked Draft, never printed. Clients get nothing. |
+| An approved note is edited | Clients keep the approved text until the new draft is approved. |
+| An approved note is revoked | Clients see the version approved before it, or nothing if there was none. |
+| Revoke while a draft is open on that day | Refused: delete or approve the draft first. |
+| Two people start a draft on the same day | The second is refused by the index and told a draft is open. |
+| The day is hidden | Clients get neither callout nor note; the team sees both, faded. |
+| A note added on a day the team had already hidden | The client never receives it. The team sees it unfaded until the next navigation: the chart seeds hidden days once per view. Accepted, and tracked in CLAUDE.md (chart notes follow-ups). |
+| Every channel toggled off, or the Annotations button off | Notes, dots and hover lines go with the callouts. |
+| Neighbouring top days, or notes a day apart | One card opens at a time, so cards never overlap. |
+| A callout on the first or last day of the month | Its card stays inside the chart's sides; the red line still ends on the dot. |
+| Many callouts in one month | Each has its own dot; nothing is dropped. |
+| A phone-width screen | The same dots; a tap opens a card and a tap outside closes it; a card is never wider than the chart. |
+| An axis Recharts widens to whole ticks | Dots, hit areas, red lines and cards still sit on the line: every position comes from Recharts' own scale. |
+| A second note on a day that has one | The panel loads the existing note and says a save updates it. |
+| A long note or draft (up to 80 characters) | Shown whole on the card; long words wrap. |
+| The notes cannot be read | Nobody sees a note; logged; the graphs are exactly Phase 1. |
+| A client role, or a team role without an `@avenuez.com` email, calls an action directly | Refused by the action. |
+| A client not on locked months (Renaissance) | Every action refuses it before any read or write, and its graphs never read notes. |
+| A draft edited after the approver opened the page | Approve is refused with "This note changed since you opened the page"; reload and approve what is there. |
+| Malformed input (unknown platform or chart, bad or future day, empty or long body) | Refused by the validator before any write. |
+| Overview | No notes. |
+| A locked month | Notes can still be added and changed; they never lock. |
+
+### P11. Renaissance
+
+- **Nothing can be written or read for it.** Every note action refuses a client that is not on
+  locked months, and the read skips one (P4). Renaissance is not on locked months.
+- **Nothing it runs changes behaviour.** No Commentary file or table is edited. The migration
+  creates one new table and changes nothing else (P6).
+- **Its graphs are v1** (section "Renaissance" below) and render no annotations, so they
+  render no notes. The notes read runs only in the v2 parts (P7).
+- **Every shared change is optional and does nothing by default:**
+  - the two new `LineChart` props, `notes` and `callouts`: absent means today's `Tooltip`, no hit
+    area, no card and no red line. Its three callers are `trends.tsx`,
+    `components/report-sections/paid-media/overview/trend.tsx` and
+    `components/report-sections/organic-social/parts/ytd-review.tsx`; only `trends.tsx` passes
+    them, and only for callouts the viewer may see (P2);
+  - the optional email on the context (P4);
+  - the new optional fields on `ChartAnnotation` (`lib/organic-social/annotations.ts:108`).
+    A chart given no annotations already renders exactly as before (`trends.tsx:28-30`).
+- **Proven by the snapshots that already exist, unchanged:**
+  `components/report-sections/organic-social/v1-render.golden.test.tsx` (v1 charts, and the
+  Paid Media shaped `LineChart` at `:79-81`), `render-invariant.test.tsx`,
+  `parts/composition.golden.test.tsx`, `parts/follower-graph.golden.test.tsx` and
+  `parts/engagement-trend.golden.test.tsx`.
+- **Checked at every build step, not only at the end:** those snapshots are run and must be
+  byte-identical before every commit; a test pins that v1 never reads notes; a test pins that every
+  action refuses a Renaissance-shaped client; and on staging, after every step, a read-only check
+  that no `chart_notes` row exists for Renaissance, its `clients` row is unchanged, its config still
+  has no `reportingMonths`, and the drift check's `REN.*` lines are identical.
+
+### P12. Testing
+
+- Renaissance first: every snapshot in P11 passes unchanged before and after.
+- The validator: each refusal, and a good payload.
+- Permissions: write and delete for editors only, approve and revoke for approvers only,
+  client roles refused by every action whatever the email, and a note id from another
+  client refused.
+- The lifecycle: draft, approve, edit opens a draft while the approved version stays
+  visible, a second save edits the open draft, revoke falls back to the earlier approved
+  version, revoke refused while a draft is open, delete of a draft only, a lost race
+  reported as "not found", a second concurrent draft refused, and an approve
+  refused when the draft changed after the approver opened the page.
+- What each audience receives: non-editors get approved notes only, redacted, with nothing
+  else in the props; the team gets drafts marked; a hide removes the day's note for
+  clients.
+- Where a note shows: joined to a top-day card, its own card on another day with no number
+  (including a negative and a zero day), the dot only when approved and the day is in the
+  data, the hover box with approved notes only; the Annotations button hides them; drafts
+  and controls carry `no-print`, and a draft-only row prints nothing.
+- Picking posts: up to 2, a pick replaces the top post, a vanished pick is skipped and all
+  vanished falls back to the top post, and a client's page carries thumbnails only.
+- `LineChart` with no notes and no callouts renders exactly as before (byte-identical to dev for the
+  five shapes its callers pass); with notes, the hover box shows the day's note; with callouts, each
+  hit area, faint dot and red line sits on Recharts' own dot, including on an axis Recharts widens;
+  the card opens above its dot (below only without room), one at a time, by hover, tap or keyboard,
+  and stays inside the chart; a callout on a day with no value is still reachable.
+- The layout: dots only; the team's buttons on each card; the team's hidden and draft days as faint
+  dots with solid, dimmed cards; a callout with no point on the series in the row; the note and the
+  draft shown whole.
+- The Add annotation panel: pictures of days with posts only, one day's posts, the notice and the
+  loaded note for a day that has one, filled-in text staying with its day, and the line after a save.
+- A read failure: no notes and no note controls for anyone, logged, graphs unchanged.
+- The migration: applied to staging, then a read-only check that the table, its check and
+  its partial unique index exist as in P6, and that no other table changed.
+- The database, read back on staging after each step: a save stores a draft row, a reload still
+  shows it, approve marks it approved, an edit of an approved note adds a draft beside it while the
+  approved row stays, revoke returns it to draft, delete sets `deleted_at` on a draft only, and no
+  row ever exists for Renaissance.
+
+### P13. Who approves (decided 2026-09-24)
+
+The organic social lead approves notes; I named her on 2026-09-24, and her email goes only into
+`CHART_NOTES_APPROVERS` in each environment, never into this public repo.
+
+Why a separate list: notes do NOT reuse Commentary's `COMMENTARY_APPROVERS`, because the organic
+social approvers differ from Commentary's. The new var is read by the new permissions module only,
+through Commentary's unchanged parser, and unset means nobody can approve a note. Setting it is an
+environment change in Vercel (staging first, production later), no code change, plus the mirrored
+local `.env` copy.
+
+### History of the design
+
+All decided by me unless noted; the plan records each step in full.
+
+- **2026-09-18:** a row of annotation cards above the chart, one thumbnail each (Phase 1, shipped with
+  PR #252; approved by Jasmine on 2026-09-21, question 9).
+- **2026-09-24, option B:** callouts pinned to their dots like the deck, always visible and printed,
+  phones keeping the row (the approved sketch). Built in PR #273's early commits, then replaced.
+- **2026-09-24, Phase 2b, after my first look on our own local app:** dots only, a card opens from its
+  dot; the team's hidden and draft days as faint dots; Add note by picture, days with posts only;
+  the PDF shows dots. The plan's Phase 2b, D1 to D16.
+- **2026-09-24 night, Phase 2c, after my click-through of every client:** positions from Recharts'
+  own scale (a follower graph's hit areas had sat off their dots); a line after each save; one note
+  per day made visible in the panel; draft cards dimmed less (80%); the button renamed "Add
+  annotation"; the picker on the site's dark scrollbar. The plan's Phase 2c, D17 to D19.
+- **2026-09-25, my adversarial audit:** the note and the draft shown whole on a card; filled-in text
+  stays with its day.
 
 ## Renaissance
 
@@ -276,8 +700,11 @@ Renaissance is live in production and must not change. This rests on facts check
   taken the same day show no annotation or Posts button on either graph.
 - **Every shared change is optional and does nothing by default.** The new getter
   arguments default to today's metric and window. The chart's new props render nothing
-  when absent. `line-chart.tsx` is not edited. Paid Media, which Renaissance also has,
-  passes no marks.
+  when absent. `line-chart.tsx` keeps the optional `marks` prop this branch added before
+  this spec (`922a090`); the rebuild only dropped the mark's unused `label` (`0bfa2d6`).
+  (Corrected 2026-09-24: this line first said `line-chart.tsx` is not edited.) Paid Media,
+  which Renaissance also has, passes no marks. Phase 2 adds two more optional props, `notes` and
+  `callouts` (P11).
 - **Proven by tests written first.** Before any change, the plan commits snapshot tests
   that render the v1 charts with real Recharts output, and tests that pin the exact Dash
   requests and gap rules of the v1 getters. None of those may change.
@@ -341,12 +768,35 @@ Renaissance is live in production and must not change. This rests on facts check
 | v2 follower graph plots daily net new followers | Me, from the deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
 | v2 graphs use the UTC month | Me, after the probe | 2026-09-18 | Decided |
 | Titles and the Annotations button follow the outlines word for word | Jasmine's outlines | 2026-09-18 | Decided |
-| A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
+| A row of annotations above the chart, one thumbnail each, shown by default | Me, from the deck | 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9); replaced by dots with cards (Phase 2b), shown by default |
 | The team can hide one annotation from the client; internal staff only; the team sees it faded | Me | 2026-09-17 and 2026-09-18 | Approved by Jasmine 2026-09-21 (Q9), pending a demo |
 | A hide attaches to the annotation's day on one chart, not to a post | Me | 2026-09-18 | Decided |
 | Hides stored in a new additive table | Me | 2026-09-17 | Decided |
 | Sponsored posts can be thumbnails | Default | 2026-09-18 | Open: her Q8 answer (2026-09-21) is about Top Content, so I decide this at the rebuild |
 | No annotations on Overview | Me | 2026-09-18 | Decided |
-| Written notes wait for Phase 2 | Me | 2026-09-18 | Decided |
+| Written notes wait for Phase 2 | Me | 2026-09-18 | Done: Phase 2 specified 2026-09-24 |
+| A note attaches to one day on one graph, the same key as a hide | Me, from the old decks and the team's request | 2026-09-24 | Decided |
+| A note on a top day joins its callout; any other day gets its own card, with the date and the note but no number | Me, from the old decks and `annotations.ts:9`, `:75` | 2026-09-24 | Decided |
+| A note day gets a dot and a hover line only once approved and not hidden | Me | 2026-09-24 | Decided |
+| A note also shows in the chart's hover box | The team's request | 2026-09-24 | Decided |
+| Notes use Commentary's approval flow and permissions | Jasmine's question 9 | 2026-09-21 | Decided |
+| Note actions check the role as well as the email | Me, from `monthly.tsx:12-15` | 2026-09-24 | Decided |
+| Notes copy Commentary's logic and import its guard functions; no Commentary file or table changes | Me: keep Commentary's logic rather than write a new one | 2026-09-24 | Decided |
+| Approve only what the approver was shown (one of our two additions to Commentary's logic) | Me, from the adversarial review of the plan | 2026-09-24 | Decided: approved 2026-09-24 |
+| Notes only for clients on locked months, so none can be written or read for Renaissance | Me | 2026-09-24 | Decided |
+| One open draft per chart and day; revoke refused while one is open | Me | 2026-09-24 | Decided |
+| Notes are plain text, 1 to 80 characters | Me | 2026-09-24 | Decided |
+| The team picks up to 2 of that day's posts; none picked means the top post | The team's request; 2 from the deck screenshots | 2026-09-24 | Decided |
+| Notes never lock | Me | 2026-09-24 | Decided |
+| The reading of Phase 2: any day, the team picks that day's posts, a short note, on the callout and on hover, approved first | Confirmed with the team (Kyleah) | 2026-09-24 | Confirmed |
+| Callouts pinned to their dots like the deck, for top days and notes, always visible, printed as shown; phones keep the row | Me, from the deck | 2026-09-24 | Replaced by hover cards (Phase 2b) |
+| A note needs text even when posts are picked | Me | 2026-09-24 | Decided |
+| The team's buttons sit on each card; hidden and draft days are faint dots with dimmed cards, for the team only, never printed | Approved by the organic social team; updated in Phase 2b | 2026-09-24 | Decided |
+| The note sits on its own line under the date and number, and the connecting line is red, as in the approved sketch | The approved sketch | 2026-09-24 | Decided |
+| Notes get their own approver list, `CHART_NOTES_APPROVERS`, separate from Commentary's; unset approves nothing | Me | 2026-09-24 | Decided |
+| Who approves notes for Organic Social: the organic social lead, set in `CHART_NOTES_APPROVERS` (the email lives only in the environment, never in this public repo) | Me | 2026-09-24 | Decided |
+| Hover cards instead of pinned ones (dots only; hover, tap or focus shows the card); Add note picks posts by picture, days with posts only; editing stays team only; PDF shows dots | Me, after the first local look | 2026-09-24 | Decided (Phase 2b) |
+| Dots placed by Recharts' own scale; one line after each save; a day's existing note loads in the Add annotation panel; draft cards at 80%; the button reads "Add annotation" | Me, after my local click-through | 2026-09-24 | Decided (Phase 2c) |
+| A card shows the note and the draft whole; text the panel fills in stays with its day | Me, in my adversarial audit | 2026-09-25 | Decided |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
 
