@@ -25,12 +25,14 @@ export function isSeenNote(seen: unknown): seen is { text: string; postIds: numb
     && postIds.every((id) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0)
 }
 
-/** Every C0 control character and DEL, so a note stays one line of plain text. A code point
- *  check rather than a regex, which eslint's no-control-regex would flag. */
+/** Every C0 control, DEL, every C1 control (U+0080 to U+009F, such as NEL) and the line and
+ *  paragraph separators U+2028 and U+2029, so a note stays one line of plain text (the last two
+ *  groups added in Paul's review of #273, C10). A code point check rather than a regex, which
+ *  eslint's no-control-regex would flag. */
 function hasControl(text: string): boolean {
   return [...text].some((c) => {
     const n = c.codePointAt(0)!
-    return n < 32 || n === 127
+    return n < 32 || (n >= 127 && n <= 159) || n === 0x2028 || n === 0x2029
   })
 }
 

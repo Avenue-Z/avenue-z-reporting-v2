@@ -71,3 +71,13 @@ test('what an approver was shown is a text and at most 2 post ids', () => {
 test('today is the UTC date', () => {
   expect(todayUtc(new Date('2026-09-24T23:30:00-04:00'))).toBe('2026-09-25')
 })
+
+// Paul's review of #273 (C10): the one-line check refused C0 controls and DEL only, so U+2028, U+2029 and
+// C1 controls such as U+0085 got through (React escapes them; this is data hygiene, not security).
+test('line and paragraph separators and C1 controls are refused too; ordinary text is not', () => {
+  for (const c of ['\u2028', '\u2029', '\u0085', '\u0080', '\u009f']) {
+    expect(v({ body: `a${c}b` })).toEqual({ ok: false, error: 'A note is one line of plain text.' })
+  }
+  expect(v({ body: 'Caf\u00e9, na\u00efve, \u201cquoted\u201d, \u00a0spaced and \u{1F389}' })).toEqual({ ok: true })
+})
+
