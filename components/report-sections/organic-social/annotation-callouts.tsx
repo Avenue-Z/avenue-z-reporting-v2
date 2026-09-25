@@ -105,21 +105,28 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-xs font-bold text-white">{annotation.label}</span>
         {annotation.note && <span className={cn('text-xs text-white', pinned && 'line-clamp-2')}>{annotation.note}</span>}
-        {draft && <span className="no-print text-[11px] text-text-muted">Draft: {draft.text}</span>}
+        {draft && <span className={cn('no-print text-[11px] text-text-muted', pinned && 'line-clamp-1')}>Draft: {draft.text}</span>}
         {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
       </span>
-      {controls && (
-        <button
-          type="button"
-          onClick={toggle}
-          disabled={pending}
-          aria-label={hidden ? 'Unhide' : 'Hide from client'}
-          className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
-        >
-          {hidden ? 'Unhide' : pinned ? 'Hide' : 'Hide from client'}
-        </button>
+      {/* The team's buttons get a row of their own under the picture and the text: beside them the
+          text column (flex-1, a zero starting width) shrank to a few pixels, and a pinned card
+          clipped its buttons (measured in Chromium, Task 10). A client has no buttons, no row. */}
+      {(controls || (noteControls && onEdit)) && (
+        <span className="no-print flex basis-full flex-wrap items-center gap-2">
+          {controls && (
+            <button
+              type="button"
+              onClick={toggle}
+              disabled={pending}
+              aria-label={hidden ? 'Unhide' : 'Hide from client'}
+              className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
+            >
+              {hidden ? 'Unhide' : pinned ? 'Hide' : 'Hide from client'}
+            </button>
+          )}
+          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} pinned={pinned} onEdit={onEdit} />}
+        </span>
       )}
-      {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} pinned={pinned} onEdit={onEdit} />}
     </Tag>
   )
 }

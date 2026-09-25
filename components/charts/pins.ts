@@ -2,9 +2,11 @@
  *  above the plot, joined by a line down to its day's dot. */
 export const PIN_CARD_WIDTH = 280
 export const PIN_CARD_HEIGHT = 80
-/** The team's cards carry a row of buttons under the picture: 64 + 8 gap + 22 + 12 padding + 2
- *  border is 108, rounded up. */
-export const PIN_TEAM_CARD_HEIGHT = 112
+/** The team's cards carry their buttons on a row of their own under the picture and the text.
+ *  Measured in Chromium with the app's CSS (Task 10 review): the tallest team card, with two
+ *  pictures, a two-line label, a two-line note, a draft line, the hidden line and five buttons
+ *  (which wrap to two rows at 280px), needs 170px of content plus a 1px border each side. */
+export const PIN_TEAM_CARD_HEIGHT = 172
 export const PIN_GAP = 8
 /** The connecting line: red, as in the approved sketch and the team's deck. */
 export const PIN_LINE_COLOR = '#E24B4A'

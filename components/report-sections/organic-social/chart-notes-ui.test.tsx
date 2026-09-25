@@ -216,3 +216,44 @@ describe('on a wide screen: option B, cards pinned to their dots', () => {
     expect(chart().pins).toBeUndefined()
   })
 })
+
+// Found in the Task 10 review, measured in Chromium with the app's own CSS: beside the buttons the
+// text column (flex-1, a zero starting width) shrank to a few pixels, and a pinned team card clipped
+// its buttons. The buttons belong on their own row under the picture and the text.
+describe("the team's buttons sit on their own row, so the date, number and note keep their width", () => {
+  const ED = { approvedId: 'aid', approvedPostIds: [], draft: { id: 'did', text: 'Went live Tuesday', postIds: [] } }
+  const real = window.matchMedia
+  afterEach(() => { window.matchMedia = real })
+  const wide = () => {
+    window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+  }
+
+  test('in the row, every button of a card shares one full-width row that never prints', () => {
+    draw([{ ...PEAK, note: 'Old', noteEditor: ED }], CONTROLS, HIDES)
+    const buttons = screen.getAllByRole('button').filter((b) => b.closest('li'))
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Hide from client', 'Edit note', 'Approve', 'Revoke', 'Delete draft'])
+    const row = buttons[0].parentElement!
+    expect(buttons.every((b) => b.parentElement === row)).toBe(true)
+    expect(row.tagName).not.toBe('LI')
+    expect(row.className).toContain('basis-full')
+    expect(row.className).toContain('no-print')
+    expect(screen.getByText('Draft: Went live Tuesday').className).not.toContain('line-clamp')
+  })
+
+  test('on a pinned card, the same row, and the draft line is cut to one line (the form shows it whole)', () => {
+    wide()
+    draw([{ ...PEAK, note: 'Old', noteEditor: ED }], CONTROLS, HIDES)
+    const card = render(<>{chart().pins![0].content}</>).container
+    const buttons = [...card.querySelectorAll('button')]
+    expect(buttons).toHaveLength(5)
+    const row = buttons[0].parentElement!
+    expect(buttons.every((b) => b.parentElement === row)).toBe(true)
+    expect(row.className).toContain('basis-full')
+    expect(within(card).getByText('Draft: Went live Tuesday').className).toContain('line-clamp-1')
+  })
+
+  test("a client's card has no buttons row at all", () => {
+    const { container } = draw([{ ...PEAK, note: 'Event' }])
+    expect(container.querySelector('.basis-full')).toBeNull()
+  })
+})

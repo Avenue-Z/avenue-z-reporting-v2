@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
-import { layoutPins, PIN_CARD_WIDTH } from './pins'
+import { layoutPins, PIN_CARD_WIDTH, PIN_TEAM_CARD_HEIGHT } from './pins'
 import type { ReactElement } from 'react'
 
 vi.mock('recharts', async () => {
@@ -200,4 +200,12 @@ describe('LineChart pins', () => {
     expect(container.querySelector('line[data-pin-line]')).toBeNull()
     expect(container.querySelector('.relative')).toBeNull()
   })
+})
+
+// Measured in Chromium with the app's CSS (Task 10 review): the tallest team card (two pictures, a
+// two-line label, a two-line note, a draft line, the hidden line and five buttons, which wrap to two
+// rows at 280px) needs 170px of content plus a 1px border each side. Lower than that, a button is
+// clipped out of reach.
+test("a team card is tall enough that none of its buttons is ever clipped", () => {
+  expect(PIN_TEAM_CARD_HEIGHT).toBeGreaterThanOrEqual(172)
 })
