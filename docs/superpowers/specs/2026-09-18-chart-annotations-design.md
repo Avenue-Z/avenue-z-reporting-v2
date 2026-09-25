@@ -395,8 +395,9 @@ server). Binding detail: the plan's Phase 2b, D1 to D10.
 position comes from Recharts' own scale (on a follower graph the hit areas had sat off their dots); a
 save shows one line saying what happened; the Add annotation panel loads a day's existing note, since
 each chart holds one note per day. Smaller changes the same night: draft-only cards dim less (80%), the
-button reads "Add annotation", the picker uses the site's dark scrollbar. Binding detail: the plan's
-Phase 2c, D17 to D19.
+button reads "Add annotation", the picker uses the site's dark scrollbar. After my audit (2026-09-25):
+a card shows the note and the draft whole, and text the panel filled in stays with its day. Binding
+detail: the plan's Phase 2c, D17 to D19.
 
 ### P3. Adding and changing a note
 

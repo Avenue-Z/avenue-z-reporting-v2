@@ -3438,7 +3438,10 @@ on our side, never the client's. Print: dots only (the Export PDF button is clie
   Amended again 2026-09-24 in my local QA: a draft-only card's contents dim to 80% (at 40% the draft
   was hard to read); a hidden card keeps 40%, and a hidden day with a draft keeps 40%.
 - D3a. The card is today's card (`AnnotationItem` as a div): picture(s), date and number on the first
-  line, the note on its own line (two-line clamp; the full note is in the hover box). The team's
+  line, the note on its own line (two-line clamp; the full note is in the hover box). AMENDED 2026-09-25
+  (audit, `5ec83f8`): no clamp. The card opens at its natural height, and the hover box hides while it
+  is open and never shows drafts, so the clamp hid a long note's end from the client and a draft's end
+  from the approver approving it (measured in Chromium: an 80 character note needed 3 lines, showed 2). The team's
   buttons on their own row (the 9953b58 fix). 280px wide, or the chart's width when that is narrower
   (a phone's plot is about 235px), natural height: one card at a time, so no
   fixed height and nothing clipped. `PIN_TEAM_CARD_HEIGHT` and the band go.
@@ -3549,7 +3552,7 @@ before planning; nothing here is from memory.
   the hit area sits above the dot. Measured live on one October client's Instagram tab: hit centre 17px above the
   dot, dot centre outside the 28px hit area, `elementFromPoint` at the dot = Recharts' dot, not our
   button; the Engagement Graph on the same page is aligned (0px). Cause: `CalloutLayer` places spots
-  with `useYAxisDomain()` (`components/charts/line-chart.tsx:144-154`), which returns the domain we
+  with `useYAxisDomain()` (`components/charts/line-chart.tsx:144-154` at `679f324`), which returns the domain we
   asked for (`niceYDomain`, e.g. -1.5..3.5); Recharts then widens the scale to whole ticks (axis -2, 0,
   2, 4) and draws `ReferenceDot` marks on the widened scale. Engagement's domain (0..45) needs no
   widening, so it agrees. The faint dots, the red line and the card use the same wrong y.
@@ -3559,8 +3562,8 @@ before planning; nothing here is from memory.
   is a faint dashed dot, and on the follower graph hovering the dot opens nothing (F-C) while
   Recharts' hover box shows (my screenshot: the box with the note text, no card).
 - F-A, "the whole screen refreshes, hard to tell what happened": a real save on dev, sampled every
-  200ms: at 400ms the panel closes (`note-form.tsx:62`) and the chart jumps up by the panel's height;
-  at 1600ms the new faint dot appears (`router.refresh()`, `:63`). No skeleton, no scroll change, no
+  200ms: at 400ms the panel closes (`note-form.tsx:62` at `679f324`) and the chart jumps up by the
+  panel's height; at 1600ms the new faint dot appears (`router.refresh()`, `:63` at `679f324`). No skeleton, no scroll change, no
   remount (the Suspense key is stable, `app/dashboard/[clientSlug]/reports/page.tsx:273`). Nothing
   says what happened.
 - F-D, "two on the same day didn't take": one open draft per chart per day
@@ -3586,7 +3589,11 @@ before planning; nothing here is from memory.
   shows "8/7 already has a note. Saving updates it." and fills the text box with that note's text
   (its draft if any, else the approved text) if the box is empty; typed text is never overwritten.
   Picking a day without a note shows nothing extra. The existing notes come from the chart's own
-  annotations (editors receive `noteEditor`), so no server change.
+  annotations (editors receive `noteEditor`), so no server change. AMENDED 2026-09-25 (audit,
+  `5ec83f8`): text the panel filled in, while the user leaves it as it was, goes with its day: moving
+  to another day or unpicking every post drops it, and a second noted day loads its own note. Text the
+  user wrote always stays. (Before this, 8/22's filled-in note stayed when a post from 8/19 was picked,
+  so a save would have put it on 8/19.)
 - Unchanged: approvals, validation, hides, print, Renaissance, the card's own Edit (already fixed to
   its day and prefilled).
 
@@ -3635,7 +3642,9 @@ or here:
 Verdict: build D17 to D19 as patched.
 
 **Built:** commit `40f2bb4` (suite 1663 to 1676; 11 mutations caught; live on dev: the follower dots
-17px off -> 0px, the notice and prefill, the save line after 0.5s, cleared by about 9s).
+17px off -> 0px, the notice and prefill, the save line after 0.5s, cleared by about 9s). My adversarial
+audit of the PR then found two holes, fixed in `5ec83f8` (the D3a and D19 amendments above; suite 1676
+to 1680, 7 mutations caught, live-checked), and filed four follow-ups in CLAUDE.md (`014785d`).
 
 **Also from my local QA, each its own commit on #273:** `4aa93f5` a draft-only card's contents dim to
 80%, not 40% (hidden cards stay at 40%); `f00ca5b` the button above each graph reads "Add annotation"
