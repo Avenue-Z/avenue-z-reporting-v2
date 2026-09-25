@@ -80,8 +80,9 @@ export interface NoteEditorState {
   approvedId: string | null
   approvedPostIds: number[]
   draft: { id: string; text: string; postIds: number[] } | null
-  /** The draft's picked posts as pictures, in pick order: what Approve would approve (Paul's review of
-   *  #273, C3). A pick Dash no longer returns is a placeholder. Present only when the draft has picks. */
+  /** What the card will show once the draft is approved: its picks Dash still returns for the day, in
+   *  pick order, else the day's top post, else none (Paul's review of #273, C3, and his second, R2).
+   *  Present whenever there is a draft, possibly empty. */
   draftThumbs?: ChartThumb[]
 }
 
@@ -175,6 +176,12 @@ export interface ChartAnnotation {
   noteOnly?: true
   /** Phase 2, editors only: the ids and the draft behind the controls. */
   noteEditor?: NoteEditorState
+}
+
+/** The pictures a callout's card shows: the note's picked posts, else the day's top post, else none. The
+ *  card (annotation-callouts.tsx) and the draft preview's parity test both use this one rule. */
+export function cardThumbs(a: Pick<ChartAnnotation, 'thumbs' | 'thumb'>): ChartThumb[] {
+  return a.thumbs ?? (a.thumb ? [a.thumb] : [])
 }
 
 /** What the row draws for one post: its picture and its link, nothing else. */

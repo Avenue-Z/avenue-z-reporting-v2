@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
-import type { AnnotationControls, ChartAnnotation, ChartThumb, NoteControls } from '@/lib/organic-social/annotations'
+import { cardThumbs, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
 import { NoteActions } from './note-actions'
 import { CARD_PILL } from './pill'
@@ -88,7 +88,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
   // A day shown only for its note, with no approved note yet, has nothing for a client: like a
   // hidden card it is faded for the team and must not reach a PDF exported from the team's view.
   const draftOnly = !!annotation.noteOnly && !annotation.note
-  const thumbs = annotation.thumbs ?? (annotation.thumb ? [annotation.thumb] : [])
+  const thumbs = cardThumbs(annotation)
   const draft = annotation.noteEditor?.draft
   const Tag = as ?? 'li'
 

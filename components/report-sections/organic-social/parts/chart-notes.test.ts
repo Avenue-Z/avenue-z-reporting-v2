@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 // withNotes decides what a viewer may see of the team's notes. Both collaborators are stubbed:
 // the client lookup and the notes read. Nothing reaches a database. Every value is invented.
@@ -9,7 +9,7 @@ vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes }))
 
 import { windowDays, withNotes } from './chart-notes'
 import type { ChartNote } from '@/lib/db/schema'
-import type { Annotation } from '@/lib/organic-social/annotations'
+import { cardThumbs, toChartAnnotations, type Annotation } from '@/lib/organic-social/annotations'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
 const t = (iso: string) => new Date(iso)
@@ -93,7 +93,8 @@ test('when every pick is gone, the day keeps its top post', async () => {
 test('the team gets the draft, the ids and the controls, with that day\'s posts', async () => {
   getChartNotes.mockResolvedValue([row({ id: 'd', status: 'draft', approvedAt: null, approvedBy: null, body: 'Soon' })])
   const r = await withNotes({ ...EDITOR, posts: [post(5, '2026-08-10', 1)] })
-  expect(r.items[1].note).toEqual({ text: null, posts: [], editor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
+  // No picks and no post that day: the draft preview is empty (R2: present for every draft).
+  expect(r.items[1].note).toEqual({ text: null, posts: [], editor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] }, draftThumbs: [] } })
   expect(r.controls).toMatchObject({ clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'followers', canApprove: false })
   // Phase 2b: only the days with at least one post are offered.
   expect(r.controls?.days).toHaveLength(1)
@@ -155,16 +156,33 @@ test('windowDays is inclusive, empty when reversed, and bounded', () => {
   expect(windowDays('2026-01-01', '2027-12-31')).toHaveLength(400)
 })
 
-// Paul's review of #273 (C3): the card showed the approved note's pictures while Approve sent the
-// draft's picks, so an approver could approve posts they were never shown.
-test("an editor's draft carries its own picked posts as pictures, a pick Dash no longer returns as a placeholder", async () => {
-  getChartNotes.mockResolvedValue([row({ id: 'd', status: 'draft', approvedAt: null, approvedBy: null, postIds: [11, 99] })])
-  const r = await withNotes({ ...EDITOR, posts: [post(11, '2026-08-14', 5)] })
-  const editor = r.items.find((a) => a.date === '2026-08-14')!.note!.editor!
-  expect(editor.draftThumbs).toEqual([
-    { creative: { kind: 'image', thumb: 'https://cdn.example.com/t11.jpg', full: 'https://cdn.example.com/f11.jpg' }, mediaType: 'IMAGE', url: 'https://example.com/11' },
-    { creative: null, mediaType: 'IMAGE', url: null },
-  ])
+// Paul's review of #273 (C3), then his second review (R2): the approver must see the pictures clients will
+// get once the draft is approved. The draft preview follows the client's rule exactly: the picks Dash
+// still returns for that day, in pick order, else the day's top post, else none. Checked against the real
+// approved path: the same picks approved, trimmed for the chart, and drawn by the card's own rule.
+describe("an editor's draft preview is what the card will show once it is approved", () => {
+  const DAY = '2026-08-14'
+  const dayPosts = [post(11, DAY, 5), post(12, DAY, 50)] // 12 is the day's top post
+  const approvedCard = async (postIds: number[], posts: TopContentPost[]) => {
+    getChartNotes.mockResolvedValue([row({ postIds })])
+    const { items } = await withNotes({ ...EDITOR, posts })
+    return cardThumbs(toChartAnnotations(items).find((a) => a.date === DAY)!)
+  }
+  const draftPreview = async (postIds: number[], posts: TopContentPost[]) => {
+    getChartNotes.mockResolvedValue([row({ id: 'd', status: 'draft', approvedAt: null, approvedBy: null, postIds })])
+    const { items } = await withNotes({ ...EDITOR, posts })
+    return items.find((a) => a.date === DAY)!.note!.editor!.draftThumbs
+  }
+  test.each([
+    ['every pick found', [11, 12], dayPosts],
+    ['one pick gone', [11, 99], dayPosts],
+    ['every pick gone: the top post', [99], dayPosts],
+    ['no picks: the top post', [], dayPosts],
+    ['no posts that day: nothing', [11], [post(30, '2026-08-20', 1)]],
+  ])('%s', async (_name, postIds, posts) => {
+    const want = await approvedCard(postIds, posts)
+    expect(await draftPreview(postIds, posts)).toEqual(want)
+  })
 })
 
 // Paul's review of #273 (C4): a failed posts fetch looked like a month with no posts, and Edit then

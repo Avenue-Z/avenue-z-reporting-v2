@@ -136,7 +136,7 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did', { text: 'New', postIds: [12, 13] }))
   })
 
-  test('a draft with no picked posts shows no draft pictures', () => {
+  test('a draft preview with no pictures (no picks and no post that day) shows none', () => {
     draw([{ ...PEAK, noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } }], CONTROLS)
     expect(within(cardOf(PEAK.date)).queryByLabelText("Draft's posts")).toBeNull()
   })
