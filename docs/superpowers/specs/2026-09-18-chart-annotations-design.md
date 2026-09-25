@@ -350,6 +350,10 @@ what the approver was shown (P5), so a client never sees words nobody approved.
 8. **The team's view** is the same chart. The team's hidden days and draft-only days get a faint,
    dashed dot that opens the same way; their cards stay solid with the contents dimmed (a hidden day
    more, 40%; a draft-only day less, 80%). Clients never receive those days (removed on the server).
+   Under a draft the card shows the pictures clients will get once it is approved: the draft's picks
+   Dash still returns for that day, else the day's top post, else none (`attach`,
+   `components/report-sections/organic-social/parts/chart-notes.ts`), the same rule the client's card
+   follows (`cardThumbs`, `lib/organic-social/annotations.ts`).
 9. **Printing** (Export PDF is `window.print()`): the dots print; cards, faint dots, drafts and every
    control carry `no-print`. A card in the row above the chart prints unless its day is hidden or has
    only a draft.
@@ -369,14 +373,18 @@ what the approver was shown (P5), so a client never sees words nobody approved.
   2. **The text**, with a live `n/80` counter; the box stops at 80. **Save draft** needs a picked post
      and text.
 - **One note per chart per day** (P5). Picking a post from a day that already has a note loads that
-  note: its text (only if the box is empty) and its picked posts, plus the new pick if there is room.
+  note: its text (only if the box is empty) and all its picked posts, plus the new pick if there is room.
   The panel says so: "8/7 already has a draft. Saving updates it." or "8/7 already has an approved
   note. Saving drafts a change to it." Text the panel filled in and the user left as it was goes with
   its day (moving to another day, or unpicking every post, drops it); text the user wrote stays.
 - **On each card** the same viewer gets Hide (or Unhide), Note (or Edit), and Delete on a draft; an
-  approver also gets Approve on a draft and Revoke on an approved note. Note or Edit opens the panel
-  fixed to that card's day with its text and picks; a day with no post says "No posts went live this
-  day" and saves with the text alone.
+  approver also gets Approve on a draft, and Revoke on an approved note when no draft is open on that
+  day. Note or Edit opens the panel fixed to that card's day with its text and picks; a day with no
+  post says "No posts went live this day" and saves with the text alone.
+- **The panel never drops a saved pick by itself.** A pick Dash does not return this time (a failed,
+  empty or partial answer) shows first in the row as the card's placeholder tile, pressed; it counts
+  toward the 2 and leaves only when clicked. With no post on screen but picks kept, the panel says
+  "Posts could not load, so this note keeps its picked posts."
 - **Every control carries `no-print`**, like the Hide toggle.
 - **After a save** the panel closes and one line says what happened, team only, never printed:
   "Saved a draft for 8/24. Clients see it once it's approved."; "Updated the draft for 8/7. Clients
@@ -435,7 +443,7 @@ what the approver was shown (P5), so a client never sees words nobody approved.
 - **Approve** makes it visible to clients. The note shown for a day is the most recently
   approved one, ranked by approval time then last update, as `mostRecentApprovedPerPeriod`
   ranks Commentary (`lib/commentary/select.ts:35-44`). Approve carries the text and posts the
-  approver was shown, and only succeeds if the draft still holds exactly those; otherwise it says
+  approver was shown, and only succeeds if the row is still a draft holding exactly those; otherwise it says
   "This note changed since you opened the page". Editing a draft changes that same row, so without
   this an edit made after the approver opened the page would reach a client unread. Commentary
   approves by id alone (`app/actions/commentary.ts:122`, update at `:136-140`); this check lives
@@ -448,16 +456,20 @@ what the approver was shown (P5), so a client never sees words nobody approved.
   approvals so a revoke falls back (`select.ts:18-20`). To take a note down for good, revoke
   each approved version, or hide the day. If a draft is already open on that day, revoke is
   refused with a message to delete or approve that draft first, so a day never holds two
-  drafts.
+  drafts. Revoke acts only on the approval clients see: the row must be approved and not deleted,
+  and no approved row of that day may rank after it, checked in the same statement as the write
+  (`revokeNoteQuery`). A Revoke from a page opened before a newer approval says "This note changed
+  since you opened the page" and changes nothing.
 - **Delete** is for drafts only, and is a soft delete (`deleteCommentaryDraft`, `:188`), with
   Commentary's database check that a deleted row is a draft
   (`report_commentary_no_deleted_approved`, `lib/db/schema.ts:353`).
 - **What the team sees** per chart and day: the approved note if there is one, and the open
   draft under it marked Draft (`visibleEntries` keeps drafts for editors,
   `lib/commentary/select.ts:21-30`).
-- **Races:** save, approve and delete re-assert `deleted_at IS NULL`, and every write uses
-  `.returning()`, so a lost race reports "not found" instead of a false success
-  (`app/actions/commentary.ts:17-34`, which also explains why revoke skips the first check).
+- **Races:** every write re-asserts the state it expects and uses `.returning()`, so a lost race
+  reports "not found" or "This note changed since you opened the page" instead of a false success
+  (`app/actions/commentary.ts:17-34`). A save whose open draft was approved or deleted in between is
+  saved as a new draft.
   Two people opening a draft on the same day at once: the second insert fails the unique
   index (P6), and the action returns "a draft is already open on this day" instead of
   throwing.
