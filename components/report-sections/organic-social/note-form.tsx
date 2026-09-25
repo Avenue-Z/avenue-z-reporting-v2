@@ -47,27 +47,33 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
   // A pick Dash no longer returns cannot be shown or unpicked, so it is dropped here.
   const [picked, setPicked] = useState<number[]>(() => (initial?.postIds ?? []).filter((id) => posts.some((p) => p.id === id)))
   const [text, setText] = useState(initial?.text ?? '')
+  // The text this panel filled in from a day's note (D19). While the user leaves it as it was, it
+  // belongs to that day: moving to another day, or unpicking every post, drops it.
+  const [loaded, setLoaded] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const full = picked.length >= NOTE_MAX_POSTS
 
   function pick(id: number, postDay: string) {
+    // Filled-in text the user left as it was goes with its day (audit, 2026-09-25: moving from 8/22 to
+    // 8/19 kept 8/22's note, so a save would have put it on 8/19). Text the user wrote always stays.
+    const own = loaded !== null && text === loaded ? '' : text
     if (picked.includes(id)) {
       const rest = picked.filter((x) => x !== id)
       setPicked(rest)
-      if (!fixedDay && rest.length === 0) setDay(null)
+      if (!fixedDay && rest.length === 0) { setDay(null); setText(own); setLoaded(null) }
       return
     }
     if (day !== postDay) {
       setDay(postDay)
       const ex = fixedDay ? undefined : notes?.[postDay]
-      if (!ex) { setPicked([id]); return }
+      if (!ex) { setPicked([id]); setText(own); setLoaded(null); return }
       // Each chart holds one note per day, so a day that already has one loads it and a save updates it,
       // never replacing it silently (Phase 2c, D19; seen live 2026-09-24). Its picks stay (those Dash
       // still returns that day), the new pick joins if there is room, and typed text is never replaced.
       const base = ex.postIds.filter((pid) => posts.some((q) => q.id === pid && q.day === postDay))
       setPicked(base.includes(id) || base.length >= NOTE_MAX_POSTS ? base : [...base, id])
-      if (!text.trim()) setText(ex.text)
+      if (own.trim()) { setText(own); setLoaded(null) } else { setText(ex.text); setLoaded(ex.text) }
       return
     }
     if (!full) setPicked([...picked, id])

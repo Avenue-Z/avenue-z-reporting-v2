@@ -210,7 +210,10 @@ describe("the team's buttons sit on their own row, so the date, number and note 
     expect(screen.getByText('Draft: Went live Tuesday').className).not.toContain('line-clamp')
   })
 
-  test('on a card, the same row, and the draft line is cut to one line (the form shows it whole)', () => {
+  // Audit, 2026-09-25: a card opens at its natural height, and the hover box hides while it is open, so
+  // a clamp hid the end of a note from the client and the end of a draft from the approver approving
+  // it (measured in Chromium: an 80 character note needed 3 lines, the card showed 2; a draft, 1).
+  test('on a card, the same row; the note and the draft show whole, never cut', () => {
     draw([{ ...PEAK, note: 'Old', noteEditor: ED }], CONTROLS, HIDES)
     const card = cardOf(PEAK.date)
     const buttons = [...card.querySelectorAll('button')]
@@ -218,7 +221,10 @@ describe("the team's buttons sit on their own row, so the date, number and note 
     const row = buttons[0].parentElement!
     expect(buttons.every((b) => b.parentElement === row)).toBe(true)
     expect(row.className).toContain('basis-full')
-    expect(within(card).getByText('Draft: Went live Tuesday').className).toContain('line-clamp-1')
+    for (const line of [within(card).getByText('Draft: Went live Tuesday'), within(card).getByText('Old')]) {
+      expect(line.className).not.toContain('line-clamp')
+      expect(line.className).toContain('break-words')
+    }
   })
 
   test("a client's card has no buttons row at all", () => {
@@ -453,6 +459,41 @@ describe('after a save, one line says what happened; a day with a note loads it 
     open(); type('Mine'); fireEvent.click(postButtons()[0])
     expect(text()).toBe('Mine')
     expect(within(panel()).getByText('8/10 already has a draft. Saving updates it.')).toBeTruthy()
+  })
+
+  // Audit, 2026-09-25: the text the panel fills in belongs to its day. Moving to another day kept it,
+  // so a save would have put one day's note on another (seen live: 8/22's note stayed on 8/19).
+  test('moving to a day without a note drops the text the panel filled in', () => {
+    draw([WITH_DRAFT], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    expect(text()).toBe('Soon')
+    fireEvent.click(postButtons()[3])
+    expect(text()).toBe('')
+    expect(within(panel()).queryByText(/already has/)).toBeNull()
+  })
+
+  test('moving to another day keeps text the user wrote over the filled-in note', () => {
+    draw([WITH_DRAFT], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Soon, and more')
+    fireEvent.click(postButtons()[3])
+    expect(text()).toBe('Soon, and more')
+  })
+
+  test("moving from one day with a note to another loads the second day's note", () => {
+    draw([WITH_DRAFT, APPROVED_ONLY], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    expect(text()).toBe('Soon')
+    fireEvent.click(postButtons()[3])
+    expect(text()).toBe('Event')
+    expect(within(panel()).getByText('8/20 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
+  })
+
+  test('unpicking every post drops the filled-in text with the day', () => {
+    draw([WITH_DRAFT], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    fireEvent.click(postButtons()[0]); fireEvent.click(postButtons()[1])
+    expect(postButtons().map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false', 'false'])
+    expect(text()).toBe('')
   })
 
   test('a day without a note shows no notice and fills nothing', () => {

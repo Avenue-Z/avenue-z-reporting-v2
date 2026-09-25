@@ -110,8 +110,8 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-xs font-bold text-white">{annotation.label}</span>
-        {annotation.note && <span className={cn('text-xs text-white', floating && 'line-clamp-2')}>{annotation.note}</span>}
-        {draft && <span className={cn('no-print text-[11px] text-text-muted', floating && 'line-clamp-1')}>Draft: {draft.text}</span>}
+        {annotation.note && <span className="break-words text-xs text-white">{annotation.note}</span>}
+        {draft && <span className="no-print break-words text-[11px] text-text-muted">Draft: {draft.text}</span>}
         {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
       </span>
       {/* The team's buttons get a row of their own under the picture and the text: beside them the
@@ -162,8 +162,9 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
 }
 
 /** One callout as the card that opens from its dot (Phase 2b: hover, focus or tap; the chart places
- *  it, one at a time). The same card as the row, so hiding, notes and print rules are identical; the
- *  note is cut at two lines and the draft at one (the hover box and the form show them whole). */
+ *  it, one at a time). The same card as the row, so hiding, notes and print rules are identical. The
+ *  note and the draft show whole: the card opens at its natural height, and the hover box hides while
+ *  it is open, so a cut would hide a note's end from the client and a draft's end from its approver. */
 export function CalloutCard(props: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
