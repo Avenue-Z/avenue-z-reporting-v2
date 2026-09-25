@@ -99,6 +99,9 @@ export interface NoteControls {
   channel: DashChannel
   chart: AnnotationChart
   canApprove: boolean
+  /** Set when the day's posts could not be fetched (Paul's review of #273, C4): `days` is then empty
+   *  because nothing loaded, not because nothing went live, so Edit keeps a note's picks as they are. */
+  postsFailed?: true
   /** The days a note may go on, oldest first (never after today), each with that day's posts. */
   days: { day: string; posts: { id: number; thumb: ChartThumb }[] }[]
 }

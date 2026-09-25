@@ -84,6 +84,7 @@ export async function withNotes(args: {
       items,
       controls: {
         clientSlug: args.clientSlug, channel: args.channel, chart: args.chart, canApprove: caps.canApprove,
+        ...(args.posts === null ? { postsFailed: true as const } : {}),
         // Phase 2b: the Add annotation panel starts from a post, so only days with at least one post.
         days: windowDays(args.from, last)
           .filter((day) => postsOn(day).length > 0)

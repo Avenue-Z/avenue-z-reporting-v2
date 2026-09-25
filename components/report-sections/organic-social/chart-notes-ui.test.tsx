@@ -513,6 +513,18 @@ describe('after a save, one line says what happened; a day with a note loads it 
     expect(text()).toBe('')
   })
 
+  // Paul's review of #273 (C4): with the posts failed to load, Edit said "No posts went live this day"
+  // and saved the note without its picks.
+  test("when the posts could not load, Edit keeps the note's picked posts and says so", async () => {
+    const ed = { approvedId: 'aid', approvedPostIds: [11, 12], draft: null }
+    draw([{ ...PEAK, note: 'Old', thumbs: [IMG(1), IMG(2)], noteEditor: ed }], { ...CONTROLS, days: [], postsFailed: true })
+    fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
+    expect(within(panel()).getByText('Posts could not load, so this note keeps its picked posts.')).toBeTruthy()
+    expect(within(panel()).queryByText('No posts went live this day')).toBeNull()
+    type('Old, fixed'); fireEvent.click(save())
+    await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ body: 'Old, fixed', postIds: [11, 12] })))
+  })
+
   test('a day without a note shows no notice and fills nothing', () => {
     draw([PEAK], CONTROLS)
     open(); fireEvent.click(postButtons()[0])

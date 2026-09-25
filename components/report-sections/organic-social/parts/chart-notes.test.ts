@@ -167,3 +167,16 @@ test("an editor's draft carries its own picked posts as pictures, a pick Dash no
   ])
 })
 
+// Paul's review of #273 (C4): a failed posts fetch looked like a month with no posts, and Edit then
+// saved the note without its picked posts.
+test('when the posts could not load, the controls say so', async () => {
+  const r = await withNotes({ ...EDITOR, posts: null })
+  expect(r.controls?.postsFailed).toBe(true)
+  expect(r.controls?.days).toEqual([])
+})
+
+test('when the posts loaded, even none, the controls carry no flag', async () => {
+  expect((await withNotes({ ...EDITOR, posts: [] })).controls).not.toHaveProperty('postsFailed')
+  expect((await withNotes({ ...EDITOR, posts: [post(11, '2026-08-14', 5)] })).controls).not.toHaveProperty('postsFailed')
+})
+

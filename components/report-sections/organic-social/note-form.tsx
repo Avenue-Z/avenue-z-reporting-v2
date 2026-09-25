@@ -44,8 +44,12 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
   const days = fixedDay ? controls.days.filter((d) => d.day === fixedDay) : controls.days.filter((d) => d.posts.length > 0)
   const posts = days.flatMap((d) => d.posts.map((p) => ({ ...p, day: d.day })))
   const [day, setDay] = useState<string | null>(fixedDay ?? null)
-  // A pick Dash no longer returns cannot be shown or unpicked, so it is dropped here.
-  const [picked, setPicked] = useState<number[]>(() => (initial?.postIds ?? []).filter((id) => posts.some((p) => p.id === id)))
+  // A pick Dash no longer returns cannot be shown or unpicked, so it is dropped here. When the posts
+  // could not load at all, nothing can be checked, so the note keeps its picks as they are (Paul's
+  // review of #273, C4: a failed fetch plus a typo fix used to save the note without its pictures).
+  const [picked, setPicked] = useState<number[]>(() => controls.postsFailed
+    ? (initial?.postIds ?? [])
+    : (initial?.postIds ?? []).filter((id) => posts.some((p) => p.id === id)))
   const [text, setText] = useState(initial?.text ?? '')
   // The text this panel filled in from a day's note (D19). While the user leaves it as it was, it
   // belongs to that day: moving to another day, or unpicking every post, drops it.
@@ -125,7 +129,9 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
           </p>
         </>
       ) : (
-        <p className="text-[11px] text-text-muted">No posts went live this day</p>
+        <p className="text-[11px] text-text-muted">
+          {controls.postsFailed ? 'Posts could not load, so this note keeps its picked posts.' : 'No posts went live this day'}
+        </p>
       )}
       {!fixedDay && day && notes?.[day] && (
         <p className="text-[11px] text-white">
