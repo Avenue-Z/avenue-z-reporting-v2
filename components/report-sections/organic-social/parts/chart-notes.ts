@@ -75,7 +75,10 @@ export async function withNotes(args: {
       items,
       controls: {
         clientSlug: args.clientSlug, channel: args.channel, chart: args.chart, canApprove: caps.canApprove,
-        days: windowDays(args.from, last).map((day) => ({ day, posts: postsOn(day).map((p) => ({ id: p.id, thumb: thumbOf(p) })) })),
+        // Phase 2b: the Add note panel starts from a post, so only days with at least one post.
+        days: windowDays(args.from, last)
+          .filter((day) => postsOn(day).length > 0)
+          .map((day) => ({ day, posts: postsOn(day).map((p) => ({ id: p.id, thumb: thumbOf(p) })) })),
       },
     }
   } catch (e) {

@@ -85,7 +85,8 @@ test('the team gets the draft, the ids and the controls, with that day\'s posts'
   const r = await withNotes({ ...EDITOR, posts: [post(5, '2026-08-10', 1)] })
   expect(r.items[1].note).toEqual({ text: null, posts: [], editor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
   expect(r.controls).toMatchObject({ clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'followers', canApprove: false })
-  expect(r.controls?.days).toHaveLength(31)
+  // Phase 2b: only the days with at least one post are offered.
+  expect(r.controls?.days).toHaveLength(1)
   expect(r.controls?.days.find((d) => d.day === '2026-08-10')?.posts).toEqual([
     { id: 5, thumb: { creative: post(5, '2026-08-10', 1).creative, mediaType: 'IMAGE', url: 'https://example.com/5' } },
   ])
@@ -99,9 +100,17 @@ test('a team role without an @avenuez.com email gets exactly the client view', a
 })
 
 test('in the live month the form offers no day after today', async () => {
-  const r = await withNotes({ ...EDITOR, from: '2026-09-01', to: '2026-09-30', today: '2026-09-24', series: { channels: ['Instagram'], points: [] } })
-  expect(r.controls?.days.map((d) => d.day).at(-1)).toBe('2026-09-24')
-  expect(r.controls?.days).toHaveLength(24)
+  // Posts on today AND tomorrow: with no posts the list would be empty and prove nothing.
+  const r = await withNotes({
+    ...EDITOR, from: '2026-09-01', to: '2026-09-30', today: '2026-09-24', series: { channels: ['Instagram'], points: [] },
+    posts: [post(7, '2026-09-24', 1), post(8, '2026-09-25', 1)],
+  })
+  expect(r.controls?.days.map((d) => d.day)).toEqual(['2026-09-24'])
+})
+
+test('the form is offered only the days with at least one post, oldest first', async () => {
+  const r = await withNotes({ ...EDITOR, posts: [post(9, '2026-08-12', 1), post(5, '2026-08-10', 1), post(6, '2026-08-10', 2)] })
+  expect(r.controls?.days.map((d) => [d.day, d.posts.map((p) => p.id)])).toEqual([['2026-08-10', [5, 6]], ['2026-08-12', [9]]])
 })
 
 test('unreadable notes fail closed for everyone, and say which chart', async () => {
