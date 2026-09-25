@@ -103,7 +103,12 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     draw([QUIET({ note: 'Event' }), QUIET({ date: '2026-08-20', label: '8/20', noteEditor: DRAFT })], CONTROLS)
     expect(chart().callouts!.map((c) => [c.x, !!c.muted])).toEqual([['2026-08-14', false], ['2026-08-20', true]])
     const draftCard = cardOf('2026-08-20')
-    expect(draftCard.firstElementChild!.className).toContain('opacity-40')
+    // Seen live: a see-through card showed the graph's line through it. It stays solid; only its
+    // contents dim.
+    const root = draftCard.firstElementChild!
+    expect(root.className).toContain('[&>*]:opacity-40')
+    expect(root.className.split(' ')).not.toContain('opacity-40')
+    expect(root.className).toContain('no-print')
     expect(within(draftCard).getByText('Draft: Soon').className).toContain('no-print')
   })
 

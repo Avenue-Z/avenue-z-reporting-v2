@@ -100,8 +100,10 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       // Over the graph (#272727), the card takes the darker brand surface and a clearer border, so it
       // stands apart as a card rather than blending into the chart (seen live, 2026-09-24).
       floating && 'border-white/[0.14] bg-bg-subtle shadow-lg shadow-black/40',
-      hidden && 'opacity-40 no-print',
-      !hidden && draftOnly && 'opacity-40 no-print',
+      (hidden || draftOnly) && 'no-print',
+      // Faded for the team. Over the graph the card stays solid and only its contents dim: a
+      // see-through card showed the line through it (seen live, 2026-09-24).
+      (hidden || draftOnly) && (floating ? '[&>*]:opacity-40' : 'opacity-40'),
     )}>
       {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
       <span className="flex min-w-0 flex-1 flex-col">

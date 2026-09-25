@@ -130,14 +130,23 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
   const wait = (ms: number) => act(() => { vi.advanceTimersByTime(ms) })
   // jsdom lays nothing out, so the card's measured height is set here, per test.
   let cardHeight = 60
+  // Where the chart sits down the screen: room above a dot is measured from the top of the scrolling
+  // area (here the window, since jsdom has no scrolling ancestor), so this is the wrapper's top.
+  let wrapperTop = 0
+  let rect: ReturnType<typeof vi.spyOn>
   beforeEach(() => {
     vi.useFakeTimers()
     cardHeight = 60
+    wrapperTop = 0
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
       configurable: true, get(this: HTMLElement) { return this.dataset?.calloutCard ? cardHeight : 0 },
     })
+    rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = typeof this.className === 'string' && this.className.split(' ').includes('relative') ? wrapperTop : 0
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON() { return {} } } as DOMRect
+    })
   })
-  afterEach(() => { vi.useRealTimers(); delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight })
+  afterEach(() => { vi.useRealTimers(); rect.mockRestore(); delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight })
 
   test('each hit area sits exactly on Recharts\' own dot', () => {
     const { container } = draw()
@@ -198,16 +207,31 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(card(container)!.style.width).toBe(`${PIN_CARD_WIDTH}px`)
   })
 
-  test('the card sits above its dot when it fits there, and below when it does not (its measured height)', () => {
+  // Amended after my local look: callouts are the top days, near the top of the chart, so "above when
+  // it fits in the chart" sent nearly every card below, over the graph. The mockup puts it above.
+  test('the card sits above its dot, rising past the top of the chart, when the screen has room', () => {
+    wrapperTop = 300
+    cardHeight = 100
     const { container } = draw()
     const cy = hy(hit(container, DAYS[9]))
-    cardHeight = 40
     fireEvent.click(hit(container, DAYS[9]))
-    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy - PIN_STUB - 40, 1)
-    fireEvent.keyDown(card(container)!, { key: 'Escape' })
+    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy - PIN_STUB - 100, 1)
+    expect(cy - PIN_STUB - 100).toBeLessThan(0)
+  })
+
+  test('the card drops below its dot only when the screen has no room above it', () => {
+    wrapperTop = 0
     cardHeight = 400
+    const { container } = draw()
+    const cy = hy(hit(container, DAYS[9]))
     fireEvent.click(hit(container, DAYS[9]))
     expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy + PIN_STUB, 1)
+  })
+
+  test('an open card sits above the sticky report header (z-40 over its z-30)', () => {
+    const { container } = draw()
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(card(container)!.className).toContain('z-40')
   })
 
   test('leaving closes the card after 150ms, and moving into the card keeps it open', () => {
