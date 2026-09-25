@@ -196,6 +196,33 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(card(container)!.dataset.calloutCard).toBe(DAYS[20])
   })
 
+  // Paul's review of #273 (C1, blocking): a refresh that removes a callout (a deleted draft, a top day
+  // that moved) left its spot in the layout for one render, and the hit area's lookup threw, taking the
+  // whole report page to its error boundary.
+  test('a callout removed on the next render drops its hit area instead of throwing', () => {
+    const { container, rerender } = draw()
+    expect(hit(container, DAYS[9])).toBeTruthy()
+    const fewer = callouts.filter((c) => c.x !== DAYS[9])
+    expect(() => rerender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.filter((x) => x !== DAYS[9]).map((x) => ({ x }))} callouts={fewer} />)).not.toThrow()
+    expect(hit(container, DAYS[9])).toBeNull()
+    expect(hit(container, DAYS[0])).toBeTruthy()
+  })
+
+  test('an open card whose callout is removed closes, and the hover box goes back to Recharts', () => {
+    const { container, rerender } = draw()
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(card(container)!.dataset.calloutCard).toBe(DAYS[9])
+    tooltipProps.length = 0
+    const fewer = callouts.filter((c) => c.x !== DAYS[9])
+    rerender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.filter((x) => x !== DAYS[9]).map((x) => ({ x }))} callouts={fewer} />)
+    expect(card(container)).toBeNull()
+    expect(container.querySelector('line[data-callout-stub]')).toBeNull()
+    expect(tooltipProps.at(-1)!.active).toBeUndefined()
+    // The same day coming back later (a note added again) does not reopen its card on its own.
+    rerender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} />)
+    expect(card(container)).toBeNull()
+  })
+
   test('every dot is a real button named by its callout, with a pointer cursor and a 28px hit area', () => {
     const { container } = draw()
     const h = hit(container, DAYS[9])

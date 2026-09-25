@@ -244,6 +244,11 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
   const [layout, setLayout] = useState<CalloutLayout | null>(null)
   const [open, setOpen] = useState<{ x: string; by: 'pointer' | 'key' } | null>(null)
+  // A refresh can remove the open card's callout (a deleted draft, a top day that moved). That card
+  // counts as closed at once, and the state follows during render, as React documents for state that
+  // tracks props, so the same day coming back later does not reopen it (Paul's review of #273, C1).
+  const openLive = open && callouts?.some((c) => c.x === open.x) ? open : null
+  if (open && !openLive) setOpen(null)
   const [placed, setPlaced] = useState<{ side: 'above' | 'below'; h: number }>({ side: 'above', h: 0 })
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
@@ -276,16 +281,16 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   // before it is first painted. (Callouts are the top days, near the top of the chart, so "above when
   // it fits in the chart" sent nearly every card below, over the graph: amended 2026-09-24.)
   useLayoutEffect(() => {
-    const spot = layout?.spots.find((s) => s.x === open?.x)
+    const spot = layout?.spots.find((s) => s.x === openLive?.x)
     const el = cardRef.current
-    if (!open || !spot || !el?.parentElement) return
+    if (!openLive || !spot || !el?.parentElement) return
     const h = el.offsetHeight
     const dotOnScreen = el.parentElement.getBoundingClientRect().top + spot.py
     const side = dotOnScreen - PIN_STUB - h - areaTop(el) >= SCREEN_MARGIN ? 'above' : 'below'
     setPlaced((p) => (p.side === side && p.h === h ? p : { side, h }))
-  }, [open, layout])
+  }, [openLive, layout])
   // D12: opened from the keyboard, focus moves into the card so its buttons are next in Tab order.
-  useLayoutEffect(() => { if (open?.by === 'key') cardRef.current?.focus() }, [open])
+  useLayoutEffect(() => { if (openLive?.by === 'key') cardRef.current?.focus() }, [openLive])
   const on = {
     enter: (x: string, e: PointerEvent<HTMLButtonElement>) => {
       if (!isMouse(e)) return
@@ -328,7 +333,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             fontSize: '13px',
           }}
           content={notes ? (p) => <NotedTooltip {...p} note={notes[String(p.label)]} /> : undefined}
-          {...(callouts ? { active: open ? false : undefined } : {})}
+          {...(callouts ? { active: openLive ? false : undefined } : {})}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {yKeys.map((series) => (
@@ -359,15 +364,15 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             />
           ))}
         {hasCallouts && (
-          <CalloutLayer callouts={callouts!} data={data} xKey={xKey} yKey={yKeys[0].key} open={open?.x ?? null}
+          <CalloutLayer callouts={callouts!} data={data} xKey={xKey} yKey={yKeys[0].key} open={openLive?.x ?? null}
             side={placed.side} onLayout={setLayout} />
         )}
       </RechartsLineChart>
     </ResponsiveContainer>
   )
   if (!hasCallouts) return <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
-  const callout = open ? callouts!.find((c) => c.x === open.x) : undefined
-  const spot = open ? layout?.spots.find((s) => s.x === open.x) : undefined
+  const callout = openLive ? callouts!.find((c) => c.x === openLive.x) : undefined
+  const spot = openLive ? layout?.spots.find((s) => s.x === openLive.x) : undefined
   let card = null
   if (callout && spot && layout) {
     const { plot } = layout
@@ -389,17 +394,19 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   }
   // The hit areas live in the HTML layer above the chart, not in its SVG: Recharts paints its line and
   // dots after any extra children, so inside the SVG they covered a dot's centre and a real mouse never
-  // reached the hit area (found live, 2026-09-24). Real buttons also bring native focus and keys.
-  const hitAreas = layout?.spots.map((s) => {
-    const c = callouts!.find((q) => q.x === s.x)!
-    return (
-      <button key={`hit-${s.x}`} type="button" data-callout-hit={s.x} aria-label={c.label} aria-expanded={open?.x === s.x}
+  // reached the hit area (found live, 2026-09-24). Real buttons also bring native focus and keys. The
+  // layout lags the props by one render, so a spot whose callout is gone is skipped (C1).
+  const hitAreas = layout?.spots.flatMap((s) => {
+    const c = callouts!.find((q) => q.x === s.x)
+    if (!c) return []
+    return [
+      <button key={`hit-${s.x}`} type="button" data-callout-hit={s.x} aria-label={c.label} aria-expanded={openLive?.x === s.x}
         className="no-print absolute z-10 h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-white"
         style={{ left: s.px, top: s.py }}
         ref={(el) => { if (el) hits.set(s.x, el); else hits.delete(s.x) }}
         onPointerEnter={(e) => on.enter(s.x, e)} onPointerLeave={on.leave}
-        onClick={() => on.tap(s.x)} onKeyDown={(e) => on.key(s.x, e)} />
-    )
+        onClick={() => on.tap(s.x)} onKeyDown={(e) => on.key(s.x, e)} />,
+    ]
   })
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
