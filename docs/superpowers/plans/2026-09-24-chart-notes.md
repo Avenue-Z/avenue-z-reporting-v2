@@ -3407,3 +3407,238 @@ change. The read-back probe's three Renaissance lines must still read 0 rows, th
 
 Report to me. Nothing goes to production: that waits for Jasmine's approval on staging and my
 written go, and `0025` goes to production first, the same way as Steps 1 to 3.
+
+---
+
+## Phase 2b: hover cards and the post picker (approved by me 2026-09-24, after the first local look)
+
+**Why.** My first look on our own local app (2026-09-24, dev database, a test client copied from staging): the
+pinned cards crowd the graph quickly, and the Add note day list is cluttered with days that had no
+post. I approved a mockup (chat, 2026-09-24): dots only; hover or tap a dot to see its card; the Add
+note panel shows the month's posts as pictures with their dates, only days with posts; editing stays
+on our side, never the client's. Print: dots only (the Export PDF button is client-portal only,
+`app/portal/[clientSlug]/reports/page.tsx:277`, untouched since March; its use is unverified).
+
+**Design (binding; the approved mockup).**
+- D1. Every screen size: the graph shows only dots. A dot marks every callout a client may see (a top
+  day, or a day with an approved note, not hidden), as today (`trends.tsx` `shown`). No pinned cards,
+  no band, no row, except a callout whose day has no point on the series, which stays in the row above
+  the chart (it has no dot to hover).
+- D2. Hover (mouse), focus (keyboard, Tab then Enter) or tap (touch) a dot and that day's card appears,
+  joined to the dot by a short red line (`PIN_LINE_COLOR`). One card at a time. Centred on the dot and
+  kept inside the plot horizontally; ABOVE the dot, as in the approved mockup, rising past the top of
+  the chart box when needed (it is a popover); below only when the screen has no room above it. Room is
+  measured from the top of the scrolling area the chart sits in, with the card's height measured once
+  it is drawn (a layout effect), never guessed. The open card sits above the sticky report header
+  (z-40 over its z-30). Amended 2026-09-24 after my local look: the first rule ("above when it fits in
+  the chart") sent nearly every card below, because callouts are the top days and sit near the top of
+  the chart, and a card below covers the graph.
+- D3. A faded card (the team's hidden or draft-only day) stays solid over the graph: only its contents
+  dim (amended 2026-09-24: fading the whole card made it see-through, and the line showed through it).
+  Amended again 2026-09-24 in my local QA: a draft-only card's contents dim to 80% (at 40% the draft
+  was hard to read); a hidden card keeps 40%, and a hidden day with a draft keeps 40%.
+- D3a. The card is today's card (`AnnotationItem` as a div): picture(s), date and number on the first
+  line, the note on its own line (two-line clamp; the full note is in the hover box). The team's
+  buttons on their own row (the 9953b58 fix). 280px wide, or the chart's width when that is narrower
+  (a phone's plot is about 235px), natural height: one card at a time, so no
+  fixed height and nothing clipped. `PIN_TEAM_CARD_HEIGHT` and the band go.
+- D4. A mouse hover opens a card, and it stays open while the pointer is on the dot or the card (a
+  150ms grace to cross from dot to card); it closes when the mouse leaves both. A tap or a click only
+  ever opens (never toggles: a touchscreen fires a simulated mouse-enter before the click, so a toggle
+  would open and shut the card in one tap). A tap or click outside the card and dots, Escape, or
+  opening another dot closes it. Opening and closing use pointer events, so a real mouse is told apart
+  from touch by `pointerType`. While a card is open the Recharts hover box is hidden (`Tooltip active={false}`); otherwise it
+  behaves as today (date, value, and the approved note, Task 7).
+- D5. Team only: a hidden day and a draft-only day get a faint dot (hollow, dashed, `no-print`), opened
+  the same way, so the team can Unhide or Approve. Clients never receive those days (server, unchanged).
+- D6. Print: dots print as today; a card never prints (`no-print`).
+- D7. The Add note panel (team only, above the chart): the month's posts as 56px pictures with the date
+  under each, only days with at least one post, oldest first. Click a picture to pick it (accent ring,
+  `aria-pressed`); up to 2, all from one day: picking a post from another day clears the earlier picks
+  and moves to that day. A text box with a live `n/80` counter. Save draft needs a pick and text.
+  The Add note button shows only when the month has a post. (Renamed "Add annotation" in my local QA,
+  2026-09-24, commit f00ca5b: it sits beside the Annotations toggle; a card's own button keeps "Note".)
+- D8. Edit (or Note) on a card opens the same panel fixed to that card's day: that day's posts with the
+  current picks selected, or the line "No posts went live this day"; the text prefilled. Save needs text.
+- D9. Accurate data: a card's number is the value its dot sits on (same series), pinned by a test.
+- D10. Unchanged: approvals and drafts, the four actions, validation (the server still accepts a note
+  on any past day, which a card's own Edit needs), hides win, posts only from that day, Renaissance.
+
+**UX standards (binding, my review of the mockup against good hover-card practice, 2026-09-24).**
+- D11. Intent: a mouse opens a card only after resting 100ms on a dot, so sweeping across the graph
+  never flashes cards; focus, click and tap open at once.
+- D12. Keyboard and screen readers: each dot is a focusable button named by its callout
+  ("8/12 | +28 Followers"), with `aria-expanded`. Enter or Space opens it and moves focus into the card
+  (`role="group"`, the same name), so the team's buttons are next in Tab order; Escape closes it and
+  returns focus to the dot. A visible focus ring on the dot.
+- D13. Affordance: a pointer cursor on every dot, and a 28px hit area around the 10px dot.
+- D14. The picker is one row that scrolls sideways when the month has more posts than fit. Each picture
+  is a button (`aria-pressed`, named "Post from 8/12"). A one-line hint, "Pick a post, then write what
+  happened"; once two are picked, the day's other posts are unavailable and the hint reads "Up to 2
+  posts".
+- D15. The `n/80` counter is always visible and the box stops at 80, as today.
+- D16. No motion, and no jumps: the card's side (above or below) is settled before it is first painted
+  (a layout effect), so it never moves after it appears.
+
+**Files.** `components/charts/line-chart.tsx`, `components/charts/pins.ts`,
+`components/charts/line-chart.test.tsx`, `components/report-sections/organic-social/trends.tsx`,
+`annotation-callouts.tsx`, `note-form.tsx`, `chart-notes-ui.test.tsx`, `annotation-callouts.test.tsx`
+(`:117`, `:134`, `:142` rewritten on purpose: the row gave way to dots), `trends.identity.test.tsx`
+(`rows()` at `:53` reads the same hidden state from the chart's callouts; every expected string kept),
+`parts/chart-notes.ts` and its test (the days list), `parts/annotations-wiring.test.tsx` (D9). Delete
+`use-wide-chart.ts` (no screen split any more).
+
+### Task 12: LineChart hover callouts (replaces the pinned band)
+
+Interfaces. `LineChart` drops `pins` and `pinHeight` and gains `callouts?: ChartCallout[]`, with
+`ChartCallout { x: string; label: string; content: ReactNode; muted?: boolean }`. A `CalloutLayer`
+inside the chart places a transparent hit circle (r 14) on each callout's day (the Task 8 formula,
+proven to the pixel), `tabIndex={0}`, `role="button"`, `aria-label={label}`; a muted callout also draws
+its faint dot. The open card renders in the relative wrapper at the computed position, `no-print`,
+with the red stub from the dot to the card. `Tooltip active` is `false` only while a card is open, and
+the prop is absent when `callouts` is absent. `pins.ts` keeps `PIN_CARD_WIDTH` and `PIN_LINE_COLOR`;
+`layoutPins`, `pinBand`, the heights and `PinPlace` go with their tests.
+Tests first (RED): no callouts renders byte-identical to dev's `line-chart.tsx` (the Task 7 harness,
+5 shapes, plus the goldens); hovering a callout opens its card centred on the dot, clamped at the
+edges; above when it fits, below when it does not (a measured height); leaving closes after the
+grace, not before; moving into the card keeps it open; Escape closes; focus opens; a touch tap opens
+and a second tap on the same dot keeps it open; a tap outside closes; one open at a time; a muted callout has a
+faint `no-print` dot and opens; the Tooltip is hidden while open; the stub is red and ends on the dot;
+the card carries `no-print`. Renaissance: its charts pass no `callouts`, so no hit layer, no card, no
+Tooltip prop; the identity harness and goldens prove it byte for byte.
+
+### Task 13: the chart uses hover callouts
+
+`ChannelTrendChart`: every visible callout on the series becomes a `ChartCallout` (content: the card;
+`muted` for the team's hidden and draft-only days); `marks` stay the shown days (dots as today); the
+row keeps only no-point days; `useWideChart` and the pinned split go. `AnnotationItem`'s pinned styling
+becomes the floating card (280px, `bg-bg-surface`, a border, no fixed height, no overflow clip).
+Tests first: the three `annotation-callouts.test.tsx` chart tests and `chart-notes-ui.test.tsx`
+rewritten to the dots-and-hover behaviour (each asserting the same property: the button hides the
+callouts and their dots; a channel off takes them away; a client gets no buttons, no drafts, no faint
+dots; a hide fades the card and takes the dot at once; Approve sends what the card shows); the identity
+test's `rows()` reads the callouts. Renaissance: v1 has no annotations, so no callouts (existing guard
+tests at `annotation-callouts.test.tsx:103-115` unchanged and passing).
+
+### Task 14: the Add note panel by picture, days with posts only
+
+Server: `withNotes` sends `controls.days` for days with at least one post only (the window, never after
+today). Two `chart-notes.test.ts` tests change on purpose: the controls test expects only the days with
+posts (not 31), and "in the live month the form offers no day after today" is rebuilt with posts on
+today AND tomorrow, asserting only today is offered (with no posts it would pass on an empty list and
+prove nothing). Client: `NoteForm` per D7 and D8. Tests first: only days with posts appear, oldest first, each
+with its date; two picks from one day, a third blocked; a pick from another day moves the day and
+clears the rest; the counter; Save needs a pick and text (new) or text (edit); a card's day with no
+post shows "No posts went live this day"; the saved payload; a client never receives the panel.
+Renaissance: never reads notes (unchanged).
+
+### Task 15: verification
+
+Full suite, tsc, check:rsc, lint on the touched files, the Renaissance stop at every task; the Chromium
+harness (the repo's CSS) for the floating card at every content size (nothing clipped); the mutation
+checks for each new behaviour; then I look on our own local app before anything else, then PR
+#273 and Paul's review, then staging (my standing rule: test locally first).
+
+## Phase 2c: my local QA findings, 2026-09-24 night (plan, then adversarial review, then build)
+
+Reported by me after clicking through all three clients on dev. Every finding below was reproduced
+before planning; nothing here is from memory.
+
+**Findings (evidence).**
+- F-C, "you have to click above the circle": on every Follower Growth Graph whose axis Recharts widens,
+  the hit area sits above the dot. Measured live on one October client's Instagram tab: hit centre 17px above the
+  dot, dot centre outside the 28px hit area, `elementFromPoint` at the dot = Recharts' dot, not our
+  button; the Engagement Graph on the same page is aligned (0px). Cause: `CalloutLayer` places spots
+  with `useYAxisDomain()` (`components/charts/line-chart.tsx:144-154`), which returns the domain we
+  asked for (`niceYDomain`, e.g. -1.5..3.5); Recharts then widens the scale to whole ticks (axis -2, 0,
+  2, 4) and draws `ReferenceDot` marks on the widened scale. Engagement's domain (0..45) needs no
+  widening, so it agrees. The faint dots, the red line and the card use the same wrong y.
+  My earlier "within a pixel" dismissal of two small follower cards on that tab was wrong: this was the signal.
+- F-B, "I'm not seeing the annotation I added": notes are read uncached on every render
+  (`lib/organic-social/chart-notes/select.ts:10-15`), so a save does show. It is not findable: a draft
+  is a faint dashed dot, and on the follower graph hovering the dot opens nothing (F-C) while
+  Recharts' hover box shows (my screenshot: the box with the note text, no card).
+- F-A, "the whole screen refreshes, hard to tell what happened": a real save on dev, sampled every
+  200ms: at 400ms the panel closes (`note-form.tsx:62`) and the chart jumps up by the panel's height;
+  at 1600ms the new faint dot appears (`router.refresh()`, `:63`). No skeleton, no scroll change, no
+  remount (the Suspense key is stable, `app/dashboard/[clientSlug]/reports/page.tsx:273`). Nothing
+  says what happened.
+- F-D, "two on the same day didn't take": one open draft per chart per day
+  (`chart_notes_one_open_draft`); the second save edited the first draft in place
+  (`app/actions/chart-notes.ts:53-57`). The dev row for that day (8/7): one row, created 03:34:39,
+  updated/approved 03:35:28, body = my second text. The first text was overwritten, silently.
+
+**Design (binding).**
+- D17 (F-C). A callout's dot position comes from Recharts' own scale, the exact code that draws the
+  marks: `CalloutLayer` renders one `ReferenceDot` per callout (public API) whose `shape` receives
+  `cx`/`cy` (`node_modules/recharts/lib/cartesian/ReferenceDot.js:32-80`) and reports them; the hit
+  areas, faint dots, red line and card all use the reported position. `ifOverflow` stays 'discard'
+  (the default), so these dots never change the axis. A callout on a day with no numeric value keeps
+  today's behaviour: it sits at the bottom of the plot, still reachable. Charts with no callouts render
+  exactly as today (CalloutLayer is not rendered).
+- D18 (F-A, F-B). Saving (Add or Edit) closes the panel and shows one status line in its place, above
+  the chart, team only, `no-print`, `role="status"`: new note "Saved a draft for 8/24. It shows as a
+  faint dot until it's approved."; a day that already had a note "Updated the note for 8/7. It shows as
+  a draft until it's approved." When the viewer can approve, it adds "Hover its dot to approve it."
+  It clears after 8 seconds, or when the panel is opened again.
+- D19 (F-D). One note per chart per day stays (the schema, Commentary's lifecycle). The Add panel
+  makes it visible: picking a post from a day that already has a note (a draft or an approved note)
+  shows "8/7 already has a note. Saving updates it." and fills the text box with that note's text
+  (its draft if any, else the approved text) if the box is empty; typed text is never overwritten.
+  Picking a day without a note shows nothing extra. The existing notes come from the chart's own
+  annotations (editors receive `noteEditor`), so no server change.
+- Unchanged: approvals, validation, hides, print, Renaissance, the card's own Edit (already fixed to
+  its day and prefilled).
+
+**Tests first (RED before code).** line-chart.test.tsx: with a follower-like series (negatives, so
+Recharts widens the axis) every hit area, faint dot and the red line sit on the dot Recharts draws for
+the same day; a callout on a day with no value still gets a hit area at the plot's bottom. The existing
+dot selector narrows to `.recharts-reference-dot-dot` (the marks), since callout spots are
+ReferenceDots too. chart-notes-ui.test.tsx: the save status lines (new, updated, approver), cleared
+after 8s and on reopening; the one-note-per-day notice and prefill, typed text kept, no notice on a
+day without a note.
+
+**Files.** `components/charts/line-chart.tsx` (+ test), `components/report-sections/organic-social/
+note-form.tsx`, `trends.tsx`, `chart-notes-ui.test.tsx`.
+
+**Renaissance.** Its graphs pass no callouts and no note controls: CalloutLayer and the panel never
+render for it; the no-callout LineChart stays byte-identical to dev's (identity test, 5 shapes).
+Before and after: golden stop, check-drift, ren-fingerprint.
+
+**Adversarial review of Phase 2c (mine, before any code; no subagents).** Findings, each patched above
+or here:
+1. D17, hooks in `shape`: Recharts calls a function `shape` directly (`renderDot`: `option(props)`,
+   `ReferenceDot.js:66-80`), so hooks inside it would run inside Recharts' component. PATCH: the shape
+   returns an element (`<SpotProbe cx cy .../>`), a real component with its own effects.
+2. D17, the report loop: the probe reports from a layout effect keyed on (x, cx, cy) and removes its
+   entry on unmount; the layer keeps them in state and publishes only when the set changes. No loop.
+3. D17, days with no value: `ReferenceDot` drops a non-numeric y (`isNumOrStr`), which would leave that
+   callout unreachable. PATCH: such a callout keeps today's position (bottom of the plot), computed
+   directly, not through ReferenceDot.
+4. D17, test selectors: the existing "hit area on Recharts' dot" test selects
+   `.recharts-reference-dot circle`, which would now also match a faint dot. PATCH: select the marks by
+   `.recharts-reference-dot-dot` (Recharts' default dot class; our spots never use it).
+5. D18, wrong text: "It shows as a faint dot" is false for a draft on a top day (that dot is a normal
+   one). PATCH: the lines are, exactly: nothing before -> "Saved a draft for 8/24. Clients see it once
+   it's approved."; a draft before -> "Updated the draft for 8/7. Clients see it once it's approved.";
+   only an approved note before -> "Saved a draft for 8/7. Clients keep seeing the approved note until
+   this one is approved." An approver also gets " Hover its dot to approve it."
+6. D19, lost picks: filling only the text would silently drop the existing note's picked posts. PATCH:
+   picking a post from a day with a note loads that note: its text (only if the box is empty) and its
+   picked posts, then adds the new pick if there is room (at most 2). Notice text: a draft exists ->
+   "8/7 already has a draft. Saving updates it."; only approved -> "8/7 already has an approved note.
+   Saving drafts a change to it."
+7. D19, scope: notes are per chart, and each chart builds the map from its own annotations, so the
+   follower graph never sees the engagement graph's notes. Hidden days count (still one note per day).
+8. Renaissance: no path. CalloutLayer renders only with callouts; the status line and the notice only
+   with note controls. The identity test (no callouts, 5 shapes) and the golden stop guard it.
+Verdict: build D17 to D19 as patched.
+
+**Built:** commit `40f2bb4` (suite 1663 to 1676; 11 mutations caught; live on dev: the follower dots
+17px off -> 0px, the notice and prefill, the save line after 0.5s, cleared by about 9s).
+
+**Also from my local QA, each its own commit on #273:** `4aa93f5` a draft-only card's contents dim to
+80%, not 40% (hidden cards stay at 40%); `f00ca5b` the button above each graph reads "Add annotation"
+(a card keeps "Note"); `5554ba6` the post picker scrolls on the site's dark scrollbar (`.scrollbar-dark`,
+the sidebars' style); `679f324` tests prove notes work on the Instagram, Facebook, LinkedIn and TikTok
+graphs, not only Instagram (four mutations that pin Instagram passed the old tests and fail these).

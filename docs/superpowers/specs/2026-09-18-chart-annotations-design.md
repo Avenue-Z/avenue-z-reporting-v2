@@ -382,6 +382,22 @@ what the approver was shown (P5), so a client never sees words nobody approved.
    Phase 1 shows it today, with the same buttons. The shared `LineChart` gains optional `pins` and
    `pinHeight` props for this; absent, it draws exactly what it draws today (P11).
 
+**Changed 2026-09-24, after my first look on our own local app (Phase 2b, approved mockup):** on every
+screen size the graph shows only dots; hovering (or tapping, or focusing) a dot shows that day's card,
+joined by a short red line, one at a time; no pinned band and no row, except a callout whose day has no
+point on the series. The team's hidden and draft days get a faint dot only the team receives. Cards
+never print: an exported PDF shows the dots. The Add note panel shows the month's posts as pictures
+with their dates, days with posts only; a card's own Edit covers a top day with no post. Everything
+else in P2 and P3 stands (approvals, hides win, posts from that day only, client redaction on the
+server). Binding detail: the plan's Phase 2b, D1 to D10.
+
+**Changed 2026-09-24 night, after my click-through of every client (Phase 2c):** each callout's dot
+position comes from Recharts' own scale (on a follower graph the hit areas had sat off their dots); a
+save shows one line saying what happened; the Add annotation panel loads a day's existing note, since
+each chart holds one note per day. Smaller changes the same night: draft-only cards dim less (80%), the
+button reads "Add annotation", the picker uses the site's dark scrollbar. Binding detail: the plan's
+Phase 2c, D17 to D19.
+
 ### P3. Adding and changing a note
 
 - **Add.** A team viewer who can edit (P4) gets an **Add note** button beside the
@@ -775,5 +791,7 @@ Renaissance is live in production and must not change. This rests on facts check
 | The note sits on its own line under the date and number, and the connecting line is red, as in the approved sketch | The approved sketch | 2026-09-24 | Decided |
 | Notes get their own approver list, `CHART_NOTES_APPROVERS`, separate from Commentary's; unset approves nothing | Me | 2026-09-24 | Decided |
 | Who approves notes for Organic Social: the organic social lead, set in `CHART_NOTES_APPROVERS` (the email lives only in the environment, never in this public repo) | Me | 2026-09-24 | Decided |
+| Hover cards instead of pinned ones (dots only; hover, tap or focus shows the card); Add note picks posts by picture, days with posts only; editing stays team only; PDF shows dots | Me, after the first local look | 2026-09-24 | Decided (Phase 2b) |
+| Dots placed by Recharts' own scale; one line after each save; a day's existing note loads in the Add annotation panel; draft cards at 80%; the button reads "Add annotation" | Me, after my local click-through | 2026-09-24 | Decided (Phase 2c) |
 | Red dots on zero-engagement days deferred | Me | 2026-09-18 | Decided |
 
