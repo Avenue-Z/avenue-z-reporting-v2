@@ -989,3 +989,27 @@ From the review of the lock every number build. None blocks the October set.
 - [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts`, `completeContent`, an
   empty `data.content` array counts as complete). This matches the old freeze table's deliberate
   frozen-empty behaviour, without that path's re-freeze escape. Revisit with the unlock tool.
+
+## Known Follow-ups: Organic Social chart notes (from PR #273)
+
+Found while building and QA'ing the notes on the annotated graphs. None blocks the October set.
+
+- [ ] **The notes actions log nothing when they refuse or fail.** `app/actions/chart-notes.ts` returns
+  a message and never logs, so nothing says at 3am which client or day a save or approve failed on.
+  Commentary's actions do the same (`app/actions/commentary.ts` has no logging either), so add both
+  together, with the client, the chart and the day, never the note text.
+- [ ] **A note added on a day the team has already hidden shows unfaded, for the team, until the next
+  navigation.** The chart seeds its hidden days once per view (`trends.tsx`, `hiddenDays`), so a note
+  day that arrives later under the same key is drawn as shown. Clients never receive it (the server
+  removes hidden days). It is the per-view-state item above; close both together.
+- [ ] **Right after a save, the Add annotation panel can read the previous answer.** Reopened before
+  the refreshed chart arrives (about a second), it does not yet know about the note just saved: a
+  second save on that day still edits the draft on the server, as it should, but the line after it may
+  say "Saved a draft" where "Updated the draft" is true.
+- [ ] **Top Content freezes a rolling window when the server is not on UTC.** `isPeriodOpen` compares
+  against the UTC date (`lib/organic-social/frozen.ts:15-18`, today at `:35`), while `last_N_days`
+  uses the server's local date (`lib/date-range.ts:44`, `:64`). On a machine in Eastern time after 8pm,
+  the default window ends two days before the UTC date, reads as closed, and is frozen. Seen on the
+  local app on 2026-09-24 (17 rows for Renaissance, deleted on my go the same night). Production and
+  staging have frozen only month windows (read-only check), consistent with servers on UTC, but that
+  setting is not verified. On Renaissance's path, so its own PR with a Renaissance proof, my call.
