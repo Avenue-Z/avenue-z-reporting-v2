@@ -59,15 +59,21 @@ export async function updateDraft(id: string, a: { body: string; postIds: number
  *  approved unread, and a client would see words nobody approved. Commentary approves by id
  *  alone (approveCommentary, app/actions/commentary.ts:122, its update at :136-140); this check is
  *  one of the two additions of our own, and lives only in the notes code. */
-export async function approveNote(id: string, by: string, seen: { text: string; postIds: number[] }): Promise<boolean> {
-  const rows = await db
+export function approveNoteQuery(id: string, by: string, seen: { text: string; postIds: number[] }) {
+  return db
     .update(chartNotes)
     .set({ status: 'approved', approvedBy: by, approvedAt: new Date(), updatedAt: new Date() })
     .where(and(
-      eq(chartNotes.id, id), isNull(chartNotes.deletedAt),
+      // Only a draft: without this, a stale Approve on a note approved and since superseded re-stamped
+      // its approval time and clients went back to the older text (Paul's review of #273, C2).
+      eq(chartNotes.id, id), eq(chartNotes.status, 'draft'), isNull(chartNotes.deletedAt),
       eq(chartNotes.body, seen.text), eq(chartNotes.postIds, seen.postIds),
     ))
     .returning({ id: chartNotes.id })
+}
+
+export async function approveNote(id: string, by: string, seen: { text: string; postIds: number[] }): Promise<boolean> {
+  const rows = await approveNoteQuery(id, by, seen)
   return rows.length > 0
 }
 
