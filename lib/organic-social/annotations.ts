@@ -43,6 +43,8 @@ export function pickPeaks(
 }
 
 export type AnnotationChart = 'followers' | 'engagements'
+/** Every annotated chart, the one allowlist hides and notes both check (Paul's review of #273, C12). */
+export const ANNOTATION_CHARTS: readonly AnnotationChart[] = ['followers', 'engagements']
 
 /** A peak ready to render: its value, its label, and the post that likely caused it. */
 export interface Annotation extends Peak {

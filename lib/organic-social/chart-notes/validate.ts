@@ -1,8 +1,6 @@
-import { CHANNELS } from '../metrics'
-import { isRealDay } from '../annotation-hides/mutations'
+import { checkAnnotationKey } from '../annotation-hides/mutations'
 import { NOTE_MAX_CHARS, NOTE_MAX_POSTS } from './limits'
 
-const CHARTS = new Set<string>(['followers', 'engagements'])
 const NOTE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Today's date in UTC, the calendar Dash counts days on. */
@@ -37,16 +35,15 @@ function hasControl(text: string): boolean {
 }
 
 /** Pure validation for the save action's payload, the same way authorizeAnnotationHide is kept out
- *  of the action file (lib/organic-social/annotation-hides/mutations.ts:14-24). The first three
- *  checks are the ones that function makes today; the rest are new for notes. */
+ *  of the action file. The platform, chart and day checks are the ones hides make, shared through
+ *  checkAnnotationKey (Paul's review of #273, C12); the rest are new for notes. */
 export function validateNoteInput(
   input: { channel: unknown; chart: unknown; day: unknown; body: unknown; postIds: unknown },
   today: string,
 ): { ok: boolean; error?: string } {
-  if (typeof input.channel !== 'string' || !(CHANNELS as readonly string[]).includes(input.channel)) return { ok: false, error: 'invalid channel' }
-  if (typeof input.chart !== 'string' || !CHARTS.has(input.chart)) return { ok: false, error: 'invalid chart' }
-  if (typeof input.day !== 'string' || !isRealDay(input.day)) return { ok: false, error: 'invalid day' }
-  if (input.day > today) return { ok: false, error: 'That day has not happened yet.' }
+  const key = checkAnnotationKey(input)
+  if (!key.ok) return key
+  if ((input.day as string) > today) return { ok: false, error: 'That day has not happened yet.' }
   if (typeof input.body !== 'string') return { ok: false, error: 'invalid note' }
   const body = input.body.trim()
   const chars = [...body].length // characters, so an emoji counts once

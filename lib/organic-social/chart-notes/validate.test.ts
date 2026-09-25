@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { isNoteId, isSeenNote, todayUtc, validateNoteInput } from './validate'
+import { authorizeAnnotationHide } from '../annotation-hides/mutations'
 
 const TODAY = '2026-09-24'
 const OK = { channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14', body: 'Influencer post went live', postIds: [11, 12] }
@@ -79,5 +80,20 @@ test('line and paragraph separators and C1 controls are refused too; ordinary te
     expect(v({ body: `a${c}b` })).toEqual({ ok: false, error: 'A note is one line of plain text.' })
   }
   expect(v({ body: 'Caf\u00e9, na\u00efve, \u201cquoted\u201d, \u00a0spaced and \u{1F389}' })).toEqual({ ok: true })
+})
+
+// Paul's review of #273 (C12): hides and notes kept separate copies of the chart allowlist and of the
+// platform, chart and day checks. They now share one; this pins that they answer alike.
+test('hides and notes accept and refuse exactly the same platforms, charts and days', () => {
+  const cases: [unknown, unknown, unknown][] = [
+    ['INSTAGRAM', 'followers', '2026-08-14'], ['TIKTOK', 'engagements', '2026-08-01'], ['MYSPACE', 'followers', '2026-08-14'],
+    ['INSTAGRAM', 'reach', '2026-08-14'], ['INSTAGRAM', 'followers', '2026-02-30'], [7, 'followers', '2026-08-14'],
+    ['INSTAGRAM', 7, '2026-08-14'], ['INSTAGRAM', 'followers', 20260814],
+  ]
+  for (const [channel, chart, day] of cases) {
+    const note = validateNoteInput({ ...OK, channel, chart, day }, TODAY)
+    const hide = authorizeAnnotationHide({ channel, chart, day, hidden: true } as never)
+    expect([note.ok, note.error]).toEqual([hide.ok, hide.error])
+  }
 })
 
