@@ -56,7 +56,7 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
  *  comes from the action's revalidateTag('db'). */
-function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, pinned }: {
+function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   /** Set by the chart, which holds which days are hidden so the dot goes with the row. */
@@ -64,7 +64,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
   noteControls?: NoteControls
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
   as?: 'li' | 'div'
-  pinned?: boolean
+  floating?: boolean
 }) {
   const hidden = !!annotation.hidden
   const [pending, startTransition] = useTransition()
@@ -97,19 +97,19 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
   return (
     <Tag className={cn(
       'flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-2',
-      pinned && 'h-full content-start overflow-hidden bg-bg-surface p-1.5',
+      floating && 'bg-bg-surface',
       hidden && 'opacity-40 no-print',
       !hidden && draftOnly && 'opacity-40 no-print',
     )}>
       {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-xs font-bold text-white">{annotation.label}</span>
-        {annotation.note && <span className={cn('text-xs text-white', pinned && 'line-clamp-2')}>{annotation.note}</span>}
-        {draft && <span className={cn('no-print text-[11px] text-text-muted', pinned && 'line-clamp-1')}>Draft: {draft.text}</span>}
+        {annotation.note && <span className={cn('text-xs text-white', floating && 'line-clamp-2')}>{annotation.note}</span>}
+        {draft && <span className={cn('no-print text-[11px] text-text-muted', floating && 'line-clamp-1')}>Draft: {draft.text}</span>}
         {hidden && <span className="text-[11px] text-text-muted">Hidden from client</span>}
       </span>
       {/* The team's buttons get a row of their own under the picture and the text: beside them the
-          text column (flex-1, a zero starting width) shrank to a few pixels, and a pinned card
+          text column (flex-1, a zero starting width) shrank to a few pixels, and a fixed-height card
           clipped its buttons (measured in Chromium, Task 10). A client has no buttons, no row. */}
       {(controls || (noteControls && onEdit)) && (
         <span className="no-print flex basis-full flex-wrap items-center gap-2">
@@ -121,19 +121,19 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
               aria-label={hidden ? 'Unhide' : 'Hide from client'}
               className="no-print whitespace-nowrap rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50"
             >
-              {hidden ? 'Unhide' : pinned ? 'Hide' : 'Hide from client'}
+              {hidden ? 'Unhide' : floating ? 'Hide' : 'Hide from client'}
             </button>
           )}
-          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} pinned={pinned} onEdit={onEdit} />}
+          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} />}
         </span>
       )}
     </Tag>
   )
 }
 
-/** The row of callouts: above the chart on a phone-width screen, and on any screen for a callout
- *  whose day has no point on the series (trends.tsx). On a wide screen every other callout is a
- *  card pinned to its dot (PinnedCallout). */
+/** The row of callouts above the chart. Since Phase 2b it holds only a callout whose day has no point
+ *  on the series (it has no dot to open a card from); every other callout is a card that opens from
+ *  its dot (CalloutCard, trends.tsx). */
 export function AnnotationCallouts({ items, controls, noteControls, onToggle, onEdit }: {
   items: ChartAnnotation[]
   controls?: AnnotationControls
@@ -155,15 +155,15 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   )
 }
 
-/** One callout as a card pinned to its dot, option B (trends.tsx, LineChart pins): the same card as
- *  the row, so hiding, notes and print rules are identical, sized to the pin with the note cut at
- *  two lines (the full note is in the hover box). */
-export function PinnedCallout(props: {
+/** One callout as the card that opens from its dot (Phase 2b: hover, focus or tap; the chart places
+ *  it, one at a time). The same card as the row, so hiding, notes and print rules are identical; the
+ *  note is cut at two lines and the draft at one (the hover box and the form show them whole). */
+export function CalloutCard(props: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   noteControls?: NoteControls
   onToggle?: (day: string, hidden: boolean) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
-  return <AnnotationItem {...props} as="div" pinned />
+  return <AnnotationItem {...props} as="div" floating />
 }

@@ -9,19 +9,19 @@ const BUTTON = 'no-print whitespace-nowrap rounded-full border border-white/[0.1
 
 /** A card's note buttons, for someone who can edit: add or edit the note, delete a draft, and for an
  *  approver, approve a draft or revoke an approved note. Each action re-checks the session. The form
- *  itself opens above the chart (`onEdit`), never inside the card. On a pinned card the visible
+ *  itself opens above the chart (`onEdit`), never inside the card. On a card opened from its dot the visible
  *  words are shorter to fit; the accessible names stay the same everywhere. */
-export function NoteActions({ annotation, controls, pinned, onEdit }: {
+export function NoteActions({ annotation, controls, compact, onEdit }: {
   annotation: ChartAnnotation
   controls: NoteControls
-  pinned?: boolean
+  compact?: boolean
   onEdit: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const ed = annotation.noteEditor
-  const say = (full: string, short: string) => (pinned ? short : full)
+  const say = (full: string, short: string) => (compact ? short : full)
 
   const run = (act: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {

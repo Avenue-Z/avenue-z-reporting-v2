@@ -2,16 +2,14 @@
 
 import { useState } from 'react'
 import { LineChart } from '@/components/charts/line-chart'
-import { PIN_TEAM_CARD_HEIGHT } from '@/components/charts/pins'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
 import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
-import { AnnotationCallouts, PinnedCallout } from './annotation-callouts'
+import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
 import { NoteForm } from './note-form'
-import { useWideChart } from './use-wide-chart'
 
 export const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
@@ -46,7 +44,6 @@ export function ChannelTrendChart({
   const [showAnnotations, setShowAnnotations] = useState(true)
   // The Add note or Edit form, open above the chart: {} for a new note, or the day and its text.
   const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
-  const wide = useWideChart()
   // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
   // same click, not on the next server render. Seeded from the server's answer for this view. A
   // new answer under the same key is not picked up, which takes an in-place refresh someone else
@@ -83,14 +80,13 @@ export function ChannelTrendChart({
   const shown = visible?.filter((a) => !a.hidden && (!a.noteOnly || !!a.note))
   const noted = shown?.filter((a) => a.note)
   const notes = noted && noted.length > 0 ? Object.fromEntries(noted.map((a) => [a.date, a.note!])) : undefined
-  // Option B: on a wide screen every callout this viewer may see is pinned to its dot. A client's
-  // list holds only what they may see (the server removes the rest); the team's also holds its
-  // hidden and draft cards, pinned faded and never printed. A callout whose day has no point has no
-  // dot to join, so it goes in the row above the chart, as every callout does on a phone.
+  // Phase 2b: the graph shows dots only, and each callout's card opens from its dot (hover, focus
+  // or tap). A client's list holds only what they may see (the server removes the rest); the team's
+  // also holds its hidden and draft days, which the chart draws as faint dots. A callout whose day
+  // has no point on the series has no dot, so it stays in the row above the chart.
   const onSeries = new Set(series.points.map((p) => String(p.date)))
-  const pinned = wide ? visible?.filter((a) => onSeries.has(a.date)) : undefined
-  const inRow = wide ? visible?.filter((a) => !onSeries.has(a.date)) : visible
-  const team = !!annotationControls || !!noteControls
+  const onChart = visible?.filter((a) => onSeries.has(a.date))
+  const inRow = visible?.filter((a) => !onSeries.has(a.date))
   const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => setForm({ day, initial })
 
   return (
@@ -168,14 +164,14 @@ export function ChannelTrendChart({
               yKeys={yKeys}
               marks={shown?.map((a) => ({ x: a.date }))}
               notes={notes}
-              pins={pinned && pinned.length > 0
-                ? pinned.map((a) => ({
+              callouts={onChart && onChart.length > 0
+                ? onChart.map((a) => ({
                     x: a.date,
+                    label: a.label,
                     muted: !!a.hidden || (!!a.noteOnly && !a.note),
-                    content: <PinnedCallout annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
+                    content: <CalloutCard annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
                   }))
                 : undefined}
-              pinHeight={pinned && pinned.length > 0 && team ? PIN_TEAM_CARD_HEIGHT : undefined}
             />
           )}
         </>

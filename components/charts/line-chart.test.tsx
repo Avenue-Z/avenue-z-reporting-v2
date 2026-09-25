@@ -1,17 +1,21 @@
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
-import { layoutPins, PIN_CARD_WIDTH, PIN_TEAM_CARD_HEIGHT } from './pins'
+import { PIN_CARD_WIDTH, PIN_LINE_COLOR } from './pins'
 import type { ReactElement } from 'react'
 
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts')
   const { cloneElement } = await import('react')
+  // Records the props the chart hands Recharts' Tooltip, then renders the real one.
+  const Tooltip = (props: Record<string, unknown>) => { tooltipProps.push(props); return <actual.Tooltip {...props} /> }
   return {
     ...actual,
+    Tooltip,
     ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
       cloneElement(children, { width: 800, height: 300 }),
   }
 })
+const { tooltipProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[] }))
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
@@ -74,7 +78,7 @@ describe('niceYDomain', () => {
   })
 })
 
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { DefaultTooltipContent } from 'recharts'
 import { NotedTooltip } from './line-chart'
@@ -106,106 +110,187 @@ describe('NotedTooltip', () => {
   })
 })
 
-describe('layoutPins', () => {
-  const PLOT = { x: 60, width: 732 }
-
-  test('cards far apart share the top row, each centred on its dot', () => {
-    expect(layoutPins([{ x: 'a', px: 300 }, { x: 'b', px: 700 }], PLOT)).toEqual([
-      { x: 'a', left: 160, tier: 0 }, { x: 'b', left: 512, tier: 0 },
-    ])
-  })
-
-  test('neighbouring days stack into rows instead of overlapping', () => {
-    const r = layoutPins([{ x: 'a', px: 400 }, { x: 'b', px: 424 }, { x: 'c', px: 448 }], PLOT)
-    expect(r.map((p) => p.tier)).toEqual([0, 1, 2])
-  })
-
-  test('the first and last days stay inside the plot', () => {
-    const r = layoutPins([{ x: 'first', px: 60 }, { x: 'last', px: 792 }], PLOT)
-    expect(r).toEqual([{ x: 'first', left: 60, tier: 0 }, { x: 'last', left: 792 - PIN_CARD_WIDTH, tier: 0 }])
-  })
-
-  test('the order they arrive in does not matter', () => {
-    const a = layoutPins([{ x: 'b', px: 700 }, { x: 'a', px: 300 }], PLOT)
-    expect(a.map((p) => p.x)).toEqual(['a', 'b'])
-  })
-
-  test('a plot narrower than a card puts each card at its left edge, one per row', () => {
-    const r = layoutPins([{ x: 'a', px: 100 }, { x: 'b', px: 150 }], { x: 60, width: 200 })
-    expect(r).toEqual([{ x: 'a', left: 60, tier: 0 }, { x: 'b', left: 60, tier: 1 }])
-  })
-})
-
-describe('LineChart pins', () => {
-  // Invented values. Day i of 31 sits at 60 + i / 30 * 732 in an 800 wide chart.
+describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap)', () => {
+  // Invented values. Day i of 31 sits at 60 + i / 30 * 732 in an 800 wide chart (proof 4).
   const DAYS = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`)
   const DATA = DAYS.map((date, i) => ({ date, v: 3 + ((i * 7) % 11) }))
-  const AT = [DAYS[0], DAYS[9], DAYS[30]]
-  const draw = () => render(
-    <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={AT.map((x) => ({ x }))}
-      pins={AT.map((x) => ({ x, content: <span>{`card ${x}`}</span> }))} />,
-  )
+  const SHOWN = [DAYS[0], DAYS[9], DAYS[30]]
+  const MUTED = DAYS[20]
+  const callouts = [
+    ...SHOWN.map((x) => ({ x, label: `label ${x}`, content: <span>{`card ${x}`}</span> })),
+    { x: MUTED, label: `label ${MUTED}`, muted: true, content: <span>{`card ${MUTED}`}</span> },
+  ]
+  const draw = () => render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} />)
+  const hit = (c: HTMLElement, x: string) => c.querySelector(`[data-callout-hit="${x}"]`) as SVGCircleElement
+  const card = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-callout-card]')
   const num = (el: Element, a: string) => Number(el.getAttribute(a))
+  const wait = (ms: number) => act(() => { vi.advanceTimersByTime(ms) })
+  // jsdom lays nothing out, so the card's measured height is set here, per test.
+  let cardHeight = 60
+  beforeEach(() => {
+    vi.useFakeTimers()
+    cardHeight = 60
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true, get(this: HTMLElement) { return this.dataset?.calloutCard ? cardHeight : 0 },
+    })
+  })
+  afterEach(() => { vi.useRealTimers(); delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight })
 
-  test('each connector ends exactly on its dot', () => {
+  test('each hit area sits exactly on Recharts\' own dot', () => {
     const { container } = draw()
     const dots = [...container.querySelectorAll('.recharts-reference-dot circle, .recharts-reference-dot-dot')]
-    const lines = [...container.querySelectorAll('line[data-pin-line]')]
-    expect(lines).toHaveLength(3)
-    lines.forEach((l, i) => {
-      expect(num(l, 'x2')).toBeCloseTo(num(dots[i], 'cx'), 1)
-      expect(num(l, 'y2')).toBeCloseTo(num(dots[i], 'cy'), 1)
+    SHOWN.forEach((x, i) => {
+      expect(num(hit(container, x), 'cx')).toBeCloseTo(num(dots[i], 'cx'), 1)
+      expect(num(hit(container, x), 'cy')).toBeCloseTo(num(dots[i], 'cy'), 1)
     })
   })
 
-  test('cards sit above the plot, inside it, stacked only where they would overlap', () => {
+  test('every dot is a focusable button named by its callout, with a pointer cursor and a 28px hit area', () => {
     const { container } = draw()
-    const cards = [...container.querySelectorAll<HTMLElement>('[data-pin-card]')]
-    expect(cards.map((c) => c.dataset.pinCard)).toEqual(AT)
-    expect(cards.map((c) => parseFloat(c.style.left))).toEqual([60, expect.closeTo(139.6, 1), 512])
-    expect(cards.map((c) => c.style.top)).toEqual(['0px', '88px', '0px'])
+    const h = hit(container, DAYS[9])
+    expect(h.getAttribute('role')).toBe('button')
+    expect(h.getAttribute('aria-label')).toBe(`label ${DAYS[9]}`)
+    expect(h.getAttribute('tabindex')).toBe('0')
+    expect(h.getAttribute('aria-expanded')).toBe('false')
+    expect(num(h, 'r')).toBe(14)
+    expect(h.style.cursor).toBe('pointer')
+    expect(container.querySelectorAll('[data-callout-hit]')).toHaveLength(4)
   })
 
-  test('a card shows what it was given', () => {
-    draw()
+  test('a mouse resting on a dot opens its card after 100ms, not before, so a sweep never flashes cards', () => {
+    const { container } = draw()
+    fireEvent.pointerEnter(hit(container, DAYS[9]))
+    wait(99)
+    expect(card(container)).toBeNull()
+    wait(1)
+    expect(card(container)!.dataset.calloutCard).toBe(DAYS[9])
+    expect(hit(container, DAYS[9]).getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText(`card ${DAYS[9]}`)).toBeTruthy()
   })
 
-  test("a muted pin (the team's hidden or draft card) has a faded line, and neither line nor card prints", () => {
-    const { container } = render(
-      <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} pins={[{ x: DAYS[9], muted: true, content: <span>m</span> }]} />,
-    )
-    const line = container.querySelector('line[data-pin-line]')!
-    expect(line.getAttribute('class')).toContain('no-print')
-    expect(line.getAttribute('stroke-opacity')).toBe('0.4')
-    expect(container.querySelector('[data-pin-card]')!.className).toContain('no-print')
-  })
-
-  test('the line is the red of the approved sketch', () => {
+  test('a mouse passing over a dot without resting opens nothing', () => {
     const { container } = draw()
-    expect(container.querySelector('line[data-pin-line]')!.getAttribute('stroke')).toBe('#E24B4A')
+    fireEvent.pointerEnter(hit(container, DAYS[9]))
+    wait(60)
+    fireEvent.pointerLeave(hit(container, DAYS[9]))
+    wait(500)
+    expect(card(container)).toBeNull()
   })
 
-  test("the team's taller cards stack by their own height", () => {
-    const { container } = render(
-      <LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} pinHeight={112}
-        pins={AT.map((x) => ({ x, content: <span>{x}</span> }))} />,
-    )
-    expect([...container.querySelectorAll<HTMLElement>('[data-pin-card]')].map((c) => c.style.top)).toEqual(['0px', '120px', '0px'])
+  test('the card is centred on its dot and kept inside the plot at the edges', () => {
+    const { container } = draw()
+    const leftOf = (x: string) => { fireEvent.click(hit(container, x)); return parseFloat(card(container)!.style.left) }
+    expect(leftOf(DAYS[9])).toBeCloseTo(num(hit(container, DAYS[9]), 'cx') - PIN_CARD_WIDTH / 2, 1)
+    expect(leftOf(DAYS[0])).toBe(60)
+    expect(leftOf(DAYS[30])).toBe(60 + 732 - PIN_CARD_WIDTH)
+    expect(card(container)!.style.width).toBe(`${PIN_CARD_WIDTH}px`)
   })
 
-  test('with no pins there is no card, no connector and no extra wrapper', () => {
+  test('the card sits above its dot when it fits there, and below when it does not (its measured height)', () => {
+    const { container } = draw()
+    const cy = num(hit(container, DAYS[9]), 'cy')
+    cardHeight = 40
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy - 12 - 40, 1)
+    fireEvent.keyDown(card(container)!, { key: 'Escape' })
+    cardHeight = 400
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy + 12, 1)
+  })
+
+  test('leaving closes the card after 150ms, and moving into the card keeps it open', () => {
+    const { container } = draw()
+    fireEvent.pointerEnter(hit(container, DAYS[9]))
+    wait(100)
+    fireEvent.pointerLeave(hit(container, DAYS[9]))
+    wait(149)
+    expect(card(container)).not.toBeNull()
+    fireEvent.pointerEnter(card(container)!)
+    wait(500)
+    expect(card(container)).not.toBeNull()
+    fireEvent.pointerLeave(card(container)!)
+    wait(150)
+    expect(card(container)).toBeNull()
+  })
+
+  test('Enter on a focused dot opens its card at once and moves focus into it', () => {
+    const { container } = draw()
+    hit(container, DAYS[9]).focus()
+    fireEvent.keyDown(hit(container, DAYS[9]), { key: 'Enter' })
+    const c = card(container)!
+    expect(c.getAttribute('role')).toBe('group')
+    expect(c.getAttribute('aria-label')).toBe(`label ${DAYS[9]}`)
+    expect(document.activeElement).toBe(c)
+  })
+
+  test('Escape closes the card and returns focus to its dot', () => {
+    const { container } = draw()
+    fireEvent.keyDown(hit(container, DAYS[9]), { key: ' ' })
+    fireEvent.keyDown(card(container)!, { key: 'Escape' })
+    expect(card(container)).toBeNull()
+    expect(document.activeElement).toBe(hit(container, DAYS[9]))
+  })
+
+  test('a tap opens a card, a second tap on the same dot keeps it open, and a tap outside closes it', () => {
+    const { container } = draw()
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(card(container)).not.toBeNull()
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(card(container)).not.toBeNull()
+    fireEvent.pointerDown(card(container)!)
+    expect(card(container)).not.toBeNull()
+    fireEvent.pointerDown(document.body)
+    expect(card(container)).toBeNull()
+  })
+
+  test('one card at a time', () => {
+    const { container } = draw()
+    fireEvent.click(hit(container, DAYS[0]))
+    fireEvent.click(hit(container, DAYS[30]))
+    expect(container.querySelectorAll('[data-callout-card]')).toHaveLength(1)
+    expect(card(container)!.dataset.calloutCard).toBe(DAYS[30])
+  })
+
+  test("a muted callout (the team's hidden or draft day) has a faint dot that never prints, and opens like any other", () => {
+    const { container } = draw()
+    const faint = container.querySelector(`[data-callout-faint="${MUTED}"]`)!
+    expect(faint.getAttribute('class')).toContain('no-print')
+    expect(faint.getAttribute('stroke-dasharray')).toBeTruthy()
+    expect(num(faint, 'cx')).toBeCloseTo(num(hit(container, MUTED), 'cx'), 1)
+    fireEvent.click(hit(container, MUTED))
+    expect(card(container)!.dataset.calloutCard).toBe(MUTED)
+  })
+
+  test('the red line joins the dot to its card, and neither the line nor the card prints', () => {
+    const { container } = draw()
+    fireEvent.click(hit(container, DAYS[9]))
+    const stub = container.querySelector('line[data-callout-stub]')!
+    expect(stub.getAttribute('stroke')).toBe(PIN_LINE_COLOR)
+    expect(num(stub, 'x1')).toBeCloseTo(num(hit(container, DAYS[9]), 'cx'), 1)
+    expect(num(stub, 'y2')).toBeCloseTo(num(hit(container, DAYS[9]), 'cy'), 1)
+    expect(stub.getAttribute('class')).toContain('no-print')
+    expect(card(container)!.className).toContain('no-print')
+  })
+
+  test('the hover box is hidden while a card is open, and left to Recharts otherwise', () => {
+    const { container } = draw()
+    const last = () => tooltipProps[tooltipProps.length - 1]
+    expect(last().active).toBeUndefined()
+    fireEvent.click(hit(container, DAYS[9]))
+    expect(last().active).toBe(false)
+    fireEvent.pointerDown(document.body)
+    expect(last().active).toBeUndefined()
+  })
+
+  test('with no callouts the Tooltip is handed no active prop at all', () => {
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect('active' in tooltipProps[tooltipProps.length - 1]).toBe(false)
+  })
+
+  test('with no callouts there is no hit area, no card and no extra wrapper', () => {
     const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[9] }]} />)
-    expect(container.querySelector('[data-pin-card]')).toBeNull()
-    expect(container.querySelector('line[data-pin-line]')).toBeNull()
+    expect(container.querySelector('[data-callout-hit]')).toBeNull()
+    expect(container.querySelector('[data-callout-card]')).toBeNull()
     expect(container.querySelector('.relative')).toBeNull()
   })
-})
-
-// Measured in Chromium with the app's CSS (Task 10 review): the tallest team card (two pictures, a
-// two-line label, a two-line note, a draft line, the hidden line and five buttons, which wrap to two
-// rows at 280px) needs 170px of content plus a 1px border each side. Lower than that, a button is
-// clipped out of reach.
-test("a team card is tall enough that none of its buttons is ever clipped", () => {
-  expect(PIN_TEAM_CARD_HEIGHT).toBeGreaterThanOrEqual(172)
 })

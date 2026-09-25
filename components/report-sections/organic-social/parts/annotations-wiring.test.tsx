@@ -83,9 +83,12 @@ test('no post ever crosses to the chart: only the day, the value, the label and 
 test('v2 follower graph carries the outline title and renders its annotations', async () => {
   vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28 }))
   graphPosts.mockResolvedValueOnce([])
-  render(<>{await FollowerSectionV2(AUG)}</>)
+  const el = await FollowerSectionV2(AUG)
+  render(<>{el}</>)
   expect(screen.getByText('Instagram Follower Growth Graph')).toBeTruthy()
-  expect(screen.getByText('8/10 | +28 Followers')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Annotations' })).toBeTruthy()
+  // Phase 2b: the card opens from its dot inside the chart (which jsdom cannot draw), named by its label.
+  expect(annotationsOf(el)!.map((a) => a.label)).toEqual(['8/10 | +28 Followers'])
 })
 
 test('when the posts cannot be fetched, the follower annotations still show, without thumbnails', async () => {
@@ -246,4 +249,17 @@ test('a hide on a note\'s day removes that note from the client, on the engageme
   getAnnotationHides.mockResolvedValueOnce(new Set(['engagements|2026-08-14']))
   const el = await TrendSectionV2(AUG)
   expect(propsOf(el).annotations?.map((a) => a.date)).toEqual(['2026-08-10'])
+})
+
+// D9 (Phase 2b): a card's number is the value its dot sits on. The dot is drawn from the series, so
+// every callout's value must equal the series value for its day, peaks and note-only days alike.
+test('every callout carries the exact value its dot sits on', async () => {
+  const values: Record<string, number> = { '2026-08-05': 12, '2026-08-10': 28, '2026-08-14': -3, '2026-08-20': 19 }
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig(values))
+  graphPosts.mockResolvedValueOnce([])
+  getChartNotes.mockResolvedValueOnce([noteRow({ day: '2026-08-14' })])
+  const annotations = propsOf(await FollowerSectionV2(AUG)).annotations!
+  expect(annotations.map((a) => a.date)).toEqual(['2026-08-10', '2026-08-14', '2026-08-20'])
+  for (const a of annotations) expect(a.value).toBe(values[a.date])
+  for (const a of annotations.filter((x) => !x.noteOnly)) expect(a.label).toContain(`+${a.value} Followers`)
 })
