@@ -11,7 +11,11 @@ vi.mock('@/lib/organic-social/graph-posts', () => ({ graphPosts }))
 // Nothing is hidden unless a test says so. The client lookup never reaches a database.
 const { getAnnotationHides } = vi.hoisted(() => ({ getAnnotationHides: vi.fn(async () => new Set<string>()) }))
 vi.mock('@/lib/organic-social/annotation-hides/select', () => ({ getAnnotationHides }))
-vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => ({ id: 'client-uuid' })) }))
+const { getChartNotes } = vi.hoisted(() => ({ getChartNotes: vi.fn(async () => [] as unknown[]) }))
+vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes }))
+vi.mock('@/lib/db/queries', () => ({
+  getClientBySlug: vi.fn(async () => ({ id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } })),
+}))
 vi.mock('@/app/actions/organic-social', () => ({ setAnnotationHiddenAction: vi.fn(async () => ({ ok: true })) }))
 
 import { getFollowerGraph } from '@/lib/organic-social/followers'
@@ -79,9 +83,12 @@ test('no post ever crosses to the chart: only the day, the value, the label and 
 test('v2 follower graph carries the outline title and renders its annotations', async () => {
   vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28 }))
   graphPosts.mockResolvedValueOnce([])
-  render(<>{await FollowerSectionV2(AUG)}</>)
+  const el = await FollowerSectionV2(AUG)
+  render(<>{el}</>)
   expect(screen.getByText('Instagram Follower Growth Graph')).toBeTruthy()
-  expect(screen.getByText('8/10 | +28 Followers')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Annotations' })).toBeTruthy()
+  // Phase 2b: the card opens from its dot inside the chart (which jsdom cannot draw), named by its label.
+  expect(annotationsOf(el)!.map((a) => a.label)).toEqual(['8/10 | +28 Followers'])
 })
 
 test('when the posts cannot be fetched, the follower annotations still show, without thumbnails', async () => {
@@ -187,4 +194,72 @@ test('a chart with nothing to annotate never reads the hides', async () => {
   graphPosts.mockResolvedValueOnce([])
   await FollowerSectionV2(AUG)
   expect(getAnnotationHides).not.toHaveBeenCalled()
+})
+
+const noteRow = (over: Record<string, unknown>) => ({
+  id: 'n1', clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14',
+  body: 'Event', postIds: [], status: 'approved', createdBy: 'a@avenuez.com', updatedBy: 'a@avenuez.com',
+  approvedBy: 'b@avenuez.com', createdAt: new Date('2026-09-01T00:00:00Z'), updatedAt: new Date('2026-09-01T00:00:00Z'),
+  approvedAt: new Date('2026-09-01T00:00:00Z'), deletedAt: null, deletedBy: null, ...over,
+})
+const propsOf = (el: unknown) => (el as ReactElement<{ annotations?: ChartAnnotation[]; noteControls?: unknown }>).props
+
+test('v1 never reads notes', async () => {
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 5 }))
+  await FollowerSection(AUG)
+  expect(getChartNotes).not.toHaveBeenCalled()
+})
+
+test('a client sees an approved note on a quiet day as its own callout, with no controls', async () => {
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28, '2026-08-14': -3 }))
+  graphPosts.mockResolvedValueOnce([])
+  getChartNotes.mockResolvedValueOnce([noteRow({})])
+  const el = await FollowerSectionV2(AUG)
+  expect(propsOf(el).annotations?.map((a) => [a.label, a.note ?? null, a.noteOnly ?? null])).toEqual([
+    ['8/10 | +28 Followers', null, null], ['8/14', 'Event', true],
+  ])
+  expect(propsOf(el).noteControls).toBeUndefined()
+})
+
+test('an editor gets the note controls on the v2 engagement graph', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-09-24T15:00:00Z'))
+  vi.mocked(getEngagementTrend).mockResolvedValueOnce(ig({ '2026-08-10': 65 }))
+  graphPosts.mockResolvedValueOnce([post(8, '2026-08-10', 60)])
+  const el = await TrendSectionV2({ ...AUG, role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com' })
+  expect(propsOf(el).noteControls).toMatchObject({ chart: 'engagements', clientSlug: 'fixture-client' })
+  vi.useRealTimers()
+})
+
+// Notes merge before hides, so a hide on a day still takes that day's note away from the client.
+// Each v2 part runs the two layers itself, so each order is pinned.
+test('a hide on a note\'s day removes that note from the client, on the follower graph', async () => {
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28, '2026-08-14': -3 }))
+  graphPosts.mockResolvedValueOnce([])
+  getChartNotes.mockResolvedValueOnce([noteRow({})])
+  getAnnotationHides.mockResolvedValueOnce(new Set(['followers|2026-08-14']))
+  const el = await FollowerSectionV2(AUG)
+  expect(propsOf(el).annotations?.map((a) => a.date)).toEqual(['2026-08-10'])
+})
+
+test('a hide on a note\'s day removes that note from the client, on the engagement graph', async () => {
+  vi.mocked(getEngagementTrend).mockResolvedValueOnce(ig({ '2026-08-10': 65, '2026-08-14': 4 }))
+  graphPosts.mockResolvedValueOnce([])
+  getChartNotes.mockResolvedValueOnce([noteRow({ chart: 'engagements' })])
+  getAnnotationHides.mockResolvedValueOnce(new Set(['engagements|2026-08-14']))
+  const el = await TrendSectionV2(AUG)
+  expect(propsOf(el).annotations?.map((a) => a.date)).toEqual(['2026-08-10'])
+})
+
+// D9 (Phase 2b): a card's number is the value its dot sits on. The dot is drawn from the series, so
+// every callout's value must equal the series value for its day, peaks and note-only days alike.
+test('every callout carries the exact value its dot sits on', async () => {
+  const values: Record<string, number> = { '2026-08-05': 12, '2026-08-10': 28, '2026-08-14': -3, '2026-08-20': 19 }
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig(values))
+  graphPosts.mockResolvedValueOnce([])
+  getChartNotes.mockResolvedValueOnce([noteRow({ day: '2026-08-14' })])
+  const annotations = propsOf(await FollowerSectionV2(AUG)).annotations!
+  expect(annotations.map((a) => a.date)).toEqual(['2026-08-10', '2026-08-14', '2026-08-20'])
+  for (const a of annotations) expect(a.value).toBe(values[a.date])
+  for (const a of annotations.filter((x) => !x.noteOnly)) expect(a.label).toContain(`+${a.value} Followers`)
 })

@@ -182,4 +182,12 @@ describe('locked months in the section', () => {
     expect(seen.length).toBeGreaterThan(0)
     for (const c of seen) expect(c.dateRange).toBe(SEP)
   })
+
+  test('the viewer\'s email reaches the parts when the session has one', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com' } } as never)
+    getClientBySlug.mockResolvedValue(OPTED)
+    await OrganicSocialBody({ ctx: ctxFor(LIVE) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.email).toBe('writer@avenuez.com')
+  })
 })

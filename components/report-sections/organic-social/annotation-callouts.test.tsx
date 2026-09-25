@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // Recharts draws nothing in jsdom, so the chart is replaced by a stub that records its
 // props: the dots are asserted on what the chart is handed.
@@ -25,6 +25,7 @@ const SERIES: TrendSeries = { channels: ['Instagram'], points: [{ date: '2026-08
 // The chart's own legend could be a list too, so the annotations are found by name.
 const annotationList = () => screen.queryByRole('list', { name: 'Annotations' })
 const lastMarks = () => vi.mocked(LineChart).mock.lastCall?.[0].marks
+const lastCallouts = () => vi.mocked(LineChart).mock.lastCall?.[0].callouts
 
 test('each annotation shows its label', () => {
   render(<AnnotationCallouts items={[A(), A({ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', thumb: null })]} />)
@@ -105,6 +106,7 @@ test('a chart given no annotations has no button, no row and no dots', () => {
   expect(screen.queryByText('Annotations')).toBeNull()
   expect(annotationList()).toBeNull()
   expect(lastMarks()).toBeUndefined()
+  expect(lastCallouts()).toBeUndefined()
 })
 
 test('a chart given an empty list of annotations looks the same as one given none', () => {
@@ -112,15 +114,17 @@ test('a chart given an empty list of annotations looks the same as one given non
   expect(screen.queryByText('Annotations')).toBeNull()
   expect(annotationList()).toBeNull()
   expect(lastMarks()).toBeUndefined()
+  expect(lastCallouts()).toBeUndefined()
 })
 
-test('a chart given annotations shows the row, and the button hides and restores it', () => {
+// Phase 2b: the graph shows dots only, and each card opens from its dot, so the cards go to the chart.
+test('a chart given annotations hands its cards to the chart, and the button hides and restores them', () => {
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A()]} />)
-  expect(annotationList()).toBeTruthy()
+  expect(lastCallouts()?.map((c) => c.x)).toEqual(['2026-08-10'])
   fireEvent.click(screen.getByRole('button', { name: 'Annotations' }))
-  expect(annotationList()).toBeNull()
+  expect(lastCallouts()).toBeUndefined()
   fireEvent.click(screen.getByRole('button', { name: 'Annotations' }))
-  expect(annotationList()).toBeTruthy()
+  expect(lastCallouts()?.map((c) => c.x)).toEqual(['2026-08-10'])
 })
 
 test('each annotated day gets a dot, and the button takes the dots away too', () => {
@@ -133,7 +137,11 @@ test('each annotated day gets a dot, and the button takes the dots away too', ()
 
 test('toggling off the only channel takes the annotations away with the chart', () => {
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A()]} />)
+  const drawn = vi.mocked(LineChart).mock.calls.length
   fireEvent.click(screen.getByRole('button', { name: 'Instagram' }))
+  // The chart itself goes (the empty state replaces it), so no card and no dot can be drawn.
+  expect(vi.mocked(LineChart).mock.calls.length).toBe(drawn)
+  expect(screen.getByText('No data for this period.')).toBeTruthy()
   expect(annotationList()).toBeNull()
 })
 
@@ -141,7 +149,7 @@ test('toggling off the only channel takes the annotations away with the chart', 
 // never passed them to the chart, so the engagement graph silently showed nothing.
 test('EngagementTrend passes its annotations through to the chart', () => {
   render(<EngagementTrend series={SERIES} annotations={[A()]} />)
-  expect(screen.getByText('8/10 | 50 Engagements')).toBeTruthy()
+  expect(lastCallouts()?.map((c) => c.label)).toEqual(['8/10 | 50 Engagements'])
 })
 
 test('EngagementTrend keeps its "Engagement Over Time" title unless given another', () => {
@@ -167,11 +175,16 @@ test('without controls there is no hide button', () => {
   expect(screen.queryByRole('button', { name: 'Hide from client' })).toBeNull()
 })
 
+// Phase 2b: the card opens from its dot inside the chart; render the card the chart is handed.
+const lastCard = () => render(<>{lastCallouts()![0].content}</>).container
+
 test('staff can hide an annotation: it fades, its dot goes, and one call is made', async () => {
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A({ hidden: false })]} annotationControls={CONTROLS} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
-  expect(screen.getByText('Hidden from client')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
+  fireEvent.click(within(lastCard()).getByRole('button', { name: 'Hide from client' }))
+  const card = lastCard()
+  expect(within(card).getByText('Hidden from client')).toBeTruthy()
+  expect(within(card).getByRole('button', { name: 'Unhide' })).toBeTruthy()
+  expect(lastCallouts()![0].muted).toBe(true)
   // The team sees the chart the client sees: the dot goes with the annotation, at once.
   expect(lastMarks()).toEqual([])
   await waitFor(() => expect(setAnnotationHiddenAction).toHaveBeenCalledWith({ ...CONTROLS, day: '2026-08-10', hidden: true }))
@@ -184,16 +197,25 @@ test('a hidden annotation shows faded, marked, with Unhide', () => {
   expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
 })
 
+test('a draft-only annotation dims less than a hidden one, so its draft stays easy to read', () => {
+  const draft = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } }
+  const { container } = render(<AnnotationCallouts items={[A({ noteOnly: true, noteEditor: draft })]} />)
+  const cls = container.querySelector('li')!.className.split(' ')
+  expect(cls).toContain('opacity-80')
+  expect(cls).not.toContain('opacity-40')
+})
+
 test('a failed hide puts the annotation and its dot back, whether refused or errored', async () => {
   vi.mocked(setAnnotationHiddenAction).mockResolvedValueOnce({ ok: false, error: 'forbidden' })
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A({ hidden: false })]} annotationControls={CONTROLS} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Hide from client' })).toBeTruthy())
+  fireEvent.click(within(lastCard()).getByRole('button', { name: 'Hide from client' }))
+  await waitFor(() => expect(lastCallouts()![0].muted).toBe(false))
   expect(lastMarks()).toEqual([{ x: '2026-08-10' }])
   vi.mocked(setAnnotationHiddenAction).mockRejectedValueOnce(new Error('network'))
-  fireEvent.click(screen.getByRole('button', { name: 'Hide from client' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Hide from client' })).toBeTruthy())
-  expect(screen.queryByText('Hidden from client')).toBeNull()
+  fireEvent.click(within(lastCard()).getByRole('button', { name: 'Hide from client' }))
+  await waitFor(() => expect(lastCallouts()![0].muted).toBe(false))
+  expect(lastMarks()).toEqual([{ x: '2026-08-10' }])
+  expect(within(lastCard()).queryByText('Hidden from client')).toBeNull()
 })
 
 test('an annotation the team already hid gets no dot, so the team sees the chart the client sees', () => {

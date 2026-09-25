@@ -258,3 +258,32 @@ file gives for staging above, not `npm run db:migrate:staging` (that runs the ti
 `.env.staging`). Before: a read-only check that 0024 was the only unrecorded migration. After:
 a direct read of the tables and the migration ledger. Production goes the same way, before the
 production merge, per the usual flow.
+
+## Add chart notes (annotations Phase 2; staging applied 2026-09-25; production pending)
+
+`drizzle/0025_chart_notes.sql` adds one table, `chart_notes`: the team's written notes on the v2
+Organic Social graphs, with Commentary's draft and approve lifecycle. Additive: no existing table,
+column or row changes, and nothing Renaissance renders reads it. It reuses the existing
+`commentary_status` enum. A partial unique index keeps at most one open draft per client,
+platform, chart and day, and a check keeps a deleted note a draft.
+
+Staging, only on my written go and before the code reaches staging:
+`CACHE_DISABLE=1 npx tsx --env-file=.env.staging scripts/migrate-http.ts`. That script does not
+check which database it points at, so a host guard runs first. Before: a read-only check that
+0025 is the only unrecorded migration. After: a read-only check of the table, its check, both
+indexes and the ledger. Production goes the same way, before the production merge, only on my
+written go and only after Jasmine approves staging.
+
+Dev: `0024` and `0025` applied to the dev database on 2026-09-24, on my written go, so we could
+test chart notes on our own local app first (dev is where every feature is tried before staging).
+A dev-only host guard and a dry run first (exactly `0024` and `0025` pending); read back: the three
+tables, both `chart_notes` indexes (the partial one's `WHERE` intact) and its check present, the
+ledger up by two. Renaissance's dev row unchanged before and after.
+
+Staging: `0025` applied 2026-09-25, on my written go, after Paul approved #273 and before the code
+reached staging. A read-only preflight first, host-guarded to the address the script uses: exactly
+`0025_chart_notes` pending, Renaissance's config `brandId` only. Applied with the command above
+(`apply 0025_chart_notes (4 stmt) ... done`, `applied 1 migration(s)`). Read back: `chart_notes`
+with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreign key and the
+check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
+no rows; Renaissance's row unchanged. Production: not applied.
