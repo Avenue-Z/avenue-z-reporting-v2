@@ -154,9 +154,17 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     const card = cardOf(PEAK.date)
     fireEvent.click(within(card).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(actions.approveChartNoteAction).toHaveBeenCalledWith('a-client', 'did', { text: 'New', postIds: [] }))
-    expect(within(card).getByRole('button', { name: 'Revoke' })).toBeTruthy()
+    // Paul's review of #273 (C9): revoke is refused while a draft is open on the day, so it is not
+    // offered then (delete or approve the draft first).
+    expect(within(card).queryByRole('button', { name: 'Revoke' })).toBeNull()
     expect(within(card).getByRole('button', { name: 'Delete draft' })).toBeTruthy()
     approver.unmount()
+
+    const approvedOnly = draw([{ ...PEAK, note: 'Old', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } }], CONTROLS)
+    const onlyCard = cardOf(PEAK.date)
+    expect(within(onlyCard).getByRole('button', { name: 'Revoke' })).toBeTruthy()
+    expect(within(onlyCard).queryByRole('button', { name: 'Approve' })).toBeNull()
+    approvedOnly.unmount()
 
     draw([{ ...PEAK, note: 'Old', noteEditor: ed }], { ...CONTROLS, canApprove: false })
     const editorCard = cardOf(PEAK.date)
@@ -218,7 +226,7 @@ describe("the team's buttons sit on their own row, so the date, number and note 
   test('in the row (a day with no point), every button of a card shares one full-width row that never prints', () => {
     draw([{ ...PEAK, date: '2026-08-31', note: 'Old', noteEditor: ED }], CONTROLS, HIDES)
     const buttons = screen.getAllByRole('button').filter((b) => b.closest('li'))
-    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Hide from client', 'Edit note', 'Approve', 'Revoke', 'Delete draft'])
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Hide from client', 'Edit note', 'Approve', 'Delete draft'])
     const row = buttons[0].parentElement!
     expect(buttons.every((b) => b.parentElement === row)).toBe(true)
     expect(row.tagName).not.toBe('LI')
@@ -234,7 +242,7 @@ describe("the team's buttons sit on their own row, so the date, number and note 
     draw([{ ...PEAK, note: 'Old', noteEditor: ED }], CONTROLS, HIDES)
     const card = cardOf(PEAK.date)
     const buttons = [...card.querySelectorAll('button')]
-    expect(buttons).toHaveLength(5)
+    expect(buttons).toHaveLength(4)
     const row = buttons[0].parentElement!
     expect(buttons.every((b) => b.parentElement === row)).toBe(true)
     expect(row.className).toContain('basis-full')

@@ -48,7 +48,9 @@ export function NoteActions({ annotation, controls, compact, onEdit }: {
         <button type="button" className={BUTTON} disabled={pending} aria-label="Approve"
           onClick={() => run(() => approveChartNoteAction(controls.clientSlug, ed.draft!.id, { text: ed.draft!.text, postIds: ed.draft!.postIds }))}>Approve</button>
       )}
-      {ed?.approvedId && controls.canApprove && (
+      {/* Revoke is refused while a draft is open on the day, so it is offered only when there is none
+          (Paul's review of #273, C9): delete or approve the draft first. */}
+      {ed?.approvedId && !ed.draft && controls.canApprove && (
         <button type="button" className={BUTTON} disabled={pending} aria-label="Revoke"
           onClick={() => run(() => revokeChartNoteAction(controls.clientSlug, ed.approvedId!))}>Revoke</button>
       )}
