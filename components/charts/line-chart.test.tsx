@@ -226,6 +226,30 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(card(container)).toBeNull()
   })
 
+  // Paul's second review of #273 (R6): a refresh that removes the open card's callout unmounts the card and
+  // its dot together, and a keyboard user's focus fell to the page body. Repro: open a draft-only day's
+  // card with Enter, Tab to Delete draft, Enter.
+  test("a keyboard-opened card whose callout is removed hands focus to the nearest remaining dot", () => {
+    const { container, rerender } = draw()
+    // The draft-only day (a faint dot), as in the repro: its draft deleted, the refresh drops the day.
+    fireEvent.keyDown(hit(container, MUTED), { key: 'Enter' })
+    expect(document.activeElement).toBe(card(container))
+    const fewer = callouts.filter((c) => c.x !== MUTED)
+    rerender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={fewer} />)
+    expect(card(container)).toBeNull()
+    // Day 21 is 244px from day 31 and 268.4px from day 10; day 1, the first dot, is the farthest.
+    expect(document.activeElement).toBe(hit(container, DAYS[30]))
+  })
+
+  test('a card opened by pointer whose callout is removed moves no focus', () => {
+    const { container, rerender } = draw()
+    fireEvent.click(hit(container, DAYS[9]))
+    const fewer = callouts.filter((c) => c.x !== DAYS[9])
+    rerender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.filter((x) => x !== DAYS[9]).map((x) => ({ x }))} callouts={fewer} />)
+    expect(card(container)).toBeNull()
+    expect(document.activeElement).toBe(document.body)
+  })
+
   test('every dot is a real button named by its callout, with a pointer cursor and a 28px hit area', () => {
     const { container } = draw()
     const h = hit(container, DAYS[9])

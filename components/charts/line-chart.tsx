@@ -248,7 +248,13 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   // counts as closed at once, and the state follows during render, as React documents for state that
   // tracks props, so the same day coming back later does not reopen it (Paul's review of #273, C1).
   const openLive = open && callouts?.some((c) => c.x === open.x) ? open : null
-  if (open && !openLive) setOpen(null)
+  // Where a keyboard-opened card was when a refresh removed its callout, so its user's focus, which went
+  // with the card, lands on the nearest dot left (Paul's second review, R6). Set with the reset above.
+  const [lost, setLost] = useState<{ px: number | null } | null>(null)
+  if (open && !openLive) {
+    setOpen(null)
+    if (open.by === 'key') setLost({ px: layout?.spots.find((s) => s.x === open.x)?.px ?? null })
+  }
   const [side, setSide] = useState<'above' | 'below'>('above')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
@@ -303,6 +309,23 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   }, [openLive, layout])
   // D12: opened from the keyboard, focus moves into the card so its buttons are next in Tab order.
   useLayoutEffect(() => { if (openLive?.by === 'key') cardRef.current?.focus() }, [openLive])
+  // R6: once per removal, and only if focus fell to the page body, focus the remaining dot nearest the
+  // removed one (the first, if its place is unknown). No dot left: nothing moves.
+  const handled = useRef<object | null>(null)
+  useLayoutEffect(() => {
+    if (!lost || handled.current === lost) return
+    handled.current = lost
+    const now = document.activeElement
+    if (now && now !== document.body) return
+    let best: HTMLButtonElement | undefined
+    let gap = Infinity
+    for (const [x, el] of hits) {
+      const px = layout?.spots.find((s) => s.x === x)?.px
+      const d = lost.px === null || px === undefined ? Infinity : Math.abs(px - lost.px)
+      if (!best || d < gap) { best = el; gap = d }
+    }
+    best?.focus()
+  }, [lost, layout, hits])
   const on = {
     enter: (x: string, e: PointerEvent<HTMLButtonElement>) => {
       if (!isMouse(e)) return
