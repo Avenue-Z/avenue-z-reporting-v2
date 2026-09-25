@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
+import { CHART_COLORS } from '@/lib/constants'
 import type { ReactElement } from 'react'
 
 vi.mock('recharts', async () => {
@@ -375,6 +376,13 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(card(a)).toBeTruthy()
     fireEvent.pointerDown(hit(b, DAYS[0]))
     expect(card(a)).toBeNull()
+  })
+
+  // Paul's review of #273 (C15): CLAUDE.md keeps every chart colour in CHART_COLORS.
+  test('the red line and the faint dots take their colours from CHART_COLORS', () => {
+    expect(PIN_LINE_COLOR).toBe(CHART_COLORS.callout)
+    const { container } = draw()
+    expect(container.querySelector(`[data-callout-faint="${MUTED}"]`)!.getAttribute('stroke')).toBe(CHART_COLORS.neutral)
   })
 
   test('one card at a time', () => {

@@ -148,7 +148,7 @@ function SpotProbe({ x, cx, cy, muted, report }: {
 function FaintDot({ x, px, py }: { x: string; px: number; py: number }) {
   return (
     <circle data-callout-faint={x} className="no-print" cx={px} cy={py} r={5}
-      fill="none" stroke="#8A8A8A" strokeWidth={1.5} strokeDasharray="2 2" />
+      fill="none" stroke={CHART_COLORS.neutral} strokeWidth={1.5} strokeDasharray="2 2" />
   )
 }
 
