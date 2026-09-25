@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { expect, test, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import { ChannelTrendChart } from './trends'
@@ -26,6 +26,13 @@ import type { TrendSeries } from '@/lib/organic-social/types'
 
 const setAnnotationHiddenAction = vi.hoisted(() => vi.fn(async () => ({ ok: true })))
 vi.mock('@/app/actions/organic-social', () => ({ setAnnotationHiddenAction }))
+// Phase 2b: each card opens from its dot inside the chart, which jsdom cannot draw. This stub lists
+// every card the chart is handed, so the same hidden state is read, and the same Hide clicked, as the
+// row allowed before.
+vi.mock('@/components/charts/line-chart', () => ({
+  LineChart: ({ callouts }: { callouts?: { x: string; content: ReactNode }[] }) =>
+    <ul>{(callouts ?? []).map((c) => <li key={c.x}>{c.content}</li>)}</ul>,
+}))
 
 const instagram: TrendSeries = {
   channels: ['Instagram'],
@@ -51,7 +58,7 @@ const KEY_SEPTEMBER_INSTAGRAM = 'organic-social:organic-instagram:custom:2026-09
 
 /** Each annotation row and whether it reads as hidden, in the order they are drawn. */
 const rows = (c: HTMLElement) => Array.from(c.querySelectorAll('li')).map(
-  (li) => `${li.textContent?.match(/L\d{4}-\d{2}-\d{2}/)?.[0]}=${li.className.includes('opacity-40') ? 'hidden' : 'shown'}`)
+  (li) => `${li.textContent?.match(/L\d{4}-\d{2}-\d{2}/)?.[0]}=${li.innerHTML.includes('opacity-40') ? 'hidden' : 'shown'}`)
 
 test("switching tab draws that tab's own hides and its own line, not the one before", () => {
   const { rerender, container } = render(
@@ -75,8 +82,8 @@ test('a hide still in flight is not reverted by the answer to the one before it'
   const nothingHidden = [annotation('2026-08-12', false), annotation('2026-08-20', false)]
   const { rerender, container } = render(page(KEY_AUGUST_INSTAGRAM, instagram, nothingHidden))
 
-  await act(async () => { screen.getAllByText('Hide from client')[0].click() })
-  await act(async () => { screen.getAllByText('Hide from client')[0].click() })
+  await act(async () => { screen.getAllByRole('button', { name: 'Hide from client' })[0].click() })
+  await act(async () => { screen.getAllByRole('button', { name: 'Hide from client' })[0].click() })
   expect(rows(container)).toEqual(['L2026-08-12=hidden', 'L2026-08-20=hidden'])
 
   // The first hide's write lands and refreshes the route in place: same key, and an answer that

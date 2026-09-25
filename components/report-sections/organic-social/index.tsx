@@ -48,9 +48,16 @@ export function OrganicSocialReport({
 export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
+  // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
+  // failed session read still means client rules and no email.
   let role: string | undefined
-  try { role = (await auth())?.user?.role } catch { role = undefined }
-  const rctx: OrganicSocialCtx = role ? { ...ctx, role } : ctx
+  let email: string | undefined
+  try {
+    const user = (await auth())?.user
+    role = user?.role
+    email = user?.email ?? undefined
+  } catch { role = undefined; email = undefined }
+  const rctx: OrganicSocialCtx = { ...ctx, ...(role ? { role } : {}), ...(email ? { email } : {}) }
   const key = rctx.channel ? 'organic-social:platform' : 'organic-social'
   // Resolve the composition defensively. A DB hiccup here must NOT blank the whole section: on
   // failure, fall back to the in-code template with no per-client override so each part still

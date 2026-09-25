@@ -168,3 +168,20 @@ test('an annotation with no post has no thumbnail to send', () => {
   expect(toChartAnnotations([{ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', post: null }])[0])
     .toEqual({ date: '2026-08-22', value: 26, label: '8/22 | 26 Engagements', thumb: null })
 })
+
+test('a client receives the approved note and the picked thumbnails, never the editor ids', () => {
+  const [a] = toChartAnnotations([{
+    date: '2026-08-14', value: -3, label: '8/14', post: null, hidden: false, noteOnly: true,
+    note: { text: 'Event', posts: [post(2, '2026-08-14', 5)] },
+  }])
+  expect(Object.keys(a).sort()).toEqual(['date', 'hidden', 'label', 'note', 'noteOnly', 'thumb', 'thumbs', 'value'])
+  expect(a.note).toBe('Event')
+  expect(a.thumbs?.map((t) => t.url)).toEqual(['https://example.com/2'])
+})
+
+test('a day with only a draft sends no note text to anyone', () => {
+  const editor = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Draft', postIds: [] } }
+  const [a] = toChartAnnotations([{ date: '2026-08-14', value: 0, label: '8/14', post: null, noteOnly: true, note: { text: null, posts: [], editor } }])
+  expect(a.note).toBeUndefined()
+  expect(a.noteEditor).toEqual(editor)
+})

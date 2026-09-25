@@ -1,14 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LineChart } from '@/components/charts/line-chart'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
-import type { AnnotationControls, ChartAnnotation } from '@/lib/organic-social/annotations'
+import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
-import { AnnotationCallouts } from './annotation-callouts'
+import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
+import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-form'
+
+/** How long the line after a save stays (Phase 2c, D18). */
+const SAVED_LINE_MS = 8000
 
 export const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
@@ -29,8 +33,8 @@ export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0
 // before the prop existed, with no button, no row and no dots. That is what keeps every
 // client still pinned to v1 of these parts, Renaissance included, unchanged.
 export function ChannelTrendChart({
-  title, series, annotations, annotationControls,
-}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls }) {
+  title, series, annotations, annotationControls, noteControls,
+}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls }) {
   // This chart's state is per view. The two seeds below run once, on mount, and are never re-run,
   // which is right only because each tab and each month gets its own instance: both report pages
   // wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
@@ -41,6 +45,18 @@ export function ChannelTrendChart({
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
   const [showAnnotations, setShowAnnotations] = useState(true)
+  // The Add annotation or Edit form, open above the chart: {} for a new note, or the day and its text.
+  const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
+  // The line after a save (Phase 2c, D18): a save closed the panel and nothing said what happened. Its
+  // clock starts with the save itself, and opening the panel again clears it.
+  const [saved, setSaved] = useState<SavedNote | null>(null)
+  const savedClock = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showSaved = (next: SavedNote | null) => {
+    if (savedClock.current) clearTimeout(savedClock.current)
+    savedClock.current = next ? setTimeout(() => { savedClock.current = null; setSaved(null) }, SAVED_LINE_MS) : null
+    setSaved(next)
+  }
+  useEffect(() => () => { if (savedClock.current) clearTimeout(savedClock.current) }, [])
   // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
   // same click, not on the next server render. Seeded from the server's answer for this view. A
   // new answer under the same key is not picked up, which takes an in-place refresh someone else
@@ -72,6 +88,27 @@ export function ChannelTrendChart({
   const current = annotations?.map((a) => ({ ...a, hidden: hiddenDays.has(a.date) }))
   // Annotations explain the line, so they go when the line does (every channel toggled off).
   const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
+  // A dot marks what a client sees: a top day, or a day with an approved note. A draft-only day and a
+  // hidden day get none, so the team's chart matches the client's.
+  const shown = visible?.filter((a) => !a.hidden && (!a.noteOnly || !!a.note))
+  const noted = shown?.filter((a) => a.note)
+  const notes = noted && noted.length > 0 ? Object.fromEntries(noted.map((a) => [a.date, a.note!])) : undefined
+  // Phase 2b: the graph shows dots only, and each callout's card opens from its dot (hover, focus
+  // or tap). A client's list holds only what they may see (the server removes the rest); the team's
+  // also holds its hidden and draft days, which the chart draws as faint dots. A callout whose day
+  // has no point on the series has no dot, so it stays in the row above the chart.
+  const onSeries = new Set(series.points.map((p) => String(p.date)))
+  const onChart = visible?.filter((a) => onSeries.has(a.date))
+  const inRow = visible?.filter((a) => !onSeries.has(a.date))
+  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => { showSaved(null); setForm({ day, initial }) }
+  // This chart's notes by day, for the Add annotation panel (Phase 2c, D19). Only editors receive
+  // noteEditor, so a client's map is always empty.
+  const existing: Record<string, ExistingNote> = {}
+  for (const a of annotations ?? []) {
+    const ed = a.noteEditor
+    if (!ed || (!ed.approvedId && !ed.draft)) continue
+    existing[a.date] = { text: ed.draft?.text ?? a.note ?? '', postIds: ed.draft?.postIds ?? ed.approvedPostIds, draft: !!ed.draft }
+  }
 
   return (
     <section className="space-y-3">
@@ -122,8 +159,27 @@ export function ChannelTrendChart({
                 Annotations
               </button>
             )}
+            {noteControls && noteControls.days.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { showSaved(null); setForm((f) => (f ? null : {})) }}
+                aria-expanded={!!form}
+                className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
+              >
+                Add annotation
+              </button>
+            )}
           </div>
-          {visible && <AnnotationCallouts items={visible} controls={annotationControls} onToggle={setHidden} />}
+          {form && noteControls && (
+            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
+              onClose={() => setForm(null)} onSaved={(s) => { setForm(null); showSaved(s) }} />
+          )}
+          {saved && !form && noteControls && (
+            <p role="status" className="no-print text-xs text-text-muted">{savedLine(saved, noteControls.canApprove)}</p>
+          )}
+          {inRow && inRow.length > 0 && (
+            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
+          )}
           {activeEmpty ? (
             <NoData />
           ) : (
@@ -131,7 +187,16 @@ export function ChannelTrendChart({
               data={series.points}
               xKey="date"
               yKeys={yKeys}
-              marks={visible?.filter((a) => !a.hidden).map((a) => ({ x: a.date }))}
+              marks={shown?.map((a) => ({ x: a.date }))}
+              notes={notes}
+              callouts={onChart && onChart.length > 0
+                ? onChart.map((a) => ({
+                    x: a.date,
+                    label: a.label,
+                    muted: !!a.hidden || (!!a.noteOnly && !a.note),
+                    content: <CalloutCard annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
+                  }))
+                : undefined}
             />
           )}
         </>
@@ -141,7 +206,7 @@ export function ChannelTrendChart({
 }
 
 export function EngagementTrend({
-  series, annotations, annotationControls, title = 'Engagement Over Time',
-}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; title?: string }) {
-  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} />
+  series, annotations, annotationControls, noteControls, title = 'Engagement Over Time',
+}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls; title?: string }) {
+  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} noteControls={noteControls} />
 }

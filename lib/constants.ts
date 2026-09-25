@@ -26,6 +26,7 @@ export const CHART_COLORS = {
   positive: '#60FF80', // green
   negative: '#FF4444', // red
   neutral: '#8A8A8A', // grey
+  callout: '#E24B4A', // red: the line joining a chart dot to its open card (Organic Social notes)
 } as const
 
 /** Format a chart axis/tooltip number: thousands-separated, capped at 2 decimals.
