@@ -215,6 +215,17 @@ test('revoke: a draft racing in between is caught by the index and reported', as
   expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: false, error: 'A draft is already open on this day. Delete or approve it first.' })
 })
 
+// Paul's second review of #273 (R1): a Revoke from a page opened before the day's note changed (a newer
+// approval, or this one already revoked or deleted) matches no row. It says so instead of "not found",
+// the way Approve does, and nothing is revalidated.
+test('revoke: a note that is no longer the one clients see is refused as changed', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(m.findChartNote).mockResolvedValueOnce({ ...ROW, status: 'approved' } as never)
+  vi.mocked(m.revokeNote).mockResolvedValueOnce(false)
+  expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: false, error: 'This note changed since you opened the page. Reload to see it.' })
+  expect(revalidateTag).not.toHaveBeenCalled()
+})
+
 test('delete: only a draft, soft deleted by the signed-in editor', async () => {
   as('INTERNAL_ANALYST')
   vi.mocked(m.findChartNote).mockResolvedValueOnce({ ...ROW, status: 'approved' } as never)

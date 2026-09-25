@@ -21,6 +21,8 @@ const NOT_FOUND: Result = { ok: false, error: 'not found' }
 // Notes are only for clients on locked months (the October set). Renaissance is not on locked
 // months, so no action here can ever write a row for it, whoever calls the action.
 const NOT_ON: Result = { ok: false, error: 'Notes are not on for this client.' }
+// Approve or Revoke from a page opened before the note changed.
+const CHANGED: Result = { ok: false, error: 'This note changed since you opened the page. Reload to see it.' }
 
 /** Every action checks the role AND the email: the hide action checks only the role
  *  (app/actions/organic-social.ts:49), the Commentary actions only the email
@@ -82,15 +84,14 @@ export async function approveChartNoteAction(clientSlug: string, id: string, see
   if (!mine.ok) return { ok: false, error: mine.error! }
   const alive = guardNotDeleted(row)
   if (!alive.ok) return { ok: false, error: alive.error! }
-  if (!(await approveNote(id, v.email!, seen))) {
-    return { ok: false, error: 'This note changed since you opened the page. Reload to see it.' }
-  }
+  if (!(await approveNote(id, v.email!, seen))) return CHANGED
   revalidateTag('db', 'max')
   return { ok: true }
 }
 
 /** Return an approved note to draft. Refused while another draft is open on that day, so a day
- *  never holds two; the index catches the same case if one lands in between. */
+ *  never holds two; the index catches the same case if one lands in between. Refused as changed when
+ *  the row is no longer the approval clients see (revokeNote). */
 export async function revokeChartNoteAction(clientSlug: string, id: string): Promise<Result> {
   const v = await viewer()
   if (!v.canApprove) return FORBIDDEN
@@ -105,7 +106,7 @@ export async function revokeChartNoteAction(clientSlug: string, id: string): Pro
   const open = await findOpenDraft({ clientId: client.id, channel: row!.channel as DashChannel, chart: row!.chart as AnnotationChart, day: row!.day })
   if (open && open.id !== id) return busy
   try {
-    if (!(await revokeNote(id))) return NOT_FOUND
+    if (!(await revokeNote(id))) return CHANGED
   } catch (e) {
     if (isOpenDraftConflict(e)) return busy
     throw e

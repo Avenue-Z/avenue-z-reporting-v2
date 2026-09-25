@@ -1,4 +1,5 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNull, notExists, or, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { db } from '@/lib/db/client'
 import { chartNotes } from '@/lib/db/schema'
 import type { AnnotationChart } from '../annotations'
@@ -77,12 +78,34 @@ export async function approveNote(id: string, by: string, seen: { text: string; 
   return rows.length > 0
 }
 
-export async function revokeNote(id: string): Promise<boolean> {
-  const rows = await db
+/** Return the approval clients see to draft, and only that one. It must be approved and live, and no
+ *  live approved row of the same day may rank after it by latestApproved's rule (pick.ts:16-25):
+ *  approved later, or at the same moment and updated later. Without this a Revoke from a page opened
+ *  before a newer approval turned the superseded row into the day's open draft and reported success,
+ *  while clients kept the newer note (Paul's second review of #273, R1). One statement, so no approval
+ *  can land between the check and the write. */
+export function revokeNoteQuery(id: string) {
+  const newer = alias(chartNotes, 'newer')
+  return db
     .update(chartNotes)
     .set({ status: 'draft', approvedBy: null, approvedAt: null, updatedAt: new Date() })
-    .where(eq(chartNotes.id, id))
+    .where(and(
+      eq(chartNotes.id, id), eq(chartNotes.status, 'approved'), isNull(chartNotes.deletedAt),
+      notExists(db.select({ one: sql`1` }).from(newer).where(and(
+        eq(newer.clientId, chartNotes.clientId), eq(newer.channel, chartNotes.channel),
+        eq(newer.chart, chartNotes.chart), eq(newer.day, chartNotes.day),
+        eq(newer.status, 'approved'), isNull(newer.deletedAt),
+        or(
+          gt(newer.approvedAt, chartNotes.approvedAt),
+          and(eq(newer.approvedAt, chartNotes.approvedAt), gt(newer.updatedAt, chartNotes.updatedAt)),
+        ),
+      ))),
+    ))
     .returning({ id: chartNotes.id })
+}
+
+export async function revokeNote(id: string): Promise<boolean> {
+  const rows = await revokeNoteQuery(id)
   return rows.length > 0
 }
 

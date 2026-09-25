@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { approveNoteQuery, isOpenDraftConflict } from './mutations'
+import { approveNoteQuery, isOpenDraftConflict, revokeNoteQuery } from './mutations'
 
 // Unverified until staging (Task 11): the exact shape neon-http gives a unique violation. The
 // check accepts the constraint name in either the `constraint` field or the message, and walks
@@ -40,4 +40,31 @@ test('approve only ever matches a live draft holding exactly what the approver s
   expect(param('status')).toBe('draft')
   expect(param('body')).toBe('Went live')
   expect(where).toContain('"chart_notes"."deleted_at" is null')
+})
+
+// Paul's second review of #273 (R1): revoke matched the id alone, so a Revoke from a page opened before a
+// newer approval turned the older, superseded approval into the day's open draft and reported success,
+// while clients kept seeing the newer note. The write now also requires that the row is the approval
+// clients see: approved, not deleted, and no live approved row of the same day ranks after it, by
+// latestApproved's rule (pick.ts:16-25). One statement, so no approval can land between check and write.
+test('revoke only ever matches the approved note clients see', () => {
+  const q = revokeNoteQuery('c7d8e0a1-1111-4111-8111-111111111111').toSQL()
+  const set = q.sql.slice(0, q.sql.indexOf(' where '))
+  const where = q.sql.slice(q.sql.indexOf(' where '))
+  const params = (s: string, col: string) => [...s.matchAll(new RegExp(`"${col}" = \\$(\\d+)`, 'g'))].map((m) => q.params[Number(m[1]) - 1])
+  // The row goes back to draft...
+  expect(params(set, 'status')).toEqual(['draft'])
+  // ...only if it is approved and live,
+  expect(where).toContain('"chart_notes"."status" = $')
+  expect(where).toContain('"chart_notes"."deleted_at" is null')
+  // and no live approved row of the same client, platform, chart and day was approved after it
+  // (or at the same moment and updated after it).
+  expect(where).toContain('not exists')
+  for (const col of ['client_id', 'channel', 'chart', 'day']) expect(where).toContain(`"newer"."${col}" = "chart_notes"."${col}"`)
+  expect(where).toContain('"newer"."deleted_at" is null')
+  expect(where).toContain('"newer"."approved_at" > "chart_notes"."approved_at"')
+  expect(where).toContain('"newer"."approved_at" = "chart_notes"."approved_at"')
+  expect(where).toContain('"newer"."updated_at" > "chart_notes"."updated_at"')
+  // Both status checks in the WHERE (the row's own and the newer row's) ask for 'approved'.
+  expect(params(where, 'status')).toEqual(['approved', 'approved'])
 })
