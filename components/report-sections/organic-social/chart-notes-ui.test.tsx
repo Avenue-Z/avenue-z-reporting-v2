@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // Recharts draws nothing in jsdom, so the chart is a stub that records its props.
 vi.mock('@/components/charts/line-chart', () => ({ LineChart: vi.fn(() => null) }))
@@ -352,5 +352,122 @@ describe('the Add annotation panel: pick a post by its picture, days with posts 
     type('Event, updated')
     fireEvent.click(save())
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-08-14', postIds: [], body: 'Event, updated' })))
+  })
+})
+
+// Phase 2c (my local QA, 2026-09-24). A save closed the panel and nothing said what happened; a second
+// note on a day silently replaced the first, because each chart holds one note per day.
+describe('after a save, one line says what happened; a day with a note loads it (Phase 2c)', () => {
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
+  const panel = () => screen.getByRole('group', { name: 'Note' })
+  const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
+  const save = () => within(panel()).getByRole('button', { name: 'Save draft' }) as HTMLButtonElement
+  const type = (value: string) => fireEvent.change(within(panel()).getByLabelText('Note text'), { target: { value } })
+  const text = () => (within(panel()).getByLabelText('Note text') as HTMLInputElement).value
+  const status = () => screen.queryByRole('status')
+  const WITH_DRAFT = { ...PEAK, noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [12] } } }
+  const APPROVED_ONLY = QUIET({ date: '2026-08-20', label: '8/20', note: 'Event', noteEditor: { approvedId: 'a', approvedPostIds: [21], draft: null } })
+
+  test('a new note: the panel closes and the line says a draft was saved, and how to approve it', async () => {
+    draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    expect(status()!.textContent).toBe("Saved a draft for 8/10. Clients see it once it's approved. Hover its dot to approve it.")
+    expect(status()!.className).toContain('no-print')
+    expect(screen.queryByRole('group', { name: 'Note' })).toBeNull()
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  test('an editor who cannot approve is not told to approve', async () => {
+    draw([PEAK], { ...CONTROLS, canApprove: false })
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(status()!.textContent).toBe("Saved a draft for 8/10. Clients see it once it's approved."))
+  })
+
+  test('a refused save shows no line', async () => {
+    actions.saveChartNoteAction.mockResolvedValueOnce({ ok: false, error: 'Nope' } as never)
+    draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(within(panel()).getByText('Nope')).toBeTruthy())
+    expect(status()).toBeNull()
+  })
+
+  test('the line clears after 8 seconds, and when the panel is opened again', async () => {
+    // Fake timers that also follow real time, so waitFor can poll. The clock starts with the save; the
+    // checks sit well either side of 8s so a busy machine's drift cannot flip them.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      draw([PEAK], CONTROLS)
+      open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+      await waitFor(() => expect(status()).toBeTruthy())
+      act(() => { vi.advanceTimersByTime(7000) })
+      expect(status()).toBeTruthy()
+      act(() => { vi.advanceTimersByTime(1500) })
+      expect(status()).toBeNull()
+      open(); fireEvent.click(postButtons()[0]); type('Again'); fireEvent.click(save())
+      await waitFor(() => expect(status()).toBeTruthy())
+      open()
+      expect(status()).toBeNull()
+      // Cancelling the reopened panel must not bring the old line back.
+      fireEvent.click(within(panel()).getByRole('button', { name: 'Cancel' }))
+      expect(status()).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('picking a post from a day with a draft loads that draft: its text and picks, then the new pick', () => {
+    draw([WITH_DRAFT], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    expect(within(panel()).getByText('8/10 already has a draft. Saving updates it.')).toBeTruthy()
+    expect(text()).toBe('Soon')
+    expect(postButtons().slice(0, 3).map((b) => b.getAttribute('aria-pressed'))).toEqual(['true', 'true', 'false'])
+  })
+
+  test('saving a loaded draft sends its picks with the new one, and the line says the draft was updated', async () => {
+    draw([WITH_DRAFT], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-08-10', body: 'Soon', postIds: [12, 11] }))
+    expect(status()!.textContent).toBe("Updated the draft for 8/10. Clients see it once it's approved. Hover its dot to approve it.")
+  })
+
+  test('a day with two picks already keeps them; the new pick is not added past 2', () => {
+    draw([{ ...WITH_DRAFT, noteEditor: { ...WITH_DRAFT.noteEditor, draft: { id: 'd', text: 'Soon', postIds: [12, 13] } } }], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    expect(postButtons().slice(0, 3).map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'true'])
+  })
+
+  test('only an approved note: the notice says a save drafts a change; the approved note stays until approved', async () => {
+    draw([APPROVED_ONLY], CONTROLS)
+    open(); fireEvent.click(postButtons()[3])
+    expect(within(panel()).getByText('8/20 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
+    expect(text()).toBe('Event')
+    fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    expect(status()!.textContent).toBe('Saved a draft for 8/20. Clients keep seeing the approved note until this one is approved. Hover its dot to approve it.')
+  })
+
+  test('text already typed is never replaced by the day\'s note', () => {
+    draw([WITH_DRAFT], CONTROLS)
+    open(); type('Mine'); fireEvent.click(postButtons()[0])
+    expect(text()).toBe('Mine')
+    expect(within(panel()).getByText('8/10 already has a draft. Saving updates it.')).toBeTruthy()
+  })
+
+  test('a day without a note shows no notice and fills nothing', () => {
+    draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    expect(within(panel()).queryByText(/already has/)).toBeNull()
+    expect(text()).toBe('')
+  })
+
+  test("Edit on a card's draft, saved, says the draft was updated", async () => {
+    draw([WITH_DRAFT], CONTROLS)
+    fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
+    // Edit is already that day's note, so the Add panel's notice is not repeated here.
+    expect(within(panel()).queryByText(/already has/)).toBeNull()
+    type('Sooner'); fireEvent.click(save())
+    await waitFor(() => expect(status()!.textContent).toBe("Updated the draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
   })
 })

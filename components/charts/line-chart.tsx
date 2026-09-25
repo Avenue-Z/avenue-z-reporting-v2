@@ -13,9 +13,8 @@ import {
   DefaultTooltipContent,
   type DefaultTooltipContentProps,
   usePlotArea,
-  useYAxisDomain,
 } from 'recharts'
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { CHART_COLORS } from '@/lib/constants'
 import { money } from '@/lib/paid-media/format'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
@@ -126,12 +125,41 @@ export function NotedTooltip({ note, ...props }: DefaultTooltipContentProps<stri
   )
 }
 
-/** Inside the chart, where Recharts knows the plot area and the y domain. A category point sits at
- *  plot.x + i / (n - 1) * plot.width and a value at plot.y + (1 - (v - lo) / (hi - lo)) * plot.height
- *  (proven against Recharts' own ReferenceDot, line-chart.test.tsx "each hit area sits exactly on
- *  Recharts' own dot"). Callouts ride the first series, as the marks do. Draws the team's faint dots
- *  and the red line to the open card, and reports where the dots are, so the hit areas and the card
- *  can be placed in the HTML layer above the chart (LineChart). */
+/** One callout's spot, as the `shape` of a ReferenceDot: Recharts hands it the exact cx and cy it gives
+ *  the marks, from its own scale, and it reports them and draws the team's faint dot there (D17). A real
+ *  component, because Recharts calls a function `shape` directly (ReferenceDot.js renderDot). */
+function SpotProbe({ x, cx, cy, muted, report }: {
+  x: string
+  cx?: number
+  cy?: number
+  muted: boolean
+  report: (x: string, at: { px: number; py: number } | null) => void
+}) {
+  useLayoutEffect(() => {
+    if (cx === undefined || cy === undefined) return
+    report(x, { px: cx, py: cy })
+    return () => report(x, null)
+  }, [x, cx, cy, report])
+  if (!muted || cx === undefined || cy === undefined) return <g />
+  return <FaintDot x={x} px={cx} py={cy} />
+}
+
+/** The team's faint dot for a hidden or draft-only day (D5): hollow, dashed, never printed. */
+function FaintDot({ x, px, py }: { x: string; px: number; py: number }) {
+  return (
+    <circle data-callout-faint={x} className="no-print" cx={px} cy={py} r={5}
+      fill="none" stroke="#8A8A8A" strokeWidth={1.5} strokeDasharray="2 2" />
+  )
+}
+
+/** Inside the chart, where Recharts knows the plot area and the scales. Each callout's spot is placed
+ *  by Recharts itself (a ReferenceDot per callout, the same code that draws the marks), never computed
+ *  from the y domain: Recharts widens that domain to whole ticks, and a spot computed from the domain
+ *  asked for sat 17px off its dot on a follower graph (seen live, 2026-09-24). A callout on a day with
+ *  no value, which Recharts would drop, keeps the bottom of the plot so it stays reachable. Callouts
+ *  ride the first series, as the marks do. Draws the team's faint dots and the red line to the open
+ *  card, and reports where the dots are, so the hit areas and the card can be placed in the HTML layer
+ *  above the chart (LineChart). */
 function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout }: {
   callouts: ChartCallout[]
   data: Record<string, string | number>[]
@@ -142,18 +170,27 @@ function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout }: {
   onLayout: (layout: CalloutLayout) => void
 }) {
   const plot = usePlotArea()
-  const domain = useYAxisDomain()
+  const [reported, setReported] = useState<Record<string, { px: number; py: number }>>({})
+  const report = useCallback((x: string, at: { px: number; py: number } | null) => setReported((prev) => {
+    const cur = prev[x]
+    if (at === null) {
+      if (!cur) return prev
+      const rest = { ...prev }
+      delete rest[x]
+      return rest
+    }
+    return cur && cur.px === at.px && cur.py === at.py ? prev : { ...prev, [x]: at }
+  }), [])
   const n = data.length
-  const lo = Array.isArray(domain) ? Number(domain[0]) : NaN
-  const hi = Array.isArray(domain) ? Number(domain[domain.length - 1]) : NaN
+  const onChart = callouts.flatMap((c) => {
+    const i = data.findIndex((d) => d[xKey] === c.x)
+    return i < 0 ? [] : [{ c, i, v: Number(data[i][yKey]) }]
+  })
   const spots: Spot[] = plot
-    ? callouts.flatMap((c) => {
-        const i = data.findIndex((d) => d[xKey] === c.x)
-        if (i < 0) return []
+    ? onChart.flatMap(({ c, i, v }) => {
+        if (Number.isFinite(v)) return reported[c.x] ? [{ x: c.x, ...reported[c.x] }] : []
         const px = plot.x + (n > 1 ? (i / (n - 1)) * plot.width : plot.width / 2)
-        const v = Number(data[i][yKey])
-        const py = Number.isFinite(v) && hi > lo ? plot.y + (1 - (v - lo) / (hi - lo)) * plot.height : plot.y + plot.height
-        return [{ x: c.x, px, py }]
+        return [{ x: c.x, px, py: plot.y + plot.height }]
       })
     : []
   const box = plot ? { x: plot.x, y: plot.y, width: plot.width, height: plot.height } : null
@@ -161,13 +198,17 @@ function CalloutLayer({ callouts, data, xKey, yKey, open, side, onLayout }: {
   // `key` describes spots and box completely; onLayout is a state setter.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (box) onLayout({ spots, plot: box }) }, [key])
+  const valued = new Set(onChart.filter(({ v }) => Number.isFinite(v)).map(({ c }) => c.x))
   const byX = new Map(callouts.map((c) => [c.x, c]))
   const at = spots.find((s) => s.x === open)
   return (
     <g>
-      {spots.filter((s) => byX.get(s.x)?.muted).map((s) => (
-        <circle key={`faint-${s.x}`} data-callout-faint={s.x} className="no-print" cx={s.px} cy={s.py} r={5}
-          fill="none" stroke="#8A8A8A" strokeWidth={1.5} strokeDasharray="2 2" />
+      {onChart.filter(({ v }) => Number.isFinite(v)).map(({ c, v }) => (
+        <ReferenceDot key={`spot-${c.x}`} x={c.x} y={v} r={0}
+          shape={(p: { cx?: number; cy?: number }) => <SpotProbe x={c.x} cx={p.cx} cy={p.cy} muted={!!c.muted} report={report} />} />
+      ))}
+      {spots.filter((s) => !valued.has(s.x) && byX.get(s.x)?.muted).map((s) => (
+        <FaintDot key={`faint-${s.x}`} x={s.x} px={s.px} py={s.py} />
       ))}
       {at && (
         <line data-callout-stub={at.x} className="no-print" x1={at.px} y1={at.py + (side === 'above' ? -PIN_STUB : PIN_STUB)}

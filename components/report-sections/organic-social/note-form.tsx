@@ -8,6 +8,21 @@ import { dayLabel, thumbSrc, type NoteControls } from '@/lib/organic-social/anno
 import { cn } from '@/lib/utils'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
+
+/** A day's note already on this chart, as the Add annotation panel needs it: the text and picks to load
+ *  (its draft's, else the approved note's) and whether a draft exists. Editors only. */
+export type ExistingNote = { text: string; postIds: number[]; draft: boolean }
+/** What a save did, for the line shown after it: the day, and what that day had before. */
+export type SavedNote = { day: string; had: 'none' | 'draft' | 'approved' }
+
+/** The one line shown after a save (Phase 2c, D18), so it is clear what happened. */
+export function savedLine({ day, had }: SavedNote, canApprove: boolean): string {
+  const d = dayLabel(day)
+  const first = had === 'draft' ? `Updated the draft for ${d}. Clients see it once it's approved.`
+    : had === 'approved' ? `Saved a draft for ${d}. Clients keep seeing the approved note until this one is approved.`
+    : `Saved a draft for ${d}. Clients see it once it's approved.`
+  return canApprove ? `${first} Hover its dot to approve it.` : first
+}
 const BUTTON = 'rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] font-bold text-text-muted hover:text-white disabled:opacity-50'
 
 /** Add or edit a day's note (Phase 2b, the approved mockup). A new note starts from a post: the month's
@@ -16,11 +31,14 @@ const BUTTON = 'rounded-full border border-white/[0.12] px-2 py-0.5 text-[11px] 
  *  (a pick from another day moves there and clears the rest). Editing from a card is fixed to that
  *  card's day: its posts, or the line "No posts went live this day". Saving always lands as a draft;
  *  the action re-checks everything. Staff only, and `no-print`, since Export PDF prints the page. */
-export function NoteForm({ controls, fixedDay, initial, onClose }: {
+export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved }: {
   controls: NoteControls
   fixedDay?: string
   initial?: { text: string; postIds: number[] }
+  /** This chart's notes by day (Phase 2c, D19). */
+  notes?: Record<string, ExistingNote>
   onClose: () => void
+  onSaved: (saved: SavedNote) => void
 }) {
   const router = useRouter()
   const days = fixedDay ? controls.days.filter((d) => d.day === fixedDay) : controls.days.filter((d) => d.posts.length > 0)
@@ -40,7 +58,18 @@ export function NoteForm({ controls, fixedDay, initial, onClose }: {
       if (!fixedDay && rest.length === 0) setDay(null)
       return
     }
-    if (day !== postDay) { setDay(postDay); setPicked([id]); return }
+    if (day !== postDay) {
+      setDay(postDay)
+      const ex = fixedDay ? undefined : notes?.[postDay]
+      if (!ex) { setPicked([id]); return }
+      // Each chart holds one note per day, so a day that already has one loads it and a save updates it,
+      // never replacing it silently (Phase 2c, D19; seen live 2026-09-24). Its picks stay (those Dash
+      // still returns that day), the new pick joins if there is room, and typed text is never replaced.
+      const base = ex.postIds.filter((pid) => posts.some((q) => q.id === pid && q.day === postDay))
+      setPicked(base.includes(id) || base.length >= NOTE_MAX_POSTS ? base : [...base, id])
+      if (!text.trim()) setText(ex.text)
+      return
+    }
     if (!full) setPicked([...picked, id])
   }
 
@@ -59,7 +88,8 @@ export function NoteForm({ controls, fixedDay, initial, onClose }: {
         r = { ok: false, error: 'Could not save. Try again.' }
       }
       if (!r.ok) { setError(r.error ?? 'Could not save. Try again.'); return }
-      onClose()
+      const ex = notes?.[day]
+      onSaved({ day, had: ex ? (ex.draft ? 'draft' : 'approved') : 'none' })
       router.refresh() // re-runs the RSC; the action's revalidateTag already busted the cache
     })
   }
@@ -90,6 +120,13 @@ export function NoteForm({ controls, fixedDay, initial, onClose }: {
         </>
       ) : (
         <p className="text-[11px] text-text-muted">No posts went live this day</p>
+      )}
+      {!fixedDay && day && notes?.[day] && (
+        <p className="text-[11px] text-white">
+          {notes[day].draft
+            ? `${dayLabel(day)} already has a draft. Saving updates it.`
+            : `${dayLabel(day)} already has an approved note. Saving drafts a change to it.`}
+        </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label="Note text" className={`${FIELD} min-w-[12rem] flex-1`} value={text}

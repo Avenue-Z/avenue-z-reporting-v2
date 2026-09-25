@@ -150,11 +150,50 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
 
   test('each hit area sits exactly on Recharts\' own dot', () => {
     const { container } = draw()
-    const dots = [...container.querySelectorAll('.recharts-reference-dot circle, .recharts-reference-dot-dot')]
+    // The marks: Recharts' default dot class. A callout's own spot is a ReferenceDot too (D17), but it
+    // never draws that class.
+    const dots = [...container.querySelectorAll('.recharts-reference-dot-dot')]
     SHOWN.forEach((x, i) => {
       expect(hx(hit(container, x))).toBeCloseTo(num(dots[i], 'cx'), 1)
       expect(hy(hit(container, x))).toBeCloseTo(num(dots[i], 'cy'), 1)
     })
+  })
+
+  // Seen live (2026-09-24, Joy of Life Instagram): on a follower graph Recharts widens the axis to whole
+  // ticks (asked for -1.5..3.5, drew -2..4), and the hit areas, placed from the domain we asked for,
+  // sat 17px above their dots, so a click on the dot missed. Every position now comes from the dot.
+  test('on an axis Recharts widens, every hit area, faint dot and red line sit on the dot it draws', () => {
+    const WIDE = DAYS.map((date, i) => ({ date, v: [-1, 0, 3, 1, 2, 0, -1, 2][i % 8] }))
+    const days = [DAYS[2], DAYS[4], DAYS[10], DAYS[14]]
+    const muted = DAYS[4]
+    const cs = days.map((x) => ({ x, label: `label ${x}`, muted: x === muted, content: <span>{`card ${x}`}</span> }))
+    // A mark on every callout day, so each has Recharts' own dot to compare against.
+    const { container } = render(<LineChart data={WIDE} xKey="date" yKeys={[{ key: 'v' }]} marks={days.map((x) => ({ x }))} callouts={cs} />)
+    const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((t) => t.textContent)
+    // Recharts widened the axis past the domain asked for (niceYDomain gives -1.5..3.5), as it did live.
+    expect(Math.max(...ticks.map(Number))).toBeGreaterThan(3.5)
+    const marks = [...container.querySelectorAll('.recharts-reference-dot-dot')]
+    const markAt = (x: number) => marks.find((m) => Math.abs(num(m, 'cx') - x) < 0.5)!
+    for (const x of days) {
+      const h = hit(container, x)
+      expect(num(markAt(hx(h)), 'cy')).toBeCloseTo(hy(h), 1)
+    }
+    const faint = container.querySelector(`[data-callout-faint="${muted}"]`)!
+    expect(num(faint, 'cy')).toBeCloseTo(num(markAt(num(faint, 'cx')), 'cy'), 1)
+    fireEvent.click(hit(container, DAYS[10]))
+    const stub = container.querySelector('line[data-callout-stub]')!
+    expect(num(stub, 'y2')).toBeCloseTo(num(markAt(num(stub, 'x2')), 'cy'), 1)
+  })
+
+  test('a callout on a day with no value still gets a hit area, at the bottom of the plot', () => {
+    const GAP = DATA.map((d, i) => (i === 20 ? { date: d.date } : d)) as Record<string, string | number>[]
+    const cs = [DAYS[9], DAYS[20]].map((x) => ({ x, label: `label ${x}`, content: <span>{`card ${x}`}</span> }))
+    const { container } = render(<LineChart data={GAP} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[9] }]} callouts={cs} />)
+    const gap = hit(container, DAYS[20])
+    expect(gap).toBeTruthy()
+    expect(hy(gap)).toBeGreaterThan(hy(hit(container, DAYS[9])))
+    fireEvent.click(gap)
+    expect(card(container)!.dataset.calloutCard).toBe(DAYS[20])
   })
 
   test('every dot is a real button named by its callout, with a pointer cursor and a 28px hit area', () => {

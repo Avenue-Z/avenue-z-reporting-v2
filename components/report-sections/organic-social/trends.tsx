@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LineChart } from '@/components/charts/line-chart'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -9,7 +9,10 @@ import type { TrendSeries } from '@/lib/organic-social/types'
 import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
 import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
-import { NoteForm } from './note-form'
+import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-form'
+
+/** How long the line after a save stays (Phase 2c, D18). */
+const SAVED_LINE_MS = 8000
 
 export const PALETTE = [CHART_COLORS.primary, CHART_COLORS.ga4 ?? '#39A0FF', '#FF8A3D', '#9B7BFF']
 
@@ -44,6 +47,16 @@ export function ChannelTrendChart({
   const [showAnnotations, setShowAnnotations] = useState(true)
   // The Add annotation or Edit form, open above the chart: {} for a new note, or the day and its text.
   const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
+  // The line after a save (Phase 2c, D18): a save closed the panel and nothing said what happened. Its
+  // clock starts with the save itself, and opening the panel again clears it.
+  const [saved, setSaved] = useState<SavedNote | null>(null)
+  const savedClock = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showSaved = (next: SavedNote | null) => {
+    if (savedClock.current) clearTimeout(savedClock.current)
+    savedClock.current = next ? setTimeout(() => { savedClock.current = null; setSaved(null) }, SAVED_LINE_MS) : null
+    setSaved(next)
+  }
+  useEffect(() => () => { if (savedClock.current) clearTimeout(savedClock.current) }, [])
   // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
   // same click, not on the next server render. Seeded from the server's answer for this view. A
   // new answer under the same key is not picked up, which takes an in-place refresh someone else
@@ -87,7 +100,15 @@ export function ChannelTrendChart({
   const onSeries = new Set(series.points.map((p) => String(p.date)))
   const onChart = visible?.filter((a) => onSeries.has(a.date))
   const inRow = visible?.filter((a) => !onSeries.has(a.date))
-  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => setForm({ day, initial })
+  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => { showSaved(null); setForm({ day, initial }) }
+  // This chart's notes by day, for the Add annotation panel (Phase 2c, D19). Only editors receive
+  // noteEditor, so a client's map is always empty.
+  const existing: Record<string, ExistingNote> = {}
+  for (const a of annotations ?? []) {
+    const ed = a.noteEditor
+    if (!ed || (!ed.approvedId && !ed.draft)) continue
+    existing[a.date] = { text: ed.draft?.text ?? a.note ?? '', postIds: ed.draft?.postIds ?? ed.approvedPostIds, draft: !!ed.draft }
+  }
 
   return (
     <section className="space-y-3">
@@ -141,7 +162,7 @@ export function ChannelTrendChart({
             {noteControls && noteControls.days.length > 0 && (
               <button
                 type="button"
-                onClick={() => setForm((f) => (f ? null : {}))}
+                onClick={() => { showSaved(null); setForm((f) => (f ? null : {})) }}
                 aria-expanded={!!form}
                 className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
               >
@@ -150,7 +171,11 @@ export function ChannelTrendChart({
             )}
           </div>
           {form && noteControls && (
-            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} onClose={() => setForm(null)} />
+            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
+              onClose={() => setForm(null)} onSaved={(s) => { setForm(null); showSaved(s) }} />
+          )}
+          {saved && !form && noteControls && (
+            <p role="status" className="no-print text-xs text-text-muted">{savedLine(saved, noteControls.canApprove)}</p>
           )}
           {inRow && inRow.length > 0 && (
             <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
