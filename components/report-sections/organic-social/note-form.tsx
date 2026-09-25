@@ -10,6 +10,8 @@ import { PILL as BUTTON } from './pill'
 import { cn } from '@/lib/utils'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
+/** Said when no post of the day is on screen but the note's picks are kept (C4, R3). */
+const KEEPS_PICKS = 'Posts could not load, so this note keeps its picked posts.'
 
 /** A day's note already on this chart, as the Add annotation panel needs it: the text and picks to load
  *  (its draft's, else the approved note's) and whether a draft exists. Editors only. */
@@ -45,12 +47,11 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
   const days = fixedDay ? controls.days.filter((d) => d.day === fixedDay) : controls.days.filter((d) => d.posts.length > 0)
   const posts = days.flatMap((d) => d.posts.map((p) => ({ ...p, day: d.day })))
   const [day, setDay] = useState<string | null>(fixedDay ?? null)
-  // A pick Dash no longer returns cannot be shown or unpicked, so it is dropped here. When the posts
-  // could not load at all, nothing can be checked, so the note keeps its picks as they are (Paul's
-  // review of #273, C4: a failed fetch plus a typo fix used to save the note without its pictures).
-  const [picked, setPicked] = useState<number[]>(() => controls.postsFailed
-    ? (initial?.postIds ?? [])
-    : (initial?.postIds ?? []).filter((id) => posts.some((p) => p.id === id)))
+  // The form never removes a saved pick by itself: Dash's answer can come back without a post that is
+  // still the note's (a failed, empty or partial answer), and a typo fix used to save the note without
+  // its pictures (Paul's review of #273, C4, and his second, R3). A pick not among the posts on screen
+  // shows as a pressed placeholder tile, counts toward the limit, and leaves only when it is clicked.
+  const [picked, setPicked] = useState<number[]>(() => initial?.postIds ?? [])
   const [text, setText] = useState(initial?.text ?? '')
   // The text this panel filled in from a day's note (D19). While the user leaves it as it was, it
   // belongs to that day: moving to another day, or unpicking every post, drops it.
@@ -58,6 +59,8 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const full = picked.length >= NOTE_MAX_POSTS
+  // The note's picks Dash did not return this time: shown as placeholders, first in the row (R3).
+  const unresolved = picked.filter((id) => !posts.some((p) => p.id === id))
 
   function pick(id: number, postDay: string) {
     // Filled-in text the user left as it was goes with its day (audit, 2026-09-25: moving from 8/22 to
@@ -74,9 +77,10 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
       const ex = fixedDay ? undefined : notes?.[postDay]
       if (!ex) { setPicked([id]); setText(own); setLoaded(null); return }
       // Each chart holds one note per day, so a day that already has one loads it and a save updates it,
-      // never replacing it silently (Phase 2c, D19; seen live 2026-09-24). Its picks stay (those Dash
-      // still returns that day), the new pick joins if there is room, and typed text is never replaced.
-      const base = ex.postIds.filter((pid) => posts.some((q) => q.id === pid && q.day === postDay))
+      // never replacing it silently (Phase 2c, D19; seen live 2026-09-24). Its picks stay, all of them
+      // (R3: one Dash does not return is a placeholder), the new pick joins if there is room, and typed
+      // text is never replaced.
+      const base = ex.postIds
       setPicked(base.includes(id) || base.length >= NOTE_MAX_POSTS ? base : [...base, id])
       if (own.trim()) { setText(own); setLoaded(null) } else { setText(ex.text); setLoaded(ex.text) }
       return
@@ -107,9 +111,19 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
 
   return (
     <div role="group" aria-label="Note" className="no-print w-full space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
-      {posts.length > 0 ? (
+      {posts.length > 0 || unresolved.length > 0 ? (
         <>
           <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-dark">
+            {day && unresolved.map((id) => (
+              <button key={`gone-${id}`} type="button" aria-pressed aria-label={`Post from ${dayLabel(day)} that no longer loads`}
+                disabled={pending} onClick={() => pick(id, day)}
+                className="shrink-0 cursor-pointer rounded-md text-center outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40">
+                <span className="block rounded-md ring-2 ring-brand-cyan">
+                  <Picture creative={null} alt="" tile="h-14 w-14 shrink-0 rounded-md" />
+                </span>
+                <span className="mt-1 block text-[11px] text-white">{dayLabel(day)}</span>
+              </button>
+            ))}
             {posts.map((p) => {
               const on = picked.includes(p.id)
               return (
@@ -127,12 +141,12 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
             })}
           </div>
           <p className="text-[11px] text-text-muted">
-            {full ? `Up to ${NOTE_MAX_POSTS} posts` : fixedDay ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts` : 'Pick a post, then write what happened'}
+            {posts.length === 0 ? KEEPS_PICKS : full ? `Up to ${NOTE_MAX_POSTS} posts` : fixedDay ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts` : 'Pick a post, then write what happened'}
           </p>
         </>
       ) : (
         <p className="text-[11px] text-text-muted">
-          {controls.postsFailed ? 'Posts could not load, so this note keeps its picked posts.' : 'No posts went live this day'}
+          {controls.postsFailed ? KEEPS_PICKS : 'No posts went live this day'}
         </p>
       )}
       {!fixedDay && day && notes?.[day] && (

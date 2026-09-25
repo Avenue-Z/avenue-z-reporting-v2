@@ -534,6 +534,53 @@ describe('after a save, one line says what happened; a day with a note loads it 
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ body: 'Old, fixed', postIds: [11, 12] })))
   })
 
+  // Paul's second review of #273 (R3): only a fetch that threw kept the picks. An answer that came back
+  // empty, or without one of the picks, still dropped them, and a typo fix saved the note without its
+  // pictures. The form now never removes a saved pick by itself: one it cannot show is a pressed
+  // placeholder tile, counted toward the 2, and taken out only by a click.
+  const GONE_TILE = 'Post from 8/10 that no longer loads'
+  const tiles = () => postButtons().map((b) => [b.getAttribute('aria-label'), b.getAttribute('aria-pressed'), (b as HTMLButtonElement).disabled])
+  test("Edit with an empty answer keeps the note's picks as placeholders, says so, and saves them", async () => {
+    const ed = { approvedId: 'aid', approvedPostIds: [11, 12], draft: null }
+    draw([{ ...PEAK, note: 'Old', thumbs: [IMG(1), IMG(2)], noteEditor: ed }], { ...CONTROLS, days: [] })
+    fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
+    expect(tiles()).toEqual([[GONE_TILE, 'true', false], [GONE_TILE, 'true', false]])
+    expect(within(postButtons()[0]).getByText('creative no longer available')).toBeTruthy()
+    expect(within(panel()).getByText('Posts could not load, so this note keeps its picked posts.')).toBeTruthy()
+    expect(within(panel()).queryByText('No posts went live this day')).toBeNull()
+    type('Old, fixed'); fireEvent.click(save())
+    await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ body: 'Old, fixed', postIds: [11, 12] })))
+  })
+
+  test('Edit with a partial answer shows the gone pick first, pressed, filling the second slot; saved as it is, both picks stay', async () => {
+    const ed = { approvedId: 'aid', approvedPostIds: [11, 99], draft: null }
+    draw([{ ...PEAK, note: 'Old', thumbs: [IMG(1)], noteEditor: ed }], CONTROLS)
+    fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
+    expect(tiles()).toEqual([
+      [GONE_TILE, 'true', false], ['Post from 8/10', 'true', false], ['Post from 8/10', 'false', true], ['Post from 8/10', 'false', true],
+    ])
+    type('Old, fixed'); fireEvent.click(save())
+    await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ postIds: [11, 99] })))
+  })
+
+  test('clicking the placeholder takes that pick out and frees its slot', async () => {
+    const ed = { approvedId: 'aid', approvedPostIds: [11, 99], draft: null }
+    draw([{ ...PEAK, note: 'Old', thumbs: [IMG(1)], noteEditor: ed }], CONTROLS)
+    fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
+    fireEvent.click(postButtons()[0])
+    expect(tiles()).toEqual([['Post from 8/10', 'true', false], ['Post from 8/10', 'false', false], ['Post from 8/10', 'false', false]])
+    fireEvent.click(postButtons()[1]); fireEvent.click(save())
+    await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ postIds: [11, 12] })))
+  })
+
+  test("picking a post from a day whose draft has a gone pick keeps that pick; the new one waits for room", () => {
+    draw([{ ...PEAK, noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [12, 99] } } }], CONTROLS)
+    open(); fireEvent.click(postButtons()[0])
+    expect(tiles().map(([label, pressed]) => [label, pressed])).toEqual([
+      [GONE_TILE, 'true'], ['Post from 8/10', 'false'], ['Post from 8/10', 'true'], ['Post from 8/10', 'false'], ['Post from 8/20', 'false'],
+    ])
+  })
+
   // Paul's review of #273 (C11): the picker drew a raw image, so a purged Dash thumbnail showed a broken
   // image there while the card showed its placeholder. It now uses the card's own Picture.
   test("a post whose picture is gone shows the card's placeholder in the picker", () => {
