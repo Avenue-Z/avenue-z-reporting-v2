@@ -1,0 +1,64 @@
+name: Guard migration ordering
+
+# Stops a schema change from reaching a branch whose database has not been
+# migrated to match it — and stops a destructive migration from being applied
+# under code that still reads what it drops. The mechanism, the two labels, and
+# why a migrator's exit code proves nothing are documented at the top of
+# .github/scripts/guard-migration-ordering.sh.
+#
+# ENFORCEMENT (keep this accurate — a gate nobody wired up is worse than none).
+# As of this commit the job is ADVISORY EVERYWHERE: a red run reports on the PR
+# but blocks no merge button. Wiring it up:
+#   dev           : stays advisory. `dev` has no ruleset at all, and creating one
+#                   was deliberately left out of scope. This is the branch the
+#                   outage reaches first, so it is a known gap, not an oversight.
+#   staging, main : add `require-migration-applied` to the required checks of the
+#                   staging-promotion-gate / main-promotion-gate rulesets — but
+#                   only once this workflow exists on the HEAD branch of the PRs
+#                   those gates see (dev for staging, staging for main). Added
+#                   any earlier, the check is "expected" and never reported, and
+#                   every promotion PR blocks on a status that cannot arrive.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  require-migration-applied:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # When each label was applied AND removed, so the guard can reject one that
+      # predates the current head commit or has since been taken off. The PR
+      # payload carries which labels are on the PR but not when they landed, and
+      # GitHub never strips a label on push. `unlabeled` is collected because
+      # GitHub keeps the `labeled` event forever: without it, removing a label to
+      # revoke the attestation leaves the guard reading the stale `labeled` event
+      # and staying green.
+      - name: Collect label timeline
+        id: labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          events=$(gh api --paginate "repos/${REPO}/issues/${PR}/timeline" \
+            --jq '.[] | select(.event == "labeled" or .event == "unlabeled")
+                      | {label: .label.name, at: .created_at, event: .event}' \
+            | jq -sc '.')
+          echo "events=${events}" >> "$GITHUB_OUTPUT"
+
+      - name: Require the migration ordering to have been confirmed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABEL_EVENTS: ${{ steps.labels.outputs.events }}
+        run: .github/scripts/guard-migration-ordering.sh
