@@ -1,5 +1,13 @@
 # Written notes on the annotated graphs: implementation plan
 
+> **Read this first (2026-09-25).** This plan is the build record for PR #273, kept as written. What
+> was built: Tasks 0 to 7 and 10 as written. Tasks 8 and 9 were built, then their pinned cards were
+> replaced by Phase 2b (Tasks 12 to 15): every callout became a dot whose card opens from it, and Add
+> note became a picker of post pictures. Phase 2c then fixed what my click-through of every client
+> found, and my audit fixed two more holes. The Goal and Architecture just below describe the first
+> design; the spec (`docs/superpowers/specs/2026-09-18-chart-annotations-design.md`) describes what
+> is built. Task 11 (staging) waits for the code review and my written go.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans, inline in this session, task by task. No subagents and no background tasks (my standing rule). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 Written by me (Thomas) on 2026-09-24. Every file, function and line this plan names was read on
@@ -2208,7 +2216,7 @@ git push
 
 ---
 
-### Task 8: Callout cards pinned to their dots (the shared chart)
+### Task 8: Callout cards pinned to their dots (the shared chart) [built, then replaced by Phase 2b, Task 12]
 
 The deck layout: each card sits in a band above the plot, joined by a line down to its day's dot.
 This task only teaches the shared `LineChart` to draw that when it is given `pins`; Task 9 decides
@@ -2554,7 +2562,7 @@ git push
 
 ---
 
-### Task 9: The cards on their dots, the team's buttons, and the forms
+### Task 9: The cards on their dots, the team's buttons, and the forms [built; the pinned layout and the day list were replaced by Phase 2b, Tasks 13 and 14; the buttons, rules and forms stand]
 
 This is option B as approved on 2026-09-24 (the sketch: each card on the chart, joined by a line to
 its dot, the date and number on the first line and the note on its own line under it). By screen:
