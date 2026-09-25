@@ -382,10 +382,13 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     let maxLeft = plot.x + plot.width - w
     if (maxLeft < minLeft) { minLeft = 0; maxLeft = Math.max(0, chartWidth - w) } // a phone's narrow plot
     const left = Math.min(Math.max(spot.px - w / 2, minLeft), maxLeft)
-    const top = placed.side === 'above' ? spot.py - PIN_STUB - placed.h : spot.py + PIN_STUB
+    // Above its dot the card is anchored by its bottom, just above the red line, so a card that grows
+    // after opening (Hide adds a line, a failed Approve its message) grows upward and never covers the
+    // dot (Paul's review of #273, C6). Below its dot it hangs from its top, as before.
+    const place = placed.side === 'above' ? { bottom: `calc(100% - ${spot.py - PIN_STUB}px)` } : { top: spot.py + PIN_STUB }
     card = (
       <div ref={cardRef} data-callout-card={callout.x} role="group" aria-label={callout.label} tabIndex={-1}
-        className="no-print absolute z-40 outline-none" style={{ left, top, width: w }}
+        className="no-print absolute z-40 outline-none" style={{ left, width: w, ...place }}
         onPointerEnter={clear} onPointerLeave={(e) => { if (isMouse(e)) later(CLOSE_GRACE, () => setOpen(null)) }}
         onKeyDown={(e) => { if (e.key === 'Escape') close(true) }}>
         {callout.content}

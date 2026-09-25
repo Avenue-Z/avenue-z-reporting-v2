@@ -125,6 +125,8 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
   // A hit area is a button in the HTML layer above the chart, centred on its dot by left and top.
   const hx = (el: HTMLElement) => parseFloat(el.style.left)
   const hy = (el: HTMLElement) => parseFloat(el.style.top)
+  // A card above its dot is anchored by its bottom: calc(100% - Npx) from the chart's top (C6).
+  const bottomOf = (el: HTMLElement) => Number(el.style.bottom.match(/^calc\(100% - ([\d.]+)px\)$/)?.[1])
   const card = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-callout-card]')
   const num = (el: Element, a: string) => Number(el.getAttribute(a))
   const wait = (ms: number) => act(() => { vi.advanceTimersByTime(ms) })
@@ -281,8 +283,25 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     const { container } = draw()
     const cy = hy(hit(container, DAYS[9]))
     fireEvent.click(hit(container, DAYS[9]))
-    expect(parseFloat(card(container)!.style.top)).toBeCloseTo(cy - PIN_STUB - 100, 1)
+    // Its bottom sits just above the red line, so it rises from there whatever its height.
+    expect(bottomOf(card(container)!)).toBeCloseTo(cy - PIN_STUB, 1)
+    expect(card(container)!.style.top).toBe('')
     expect(cy - PIN_STUB - 100).toBeLessThan(0)
+  })
+
+  // Paul's review of #273 (C6): the card was placed from the height measured when it opened, so a card
+  // that then grew (Hide adds "Hidden from client", a failed Approve adds its message) reached down
+  // over its dot and the red line. Anchored by its bottom, it grows upward.
+  test('a card above its dot that grows after opening still ends above the red line', () => {
+    wrapperTop = 300
+    cardHeight = 100
+    const { container, rerender } = draw()
+    const cy = hy(hit(container, DAYS[9]))
+    fireEvent.click(hit(container, DAYS[9]))
+    cardHeight = 160
+    rerender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} />)
+    expect(bottomOf(card(container)!)).toBeCloseTo(cy - PIN_STUB, 1)
+    expect(card(container)!.style.top).toBe('')
   })
 
   test('the card drops below its dot only when the screen has no room above it', () => {
