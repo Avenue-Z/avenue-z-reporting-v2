@@ -101,9 +101,11 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       // stands apart as a card rather than blending into the chart (seen live, 2026-09-24).
       floating && 'border-white/[0.14] bg-bg-subtle shadow-lg shadow-black/40',
       (hidden || draftOnly) && 'no-print',
-      // Faded for the team. Over the graph the card stays solid and only its contents dim: a
-      // see-through card showed the line through it (seen live, 2026-09-24).
-      (hidden || draftOnly) && (floating ? '[&>*]:opacity-40' : 'opacity-40'),
+      // Faded for the team: a hidden card strongly, a draft-only card lightly, so its draft stays easy
+      // to read (at 40% it was not, seen live 2026-09-24). Over the graph the card stays solid and only
+      // its contents dim: a see-through card showed the line through it (seen live, 2026-09-24).
+      hidden && (floating ? '[&>*]:opacity-40' : 'opacity-40'),
+      !hidden && draftOnly && (floating ? '[&>*]:opacity-80' : 'opacity-80'),
     )}>
       {thumbs.map((t, i) => <Thumb key={i} thumb={t} alt={annotation.label} />)}
       <span className="flex min-w-0 flex-1 flex-col">

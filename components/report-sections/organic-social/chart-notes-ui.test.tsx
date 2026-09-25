@@ -104,12 +104,23 @@ describe('the cards, opened from their dots (Phase 2b)', () => {
     expect(chart().callouts!.map((c) => [c.x, !!c.muted])).toEqual([['2026-08-14', false], ['2026-08-20', true]])
     const draftCard = cardOf('2026-08-20')
     // Seen live: a see-through card showed the graph's line through it. It stays solid; only its
-    // contents dim.
+    // contents dim, and only a little: at 40% the draft was hard to read (seen live, 2026-09-24).
     const root = draftCard.firstElementChild!
-    expect(root.className).toContain('[&>*]:opacity-40')
+    expect(root.className).toContain('[&>*]:opacity-80')
+    expect(root.className).not.toContain('[&>*]:opacity-40')
+    expect(root.className.split(' ')).not.toContain('opacity-80')
     expect(root.className.split(' ')).not.toContain('opacity-40')
     expect(root.className).toContain('no-print')
     expect(within(draftCard).getByText('Draft: Soon').className).toContain('no-print')
+  })
+
+  test('a hidden card keeps the stronger fade, with or without a draft', () => {
+    draw([{ ...PEAK, hidden: true }, QUIET({ date: '2026-08-22', label: '8/22', hidden: true, noteEditor: DRAFT })], CONTROLS, HIDES)
+    for (const day of ['2026-08-10', '2026-08-22']) {
+      const cls = cardOf(day).firstElementChild!.className
+      expect(cls).toContain('[&>*]:opacity-40')
+      expect(cls).not.toContain('[&>*]:opacity-80')
+    }
   })
 
   test('a client sees no buttons, no draft text and no faint dots', () => {

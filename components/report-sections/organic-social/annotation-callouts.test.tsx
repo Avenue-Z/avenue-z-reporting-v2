@@ -197,6 +197,14 @@ test('a hidden annotation shows faded, marked, with Unhide', () => {
   expect(screen.getByRole('button', { name: 'Unhide' })).toBeTruthy()
 })
 
+test('a draft-only annotation dims less than a hidden one, so its draft stays easy to read', () => {
+  const draft = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } }
+  const { container } = render(<AnnotationCallouts items={[A({ noteOnly: true, noteEditor: draft })]} />)
+  const cls = container.querySelector('li')!.className.split(' ')
+  expect(cls).toContain('opacity-80')
+  expect(cls).not.toContain('opacity-40')
+})
+
 test('a failed hide puts the annotation and its dot back, whether refused or errored', async () => {
   vi.mocked(setAnnotationHiddenAction).mockResolvedValueOnce({ ok: false, error: 'forbidden' })
   render(<ChannelTrendChart title="Instagram Engagement Graph" series={SERIES} annotations={[A({ hidden: false })]} annotationControls={CONTROLS} />)
