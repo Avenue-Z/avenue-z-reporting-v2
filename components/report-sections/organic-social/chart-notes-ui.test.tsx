@@ -625,3 +625,49 @@ describe('after a save, one line says what happened; a day with a note loads it 
     await waitFor(() => expect(status()!.textContent).toBe("Updated the draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
   })
 })
+
+// #276: after a save the page refreshes in the background (router.refresh). Until the refreshed answer
+// arrives, the chart keeps what was just saved, so a second save on that day reads as the update it is and
+// the reopened panel, or Edit on the card, shows the text and picks just saved.
+describe('right after a save, before the refreshed answer arrives (#276)', () => {
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
+  const panel = () => screen.getByRole('group', { name: 'Note' })
+  const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
+  const save = () => within(panel()).getByRole('button', { name: 'Save draft' }) as HTMLButtonElement
+  const type = (value: string) => fireEvent.change(within(panel()).getByLabelText('Note text'), { target: { value } })
+  const text = () => (within(panel()).getByLabelText('Note text') as HTMLInputElement).value
+  const status = () => screen.queryByRole('status')
+  const APPROVED_ONLY = QUIET({ date: '2026-08-20', label: '8/20', note: 'Event', noteEditor: { approvedId: 'a', approvedPostIds: [21], draft: null } })
+
+  test('a second save on the same day says the draft was updated, and the reopened panel shows what was just saved', async () => {
+    draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(status()!.textContent).toBe("Saved a draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
+    open(); fireEvent.click(postButtons()[0])
+    expect(text()).toBe('Went live')
+    expect(postButtons()[0].getAttribute('aria-pressed')).toBe('true')
+    type('Went live, fixed'); fireEvent.click(save())
+    await waitFor(() => expect(status()!.textContent).toBe("Updated the draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
+    expect(actions.saveChartNoteAction).toHaveBeenLastCalledWith(expect.objectContaining({ day: '2026-08-10', body: 'Went live, fixed', postIds: [11] }))
+  })
+
+  test("Edit on a card, inside that window, loads the draft just saved rather than the card's older note", async () => {
+    draw([PEAK, APPROVED_ONLY], CONTROLS)
+    open(); fireEvent.click(postButtons().find((b) => b.getAttribute('aria-label') === 'Post from 8/20')!)
+    expect(text()).toBe('Event')
+    type('Event, updated'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    fireEvent.click(within(cardOf('2026-08-20')).getByRole('button', { name: 'Edit note' }))
+    expect(text()).toBe('Event, updated')
+  })
+
+  test('a newer answer from the server takes over from what was just saved', async () => {
+    const { rerender } = draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    const refreshed = { ...PEAK, noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Changed by someone else', postIds: [12] } } }
+    rerender(<ChannelTrendChart title="T" series={SERIES} annotations={[refreshed]} noteControls={CONTROLS} />)
+    open(); fireEvent.click(postButtons()[1])
+    expect(text()).toBe('Changed by someone else')
+  })
+})

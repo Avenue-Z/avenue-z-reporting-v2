@@ -28,6 +28,15 @@ export const CHANNEL_COLOR: Record<string, string> = {
 }
 export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
 
+const hasOwn = (o: object, key: string) => Object.prototype.hasOwnProperty.call(o, key)
+
+/** The overrides a new answer does not yet agree with. A day missing from the answer keeps its override. */
+function dropAgreed(overrides: Record<string, boolean>, annotations: ChartAnnotation[] | undefined): Record<string, boolean> {
+  const server = new Map((annotations ?? []).map((a) => [a.date, !!a.hidden] as const))
+  const keep = Object.entries(overrides).filter(([day, hidden]) => server.get(day) !== hidden)
+  return keep.length === Object.keys(overrides).length ? overrides : Object.fromEntries(keep)
+}
+
 // Exported so the Follower Graph part (M3) reuses the exact same chart + legend, retitled.
 // `annotations` is optional: a chart given none (or an empty list) renders exactly as it did
 // before the prop existed, with no button, no row and no dots. That is what keeps every
@@ -35,12 +44,11 @@ export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0
 export function ChannelTrendChart({
   title, series, annotations, annotationControls, noteControls,
 }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls }) {
-  // This chart's state is per view. The two seeds below run once, on mount, and are never re-run,
-  // which is right only because each tab and each month gets its own instance: both report pages
-  // wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
-  // .../reports/page.tsx). Keep that key. Without it the legend holds the previous tab's channel,
-  // which empties the chart, and the hides below hold the previous view's answer, with nothing on
-  // screen looking wrong. `trends.identity.test.tsx` pins both.
+  // This chart's state is per view: each tab and each month gets its own instance, because both report
+  // pages wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
+  // .../reports/page.tsx). Keep that key. The legend below is seeded once, on mount, so without the key it
+  // would hold the previous tab's channel and empty the chart. Hides and just-saved notes follow the
+  // server's answer per day, including a new answer under the same key. `trends.identity.test.tsx` pins it.
   const [active, setActive] = useState<Set<string>>(() => new Set(series.channels))
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
@@ -57,18 +65,25 @@ export function ChannelTrendChart({
     setSaved(next)
   }
   useEffect(() => () => { if (savedClock.current) clearTimeout(savedClock.current) }, [])
-  // Which days the team has hidden, held here so hiding one takes its dot off the chart in the
-  // same click, not on the next server render. Seeded from the server's answer for this view. A
-  // new answer under the same key is not picked up, which takes an in-place refresh someone else
-  // caused; closing that needs useOptimistic or an override held per day, never one hash over the
-  // whole answer, which reverts a hide still in flight (pinned in the same test).
-  const [hiddenDays, setHiddenDays] = useState<Set<string>>(() => new Set((annotations ?? []).filter((a) => a.hidden).map((a) => a.date)))
-  const setHidden = (day: string, hidden: boolean) => setHiddenDays((days) => {
-    const next = new Set(days)
-    if (hidden) next.add(day)
-    else next.delete(day)
-    return next
-  })
+  // A hide the team clicked here, per day, so it takes its dot off the chart in the same click rather than
+  // on the next server render (#277). Every other day reads the server's answer, so a day that arrives
+  // hidden in an in-place refresh, or another member's hide, is drawn as it is. A day's override is dropped
+  // once an answer agrees with it, and only then: an answer can be older than a hide still in flight, so
+  // disagreement never reverts one (pinned in the same test). Never one hash over the whole answer.
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+  const setHidden = (day: string, hidden: boolean) => setOverrides((o) => ({ ...o, [day]: hidden }))
+  // Notes saved on this page since the last answer, per day (#276). The save refreshes the page in the
+  // background; until that answer arrives, the Add annotation panel and a card's Edit read these, so a
+  // second save on that day is the update it is. Any new answer already reflects them, so it clears them.
+  const [justSaved, setJustSaved] = useState<Record<string, ExistingNote>>({})
+  // The answer these were reconciled against. A new one is a new render from the server (a refresh or
+  // navigation under the same key), since the props of a client component keep their identity otherwise.
+  const [answer, setAnswer] = useState(annotations)
+  if (annotations !== answer) {
+    setAnswer(annotations)
+    setOverrides((o) => dropAgreed(o, annotations))
+    setJustSaved((j) => (Object.keys(j).length > 0 ? {} : j))
+  }
 
   const toggle = (channel: string) =>
     setActive((prev) => {
@@ -85,7 +100,7 @@ export function ChannelTrendChart({
   // undefined → a blank [0,'auto'] axis. Legend stays visible so the user can toggle back on.
   const activeEmpty = isEmptyTrend(series, activeChannels)
   const hasAnnotations = !!annotations && annotations.length > 0
-  const current = annotations?.map((a) => ({ ...a, hidden: hiddenDays.has(a.date) }))
+  const current = annotations?.map((a) => ({ ...a, hidden: hasOwn(overrides, a.date) ? overrides[a.date] : !!a.hidden }))
   // Annotations explain the line, so they go when the line does (every channel toggled off).
   const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
   // A dot marks what a client sees: a top day, or a day with an approved note. A draft-only day and a
@@ -100,7 +115,11 @@ export function ChannelTrendChart({
   const onSeries = new Set(series.points.map((p) => String(p.date)))
   const onChart = visible?.filter((a) => onSeries.has(a.date))
   const inRow = visible?.filter((a) => !onSeries.has(a.date))
-  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => { showSaved(null); setForm({ day, initial }) }
+  const onEdit = (day: string, initial?: { text: string; postIds: number[] }) => {
+    showSaved(null)
+    const mine = justSaved[day]
+    setForm({ day, initial: mine ? { text: mine.text, postIds: mine.postIds } : initial })
+  }
   // This chart's notes by day, for the Add annotation panel (Phase 2c, D19). Only editors receive
   // noteEditor, so a client's map is always empty.
   const existing: Record<string, ExistingNote> = {}
@@ -109,6 +128,7 @@ export function ChannelTrendChart({
     if (!ed || (!ed.approvedId && !ed.draft)) continue
     existing[a.date] = { text: ed.draft?.text ?? a.note ?? '', postIds: ed.draft?.postIds ?? ed.approvedPostIds, draft: !!ed.draft }
   }
+  for (const [day, note] of Object.entries(justSaved)) existing[day] = note
 
   return (
     <section className="space-y-3">
@@ -172,7 +192,11 @@ export function ChannelTrendChart({
           </div>
           {form && noteControls && (
             <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
-              onClose={() => setForm(null)} onSaved={(s) => { setForm(null); showSaved(s) }} />
+              onClose={() => setForm(null)} onSaved={(s) => {
+                setForm(null)
+                showSaved(s)
+                setJustSaved((j) => ({ ...j, [s.day]: { text: s.text, postIds: s.postIds, draft: true } }))
+              }} />
           )}
           {saved && !form && noteControls && (
             <p role="status" className="no-print text-xs text-text-muted">{savedLine(saved, noteControls.canApprove)}</p>

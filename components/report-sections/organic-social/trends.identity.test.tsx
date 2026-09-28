@@ -8,18 +8,15 @@ import type { TrendSeries } from '@/lib/organic-social/types'
 /**
  * What this pins, and why it exists.
  *
- * `ChannelTrendChart` seeds two pieces of state from its props once, on mount: which channels are
- * switched on, and which days the team has hidden. It never re-seeds either. That is correct only
- * because both report pages wrap the whole section in a Suspense keyed on the tab and the month
- * (`app/dashboard/[clientSlug]/reports/page.tsx`, `app/portal/[clientSlug]/reports/page.tsx`), so a
- * new tab or a new month is a new chart with a fresh seed. That coupling is invisible from this
- * file and nothing else pinned it, so these tests state it.
+ * `ChannelTrendChart` seeds which channels are switched on once, on mount, and never re-seeds it. That is
+ * correct only because both report pages wrap the whole section in a Suspense keyed on the tab and the
+ * month (`app/dashboard/[clientSlug]/reports/page.tsx`, `app/portal/[clientSlug]/reports/page.tsx`), so a
+ * new tab or a new month is a new chart. The first two tests pin that coupling.
  *
- * Measured 2026-09-22 before these were written: through that page key, a tab switch and a month
- * change both carry the right hides and the right legend. Only a new answer arriving under the SAME
- * key is stale, which takes an in-place refresh someone else caused and clears on any navigation.
- * Hardening that means `useOptimistic` or an override held per day, never one hash over the whole
- * answer: that reverts a hide still in flight, which is what the third test here guards.
+ * Hidden days are different since #277: a day the team did not toggle here follows the server's answer,
+ * including a new answer under the SAME key (a save's in-place refresh), and a day the team toggled keeps
+ * that choice until an answer agrees with it. Never one hash over the whole answer: an answer can be older
+ * than a hide still in flight, which the third test guards. The last three pin the per-day behaviour.
  *
  * Every number, day and slug below is invented.
  */
@@ -91,4 +88,27 @@ test('a hide still in flight is not reverted by the answer to the one before it'
   rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', true), annotation('2026-08-20', false)]))
   expect(rows(container)).toEqual(['L2026-08-12=hidden', 'L2026-08-20=hidden'])
   expect(setAnnotationHiddenAction).toHaveBeenCalledTimes(2)
+})
+
+// #277: a day the team did not toggle on this page follows the server's answer, even one arriving under
+// the same key (a save's in-place refresh). A day the team toggled keeps that choice until the server agrees.
+test('a day that arrives hidden in an in-place refresh is drawn hidden', () => {
+  const { rerender, container } = render(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false)]))
+  rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false), annotation('2026-08-20', true)]))
+  expect(rows(container)).toEqual(['L2026-08-12=shown', 'L2026-08-20=hidden'])
+})
+
+test("another team member's hide, arriving under the same key, is drawn", () => {
+  const { rerender, container } = render(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false)]))
+  rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', true)]))
+  expect(rows(container)).toEqual(['L2026-08-12=hidden'])
+})
+
+test('once the server agrees with a hide, a later change on the server is drawn', async () => {
+  const { rerender, container } = render(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false)]))
+  await act(async () => { screen.getByRole('button', { name: 'Hide from client' }).click() })
+  rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', true)]))
+  expect(rows(container)).toEqual(['L2026-08-12=hidden'])
+  rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false)]))
+  expect(rows(container)).toEqual(['L2026-08-12=shown'])
 })
