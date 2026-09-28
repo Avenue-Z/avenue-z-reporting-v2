@@ -1,5 +1,5 @@
 import { sql, eq, and } from 'drizzle-orm'
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { db } from './client'
 import { clients, users, type ClientRole } from './schema'
 import { interpretAddResult } from './seat-result'
@@ -26,7 +26,7 @@ export async function getClientAccessOverview(slug: string) {
 
 export async function setClientSharedPassword(clientId: string, hash: string): Promise<void> {
   await db.update(clients).set({ sharedPasswordHash: hash, updatedAt: new Date() }).where(eq(clients.id, clientId))
-  revalidateTag('db', 'max')
+  updateTag('db')
 }
 
 export async function setClientMaxSeats(
@@ -39,7 +39,7 @@ export async function setClientMaxSeats(
     .where(eq(users.clientId, clientId))
   if (maxSeats < count) return { ok: false, reason: 'below_current_count' }
   await db.update(clients).set({ maxSeats, updatedAt: new Date() }).where(eq(clients.id, clientId))
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -82,7 +82,7 @@ export async function addClientUser(args: {
     const rows = (exists as { rows?: unknown[] }).rows ?? (exists as unknown as unknown[])
     if (Array.isArray(rows) && rows.length > 0) duplicate = true
   }
-  if (insertedRows > 0) revalidateTag('db', 'max')
+  if (insertedRows > 0) updateTag('db')
   return interpretAddResult({ insertedRows, duplicate })
 }
 
@@ -95,6 +95,6 @@ export async function removeClientUser(args: {
     .where(and(eq(users.id, args.userId), eq(users.clientId, args.clientId)))
     .returning({ id: users.id })
   if (deleted.length === 0) return { ok: false, reason: 'not_found' }
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }

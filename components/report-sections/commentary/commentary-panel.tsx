@@ -65,7 +65,7 @@ export function CommentaryPanel({
 
   function refresh() {
     setEditing(null)
-    router.refresh() // re-runs the RSC; revalidateTag already busted the cache
+    router.refresh() // re-runs the RSC; updateTag already busted the cache
   }
   function doApprove(id: string) { startTransition(async () => { await approveCommentary(clientSlug, id); refresh() }) }
   function doRevoke(id: string) { startTransition(async () => { await revokeCommentary(clientSlug, id); refresh() }) }
