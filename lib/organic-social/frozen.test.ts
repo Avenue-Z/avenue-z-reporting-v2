@@ -1,7 +1,8 @@
-import { expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 // The default responseLocked dependency reads the client row: keep every existing test database free.
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => null) }))
-import { isPeriodOpen, fetchTopContentFrozen } from './frozen'
+import { isPeriodOpen, fetchTopContentFrozen, freezeToday } from './frozen'
+import { resolveDateRange } from '@/lib/date-range'
 import type { TopContentPost } from './content-types'
 
 const p = (id: number): TopContentPost => ({
@@ -136,4 +137,49 @@ test('fail closed: if the opt-in check fails, the error propagates rather than w
     responseLocked: async () => { throw new Error('client read failed') },
   })).rejects.toThrow('client read failed')
   expect(writeSnapshot).not.toHaveBeenCalled()
+})
+
+// #278: the freeze judges "is this range over?" on the same clock resolveDateRange used to end the range
+// (lib/date-range.ts:44-45: the machine's local midnight). Before, it used the UTC date, so on a machine
+// behind UTC in the evening a rolling range read as closed and was frozen early.
+describe('freezeToday and the rolling range agree on the clock (#278)', () => {
+  const realTz = process.env.TZ
+  afterEach(() => { process.env.TZ = realTz; vi.useRealTimers() })
+  const at = (tz: string, iso: string) => { process.env.TZ = tz; vi.useFakeTimers(); vi.setSystemTime(new Date(iso)) }
+
+  test('New York at 9:30 pm: last_30_days is still open, as the range itself is still rolling', () => {
+    at('America/New_York', '2026-09-24T01:30:00Z') // 9:30 pm on 9/23 in New York
+    const { endDate } = resolveDateRange('last_30_days')
+    expect(endDate).toBe('2026-09-22')
+    expect(isPeriodOpen(endDate, freezeToday())).toBe(true)
+  })
+
+  test.each([
+    ['UTC', '2026-09-24T01:30:00Z'], ['UTC', '2026-09-23T23:59:00Z'], ['UTC', '2026-09-24T00:01:00Z'],
+    ['America/New_York', '2026-09-24T03:59:00Z'], ['America/New_York', '2026-09-24T04:01:00Z'], ['America/New_York', '2026-12-24T04:30:00Z'],
+    ['America/Los_Angeles', '2026-09-24T06:59:00Z'], ['America/Los_Angeles', '2026-09-24T07:01:00Z'],
+    ['Asia/Tokyo', '2026-09-23T14:59:00Z'], ['Asia/Tokyo', '2026-09-23T15:01:00Z'],
+  ])('%s at %s: every rolling preset stays open', (tz, iso) => {
+    at(tz, iso)
+    for (const n of [7, 30, 90]) expect(isPeriodOpen(resolveDateRange(`last_${n}_days`).endDate, freezeToday())).toBe(true)
+  })
+
+  test('on a machine set to UTC, today is exactly the UTC date it used before', () => {
+    for (const iso of ['2026-09-24T00:00:00Z', '2026-09-24T03:59:59Z', '2026-09-24T23:59:59Z', '2027-01-01T00:30:00Z']) {
+      at('UTC', iso)
+      expect(freezeToday()).toBe(new Date().toISOString().slice(0, 10))
+    }
+  })
+
+  test('the default the app uses: in New York at 9:30 pm a rolling range is served live, never read from or written to the freeze table', async () => {
+    at('America/New_York', '2026-09-24T01:30:00Z')
+    const readSnapshot = vi.fn(async () => ({ frozen: false, posts: [] as TopContentPost[] }))
+    const writeSnapshot = vi.fn(async () => {})
+    const posts = await fetchTopContentFrozen('some-client', 'last_30_days', 'INSTAGRAM', {
+      clientId: async () => 'client-uuid', fetchLive: async () => [p(1)], readSnapshot, writeSnapshot, responseLocked: async () => false,
+    })
+    expect(posts.map((x) => x.id)).toEqual([1])
+    expect(readSnapshot).not.toHaveBeenCalled()
+    expect(writeSnapshot).not.toHaveBeenCalled()
+  })
 })
