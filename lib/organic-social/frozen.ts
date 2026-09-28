@@ -18,11 +18,12 @@ export function isPeriodOpen(rangeEnd: string, today: string): boolean {
   return rangeEnd >= y.toISOString().slice(0, 10)
 }
 
-/** Today's date on the clock resolveDateRange ends its ranges on (lib/date-range.ts:44-45): the machine's
- *  local midnight, written as its ISO date. isPeriodOpen compares a range's end with it, so the two must
- *  agree. They used not to (#278): today came from the UTC date, so on a machine behind UTC in the evening
- *  a rolling range already read as two days old, closed, and was frozen early. On a machine set to UTC
- *  this is exactly the UTC date, as before. */
+/** Today on the clock resolveDateRange ends its ranges on (lib/date-range.ts:44-45): the ISO (UTC) date of
+ *  the machine's local midnight, the same expression it uses. isPeriodOpen compares a range's end with it,
+ *  so the two must agree. They used not to (#278): today came from the UTC date, so on a machine behind UTC
+ *  in the evening a rolling range already read as two days old, closed, and was frozen early. On a machine
+ *  set to UTC this is exactly the UTC date, as before. East of UTC it is the day before the local date,
+ *  like every date resolveDateRange gives there, so a finished month freezes a day late, never early. */
 export function freezeToday(now: Date = new Date()): string {
   const midnight = new Date(now)
   midnight.setHours(0, 0, 0, 0)

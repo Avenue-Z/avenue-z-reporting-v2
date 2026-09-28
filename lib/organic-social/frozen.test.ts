@@ -144,7 +144,8 @@ test('fail closed: if the opt-in check fails, the error propagates rather than w
 // behind UTC in the evening a rolling range read as closed and was frozen early.
 describe('freezeToday and the rolling range agree on the clock (#278)', () => {
   const realTz = process.env.TZ
-  afterEach(() => { process.env.TZ = realTz; vi.useRealTimers() })
+  // Put TZ back exactly: assigning undefined would store the string "undefined", which Node reads as UTC.
+  afterEach(() => { if (realTz === undefined) delete process.env.TZ; else process.env.TZ = realTz; vi.useRealTimers() })
   const at = (tz: string, iso: string) => { process.env.TZ = tz; vi.useFakeTimers(); vi.setSystemTime(new Date(iso)) }
 
   test('New York at 9:30 pm: last_30_days is still open, as the range itself is still rolling', () => {
@@ -162,6 +163,18 @@ describe('freezeToday and the rolling range agree on the clock (#278)', () => {
   ])('%s at %s: every rolling preset stays open', (tz, iso) => {
     at(tz, iso)
     for (const n of [7, 30, 90]) expect(isPeriodOpen(resolveDateRange(`last_${n}_days`).endDate, freezeToday())).toBe(true)
+  })
+
+  test('a finished month is never frozen before its last day is over on the machine; east of UTC it freezes a day late', () => {
+    const august = '2026-08-31'
+    at('America/New_York', '2026-09-02T01:30:00Z') // 9:30 pm on 9/1: August still settling, as before 8 pm
+    expect(isPeriodOpen(august, freezeToday())).toBe(true)
+    at('America/New_York', '2026-09-02T04:30:00Z') // 12:30 am on 9/2
+    expect(isPeriodOpen(august, freezeToday())).toBe(false)
+    at('Asia/Tokyo', '2026-09-01T16:00:00Z') // 1 am on 9/2 in Tokyo: a day late, never early
+    expect(isPeriodOpen(august, freezeToday())).toBe(true)
+    at('Asia/Tokyo', '2026-09-02T16:00:00Z') // 1 am on 9/3 in Tokyo
+    expect(isPeriodOpen(august, freezeToday())).toBe(false)
   })
 
   test('on a machine set to UTC, today is exactly the UTC date it used before', () => {
