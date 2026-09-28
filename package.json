@@ -16,6 +16,7 @@
     "db:seed-section-templates": "tsx --env-file=.env.local scripts/seed-section-templates.ts",
     "db:enable-commentary-renaissance": "tsx --env-file=.env.local scripts/enable-commentary-renaissance.ts",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "test:watch": "vitest"
   },
   "dependencies": {
