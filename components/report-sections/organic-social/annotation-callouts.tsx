@@ -60,8 +60,9 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
 function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
-  /** Set by the chart, which holds which days are hidden so the dot goes with the row. */
-  onToggle?: (day: string, hidden: boolean) => void
+  /** Set by the chart, which holds which days are hidden so the dot goes with the row. `revert` marks the
+   *  undo after a failed write, so the chart goes back to the server's answer for that day. */
+  onToggle?: (day: string, hidden: boolean, revert?: boolean) => void
   noteControls?: NoteControls
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
   as?: 'li' | 'div'
@@ -81,7 +82,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       } catch {
         ok = false
       }
-      if (!ok) onToggle(annotation.date, !next) // put it back
+      if (!ok) onToggle(annotation.date, !next, true) // put it back
     })
   }
 
@@ -151,7 +152,7 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   items: ChartAnnotation[]
   controls?: AnnotationControls
   noteControls?: NoteControls
-  onToggle?: (day: string, hidden: boolean) => void
+  onToggle?: (day: string, hidden: boolean, revert?: boolean) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   if (items.length === 0) return null
@@ -176,7 +177,7 @@ export function CalloutCard(props: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   noteControls?: NoteControls
-  onToggle?: (day: string, hidden: boolean) => void
+  onToggle?: (day: string, hidden: boolean, revert?: boolean) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   return <AnnotationItem {...props} as="div" floating />

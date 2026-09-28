@@ -112,3 +112,12 @@ test('once the server agrees with a hide, a later change on the server is drawn'
   rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false)]))
   expect(rows(container)).toEqual(['L2026-08-12=shown'])
 })
+
+test('a hide whose write fails goes back to following the server, so a later hide by someone else is drawn', async () => {
+  setAnnotationHiddenAction.mockResolvedValueOnce({ ok: false })
+  const { rerender, container } = render(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', false)]))
+  await act(async () => { screen.getByRole('button', { name: 'Hide from client' }).click() })
+  expect(rows(container)).toEqual(['L2026-08-12=shown'])
+  rerender(page(KEY_AUGUST_INSTAGRAM, instagram, [annotation('2026-08-12', true)]))
+  expect(rows(container)).toEqual(['L2026-08-12=hidden'])
+})

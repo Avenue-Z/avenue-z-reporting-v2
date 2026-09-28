@@ -71,7 +71,15 @@ export function ChannelTrendChart({
   // once an answer agrees with it, and only then: an answer can be older than a hide still in flight, so
   // disagreement never reverts one (pinned in the same test). Never one hash over the whole answer.
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
-  const setHidden = (day: string, hidden: boolean) => setOverrides((o) => ({ ...o, [day]: hidden }))
+  // A write that failed (`revert`) drops the day's override rather than setting the old value, so the day
+  // follows the server again and a later hide by someone else is drawn.
+  const setHidden = (day: string, hidden: boolean, revert?: boolean) => setOverrides((o) => {
+    if (!revert) return { ...o, [day]: hidden }
+    if (!hasOwn(o, day)) return o
+    const rest = { ...o }
+    delete rest[day]
+    return rest
+  })
   // Notes saved on this page since the last answer, per day (#276). The save refreshes the page in the
   // background; until that answer arrives, the Add annotation panel and a card's Edit read these, so a
   // second save on that day is the update it is. Any new answer already reflects them, so it clears them.
