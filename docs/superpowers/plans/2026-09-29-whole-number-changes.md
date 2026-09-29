@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
-**Spec:** Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). Open until the sync: `nearest` (6.3% shows 6%) or `up` (6.3% shows 7%). The plan builds the function for both and sets the one she picks in Task 2, Step 3.
+**Spec:** Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). Open: `nearest` (6.3% shows 6%) or `up` (6.3% shows 7%). Not discussed on the 2026-09-29 call; asked on Slack the same day. Applies to outline clients only, never Renaissance. The plan builds the function for both and sets the one she picks in Task 2, Step 3.
 
 ## Global Constraints
 - The only dash characters in this plan are inside code: they are the glyph the card draws today (`kpi-card.tsx:70,76`).
