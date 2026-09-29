@@ -1,5 +1,6 @@
-import { sql, eq, and } from 'drizzle-orm'
+import { sql, eq, and, inArray, type SQL } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
+import { CLIENT_ROLES } from '@/lib/admin/access'
 import { db } from './client'
 import { clients, users, type ClientRole } from './schema'
 import { interpretAddResult } from './seat-result'
@@ -29,42 +30,57 @@ export async function setClientSharedPassword(clientId: string, hash: string): P
   revalidateTag('db', 'max')
 }
 
+/**
+ * The rows that take a seat: this client's own logins. Staff rows attached to a client are not
+ * seats, which is what both screens already show (getClientAccessOverview above).
+ */
+function seatedUsers(clientId: string): SQL {
+  return and(eq(users.clientId, clientId), inArray(users.role, [...CLIENT_ROLES]))!
+}
+
+export function seatCountQuery(clientId: string) {
+  return db.select({ count: sql<number>`count(*)::int` }).from(users).where(seatedUsers(clientId))
+}
+
 export async function setClientMaxSeats(
   clientId: string,
   maxSeats: number,
 ): Promise<{ ok: boolean; reason?: 'below_current_count' }> {
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(users)
-    .where(eq(users.clientId, clientId))
+  const [{ count }] = await seatCountQuery(clientId)
   if (maxSeats < count) return { ok: false, reason: 'below_current_count' }
   await db.update(clients).set({ maxSeats, updatedAt: new Date() }).where(eq(clients.id, clientId))
   revalidateTag('db', 'max')
   return { ok: true }
 }
 
-/**
- * Atomic seat-capped insert. The neon-http driver has no interactive
- * transactions, so the count check and the insert are one statement:
- * the row is inserted only if the client is below max_seats. The unique
- * email constraint distinguishes "duplicate" from "seat limit".
- */
-export async function addClientUser(args: {
+type NewClientUser = {
   clientId: string
   email: string
   role: 'CLIENT_ADMIN' | 'CLIENT_VIEWER'
-}): Promise<{ ok: boolean; reason?: 'seat_limit' | 'duplicate' }> {
+}
+
+/**
+ * Atomic seat-capped insert. The neon-http driver has no interactive
+ * transactions, so the count check and the insert are one statement:
+ * the row is inserted only if the client's seats are below max_seats.
+ */
+export function addClientUserStatement(args: NewClientUser): SQL {
+  return sql`
+      INSERT INTO users (email, role, client_id)
+      SELECT ${args.email.toLowerCase()}, ${args.role}::client_role, ${args.clientId}::uuid
+      WHERE (SELECT count(*) FROM users WHERE ${seatedUsers(args.clientId)})
+            < (SELECT max_seats FROM clients WHERE id = ${args.clientId}::uuid)
+      RETURNING id
+    `
+}
+
+/** The unique email constraint distinguishes "duplicate" from "seat limit". */
+export async function addClientUser(args: NewClientUser): Promise<{ ok: boolean; reason?: 'seat_limit' | 'duplicate' }> {
   const email = args.email.toLowerCase()
   let insertedRows = 0
   let duplicate = false
   try {
-    const res = await db.execute(sql`
-      INSERT INTO users (email, role, client_id)
-      SELECT ${email}, ${args.role}::client_role, ${args.clientId}::uuid
-      WHERE (SELECT count(*) FROM users WHERE client_id = ${args.clientId}::uuid)
-            < (SELECT max_seats FROM clients WHERE id = ${args.clientId}::uuid)
-      RETURNING id
-    `)
+    const res = await db.execute(addClientUserStatement(args))
     // neon-http returns { rows: [...] }; fall back to array shape defensively.
     const rows = (res as { rows?: unknown[] }).rows ?? (res as unknown as unknown[])
     insertedRows = Array.isArray(rows) ? rows.length : 0
