@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** On outline clients' tiles, every percent change shows as a whole number, with the arrow and colour following the rounded value. Renaissance and every other section keep one decimal.
+**Goal:** On outline clients' tiles, every percent change shows as the nearest whole number, with the arrow and colour following the rounded value. Renaissance and every other section keep one decimal.
 
-**Architecture:** One pure function turns a change into its shown value under a rule (`nearest` or `up`). `KpiCard` takes an optional `deltaRounding` prop; absent means today's one decimal, byte for byte. Only `OutlineTiles` sets it, which covers the Data block (`outline-tiles.tsx:43`) and the engagement breakdown (`parts/engagement-breakdown.tsx:14`).
+**Architecture:** One pure function turns a change into its nearest whole number. `KpiCard` takes an optional `wholeDelta` prop; absent means today's one decimal, byte for byte. Only `OutlineTiles` sets it, which covers the Data block (`outline-tiles.tsx:43`) and the engagement breakdown (`parts/engagement-breakdown.tsx:14`).
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
-**Spec:** Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). Open: `nearest` (6.3% shows 6%) or `up` (6.3% shows 7%). Not discussed on the 2026-09-29 call; asked on Slack the same day. Applies to outline clients only, never Renaissance. The plan builds the function for both and sets the one she picks in Task 2, Step 3.
+**Spec:** Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). DECIDED (Jasmine, Slack 2026-09-29 5:12 PM): "6% but if it was 6.57 it should show as 7%", so the nearest whole number, half up. Only that rule is built. Applies to outline clients only, never Renaissance.
 
 ## Global Constraints
 - The only dash characters in this plan are inside code: they are the glyph the card draws today (`kpi-card.tsx:70,76`).
@@ -20,9 +20,9 @@
 - Checks: `DATABASE_URL=postgresql://ci:ci@db.invalid/ci make check`.
 
 ## Review Focus
-1. Float noise under `up`: a change computed as 5.0000000001 must show 5%, not 6%. Round to one decimal first (what the card shows today), then apply the rule.
+1. Round the real value, not the one-decimal display: 6.45 shows 6%, never 7% (rounding to 6.5 first would give 7). Only float noise is removed first (a true 6.5 computed as 6.4999999999 shows 7%).
 2. A change that rounds to 0 shows the flat dash and "0%" in the muted colour with no arrow, like today's exact 0.
-3. Negative changes under `up` round away from zero (a 6.3% drop shows "↓ 7%"), never towards it.
+3. Negative changes round by size, then take the sign back: a 6.57% drop shows "↓ 7%", a 6.3% drop "↓ 6%".
 4. A tile with no prior (`delta` undefined) still shows the greyed placeholder with no percent, unchanged.
 5. An X tab (no outline rows) draws the v1 tiles and keeps one decimal. That is expected; say so in the PR.
 
@@ -38,8 +38,8 @@
 - Test: `components/charts/kpi-card.test.tsx` (already in the vitest include)
 
 **Interfaces:**
-- Produces: `type DeltaRounding = 'nearest' | 'up'` and `roundDelta(delta: number, rule: DeltaRounding): number` (signed, whole) in `lib/delta-rounding.ts`.
-- Produces: `KpiCard` prop `deltaRounding?: DeltaRounding`.
+- Produces: `roundDelta(delta: number): number` (signed, whole, nearest, half up by size) in `lib/delta-rounding.ts`.
+- Produces: `KpiCard` prop `wholeDelta?: boolean`.
 
 - [ ] **Step 1: Write the failing unit tests** (`lib/delta-rounding.test.ts`)
 
@@ -47,22 +47,28 @@
 import { expect, test } from 'vitest'
 import { roundDelta } from './delta-rounding'
 
-test('nearest rounds the size half up and keeps the sign', () => {
-  expect([6.3, 6.5, 0.4, 0.5, -6.3, -6.5, 0].map((d) => roundDelta(d, 'nearest'))).toEqual([6, 7, 0, 1, -6, -7, 0])
+// Jasmine, 2026-09-29: "6% but if it was 6.57 it should show as 7%".
+test('her two examples', () => {
+  expect(roundDelta(6.3)).toBe(6)
+  expect(roundDelta(6.57)).toBe(7)
 })
 
-test('up rounds the size away from zero', () => {
-  expect([6.3, 6.0, 0.3, 0.01, -6.3, -0.3, 0].map((d) => roundDelta(d, 'up'))).toEqual([7, 6, 1, 0, -7, -1, 0])
+test('nearest by size, half up, sign kept', () => {
+  expect([6.5, 0.4, 0.5, -6.3, -6.57, -6.5, 0].map(roundDelta)).toEqual([7, 0, 1, -6, -7, -7, 0])
 })
 
-test('float noise never pushes a whole change up a step', () => {
-  expect(roundDelta(5.0000000001, 'up')).toBe(5)
-  expect(roundDelta(-5.0000000001, 'up')).toBe(-5)
-  expect(roundDelta(0.04, 'up')).toBe(0)
+test('the real value is rounded, not the one-decimal display', () => {
+  expect(roundDelta(6.45)).toBe(6)
+  expect(roundDelta(-6.45)).toBe(-6)
+})
+
+test('float noise never moves a half across the line', () => {
+  expect(roundDelta(6.4999999999)).toBe(7)
+  expect(roundDelta(5.0000000001)).toBe(5)
 })
 
 test('a change that rounds to zero is plain 0, never -0', () => {
-  expect(Object.is(roundDelta(-0.2, 'nearest'), 0)).toBe(true)
+  expect(Object.is(roundDelta(-0.2), 0)).toBe(true)
 })
 ```
 
@@ -74,15 +80,13 @@ Expected: FAIL, module not found.
 - [ ] **Step 3: Write the function** (`lib/delta-rounding.ts`)
 
 ```ts
-export type DeltaRounding = 'nearest' | 'up'
-
-/** A percent change as a whole number, for the outline tiles (Jasmine's round 1 feedback). The size
- *  is first taken to one decimal, what the tiles showed before, so float noise (5.0000000001) never
- *  moves a whole change up a step; then `nearest` rounds half up and `up` rounds away from zero; then
- *  the sign goes back. Zero is always plain 0, so the card shows no arrow. */
-export function roundDelta(delta: number, rule: DeltaRounding): number {
-  const size = Math.round(Math.abs(delta) * 10) / 10
-  const whole = rule === 'up' ? Math.ceil(size) : Math.round(size)
+/** A percent change as the nearest whole number, for the outline tiles (Jasmine, 2026-09-29: 6.3%
+ *  shows 6%, 6.57% shows 7%). The size is rounded half up, then the sign goes back, so a drop rounds
+ *  like a rise. Only float noise is removed first (six decimals), never the one-decimal display: 6.45
+ *  is 6, not 7. Zero is always plain 0, so the card shows no arrow. */
+export function roundDelta(delta: number): number {
+  const size = Math.round(Math.abs(delta) * 1e6) / 1e6
+  const whole = Math.round(size)
   if (whole === 0) return 0
   return delta < 0 ? -whole : whole
 }
@@ -99,53 +103,53 @@ Expected: PASS.
 describe('KpiCard change line', () => {
   const line = (c: HTMLElement) => [...c.querySelectorAll('p')].map((p) => p.textContent).find((t) => t?.includes('vs prior period'))
 
-  test('without deltaRounding the change keeps one decimal', () => {
+  test('without wholeDelta the change keeps one decimal', () => {
     const { container } = render(<KpiCard title="Views" value="10" delta={6.34} />)
     expect(line(container)).toBe('↑ 6.3% vs prior period')
   })
 
-  test('with deltaRounding the change is whole and the arrow follows the rounded value', () => {
-    const r = (delta: number, rule: 'nearest' | 'up') => line(render(<KpiCard title="Views" value="10" delta={delta} deltaRounding={rule} />).container)
-    expect(r(6.34, 'nearest')).toBe('↑ 6% vs prior period')
-    expect(r(6.34, 'up')).toBe('↑ 7% vs prior period')
-    expect(r(-6.34, 'up')).toBe('↓ 7% vs prior period')
-    expect(r(0.3, 'nearest')).toBe('— 0% vs prior period')
+  test('with wholeDelta the change is whole and the arrow follows the rounded value', () => {
+    const r = (delta: number) => line(render(<KpiCard title="Views" value="10" delta={delta} wholeDelta />).container)
+    expect(r(6.34)).toBe('↑ 6% vs prior period')
+    expect(r(6.57)).toBe('↑ 7% vs prior period')
+    expect(r(-6.57)).toBe('↓ 7% vs prior period')
+    expect(r(0.3)).toBe('— 0% vs prior period')
   })
 
   test('a change that rounds to zero is muted, not green', () => {
-    const { container } = render(<KpiCard title="Views" value="10" delta={0.3} deltaRounding="nearest" />)
+    const { container } = render(<KpiCard title="Views" value="10" delta={0.3} wholeDelta />)
     const p = [...container.querySelectorAll('p')].find((x) => x.textContent?.includes('vs prior period'))!
     expect(p.className).toContain('text-text-muted')
     expect(p.className).not.toContain('text-brand-green')
   })
 
   test('no prior still shows the greyed placeholder', () => {
-    const { container } = render(<KpiCard title="Views" value="10" comparisonExpected deltaRounding="nearest" />)
+    const { container } = render(<KpiCard title="Views" value="10" comparisonExpected wholeDelta />)
     expect(line(container)).toBe('— vs prior period')
   })
 })
 ```
 
 Run: `npx vitest run components/charts/kpi-card.test.tsx`
-Expected: the `deltaRounding` tests FAIL (TypeScript accepts the unknown prop at runtime; the text still shows one decimal). The first and last new tests pass.
+Expected: the `wholeDelta` tests FAIL (TypeScript accepts the unknown prop at runtime; the text still shows one decimal). The first and last new tests pass.
 
 - [ ] **Step 6: Add the prop** (`components/charts/kpi-card.tsx`)
 
-Import at the top: `import { roundDelta, type DeltaRounding } from '@/lib/delta-rounding'`
+Import at the top: `import { roundDelta } from '@/lib/delta-rounding'`
 
 In `KpiCardProps`, after `subValue`:
 
 ```ts
-  /** Show the change as a whole number under this rule (outline tiles only). Absent: one decimal. */
-  deltaRounding?: DeltaRounding
+  /** Show the change as the nearest whole number (outline tiles only). Absent: one decimal. */
+  wholeDelta?: boolean
 ```
 
-Destructure `deltaRounding`, and replace the delta block (`kpi-card.tsx:61-72`) with:
+Destructure `wholeDelta`, and replace the delta block (`kpi-card.tsx:61-72`) with:
 
 ```tsx
       {delta !== undefined ? (() => {
         // The value shown drives the arrow, the colour and the text, so they always agree.
-        const shown = deltaRounding ? roundDelta(delta, deltaRounding) : delta
+        const shown = wholeDelta ? roundDelta(delta) : delta
         return (
           <p
             className={cn(
@@ -156,7 +160,7 @@ Destructure `deltaRounding`, and replace the delta block (`kpi-card.tsx:61-72`) 
             )}
           >
             {shown > 0 ? '↑' : shown < 0 ? '↓' : '—'}{' '}
-            {Math.abs(shown).toFixed(deltaRounding ? 0 : 1)}% {deltaLabel}
+            {Math.abs(shown).toFixed(wholeDelta ? 0 : 1)}% {deltaLabel}
           </p>
         )
       })() : comparisonExpected ? (
@@ -173,7 +177,7 @@ Expected: PASS. No existing snapshot or text assertion changes.
 
 ```bash
 git add lib/delta-rounding.ts lib/delta-rounding.test.ts vitest.config.ts components/charts/kpi-card.tsx components/charts/kpi-card.test.tsx
-git commit -m "feat(charts): KpiCard can show a change as a whole number under a named rule"
+git commit -m "feat(charts): KpiCard can show a change as the nearest whole number"
 ```
 
 ### Task 2: Turn it on for the outline tiles
@@ -184,8 +188,8 @@ git commit -m "feat(charts): KpiCard can show a change as a whole number under a
 - Test: `components/report-sections/organic-social/parts/outline-parts.test.tsx`
 
 **Interfaces:**
-- Consumes: `DeltaRounding`, `KpiCard`'s `deltaRounding` (Task 1).
-- Produces: `OUTLINE_DELTA_ROUNDING: DeltaRounding` exported from `outline-tiles.tsx`.
+- Consumes: `KpiCard`'s `wholeDelta` (Task 1).
+- Produces: nothing new; `OutlineTiles` passes `wholeDelta` on every tile.
 
 - [ ] **Step 1: Write the failing test** (append to `parts/outline-parts.test.tsx`; `OutlineTiles` and `card` are already imported and defined there)
 
@@ -195,7 +199,7 @@ test('outline tiles show percent changes as whole numbers, the arrow following t
     { key: 'views', label: 'Views', format: 'number', value: 100, delta: 6.34 },
     { key: 'likes', label: 'Likes', format: 'number', value: 100, delta: 0.04 },
   ]} />).container
-  expect(card(c, 'Views')!.textContent).toMatch(/↑ [67]% vs prior period/)
+  expect(card(c, 'Views')!.textContent).toContain('↑ 6% vs prior period')
   expect(card(c, 'Views')!.textContent).not.toContain('6.3%')
   expect(card(c, 'Likes')!.textContent).not.toContain('↑')
 })
@@ -206,23 +210,12 @@ Expected: FAIL (the card shows "6.3%").
 
 - [ ] **Step 2: Confirm the markup-parity tests stay valid.** `outline-parts.test.tsx:131-141` compares the Data block's markup with the shared `PlatformHeadlines`. Its fixture has no prior (`context: null`, line 35), so no change line is drawn and the comparison is unaffected. Do not edit that test.
 
-- [ ] **Step 3: Set the rule** (`outline-tiles.tsx`). Use `'nearest'` or `'up'`, whichever Jasmine picks. Asked on Slack 2026-09-29 (6.3% as 6% or 7%) after the sync, where it didn't come up.
-
-```tsx
-import type { DeltaRounding } from '@/lib/delta-rounding'
-
-/** Jasmine's round 1 feedback: whole-number percent changes on outline tiles. */
-export const OUTLINE_DELTA_ROUNDING: DeltaRounding = 'nearest'
-```
-
-and on the real tile:
+- [ ] **Step 3: Turn it on** (`outline-tiles.tsx`, on the real tile). Jasmine's rule (Slack 2026-09-29): nearest whole number.
 
 ```tsx
           delta={k.delta}
-          deltaRounding={OUTLINE_DELTA_ROUNDING}
+          wholeDelta
 ```
-
-Then tighten the Step 1 regex to the exact value for the chosen rule (`6%` for `nearest`, `7%` for `up`).
 
 - [ ] **Step 4: Fix the `pctCompact` doc** (`lib/organic-social/format.ts:3`): `(3.5% -> "3%")` becomes `(3.5% -> "4%")`. `Math.round(3.5)` is 4 (`format.ts:13`), and `post-card.pct.test.tsx` already pins 12.5% as "13%".
 
