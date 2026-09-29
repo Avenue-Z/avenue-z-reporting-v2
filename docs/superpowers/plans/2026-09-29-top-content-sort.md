@@ -18,6 +18,8 @@ Engagement Rate and Effectiveness." Applies to the outline clients only. Renaiss
 - Influencer Posts shares the same toolbar, so it follows the same list.
 - Pending her answer: if the two metrics also come off the cards, an optional metric list on `PostCard`, same pattern.
   `SORT_METRICS` itself and `PostCard`'s default stay as they are.
+- Applies to every client pinned to top-content@3: the three outline clients today, Piper and PIMCO once they are
+  switched on. The pin covers every platform tab, X included.
 
 ## Tests first
 - Outline tabs show exactly two sort buttons, Engagements selected.
