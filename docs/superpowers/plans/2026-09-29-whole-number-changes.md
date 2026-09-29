@@ -14,8 +14,15 @@ tiles only. Renaissance and every other section keep one decimal.
 - An optional `KpiCard` prop for whole-number changes, default one decimal. Only `OutlineTiles` sets it.
 - Round the size first, then apply the sign. The rounded value drives the arrow, the colour and the text, so a small
   rise never shows a green up arrow next to "0%".
-- Pending her answer: nearest whole number or always up; whether sub-1% rate values (one decimal today,
-  `lib/organic-social/format.ts:13`) change too.
+- Pending her answer: nearest whole number or always up (a 6.3% change shows 6% or 7%).
+- Settled 2026-09-29: rate values are not changed. Her ask names percent changes, and her guide already states the
+  rate rule (whole numbers at 1% or more, one decimal below, `lib/organic-social/format.ts:13`).
+- Scope checked: in Organic Social the change arrows come only from `KpiCard` via `OutlineTiles`. The other one-decimal
+  change displays (`capsule-column-chart.tsx:140`, `metric-delta.tsx:26`, `trend-area-chart.tsx:77`) are not used by
+  any Organic Social section.
+- Applies to every client pinned to the outline tiles (platform-headlines 2 or 3): the three outline clients today,
+  Piper and PIMCO once they are switched on. A tab without outline rows (X) draws the v1 tiles, which keep one
+  decimal; if Piper keeps its X tab, that tab would differ.
 - Fix the `pctCompact` doc: it says 3.5% shows as "3%", but `Math.round(3.5)` is 4 (`format.ts:3`).
 
 ## Tests first
