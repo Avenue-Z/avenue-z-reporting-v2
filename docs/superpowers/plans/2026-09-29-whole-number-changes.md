@@ -206,7 +206,7 @@ Expected: FAIL (the card shows "6.3%").
 
 - [ ] **Step 2: Confirm the markup-parity tests stay valid.** `outline-parts.test.tsx:131-141` compares the Data block's markup with the shared `PlatformHeadlines`. Its fixture has no prior (`context: null`, line 35), so no change line is drawn and the comparison is unaffected. Do not edit that test.
 
-- [ ] **Step 3: Set the rule** (`outline-tiles.tsx`). Use `'nearest'` or `'up'`, whichever Jasmine picks at the sync.
+- [ ] **Step 3: Set the rule** (`outline-tiles.tsx`). Use `'nearest'` or `'up'`, whichever Jasmine picks. Asked on Slack 2026-09-29 (6.3% as 6% or 7%) after the sync, where it didn't come up.
 
 ```tsx
 import type { DeltaRounding } from '@/lib/delta-rounding'
