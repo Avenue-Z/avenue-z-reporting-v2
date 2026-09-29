@@ -109,6 +109,6 @@ guarded, dry-run staging script. Production gets it with the October release.
   no longer be needed, since months before August would not be read from Dash at all; the graphs need a store for the
   supplied history. That store holds client figures, so it lives in the database, never in this public repo, and the
   import gets a data check (contract-core) and a guarded staging script.
-- Still to settle with her: nothing on the design; waiting only on the sheet.
+- Still to settle with her: nothing on the design; waiting only on the sheet. She confirmed the format on Slack (2026-09-29 5:12 PM) and expects to send it 2026-09-30.
 - The target is this month's cycle (the September report, which clients see from Oct 12).
 - Renaissance never gets YTD (standing rule).
