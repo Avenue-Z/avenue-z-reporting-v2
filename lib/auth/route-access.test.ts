@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { routeAccess } from './route-access'
+import { canOpenPortal, isStaff, routeAccess } from './route-access'
 
 const admin = { role: 'INTERNAL_ADMIN', clientSlug: 'avenue-z' }
 const analyst = { role: 'INTERNAL_ANALYST', clientSlug: 'avenue-z' }
@@ -55,5 +55,34 @@ describe('routeAccess', () => {
     expect(routeAccess('/portal/acme/reports', { role: 'CLIENT_VIEWER', clientSlug: null })).toBe('unauthorized')
     expect(routeAccess('/portal/acme/reports', {})).toBe('unauthorized')
     expect(routeAccess('/dashboard', {})).toBe('unauthorized')
+  })
+
+  test('a matching slug is not enough: only a client role opens a portal (fail closed on any other role)', () => {
+    expect(routeAccess('/portal/acme/reports', { clientSlug: 'acme' })).toBe('unauthorized')
+    expect(routeAccess('/portal/acme/reports', { role: 'SOMETHING_ELSE', clientSlug: 'acme' })).toBe('unauthorized')
+    expect(routeAccess('/portal/acme/reports', { role: 'client_viewer', clientSlug: 'acme' })).toBe('unauthorized')
+  })
+})
+
+describe('canOpenPortal (the page-level check)', () => {
+  test('staff open any portal; a client role opens only its own slug, compared exactly', () => {
+    expect(canOpenPortal('other', admin)).toBe(true)
+    expect(canOpenPortal('other', analyst)).toBe(true)
+    expect(canOpenPortal('acme', viewer)).toBe(true)
+    expect(canOpenPortal('acme', clientAdmin)).toBe(true)
+    for (const slug of ['other', '', 'ACME', 'acme/other', 'acme ']) expect(canOpenPortal(slug, viewer)).toBe(false)
+  })
+
+  test('no role, an unknown role, or no client opens nothing', () => {
+    expect(canOpenPortal('acme', { clientSlug: 'acme' })).toBe(false)
+    expect(canOpenPortal('acme', { role: 'SOMETHING_ELSE', clientSlug: 'acme' })).toBe(false)
+    expect(canOpenPortal('acme', { role: 'CLIENT_VIEWER', clientSlug: null })).toBe(false)
+    expect(canOpenPortal('', { role: 'CLIENT_VIEWER', clientSlug: '' })).toBe(false)
+  })
+})
+
+describe('isStaff', () => {
+  test('only the two internal roles', () => {
+    expect([admin, analyst, clientAdmin, viewer, {}].map(isStaff)).toEqual([true, true, false, false, false])
   })
 })
