@@ -12,6 +12,8 @@
 
 **Gate before Task 1:** the spec has passed its review rounds, and the scratch trial in the spec confirms every August number stays identical with `ytdFrom` set. If the trial shows otherwise, stop and bring it to me.
 
+**ON HOLD (2026-09-29):** the call decided the history comes from Jasmine's supplied numbers, not Dash (see the spec's Decision update). This plan is superseded in part: Tasks 1, 3, 4 and 5 still apply in some form, Task 2 may not be needed, and a new task for storing and importing the supplied history is required. Rework the spec, then this plan, once her sheet arrives.
+
 ## Global Constraints
 - With `ytdFrom` absent, everything behaves exactly as today (R1). Every existing test passes unedited, except where a task says otherwise and why.
 - No Dash request changes shape (R4). `lib/organic-social/lock-key-pin.test.ts` must pass unedited.

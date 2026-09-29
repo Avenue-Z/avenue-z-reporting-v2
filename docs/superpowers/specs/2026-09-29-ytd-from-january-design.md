@@ -99,3 +99,16 @@ present for the three outline clients. Budget: 30 minutes, about 150 lines, thro
 ## Rollout
 Set `ytdFrom: '2026-01'` on staging for the three outline clients (and any client switched on later) with a
 guarded, dry-run staging script. Production gets it with the October release.
+
+## Decision update, 2026-09-29 (call with Jasmine, 27:10 to 27:29): this changes the design above
+- The YTD history must match what clients were already shown, so it comes from Jasmine's own numbers, not Dash.
+  She is sending a Google Sheet: one tab per client, January through August, followers and views per platform per
+  month (impressions for LinkedIn).
+- From September on, the YTD points come from our own locked months, as the Data block does.
+- Consequences for this spec (to be reworked before any code): design point 2 (locking months before `firstMonth`) may
+  no longer be needed, since months before August would not be read from Dash at all; the graphs need a store for the
+  supplied history. That store holds client figures, so it lives in the database, never in this public repo, and the
+  import gets a data check (contract-core) and a guarded staging script.
+- Still to settle with her: nothing on the design; waiting only on the sheet.
+- The target is this month's cycle (the September report, which clients see from Oct 12).
+- Renaissance never gets YTD (standing rule).
