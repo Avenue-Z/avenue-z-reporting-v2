@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({ session: null as null | { user: { role?: string; clientSlug?: string | null } } }))
 vi.mock('@/auth', () => ({ auth: async () => h.session }))
@@ -9,7 +9,8 @@ vi.mock('next/navigation', () => ({ redirect: (url: string) => { throw new Error
 import { requirePortalAccess, requireStaff } from './page-access'
 
 const as = (role: string, clientSlug: string | null) => { h.session = { user: { role, clientSlug } } }
-beforeEach(() => { h.session = null })
+beforeEach(() => { h.session = null; vi.stubEnv('AUTH_SECRET', 'test-secret') })
+afterEach(() => { vi.unstubAllEnvs() })
 
 describe('requirePortalAccess', () => {
   test('signed out goes to login', async () => {
@@ -25,7 +26,18 @@ describe('requirePortalAccess', () => {
     as('CLIENT_ADMIN', 'acme')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await expect(requirePortalAccess('other')).rejects.toThrow('REDIRECT /unauthorized')
-    expect(warn).toHaveBeenCalledWith('[access] page refused slug=other role=CLIENT_ADMIN client=acme')
+    expect(warn).toHaveBeenCalledWith('[access] page refused slug="other" role=CLIENT_ADMIN client=acme who=none')
+    warn.mockRestore()
+  })
+
+  test('a slug that could forge a log line is written escaped, with the keyed id', async () => {
+    h.session = { user: { role: 'CLIENT_VIEWER', clientSlug: 'acme', email: 'a@acme.example' } } as never
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(requirePortalAccess('x\n[access] fake line')).rejects.toThrow('REDIRECT /unauthorized')
+    const line = String(warn.mock.calls[0][0])
+    expect(line).not.toContain('\n')
+    expect(line).toContain('slug="x\\n[access] fake line"')
+    expect(line).toMatch(/ who=[0-9a-f]{8}$/)
     warn.mockRestore()
   })
 
@@ -52,7 +64,7 @@ describe('requireStaff', () => {
       await expect(requireStaff()).rejects.toThrow('REDIRECT /unauthorized')
     }
     expect(warn).toHaveBeenCalledTimes(3)
-    expect(warn).toHaveBeenLastCalledWith('[access] page refused staff-only role=SOMETHING_ELSE client=acme')
+    expect(warn).toHaveBeenLastCalledWith('[access] page refused staff-only role=SOMETHING_ELSE client=acme who=none')
     warn.mockRestore()
   })
 

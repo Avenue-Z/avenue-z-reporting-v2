@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const session = vi.hoisted(() => ({ current: null as null | { user: { role?: string; clientSlug?: string | null } } }))
@@ -10,7 +10,9 @@ import proxy, { config } from './proxy'
 const as = (role: string, clientSlug: string | null) => { session.current = { user: { role, clientSlug } } }
 const location = (res: Response) => res.headers.get('location')
 
-afterEach(() => { session.current = null; vi.restoreAllMocks() })
+// The log id is keyed with AUTH_SECRET (lib/auth/log-id.ts); a test value stands in for it.
+beforeEach(() => { vi.stubEnv('AUTH_SECRET', 'test-secret') })
+afterEach(() => { session.current = null; vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
 describe('proxy', () => {
   test('signed out goes to login', async () => {
@@ -79,6 +81,14 @@ describe('proxy', () => {
     await proxy(new NextRequest(`https://example.test/portal/other/${'x'.repeat(500)}`))
     const path = String(warn.mock.calls[0][0]).match(/path=(\S*)/)![1]
     expect(path).toHaveLength(120)
+  })
+
+  test('the id in the log is the shared keyed id', async () => {
+    session.current = { user: { role: 'CLIENT_VIEWER', clientSlug: 'acme', email: 'person@acme.example' } as never }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await proxy(new NextRequest('https://example.test/dashboard'))
+    const { logId } = await import('@/lib/auth/log-id')
+    expect(String(warn.mock.calls[0][0])).toContain(`who=${await logId('person@acme.example', 'test-secret')}`)
   })
 
   test('a session with no email logs who=none', async () => {

@@ -51,6 +51,7 @@ export default defineConfig({
       'lib/portal/**/*.test.{ts,tsx}',
       'lib/auth/route-access.test.ts',
       'lib/auth/page-access.test.ts',
+      'lib/auth/log-id.test.ts',
       'lib/auth/protected-pages.test.ts',
       'proxy.test.ts',
       'lib/dash-social/content.test.ts',
