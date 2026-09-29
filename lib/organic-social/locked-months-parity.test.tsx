@@ -14,10 +14,11 @@ vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getCli
 vi.mock('@/components/report-sections/organic-social', () => ({
   OrganicSocialReport: function OrganicSocialReport() { return null },
 }))
-// These tests cover what a page does once access is granted. Who may open a page is tested on its
-// own (lib/auth/page-access.test.ts, lib/auth/protected-pages.test.ts), so the page check is stubbed
-// as granted here and every assertion below, and every stored digest, stays exactly as it was.
-vi.mock('@/lib/auth/page-access', () => ({ requirePortalAccess: vi.fn(async () => undefined), requireStaff: vi.fn(async () => undefined) }))
+// The portal pages run their real access check: every session below carries the client 'c' these
+// routes render, as a real client sign-in does. The staff pages are also rendered with a client role,
+// which the staff layout and the staff check never allow (lib/auth/page-access.test.ts covers that), so
+// only requireStaff is stubbed as granted, and every assertion and stored digest stays as it was.
+vi.mock('@/lib/auth/page-access', async (orig) => ({ ...(await orig<object>()), requireStaff: vi.fn(async () => undefined) }))
 
 import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'
@@ -72,7 +73,7 @@ for (const [fixtureName, fixture] of Object.entries(FIXTURES)) {
       const digests: Record<string, string> = {}
       let representative: unknown = null
       for (const role of ROLES) {
-        vi.mocked(auth).mockResolvedValue({ user: { role, email: 'someone@example.com' } } as never)
+        vi.mocked(auth).mockResolvedValue({ user: { role, email: 'someone@example.com', clientSlug: 'c' } } as never)
         for (const dateRange of RANGES) {
           for (const compareRange of COMPARES) {
             const out = serialise(await runRoute(route({ dateRange, compareRange })))
