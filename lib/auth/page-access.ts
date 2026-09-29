@@ -14,8 +14,9 @@ export async function requirePortalAccess(slug: string) {
   if (!session) redirect('/login')
   if (!canOpenPortal(slug, session.user)) {
     // Normally the proxy refuses first and this never runs, so a line here means that check was skipped.
-    // JSON.stringify escapes the slug, which is the decoded route param, so it cannot break the line.
-    console.warn(`[access] page refused slug=${JSON.stringify(slug.slice(0, 120))} role=${session.user.role ?? 'none'} ` +
+    // JSON.stringify escapes the slug (the decoded route param), and the two line separators it leaves
+    // alone are escaped too, so no character in a URL can start a new log line.
+    console.warn(`[access] page refused slug=${JSON.stringify(slug.slice(0, 120)).replace(/[\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16)}`)} role=${session.user.role ?? 'none'} ` +
       `client=${session.user.clientSlug ?? 'none'} who=${await logId(session.user.email)}`)
     redirect('/unauthorized')
   }

@@ -38,6 +38,9 @@ describe('requirePortalAccess', () => {
     expect(line).not.toContain('\n')
     expect(line).toContain('slug="x\\n[access] fake line"')
     expect(line).toMatch(/ who=[0-9a-f]{8}$/)
+    await expect(requirePortalAccess('y\u2028z\u2029')).rejects.toThrow('REDIRECT /unauthorized')
+    expect(String(warn.mock.calls[1][0])).not.toMatch(/[\u2028\u2029]/)
+    expect(String(warn.mock.calls[1][0])).toContain('slug="y\\u2028z\\u2029"')
     warn.mockRestore()
   })
 

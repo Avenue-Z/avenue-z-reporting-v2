@@ -13,7 +13,7 @@ const filesUnder = (dir: string): string[] =>
   readdirSync(join(ROOT, dir), { recursive: true, encoding: 'utf8' }).filter((f) => /\.[jt]sx?$/.test(f)).map((f) => join(dir, f))
 
 /** The only statements a page may run before its check: reading its own URL. */
-const URL_READ = /^ {2}const \{[^}]*\} = await (params|searchParams)$/
+const URL_READ = /^ {2}const \{\s*[\w$]+(\s*,\s*[\w$]+)*\s*\} = await (params|searchParams)$/
 
 /** The lines of the default export's body before the first line of the check, or null when the check
  *  is not a statement of its own at the top level of the body (inside a try, a condition, a callback). */
@@ -37,19 +37,26 @@ function assertGuarded(file: string, check: RegExp) {
   expect(before, `${file}: no top-level access check in the default export`).not.toBeNull()
   const extra = before!.filter((l) => l.trim() !== '' && !URL_READ.test(l))
   expect(extra, `${file}: runs something before its access check`).toEqual([])
-  expect(src, `${file}: generateMetadata loads data outside the page body`).not.toMatch(/generateMetadata/)
 }
 
 const all = AREAS.flatMap(filesUnder)
-const pages = all.filter((f) => f.endsWith('/page.tsx'))
+const pages = all.filter((f) => /\/page\.[jt]sx?$/.test(f))
+/** The three layouts that exist today, each checked by lib/portal/portal-layout.test.tsx or by the
+ *  shared rule it calls. A new layout would run beside the page, so it needs its own review first. */
+const LAYOUTS = ['app/portal/[clientSlug]/layout.tsx', 'app/dashboard/layout.tsx', 'app/tools/layout.tsx']
+const SPECIAL = /\/(route|template|default|error|global-error|not-found|forbidden|unauthorized|opengraph-image|twitter-image|icon|apple-icon|sitemap)\.[jt]sx?$/
+const PARALLEL_OR_INTERCEPT = /\/@|\/\(\.{1,3}\)/
 
 test('the only route files in the protected areas are pages, layouts and static loading skeletons', () => {
   // Next runs these file names as routes. A route handler, template, parallel or intercepting route
   // would run without the page check, so any of them here needs its own check before it is allowed.
-  const SPECIAL = /\/(route|template|default|error|global-error|not-found|forbidden|unauthorized|opengraph-image|twitter-image|icon|apple-icon|sitemap)\.[jt]sx?$/
-  expect(all.filter((f) => SPECIAL.test(f) || /\/@|\/\(\.{1,3}\)|\/\(\.\.\)/.test(f))).toEqual([])
-  for (const f of all.filter((x) => x.endsWith('/loading.tsx'))) {
-    expect(readFileSync(join(ROOT, f), 'utf8'), `${f} must not load data`).not.toMatch(/await|fetch\(|getClient|auth\(/)
+  expect(all.filter((f) => SPECIAL.test(f) || PARALLEL_OR_INTERCEPT.test(f))).toEqual([])
+  expect(all.filter((f) => /\/layout\.[jt]sx?$/.test(f)).sort()).toEqual([...LAYOUTS].sort())
+  for (const f of all.filter((x) => /\/loading\.[jt]sx?$/.test(x))) {
+    expect(readFileSync(join(ROOT, f), 'utf8'), `${f} must not load data`).not.toMatch(/await|fetch\(|get\w*Client|auth\(|\buse\(/)
+  }
+  for (const f of [...pages, ...LAYOUTS]) {
+    expect(readFileSync(join(ROOT, f), 'utf8'), `${f}: metadata or viewport code runs outside the page body`).not.toMatch(/generate(Metadata|Viewport)/)
   }
 })
 
@@ -78,8 +85,20 @@ test('the guard itself catches the ways a check can be defeated', () => {
     '  const { clientSlug } = await params\n  const c = await (getClientBySlug(clientSlug))\n  await requirePortalAccess(clientSlug)',
     '  const { clientSlug } = await params\n  console.log(clientSlug)\n  await requirePortalAccess(clientSlug)',
     '  const { clientSlug } = await params\n  if (x) {\n    await requirePortalAccess(clientSlug)\n  }',
+    '  const { clientSlug, x = loadAll() } = await params\n  await requirePortalAccess(clientSlug)',
+    '  const { r = await getAllClients() } = await searchParams\n  const { clientSlug } = await params\n  await requirePortalAccess(clientSlug)',
   ]) {
     const before = beforeCheck(page(bad), CHECKS.portal)
     expect(before === null || before.some((l) => l.trim() && !URL_READ.test(l)), bad).toBe(true)
   }
+})
+
+test('the route-file rules match the files they are meant to catch', () => {
+  for (const f of ['app/portal/[clientSlug]/route.ts', 'app/dashboard/template.tsx', 'app/tools/x/default.jsx', 'app/portal/[clientSlug]/error.tsx'])
+    expect(SPECIAL.test(f), f).toBe(true)
+  for (const f of ['app/portal/[clientSlug]/@slot/page.tsx', 'app/dashboard/(.)photo/page.tsx', 'app/dashboard/(..)(..)x/page.tsx', 'app/tools/(...)y/page.tsx'])
+    expect(PARALLEL_OR_INTERCEPT.test(f), f).toBe(true)
+  for (const f of ['app/portal/[clientSlug]/reports/page.tsx', 'app/portal/[clientSlug]/team/team-panel.tsx', 'app/dashboard/(group)/x/page.tsx'])
+    expect(SPECIAL.test(f) || PARALLEL_OR_INTERCEPT.test(f), f).toBe(false)
+  expect(['app/portal/x/page.ts', 'app/portal/x/page.jsx', 'app/portal/x/page.js'].every((f) => /\/page\.[jt]sx?$/.test(f))).toBe(true)
 })
