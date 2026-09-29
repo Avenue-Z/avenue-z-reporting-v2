@@ -17,8 +17,8 @@ export function canOpenPortal(slug: string, who: Who): boolean {
   return isClientRole(who.role ?? '') && slug !== '' && slug === who.clientSlug
 }
 
-/** Who may open a path under /dashboard, /tools or /portal (the proxy's matcher). The same rules the
- *  layouts apply, enforced where every request passes: staff reach everything, a client reaches only
+/** Who may open a path under /dashboard, /tools or /portal (the proxy's matcher). The same rule the
+ *  layouts apply (they call isStaff and canOpenPortal), enforced where every request passes: staff reach everything, a client reaches only
  *  /portal/<its own slug>. A layout alone cannot guard a page, because a navigation request tells the
  *  server which layouts the browser already holds and Next skips rendering those. Each page also
  *  checks its own slug (lib/auth/page-access.ts), so no single check is the only one. */
