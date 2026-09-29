@@ -27,6 +27,7 @@ Engagement Rate and Effectiveness." Applies to the outline clients only. Renaiss
 
 ## Independence
 - Touches only `sortable-top-content.tsx`, `parts/top-content-outline.tsx` and, if needed, `post-card.tsx`.
-- Paul's #190 also edits `post-card.tsx` and `sortable-top-content.tsx`: edits stay off its lines, proved with
-  `git merge-tree` against #190 before this is marked ready.
+- Paul's #190 also edits `post-card.tsx` and `sortable-top-content.tsx`, but it already conflicts with `dev` by itself
+  (six files, `sortable-top-content.tsx` among them, checked 2026-09-28 with `git merge-tree`), so it needs a rebase
+  whatever happens here. Edits here stay away from the lines #190 changes so that rebase gets no harder.
 - Renaissance fingerprint before and after.
