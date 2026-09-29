@@ -29,6 +29,12 @@ outline clients. Renaissance does not use YTD Review.
 5. **A concurrency cap** on the per-month requests (closes "The YTD block fails all or nothing across up to 12
    requests").
 6. In a new year YTD restarts in January, as her guide says. A floor key does that on its own.
+7. Settled 2026-09-29: January to July appear on the YTD graphs only. Monthly reports clients can open still start
+   at `firstMonth` (her guide: reports start with August 2026).
+
+## Rollout
+Set the start key on staging for the three outline clients, and for Piper and PIMCO when they are switched on. YTD
+Review draws only on tabs with outline rows (`parts/ytd-review.tsx:20`), so a Piper X tab would show none.
 
 ## Process
 Spec (measure, draft, two fresh-eyed review rounds at most), then this plan in full, then test-first code. Then set the
