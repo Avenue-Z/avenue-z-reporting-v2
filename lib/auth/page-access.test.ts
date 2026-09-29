@@ -21,9 +21,12 @@ describe('requirePortalAccess', () => {
     await expect(requirePortalAccess('acme')).resolves.toBe(h.session)
   })
 
-  test("another client's slug is turned away", async () => {
+  test("another client's slug is turned away, and logged, since the proxy did not stop it", async () => {
     as('CLIENT_ADMIN', 'acme')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await expect(requirePortalAccess('other')).rejects.toThrow('REDIRECT /unauthorized')
+    expect(warn).toHaveBeenCalledWith('[access] page refused slug=other role=CLIENT_ADMIN client=acme')
+    warn.mockRestore()
   })
 
   test('staff open any portal', async () => {
@@ -42,10 +45,22 @@ describe('requireStaff', () => {
     await expect(requireStaff()).resolves.toBe(h.session)
   })
 
-  test('a client role, even on its own slug, is turned away', async () => {
+  test('a client role, even on its own slug, is turned away and logged', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     for (const role of ['CLIENT_ADMIN', 'CLIENT_VIEWER', 'SOMETHING_ELSE']) {
       as(role, 'acme')
       await expect(requireStaff()).rejects.toThrow('REDIRECT /unauthorized')
     }
+    expect(warn).toHaveBeenCalledTimes(3)
+    expect(warn).toHaveBeenLastCalledWith('[access] page refused staff-only role=SOMETHING_ELSE client=acme')
+    warn.mockRestore()
+  })
+
+  test('an allowed page logs nothing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    as('INTERNAL_ADMIN', 'avenue-z'); await requireStaff()
+    as('CLIENT_VIEWER', 'acme'); await requirePortalAccess('acme')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

@@ -11,7 +11,11 @@ import { canOpenPortal, isStaff } from './route-access'
 export async function requirePortalAccess(slug: string) {
   const session = await auth()
   if (!session) redirect('/login')
-  if (!canOpenPortal(slug, session.user)) redirect('/unauthorized')
+  if (!canOpenPortal(slug, session.user)) {
+    // Normally the proxy refuses first and this never runs, so a line here means that check was skipped.
+    console.warn(`[access] page refused slug=${slug.slice(0, 120)} role=${session.user.role ?? 'none'} client=${session.user.clientSlug ?? 'none'}`)
+    redirect('/unauthorized')
+  }
   return session
 }
 
@@ -19,6 +23,9 @@ export async function requirePortalAccess(slug: string) {
 export async function requireStaff() {
   const session = await auth()
   if (!session) redirect('/login')
-  if (!isStaff(session.user)) redirect('/unauthorized')
+  if (!isStaff(session.user)) {
+    console.warn(`[access] page refused staff-only role=${session.user.role ?? 'none'} client=${session.user.clientSlug ?? 'none'}`)
+    redirect('/unauthorized')
+  }
   return session
 }
