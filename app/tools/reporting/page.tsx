@@ -4,11 +4,13 @@ import { auth } from '@/auth'
 import { getClientsWithDashboards } from '@/lib/db/queries'
 import { isInternalStaff } from '@/lib/dashboard/permissions'
 import { AddReportCard } from '@/components/dashboard/add-report/add-report-card'
+import { requireStaff } from '@/lib/auth/page-access'
 
 const cardCls =
   'group relative flex min-h-[84px] items-center gap-4 rounded-lg border border-white/[0.06] bg-bg-surface p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.02]'
 
 export default async function ReportingHubPage() {
+  await requireStaff()
   const [session, dashboards] = await Promise.all([auth(), getClientsWithDashboards()])
   const canAdd = isInternalStaff(session?.user?.role ?? '')
 

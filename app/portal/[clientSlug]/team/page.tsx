@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientAccessOverview } from '@/lib/db/admin-queries'
 import { TeamPanel } from './team-panel'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 export default async function TeamPage({
   params,
@@ -9,6 +10,7 @@ export default async function TeamPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
+  await requirePortalAccess(clientSlug)
   const session = await auth()
   // Only the external admin of THIS client may manage the team.
   if (!session || session.user.role !== 'CLIENT_ADMIN' || session.user.clientSlug !== clientSlug) {

@@ -28,6 +28,7 @@ import { PortalReportDateRange } from './report-date-range'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { HealthProbe } from '@/lib/health/probe'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 function ReportSkeleton() {
   return (
@@ -109,6 +110,7 @@ export default async function PortalReportPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string; health?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
+  await requirePortalAccess(clientSlug)
   const { dateRange: dateRangeParam, compareRange: compareRangeParam, health: healthParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()

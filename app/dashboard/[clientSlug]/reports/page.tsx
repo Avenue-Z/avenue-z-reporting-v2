@@ -36,6 +36,7 @@ import { HealthProbe } from '@/lib/health/probe'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organic-social/locked-range'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
+import { requireStaff } from '@/lib/auth/page-access'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -120,6 +121,7 @@ export default async function ReportPage({
   searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string }>
 }) {
   const { clientSlug } = await params
+  await requireStaff()
   const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()

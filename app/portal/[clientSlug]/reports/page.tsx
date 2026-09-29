@@ -46,6 +46,7 @@ import type { DashChannel } from '@/lib/organic-social/metrics'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organic-social/locked-range'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 function SectionSkeleton() {
   return (
@@ -162,6 +163,7 @@ export default async function PortalReportPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string }>
 }) {
   const { clientSlug } = await params
+  await requirePortalAccess(clientSlug)
   const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()

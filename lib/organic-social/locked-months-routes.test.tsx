@@ -11,6 +11,10 @@ vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getCli
 vi.mock('@/components/report-sections/organic-social', () => ({
   OrganicSocialReport: function OrganicSocialReport() { return null },
 }))
+// These tests cover what a page does once access is granted. Who may open a page is tested on its
+// own (lib/auth/page-access.test.ts, lib/auth/protected-pages.test.ts), so the page check is stubbed
+// as granted here and every assertion below, and every stored digest, stays exactly as it was.
+vi.mock('@/lib/auth/page-access', () => ({ requirePortalAccess: vi.fn(async () => undefined), requireStaff: vi.fn(async () => undefined) }))
 
 import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'

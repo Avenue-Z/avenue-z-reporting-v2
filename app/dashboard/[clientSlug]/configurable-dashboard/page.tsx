@@ -8,6 +8,7 @@ import { DashboardShell } from '@/components/dashboard/dashboard-shell'
 import { EmptyDashboardState } from '@/components/dashboard/metric-block-states'
 import { renderBlockNode } from '@/components/dashboard/render-block'
 import type { BlockConfig } from '@/lib/dashboard/types'
+import { requireStaff } from '@/lib/auth/page-access'
 
 export default async function ConfigurableDashboardPage({
   params,
@@ -17,6 +18,7 @@ export default async function ConfigurableDashboardPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug } = await params
+  await requireStaff()
   const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
 
   const [session, client, config] = await Promise.all([
