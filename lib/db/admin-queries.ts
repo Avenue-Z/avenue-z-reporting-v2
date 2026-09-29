@@ -1,9 +1,10 @@
-import { sql, eq, and, inArray, type SQL } from 'drizzle-orm'
+import { sql, eq, and } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
-import { CLIENT_ROLES } from '@/lib/admin/access'
 import { db } from './client'
 import { clients, users, type ClientRole } from './schema'
 import { interpretAddResult } from './seat-result'
+import { inArray, type SQL } from 'drizzle-orm'
+import { CLIENT_ROLES } from '@/lib/admin/access'
 
 export { interpretAddResult }
 

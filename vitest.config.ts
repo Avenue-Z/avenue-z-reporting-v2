@@ -24,6 +24,7 @@ export default defineConfig({
       'lib/ga4/order-by.test.ts',
       'lib/ga4/lead-events.test.ts',
       'lib/concurrency.test.ts',
+      'lib/db/admin-queries.test.ts',
       'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
       'lib/meta/kpis.test.ts',
@@ -52,7 +53,6 @@ export default defineConfig({
       'lib/dash-social/content.test.ts',
       'lib/dash-social/uncached.test.ts',
       'lib/cache-warm/run.test.ts',
-      'lib/db/admin-queries.test.ts',
       'app/actions/**/*.test.{ts,tsx}',
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
