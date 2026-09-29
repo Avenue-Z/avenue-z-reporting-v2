@@ -49,6 +49,8 @@ export default defineConfig({
       'lib/paid-search/campaigns.test.ts',
       'lib/organic-social/**/*.test.{ts,tsx}',
       'lib/portal/**/*.test.{ts,tsx}',
+      'lib/auth/route-access.test.ts',
+      'proxy.test.ts',
       'lib/dash-social/content.test.ts',
       'lib/dash-social/uncached.test.ts',
       'lib/cache-warm/run.test.ts',
