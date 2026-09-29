@@ -4,7 +4,9 @@
 
 **Goal:** On outline tabs (top-content@3), Top Performing Content offers only two sort buttons, Engagements and Views. Renaissance and every other client keep all four.
 
-**Architecture:** `SortableTopContent` takes an optional list of sort keys, defaulting to all four, so nothing changes unless a caller passes one. Only `parts/top-content-outline.tsx` passes the outline list. Task 2 (the post cards) runs only if Jasmine says the two metrics come off the cards too.
+**Architecture:** `SortableTopContent` takes an optional list of sort keys, defaulting to all four, so nothing changes unless a caller passes one. Only `parts/top-content-outline.tsx` passes the outline list.
+
+**Decided on the call with Jasmine, 2026-09-29 (26:06 to 26:28):** the two metrics come off the sort buttons only and STAY on the post cards. Task 2 below is therefore NOT built; it is kept only as a record of the option. "Across the board" means every outline client; Renaissance never gets this change (standing rule).
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
@@ -150,7 +152,7 @@ git add lib/organic-social/outline-top-content.ts components/report-sections/org
 git commit -m "feat(organic-social): Outline tabs sort Top Content by Engagements and Views only"
 ```
 
-### Task 2: Post cards show only the listed metrics (ONLY if Jasmine says the cards change too)
+### Task 2: Post cards show only the listed metrics (NOT BUILT: decided 2026-09-29 that the cards keep all four)
 
 **Files:**
 - Modify: `components/report-sections/organic-social/post-card.tsx:11-20,55-57,70`
