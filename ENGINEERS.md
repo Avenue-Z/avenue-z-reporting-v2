@@ -239,20 +239,30 @@ After login, the JWT callback in `auth.ts` looks up the user's email in the data
 - `session.user.role` — one of `INTERNAL_ADMIN`, `INTERNAL_ANALYST`, `CLIENT_ADMIN`, `CLIENT_VIEWER`
 - `session.user.clientSlug` — the client slug this user belongs to (null for internal users)
 
-### Route Protection — Three Layers
+### Route Protection: Three Checks
+
+One rule, in `lib/auth/route-access.ts`: staff (`INTERNAL_ADMIN`, `INTERNAL_ANALYST`) open everything; a
+`CLIENT_ADMIN` or `CLIENT_VIEWER` opens only `/portal/<its own clientSlug>`, compared exactly; any other role is
+refused. Three places apply it:
 
 ```
-Layer 1: proxy.ts (Next.js 16 proxy)
-  - Unauthenticated requests to /dashboard/*, /portal/*, or /tools/* → redirect /login
-  - Runs on every matched request before any page loads
+1. proxy.ts (Next.js 16 proxy), on every request to /dashboard/*, /portal/* or /tools/*
+  - Signed out → /login
+  - Not allowed by the rule → /unauthorized, with one "[access] refused" log line
 
-Layer 2: app/dashboard/layout.tsx
-  - Checks session again; redirects if role ≠ INTERNAL_ADMIN or INTERNAL_ANALYST
+2. Every page, as the first statement of its default export (lib/auth/page-access.ts)
+  - /portal/[clientSlug] pages: await requirePortalAccess(clientSlug)
+  - /dashboard and /tools pages: await requireStaff()
+  - Only reading params or searchParams may come before it
 
-Layer 3: app/portal/[clientSlug]/layout.tsx
-  - Internal users: full access to any portal slug
-  - Client users: only their own slug; wrong slug → /unauthorized
+3. The layouts
+  - app/dashboard/layout.tsx and app/tools/layout.tsx: staff only (isStaff)
+  - app/portal/[clientSlug]/layout.tsx: canOpenPortal
 ```
+
+A new page needs check 2. A layout alone cannot guard a page: a navigation request tells the server which
+layouts the browser already holds, and Next skips rendering those. `lib/auth/protected-pages.test.ts` reads
+every page's source and fails one that has no check, or runs anything else before it.
 
 ### Login Page
 
