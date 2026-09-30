@@ -1,6 +1,6 @@
 # Clients see only the newest month: design
 
-Status: draft for review (spec step 2 of the regimen). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
+Status: REVIEWED (two fresh-eyed rounds, 2026-09-29; no blocker or major open). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
 Plan: `docs/superpowers/plans/2026-09-29-newest-month-for-clients.md` (written first; it is reconciled to this spec
 after review, and this spec wins where they differ).
 
@@ -42,11 +42,12 @@ So: a client's month picker offers only the newest month it can open. The team k
     is later (`ytd.ts:42-57`), read in `parts/ytd-review.tsx:23-28`.
 - Readers of the key's presence or `parsed.ok` only, so unaffected by a shorter list or a new key: the chart-notes
   actions (`app/actions/chart-notes.ts:50,81,101,126`) and panel (`parts/chart-notes.ts:61`), Commentary's routing
-  (`components/report-sections/commentary/index.tsx:16`), the locking client and its `lockDay` check
-  (`lib/organic-social/base.ts:28-31,51`), the freeze table's lock switch (`lib/organic-social/frozen.ts:41`), and both
+  (`components/report-sections/commentary/index.tsx:16`), the locking client, which passes the raw config to `settledThrough`, `parseLockDay` and `isLateLock`
+  (`lib/organic-social/base.ts:28-31,51`; those read `parsed.ok`, the day knobs and `lockDay`, never `clientMonths`), the freeze table's lock switch (`lib/organic-social/frozen.ts:41`), and both
   pickers' opt-in checks (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:123`, portal `:166`). The cache
-  warmer and the health sweep fetch as an INTERNAL_ADMIN service principal (`app/api/cache-warm/route.ts:12-16,60`,
-  `app/api/health/sweep/route.ts:59,69`), so they get the team's list, even on `/portal` URLs.
+  warmer and the health sweep fetch as an INTERNAL_ADMIN service principal (the role is set at
+  `lib/auth/service-cookie.ts:23`; minted at `lib/cache-warm/run.ts:74` and `app/api/health/sweep/route.ts:59`; URLs at
+  `app/api/cache-warm/route.ts:60`, `app/api/health/sweep/route.ts:69`), so they get the team's list, even on `/portal` URLs.
 - Today, from Oct 12, a client sees September and August (`reporting-months.test.ts:87-95` pins this for 20 Oct 2026).
 
 ## 3. The change
@@ -110,7 +111,8 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 - Invalid `clientMonths`: fail closed, like `opensOnDay` today (locked months spec 3.1). The team keeps every month,
   each finished one tagged "Hidden from clients: config error"; clients get no months and see "No reports are available
   yet"; the section logs the slug and the key only, never the config (`index.tsx:89`, `locked-range.ts:26-29`).
-  Locking is unaffected (`settledThrough` reads only `parsed.ok`, `lock-day.ts:31-33`). As with any bad knob, the team's
+  Locking is unaffected (`settledThrough` reads `parsed.ok` and the opening-day knobs, never the list, `badKey` or
+  `clientMonths`, `lock-day.ts:31-37`). As with any bad knob, the team's
   Commentary "Clients see this from ..." notes also disappear while it is invalid (`clientOpensNote` returns null on a
   `badKey`, `lib/commentary/month.ts:25`).
 - `clientMonths` at or above the number of opened months: the client sees every opened month and no team month gets the
@@ -147,7 +149,8 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 - T4 team on 2026-10-20: `[Oct live, Sep, Aug]`, tags `['Live, team only', null, 'No longer shown to clients']`, served September.
 - T5 team on 2026-10-05: tags `['Live, team only', 'Team only until Oct 12', null]`.
 - T6 client on 2026-10-20 requesting `custom:2026-08-01,2026-08-31`: `replaced`, served September, `hiddenMonthAttempt: false`;
-  the same for the partial range `custom:2026-08-01,2026-08-15`.
+  the same for the partial range `custom:2026-08-01,2026-08-15` (that one pins today's behaviour, since a partial range
+  is never an attempt, `:197`; the whole-month case is the one that tests the new rule).
 - T7 client on 2026-10-20 (last complete UTC day 10-19) requesting `custom:2026-10-01,2026-10-19`: `replaced`, served
   September, attempt `true`; on 2026-10-05 requesting `custom:2026-09-01,2026-09-30`: attempt `true`, served August;
   on 2026-10-20 requesting `custom:2026-09-01,2026-09-30`: `canonical`.
