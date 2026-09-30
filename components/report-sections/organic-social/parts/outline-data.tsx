@@ -7,7 +7,7 @@ import { MEDIA_FAILED, OUTLINE_DATA_ROWS, mediaRowsFor, type OutlineRow, type Ou
 import { OutlineHeadlines } from '../outline-tiles'
 import { HeadlinesSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
-import { platformHeadlinesV1 } from './platform-headlines'
+import { HeadlinesSection } from './platform-headlines'
 import { safe, Fallback } from './shared'
 
 /** The tiles' request, plus Views on Reels when the rows show it. A failed Reels request flags only
@@ -31,16 +31,17 @@ export async function OutlineDataSection({ ctx, channel, rows }: { ctx: OrganicS
 }
 
 /** The Data block as a client's outline defines it. On Overview, or a channel no outline covers,
- *  it is v1 unchanged. Unpublished: pinned per client, never promoted into the shared template. */
+ *  it is the v1 tiles with whole-number changes. Unpublished: pinned per client, never promoted into the shared template. */
 function outlineData(version: number, variant: OutlineVariant): PartImpl<OrganicSocialCtx> {
   return {
     id: 'platform-headlines',
     version,
     published: false,
     defaultLabel: 'Platform Headlines',
-    render: (ctx, resolved) => {
+    render: (ctx) => {
       const rows = ctx.channel ? OUTLINE_DATA_ROWS[variant][ctx.channel] : undefined
-      if (!ctx.channel || !rows) return platformHeadlinesV1.render(ctx, resolved)
+      // An outline client's tab no outline covers (Piper's X, or Overview) keeps the v1 tiles, with whole-number changes.
+      if (!ctx.channel || !rows) return <Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>
       return (
         <Suspense fallback={<HeadlinesSkeleton />}>
           <OutlineDataSection ctx={ctx} channel={ctx.channel} rows={rows} />

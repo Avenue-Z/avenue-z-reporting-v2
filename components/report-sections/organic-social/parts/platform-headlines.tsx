@@ -6,9 +6,11 @@ import { HeadlinesSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 
-async function HeadlinesSection({ clientSlug, dateRange, compareRange, channel }: OrganicSocialCtx) {
+/** The v1 tiles for one view. `wholeDelta` is set only by the outline Data part's fallback (outline-data.tsx);
+ *  the v1 part below never passes it. */
+export async function HeadlinesSection({ clientSlug, dateRange, compareRange, channel, wholeDelta }: OrganicSocialCtx & { wholeDelta?: boolean }) {
   const r = await safe(getPlatformHeadlines(clientSlug, dateRange, compareRange, channel))
-  return r.data ? <PlatformHeadlines headlines={r.data} /> : <Fallback kind={r.error!} />
+  return r.data ? <PlatformHeadlines headlines={r.data} wholeDelta={wholeDelta} /> : <Fallback kind={r.error!} />
 }
 
 export const platformHeadlinesV1: PartImpl<OrganicSocialCtx> = {

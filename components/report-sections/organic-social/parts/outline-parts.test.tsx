@@ -1,6 +1,6 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { Suspense, type ReactElement, type ReactNode } from 'react'
 
 vi.mock('@/lib/organic-social/headlines', () => import('./__mocks__/headlines'))
 vi.mock('@/lib/organic-social/trends', () => import('./__mocks__/trends'))
@@ -14,7 +14,8 @@ const { getOutlineMediaKpis } = vi.hoisted(() => ({ getOutlineMediaKpis: vi.fn()
 vi.mock('@/lib/organic-social/outline-media', () => ({ getOutlineMediaKpis }))
 
 import { ORGANIC_SOCIAL_PARTS } from './registry'
-import { platformHeadlinesV1 } from './platform-headlines'
+import { HeadlinesSection, platformHeadlinesV1 } from './platform-headlines'
+import { HeadlinesSkeleton } from '../skeletons'
 import { OutlineDataSection } from './outline-data'
 import { BreakdownSection } from './engagement-breakdown'
 import { buildOutlineKpis, selectOutlineRows } from '@/lib/organic-social/outline-headlines'
@@ -102,14 +103,24 @@ test('a Dash failure shows the same fallback card as the v1 tiles', async () => 
   expect(d.textContent).toContain('Taking longer than usual')
 })
 
-test('on Overview or an uncovered channel the Data part is v1, and the breakdown is nothing', () => {
+test('on Overview or an uncovered channel the Data part is the v1 tiles with whole-number changes, and the breakdown is nothing (O4)', () => {
   const v2 = ORGANIC_SOCIAL_PARTS['platform-headlines'][2]
   const brk = ORGANIC_SOCIAL_PARTS['engagement-breakdown'][1]
   const r = { id: 'platform-headlines', version: 2, label: 'x' }
   for (const ctx of [FIXTURE_ORGANIC_SOCIAL_CTX, { ...FIXTURE_ORGANIC_SOCIAL_CTX, channel: 'TWITTER' as const }]) {
-    expect(v2.render(ctx, r)).toEqual(platformHeadlinesV1.render(ctx, r))
+    expect(v2.render(ctx, r)).toEqual(<Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>)
+    // The v1 part, which Renaissance renders, never passes the flag.
+    const v1 = platformHeadlinesV1.render(ctx, { ...r, version: 1 }) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>
+    expect(v1.props.children.props).not.toHaveProperty('wholeDelta')
     expect(brk.render(ctx, { id: 'engagement-breakdown', version: 1, label: 'x' })).toBeNull()
   }
+})
+
+test('the shared tiles round only when told to (O4)', () => {
+  const h: PlatformHeadline[] = [{ channel: 'TWITTER', label: 'X', noData: false,
+    kpis: [{ key: 'followers', label: 'Total Followers', value: 100, format: 'number', delta: 5.2 }] }]
+  expect(render(<PlatformHeadlines headlines={h} wholeDelta />).container.textContent).toContain('↑ 5% vs prior period')
+  expect(render(<PlatformHeadlines headlines={h} />).container.textContent).toContain('↑ 5.2% vs prior period')
 })
 
 test('v3 is v2 with Profile Clicks on Instagram, and never asks for Views on Reels', async () => {
