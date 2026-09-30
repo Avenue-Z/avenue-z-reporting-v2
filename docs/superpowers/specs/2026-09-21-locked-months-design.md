@@ -71,7 +71,7 @@ The value:
 | `clientMonths` | no | integer 1 to 36: how many of the newest opened months a client may pick; older months stay in the team's list, tagged "No longer shown to clients", and an old link to one goes to the newest month without a log line | every opened month |
 
 The defaults are Jasmine's rules; the knobs are the variations the team's SOP names. The opted-in
-clients set `firstMonth`, and `clientMonths: 1` (Jasmine, 2026-09-29: clients see only the newest month). Unknown extra keys are ignored. The list is bounded by
+clients set `firstMonth`, and will set `clientMonths: 1` once #291 ships (Jasmine, 2026-09-29: clients see only the newest month; staging after merge, production at launch). Unknown extra keys are ignored. The list is bounded by
 `MAX_REPORTING_MONTHS = 36` (the newest 36 months are offered), a size bound with no product
 meaning, so no client's history rule is hard-coded in code.
 
