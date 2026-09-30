@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
-**Spec:** Jasmine on the call, 2026-09-29 (17:44 to 18:36): "if there was a day that we didn't post but we had like either something perform really poorly or something perform really well, I am not able to add an annotation to that date ... sometimes even if we don't post, but we know like a PR announcement went live ... then we would want to be able to note that for the client." I committed to add it (18:36).
+**Spec:** `docs/superpowers/specs/2026-09-29-notes-without-posts-design.md` (reviewed twice; it wins where this plan differs; S1 to S7 and U1 to U9 below are its section 6). Source: Jasmine on the call, 2026-09-29 (17:44 to 18:36): "if there was a day that we didn't post but we had like either something perform really poorly or something perform really well, I am not able to add an annotation to that date ... sometimes even if we don't post, but we know like a PR announcement went live ... then we would want to be able to note that for the client." I committed to add it (18:36).
 
 ## What already works (read on `dev` 8502f40, nothing to change)
 - Saving: `validateNoteInput` accepts `postIds: []` (`lib/organic-social/chart-notes/validate.ts:52-56`, pinned at `validate.test.ts:11`), and `saveChartNoteAction` requires no post (`app/actions/chart-notes.ts:39-69`).
@@ -86,6 +86,11 @@ test('a month with no posts still offers every day, so a note needs no post', as
   expect(r.controls!.days).toHaveLength(31)
   expect(r.controls!.days.every((d) => d.posts.length === 0)).toBe(true)
 })
+
+test('the live month on the 1st offers one day (S7)', async () => {
+  const r = await withNotes({ ...EDITOR, from: '2026-09-01', to: '2026-09-30', today: '2026-09-01', series: { channels: ['Instagram'], points: [] } })
+  expect(r.controls!.days.map((d) => d.day)).toEqual(['2026-09-01'])
+})
 ```
 
 In `"the panel's days list each day's posts in Dash's order, and a post with no date is on no day"` (`:202-206`), the grouping it pins is unchanged; only look at the days that have posts. Change its assertion to:
@@ -100,7 +105,7 @@ Leave `'when the posts could not load, the controls say so'` (`:190-194`) as it 
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run components/report-sections/organic-social/parts/chart-notes.test.ts`
-Expected: FAIL on the first three changed tests and the new "a month with no posts" test (the server still offers only days with posts). The changed Dash-order test passes already (filtering to days with posts gives today's answer), and every other test passes.
+Expected: FAIL on the first three changed tests, the new "a month with no posts" test and S7 (the 1st) (the server still offers only days with posts). The changed Dash-order test passes already (filtering to days with posts gives today's answer), and every other test passes.
 
 - [ ] **Step 3: Implement.** In `parts/chart-notes.ts`, the controls block (`:91-102`) becomes:
 
@@ -153,7 +158,7 @@ git commit -m "feat(organic-social): The notes panel offers every day up to toda
 
 ```tsx
   test('the pictures are only the days with posts, oldest first; every day is in the Day list', () => {
-    draw([PEAK], { ...CONTROLS, days: [CONTROLS.days[0], { day: '2026-08-14', posts: [] }, CONTROLS.days[1]] })
+    draw([PEAK], CONTROLS)
     open()
     expect(postButtons().map((b) => b.getAttribute('aria-label'))).toEqual(['Post from 8/10', 'Post from 8/10', 'Post from 8/10', 'Post from 8/20'])
     expect(postButtons()[3].textContent).toContain('8/20')
@@ -162,12 +167,19 @@ git commit -m "feat(organic-social): The notes panel offers every day up to toda
   })
 ```
 
-Three wording fixes so nothing in the file says the old rule. The `CONTROLS` fixture's comment (`:38`, "What the server sends since Phase 2b: only the days with at least one post.") becomes:
+The shared `CONTROLS` fixture (`:37-44`) gains the day with no post the server now sends, and its comment (`:39`) is rewritten. Its `days` becomes:
 
 ```tsx
-  // Only days with posts, to keep the picture tests short. The server sends every day up to today (the
-  // Day list tests below use that shape).
+  // What the server sends: every day of the window up to today, each with its posts or none (8/14 has none;
+  // the real list has every day of the month, trimmed here to the three the tests use).
+  days: [
+    { day: '2026-08-10', posts: [{ id: 11, thumb: IMG(1) }, { id: 12, thumb: IMG(2) }, { id: 13, thumb: IMG(3) }] },
+    { day: '2026-08-14', posts: [] },
+    { day: '2026-08-20', posts: [{ id: 21, thumb: IMG(4) }] },
+  ],
 ```
+
+The picture row skips days with no posts (`note-form.tsx:47`), so every existing picture-index test, #283's appended ones included, is unaffected. Two more wording fixes so nothing in the file says the old rule:
 
 the describe title `'the Add annotation panel: pick a post by its picture, days with posts only (Phase 2b)'` (`:262`) becomes `'the Add annotation panel: pick a post by its picture, or a day from the Day list (Phase 2b)'`, and the test `'a new note needs a picked post and text before it can be saved'` (`:336`) is renamed, body unchanged:
 
@@ -179,8 +191,8 @@ Then insert a new `describe` right after the closing `})` of that `describe('the
 
 ```tsx
 // Jasmine, 2026-09-29: a note on a day with no post (a PR hit). The Day list reaches any day up to today.
+// Test names carry the spec's ids (U1 to U9, section 6).
 describe('the Day list: a note on any day, with or without a post', () => {
-  const ALL_DAYS: NoteControls = { ...CONTROLS, days: [CONTROLS.days[0], { day: '2026-08-14', posts: [] }, CONTROLS.days[1]] }
   const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
   const panel = () => screen.getByRole('group', { name: 'Note' })
   const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
@@ -189,9 +201,12 @@ describe('the Day list: a note on any day, with or without a post', () => {
   const list = () => within(panel()).getByLabelText('Day') as HTMLSelectElement
   const choose = (day: string) => fireEvent.change(list(), { target: { value: day } })
   const text = () => (within(panel()).getByLabelText('Note text') as HTMLInputElement).value
+  // postButtons()[3] is post 21, the one post of 8/20.
+  const APPROVED_820 = QUIET({ date: '2026-08-20', label: '8/20', note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [21], draft: null } })
+  const DRAFT_814 = QUIET({ noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
 
-  test('a day with no posts is chosen from the list and saved with the text alone', async () => {
-    draw([PEAK], ALL_DAYS)
+  test('U1 a day with no posts is chosen from the list and saved with the text alone', async () => {
+    draw([PEAK], CONTROLS)
     open()
     choose('2026-08-14')
     expect(within(panel()).getByText('No posts went live this day')).toBeTruthy()
@@ -204,8 +219,8 @@ describe('the Day list: a note on any day, with or without a post', () => {
     })
   })
 
-  test('picking a picture moves the list to its day; choosing a day with posts lets you pick them', async () => {
-    draw([PEAK], ALL_DAYS)
+  test('U2 a picture moves the list to its day; a chosen day with posts says posts are optional', async () => {
+    draw([PEAK], CONTROLS)
     open()
     fireEvent.click(postButtons()[3])
     expect(list().value).toBe('2026-08-20')
@@ -218,8 +233,8 @@ describe('the Day list: a note on any day, with or without a post', () => {
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-08-10', postIds: [11] })))
   })
 
-  test('a day chosen from the list stays when its pick is undone; a day set by a picture still clears', () => {
-    draw([PEAK], ALL_DAYS)
+  test('U3 (a) a day chosen from the list stays when its pick is undone', () => {
+    draw([PEAK], CONTROLS)
     open()
     choose('2026-08-10')
     fireEvent.click(postButtons()[0])
@@ -227,32 +242,61 @@ describe('the Day list: a note on any day, with or without a post', () => {
     expect(list().value).toBe('2026-08-10')
     type('Still this day')
     expect(save().disabled).toBe(false)
-    choose('')
+  })
+
+  test('U3 (b) undoing the picks on a chosen day keeps its loaded note and its line together', () => {
+    draw([PEAK, APPROVED_820], CONTROLS)
+    open()
+    choose('2026-08-20')
+    expect(text()).toBe('Event')
+    expect(postButtons()[3].getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(postButtons()[3])
+    expect([list().value, text()]).toEqual(['2026-08-20', 'Event'])
+    expect(within(panel()).getByText('8/20 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
+  })
+
+  test('U3 (c) a picture from another day makes it a picture-set day, which clears when its pick is undone', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    type('My words')
+    choose('2026-08-10')
+    fireEvent.click(postButtons()[3])
+    expect(list().value).toBe('2026-08-20')
     fireEvent.click(postButtons()[3])
     expect(list().value).toBe('')
     expect(save().disabled).toBe(true)
+    expect(text()).toBe('My words')
   })
 
-  test('choosing a day that has a note loads it, and says a save changes it', () => {
-    draw([PEAK, QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], ALL_DAYS)
+  test('U4 choosing a day with a note loads its text and picks, and says a save changes it', () => {
+    draw([PEAK, APPROVED_820], CONTROLS)
+    open()
+    choose('2026-08-20')
+    expect(text()).toBe('Event')
+    expect(postButtons()[3].getAttribute('aria-pressed')).toBe('true')
+    expect(within(panel()).getByText('8/20 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
+    choose('2026-08-14')
+    expect(text()).toBe('')
+    expect(postButtons().every((b) => b.getAttribute('aria-pressed') === 'false')).toBe(true)
+  })
+
+  test('U4 a draft on a chosen day loads with its own line', () => {
+    draw([PEAK, DRAFT_814], CONTROLS)
     open()
     choose('2026-08-14')
-    expect(text()).toBe('Event')
-    expect(within(panel()).getByText('8/14 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
-    choose('2026-08-20')
-    expect(text()).toBe('')
+    expect(text()).toBe('Soon')
+    expect(within(panel()).getByText('8/14 already has a draft. Saving updates it.')).toBeTruthy()
   })
 
-  test('text already typed is never replaced by the chosen day\'s note', () => {
-    draw([PEAK, QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], ALL_DAYS)
+  test('U5 text already typed is never replaced by the chosen day\'s note', () => {
+    draw([PEAK, APPROVED_820], CONTROLS)
     open()
     type('My own words')
-    choose('2026-08-14')
+    choose('2026-08-20')
     expect(text()).toBe('My own words')
   })
 
-  test('a month with no posts: every day is in the list, and the line says so until a day is chosen', () => {
+  test('U6 a month with no posts: every day is in the list, and the line says so until a day is chosen', () => {
     draw([PEAK], { ...CONTROLS, days: [{ day: '2026-08-13', posts: [] }, { day: '2026-08-14', posts: [] }] })
     open()
     expect(within(panel()).getByText('No posts went live this month')).toBeTruthy()
@@ -262,23 +306,24 @@ describe('the Day list: a note on any day, with or without a post', () => {
 
   // With no days the button is not drawn at all (trends.tsx:162), so no new note starts on a day whose
   // posts are unknown; Edit from a card still opens, fixed to its day, with no Day list.
-  test('when the posts could not load, Add annotation is not offered, and Edit on a card has no Day list', () => {
+  test('U7 when the posts could not load, Add annotation is not offered, and Edit on a card has no Day list', () => {
     draw([QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], { ...CONTROLS, postsFailed: true, days: [] })
     expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
     fireEvent.click(within(cardOf('2026-08-14')).getByRole('button', { name: 'Edit note' }))
     expect(within(panel()).queryByLabelText('Day')).toBeNull()
   })
 
-  test('the list is dark like the month picker, so its options are readable', () => {
-    draw([PEAK], ALL_DAYS)
-    open()
-    expect(list().className).toContain('bg-bg-surface')
-  })
-
-  test('Edit on a card has no Day list: it stays on its card\'s day', () => {
-    draw([QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], ALL_DAYS)
+  test('U8 Edit on a card has no Day list: it stays on its card\'s day', () => {
+    draw([QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], CONTROLS)
     fireEvent.click(within(cardOf('2026-08-14')).getByRole('button', { name: 'Edit note' }))
     expect(within(panel()).queryByLabelText('Day')).toBeNull()
+  })
+
+  test('U9 the list is dark like the month picker, so its options are readable', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    expect(list().className).toContain('bg-bg-surface')
+    expect(list().className).toContain('text-white')
   })
 })
 ```
@@ -288,7 +333,7 @@ describe('the Day list: a note on any day, with or without a post', () => {
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run components/report-sections/organic-social/chart-notes-ui.test.tsx`
-Expected: FAIL on the changed test and on every new test that uses the Day list. Two new tests pass already, since they pin what must not change: "when the posts could not load..." and "Edit on a card has no Day list". Every other test passes.
+Expected: FAIL on the changed test and on every new test that uses the Day list. Two new tests pass already, since they pin what must not change: U7 (posts failed) and U8 (Edit on a card). Every other test passes, including the existing ones with the new `CONTROLS` day (the picture row skips days with no posts).
 
 - [ ] **Step 3: Implement.** In `note-form.tsx`:
 
