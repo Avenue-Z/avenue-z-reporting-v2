@@ -1,6 +1,6 @@
 # Check each login against the database on every request: design
 
-Status: DRAFT for review. Every claim is read on `origin/dev` 8502f40 (2026-09-30), and the Auth.js files in the
+Status: DRAFT, review round 1 fixed (2026-09-30). Every claim is read on `origin/dev` 8502f40 (2026-09-30), and the Auth.js files in the
 installed `next-auth` 5.0.0-beta.30 / `@auth/core` 0.41.0 (this branch's lockfile) and in 5.0.0-beta.32 / 0.41.3 (the
 open #281's).
 
@@ -10,7 +10,7 @@ sign-in, and `auth.ts` sets no session lifetime, so after `removeTeammateAction`
 client, an existing session keeps its old access until it expires. He offered a shorter `maxAge` or a re-check in the
 `jwt` callback. I chose the re-check (2026-09-30), on every request (section 2 explains why not hourly), knowing it runs
 for every signed-in person, Renaissance's users included (my explicit OK under the Renaissance rule). Paul reviews this
-decision specifically (section 9).
+decision specifically (section 9). Scope: client users. Staff keep today's sign-in rule (section 3.1, row 5).
 
 ## 2. What happens today
 - Sign-in writes the role and slug once. The `jwt` callback sets them only when `user` is present, which is only at
@@ -36,7 +36,8 @@ decision specifically (section 9).
 - Sessions with no user row, which the re-check must not demote:
   - the service cookie for the cache warmer and the health sweep: minted with `INTERNAL_ADMIN` / `avenue-z` for
     `cache-warm@avenuez.com` and `health-sweep@avenuez.com` (`lib/auth/service-cookie.ts:13-29`,
-    `lib/cache-warm/run.ts:74`, `app/api/health/sweep/route.ts:59`), 1 hour, one per run;
+    `lib/cache-warm/run.ts:74`, `app/api/health/sweep/route.ts:59`; the lock sweep mints through the same
+    `lib/cache-warm/run.ts:74` via `app/api/lock-sweep/route.ts:22,29`), 1 hour, one per run;
   - the preview-only test admin: `INTERNAL_ADMIN` / `avenue-z` from `evaluateTestAdminLogin`
     (`lib/auth/test-admin.ts:30-41`), never on production (`:34`).
   The credentials login returns no role (`lib/auth/credential-login.ts:35`), so it always takes the lookup path.
@@ -46,49 +47,65 @@ decision specifically (section 9).
 ## 3. The change
 
 ### 3.1 `jwtCallback` moves to `lib/auth/jwt-callback.ts` (new), and `auth.ts` calls it
-`jwtCallback({ token, user }, lookup)` returns `Promise<JWT | null>`, where `lookup` is
-`(email: string) => Promise<{ role: string; slug: string } | null>`; `auth.ts` passes `getClientByEmail`. It lives
-outside `auth.ts` because `vitest.setup.ts` stubs `@/auth`, so only a module of its own can be tested.
+`jwtCallback({ token, user }, deps)` returns `Promise<JWT | null>`. `deps` is `{ lookup, testAdmin }`: `lookup` is
+`(email: string) => Promise<{ role: string; slug: string } | null>` (`auth.ts` passes `getClientByEmail`), and
+`testAdmin` is `{ email?: string; password?: string; vercelEnv?: string }` (`auth.ts` passes `TEST_ADMIN_EMAIL`,
+`TEST_ADMIN_PASSWORD`, `VERCEL_ENV`, as it does at sign-in, `auth.ts:32-39`). It lives outside `auth.ts` because
+`vitest.setup.ts` stubs `@/auth`, so only a module of its own can be tested. Other callback arguments (`account`,
+`trigger`, `session`) are not read, as today.
 
-**Sign-in (`user` with an email present):** exactly today's rules (section 2, first bullet), with one addition: the
-test admin's token also gets `fixed: true`.
+**Sign-in (`user` present):** exactly today's rules (section 2, first bullet), unchanged; a `user` with no email
+returns the token unchanged, as today (`auth.ts:55,76`). The recheck rows below apply only when `user` is absent.
 
 **Every later read (no `user`):**
 | # | Token | Result | Lookup called |
 |---|---|---|---|
 | 1 | `service === true` | the token unchanged | no |
-| 2 | `fixed === true` | the token unchanged | no |
+| 2 | the test admin: `testAdmin.vercelEnv !== 'production'`, `testAdmin.email` and `testAdmin.password` set, and the token's email equals `testAdmin.email` (both normalised with `normalizeEmail`, as `lib/auth/test-admin.ts:36-38` does) | the token unchanged | no |
 | 3 | no string `email` | `null` (no session) | no |
 | 4 | a row for the email | the token with `role` and `clientSlug` from the row | yes |
 | 5 | no row, `@avenuez.com` | the token with `INTERNAL_ANALYST` / `avenue-z` (what sign-in gives) | yes |
 | 6 | no row, any other email | `null` (no session) | yes |
-| 7 | the lookup throws | logs one line, then rethrows (no session for that request) | yes |
+| 7 | the lookup throws | logs one line, then throws a new `Error('session recheck failed')` with no `cause` (no session for that request) | yes |
 
-- Row 5 matches sign-in, so staff without a row (and staff whose row is deleted) keep the default team view.
+- Row 2 re-runs the sign-in conditions on every read, so a test admin session stops being trusted the moment the
+  `TEST_ADMIN_*` values change or on production. There is no stored marker for it.
+- Row 5 matches sign-in, so staff without a row (and staff whose row is deleted) keep the default team view, which
+  sees every client (`app/dashboard/layout.tsx:7`). Known limit, unchanged by design: any `@avenuez.com` Google account
+  gets that at sign-in today (`auth.ts:68-70`). A staff row whose role changes does take effect.
 - Row 6 is a removed client user. Sign-in would give `CLIENT_VIEWER` / null (`auth.ts:71-73`), but nobody reaches that
   at sign-in any more: Google sign-in is `@avenuez.com` only (`auth.ts:51`) and the credentials login needs a row
   (`credential-login.ts:30`). `null` is fail closed.
-- Row 7 logs `[auth] session recheck failed: <error name>`: never the email, the token or the message.
+- Row 7 logs `[auth] session recheck failed: <error name>`: never the email, the token or the message. It throws a
+  fresh error because the original must not reach Auth.js: a failed query's message carries its parameters, the
+  email (`drizzle-orm/errors.js:10-13`, 0.45.2; the email is the parameter, `lib/db/queries.ts:51`), and Auth.js
+  prints a thrown error's stack and cause (`@auth/core/errors.js:10-13`, `lib/utils/logger.js:14-19`; `auth.ts` sets
+  no `logger`).
+- Known limit, not changed here: with `PERF_LOG=1` the `timed` wrapper logs a failed call's message
+  (`lib/perf.ts:36-37`), which for this lookup includes the email. Off by default (`lib/perf.ts:15`); it already
+  applies at sign-in. Filed as a follow-up.
 - Only `role` and `clientSlug` change; every other claim is kept.
 
 ### 3.2 The service cookie is marked
 `mintServiceCookie` adds `service: true` to the token (`lib/auth/service-cookie.ts:19-28`). The token is signed and
 encrypted with `AUTH_SECRET`, so the claim cannot be forged without the secret, the same trust as the role it already
-carries.
+carries. The `JWT` type gains `service?: true` (`types/next-auth.d.ts:16-21`).
 
 ### 3.3 CLAUDE.md
 Both lines (`:102-103`, `:565-566`) change to: role and slug are set at sign-in and re-read from the database on every
-request (`getClientByEmail`, once per render), so a removed or moved user loses the old access on their next request.
+request (`getClientByEmail`, once per render), so a removed or moved client user loses the old access on their next
+request; staff with no row keep the default `INTERNAL_ANALYST` view.
 
 ## 4. Effect
 - A removed client user: the next request has no session; the proxy sends them to `/login` (`proxy.ts:9-11`).
 - A moved user: the next request carries the new slug, so the old portal is refused by the existing checks.
 - A role change (for example `CLIENT_ADMIN` to `CLIENT_VIEWER`, or a new `INTERNAL_ADMIN` row): effective on the next
   request, with no sign-out and sign-in.
+- A staff member whose row is deleted keeps the default `INTERNAL_ANALYST` view (row 5, known limit).
 - Nobody signs in more often; the 30 days from sign-in is unchanged.
 - Cost: one indexed read (`users.email` with its client) per render that calls `auth()`: the proxy, then the page's
   render (its calls share the React cache), plus server actions. About two per page load. UNVERIFIED count; the
-  `timed` PERF logs show it once deployed.
+  `timed` PERF logs show it once deployed, with `PERF_LOG=1` (`lib/perf.ts:15`).
 - Renaissance: its users are re-checked like everyone else; while their rows are unchanged they get exactly today's
   role and slug. Nothing Renaissance renders changes.
 
@@ -97,9 +114,9 @@ request (`getClientByEmail`, once per render), so a removed or moved user loses 
   cleared (nothing saves the clear, section 2), so the next request after recovery works with no new sign-in. Pages
   already read the database on every request, so an outage already breaks them; this adds the login page as the
   landing spot.
-- Sessions from before the deploy carry no `service` or `fixed` marker: real users are simply re-checked (the goal);
-  a preview test admin session from before the deploy is demoted to `INTERNAL_ANALYST` until it signs in again (preview
-  only; production has no test admin). Service cookies are minted fresh every run (1 hour), so none predate the deploy.
+- Sessions from before the deploy: real users are simply re-checked (the goal); a preview test admin session keeps
+  working, since row 2 checks the environment, not a stored marker. Service cookies are minted fresh every run (1 hour),
+  so none predate the deploy and all carry `service`.
 - A token with no email cannot come from any sign-in path here; row 3 treats it as no session.
 
 ## 6. Edge cases
@@ -111,8 +128,8 @@ request (`getClientByEmail`, once per render), so a removed or moved user loses 
 | 4 | removed client user | `null` | J4 |
 | 5 | staff with no row, or row deleted | `INTERNAL_ANALYST` / `avenue-z` | J5 |
 | 6 | service cookie | unchanged, no lookup | J6, S1 |
-| 7 | test admin (preview) | unchanged, no lookup; sign-in sets `fixed` | J7, J10 |
-| 8 | lookup throws | rejects, one log line with no email | J8 |
+| 7 | test admin (preview) | unchanged, no lookup; on production, or with changed `TEST_ADMIN_*`, the lookup path | J7 |
+| 8 | lookup throws | rejects with a fresh error, one log line, no email anywhere | J8 |
 | 9 | token with no email | `null` | J9 |
 | 10 | sign-in paths | today's four results | J10 |
 | 11 | other claims | kept | J1 |
@@ -127,16 +144,21 @@ request (`getClientByEmail`, once per render), so a removed or moved user loses 
 - J4 no row for `someone@client.test` returns `null`.
 - J5 no row for `someone@avenuez.com` returns `INTERNAL_ANALYST` / `avenue-z`.
 - J6 `service: true` returns the same token; `lookup` not called.
-- J7 `fixed: true` returns the same token; `lookup` not called.
-- J8 a throwing `lookup` rejects; `console.error` called once with a line containing `session recheck failed` and not
-  the email.
+- J7 the test admin (non-production env, both values set, matching email in another case) returns the same token and
+  `lookup` is not called; with `vercelEnv: 'production'`, with a different email, or with the password unset, `lookup`
+  is called.
+- J8 a `lookup` that rejects with an `Error` whose message contains the email: `jwtCallback` rejects with an error whose
+  message is exactly `session recheck failed` and whose `cause` is undefined; `console.error` is called once, and
+  neither the thrown error nor any logged argument contains the email.
 - J9 a token with no email returns `null`; `lookup` not called.
-- J10 sign-in: the test admin user gives its role, slug and `fixed: true` with no lookup; a user with a row gives the
-  row; `@avenuez.com` with no row gives the default; any other email with no row gives `CLIENT_VIEWER` / null.
-`lib/auth/service-cookie-marker.test.ts` (new, not #281's `service-cookie.test.ts`): S1 a minted cookie decodes with
-`service: true`.
-Wiring: `auth.ts` cannot be imported in tests (`vitest.setup.ts` stubs `@/auth`); `tsc` checks the call, and the plan's
-local check proves it live (section 8).
+- J10 sign-in: the test admin user gives its role and slug with no lookup; a user with a row gives the row;
+  `@avenuez.com` with no row gives the default; any other email with no row gives `CLIENT_VIEWER` / null; a `user` with
+  no email returns the token unchanged.
+`lib/auth/service-cookie-marker.test.ts` (new, not the `service-cookie.test.ts` #281 adds; `// @vitest-environment
+node`, as #281's is): S1 a minted cookie decodes with `service: true`.
+W1 wiring, in `lib/auth/jwt-callback.test.ts`: `auth.ts` cannot be imported in tests (`vitest.setup.ts` stubs
+`@/auth`), so the test reads `auth.ts` as text and asserts its `jwt` callback calls `jwtCallback` and that no
+`getClientByEmail(` call remains in it. The plan's local check proves it live (section 8).
 
 ## 8. Proving it live (plan, not code)
 On the local app (dev database), signed in as a test client viewer: remove that user's row, or change its role, and the
@@ -144,14 +166,16 @@ next click reflects it with no sign-out. That is a dev write, so it waits on my 
 
 ## 9. For Paul specifically
 1. Every request instead of hourly, and why hourly cannot work here (section 2).
-2. The two skip markers (`service`, `fixed`) as the way to leave row-less sessions alone.
-3. Fail closed per request on a database error (section 5).
+2. How row-less sessions are left alone: a `service` claim on the minted cookie, and the test admin re-checked
+   against its environment on every read.
+3. Fail closed per request on a database error, with a fresh error so no email reaches the logs (section 3.1).
+5. Staff keep the default analyst view when their row is deleted (known limit, row 5).
 4. The CLAUDE.md rule change.
 
 ## 10. Other open PRs
-- #281 upgrades next-auth; the paths read here are the same in its version (section 2). It edits
-  `lib/auth/service-cookie.test.ts`, not `service-cookie.ts`; its test uses `toMatchObject`, so the new claim does not
-  break it.
+- #281 upgrades next-auth; the paths read here are the same in its version (section 2). It adds
+  `lib/auth/service-cookie.test.ts` and does not touch `service-cookie.ts`; its test uses `toMatchObject`, so the new
+  claim does not break it.
 - #287 edits `lib/auth/route-access.ts` and adds `lib/auth/page-access.ts`; this change touches neither, and reads the
   same `session.user.role` / `clientSlug` they do.
 - `vitest.config.ts` is also edited by #281, #285 and #287; the new entry goes where none of them edits.
