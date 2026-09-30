@@ -581,7 +581,7 @@ per request.
   client-scoped fix in the outline Data block alone would also work. Decide before the graphs go in
   front of a client.
 
-- [ ] **The trend charts' per-view state is correct only because the report pages key the section by
+- [x] **RESOLVED in #283 (the chart follows the server per day; both pages note the key).** **The trend charts' per-view state is correct only because the report pages key the section by
   tab and month.** `ChannelTrendChart` seeds which channels are on and which days are hidden once,
   on mount, and re-seeds neither (`components/report-sections/organic-social/trends.tsx`). Both
   report pages wrap the section in a Suspense keyed on the resolved subsection and the date range
@@ -998,11 +998,11 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
   a message and never logs, so nothing says at 3am which client or day a save or approve failed on.
   Commentary's actions do the same (`app/actions/commentary.ts` has no logging either), so add both
   together, with the client, the chart and the day, never the note text.
-- [ ] **A note added on a day the team has already hidden shows unfaded, for the team, until the next
+- [x] **RESOLVED in #283 (issue #277).** **A note added on a day the team has already hidden shows unfaded, for the team, until the next
   navigation.** The chart seeds its hidden days once per view (`trends.tsx`, `hiddenDays`), so a note
   day that arrives later under the same key is drawn as shown. Clients never receive it (the server
   removes hidden days). It is the per-view-state item above; close both together.
-- [ ] **Right after a save, the Add annotation panel can read the previous answer.** Reopened before
+- [x] **RESOLVED in #283 (issue #276).** **Right after a save, the Add annotation panel can read the previous answer.** Reopened before
   the refreshed chart arrives (about a second), it does not yet know about the note just saved: a
   second save on that day still edits the draft on the server, as it should, but the line after it may
   say "Saved a draft" where "Updated the draft" is true.
