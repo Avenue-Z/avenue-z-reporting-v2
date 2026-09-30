@@ -1,6 +1,11 @@
 // @vitest-environment node
-import { expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { logId } from './log-id'
+
+// An undefined secret falls back to AUTH_SECRET (log-id.ts:5), so the "no secret" case needs it empty
+// here, whatever the shell running the tests has exported.
+beforeEach(() => { vi.stubEnv('AUTH_SECRET', '') })
+afterEach(() => { vi.unstubAllEnvs() })
 
 test('eight hex characters, stable for one person, different for two, whatever the case', async () => {
   const a = await logId('a@acme.example', 's1')
