@@ -1,6 +1,6 @@
 # Check each login against the database on every request: design
 
-Status: REVIEWED, two fresh-eyed rounds (2026-09-30); round 2 left one MAJOR as an open decision for me (section 9, item 6). Every claim is read on `origin/dev` 8502f40 (2026-09-30), and the Auth.js files in the
+Status: REVIEWED, two fresh-eyed rounds (2026-09-30); round 2's one MAJOR decided by me (known limit, section 3.1 row 2). Every claim is read on `origin/dev` 8502f40 (2026-09-30), and the Auth.js files in the
 installed `next-auth` 5.0.0-beta.30 / `@auth/core` 0.41.0 (this branch's lockfile) and in 5.0.0-beta.32 / 0.41.3 (the
 open #281's).
 
@@ -56,7 +56,8 @@ row 5), so the goal fully holds for client users.
 `trigger`, `session`) are not read, as today.
 
 **Sign-in (`user` present):** exactly today's rules (section 2, first bullet), unchanged; a `user` with no email
-returns the token unchanged, as today (`auth.ts:55,76`). The recheck rows below apply only when `user` is absent.
+returns the token unchanged, as today (`auth.ts:55,76`). The one difference: if the sign-in lookup throws, it follows
+row 7 below (today the original error propagates). The recheck rows below apply only when `user` is absent.
 
 **Every later read (no `user`):**
 | # | Token | Result | Lookup called |
@@ -72,10 +73,12 @@ returns the token unchanged, as today (`auth.ts:55,76`). The recheck rows below 
 - Rows are checked in order, except that row 3 is checked before row 2, since row 2 needs a string email to normalise
   (`normalizeEmail` trims its argument, `lib/admin/access.ts:3-4`).
 - Row 2 re-runs the sign-in environment conditions on every read, with no stored marker: a test admin session stops
-  being trusted on production, when either value is unset, or when `TEST_ADMIN_EMAIL` changes. OPEN DECISION (round 2
-  MAJOR, section 9): changing only the password does not revoke a session minted before the change, because the token
-  never carries the password. Known limit on preview: any user whose email equals `TEST_ADMIN_EMAIL` is passed through
-  unchanged (not an escalation, since the token is kept as it is, but that user is not re-checked).
+  being trusted on production, when either value is unset, or when `TEST_ADMIN_EMAIL` changes. Known limit, DECIDED
+  (2026-09-30, round 2's one MAJOR): changing only the password does not revoke a session minted before the change,
+  because the token never carries the password (today it is not revoked either). To cut off test admin sessions, change
+  `TEST_ADMIN_EMAIL` or unset either value. Preview only. Also on preview: any user whose email equals
+  `TEST_ADMIN_EMAIL` is passed through unchanged (not an escalation, since the token is kept as it is, but that user is
+  not re-checked).
 - Row 5 matches sign-in, so staff without a row (and staff whose row is deleted) keep the default team view, which
   sees every client (`app/dashboard/layout.tsx:17-19`). Known limit, unchanged by design: any `@avenuez.com` Google account
   gets that at sign-in today (`auth.ts:68-70`). A staff row whose role changes does take effect.
@@ -83,13 +86,8 @@ returns the token unchanged, as today (`auth.ts:55,76`). The recheck rows below 
   at sign-in any more: Google sign-in is `@avenuez.com` only (`auth.ts:51`) and the credentials login needs a row
   (`credential-login.ts:30`). `null` is fail closed.
 - Row 7 logs `[auth] session recheck failed: <error name>`: never the email, the token or the message. It throws a
-  fresh error because the original must not reach Auth.js: a failed query's message carries its parameters, the
-  email (`drizzle-orm/errors.js:10-13`, 0.45.2; the email is the parameter, `lib/db/queries.ts:51`), and Auth.js
-  prints a thrown error's stack and cause (`@auth/core/errors.js:10-13`, `lib/utils/logger.js:14-19`; `auth.ts` sets
-  no `logger`).
-- Known limit, not changed here: with `PERF_LOG=1` the `timed` wrapper logs a failed call's message
-  (`lib/perf.ts:45-46`), which for this lookup includes the email. Off by default (`lib/perf.ts:15`); it already
-  applies at sign-in. Out of scope here; recorded privately as a follow-up.
+  fresh error with no `cause`, so no detail of the original error reaches Auth.js, which prints a thrown error's stack
+  and cause (`@auth/core/errors.js:10-13`, `lib/utils/logger.js:14-19`; `auth.ts` sets no `logger`).
 - Only `role` and `clientSlug` change; every other claim is kept.
 
 ### 3.2 The service cookie is marked
@@ -155,7 +153,8 @@ request; staff with no row keep the default `INTERNAL_ANALYST` view.
   is called.
 - J8 a `lookup` that rejects with an `Error` whose message contains the email: `jwtCallback` rejects with an error whose
   message is exactly `session recheck failed` and whose `cause` is undefined; `console.error` is called once, and
-  neither the thrown error nor any logged argument contains the email.
+  neither the thrown error nor any logged argument contains the email. The same for the sign-in path (a `user` whose
+  lookup rejects).
 - J9 a token with no email returns `null`; `lookup` not called.
 - J10 sign-in: the test admin user gives its role and slug with no lookup; a user with a row gives the row;
   `@avenuez.com` with no row gives the default; any other email with no row gives `CLIENT_VIEWER` / null; a `user` with
@@ -177,7 +176,8 @@ next click reflects it with no sign-out. That is a dev write, so it waits on my 
 3. Fail closed per request on a database error, with a fresh error so no email reaches the logs (section 3.1).
 4. The CLAUDE.md rule change.
 5. Staff keep the default analyst view when their row is deleted (known limit, row 5).
-6. The open decision on a test admin password change (section 3.1, row 2).
+6. A test admin password change does not revoke old preview sessions (known limit, decided; section 3.1, row 2).
+7. The sign-in lookup now also throws a fresh error on failure (section 3.1).
 
 ## 10. Other open PRs
 - #281 upgrades next-auth; the paths read here are the same in its version (section 2). It adds
