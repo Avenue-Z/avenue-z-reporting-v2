@@ -1,6 +1,6 @@
 # Top Content sorts by Views and Engagements only, on outline tabs: design
 
-Status: draft for review (spec step 2 of the regimen). Every claim is read in this branch's worktree (based on `d4f4a42`;
+Status: REVIEWED (two fresh-eyed rounds, 2026-09-29; no blocker or major open). Every claim is read in this branch's worktree (based on `d4f4a42`;
 every code file is identical to `origin/dev` 8502f40, which differs only by a logo image), 2026-09-29.
 Plan: `docs/superpowers/plans/2026-09-29-top-content-sort.md` (written first; reconciled to this spec after review,
 and this spec wins where they differ).
@@ -20,7 +20,7 @@ board" (26:01 to 26:02) means every outline client (clients on locked months), n
   from `SORT_METRICS` (`:125-144`) that drives every owned row and the Influencer Posts rows (`:106-119`, `:147-154`).
   It starts on Engagements, descending (`:90-91`); clicking the active button flips direction, another button switches
   to it descending (`:94-101`); a sort change remounts each row at page 1 (`:103-109`).
-- Each card shows all four metrics and emphasises the active sort's (`post-card.tsx:11-19`, `:55-71`).
+- Each card shows all four metrics and emphasises the active sort's (`post-card.tsx:11-19`, `:55-75`).
 - Two callers:
   - The outline part, top-content@3 (`parts/top-content-outline.tsx:43-44`), registered unpublished
     (`:49-59`). Read-only on staging (2026-09-29): all five clients on locked months (A Place For Mom, Akara, Joy of
@@ -89,9 +89,9 @@ shows today (the part's own fallback, `top-content-outline.tsx`, `safe`/`Fallbac
 In `components/report-sections/organic-social/sortable-top-content.test.tsx` (its `mk`, `group` and `view` helpers,
 `:11-24`):
 - T1 no `sortKeys`: buttons "Effectiveness", "Engagement Rate", "Engagements ↓", "Views / Impr.", Engagements pressed.
-- T2 `sortKeys: ['impressions', 'engagements']` (listed reversed): exactly two buttons, in that order, "Engagements ↓"
-  then "Views / Impr."; clicking Views makes it pressed with "↓" and orders by impressions descending; clicking it
-  again shows "↑".
+- T2 `sortKeys: ['impressions', 'engagements']` (listed reversed), posts `mk(1, 9, 1)` and `mk(2, 1, 9)` (the two sorts
+  order them oppositely): exactly two buttons, in that order, "Engagements ↓" then "Views / Impr."; cap-1 is first;
+  clicking Views makes it pressed with "↓" and cap-2 first; clicking it again shows "↑" and cap-1 first.
 - T3 `sortKeys: ['impressions']`: one button, "Views / Impr. ↓", pressed; with posts whose engagements and impressions
   order them oppositely (for example `mk(1, 9, 1)` and `mk(2, 1, 9)`), post 2 is first.
 - T4 `sortKeys: []`: four buttons.
@@ -100,8 +100,10 @@ In `components/report-sections/organic-social/sortable-top-content.test.tsx` (it
 In `components/report-sections/organic-social/parts/top-content-outline.test.tsx` (its mocked gallery and `props()`):
 - T6 the outline part passes `sortKeys` equal to `['engagements', 'impressions']` (the `props()` type, `:28-32`, gains
   `sortKeys?: string[]`).
-- T7 `TopContentV2Section` passes no `sortKeys`: `expect(props()).not.toHaveProperty('sortKeys')`, the Renaissance-path
-  guard the goldens cannot give. (v1 never renders `SortableTopContent`, section 2.)
+- T7 `TopContentV2Section` passes no `sortKeys`, set up on its own (as the test at `:123` does, since `beforeEach` only
+  clears calls, `:35-36`): `fetchTopContentFrozen.mockResolvedValue([post(1)])`, render `await TopContentV2Section(IG)`,
+  `expect(SortableTopContent).toHaveBeenCalledTimes(1)`, then `expect(props()).not.toHaveProperty('sortKeys')`. The
+  Renaissance-path guard the goldens cannot give. (v1 never renders `SortableTopContent`, section 2.)
 Existing tests unchanged: `sort-content.test.ts`, `sortable-top-content.pagination.test.tsx`, the `ownedLimit` test
 (`sortable-top-content.test.tsx:32-43`, which clicks "Views / Impr." by name), and every test in
 `top-content-outline.test.tsx` (they read individual props, so an added prop changes none).
