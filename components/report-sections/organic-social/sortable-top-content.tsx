@@ -77,6 +77,7 @@ export function SortableTopContent({
   canEdit,
   pageSize = 15,
   ownedLimit,
+  sortKeys,
 }: {
   owned: PlatformGroup[]
   influencer: PlatformGroup[]
@@ -86,8 +87,13 @@ export function SortableTopContent({
   /** Cap each owned platform row at its top N (no pager). Absent: today's paging. Influencer rows
    *  always page. */
   ownedLimit?: number
+  /** Only these sort buttons, in toolbar order. Absent or empty: all four, as today. */
+  sortKeys?: readonly SortKey[]
 }) {
-  const [sortKey, setSortKey] = useState<SortKey>('engagements')
+  const listed = sortKeys ? SORT_METRICS.filter((m) => sortKeys.includes(m.key)) : []
+  // A toolbar is never empty: a list that leaves nothing is treated as no list.
+  const metrics = listed.length > 0 ? listed : SORT_METRICS
+  const [sortKey, setSortKey] = useState<SortKey>(metrics.some((m) => m.key === 'engagements') ? 'engagements' : metrics[0].key)
   const [dir, setDir] = useState<SortDir>('desc')
 
   // Click the active metric → flip direction; click another → switch to it, starting descending.
@@ -122,7 +128,7 @@ export function SortableTopContent({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Sort by</span>
-        {SORT_METRICS.map((m) => {
+        {metrics.map((m) => {
           const active = m.key === sortKey
           return (
             <button

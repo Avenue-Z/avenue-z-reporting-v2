@@ -2,8 +2,12 @@
 import type { TopContentPost } from './content-types'
 import type { SourceType } from './types'
 import { resolveDesignation } from './designations/partition'
+import type { SortKey } from './sort-content'
 
 export type OwnHandles = Partial<Record<'INSTAGRAM', string>>
+
+/** The sort buttons on outline tabs (Jasmine's round 1 feedback): Engagements and Views only. */
+export const OUTLINE_SORT_KEYS: readonly SortKey[] = ['engagements', 'impressions']
 
 /** dash_social_config.ownHandles.instagram, validated at runtime (the jsonb is untrusted). */
 export function parseOwnHandles(cfg: unknown): OwnHandles {
