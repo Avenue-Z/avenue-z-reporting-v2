@@ -60,7 +60,7 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
 - #285 `feat/os-whole-number-changes` `a37cdd2e`. Percent changes on outline tiles show the nearest whole number (halves
   away from zero, my decision); Piper's X tab too, through the Data part's fallback. Spec
   `docs/superpowers/specs/2026-09-29-whole-number-changes-design.md`. Built, local QA passed, waiting on Paul.
-- #291 `feat/os-newest-month-for-clients` `5f861266`. New optional `reportingMonths.clientMonths` (1 to 36); with 1,
+- #291 `feat/os-newest-month-for-clients` `b63e25f3`. New optional `reportingMonths.clientMonths` (1 to 36); with 1,
   clients pick only the newest opened month; the team keeps all, older ones tagged "No longer shown to clients".
   Visible from Oct 12. Spec `docs/superpowers/specs/2026-09-29-newest-month-for-clients-design.md`. Built, local QA
   passed, waiting on Paul. Must be live before Oct 12: once it reaches staging, its plan's Task 4 turns it on for the
@@ -76,13 +76,13 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
 
 ### Same build, waiting on Paul (not drafts)
 - #281 `fix/next-security-upgrade` `dd4a8a21`: next 16.3.6, next-auth beta.32, saves read their own writes (`updateTag`).
-- #282 `fix/top-content-freeze-clock` `5d65f421`: a frozen Top Content range is judged on the clock that ended it.
-- #283 `fix/chart-state-follows-server` `bd75c8f2`: the chart keeps a just-saved note until the refreshed answer arrives.
+- #282 `fix/top-content-freeze-clock` `2f83e5a2`: a frozen Top Content range is judged on the clock that ended it.
+- #283 `fix/chart-state-follows-server` `d5969442`: the chart keeps a just-saved note until the refreshed answer arrives.
 - #287 `fix/proxy-client-scope` `4b0faf09`: every page checks the client's own portal first. MUST merge before any real
   client gets a login. Paul re-requested after his seven comments were answered.
 
 ### Session recheck (from Paul's #287 comment)
-- #293 `fix/session-recheck-every-request` `a25a5cba`, ready, Paul requested 2026-09-30. Role and slug re-read from the database on every request;
+- #293 `fix/session-recheck-every-request` `79a8a178`, ready, Paul requested 2026-09-30. Role and slug re-read from the database on every request;
   spec `docs/superpowers/specs/2026-09-30-session-recheck-design.md` (two fresh-eyed rounds); built test-first; merges
   clean with every open PR (all ten merged: 1866 tests pass). Its description lists the decisions for Paul. Live check:
   on staging after merge.
@@ -122,6 +122,11 @@ code, `make check`, and my local QA (2026-09-30).
 ## 7. Decisions (dated, so nobody re-asks)
 - Renaissance is off everything, in config, render AND behaviour (seat limits, access, anything). A one-off earlier
   approval does not stand (2026-09-29). Every change is a per-client opt-in or a default-off flag Renaissance never gets.
+  Dated exceptions, platform-wide and reaching Renaissance too: #293 (every login re-checked; my explicit OK,
+  2026-09-30); #287 (access checks on every page, the rules the layouts already applied); #281 (framework upgrade);
+  #283 (the shared trend chart; renders the same with no notes); #282 (the older Top Content freeze clock, which
+  Renaissance still uses; a no-op only if the server clock is UTC, UNVERIFIED: check that, or prove Renaissance, before
+  it merges).
 - Top Content: sort buttons only; cards keep all four metrics (call, 26:22 to 26:28).
 - Rounding: nearest whole number; an exact half rounds away from zero by size (my decision, matching the tiles' rate
   rounding).
@@ -137,10 +142,10 @@ code, `make check`, and my local QA (2026-09-30).
 
 ## 8. Open items, by who
 - Jasmine: the YTD sheet (expected 2026-09-30); Piper and PIMCO outlines (no date); her approval of staging.
-- Paul: reviews of #281, #282, #283, #287, and of #284, #285, #291, #292 (requested 2026-09-30); a decision on the security scan (`checks`/sca) that has failed on every PR
-  since #279 went in on 2026-09-28 (high or critical dependency advisories with a fix; last pass 2026-09-25; no current
-  PR caused it).
-- Me (Thomas): the session length from Paul's #287 comment is decided: #293 (draft, `fix/session-recheck-every-request`)
+- Paul: reviews of #281, #282, #283, #287, and of #284, #285, #291, #292, #293 (requested 2026-09-30); a decision on the
+  `checks` job, which has failed on every PR since #279 went in on 2026-09-28 (last pass 2026-09-25; no current PR caused
+  it; detail in my private notes).
+- Me (Thomas): the session length from Paul's #287 comment is decided: #293 (`fix/session-recheck-every-request`)
   re-checks each login against the database on every request; ready for Paul; its live check is on staging after merge. Done 2026-09-30: I added
   Jasmine to `COMMENTARY_APPROVERS` in Vercel (Production and Preview/staging), checked with the app's own approver
   rule; it takes effect on each environment's next deploy.
@@ -205,3 +210,7 @@ on its own branch. Sections 1 to 9 above are current as of 2026-09-30.
 2026-09-30: I ran a local QA of all four together on the dev database (A Place For Mom, Instagram, August; Renaissance
 for comparison). All passed; the results are a comment on each PR. A note on a day with no post sits on a dot on the
 graph. All four were then marked ready for review with Paul requested. The throwaway QA checkout was removed.
+
+2026-09-30, after a fresh-eyed audit: heads moved by docs-only commits: #282 and #283 mark the CLAUDE.md follow-ups
+they close as resolved; #291 says `clientMonths: 1` will be set after it ships; #293's spec moves its live check to
+staging. The build table above keeps the heads as built.
