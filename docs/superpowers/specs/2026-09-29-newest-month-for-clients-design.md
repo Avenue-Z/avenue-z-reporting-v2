@@ -13,9 +13,10 @@ So: a client's month picker offers only the newest month it can open. The team k
 
 ## 2. What happens today
 - A client on locked months is one whose `dash_social_config` has its own `reportingMonths` key
-  (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`). The five on staging (read-only, 2026-09-29):
+  (`hasReportingMonths`, `lib/organic-social/reporting-months.ts:75-79`). The five on staging (read-only check, 2026-09-29; production is unverified until the launch writes, section 7):
   a-place-for-mom, akara-living, joy-of-life, piper-aircraft, pimco, each `{"firstMonth":"2026-08"}`. Renaissance has
-  no `reportingMonths`, so `lockedRangeFor` returns null for it before anything below runs (`locked-range.ts:10-11`).
+  no `reportingMonths` on staging (same check), so `lockedRangeFor` returns null for it before anything below runs
+  (`locked-range.ts:10-11`).
 - `parseReportingMonths` reads `firstMonth` (required) and three optional knobs, `opensOnDay`, `weekendRule`,
   `comparison`; a malformed knob sets `badKey` and unknown keys are ignored (`reporting-months.ts:104-129`).
 - `monthsFor` builds the list newest first (`:155-170`): the team gets the live month when one exists (`:160-162`) and
@@ -39,6 +40,13 @@ So: a client's month picker offers only the newest month it can open. The team k
     (`lock-sweep.ts:13-25`).
   - YTD: `ytdMonths` builds its months from the served range and `firstMonth`, from January or `firstMonth`, whichever
     is later (`ytd.ts:42-57`), read in `parts/ytd-review.tsx:23-28`.
+- Readers of the key's presence or `parsed.ok` only, so unaffected by a shorter list or a new key: the chart-notes
+  actions (`app/actions/chart-notes.ts:50,81,101,126`) and panel (`parts/chart-notes.ts:61`), Commentary's routing
+  (`components/report-sections/commentary/index.tsx:16`), the locking client and its `lockDay` check
+  (`lib/organic-social/base.ts:28-31,51`), the freeze table's lock switch (`lib/organic-social/frozen.ts:41`), and both
+  pickers' opt-in checks (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:123`, portal `:166`). The cache
+  warmer and the health sweep fetch as an INTERNAL_ADMIN service principal (`app/api/cache-warm/route.ts:12-16,60`,
+  `app/api/health/sweep/route.ts:59,69`), so they get the team's list, even on `/portal` URLs.
 - Today, from Oct 12, a client sees September and August (`reporting-months.test.ts:87-95` pins this for 20 Oct 2026).
 
 ## 3. The change
@@ -50,7 +58,9 @@ today's behaviour exactly. No new column, no schema change (the column is typed 
 |---|---|---|---|---|
 | `clientMonths` | no | a JavaScript number that is an integer from 1 to 36 (`MAX_REPORTING_MONTHS`) | every opened month (today) | `badKey = 'clientMonths'`: the same fail-closed rule as the other knobs (below) |
 
-Invalid means any other value: 0, 37, a fraction, a negative, a string such as `"1"`, `null`, a boolean.
+Invalid means any other value: 0, 37, a fraction, a negative, a string such as `"1"`, `null`, a boolean. It is checked after
+`comparison`, so with two bad knobs the earlier one is named (`bad()` keeps the first, `reporting-months.ts:109`). When
+it is invalid or absent, `cfg` has no `clientMonths` property at all.
 
 ### 3.2 Output: the client's list
 Newest first, the opened finished months, at most `clientMonths` of them. Because opening days increase month by month
@@ -72,16 +82,25 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 
 ### 3.4 Output: requests
 - The newest month's canonical string stays `canonical`.
-- A request for a month that dropped off the client's list (a whole month older than the last one listed) is
-  `replaced` by the newest month: the SPA routes redirect, the deep link serves it in place, exactly as any other
-  replaced request today. It is NOT a hidden-month attempt and is not logged: the client saw that month before.
-- A request for the live month or an unopened month is still a hidden-month attempt, logged as today.
+- A request for a month that dropped off the client's list is `replaced` by the newest month: the SPA routes redirect,
+  the deep link serves it in place, exactly as any other replaced request today. It is NOT a hidden-month attempt and is
+  not logged: the client saw that month before.
+- The exact rule. `hiddenMonthAttempt` is today's predicate (`reporting-months.ts:197-199`) AND NOT `agedOut`, where
+  `agedOut` is true only when all three hold: `cfg.clientMonths` is set (valid), the client's list is non-empty, and
+  the requested month key is earlier than the last month in that list (`months[months.length - 1].key`). In every
+  other case, including every bad knob (whose client list is empty, `:163`) and every config without `clientMonths`,
+  the result is exactly today's.
+- So a request for the live month or an unopened month is still an attempt, logged as today; and a client with an
+  invalid `clientMonths` asking for an opened whole month is an attempt, as with any bad knob today.
 - Canonical strings stay fixed points for both viewers (spec 3.7's "no redirect loops" rule).
 
 ### 3.5 What does not change
 - Locking, the lock sweep and every lock key: they never read the list or the new key (section 2).
 - YTD: a client on September still sees August's numbers in the YTD graphs. That is the year-to-date history, not the
   August view Jasmine asked to remove. Stated in the PR.
+- The comparison: September's change arrows still compare with August (`compareRange` `custom:2026-08-01,2026-08-31`,
+  label "vs August 2026", `reporting-months.ts:131-136`, pinned at `reporting-months.test.ts:90-93`). That is the
+  comparison, not an August view. Stated in the PR with the YTD note.
 - Commentary: its client cutoff is `lastOf(locked.months[0].key)` (`monthly.tsx:35`), and the cap always keeps
   `months[0]`, so it is unchanged.
 - The team's list, default month and redirects.
@@ -91,8 +110,11 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 - Invalid `clientMonths`: fail closed, like `opensOnDay` today (locked months spec 3.1). The team keeps every month,
   each finished one tagged "Hidden from clients: config error"; clients get no months and see "No reports are available
   yet"; the section logs the slug and the key only, never the config (`index.tsx:89`, `locked-range.ts:26-29`).
-  Locking is unaffected (`settledThrough` reads only `parsed.ok`, `lock-day.ts:31-33`).
-- `clientMonths` larger than the number of opened months: the client sees every opened month (nothing to drop).
+  Locking is unaffected (`settledThrough` reads only `parsed.ok`, `lock-day.ts:31-33`). As with any bad knob, the team's
+  Commentary "Clients see this from ..." notes also disappear while it is invalid (`clientOpensNote` returns null on a
+  `badKey`, `lib/commentary/month.ts:25`).
+- `clientMonths` at or above the number of opened months: the client sees every opened month and no team month gets the
+  new tag (nothing is dropped). T12.
 - No opened month yet: unchanged ("Your first report opens on ...", `noMonthsText`, `:208-213`).
 
 ## 5. Edge cases
@@ -112,6 +134,10 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 | 12 | Renaissance / no `reportingMonths` | never reaches this code | existing `locked-range.test.ts` |
 | 13 | deep link to an aged-out month | served the newest month in place, not logged | T6 (same resolver) |
 | 14 | Commentary for a client | cutoff unchanged (months[0] kept) | T2 asserts `months[0]` |
+| 15 | cap at or above the opened count (2 on Oct 20; 36 with `firstMonth` 0001-01) | every opened month, no new tag | T12 |
+| 16 | a bad `opensOnDay` and a request for an opened whole month | an attempt, as today | T13 |
+| 17 | invalid `clientMonths` and a request for August on Oct 20 | an attempt, as with any bad knob | T13 |
+| 18 | a partial range inside an aged-out month | replaced, newest month, not an attempt | T6 |
 
 ## 6. Tests (all in `lib/organic-social/reporting-months.test.ts`, written before the code)
 - T1 parse: 1 and 36 accepted into `cfg.clientMonths`; absent leaves no `clientMonths` property on `cfg` (so the
@@ -120,20 +146,34 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 - T3 client on 2026-10-05: `['2026-08']`.
 - T4 team on 2026-10-20: `[Oct live, Sep, Aug]`, tags `['Live, team only', null, 'No longer shown to clients']`, served September.
 - T5 team on 2026-10-05: tags `['Live, team only', 'Team only until Oct 12', null]`.
-- T6 client on 2026-10-20 requesting `custom:2026-08-01,2026-08-31`: `replaced`, served September, `hiddenMonthAttempt: false`.
-- T7 client requesting the live October range: attempt `true`; on 2026-10-05 requesting whole September: attempt `true`,
-  served August; requesting September's canonical string on 2026-10-20: `canonical`.
+- T6 client on 2026-10-20 requesting `custom:2026-08-01,2026-08-31`: `replaced`, served September, `hiddenMonthAttempt: false`;
+  the same for the partial range `custom:2026-08-01,2026-08-15`.
+- T7 client on 2026-10-20 (last complete UTC day 10-19) requesting `custom:2026-10-01,2026-10-19`: `replaced`, served
+  September, attempt `true`; on 2026-10-05 requesting `custom:2026-09-01,2026-09-30`: attempt `true`, served August;
+  on 2026-10-20 requesting `custom:2026-09-01,2026-09-30`: `canonical`.
 - T8 `clientMonths: 2` on 2026-12-20: `['2026-11', '2026-10']` (November opens Dec 14, since Dec 12 is a Saturday);
   without the key, `['2026-11', '2026-10', '2026-09', '2026-08']`.
 - T9 `clientMonths: 0`: client `months: []`, reason `malformed-config`, key `clientMonths`; team tags config error.
 - T10 `settledThrough` equal for the config with, without and with an invalid `clientMonths` on 2026-10-04, 10-05, 10-20, 11-05.
-- T11 every day from 2026-09-01 to 2027-08-31 at 14:00 UTC: each offered month's `dateRange` resolves `canonical` to
-  the same key, both viewers; more than 700 checks.
+- T11 every day from 2026-09-01 to 2027-08-31 at 14:00 UTC, `clientMonths: 1`: each offered month's `dateRange`
+  resolves `canonical` to the same key, both viewers; and each opened whole month NOT in the client's list resolves
+  `replaced`, served `months[0]`, `hiddenMonthAttempt: false`. Counts pinned exactly, never adjusted to match a run:
+  client checks 352 (one month a day from 2026-09-14, when August opens, through 2027-08-31: 17 + 31 + 30 + 31 + 31 + 28
+  + 31 + 30 + 31 + 30 + 31 + 31); team checks 2731 (in a month with D days and k finished months back to August, D x k
+  finished checks plus D - 1 live checks, no live month on the 1st at 14:00 UTC: 59, 92, 119, 154, 185, 195, 247, 269,
+  309, 329, 371, 402 from September to August). If a run disagrees, find why before changing anything.
+- T12 `clientMonths: 2` on 2026-10-20: client `['2026-09', '2026-08']`, team tags `['Live, team only', null, null]`;
+  `clientMonths: 36` with `firstMonth` `0001-01`: client length 36 ending `2023-10`, no team month tagged
+  "No longer shown to clients" (the existing cap test, `reporting-months.test.ts:226-233`, with the key set).
+- T13 today's attempt rule is kept outside the new case: `{ firstMonth: '2026-08', opensOnDay: 3 }` requesting
+  `custom:2026-08-01,2026-08-31` on 2026-10-20 is an attempt (`true`), and so is `{ firstMonth: '2026-08',
+  clientMonths: 0 }` with the same request.
 
 ## 7. Turning it on
 After the code is on staging, a guarded staging script sets `clientMonths: 1` on the five clients (plan Task 4):
 host guard, dry run first, every row checked before any write, one transaction, the Renaissance row hashed before and
-after, run from the main checkout. Production gets the same with the October release, with my written consent.
+after, run from the main checkout. Production gets the same with the October release, with my written consent; the production run re-checks that the five
+rows have `reportingMonths` and that Renaissance has none before any write, since section 2's facts are from staging.
 Nothing visible changes before Oct 12, since August is still the newest opened month.
 
 ## 8. Out of scope
