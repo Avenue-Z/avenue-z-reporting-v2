@@ -166,8 +166,9 @@ W1 wiring, in `lib/auth/jwt-callback.test.ts`: `auth.ts` cannot be imported in t
 `getClientByEmail(` call remains in it. The plan's local check proves it live (section 8).
 
 ## 8. Proving it live (plan, not code)
-On the local app (dev database), signed in as a test client viewer: remove that user's row, or change its role, and the
-next click reflects it with no sign-out. That is a dev write, so it waits on my go.
+On staging, after this merges (my call, 2026-09-30): signed in as a test client viewer, remove that user's row, or
+change its role, and the next click reflects it with no sign-out; then restore the row. That is a staging write, so it
+takes a dry run and my go.
 
 ## 9. For Paul specifically
 1. Every request instead of hourly, and why hourly cannot work here (section 2).
