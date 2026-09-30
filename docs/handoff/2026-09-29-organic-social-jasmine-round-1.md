@@ -165,3 +165,29 @@ Under `~/.claude/organic-social-work/`:
 - `security/2026-09-29-access-audit.md`: security findings, never to be posted publicly.
 - `plans/RESUME-2026-09-29-plans-D-E.md`: marked DONE, a record only.
 Claude's memory for this project: `~/.claude/projects/-Users-thomaschangavenuez-code-reporting-ren-add-overview/memory/`.
+
+## 12. Update, 2026-09-29 night: the four ready builds are built
+On my go, one at a time, each test-first from its plan (every new test watched failing first), on its own branch, still a
+draft waiting on my review. Sections 2, 4 and 9 above are otherwise as written; this section wins where they differ.
+
+| PR | Head | Commits | `make check` |
+|---|---|---|---|
+| #291 newest month for clients | `5f861266` | `b0248436` parse, `5f861266` cap, tag, attempt rule | 1727 tests pass |
+| #292 notes on days with no post | `6734b4f0` | `1ac08c6e` server days, `6734b4f0` Day list | 1727 tests pass |
+| #285 whole-number changes | `a37cdd2e` | `6d6d76d2` rounding + card prop, `44fda3a7` outline tiles, `a37cdd2e` Piper X fallback | 1726 tests pass |
+| #284 Top Content sort | `88842a59` | `88842a59` (Task 1 only; cards keep four) | 1721 tests pass |
+
+- Each merges clean with every other open PR, pair by pair in both orders, and all nine together in both orders.
+- All nine merged onto `dev` together: `tsc --noEmit` clean, 193 test files and 1853 tests pass.
+- #292 with #283 merged: the Organic Social tests pass (257).
+- Renaissance: every Organic Social golden and `render-invariant.test.tsx` pass unchanged on every branch; #284's T7 and
+  #285's O4 pin that the parts Renaissance renders never get the new behaviour.
+- CI on all four: `ci`, `test`, `rsc-boundary`, Vercel pass; `checks` (the repo-wide scan) fails as on every PR.
+- Deviations, each written in its PR: #285's plan expected one card test to pass beforehand (it failed, correctly);
+  #284's T5 was tightened because as planned it passed beforehand; #284 falls back to all four buttons on an empty
+  filtered list (spec 3.1), not only an empty list; #291's edge-case list is in its PR body, not its commit bodies.
+
+Next, in order: my review of the four; a look on the local app (I sign in; a test note for #292 writes one row to the
+dev database, which needs my go); then each is marked ready and Paul is requested. #291's plan Task 4 (turning
+`clientMonths: 1` on for the five clients on staging) runs after it reaches staging, dry run first, my go to write.
+#286 still waits on Jasmine's sheet.
