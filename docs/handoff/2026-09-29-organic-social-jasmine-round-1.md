@@ -1,18 +1,19 @@
-# Handoff: Organic Social, Jasmine's round 1 feedback (2026-09-29, end of day)
+# Handoff: Organic Social, Jasmine's round 1 feedback (2026-09-29, updated 2026-09-30)
 
-Written by me (Thomas) with Claude at the end of the 2026-09-29 session, so the next session picks up with nothing lost.
+Written by me (Thomas) with Claude at the end of the 2026-09-29 session and brought up to date on 2026-09-30, after the
+four builds and my local QA, so the next session picks up with nothing lost.
 This file is in the public repo: it holds no brand ids, client figures, secrets, login details or security findings.
 Those live in my private folder (section 11). Every SHA below was read from GitHub at the time of writing.
 
 ## 1. Where we are, in one paragraph
 The October Organic Social build (locked months, chart notes, outline tabs, Commentary) is on staging, not production.
 Jasmine reviewed staging and sent four feedback items, then we had a call (2026-09-29) and she answered five follow-up
-questions on Slack (5:12 PM). Every item she raised is tracked. Four of her changes have a reviewed spec and a matching
-plan and are ready to build on my go (#284, #285, #291, #292); the fifth (#286, YTD from January) waits on a Google
-Sheet she said she'd send 2026-09-30. Four other PRs on the same build wait on Paul's review (#281, #282, #283, #287).
-Nothing new is built. Production and Renaissance are untouched.
+questions on Slack (5:12 PM). Every item she raised is tracked. Four of her changes are built, passed my local QA on
+2026-09-30 and wait on Paul's review (#284, #285, #291, #292); the fifth (#286, YTD from January) waits on a Google
+Sheet she said she'd send 2026-09-30. Four other PRs on the same build also wait on Paul's review (#281, #282, #283,
+#287). Production and Renaissance are untouched.
 
-## 2. State (read from GitHub and Vercel, 2026-09-29 late)
+## 2. State (read from GitHub and Vercel, 2026-09-30)
 | Ref | SHA | Note |
 |---|---|---|
 | `main` | `0722fe0c` | production source, untouched |
@@ -53,19 +54,21 @@ August meanwhile (no change until the outlines arrive).
 Not ours (no action): the automations Slack channel, Glean skills testing, who edits Tina's skills, Paul's deck demo.
 
 ## 4. Every open PR
-### Jasmine round 1 (drafts, label `jasmine-round-1`, plan and spec only, nothing built)
-- #284 `feat/os-top-content-sort` `09eb2eb0`. Top Content on outline tabs sorts only by Engagements and Views; cards keep
-  all four metrics. Spec `docs/superpowers/specs/2026-09-29-top-content-sort-design.md`. READY on my go.
-- #285 `feat/os-whole-number-changes` `5b9be7fe`. Percent changes on outline tiles show the nearest whole number (halves
+### Jasmine round 1 (label `jasmine-round-1`: four built, ready and waiting on Paul; #286 a draft on hold)
+- #284 `feat/os-top-content-sort` `88842a59`. Top Content on outline tabs sorts only by Engagements and Views; cards keep
+  all four metrics. Spec `docs/superpowers/specs/2026-09-29-top-content-sort-design.md`. Built, local QA passed, waiting on Paul.
+- #285 `feat/os-whole-number-changes` `a37cdd2e`. Percent changes on outline tiles show the nearest whole number (halves
   away from zero, my decision); Piper's X tab too, through the Data part's fallback. Spec
-  `docs/superpowers/specs/2026-09-29-whole-number-changes-design.md`. READY on my go.
-- #291 `feat/os-newest-month-for-clients` `1fd242e8`. New optional `reportingMonths.clientMonths` (1 to 36); with 1,
+  `docs/superpowers/specs/2026-09-29-whole-number-changes-design.md`. Built, local QA passed, waiting on Paul.
+- #291 `feat/os-newest-month-for-clients` `5f861266`. New optional `reportingMonths.clientMonths` (1 to 36); with 1,
   clients pick only the newest opened month; the team keeps all, older ones tagged "No longer shown to clients".
-  Visible from Oct 12. Spec `docs/superpowers/specs/2026-09-29-newest-month-for-clients-design.md`. READY on my go;
-  build first (hard Oct 12 date). Its plan's Task 4 turns it on for the five clients on staging after it lands.
-- #292 `feat/os-notes-without-posts` `c85fc167`. The Add annotation panel offers every day up to today through a Day
+  Visible from Oct 12. Spec `docs/superpowers/specs/2026-09-29-newest-month-for-clients-design.md`. Built, local QA
+  passed, waiting on Paul. Must be live before Oct 12: once it reaches staging, its plan's Task 4 turns it on for the
+  five clients there (dry run first, my go to write), then production at launch.
+- #292 `feat/os-notes-without-posts` `6734b4f0`. The Add annotation panel offers every day up to today through a Day
   list; a note on a day with no post is a text-only card. Spec `docs/superpowers/specs/2026-09-29-notes-without-posts-design.md`.
-  READY on my go. Shares `note-form.tsx` and `chart-notes-ui.test.tsx` with #283 at other lines (proved clean).
+  Built, local QA passed (a no-post note sits on a dot on the graph), waiting on Paul. Shares `note-form.tsx` and
+  `chart-notes-ui.test.tsx` with #283 at other lines (proved clean).
 - #286 `feat/os-ytd-from-january` `886bccec`. ON HOLD for her sheet. The spec marks its earlier Dash-history design
   superseded and lists what the sheet must settle: August's source (her sheet or our lock, which clients already see),
   which of the five clients have a tab, and that Piper's X tab has no YTD without X outline rows. Supplied figures go in
@@ -78,7 +81,7 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
 - #287 `fix/proxy-client-scope` `4b0faf09`: every page checks the client's own portal first. MUST merge before any real
   client gets a login. Paul re-requested after his seven comments were answered.
 
-### Closed today
+### Closed 2026-09-29
 - #290 `fix/seat-count-client-roles` (branch kept on origin at `cdc5b90c`): closed because it changed Renaissance's invite
   limit (my standing rule) and changes nothing for any other client. Do not reopen.
 
@@ -89,10 +92,12 @@ Mine: #234 (touches Renaissance), #180, #175, #165, #164, #162, #141. Paul's: #2
 ### Issues open
 #275 to #278 (chart notes and Top Content follow-ups).
 
-## 5. Merge proof (2026-09-29 late)
-The four ready drafts plus #281, #282, #283, #286 and #287 merge clean with `dev` pair by pair and all nine together, in
-both orders. Only `vitest.config.ts` is shared (#285 with #281 and #287, at different lines), and #292 with #283 (see
-above). Re-run before building.
+## 5. Merge proof (final, 2026-09-29 night, against every PR's final head)
+All nine open PRs (#281, #282, #283, #284, #285, #286, #287, #291, #292) merge clean with `dev` pair by pair in both
+orders and all nine together in both orders. All nine merged onto `dev`: `tsc --noEmit` clean, 193 test files and 1853
+tests pass. Shared files: `vitest.config.ts` (#285 with #281 and #287, at different lines; the merged include list keeps
+every entry) and `note-form.tsx` with `chart-notes-ui.test.tsx` (#292 with #283; the Organic Social tests pass on the
+merged tree). Re-run if any branch moves.
 
 ## 6. The standard every build follows (my rule, restated 2026-09-29)
 1. A spec from the code: every claim cited to a file and line read in that session; nothing from memory or inference;
@@ -105,8 +110,8 @@ above). Re-run before building.
 4. Reconcile the plan to the reviewed spec (the spec wins).
 5. Test-first code (watch each test fail), `make check`, my review, Paul's review. Never merge to `main` without my
    written go; production only after Jasmine approves staging.
-All four ready drafts passed steps 1, 2 and 4. Their specs say "Status: REVIEWED"; their plans cite the spec and use its
-test ids.
+#284, #285, #291 and #292 have passed every step up to Paul's review: reviewed specs, reconciled plans, test-first
+code, `make check`, and my local QA (2026-09-30).
 
 ## 7. Decisions (dated, so nobody re-asks)
 - Renaissance is off everything, in config, render AND behaviour (seat limits, access, anything). A one-off earlier
@@ -126,10 +131,10 @@ test ids.
 
 ## 8. Open items, by who
 - Jasmine: the YTD sheet (expected 2026-09-30); Piper and PIMCO outlines (no date); her approval of staging.
-- Paul: reviews of #281, #282, #283, #287; a decision on the security scan (`checks`/sca) that has failed on every PR
+- Paul: reviews of #281, #282, #283, #287, and of #284, #285, #291, #292 (requested 2026-09-30); a decision on the security scan (`checks`/sca) that has failed on every PR
   since #279 went in on 2026-09-28 (high or critical dependency advisories with a fix; last pass 2026-09-25; no current
   PR caused it).
-- Me (Thomas): the go to build; the session length for the separate session PR from Paul's #287 comment; a check in
+- Me (Thomas): the session length for the separate session PR from Paul's #287 comment; a check in
   Vercel that Jasmine is on `COMMENTARY_APPROVERS` (Commentary needs that list's approval; set 83 days ago; unreadable
   to Claude).
 - Launch (after Jasmine's staging approval and my written go): the five client rows in production copied from staging;
@@ -138,10 +143,13 @@ test ids.
 
 ## 9. Next steps, in order
 1. Session gate, then a status of five lines or fewer.
-2. On my go, build #291 test-first from its plan, then #292, #285, #284 (each its own branch and PR; never stacked).
-3. When Jasmine's sheet arrives: record it privately, settle the three open questions in #286's spec, re-review, plan,
+2. Paul's reviews as they come on all eight; I post review replies myself; fixes go on each PR's own branch.
+3. On approval, each merges to `dev`, then `dev` to `staging` on my go.
+4. #291 on staging: its plan's Task 4 (`clientMonths: 1` on the five clients; dry run first, my go to write). Must be
+   live in production before Oct 12.
+5. When Jasmine's sheet arrives: record it privately, settle the three open questions in #286's spec, re-review, plan,
    build.
-4. Paul's reviews as they come; I post review replies myself.
+6. Launch steps in section 8, after Jasmine approves staging and I give my written go.
 
 ## 10. Standing rules
 - Writes to staging only, with written consent otherwise; host guard every script; dry run first; never `db:seed`.
@@ -167,8 +175,8 @@ Under `~/.claude/organic-social-work/`:
 Claude's memory for this project: `~/.claude/projects/-Users-thomaschangavenuez-code-reporting-ren-add-overview/memory/`.
 
 ## 12. Update, 2026-09-29 night: the four ready builds are built
-On my go, one at a time, each test-first from its plan (every new test watched failing first), on its own branch, still a
-draft waiting on my review. Sections 2, 4 and 9 above are otherwise as written; this section wins where they differ.
+The record of the builds. On my go, one at a time, each test-first from its plan (every new test watched failing first),
+on its own branch. Sections 1 to 9 above are current as of 2026-09-30.
 
 | PR | Head | Commits | `make check` |
 |---|---|---|---|
@@ -187,9 +195,6 @@ draft waiting on my review. Sections 2, 4 and 9 above are otherwise as written; 
   #284's T5 was tightened because as planned it passed beforehand; #284 falls back to all four buttons on an empty
   filtered list (spec 3.1), not only an empty list; #291's edge-case list is in its PR body, not its commit bodies.
 
-Next, in order: my review of the four; a look on the local app (I sign in; a test note for #292 writes one row to the
-dev database, which needs my go); then each is marked ready and Paul is requested. #291's plan Task 4 (turning
-`clientMonths: 1` on for the five clients on staging) runs after it reaches staging, dry run first, my go to write.
-#286 still waits on Jasmine's sheet.
-
-2026-09-30: I ran a local QA of all four together on the dev database (A Place For Mom, Instagram, August; Renaissance for comparison). All passed; the results are a comment on each PR. A note on a day with no post sits on a dot on the graph. All four are now ready for review with Paul requested.
+2026-09-30: I ran a local QA of all four together on the dev database (A Place For Mom, Instagram, August; Renaissance
+for comparison). All passed; the results are a comment on each PR. A note on a day with no post sits on a dot on the
+graph. All four were then marked ready for review with Paul requested. The throwaway QA checkout was removed.
