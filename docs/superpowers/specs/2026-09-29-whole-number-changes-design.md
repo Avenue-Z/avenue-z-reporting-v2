@@ -1,6 +1,7 @@
 # Whole-number percent changes on the outline tiles: design
 
 Status: draft for review (spec step 2 of the regimen). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
+The only dash characters here are in code spans: the flat mark the card draws today (`kpi-card.tsx:70,76`).
 Plan: `docs/superpowers/plans/2026-09-29-whole-number-changes.md` (written first; reconciled to this spec after review,
 and this spec wins where they differ).
 
@@ -16,7 +17,7 @@ Renaissance (my standing rule).
 - Its change line (`kpi-card.tsx:61-72`): when `delta` is defined, the arrow and colour come from the sign of the RAW
   `delta` (`:65-70`) and the text is `Math.abs(delta).toFixed(1)` + "%" + the label (`:71`). So a +0.3% change shows a
   green up arrow and "0.3%". With `invertDelta` the colours swap (`:65-66`). No `delta` and `comparisonExpected` gives
-  the greyed "— vs prior period" (`:73-76`).
+  the greyed `— vs prior period` (`:73-76`).
 - The outline tiles are `OutlineTiles` (`components/report-sections/organic-social/outline-tiles.tsx:15-33`), which pass
   `delta={k.delta}` to `KpiCard` (`:26`) and never pass `invertDelta`. They have exactly two callers: the outline Data
   block (`OutlineHeadlines`, `:43`) and the engagement breakdown (`parts/engagement-breakdown.tsx:14`).
@@ -51,7 +52,7 @@ Renaissance (my standing rule).
 - True, with `delta` defined: `shown = roundDelta(delta)`. The arrow, the colour and the text all come from `shown`:
   up arrow and green when `shown > 0`, down arrow and red when `shown < 0`, the flat mark and muted when `shown` is 0
   (colours swapped under `invertDelta`, as today); the text is `Math.abs(shown)` with no decimal, then "%", then the label.
-  So a +0.3% change shows "— 0% vs prior period" in the muted colour, never a green arrow next to "0%".
+  So a +0.3% change shows `— 0% vs prior period` in the muted colour, never a green arrow next to "0%".
 - True, with `delta` undefined: unchanged (the placeholder when `comparisonExpected`, else nothing).
 
 ### 3.3 `OutlineTiles` sets it
@@ -83,7 +84,7 @@ Every card `OutlineTiles` draws with a value passes `wholeDelta` (`outline-tiles
 | 2 | exact halves, 6.5 and 0.5 | 7% and 1% | R2 |
 | 3 | 6.45 | 6%, not 7% | R3 |
 | 4 | float noise, 6.4999999999 and 5.0000000001 | 7% and 5% | R4 |
-| 5 | a small change, 0.3 or -0.2 | "— 0%", muted, no arrow; never -0 | R5, K2, K3 |
+| 5 | a small change, 0.3 or -0.2 | `— 0%`, muted, no arrow; never -0 | R5, K2, K3 |
 | 6 | drops, -6.3 and -6.57 | down arrow, 6% and 7% | R2, K2 |
 | 7 | large changes, 123.5 and -1000.4 | 124% and 1000% | R6 |
 | 8 | no prior | the placeholder, unchanged | K4 |
@@ -103,9 +104,9 @@ Every card `OutlineTiles` draws with a value passes `wholeDelta` (`outline-tiles
   - R6 123.5 gives 124 and -1000.4 gives -1000.
 - `components/charts/kpi-card.test.tsx` (in the include list already):
   - K1 without the prop, `delta` 6.34 reads "↑ 6.3% vs prior period".
-  - K2 with the prop: 6.34 "↑ 6% vs prior period", 6.57 "↑ 7% ...", -6.57 "↓ 7% ...", 0.3 "— 0% ...".
+  - K2 with the prop: 6.34 "↑ 6% vs prior period", 6.57 "↑ 7% ...", -6.57 "↓ 7% ...", 0.3 `— 0% ...`.
   - K3 with the prop, 0.3 is muted (`text-text-muted`), not green.
-  - K4 with the prop and no `delta`, `comparisonExpected` still reads "— vs prior period".
+  - K4 with the prop and no `delta`, `comparisonExpected` still reads `— vs prior period`.
   - K5 with the prop and `invertDelta`, -6.57 reads "↓ 7% ..." in green.
 - `components/report-sections/organic-social/parts/outline-parts.test.tsx`:
   - O1 `OutlineTiles` with Views `delta` 6.34 shows "↑ 6% vs prior period" and not "6.3%"; Likes `delta` 0.04 has no up arrow.
