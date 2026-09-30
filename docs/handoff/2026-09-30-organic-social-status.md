@@ -34,12 +34,12 @@ and on `dev` since #279 (2026-09-28); it scans dependencies; a decision with Pau
 | PR | Branch @ head | What it does | State | Waiting on |
 |---|---|---|---|---|
 | #281 | `fix/next-security-upgrade` @ `dd4a8a21` | next 16.3.6, next-auth beta.32, saves read their own writes | open | Paul |
-| #282 | `fix/top-content-freeze-clock` @ `2f83e5a2` | the older Top Content freeze uses the same clock as the range | open | Paul; also a check that the server clock is UTC, or a Renaissance proof, before it merges |
+| #282 | `fix/top-content-freeze-clock` @ `2f83e5a2` | the older Top Content freeze uses the same clock as the range | open | Paul (the server clock check is done: Vercel's functions run on UTC, so nothing changes where it runs; evidence in my PR comment, 2026-09-30) |
 | #283 | `fix/chart-state-follows-server` @ `d5969442` | the chart follows the server per day after a save | open | Paul |
 | #284 | `feat/os-top-content-sort` @ `88842a59` | Top Content sorts by Engagements and Views only; cards keep four | open, ready | Paul |
 | #285 | `feat/os-whole-number-changes` @ `a37cdd2e` | whole-number percent changes on outline tiles and Piper's X tab | open, ready | Paul |
 | #286 | `feat/os-ytd-from-january` @ `886bccec` | YTD from January, from Jasmine's numbers | draft, on hold | Jasmine's sheet |
-| #287 | `fix/proxy-client-scope` @ `4b0faf09` | every page checks the client's own portal | open | Paul's re-review; also a code-review bot review (2026-09-29, three minor findings, no blocker) not yet answered; the launch gate |
+| #287 | `fix/proxy-client-scope` @ `fb7893d0` | every page checks the client's own portal | open | Paul's re-review; the launch gate. The code-review bot's three minor findings are answered (2026-09-30): two fixed (a test and ENGINEERS.md), one needs no change, reasons in my PR comment |
 | #291 | `feat/os-newest-month-for-clients` @ `b63e25f3` | optional `clientMonths`: clients see only the newest opened months | open, ready | Paul; then turn it on (section 6) |
 | #292 | `feat/os-notes-without-posts` @ `6734b4f0` | a Day list so a note can go on a day with no post | open, ready | Paul |
 | #293 | `fix/session-recheck-every-request` @ `79a8a178` | each login's role and client re-read on every request | open, ready | Paul; then a live check on staging |
@@ -68,8 +68,8 @@ orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different li
 
 ## 5. Decisions (dated; never re-ask)
 - Renaissance is off everything, config, render and behaviour. Dated exceptions that reach it because they apply to
-  everyone: #293 (my explicit OK, 2026-09-30), #287, #281, #283 (renders the same with no notes), #282 (needs the clock
-  check above). Its logo stays as is (Jasmine, 2026-09-30).
+  everyone: #293 (my explicit OK, 2026-09-30), #287, #281, #283 (renders the same with no notes), #282 (clock check done:
+  unchanged on UTC servers). Its logo stays as is (Jasmine, 2026-09-30).
 - Round 1: sort buttons only; nearest whole number, halves away from zero; `clientMonths: 1` for the five clients; a Day
   list for no-post notes; YTD January to August from her sheet, our locks from September.
 - Session recheck: every request, not hourly (a timed check cannot be saved; see the #293 spec). A login lasts 30 days
@@ -81,8 +81,8 @@ orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different li
   recording.
 
 ## 6. Next steps, in order
-1. Paul's reviews of the nine PRs; I post review replies myself. First, a read-only audit of the #287 bot review's
-   three findings (fix now, later, or no change), then fix only what I approve.
+1. Paul's reviews of the nine PRs; I post review replies myself. (The #287 bot review audit and fixes, and the #282
+   clock check, were done 2026-09-30.)
 2. On approval, merge each to `dev`, then promote `dev` to `staging`. Staging only accepts a branch that is up to date
    with it; bring `dev` up to date first (GitHub's "Update branch" on the promotion PR).
 3. #291 on staging: its plan's Task 4 sets `clientMonths: 1` on the five clients (dry run first, my go to write). It must
@@ -96,8 +96,9 @@ orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different li
 7. Launch, after Jasmine approves staging and my written go: #287 first; the five client rows, migrations, Jasmine's
    admin row and the note approvers in production; the logos arrive with the launch deploy; confirm the login link.
 8. Keep the team SOP current whenever behaviour changes (next: #286, then any change Jasmine asks for).
-9. Triage the launch checklist's sections 1 to 4 (older unticked items this session did not review): tick what is
-   done, carry what is open into this list.
+9. Launch checklist sections 1 to 4 triaged 2026-09-30: most were done; Jasmine's staging approval and the self-review
+   for staging to main moved into the launch steps. Still open, none blocking launch: a note for the team on the deck
+   numbers Dash cannot reproduce, an August drift check, a data contract decision (with #286), two small cleanups.
 
 ## 7. How work runs here
 - Every build: a spec from the code, a fresh-eyed adversarial review (at most two rounds), the plan reconciled to the
