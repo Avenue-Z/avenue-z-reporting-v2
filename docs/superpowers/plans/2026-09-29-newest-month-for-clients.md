@@ -235,7 +235,7 @@ describe('clientMonths: clients see only the newest opened months', () => {
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run lib/organic-social/reporting-months.test.ts -t "clientMonths: clients see"`
-Expected: FAIL on five tests (T11's aged-out checks fail too, since no month is tagged yet): "from the opening day a client sees only the newest month", "the team keeps every month, and the one clients no longer see is tagged", "an old link to a month clients no longer see..." and "two months: the newest two..." (plus the all-year fixed-point test is new and passes either way). The others pass already, because they pin behaviour that must not move: the Oct 5 lists (the old code gives August then, `reporting-months.test.ts:109-113`), the live and unopened attempts, canonical, the bad knob and locking.
+Expected: FAIL on five tests (T11's aged-out checks fail too, since no month is tagged yet): "from the opening day a client sees only the newest month", "the team keeps every month, and the one clients no longer see is tagged", "an old link to a month clients no longer see..." and "two months: the newest two..." (plus the all-year fixed-point test is new and passes either way). The others pass already, because they pin behaviour that must not move: the Oct 5 lists (the old code gives August then, `reporting-months.test.ts:109-113`), the live and unopened attempts, canonical, the bad knob, locking, T12 (nothing to drop) and T13 (today's attempt rule).
 
 - [ ] **Step 3: Implement.** `option` (`:138`) takes one more argument and one more tag rule:
 
