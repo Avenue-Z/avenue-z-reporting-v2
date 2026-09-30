@@ -4,7 +4,7 @@
 
 **Goal:** An opted-in client picks from only its newest opened month (from Oct 12, September alone), while the team keeps every month, with the months clients no longer see tagged.
 
-**Architecture:** One new optional knob, `clientMonths`, in the client's existing `reportingMonths` config. The pure month resolver (`lib/organic-social/reporting-months.ts`) stops a client's list after that many opened months; everything downstream (the picker, the served month, the redirect, Commentary) already follows that list. No route, component or query changes.
+**Architecture:** One new optional knob, `clientMonths`, in the client's existing `reportingMonths` config. The pure month resolver (`lib/organic-social/reporting-months.ts`) stops a client's list after that many opened months; the picker, the served month, the redirect and Commentary already follow that list. No route, component or query changes. The YTD graphs do not use the list (they build their months from the served month and the config, `parts/ytd-review.tsx:23-28`), so a client on September still sees August's numbers in YTD: that is the year-to-date history, not the August view Jasmine asked to remove. Say so in the PR.
 
 **Tech Stack:** Next.js 16 App Router, TypeScript, Vitest.
 
@@ -15,7 +15,7 @@
 - Renaissance has no `reportingMonths` (staging read 2026-09-29), so `lockedRangeFor` returns null for it (`locked-range.ts:10-11`) and it never reaches this code. Nothing here writes to its row.
 - `clientMonths`: a whole number from 1 to `MAX_REPORTING_MONTHS` (36). Anything else is a bad optional knob and fails closed exactly like `opensOnDay` today (spec 3.1): the team keeps its months tagged "Hidden from clients: config error", clients get none, and the section logs the slug and key (`index.tsx:89`).
 - Locking never depends on it: `settledThrough`, `isLateLock` and the lock sweep read only `parsed.ok` and the day knobs (`lock-day.ts:31-40,90-95`, `lock-sweep.ts:15-17`).
-- The team's list is unchanged apart from the new tag. Tags never reach a client (`option()`, `reporting-months.ts:144-149`).
+- The team's list is unchanged apart from the new tag. Tags never reach a client (`option()`, `reporting-months.ts:144-149`). The tag is the team's only signal that a month is gone for clients: Commentary's team-only note covers months not yet open, not months aged out (`clientOpensNote`, `lib/commentary/month.ts:22-28`). No Commentary change here.
 - No dash characters outside code.
 - Branch `feat/os-newest-month-for-clients`, cut from `dev` (8502f40), standalone. Checks: `DATABASE_URL=postgresql://ci:ci@db.invalid/ci make check`.
 
@@ -101,7 +101,7 @@ git commit -m "feat(organic-social): reportingMonths reads an optional clientMon
 
 **Files:**
 - Modify: `lib/organic-social/reporting-months.ts:138-151` (`option`), `:155-170` (`monthsFor`), `:195-199` (`hiddenMonthAttempt`)
-- Modify: `docs/superpowers/specs/2026-09-21-locked-months-design.md:66-73` (the 3.1 table and the line under it)
+- Modify: `docs/superpowers/specs/2026-09-21-locked-months-design.md:65-73` (the 3.1 table and the sentence under it) and `:192-194` (3.7, what is logged)
 - Test: `lib/organic-social/reporting-months.test.ts`
 
 **Interfaces:**
@@ -168,6 +168,24 @@ describe('clientMonths: clients see only the newest opened months', () => {
       .toEqual(['Live, team only', 'Hidden from clients: config error', 'Hidden from clients: config error'])
   })
 
+  // Collected and asserted once, as the edge 9 sweep does, and kept apart from its pinned count.
+  test('with clientMonths set, every offered month is a fixed point for both viewers, all year', () => {
+    const drift: string[] = []
+    let checked = 0
+    for (let t = Date.UTC(2026, 8, 1, 14); t < Date.UTC(2027, 8, 1, 14); t += 24 * 3600 * 1000) {
+      const clock = clockFor(new Date(t))
+      for (const v of ['team', 'client'] as const) {
+        for (const m of resolveLockedRange(ONE, v, clock, undefined).months) {
+          checked++
+          const r = resolveLockedRange(ONE, v, clock, m.dateRange)
+          if (r.outcome !== 'canonical' || r.month?.key !== m.key) drift.push(`${v} ${clock.today} ${m.dateRange} -> ${r.outcome} ${r.month?.key}`)
+        }
+      }
+    }
+    expect(drift.slice(0, 5)).toEqual([])
+    expect(checked).toBeGreaterThan(700)
+  })
+
   test('locking never reads clientMonths: the settled day is the same with or without it, or with a bad one', () => {
     for (const today of ['2026-10-04', '2026-10-05', '2026-10-20', '2026-11-05']) {
       expect(settledThrough(ONE, today)).toBe(settledThrough(CFG, today))
@@ -182,7 +200,7 @@ describe('clientMonths: clients see only the newest opened months', () => {
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run lib/organic-social/reporting-months.test.ts -t "clientMonths: clients see"`
-Expected: FAIL on the list, tag and attempt tests (the client still gets August). The canonical, bad-knob and locking tests already pass after Task 1; that is expected, they pin behaviour that must not move.
+Expected: FAIL on four tests: "from the opening day a client sees only the newest month", "the team keeps every month, and the one clients no longer see is tagged", "an old link to a month clients no longer see..." and "two months: the newest two..." (plus the all-year fixed-point test is new and passes either way). The others pass already, because they pin behaviour that must not move: the Oct 5 lists (the old code gives August then, `reporting-months.test.ts:109-113`), the live and unopened attempts, canonical, the bad knob and locking.
 
 - [ ] **Step 3: Implement.** `option` (`:138`) takes one more argument and one more tag rule:
 
@@ -256,7 +274,9 @@ Expected: PASS, every test, old and new.
 | `clientMonths` | no | integer 1 to 36: how many of the newest opened months a client may pick; older months stay in the team's list, tagged "No longer shown to clients", and an old link to one goes to the newest month without a log line | every opened month |
 ```
 
-and change the sentence under the table (`:72`) from "The opted-in clients set only `firstMonth`." to "The opted-in clients set `firstMonth`, and `clientMonths: 1` (Jasmine, 2026-09-29: clients see only the newest month)."
+and change the sentence under the table, which is wrapped across `:72-73` ("The opted-in" at the end of `:72`, "clients set only `firstMonth`." at the start of `:73`), to "The opted-in clients set `firstMonth`, and `clientMonths: 1` (Jasmine, 2026-09-29: clients see only the newest month)." Edit the two lines by hand; a one-line find and replace will not match.
+
+In 3.7 (`:192-194`), after "the live month or an unopened month, for a client)." add: "A month older than the last one a client's list shows under `clientMonths` is not hidden (the client saw it before): it is replaced with the newest month silently."
 
 - [ ] **Step 6: Run everything that reads the month list, and commit**
 
@@ -285,6 +305,8 @@ Not code in this repo: a guarded staging write. The config holds the brand id, s
 
 ```ts
 // Staging only. Sets reportingMonths.clientMonths = 1 on the five outline clients. Dry run unless --write.
+// Every row is checked before anything is written, the writes are one transaction (all or none), and
+// the Renaissance row is compared before and after whatever happens.
 import { readFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
 
@@ -299,26 +321,34 @@ async function main() {
   const q = neon(url)
   const renMd5 = async () => (await q`SELECT md5((to_jsonb(c) - 'updated_at')::text) AS h FROM clients c WHERE slug = 'renaissance'`)[0]?.h
   const renBefore = await renMd5()
-  for (const slug of SLUGS) {
-    const [row] = await q`SELECT dash_social_config->'reportingMonths' AS rm FROM clients WHERE slug = ${slug} AND dash_social_config ? 'reportingMonths'`
-    if (!row) throw new Error(`REFUSED: ${slug} has no reportingMonths`)
-    console.log(`${slug}: before ${JSON.stringify(row.rm)}`)
-    if (!WRITE) continue
-    const [after] = await q`UPDATE clients
-      SET dash_social_config = jsonb_set(dash_social_config, '{reportingMonths,clientMonths}', '1'::jsonb), updated_at = now()
-      WHERE slug = ${slug} AND dash_social_config ? 'reportingMonths'
-      RETURNING dash_social_config->'reportingMonths' AS rm`
-    console.log(`${slug}: after  ${JSON.stringify(after.rm)}`)
+  let failed = false
+  try {
+    for (const slug of SLUGS) {
+      const [row] = await q`SELECT dash_social_config->'reportingMonths' AS rm FROM clients WHERE slug = ${slug} AND dash_social_config ? 'reportingMonths'`
+      if (!row) throw new Error(`REFUSED: ${slug} has no reportingMonths; nothing written`)
+      console.log(`${slug}: before ${JSON.stringify(row.rm)}`)
+    }
+    if (WRITE) {
+      const results = await q.transaction(SLUGS.map((slug) => q`UPDATE clients
+        SET dash_social_config = jsonb_set(dash_social_config, '{reportingMonths,clientMonths}', '1'::jsonb), updated_at = now()
+        WHERE slug = ${slug} AND dash_social_config ? 'reportingMonths'
+        RETURNING slug, dash_social_config->'reportingMonths' AS rm`))
+      for (const [r] of results) console.log(`${r.slug}: after  ${JSON.stringify(r.rm)}`)
+    }
+  } catch (e) {
+    failed = true
+    console.error('failed:', e instanceof Error ? e.message : e)
+  } finally {
+    const renAfter = await renMd5()
+    console.log(`renaissance row ${renBefore === renAfter ? 'unchanged' : 'CHANGED'}`)
+    if (failed || renBefore !== renAfter) process.exit(1)
   }
-  const renAfter = await renMd5()
-  console.log(`renaissance row ${renBefore === renAfter ? 'unchanged' : 'CHANGED'}`)
-  if (renBefore !== renAfter) process.exit(1)
 }
 main().catch((e) => { console.error('failed:', e instanceof Error ? e.message : e); process.exit(1) })
 ```
 
 It prints only `reportingMonths` (never the brand id) and the Renaissance row hash comparison.
 
-- [ ] **Step 2: Dry run.** From the repo root: `cp ~/.claude/organic-social-work/probes/staging-set-client-months.ts zz-set-client-months.ts && perl -e 'alarm 60; exec @ARGV' -- npx tsx zz-set-client-months.ts; rm -f zz-set-client-months.ts`. Expected: five "before" lines, each `{"firstMonth":"2026-08"}`, and "renaissance row unchanged". Save the output next to the script.
+- [ ] **Step 2: Dry run.** From the main checkout `~/code/reporting-ren-add-overview` (the only place `.env.staging` lives; the feature worktree has none): `cp ~/.claude/organic-social-work/probes/staging-set-client-months.ts zz-set-client-months.ts && perl -e 'alarm 60; exec @ARGV' -- npx tsx zz-set-client-months.ts; rm -f zz-set-client-months.ts`. Expected: five "before" lines, each `{"firstMonth":"2026-08"}`, and "renaissance row unchanged". Save the output next to the script.
 - [ ] **Step 3: On my go, write.** The same with `--write`. Expected: five "after" lines with `"clientMonths":1`, "renaissance row unchanged". Save the output.
 - [ ] **Step 4: Check it on staging.** As staff, each client's month picker shows August tagged "No longer shown to clients" once September opens (Oct 12); before that, nothing visible changes for anyone. Production gets the same setting at launch, with my written consent.
