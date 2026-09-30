@@ -81,6 +81,11 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
 - #287 `fix/proxy-client-scope` `4b0faf09`: every page checks the client's own portal first. MUST merge before any real
   client gets a login. Paul re-requested after his seven comments were answered.
 
+### Session recheck (from Paul's #287 comment)
+- #293 `fix/session-recheck-every-request` `a25a5cba`, draft. Role and slug re-read from the database on every request;
+  spec `docs/superpowers/specs/2026-09-30-session-recheck-design.md` (two fresh-eyed rounds); built test-first; merges
+  clean with every open PR (all ten merged: 1866 tests pass). Its description lists the decisions for Paul.
+
 ### Closed 2026-09-29
 - #290 `fix/seat-count-client-roles` (branch kept on origin at `cdc5b90c`): closed because it changed Renaissance's invite
   limit (my standing rule) and changes nothing for any other client. Do not reopen.
@@ -134,7 +139,8 @@ code, `make check`, and my local QA (2026-09-30).
 - Paul: reviews of #281, #282, #283, #287, and of #284, #285, #291, #292 (requested 2026-09-30); a decision on the security scan (`checks`/sca) that has failed on every PR
   since #279 went in on 2026-09-28 (high or critical dependency advisories with a fix; last pass 2026-09-25; no current
   PR caused it).
-- Me (Thomas): the session length for the separate session PR from Paul's #287 comment. Done 2026-09-30: I added
+- Me (Thomas): the session length from Paul's #287 comment is decided: #293 (draft, `fix/session-recheck-every-request`)
+  re-checks each login against the database on every request; its live local check waits on my go. Done 2026-09-30: I added
   Jasmine to `COMMENTARY_APPROVERS` in Vercel (Production and Preview/staging), checked with the app's own approver
   rule; it takes effect on each environment's next deploy.
 - Launch (after Jasmine's staging approval and my written go): the five client rows in production copied from staging;
