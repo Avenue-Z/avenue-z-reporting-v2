@@ -134,9 +134,9 @@ code, `make check`, and my local QA (2026-09-30).
 - Paul: reviews of #281, #282, #283, #287, and of #284, #285, #291, #292 (requested 2026-09-30); a decision on the security scan (`checks`/sca) that has failed on every PR
   since #279 went in on 2026-09-28 (high or critical dependency advisories with a fix; last pass 2026-09-25; no current
   PR caused it).
-- Me (Thomas): the session length for the separate session PR from Paul's #287 comment; a check in
-  Vercel that Jasmine is on `COMMENTARY_APPROVERS` (Commentary needs that list's approval; set 83 days ago; unreadable
-  to Claude).
+- Me (Thomas): the session length for the separate session PR from Paul's #287 comment. Done 2026-09-30: I added
+  Jasmine to `COMMENTARY_APPROVERS` in Vercel (Production and Preview/staging), checked with the app's own approver
+  rule; it takes effect on each environment's next deploy.
 - Launch (after Jasmine's staging approval and my written go): the five client rows in production copied from staging;
   production migrations; Jasmine's admin row in production; `CHART_NOTES_APPROVERS` in production; `clientMonths: 1` on
   all five once #291 ships; confirm the login link points at production; #287 merged first.
