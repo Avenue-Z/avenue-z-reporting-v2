@@ -82,9 +82,10 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
   client gets a login. Paul re-requested after his seven comments were answered.
 
 ### Session recheck (from Paul's #287 comment)
-- #293 `fix/session-recheck-every-request` `a25a5cba`, draft. Role and slug re-read from the database on every request;
+- #293 `fix/session-recheck-every-request` `a25a5cba`, ready, Paul requested 2026-09-30. Role and slug re-read from the database on every request;
   spec `docs/superpowers/specs/2026-09-30-session-recheck-design.md` (two fresh-eyed rounds); built test-first; merges
-  clean with every open PR (all ten merged: 1866 tests pass). Its description lists the decisions for Paul.
+  clean with every open PR (all ten merged: 1866 tests pass). Its description lists the decisions for Paul. Live check:
+  on staging after merge.
 
 ### Closed 2026-09-29
 - #290 `fix/seat-count-client-roles` (branch kept on origin at `cdc5b90c`): closed because it changed Renaissance's invite
@@ -140,7 +141,7 @@ code, `make check`, and my local QA (2026-09-30).
   since #279 went in on 2026-09-28 (high or critical dependency advisories with a fix; last pass 2026-09-25; no current
   PR caused it).
 - Me (Thomas): the session length from Paul's #287 comment is decided: #293 (draft, `fix/session-recheck-every-request`)
-  re-checks each login against the database on every request; its live local check waits on my go. Done 2026-09-30: I added
+  re-checks each login against the database on every request; ready for Paul; its live check is on staging after merge. Done 2026-09-30: I added
   Jasmine to `COMMENTARY_APPROVERS` in Vercel (Production and Preview/staging), checked with the app's own approver
   rule; it takes effect on each environment's next deploy.
 - Launch (after Jasmine's staging approval and my written go): the five client rows in production copied from staging;
