@@ -109,7 +109,7 @@ orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different li
 (private until I share it). Written for the October launch build; every line checked against the code.
 
 ## 10. Private records (on my machine, by design)
-Under `~/.claude/organic-social-work/`: `HANDOFF-PROMPT-2026-09-29.md` (the paste-in prompt), `ITINERARY-2026-09-29.md`
+Under `~/.claude/organic-social-work/`: `HANDOFF-PROMPT-2026-09-30.md` (the paste-in prompt; the 2026-09-29 one is superseded), `ITINERARY-2026-09-29.md`
 (the current PR table, then a dated log), `OCTOBER-CHECKLIST.md` (launch steps, section 5),
 `jasmine-qa/ROUND-1-FEEDBACK-MASTER-2026-09-28.md` (her words and answers), `plans/2026-09-29-jasmine-round1-plan.md`,
 `TEAM-SOP-2026-09-30.md` and `.html` (the SOP text and a Google Docs copy), `logos/` (the logo and ship scripts),
