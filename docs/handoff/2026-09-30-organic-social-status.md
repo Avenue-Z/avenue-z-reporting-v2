@@ -11,7 +11,9 @@ writing.
 - YTD from January (#286) waits on her Google Sheet.
 - The session recheck from Paul's #287 comment is built and waits on Paul (#293).
 - Her client logos are merged and live on staging (#294, promoted by #295). Nothing else has merged.
-- Production is untouched. Renaissance is untouched (its logo stays as is; Jasmine confirmed).
+- Production code and deploys are untouched. One production setting changed: I added Jasmine to `COMMENTARY_APPROVERS` in
+  Vercel (Production and Preview/staging); it takes effect in production only with the launch deploy. Renaissance is
+  untouched (its logo stays as is; Jasmine confirmed).
 - The team SOP is written from the code and checked against it by two fresh-eyed reviews.
 
 ## 2. State
@@ -37,17 +39,19 @@ and on `dev` since #279 (2026-09-28); it scans dependencies; a decision with Pau
 | #284 | `feat/os-top-content-sort` @ `88842a59` | Top Content sorts by Engagements and Views only; cards keep four | open, ready | Paul |
 | #285 | `feat/os-whole-number-changes` @ `a37cdd2e` | whole-number percent changes on outline tiles and Piper's X tab | open, ready | Paul |
 | #286 | `feat/os-ytd-from-january` @ `886bccec` | YTD from January, from Jasmine's numbers | draft, on hold | Jasmine's sheet |
-| #287 | `fix/proxy-client-scope` @ `4b0faf09` | every page checks the client's own portal | open | Paul's re-review; must merge before any real client login |
+| #287 | `fix/proxy-client-scope` @ `4b0faf09` | every page checks the client's own portal | open | Paul's re-review; also a code-review bot review (2026-09-29, three minor findings, no blocker) not yet answered; the launch gate |
 | #291 | `feat/os-newest-month-for-clients` @ `b63e25f3` | optional `clientMonths`: clients see only the newest opened months | open, ready | Paul; then turn it on (section 6) |
 | #292 | `feat/os-notes-without-posts` @ `6734b4f0` | a Day list so a note can go on a day with no post | open, ready | Paul |
 | #293 | `fix/session-recheck-every-request` @ `79a8a178` | each login's role and client re-read on every request | open, ready | Paul; then a live check on staging |
 
-Closed: #290 (changed Renaissance's invite limit; never reopen). Issues #275 to #278 are open; #276 and #277 close with
-#283, #278 with #282, #275 stays open.
+Closed: #290 (changed Renaissance's invite limit; never reopen). Issues #275 to #278 are open. #283 fixes #276 and #277
+and #282 fixes #278, but they target `dev`, so GitHub will not close the issues: close them by hand when those merge.
+#275 stays open.
 
 Merge proof, re-run after `dev` moved: each open PR merges clean onto `dev` `b48de420`, and all ten together in both
 orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different lines), `note-form.tsx` and
-`chart-notes-ui.test.tsx` (#292 and #283), `CLAUDE.md` (#282, #283, #293 at different places).
+`chart-notes-ui.test.tsx` (#292 and #283), `CLAUDE.md` (#282, #283, #293 at different places),
+`annotation-callouts.tsx` (#281 and #283), and both `reports/page.tsx` routes (#283 and #287). No pair conflicts.
 
 ## 4. Jasmine's round 1, item by item
 | Her ask | Where | Status |
@@ -71,14 +75,19 @@ orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different li
 - Session recheck: every request, not hourly (a timed check cannot be saved; see the #293 spec). A login lasts 30 days
   from sign-in.
 - Logos: we use what Jasmine sends and make it fit (her artwork whole, padded into squares); no questions back to her.
-- Never ask Jasmine questions myself; I send what's needed. The password correction was not sent.
+- Never ask Jasmine questions myself; I send what's needed. Not sent to her, by my choice: the password correction, and
+  two clarifications (notes and Commentary need approval before clients see them; copy scorecards from the locked
+  report, not Dash). Her Glean question on the call (who to tag for edits to Tina's skills) had no answer on the
+  recording.
 
 ## 6. Next steps, in order
-1. Paul's reviews of the nine PRs; I post review replies myself.
+1. Paul's reviews of the nine PRs; I post review replies myself. First, a read-only audit of the #287 bot review's
+   three findings (fix now, later, or no change), then fix only what I approve.
 2. On approval, merge each to `dev`, then promote `dev` to `staging`. Staging only accepts a branch that is up to date
    with it; bring `dev` up to date first (GitHub's "Update branch" on the promotion PR).
 3. #291 on staging: its plan's Task 4 sets `clientMonths: 1` on the five clients (dry run first, my go to write). It must
-   be live in production before 2026-10-12, when September opens to clients.
+   be live in production before 2026-10-12, when September opens to clients. The launch target is on `main` by
+   2026-10-07, so the team can write and approve Commentary in production on 7 to 9 October.
 4. #293 on staging: the live check (a test client viewer loses access on the next click after their row changes; staging
    write, dry run, my go).
 5. After 2026-10-05: check that Piper's X tab actually locked September.
@@ -87,6 +96,8 @@ orders. Shared files: `vitest.config.ts` (#281, #285, #287, #293 at different li
 7. Launch, after Jasmine approves staging and my written go: #287 first; the five client rows, migrations, Jasmine's
    admin row and the note approvers in production; the logos arrive with the launch deploy; confirm the login link.
 8. Keep the team SOP current whenever behaviour changes (next: #286, then any change Jasmine asks for).
+9. Triage the launch checklist's sections 1 to 4 (older unticked items this session did not review): tick what is
+   done, carry what is open into this list.
 
 ## 7. How work runs here
 - Every build: a spec from the code, a fresh-eyed adversarial review (at most two rounds), the plan reconciled to the

@@ -1,3 +1,6 @@
+> Superseded as the current record on 2026-09-30 (end of day) by `2026-09-30-organic-social-status.md` beside it. Kept
+> as the history and the dated decision log.
+
 # Handoff: Organic Social, Jasmine's round 1 feedback (2026-09-29, updated 2026-09-30)
 
 Written by me (Thomas) with Claude at the end of the 2026-09-29 session and brought up to date on 2026-09-30, after the
