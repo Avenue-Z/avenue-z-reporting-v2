@@ -81,6 +81,19 @@ describe('config (edge 13)', () => {
       expect(parseReportingMonths({ firstMonth: '2026-08', [k]: v })).toMatchObject({ ok: true, badKey: k })
     }
   })
+  test('clientMonths is a whole number from 1 to 36; absent, it is not in the config at all', () => {
+    expect(parseReportingMonths({ firstMonth: '2026-08', clientMonths: 1 })).toMatchObject({ ok: true, badKey: null, cfg: { clientMonths: 1 } })
+    expect(parseReportingMonths({ firstMonth: '2026-08', clientMonths: 36 })).toMatchObject({ ok: true, badKey: null, cfg: { clientMonths: 36 } })
+    const absent = parseReportingMonths({ firstMonth: '2026-08' })
+    expect(absent.ok && absent.cfg).not.toHaveProperty('clientMonths')
+    for (const v of [0, 37, 1.5, -1, '1', null, true]) {
+      const r = parseReportingMonths({ firstMonth: '2026-08', clientMonths: v })
+      expect(r).toMatchObject({ ok: true, badKey: 'clientMonths' })
+      expect(r.ok && r.cfg).not.toHaveProperty('clientMonths')
+    }
+    // Checked after comparison: with two bad knobs the earlier one is named (spec 3.1).
+    expect(parseReportingMonths({ firstMonth: '2026-08', opensOnDay: 3, clientMonths: 0 })).toMatchObject({ ok: true, badKey: 'opensOnDay' })
+  })
 })
 
 describe('months, defaults and comparison on 20 Oct 2026', () => {

@@ -29,7 +29,7 @@ export type LockedRange = {
 
 type WeekendRule = 'next-monday' | 'previous-friday'
 type Comparison = 'previous-month' | 'previous-year'
-type Config = { firstMonth: string; opensOnDay: number; weekendRule: WeekendRule; comparison: Comparison }
+type Config = { firstMonth: string; opensOnDay: number; weekendRule: WeekendRule; comparison: Comparison; clientMonths?: number }
 type Parsed = { ok: true; cfg: Config; badKey: string | null } | { ok: false; key: string }
 
 const TEAM_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
@@ -125,7 +125,16 @@ export function parseReportingMonths(value: unknown): Parsed {
     if (v === 'previous-month' || v === 'previous-year') comparison = v
     else bad('comparison')
   }
-  return { ok: true, cfg: { firstMonth, opensOnDay, weekendRule, comparison }, badKey }
+  // How many of the newest opened months a client may pick (Jasmine, 2026-09-29). Absent: all of them.
+  let clientMonths: number | undefined
+  if (hasOwn(value, 'clientMonths')) {
+    const v = value.clientMonths
+    if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= MAX_REPORTING_MONTHS) clientMonths = v
+    else bad('clientMonths')
+  }
+  const cfg: Config = { firstMonth, opensOnDay, weekendRule, comparison }
+  if (clientMonths !== undefined) cfg.clientMonths = clientMonths
+  return { ok: true, cfg, badKey }
 }
 
 function comparisonFor(key: string, end: string, live: boolean, comparison: Comparison) {
