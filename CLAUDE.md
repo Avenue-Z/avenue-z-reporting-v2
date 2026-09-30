@@ -1006,7 +1006,7 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
   the refreshed chart arrives (about a second), it does not yet know about the note just saved: a
   second save on that day still edits the draft on the server, as it should, but the line after it may
   say "Saved a draft" where "Updated the draft" is true.
-- [ ] **Top Content freezes a rolling window when the server is not on UTC.** `isPeriodOpen` compares
+- [x] **RESOLVED in #282 (issue #278): the freeze uses the same clock as the range, `freezeToday()`.** **Top Content freezes a rolling window when the server is not on UTC.** `isPeriodOpen` compares
   against the UTC date (`lib/organic-social/frozen.ts:15-18`, today at `:35`), while `last_N_days`
   uses the server's local date (`lib/date-range.ts:44`, `:64`). On a machine in Eastern time after 8pm,
   the default window ends two days before the UTC date, reads as closed, and is frozen. Seen on the
