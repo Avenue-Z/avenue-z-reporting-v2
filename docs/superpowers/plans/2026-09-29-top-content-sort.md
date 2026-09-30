@@ -10,7 +10,7 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
-**Spec:** Jasmine's staging feedback, round 1: "Can we only give the ability to sort by views and engagements. Remove Engagement Rate and Effectiveness." Applies to the outline clients. Renaissance stays untouched.
+**Spec:** `docs/superpowers/specs/2026-09-29-top-content-sort-design.md` (reviewed twice; it wins where this plan differs; T1 to T8 below are its section 6). Source: Jasmine's staging feedback, round 1: "Can we only give the ability to sort by views and engagements. Remove Engagement Rate and Effectiveness." Applies to the outline clients. Renaissance stays untouched.
 
 ## Global Constraints
 - Renaissance renders exactly as today. Its Top Content is v1/v2 (`parts/top-content.tsx:77`), which never passes the new prop.
@@ -24,7 +24,7 @@
 2. An empty list: treated as absent (all four), never a toolbar with no buttons.
 3. Influencer Posts follows the same toolbar, so it sorts only by the listed keys too.
 4. Order: the buttons keep `SORT_METRICS` order (Engagements, then Views / Impr.), whatever order the caller lists.
-5. The Renaissance drift check hashes `sortable-top-content.tsx` and `post-card.tsx`, so it will report those files as changed. That is expected; `top-content.golden.test.tsx` and `top-content-v2.golden.test.tsx` are the proof that Renaissance renders the same.
+5. The Renaissance drift check hashes `sortable-top-content.tsx`, so it will report it as changed. That is expected. The Top Content goldens do NOT hold the toolbar (spec section 2), so the proof that Renaissance renders the same is T7 (the v2 part passes no `sortKeys`) plus v1 never using `SortableTopContent`.
 
 ---
 
@@ -46,28 +46,36 @@
 ```tsx
 const sortButtons = () => screen.getAllByRole('button').filter((b) => b.hasAttribute('aria-pressed')).map((b) => b.textContent)
 
-test('without sortKeys the toolbar shows all four metrics, Engagements active', () => {
+test('T1 without sortKeys the toolbar shows all four metrics, Engagements active', () => {
   view({ owned: group([mk(1, 2), mk(2, 1)]) })
   expect(sortButtons()).toEqual(['Effectiveness', 'Engagement Rate', 'Engagements ↓', 'Views / Impr.'])
 })
 
-test('sortKeys limits the toolbar to those metrics, in toolbar order', () => {
-  view({ owned: group([mk(1, 2), mk(2, 1)]), sortKeys: ['impressions', 'engagements'] })
+test('T2 sortKeys limits the toolbar to those metrics, in toolbar order, and Views sorts and flips', () => {
+  // The two sorts order these posts oppositely: engagements 9 vs 1, impressions 1 vs 9.
+  view({ owned: group([mk(1, 9, 1), mk(2, 1, 9)]), sortKeys: ['impressions', 'engagements'] })
   expect(sortButtons()).toEqual(['Engagements ↓', 'Views / Impr.'])
+  expect(shownIn(document.body)).toEqual(['cap-1', 'cap-2'])
+  fireEvent.click(screen.getByRole('button', { name: /Views \/ Impr\./i }))
+  expect(sortButtons()).toEqual(['Engagements', 'Views / Impr. ↓'])
+  expect(shownIn(document.body)).toEqual(['cap-2', 'cap-1'])
+  fireEvent.click(screen.getByRole('button', { name: /Views \/ Impr\./i }))
+  expect(sortButtons()).toEqual(['Engagements', 'Views / Impr. ↑'])
+  expect(shownIn(document.body)).toEqual(['cap-1', 'cap-2'])
 })
 
-test('a list without Engagements starts on its first listed metric', () => {
+test('T3 a list without Engagements starts on its first listed metric', () => {
   view({ owned: group([mk(1, 9, 1), mk(2, 1, 9)]), sortKeys: ['impressions'] })
   expect(sortButtons()).toEqual(['Views / Impr. ↓'])
   expect(shownIn(document.body)).toEqual(['cap-2', 'cap-1'])
 })
 
-test('an empty list is treated as no list', () => {
+test('T4 an empty list is treated as no list', () => {
   view({ owned: group([mk(1, 2)]), sortKeys: [] })
   expect(sortButtons()).toHaveLength(4)
 })
 
-test('influencer rows sort by the listed metrics too', () => {
+test('T5 influencer rows sort by the listed metrics too', () => {
   const influencer = group([mk(100, 1, 50), mk(101, 5, 10)])
   view({ owned: group([mk(1, 1)]), influencer, sortKeys: ['engagements', 'impressions'] })
   const inf = screen.getByRole('region', { name: 'Influencer posts' })
@@ -75,12 +83,19 @@ test('influencer rows sort by the listed metrics too', () => {
   fireEvent.click(screen.getByRole('button', { name: /Views \/ Impr\./i }))
   expect(shownIn(inf)).toEqual(['cap-100', 'cap-101'])
 })
+
+test('T8 the cards keep all four metrics under a list', () => {
+  view({ owned: group([mk(1, 2)]), sortKeys: ['engagements', 'impressions'] })
+  for (const label of ['Effectiveness', 'Engagement Rate']) {
+    expect(screen.getAllByText(label).some((el) => !el.closest('button'))).toBe(true)
+  }
+})
 ```
 
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run components/report-sections/organic-social/sortable-top-content.test.tsx`
-Expected: the four new `sortKeys` tests FAIL (toolbar still shows four buttons). The first new test passes (today's behaviour).
+Expected: T2, T3 and T5 FAIL (the toolbar still shows four buttons); T1, T4 and T8 pass already, since they pin today's behaviour (T4: an empty list already means four buttons because the prop is ignored; T8: the cards never change).
 
 - [ ] **Step 3: Add the outline list** (`lib/organic-social/outline-top-content.ts`, new export near the other outline rules)
 
@@ -122,15 +137,23 @@ Expected: PASS, all tests.
 - [ ] **Step 6: Write the failing wiring test** (append to `parts/top-content-outline.test.tsx`; `props()` already reads the mocked gallery's props)
 
 ```tsx
-test('outline tabs pass only the Engagements and Views sort buttons', async () => {
+test('T6 outline tabs pass only the Engagements and Views sort buttons', async () => {
   fetchTopContentFrozen.mockResolvedValue([post(1)])
   await show()
   expect((props() as unknown as { sortKeys?: string[] }).sortKeys).toEqual(['engagements', 'impressions'])
 })
+
+// The Renaissance-path guard: the goldens hold no toolbar, so this pins that v2 never passes a list.
+test('T7 the v2 part (Renaissance) passes no sortKeys', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1)])
+  render(<>{await TopContentV2Section(IG)}</>)
+  expect(SortableTopContent).toHaveBeenCalledTimes(1)
+  expect(props()).not.toHaveProperty('sortKeys')
+})
 ```
 
 Run: `npx vitest run components/report-sections/organic-social/parts/top-content-outline.test.tsx`
-Expected: FAIL (`sortKeys` is undefined).
+Expected: T6 FAILS (`sortKeys` is undefined); T7 passes already (it pins what must not change).
 
 - [ ] **Step 7: Pass the list from the outline part** (`parts/top-content-outline.tsx`)
 
@@ -143,7 +166,7 @@ Add `OUTLINE_SORT_KEYS` to the existing import on line 7, and on the `SortableTo
 - [ ] **Step 8: Run the Top Content tests, Renaissance's goldens included**
 
 Run: `npx vitest run components/report-sections/organic-social/`
-Expected: PASS. `top-content.golden.test.tsx` and `top-content-v2.golden.test.tsx` unchanged and green.
+Expected: PASS, T7 included (the real Renaissance guard); the goldens stay green too but hold no toolbar.
 
 - [ ] **Step 9: Commit**
 
