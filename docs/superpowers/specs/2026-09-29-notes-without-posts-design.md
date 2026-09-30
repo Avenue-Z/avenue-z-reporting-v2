@@ -1,6 +1,6 @@
 # Chart notes on days with no post: design
 
-Status: draft for review (spec step 2 of the regimen). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
+Status: REVIEWED (two fresh-eyed rounds, 2026-09-29; no blocker or major open). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
 Plan: `docs/superpowers/plans/2026-09-29-notes-without-posts.md` (written first; reconciled to this spec after review,
 and this spec wins where they differ).
 
@@ -53,7 +53,7 @@ approved, like any other note.
   started on a day whose posts are unknown, and the Add annotation button stays hidden (`trends.tsx:162`).
 - Effect: Add annotation now appears whenever the graph itself renders for a locked-months client, even in a month
   with no posts. It still does not appear when the series is empty or the trend fetch fails (the button is inside the
-  non-empty branch, `trends.tsx:116-172`; a failed fetch shows the fallback, `parts/engagement-trend.tsx:45-48`), or when
+  non-empty branch, `trends.tsx:116-172`; a failed fetch shows the fallback, `parts/engagement-trend.tsx:49` and `parts/follower-graph.tsx:62`), or when
   the window has no day up to today (`windowDays` returns `[]`, `parts/chart-notes.ts:14-22`).
 - Nothing else in `withNotes` changes (items, notes, peaks, controls' other fields), except the comment above `days`
   (`:98`, "only days with at least one post"), which is rewritten.
@@ -149,7 +149,7 @@ change on purpose):
 
 Form, `components/report-sections/organic-social/chart-notes-ui.test.tsx`, a new block placed after the Add annotation
 block, not at the end of the file (#283 appends there); the "no date list" test becomes "every day is in the Day list",
-with options `['Pick a day', '8/10', '8/14 (no posts)', '8/20']`. The shared `CONTROLS` fixture (`chart-notes-ui.test.tsx:36-44`)
+with options `['Pick a day', '8/10', '8/14 (no posts)', '8/20']`. The shared `CONTROLS` fixture (`chart-notes-ui.test.tsx:37-44`)
 gains `{ day: '2026-08-14', posts: [] }` between its two days, the shape the server now sends. The picture row skips days
 with no posts (`note-form.tsx:47`), so every existing picture-index test, #283's appended ones included, is unaffected:
 - U1 choose 8/14 (no posts): "No posts went live this day"; Save disabled until text; saves `{ day: '2026-08-14', postIds: [] }`.
@@ -169,7 +169,7 @@ with no posts (`note-form.tsx:47`), so every existing picture-index test, #283's
 - U7 posts failed: no Add annotation button; Edit on a card opens with no Day list.
 - U8 Edit on a card: no Day list.
 - U9 the list has `bg-bg-surface`.
-Plus two wording-only updates in that file: the `CONTROLS` fixture's comment and the describe title no longer say the
+Plus two wording-only updates in that file: the `CONTROLS` fixture's comment (`:39`) and the describe title no longer say the
 server sends days with posts only, and "a new note needs a picked post and text" is renamed to "needs a day (from a
 picture or the Day list) and text" (its body is unchanged and still passes).
 
