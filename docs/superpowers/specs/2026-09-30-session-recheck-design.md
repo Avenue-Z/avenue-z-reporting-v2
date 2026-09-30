@@ -1,6 +1,6 @@
 # Check each login against the database on every request: design
 
-Status: DRAFT, review round 1 fixed (2026-09-30). Every claim is read on `origin/dev` 8502f40 (2026-09-30), and the Auth.js files in the
+Status: REVIEWED, two fresh-eyed rounds (2026-09-30); round 2 left one MAJOR as an open decision for me (section 9, item 6). Every claim is read on `origin/dev` 8502f40 (2026-09-30), and the Auth.js files in the
 installed `next-auth` 5.0.0-beta.30 / `@auth/core` 0.41.0 (this branch's lockfile) and in 5.0.0-beta.32 / 0.41.3 (the
 open #281's).
 
@@ -10,7 +10,8 @@ sign-in, and `auth.ts` sets no session lifetime, so after `removeTeammateAction`
 client, an existing session keeps its old access until it expires. He offered a shorter `maxAge` or a re-check in the
 `jwt` callback. I chose the re-check (2026-09-30), on every request (section 2 explains why not hourly), knowing it runs
 for every signed-in person, Renaissance's users included (my explicit OK under the Renaissance rule). Paul reviews this
-decision specifically (section 9). Scope: client users. Staff keep today's sign-in rule (section 3.1, row 5).
+decision specifically (section 9). Staff are re-checked too, but staff with no row get the sign-in default (section 3.1,
+row 5), so the goal fully holds for client users.
 
 ## 2. What happens today
 - Sign-in writes the role and slug once. The `jwt` callback sets them only when `user` is present, which is only at
@@ -68,10 +69,15 @@ returns the token unchanged, as today (`auth.ts:55,76`). The recheck rows below 
 | 6 | no row, any other email | `null` (no session) | yes |
 | 7 | the lookup throws | logs one line, then throws a new `Error('session recheck failed')` with no `cause` (no session for that request) | yes |
 
-- Row 2 re-runs the sign-in conditions on every read, so a test admin session stops being trusted the moment the
-  `TEST_ADMIN_*` values change or on production. There is no stored marker for it.
+- Rows are checked in order, except that row 3 is checked before row 2, since row 2 needs a string email to normalise
+  (`normalizeEmail` trims its argument, `lib/admin/access.ts:3-4`).
+- Row 2 re-runs the sign-in environment conditions on every read, with no stored marker: a test admin session stops
+  being trusted on production, when either value is unset, or when `TEST_ADMIN_EMAIL` changes. OPEN DECISION (round 2
+  MAJOR, section 9): changing only the password does not revoke a session minted before the change, because the token
+  never carries the password. Known limit on preview: any user whose email equals `TEST_ADMIN_EMAIL` is passed through
+  unchanged (not an escalation, since the token is kept as it is, but that user is not re-checked).
 - Row 5 matches sign-in, so staff without a row (and staff whose row is deleted) keep the default team view, which
-  sees every client (`app/dashboard/layout.tsx:7`). Known limit, unchanged by design: any `@avenuez.com` Google account
+  sees every client (`app/dashboard/layout.tsx:17-19`). Known limit, unchanged by design: any `@avenuez.com` Google account
   gets that at sign-in today (`auth.ts:68-70`). A staff row whose role changes does take effect.
 - Row 6 is a removed client user. Sign-in would give `CLIENT_VIEWER` / null (`auth.ts:71-73`), but nobody reaches that
   at sign-in any more: Google sign-in is `@avenuez.com` only (`auth.ts:51`) and the credentials login needs a row
@@ -82,8 +88,8 @@ returns the token unchanged, as today (`auth.ts:55,76`). The recheck rows below 
   prints a thrown error's stack and cause (`@auth/core/errors.js:10-13`, `lib/utils/logger.js:14-19`; `auth.ts` sets
   no `logger`).
 - Known limit, not changed here: with `PERF_LOG=1` the `timed` wrapper logs a failed call's message
-  (`lib/perf.ts:36-37`), which for this lookup includes the email. Off by default (`lib/perf.ts:15`); it already
-  applies at sign-in. Filed as a follow-up.
+  (`lib/perf.ts:45-46`), which for this lookup includes the email. Off by default (`lib/perf.ts:15`); it already
+  applies at sign-in. Out of scope here; recorded privately as a follow-up.
 - Only `role` and `clientSlug` change; every other claim is kept.
 
 ### 3.2 The service cookie is marked
@@ -169,8 +175,9 @@ next click reflects it with no sign-out. That is a dev write, so it waits on my 
 2. How row-less sessions are left alone: a `service` claim on the minted cookie, and the test admin re-checked
    against its environment on every read.
 3. Fail closed per request on a database error, with a fresh error so no email reaches the logs (section 3.1).
-5. Staff keep the default analyst view when their row is deleted (known limit, row 5).
 4. The CLAUDE.md rule change.
+5. Staff keep the default analyst view when their row is deleted (known limit, row 5).
+6. The open decision on a test admin password change (section 3.1, row 2).
 
 ## 10. Other open PRs
 - #281 upgrades next-auth; the paths read here are the same in its version (section 2). It adds
