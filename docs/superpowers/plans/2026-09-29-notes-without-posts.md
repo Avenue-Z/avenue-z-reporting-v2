@@ -31,7 +31,7 @@
 2. Choosing a day that already has a note loads it, with the same rules as reaching that day by a picture: its text unless the user typed, its picks kept, the "already has a draft" notice. Pinned in Task 2.
 3. Choosing a day from the list and then undoing a pick must not throw the day away; a day set by a picture still clears when its last pick is undone, as today. Pinned in Task 2.
 4. The select is dark like the month picker (`bg-bg-surface`), so its options are readable; a transparent select shows white text on the browser's white list.
-5. A day with no posts is labelled "(no posts)" in the list, so a note meant for a post is not put on the wrong day by accident.
+5. A day with no posts is labelled "(no posts)" in the list, so a note meant for a post is not put on the wrong day by accident. Accepted limit: a briefly empty but well-formed Dash answer (`parts/chart-notes.ts:64` treats `[]` as real) would label every day "(no posts)"; a note saved then is text only and can be edited to add its posts once they load. Today such a month offers no Add annotation at all. The card's Edit already says "No posts went live this day" on the same evidence (`note-form.tsx:149`), so the wording stays consistent.
 
 ---
 
@@ -47,7 +47,7 @@
 
 - [ ] **Step 1: Change the tests that pin "days with posts only".** These are deliberate: the rule they pin is the one Jasmine asked to change. In `parts/chart-notes.test.ts`:
 
-In `'the team gets the draft, the ids and the controls, with that day\'s posts'` (`:93-104`), replace the two lines under `// Phase 2b: only the days with at least one post are offered.` with:
+In `'the team gets the draft, the ids and the controls, with that day\'s posts'` (`:93-104`), replace lines 99-100 (the comment `// Phase 2b: only the days with at least one post are offered.` and `expect(r.controls?.days).toHaveLength(1)`) with:
 
 ```ts
   // Every day of the window is offered (Jasmine, 2026-09-29); 8/10 carries its post.
@@ -162,7 +162,7 @@ git commit -m "feat(organic-social): The notes panel offers every day up to toda
   })
 ```
 
-Two wording fixes so nothing in the file says the old rule. The `CONTROLS` fixture's comment (`:38`, "What the server sends since Phase 2b: only the days with at least one post.") becomes:
+Three wording fixes so nothing in the file says the old rule. The `CONTROLS` fixture's comment (`:38`, "What the server sends since Phase 2b: only the days with at least one post.") becomes:
 
 ```tsx
   // Only days with posts, to keep the picture tests short. The server sends every day up to today (the
@@ -211,6 +211,7 @@ describe('the Day list: a note on any day, with or without a post', () => {
     expect(list().value).toBe('2026-08-20')
     choose('2026-08-10')
     expect(postButtons()[3].getAttribute('aria-pressed')).toBe('false')
+    expect(within(panel()).getByText(`Pick up to 2 of this day's posts, or just write what happened`)).toBeTruthy()
     fireEvent.click(postButtons()[0])
     type('Launch')
     fireEvent.click(save())
@@ -362,7 +363,7 @@ The hint line (`:143-145`) becomes:
 
 ```tsx
           <p className="text-[11px] text-text-muted">
-            {posts.length === 0 ? KEEPS_PICKS : full ? `Up to ${NOTE_MAX_POSTS} posts` : fixedDay ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts` : noPostsOnDay ? (unresolved.length > 0 ? KEEPS_PICKS : 'No posts went live this day') : 'Pick a post, then write what happened'}
+            {posts.length === 0 ? KEEPS_PICKS : full ? `Up to ${NOTE_MAX_POSTS} posts` : fixedDay ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts` : noPostsOnDay ? (unresolved.length > 0 ? KEEPS_PICKS : 'No posts went live this day') : chosen ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts, or just write what happened` : 'Pick a post, then write what happened'}
           </p>
 ```
 
@@ -374,7 +375,14 @@ and the no-pictures line (`:148-150`) becomes:
         </p>
 ```
 
-`canSave` (`:93`) and `save` (`:95-110`) do not change: a day and text are enough, and `picked` may be empty.
+The comment above `canSave` (`:91-92`) becomes:
+
+```tsx
+  // A new note's day comes from picking a post or from the Day list; a day set by a post goes when its last
+  // pick is undone. An edit is already on its card's day. Either way it also needs text; posts are optional.
+```
+
+`canSave` itself (`:93`) and `save` (`:95-110`) do not change: a day and text are enough, and `picked` may be empty.
 
 - [ ] **Step 4: Run the file**
 
@@ -394,7 +402,7 @@ git commit -m "feat(organic-social): Add annotation has a Day list, so a note ca
 ### Task 3: Prove it and hand it over
 
 - [ ] Run `DATABASE_URL=postgresql://ci:ci@db.invalid/ci make check`. Expected: typecheck, every test, the RSC check and `next build` pass.
-- [ ] Run `npx eslint` on the four changed source and test files. Expected: clean.
+- [ ] Run `npx eslint` on the five changed files (`parts/chart-notes.ts`, `parts/chart-notes.test.ts`, `lib/organic-social/annotations.ts`, `note-form.tsx`, `chart-notes-ui.test.tsx`). Expected: clean.
 - [ ] Merge proof, pair by pair and all together in both orders, against every open PR branch (#281, #282, #283, #284, #285, #286, #287 and `feat/os-newest-month-for-clients`). Expected: clean. #283 is the only one sharing files (`note-form.tsx`, `chart-notes-ui.test.tsx`); with it merged in, run `npx vitest run components/report-sections/organic-social/` on the combined tree too. Expected: PASS.
 - [ ] Renaissance: not on locked months, so `withNotes` returns before reading notes (`parts/chart-notes.ts:61`) and it gets no controls; the test `'a client not on locked months, shaped like Renaissance, never reads notes and gets no controls'` passes unchanged.
 - [ ] Look at it on the local app (dev database), as staff on an outline client: Add annotation shows the Day list; a day with no posts reads "(no posts)"; a note saved on it shows as a card with the date and the text, on a dot at that day if the graph has a point there, else in the row above the chart (note which, for the PR); approve it and it stays text only.
