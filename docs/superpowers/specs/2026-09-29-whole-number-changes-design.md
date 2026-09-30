@@ -1,6 +1,6 @@
 # Whole-number percent changes on the outline tiles: design
 
-Status: draft for review (spec step 2 of the regimen). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
+Status: REVIEWED (two fresh-eyed rounds, 2026-09-29; no blocker or major open). Every claim is read on `origin/dev` 8502f40 (2026-09-29).
 The only dash characters here are in code spans: the flat mark the card draws today (`kpi-card.tsx:70,76`).
 Plan: `docs/superpowers/plans/2026-09-29-whole-number-changes.md` (written first; reconciled to this spec after review,
 and this spec wins where they differ).
@@ -70,9 +70,13 @@ Renaissance (my standing rule).
   (`:20`) has no `delta`, so nothing changes there.
 - The outline Data part's fallback, so an outline client's tab with no outline rows (today Piper's X tab) rounds too,
   as Jasmine's "ALL" asks: `PlatformHeadlines` gets an optional `wholeDelta?: boolean` (default false) that it passes to
-  every card; the v1 part's `HeadlinesSection` takes the same optional prop; and the outline Data part
-  (`parts/outline-data.tsx:42-43`) renders the v1 tiles with `wholeDelta` instead of calling `platformHeadlinesV1.render`
-  unchanged. The v1 part itself (`parts/platform-headlines.tsx:14-24`) never passes it.
+  every card; the v1 part's `HeadlinesSection` (`parts/platform-headlines.tsx:9-12`, not exported today) is exported with
+  props `OrganicSocialCtx & { wholeDelta?: boolean }` and passes the flag on; and the outline Data part
+  (`parts/outline-data.tsx:42-43`) renders `<Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>`
+  instead of calling `platformHeadlinesV1.render`. The v1 part itself (`parts/platform-headlines.tsx:14-24`) never passes
+  it and stays the same object (the registry and `ytd-parity.test.ts` hold it by identity).
+- A Dash failure, a timeout and no data render exactly as v1 on that fallback: the same `HeadlinesSection`, `Fallback`
+  (`parts/platform-headlines.tsx:11`) and `NoData` (`platform-headlines.tsx:41-42`).
 - Nothing else passes it. Renaissance renders the v1 part and pins no outline part, so it never gets the flag.
 - The v1 tiles' change is the shared `delta()`, which divides by the signed prior (the known Renaissance-path follow-up
   in CLAUDE.md); rounding it does not fix that, and nothing here changes how it is computed.
@@ -134,8 +138,8 @@ Renaissance (my standing rule).
   - O2 the existing parity test (`:132-141`) passes unchanged; it now holds only because its fixture has no prior
     (`:34-35`), so it no longer covers the change line (O1 does).
   - O4 (replaces `:105-113`, "on Overview or an uncovered channel the Data part is v1", on purpose): on Overview and on
-    a TWITTER tab the outline Data part renders the v1 tiles with `wholeDelta` (the same `HeadlinesSection` and
-    skeleton as v1, plus the flag), while `platformHeadlinesV1.render` passes none; the engagement breakdown is still
+    a TWITTER tab, `v2.render(ctx, r)` `toEqual`s `<Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>`,
+    and the child of `platformHeadlinesV1.render(ctx, r)` has no `wholeDelta` prop; the engagement breakdown is still
     nothing there. And `PlatformHeadlines` with `wholeDelta` and a `delta` of 5.2 reads "↑ 5% vs prior period".
 - O3 Renaissance: `components/report-sections/organic-social/render-invariant.test.tsx` passes with its snapshot
   unchanged (it renders the shared tiles with real deltas and no flag); the goldens (`v1-render.golden.test.tsx`,
@@ -145,7 +149,8 @@ Renaissance (my standing rule).
 ## 7. Other open PRs
 Checked 2026-09-29 against #281 to #292: none touches `kpi-card.tsx`, `outline-tiles.tsx`, `platform-headlines.tsx`,
 `parts/platform-headlines.tsx`, `parts/outline-data.tsx`, `format.ts`, `delta-rounding.ts` or the test files here.
-`vitest.config.ts` is also edited by #281 and #287 at other lines; the plan's last task proves every merge.
+`vitest.config.ts` is also edited by the open #281 and #287 at other lines (the closed #290's branch edits it too; it will
+not merge); the plan's last task proves every merge.
 
 ## 8. Out of scope
 Rounding anywhere else (other sections, the v1 part as Renaissance renders it, `capsule-column-chart.tsx`,
