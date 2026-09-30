@@ -160,3 +160,13 @@ test('a flagged row under the graph is a blank tile with the flag too', () => {
   expect([...card(c, 'Reposts')!.querySelectorAll('p')].map((p) => p.textContent)).toEqual(['Reposts', '\u00A0', NOT_IN_DASH])
   expect(card(c, 'Likes')!.textContent).toContain('7')
 })
+
+test('outline tiles show percent changes as whole numbers, the arrow following the rounded value', () => {
+  const c = render(<OutlineTiles kpis={[
+    { key: 'views', label: 'Views', format: 'number', value: 100, delta: 6.34 },
+    { key: 'likes', label: 'Likes', format: 'number', value: 100, delta: 0.04 },
+  ]} />).container
+  expect(card(c, 'Views')!.textContent).toContain('↑ 6% vs prior period')
+  expect(card(c, 'Views')!.textContent).not.toContain('6.3%')
+  expect(card(c, 'Likes')!.textContent).not.toContain('↑')
+})

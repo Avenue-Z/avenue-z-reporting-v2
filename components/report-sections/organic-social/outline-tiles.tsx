@@ -10,8 +10,9 @@ import { gridColsBase, gridColsMd } from './platform-headlines'
 const BLANK = '\u00A0'
 
 /** Tiles in a grid with no heading, for the metrics directly under the engagement graph. The
- *  cards are drawn exactly as the shared tiles draw them. A flagged row (a metric Dash does not
- *  offer) is a blank card with its flag and no change arrow. */
+ *  cards are drawn as the shared tiles draw them, except that a change shows as a whole number
+ *  (Jasmine, 2026-09-29). A flagged row (a metric Dash does not offer) is a blank card with its
+ *  flag and no change arrow. */
 export function OutlineTiles({ kpis }: { kpis: OutlineKpi[] }) {
   const n = kpis.length
   return (
@@ -24,6 +25,7 @@ export function OutlineTiles({ kpis }: { kpis: OutlineKpi[] }) {
           title={k.label}
           value={k.format === 'percent' ? pctCompact(k.value) : num(k.value)}
           delta={k.delta}
+          wholeDelta
           comparisonExpected={expectsComparison(k.key)}
           subValue={k.footnote}
         />
@@ -32,8 +34,8 @@ export function OutlineTiles({ kpis }: { kpis: OutlineKpi[] }) {
   )
 }
 
-/** The outline's Data block: the same markup as the shared PlatformHeadlines for one platform (a
- *  test holds the two together) under the outline's heading "Data", not the platform name, drawn
+/** The outline's Data block: the same markup as the shared PlatformHeadlines for one platform when
+ *  no tile has a prior (a test holds the two together; with a prior, the change here is a whole number) under the outline's heading "Data", not the platform name, drawn
  *  with OutlineTiles so a flagged row can show blank. The shared component is not changed. */
 export function OutlineHeadlines({ headline }: { headline: OutlineHeadline }) {
   return (
