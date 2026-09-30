@@ -157,8 +157,9 @@ with no posts (`note-form.tsx:47`), so every existing picture-index test, #283's
   or just write what happened"; pick 11, type text and save `{ day: '2026-08-10', postIds: [11] }`.
 - U3 (a) Choose 8/10, pick and unpick 11: the list stays on 8/10 and Save is enabled with text. (b) With an approved note "Event" on 8/20 with picks
   `[21]`: choose 8/20 (text "Event" loads, 21 pressed), unpick 21: the list stays on 8/20, the text is still "Event" and
-  the "already has an approved note" line still shows. (c) Choose 8/10 from the list, then pick picture 21 (8/20): the
-  list shows 8/20; unpick 21: the list returns to "Pick a day" and Save is disabled.
+  the "already has an approved note" line still shows. (c) With no notes on the chart: type text, choose 8/10 from the
+  list, then pick picture 21 (8/20): the list shows 8/20; unpick 21: the list returns to "Pick a day" and Save is
+  disabled even though there is text (no day), and the typed text is still there.
 - U4 with an approved note "Event" on 8/20 with picks `[21]`: choosing 8/20 loads "Event", 21 is pressed, and "8/20
   already has an approved note. Saving drafts a change to it." shows; choosing 8/14 then clears the loaded text and the
   picks. With a draft "Soon" on 8/14 instead: choosing 8/14 loads "Soon" and "8/14 already has a draft. Saving updates it."
