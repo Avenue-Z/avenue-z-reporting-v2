@@ -87,6 +87,10 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
   clean with every open PR (all ten merged: 1866 tests pass). Its description lists the decisions for Paul. Live check:
   on staging after merge.
 
+### Client logos (Jasmine, 2026-09-30)
+- #294 `feat/client-logos` `8642bac3`, draft. Her logos for A Place For Mom, Joy of Life, Piper, PIMCO and Akara, fitted
+  whole into squares so the dashboard never crops them; same file names (no database change); Renaissance unchanged.
+
 ### Closed 2026-09-29
 - #290 `fix/seat-count-client-roles` (branch kept on origin at `cdc5b90c`): closed because it changed Renaissance's invite
   limit (my standing rule) and changes nothing for any other client. Do not reopen.
