@@ -191,3 +191,5 @@ Next, in order: my review of the four; a look on the local app (I sign in; a tes
 dev database, which needs my go); then each is marked ready and Paul is requested. #291's plan Task 4 (turning
 `clientMonths: 1` on for the five clients on staging) runs after it reaches staging, dry run first, my go to write.
 #286 still waits on Jasmine's sheet.
+
+2026-09-30: I ran a local QA of all four together on the dev database (A Place For Mom, Instagram, August; Renaissance for comparison). All passed; the results are a comment on each PR. A note on a day with no post sits on a dot on the graph. All four are now ready for review with Paul requested.
