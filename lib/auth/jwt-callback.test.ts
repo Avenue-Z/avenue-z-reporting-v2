@@ -107,7 +107,7 @@ describe('sign-in keeps today\'s rules (auth.ts:54-77 before this change)', () =
     const t4 = await signIn({ email: 'someone@client.test' }, lookupOf(null))
     expect([t4?.role, t4?.clientSlug]).toEqual(['CLIENT_VIEWER', null])
     const none = lookupOf(null)
-    expect(await jwtCallback({ token: { sub: 'x' }, user: { name: 'no email' } }, { lookup: none, testAdmin: NO_TEST_ADMIN })).toEqual({ sub: 'x' })
+    expect(await jwtCallback({ token: { sub: 'x' }, user: { email: null } }, { lookup: none, testAdmin: NO_TEST_ADMIN })).toEqual({ sub: 'x' })
     expect(none).not.toHaveBeenCalled()
   })
 })
