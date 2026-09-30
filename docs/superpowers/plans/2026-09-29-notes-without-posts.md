@@ -12,7 +12,7 @@
 
 ## What already works (read on `dev` 8502f40, nothing to change)
 - Saving: `validateNoteInput` accepts `postIds: []` (`lib/organic-social/chart-notes/validate.ts:52-56`, pinned at `validate.test.ts:11`), and `saveChartNoteAction` requires no post (`app/actions/chart-notes.ts:39-69`).
-- Drawing: a note on a day that is not a peak becomes its own item with the date as its label (`parts/chart-notes.ts:80-88`), its dot sits at that day's value on the series.
+- Drawing: a note on a day that is not a peak becomes its own item with the date as its label (`parts/chart-notes.ts:80-88`). When the series has a point for that day its dot sits on it; when it does not, the card goes in the row above the chart (`trends.tsx:99-102`). Whether Dash's daily answer has every day of the month is not provable by reading code, so Task 3 checks a no-post day on the local app.
 - The card: no picks and no post that day means no picture (`cardThumbs`, `lib/organic-social/annotations.ts:183-185`; `toChartAnnotations`, `:202-204`), so the card is the date and the text. Pinned today by `chart-notes-ui.test.tsx` "a note-only day shows the date and the note, and no number".
 - Editing a note from its card on a day with no post already works: the form shows "No posts went live this day" and saves the text alone (`note-form.tsx:147-150`, test `chart-notes-ui.test.tsx:379-389`).
 - Clients, hides, approval, print: unchanged; a note on a day with no post is a note like any other.
@@ -100,7 +100,7 @@ Leave `'when the posts could not load, the controls say so'` (`:190-194`) as it 
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run components/report-sections/organic-social/parts/chart-notes.test.ts`
-Expected: FAIL on the four changed or new tests above (the server still offers only days with posts); every other test passes.
+Expected: FAIL on the first three changed tests and the new "a month with no posts" test (the server still offers only days with posts). The changed Dash-order test passes already (filtering to days with posts gives today's answer), and every other test passes.
 
 - [ ] **Step 3: Implement.** In `parts/chart-notes.ts`, the controls block (`:91-102`) becomes:
 
@@ -169,7 +169,7 @@ Two wording fixes so nothing in the file says the old rule. The `CONTROLS` fixtu
   // Day list tests below use that shape).
 ```
 
-and the test `'a new note needs a picked post and text before it can be saved'` (`:336`) is renamed, body unchanged:
+the describe title `'the Add annotation panel: pick a post by its picture, days with posts only (Phase 2b)'` (`:262`) becomes `'the Add annotation panel: pick a post by its picture, or a day from the Day list (Phase 2b)'`, and the test `'a new note needs a picked post and text before it can be saved'` (`:336`) is renamed, body unchanged:
 
 ```tsx
   test('a new note needs a day (from a picture or the Day list) and text before it can be saved', () => {
@@ -259,9 +259,12 @@ describe('the Day list: a note on any day, with or without a post', () => {
     expect(within(panel()).getByText('No posts went live this day')).toBeTruthy()
   })
 
-  test('when the posts could not load there is no Day list', () => {
-    draw([PEAK], { ...CONTROLS, postsFailed: true, days: [] })
-    open()
+  // With no days the button is not drawn at all (trends.tsx:162), so no new note starts on a day whose
+  // posts are unknown; Edit from a card still opens, fixed to its day, with no Day list.
+  test('when the posts could not load, Add annotation is not offered, and Edit on a card has no Day list', () => {
+    draw([QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], { ...CONTROLS, postsFailed: true, days: [] })
+    expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
+    fireEvent.click(within(cardOf('2026-08-14')).getByRole('button', { name: 'Edit note' }))
     expect(within(panel()).queryByLabelText('Day')).toBeNull()
   })
 
@@ -284,7 +287,7 @@ describe('the Day list: a note on any day, with or without a post', () => {
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run components/report-sections/organic-social/chart-notes-ui.test.tsx`
-Expected: FAIL on the changed test and the new describe (there is no Day list); every other test passes.
+Expected: FAIL on the changed test and on every new test that uses the Day list. Two new tests pass already, since they pin what must not change: "when the posts could not load..." and "Edit on a card has no Day list". Every other test passes.
 
 - [ ] **Step 3: Implement.** In `note-form.tsx`:
 
@@ -359,7 +362,7 @@ The hint line (`:143-145`) becomes:
 
 ```tsx
           <p className="text-[11px] text-text-muted">
-            {posts.length === 0 ? KEEPS_PICKS : full ? `Up to ${NOTE_MAX_POSTS} posts` : fixedDay ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts` : noPostsOnDay && unresolved.length === 0 ? 'No posts went live this day' : 'Pick a post, then write what happened'}
+            {posts.length === 0 ? KEEPS_PICKS : full ? `Up to ${NOTE_MAX_POSTS} posts` : fixedDay ? `Pick up to ${NOTE_MAX_POSTS} of this day's posts` : noPostsOnDay ? (unresolved.length > 0 ? KEEPS_PICKS : 'No posts went live this day') : 'Pick a post, then write what happened'}
           </p>
 ```
 
@@ -394,5 +397,5 @@ git commit -m "feat(organic-social): Add annotation has a Day list, so a note ca
 - [ ] Run `npx eslint` on the four changed source and test files. Expected: clean.
 - [ ] Merge proof, pair by pair and all together in both orders, against every open PR branch (#281, #282, #283, #284, #285, #286, #287 and `feat/os-newest-month-for-clients`). Expected: clean. #283 is the only one sharing files (`note-form.tsx`, `chart-notes-ui.test.tsx`); with it merged in, run `npx vitest run components/report-sections/organic-social/` on the combined tree too. Expected: PASS.
 - [ ] Renaissance: not on locked months, so `withNotes` returns before reading notes (`parts/chart-notes.ts:61`) and it gets no controls; the test `'a client not on locked months, shaped like Renaissance, never reads notes and gets no controls'` passes unchanged.
-- [ ] Look at it on the local app (dev database), as staff on an outline client: Add annotation shows the Day list; a day with no posts reads "(no posts)"; a note saved on it shows as a dot on that day and a card with the date and the text; approve it and it stays text only.
+- [ ] Look at it on the local app (dev database), as staff on an outline client: Add annotation shows the Day list; a day with no posts reads "(no posts)"; a note saved on it shows as a card with the date and the text, on a dot at that day if the graph has a point there, else in the row above the chart (note which, for the PR); approve it and it stays text only.
 - [ ] Push, mark the PR ready, request Paul.
