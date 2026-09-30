@@ -1,10 +1,12 @@
 # YTD Review from January 2026: design
 
-Status: draft for review (spec step 2 of the regimen). Code read on `origin/dev` d4f4a42.
+Status: ON HOLD, to be reworked when Jasmine's sheet arrives. Code read on `origin/dev` d4f4a42.
+
+**Read the Decision update at the end first.** Everything between here and it describes the earlier design (history read from Dash, a `ytdFrom` setting, a no-lock rule), which the 2026-09-29 call superseded. It stays for the record until the rework replaces it.
 
 ## Why
 Jasmine's staging feedback, round 1, YTD Review row: "We need this to be from Year to Date starting January 2026."
-Settled 2026-09-29 from her own guide: January to July appear on the YTD graphs only. The monthly reports clients can
+Settled 2026-09-29 from her own guide, before the call: January to July appear on the YTD graphs only (superseded: see the Decision update, January through August now come from her sheet). The monthly reports clients can
 open still start at the client's first reporting month (her guide: reports start with August 2026).
 
 ## What happens today
@@ -97,7 +99,7 @@ writes attempted? Run on staging data with a recording lock store that never wri
 present for the three outline clients. Budget: 30 minutes, about 150 lines, throwaway.
 
 ## Rollout
-Set `ytdFrom: '2026-01'` on staging for the three outline clients (and any client switched on later) with a
+(Superseded.) Set `ytdFrom: '2026-01'` on staging for the three outline clients (and any client switched on later) with a
 guarded, dry-run staging script. Production gets it with the October release.
 
 ## Decision update, 2026-09-29 (call with Jasmine, 27:10 to 27:29): this changes the design above
@@ -109,6 +111,14 @@ guarded, dry-run staging script. Production gets it with the October release.
   no longer be needed, since months before August would not be read from Dash at all; the graphs need a store for the
   supplied history. That store holds client figures, so it lives in the database, never in this public repo, and the
   import gets a data check (contract-core) and a guarded staging script.
-- Still to settle with her: nothing on the design; waiting only on the sheet. She confirmed the format on Slack (2026-09-29 5:12 PM) and expects to send it 2026-09-30.
+- Waiting only on the sheet. Asked for it on Slack in exactly that format; her answer (2026-09-29 5:12 PM): "will work on this tmmr!", so expected 2026-09-30. She did not restate the format.
+- Open, to settle from the sheet when it arrives (not questions for her now):
+  1. August's source. August is in her sheet AND is a locked month clients already see in the Data tile. The YTD point
+     for August should equal what clients see; compare the two when the sheet arrives and pick one rule.
+  2. Which clients. Five clients are on locked months now (A Place For Mom, Akara, Joy of Life, Piper, PIMCO); the
+     sheet's tabs say which have history. A client with no tab keeps today's YTD (from its first month).
+  3. Piper's X tab has no YTD at all: YTD Review renders only on channels with outline rows
+     (`parts/ytd-review.tsx:20`) and X has none (`lib/organic-social/outline-layout.ts:60-66`). That changes only if
+     her Piper outline (asked on Slack, "yes pls") gives X rows.
 - The target is this month's cycle (the September report, which clients see from Oct 12).
 - Renaissance never gets YTD (standing rule).
