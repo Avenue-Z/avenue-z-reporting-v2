@@ -157,11 +157,12 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 - T10 `settledThrough` equal for the config with, without and with an invalid `clientMonths` on 2026-10-04, 10-05, 10-20, 11-05.
 - T11 every day from 2026-09-01 to 2027-08-31 at 14:00 UTC, `clientMonths: 1`: each offered month's `dateRange`
   resolves `canonical` to the same key, both viewers; and each opened whole month NOT in the client's list resolves
-  `replaced`, served `months[0]`, `hiddenMonthAttempt: false`. Counts pinned exactly, never adjusted to match a run:
-  client checks 352 (one month a day from 2026-09-14, when August opens, through 2027-08-31: 17 + 31 + 30 + 31 + 31 + 28
+  `replaced`, served `months[0]`, `hiddenMonthAttempt: false`. The canonical checks are pinned exactly, never adjusted
+  to match a run: client checks 352 (one month a day from 2026-09-14, when August opens, through 2027-08-31: 17 + 31 + 30 + 31 + 31 + 28
   + 31 + 30 + 31 + 30 + 31 + 31); team checks 2731 (in a month with D days and k finished months back to August, D x k
   finished checks plus D - 1 live checks, no live month on the 1st at 14:00 UTC: 59, 92, 119, 154, 185, 195, 247, 269,
-  309, 329, 371, 402 from September to August). If a run disagrees, find why before changing anything.
+  309, 329, 371, 402 from September to August). If a run disagrees, find why before changing anything. The replaced
+  checks are counted apart and must be at least one a day from 2026-10-12, when September opens and August drops off.
 - T12 `clientMonths: 2` on 2026-10-20: client `['2026-09', '2026-08']`, team tags `['Live, team only', null, null]`;
   `clientMonths: 36` with `firstMonth` `0001-01`: client length 36 ending `2023-10`, no team month tagged
   "No longer shown to clients" (the existing cap test, `reporting-months.test.ts:226-233`, with the key set).
