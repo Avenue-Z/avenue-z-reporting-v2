@@ -12,3 +12,39 @@ describe('KpiCard tooltip stacking', () => {
     expect(container.querySelector('.z-10')).toBeNull()
   })
 })
+
+describe('KpiCard change line', () => {
+  const line = (c: HTMLElement) => [...c.querySelectorAll('p')].map((p) => p.textContent).find((t) => t?.includes('vs prior period'))
+
+  test('without wholeDelta the change keeps one decimal', () => {
+    const { container } = render(<KpiCard title="Views" value="10" delta={6.34} />)
+    expect(line(container)).toBe('↑ 6.3% vs prior period')
+  })
+
+  test('with wholeDelta the change is whole and the arrow follows the rounded value', () => {
+    const r = (delta: number) => line(render(<KpiCard title="Views" value="10" delta={delta} wholeDelta />).container)
+    expect(r(6.34)).toBe('↑ 6% vs prior period')
+    expect(r(6.57)).toBe('↑ 7% vs prior period')
+    expect(r(-6.57)).toBe('↓ 7% vs prior period')
+    expect(r(0.3)).toBe('— 0% vs prior period')
+  })
+
+  test('a change that rounds to zero is muted, not green', () => {
+    const { container } = render(<KpiCard title="Views" value="10" delta={0.3} wholeDelta />)
+    const p = [...container.querySelectorAll('p')].find((x) => x.textContent?.includes('vs prior period'))!
+    expect(p.className).toContain('text-text-muted')
+    expect(p.className).not.toContain('text-brand-green')
+  })
+
+  test('no prior still shows the greyed placeholder', () => {
+    const { container } = render(<KpiCard title="Views" value="10" comparisonExpected wholeDelta />)
+    expect(line(container)).toBe('— vs prior period')
+  })
+
+  test('with invertDelta the colours follow the rounded value, swapped', () => {
+    const { container } = render(<KpiCard title="Bounce Rate" value="10" delta={-6.57} invertDelta wholeDelta />)
+    const p = [...container.querySelectorAll('p')].find((x) => x.textContent?.includes('vs prior period'))!
+    expect(p.textContent).toBe('↓ 7% vs prior period')
+    expect(p.className).toContain('text-brand-green')
+  })
+})

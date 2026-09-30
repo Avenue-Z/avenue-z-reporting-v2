@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { roundDelta } from '@/lib/delta-rounding'
 
 interface KpiCardProps {
   title: string
@@ -18,6 +19,8 @@ interface KpiCardProps {
   /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a caveat like the
    *  Facebook influencer note. */
   subValue?: string
+  /** Show the change as the nearest whole number (outline tiles only). Absent: one decimal. */
+  wholeDelta?: boolean
 }
 
 export function KpiCard({
@@ -31,6 +34,7 @@ export function KpiCard({
   deltaLabel = 'vs prior period',
   comparisonExpected = false,
   subValue,
+  wholeDelta,
 }: KpiCardProps) {
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5">
@@ -58,19 +62,23 @@ export function KpiCard({
         {suffix}
       </p>
 
-      {delta !== undefined ? (
-        <p
-          className={cn(
-            'mt-1 text-sm font-bold',
-            invertDelta
-              ? delta < 0 ? 'text-brand-green' : delta > 0 ? 'text-[#FF4444]' : 'text-text-muted'
-              : delta > 0 ? 'text-brand-green' : delta < 0 ? 'text-[#FF4444]' : 'text-text-muted'
-          )}
-        >
-          {delta > 0 ? '↑' : delta < 0 ? '↓' : '—'}{' '}
-          {Math.abs(delta).toFixed(1)}% {deltaLabel}
-        </p>
-      ) : comparisonExpected ? (
+      {delta !== undefined ? (() => {
+        // The value shown drives the arrow, the colour and the text, so they always agree.
+        const shown = wholeDelta ? roundDelta(delta) : delta
+        return (
+          <p
+            className={cn(
+              'mt-1 text-sm font-bold',
+              invertDelta
+                ? shown < 0 ? 'text-brand-green' : shown > 0 ? 'text-[#FF4444]' : 'text-text-muted'
+                : shown > 0 ? 'text-brand-green' : shown < 0 ? 'text-[#FF4444]' : 'text-text-muted'
+            )}
+          >
+            {shown > 0 ? '↑' : shown < 0 ? '↓' : '—'}{' '}
+            {Math.abs(shown).toFixed(wholeDelta ? 0 : 1)}% {deltaLabel}
+          </p>
+        )
+      })() : comparisonExpected ? (
         // No prior value to compare against — show a greyed placeholder (no % so it can't be
         // mistaken for a real 0.0% change) instead of an empty gap.
         <p className="mt-1 text-sm font-bold text-text-muted">— {deltaLabel}</p>
