@@ -13,14 +13,14 @@ questions on Slack (5:12 PM). Every item she raised is tracked. Four of her chan
 Sheet she said she'd send 2026-09-30. Four other PRs on the same build also wait on Paul's review (#281, #282, #283,
 #287). Production and Renaissance are untouched.
 
-## 2. State (read from GitHub and Vercel, 2026-09-30)
+## 2. State (read from GitHub and Vercel, 2026-09-30, after the logos reached staging)
 | Ref | SHA | Note |
 |---|---|---|
 | `main` | `0722fe0c` | production source, untouched |
-| `dev` | `8502f409` | |
-| `staging` | `b8e199bf` | same files as `dev` (25 merge commits ahead, 0 file differences) |
+| `dev` | `b48de420` | carries the client logos (#294) |
+| `staging` | `ef1aa184` | same files as `dev` (logos promoted via #295, 2026-09-30) |
 | production deploy | `dpl_8wSnpe5X...` | built from `main`, 2026-09-23 |
-| staging deploy | `dpl_G8s31VzK...` | 2026-09-29 14:10 ET |
+| staging deploy | `dpl_JAadkRoU...` | 2026-09-30 15:11 ET (client logos) |
 
 Local worktrees (all clean, all equal to origin): the main checkout on `feat/os-chart-notes` `6201e8ea` (merged; never
 branch from it) and one per active branch under `~/code/worktrees/reporting-ren-add-overview-<branch with / as ->`.
@@ -88,7 +88,7 @@ Not ours (no action): the automations Slack channel, Glean skills testing, who e
   on staging after merge.
 
 ### Client logos (Jasmine, 2026-09-30)
-- #294 `feat/client-logos` `8642bac3`, draft. Her logos for A Place For Mom, Joy of Life, Piper, PIMCO and Akara, fitted
+- #294 `feat/client-logos` `8642bac3`, merged to dev and promoted to staging (#295), 2026-09-30. Her logos for A Place For Mom, Joy of Life, Piper, PIMCO and Akara, fitted
   whole into squares so the dashboard never crops them; same file names (no database change); Renaissance unchanged.
 
 ### Closed 2026-09-29
