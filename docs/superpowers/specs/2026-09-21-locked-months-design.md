@@ -68,9 +68,10 @@ The value:
 | `opensOnDay` | no | integer 4 to 28: the day of the following month a finished month opens to clients | 12 |
 | `weekendRule` | no | `next-monday` or `previous-friday`: where an opening day on a weekend moves | `next-monday` |
 | `comparison` | no | `previous-month` or `previous-year` | `previous-month` |
+| `clientMonths` | no | integer 1 to 36: how many of the newest opened months a client may pick; older months stay in the team's list, tagged "No longer shown to clients", and an old link to one goes to the newest month without a log line | every opened month |
 
 The defaults are Jasmine's rules; the knobs are the variations the team's SOP names. The opted-in
-clients set only `firstMonth`. Unknown extra keys are ignored. The list is bounded by
+clients set `firstMonth`, and `clientMonths: 1` (Jasmine, 2026-09-29: clients see only the newest month). Unknown extra keys are ignored. The list is bounded by
 `MAX_REPORTING_MONTHS = 36` (the newest 36 months are offered), a size bound with no product
 meaning, so no client's history rule is hard-coded in code.
 
@@ -191,7 +192,7 @@ Three outcomes, used by the routes and the logging:
 - `replaced`: the param is present and not canonical. SPA routes redirect; deep links serve in
   place. Logged only when it is a `hidden-month` attempt (the param parses as a whole month or
   live-month range that exists but is not in this viewer's list: the live month or an unopened
-  month, for a client). Stale presets, junk and arrays are replaced silently.
+  month, for a client). A month older than the last one a client's list shows under `clientMonths` is not hidden (the client saw it before): it is replaced with the newest month silently. Stale presets, junk and arrays are replaced silently.
 
 The canonical form is a fixed point: resolving a canonical string returns `canonical`. This rules
 out redirect loops.
