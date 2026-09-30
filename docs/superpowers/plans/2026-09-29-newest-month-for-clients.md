@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router, TypeScript, Vitest.
 
-**Spec:** Jasmine on the call, 2026-09-29 (24:25): "can we remove the August view, like, after September has been added?" Confirmed on Slack the same day (5:12 PM), to my question "from Oct 12, clients only see September, and our team still sees both. Right?": "yes". The locked months rules this extends: `docs/superpowers/specs/2026-09-21-locked-months-design.md`, section 3.1 (config) and 3.7 (hidden-month attempts).
+**Spec:** `docs/superpowers/specs/2026-09-29-newest-month-for-clients-design.md` (reviewed twice; it wins where this plan differs; test names T1 to T13 below are its section 6). Source: Jasmine on the call, 2026-09-29 (24:25): "can we remove the August view, like, after September has been added?" Confirmed on Slack the same day (5:12 PM), to my question "from Oct 12, clients only see September, and our team still sees both. Right?": "yes". The locked months rules this extends: `docs/superpowers/specs/2026-09-21-locked-months-design.md`, section 3.1 (config) and 3.7 (hidden-month attempts).
 
 ## Global Constraints
 - Per-client opt-in. Absent `clientMonths` means today's behaviour, byte for byte (every opened month back to `firstMonth`, `reporting-months.ts:155-169`).
@@ -46,8 +46,12 @@
     const absent = parseReportingMonths({ firstMonth: '2026-08' })
     expect(absent.ok && absent.cfg).not.toHaveProperty('clientMonths')
     for (const v of [0, 37, 1.5, -1, '1', null, true]) {
-      expect(parseReportingMonths({ firstMonth: '2026-08', clientMonths: v })).toMatchObject({ ok: true, badKey: 'clientMonths' })
+      const r = parseReportingMonths({ firstMonth: '2026-08', clientMonths: v })
+      expect(r).toMatchObject({ ok: true, badKey: 'clientMonths' })
+      expect(r.ok && r.cfg).not.toHaveProperty('clientMonths')
     }
+    // Checked after comparison: with two bad knobs the earlier one is named (spec 3.1).
+    expect(parseReportingMonths({ firstMonth: '2026-08', opensOnDay: 3, clientMonths: 0 })).toMatchObject({ ok: true, badKey: 'opensOnDay' })
   })
 ```
 
@@ -140,8 +144,11 @@ describe('clientMonths: clients see only the newest opened months', () => {
     ])
   })
 
-  test('an old link to a month clients no longer see goes to the newest month and is not logged as an attempt', () => {
+  test('an old link to a month clients no longer see goes to the newest month and is not logged as an attempt (T6)', () => {
     expect(resolveLockedRange(ONE, 'client', OCT20, 'custom:2026-08-01,2026-08-31'))
+      .toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: false, month: { key: '2026-09' } })
+    // A partial range pins today's behaviour: a partial range is never an attempt (reporting-months.ts:197).
+    expect(resolveLockedRange(ONE, 'client', OCT20, 'custom:2026-08-01,2026-08-15'))
       .toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: false, month: { key: '2026-09' } })
   })
 
@@ -161,6 +168,22 @@ describe('clientMonths: clients see only the newest opened months', () => {
     expect(keys(resolveLockedRange(CFG, 'client', dec20, undefined))).toEqual(['2026-11', '2026-10', '2026-09', '2026-08'])
   })
 
+  test('a cap at or above the opened count drops nothing and tags nothing (T12)', () => {
+    const two = { ...ONE, clientMonths: 2 }
+    expect(keys(resolveLockedRange(two, 'client', OCT20, undefined))).toEqual(['2026-09', '2026-08'])
+    expect(resolveLockedRange(two, 'team', OCT20, undefined).months.map((m) => m.tag)).toEqual(['Live, team only', null, null])
+    const all = { firstMonth: '0001-01', clientMonths: 36 }
+    const client = resolveLockedRange(all, 'client', OCT20, undefined)
+    expect([client.months.length, client.months[35].key]).toEqual([36, '2023-10'])
+    expect(resolveLockedRange(all, 'team', OCT20, undefined).months.some((m) => m.tag === 'No longer shown to clients')).toBe(false)
+  })
+
+  test("outside the new case, today's attempt rule is kept, bad knobs included (T13)", () => {
+    const aug = 'custom:2026-08-01,2026-08-31'
+    expect(resolveLockedRange({ firstMonth: '2026-08', opensOnDay: 3 }, 'client', OCT20, aug)).toMatchObject({ hiddenMonthAttempt: true })
+    expect(resolveLockedRange({ firstMonth: '2026-08', clientMonths: 0 }, 'client', OCT20, aug)).toMatchObject({ hiddenMonthAttempt: true })
+  })
+
   test('a bad clientMonths hides every month from clients and tags them for the team, like any bad knob', () => {
     const bad = { firstMonth: '2026-08', clientMonths: 0 }
     expect(resolveLockedRange(bad, 'client', OCT20, undefined)).toMatchObject({ months: [], month: null, reason: 'malformed-config', malformedKey: 'clientMonths' })
@@ -168,22 +191,34 @@ describe('clientMonths: clients see only the newest opened months', () => {
       .toEqual(['Live, team only', 'Hidden from clients: config error', 'Hidden from clients: config error'])
   })
 
-  // Collected and asserted once, as the edge 9 sweep does, and kept apart from its pinned count.
-  test('with clientMonths set, every offered month is a fixed point for both viewers, all year', () => {
+  // Collected and asserted once, as the edge 9 sweep does, and kept apart from its pinned count. The counts are the
+  // spec's (section 6, T11, with their derivation); if a run disagrees, find why before changing a number.
+  test('with clientMonths set, all year: offered months are fixed points, aged-out months go to the newest (T11)', () => {
     const drift: string[] = []
-    let checked = 0
+    const checked = { team: 0, client: 0 }
+    let daysWithAgedOut = 0
     for (let t = Date.UTC(2026, 8, 1, 14); t < Date.UTC(2027, 8, 1, 14); t += 24 * 3600 * 1000) {
       const clock = clockFor(new Date(t))
       for (const v of ['team', 'client'] as const) {
         for (const m of resolveLockedRange(ONE, v, clock, undefined).months) {
-          checked++
+          checked[v]++
           const r = resolveLockedRange(ONE, v, clock, m.dateRange)
           if (r.outcome !== 'canonical' || r.month?.key !== m.key) drift.push(`${v} ${clock.today} ${m.dateRange} -> ${r.outcome} ${r.month?.key}`)
         }
       }
+      // Every month the team sees tagged as aged out, asked for by a client, goes to the client's newest month, unlogged.
+      const newest = resolveLockedRange(ONE, 'client', clock, undefined).months[0]?.key
+      const aged = resolveLockedRange(ONE, 'team', clock, undefined).months.filter((m) => m.tag === 'No longer shown to clients')
+      if (aged.length > 0) daysWithAgedOut++
+      for (const m of aged) {
+        const r = resolveLockedRange(ONE, 'client', clock, m.dateRange)
+        if (r.outcome !== 'replaced' || r.month?.key !== newest || r.hiddenMonthAttempt) drift.push(`aged ${clock.today} ${m.dateRange} -> ${r.outcome} ${r.month?.key} ${r.hiddenMonthAttempt}`)
+      }
     }
     expect(drift.slice(0, 5)).toEqual([])
-    expect(checked).toBeGreaterThan(700)
+    expect(checked).toEqual({ team: 2731, client: 352 })
+    // From 2026-10-12, when September opens and August drops off, through 2027-08-31: 20 + 30 + 31 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31.
+    expect(daysWithAgedOut).toBe(324)
   })
 
   test('locking never reads clientMonths: the settled day is the same with or without it, or with a bad one', () => {
@@ -200,7 +235,7 @@ describe('clientMonths: clients see only the newest opened months', () => {
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run lib/organic-social/reporting-months.test.ts -t "clientMonths: clients see"`
-Expected: FAIL on four tests: "from the opening day a client sees only the newest month", "the team keeps every month, and the one clients no longer see is tagged", "an old link to a month clients no longer see..." and "two months: the newest two..." (plus the all-year fixed-point test is new and passes either way). The others pass already, because they pin behaviour that must not move: the Oct 5 lists (the old code gives August then, `reporting-months.test.ts:109-113`), the live and unopened attempts, canonical, the bad knob and locking.
+Expected: FAIL on five tests (T11's aged-out checks fail too, since no month is tagged yet): "from the opening day a client sees only the newest month", "the team keeps every month, and the one clients no longer see is tagged", "an old link to a month clients no longer see..." and "two months: the newest two..." (plus the all-year fixed-point test is new and passes either way). The others pass already, because they pin behaviour that must not move: the Oct 5 lists (the old code gives August then, `reporting-months.test.ts:109-113`), the live and unopened attempts, canonical, the bad knob and locking.
 
 - [ ] **Step 3: Implement.** `option` (`:138`) takes one more argument and one more tag rule:
 
