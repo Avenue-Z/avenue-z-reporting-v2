@@ -8,11 +8,11 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
-**Spec:** Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). DECIDED (Jasmine, Slack 2026-09-29 5:12 PM): "6% but if it was 6.57 it should show as 7%", so the nearest whole number, half up. Only that rule is built. Applies to outline clients only, never Renaissance.
+**Spec:** `docs/superpowers/specs/2026-09-29-whole-number-changes-design.md` (reviewed twice; it wins where this plan differs; R1 to R6, K1 to K5, O1 to O4 below are its section 6). Source: Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). DECIDED (Jasmine, Slack 2026-09-29 5:12 PM): "6% but if it was 6.57 it should show as 7%", so the nearest whole number; an exact half rounds away from zero by size (my decision, spec section 1). Only that rule is built. Applies to outline clients only, never Renaissance.
 
 ## Global Constraints
 - The only dash characters in this plan are inside code: they are the glyph the card draws today (`kpi-card.tsx:70,76`).
-- `KpiCard` without the new prop renders exactly as today (`components/charts/kpi-card.tsx:61-77`). It is used by about 30 sections, Renaissance's tiles included.
+- `KpiCard` without the new prop renders exactly as today (`components/charts/kpi-card.tsx:61-77`). It is imported by 23 files, Renaissance's tiles included. Renaissance's guard is `render-invariant.test.tsx`, whose snapshot holds the shared tiles' change text with real values; it must not change.
 - Round the SIZE of the change, then put the sign back. The rounded value drives the arrow, the colour and the text, so a +0.3% change can never show a green up arrow next to "0%" (today the arrow uses the unrounded sign, `kpi-card.tsx:66-70`).
 - No other percent-change display is in scope: `capsule-column-chart.tsx:140`, `metric-delta.tsx:26` and `trend-area-chart.tsx:77` are not used by any Organic Social section (checked 2026-09-29).
 - No request shape changes. Nothing here touches Dash requests or lock keys.
@@ -24,7 +24,7 @@
 2. A change that rounds to 0 shows the flat dash and "0%" in the muted colour with no arrow, like today's exact 0.
 3. Negative changes round by size, then take the sign back: a 6.57% drop shows "↓ 7%", a 6.3% drop "↓ 6%".
 4. A tile with no prior (`delta` undefined) still shows the greyed placeholder with no percent, unchanged.
-5. An X tab (no outline rows) draws the v1 tiles and keeps one decimal. That is expected; say so in the PR.
+5. An outline client's tab with no outline rows (Piper's X) rounds too, through the Data part's fallback (Task 3); the v1 part, which Renaissance renders, never passes the flag.
 
 ---
 
@@ -69,6 +69,11 @@ test('float noise never moves a half across the line', () => {
 
 test('a change that rounds to zero is plain 0, never -0', () => {
   expect(Object.is(roundDelta(-0.2), 0)).toBe(true)
+})
+
+test('large changes round the same way', () => {
+  expect(roundDelta(123.5)).toBe(124)
+  expect(roundDelta(-1000.4)).toBe(-1000)
 })
 ```
 
@@ -127,6 +132,13 @@ describe('KpiCard change line', () => {
     const { container } = render(<KpiCard title="Views" value="10" comparisonExpected wholeDelta />)
     expect(line(container)).toBe('— vs prior period')
   })
+
+  test('with invertDelta the colours follow the rounded value, swapped', () => {
+    const { container } = render(<KpiCard title="Bounce Rate" value="10" delta={-6.57} invertDelta wholeDelta />)
+    const p = [...container.querySelectorAll('p')].find((x) => x.textContent?.includes('vs prior period'))!
+    expect(p.textContent).toBe('↓ 7% vs prior period')
+    expect(p.className).toContain('text-brand-green')
+  })
 })
 ```
 
@@ -183,7 +195,7 @@ git commit -m "feat(charts): KpiCard can show a change as the nearest whole numb
 ### Task 2: Turn it on for the outline tiles
 
 **Files:**
-- Modify: `components/report-sections/organic-social/outline-tiles.tsx:22-29`
+- Modify: `components/report-sections/organic-social/outline-tiles.tsx:12-13`, `:22-29`, `:35-37`
 - Modify: `lib/organic-social/format.ts:3` (doc fix)
 - Test: `components/report-sections/organic-social/parts/outline-parts.test.tsx`
 
@@ -217,23 +229,128 @@ Expected: FAIL (the card shows "6.3%").
           wholeDelta
 ```
 
+Then the two comments that become false (spec 3.3). `outline-tiles.tsx:12-14` becomes:
+
+```tsx
+/** Tiles in a grid with no heading, for the metrics directly under the engagement graph. The
+ *  cards are drawn as the shared tiles draw them, except that a change shows as a whole number
+ *  (Jasmine, 2026-09-29). A flagged row (a metric Dash does not offer) is a blank card with its
+ *  flag and no change arrow. */
+```
+
+and in `:35-37`, "the same markup as the shared PlatformHeadlines for one platform (a test holds the two together)" becomes "the same markup as the shared PlatformHeadlines for one platform when no tile has a prior (a test holds the two together; with a prior, the change here is a whole number)".
+
 - [ ] **Step 4: Fix the `pctCompact` doc** (`lib/organic-social/format.ts:3`): `(3.5% -> "3%")` becomes `(3.5% -> "4%")`. `Math.round(3.5)` is 4 (`format.ts:13`), and `post-card.pct.test.tsx` already pins 12.5% as "13%".
 
 - [ ] **Step 5: Run and commit**
 
 Run: `npx vitest run components/report-sections/organic-social/ lib/organic-social/`
-Expected: PASS, including `v1-render.golden.test.tsx` and `platform-headlines.golden.test.tsx` (Renaissance's tiles never set the prop).
+Expected: PASS, including `render-invariant.test.tsx` with its snapshot unchanged (Renaissance's tiles never set the prop).
 
 ```bash
 git add components/report-sections/organic-social/outline-tiles.tsx components/report-sections/organic-social/parts/outline-parts.test.tsx lib/organic-social/format.ts
 git commit -m "feat(organic-social): Outline tiles show whole-number percent changes"
 ```
 
-### Task 3: Prove it and hand it over
+### Task 3: An outline client's tab with no outline rows rounds too (Piper's X)
+
+**Files:**
+- Modify: `components/report-sections/organic-social/platform-headlines.tsx:36-69`
+- Modify: `components/report-sections/organic-social/parts/platform-headlines.tsx:9-12`
+- Modify: `components/report-sections/organic-social/parts/outline-data.tsx:10`, `:40-43`
+- Test: `components/report-sections/organic-social/parts/outline-parts.test.tsx` (replaces `:105-113` on purpose)
+
+**Interfaces:**
+- Consumes: `KpiCard`'s `wholeDelta` (Task 1).
+- Produces: `PlatformHeadlines` prop `wholeDelta?: boolean`; exported `HeadlinesSection(props: OrganicSocialCtx & { wholeDelta?: boolean })`.
+
+- [ ] **Step 1: Write the failing tests.** In `parts/outline-parts.test.tsx`, change the imports `import type { ReactNode } from 'react'` to `import { Suspense, type ReactElement, type ReactNode } from 'react'`, `import { platformHeadlinesV1 } from './platform-headlines'` to `import { HeadlinesSection, platformHeadlinesV1 } from './platform-headlines'`, and add `import { HeadlinesSkeleton } from '../skeletons'`. Replace the test `'on Overview or an uncovered channel the Data part is v1, and the breakdown is nothing'` (`:105-113`) with:
+
+```tsx
+test('on Overview or an uncovered channel the Data part is the v1 tiles with whole-number changes, and the breakdown is nothing (O4)', () => {
+  const v2 = ORGANIC_SOCIAL_PARTS['platform-headlines'][2]
+  const brk = ORGANIC_SOCIAL_PARTS['engagement-breakdown'][1]
+  const r = { id: 'platform-headlines', version: 2, label: 'x' }
+  for (const ctx of [FIXTURE_ORGANIC_SOCIAL_CTX, { ...FIXTURE_ORGANIC_SOCIAL_CTX, channel: 'TWITTER' as const }]) {
+    expect(v2.render(ctx, r)).toEqual(<Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>)
+    // The v1 part, which Renaissance renders, never passes the flag.
+    const v1 = platformHeadlinesV1.render(ctx, { ...r, version: 1 }) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>
+    expect(v1.props.children.props).not.toHaveProperty('wholeDelta')
+    expect(brk.render(ctx, { id: 'engagement-breakdown', version: 1, label: 'x' })).toBeNull()
+  }
+})
+
+test('the shared tiles round only when told to (O4)', () => {
+  const h: PlatformHeadline[] = [{ channel: 'TWITTER', label: 'X', noData: false,
+    kpis: [{ key: 'followers', label: 'Total Followers', value: 100, format: 'number', delta: 5.2 }] }]
+  expect(render(<PlatformHeadlines headlines={h} wholeDelta />).container.textContent).toContain('↑ 5% vs prior period')
+  expect(render(<PlatformHeadlines headlines={h} />).container.textContent).toContain('↑ 5.2% vs prior period')
+})
+```
+
+- [ ] **Step 2: Run them and watch them fail**
+
+Run: `npx vitest run components/report-sections/organic-social/parts/outline-parts.test.tsx`
+Expected: FAIL on both (the fallback is still `platformHeadlinesV1.render`, `HeadlinesSection` is not exported, and `PlatformHeadlines` ignores the flag).
+
+- [ ] **Step 3: Implement.** In `platform-headlines.tsx`, `PlatformSection` and `PlatformHeadlines` (`:36-69`) take the flag and pass it on (the card with `wholeDelta={undefined}` renders exactly as without it):
+
+```tsx
+function PlatformSection({ h, wholeDelta }: { h: PlatformHeadline; wholeDelta?: boolean }) {
+```
+
+with `wholeDelta={wholeDelta}` added to its `KpiCard` after `subValue={k.footnote}`, and
+
+```tsx
+/** `wholeDelta`: whole-number changes, set only by the outline Data part's fallback, never by the v1 part. */
+export function PlatformHeadlines({ headlines, wholeDelta }: { headlines: PlatformHeadline[]; wholeDelta?: boolean }) {
+  return (
+    <div className="space-y-6">
+      {headlines.map((h) => (
+        <PlatformSection key={h.channel} h={h} wholeDelta={wholeDelta} />
+      ))}
+    </div>
+  )
+}
+```
+
+In `parts/platform-headlines.tsx`, `HeadlinesSection` (`:9-12`) becomes:
+
+```tsx
+/** The v1 tiles for one view. `wholeDelta` is set only by the outline Data part's fallback (outline-data.tsx);
+ *  the v1 part below never passes it. */
+export async function HeadlinesSection({ clientSlug, dateRange, compareRange, channel, wholeDelta }: OrganicSocialCtx & { wholeDelta?: boolean }) {
+  const r = await safe(getPlatformHeadlines(clientSlug, dateRange, compareRange, channel))
+  return r.data ? <PlatformHeadlines headlines={r.data} wholeDelta={wholeDelta} /> : <Fallback kind={r.error!} />
+}
+```
+
+`platformHeadlinesV1` (`:14-24`) is not touched and stays the same object. In `parts/outline-data.tsx`, the import at `:10` becomes `import { HeadlinesSection } from './platform-headlines'`, and the fallback (`:40-43`) becomes:
+
+```tsx
+    render: (ctx) => {
+      const rows = ctx.channel ? OUTLINE_DATA_ROWS[variant][ctx.channel] : undefined
+      // An outline client's tab no outline covers (Piper's X, or Overview) keeps the v1 tiles, with whole-number changes.
+      if (!ctx.channel || !rows) return <Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>
+```
+
+(`resolved` was used only by the old fallback, so it is dropped from the signature.)
+
+- [ ] **Step 4: Run and commit**
+
+Run: `npx vitest run components/report-sections/organic-social/ lib/organic-social/`
+Expected: PASS, with `render-invariant.test.tsx`'s snapshot unchanged and `ytd-parity.test.ts` still holding `platformHeadlinesV1` by identity.
+
+```bash
+git add components/report-sections/organic-social/platform-headlines.tsx components/report-sections/organic-social/parts/platform-headlines.tsx components/report-sections/organic-social/parts/outline-data.tsx components/report-sections/organic-social/parts/outline-parts.test.tsx
+git commit -m "feat(organic-social): An outline tab with no outline rows shows whole-number changes too"
+```
+
+### Task 4: Prove it and hand it over
 
 - [ ] Run `DATABASE_URL=postgresql://ci:ci@db.invalid/ci make check`. Expected: typecheck, every test, the RSC check and `next build` pass.
 - [ ] Run `npx eslint` on every changed file. Expected: clean.
-- [ ] Merge proof against every open PR branch (#281, #282, #283, #284, #286, #287). Expected: clean.
-- [ ] Renaissance: `v1-render.golden.test.tsx` and `platform-headlines.golden.test.tsx` pass unchanged. The private drift check hashes `kpi-card.tsx` and `format.ts`, so it reports those two files as changed; that is expected and is not a render change.
-- [ ] Look at it on the local app: an outline client's Data block shows whole-number changes; Renaissance's Organic Social tiles still show one decimal.
+- [ ] Merge proof against every open PR branch (#281, #282, #283, #284, #286, #287, #291, #292). Expected: clean.
+- [ ] Renaissance: `render-invariant.test.tsx` passes with its snapshot unchanged (the real guard: it renders the shared tiles with real deltas and no flag); the goldens pass too. The private drift check hashes the changed files, so it reports them as changed; that is expected and is not a render change.
+- [ ] Look at it on the local app: an outline client's Data block and breakdown show whole-number changes, and so does Piper's X tab if it is set up locally; Renaissance's Organic Social tiles still show one decimal.
 - [ ] Push, mark the PR ready, request Paul.
