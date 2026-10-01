@@ -46,12 +46,17 @@ and in my private records.
 
 ## 4. Design
 ### 4.1 Config (per client, no code per client)
-`clients.dash_social_config.ytdSheet = { sheetId: string, tab: string }`, typed `unknown` on `DashSocialConfig` and
-validated at runtime, like `reportingMonths`. Valid: `sheetId` matches `/^[A-Za-z0-9_-]{20,100}$/`; `tab` is a
-non-empty string of at most 100 characters after trimming. Next year's sheet is a config change.
+`clients.dash_social_config.ytdSheets = { "<year>": { sheetId: string, tab: string } }`, keyed by the four-digit
+year (for example `"2026"`), typed `unknown` on `DashSocialConfig` and validated at runtime, like `reportingMonths`.
+Valid entry: `sheetId` matches `/^[A-Za-z0-9_-]{20,100}$/`; `tab` is a non-empty string of at most 100 characters
+after trimming. `ytdSheetFor(value, year)` returns the valid entry for the year on screen, or null. The month picker
+reaches back up to 36 months (`lib/organic-social/reporting-months.ts:6`), so a year with no entry (or an invalid one)
+renders exactly what version 1 renders; the sheet for one year is never read for another. Next year's sheet is one
+more entry.
 
 ### 4.2 Reader: `lib/organic-social/ytd-sheet.ts`
-- `readYtdTab(sheetId, tab)`: one GET to `values/{tab}!A1:Z40` with a token from `GoogleAuth` (readonly scope, same key
+- `readYtdTab(sheetId, tab)`: one GET to `values/<range>` where the range is the tab in single quotes with each `'`
+  doubled, then `!A1:Z40`, and the whole range passed through `encodeURIComponent`; a token from `GoogleAuth` (readonly scope, same key
   handling as content calendar), a 10 second timeout, wrapped in `cached('google-sheets', 'ytdTab', …,
   { ttlSeconds: 3600, negativeTtlSeconds: 30, version: '1' })`. Returns the raw grid (strings).
 - `parseYtdGrid(grid)` (pure): finds the row whose first cell trimmed matches `/^follower growth$/i` and the row whose
@@ -60,13 +65,26 @@ non-empty string of at most 100 characters after trimming. Next year's sheet is 
   (`INSTAGRAM`, `FACEBOOK`, `LINKEDIN`, `TIKTOK`, `TWITTER` from headers Instagram, Facebook, LinkedIn, TikTok,
   X or Twitter, trimmed, case-insensitive) to 12 cells. Unknown headers are ignored.
 - A cell is exactly one of: `number` (digits with optional thousands commas, optional decimal part, not negative),
-  `na` (trimmed `N/A`, any case), `blank` (empty or only spaces), `invalid` (anything else).
+  `na` (trimmed `N/A`, any case), `blank` (empty, only spaces, or absent because the row is short or missing from the
+  API answer), `invalid` (anything else).
 - Throws `YtdSheetLayoutError` when either block, its header row, or any of its 12 month rows is missing.
 
-### 4.3 Which months, and which number (`ytdSheetSeries`, pure, in `lib/organic-social/ytd.ts`)
-Months: January of the year on screen through the month on screen, oldest first (at most 12). The month on screen
-keeps the range and comparison its Data block sends, and its `(live)` label when partial, exactly as `ytdMonths` does
-today. Each graph (Followers, Views) is decided separately, per month:
+### 4.3 Which months, and which number (pure functions in `lib/organic-social/ytd.ts`)
+Types: `YtdCell = { kind: 'number'; value: number } | { kind: 'na' | 'blank' | 'invalid' }`;
+`YtdTab = { followers: Partial<Record<DashChannel, YtdCell[]>>; views: Partial<Record<DashChannel, YtdCell[]>> }`
+(12 cells, January first, from `parseYtdGrid`); `YtdGraph = { points: { key: string; label: string; value: number }[];
+gaps: string[] }` (gap labels, oldest first).
+- `ytdSheetMonths(dateRange, compareRange, cfg): YtdMonth[] | null`. First calls `ytdMonths` and returns null when it
+  returns null or `[]` (so version 2 draws nothing wherever version 1 draws nothing, `ytd.ts:43-47,55`). Otherwise:
+  January of the year on screen through the month on screen, oldest first (at most 12). Earlier months are whole
+  months; the month on screen is `ytdMonths`'s last entry unchanged (its range, comparison and `partial` flag, so the
+  `(live)` label carries over).
+- `monthsNeedingDash(months, tab, channel, firstMonth): YtdMonth[]`: months on or after `firstMonth` where the
+  Followers or the Views cell is `blank`, or the channel has no column.
+- `ytdSheetSeries(months, tab, channel, firstMonth, built: Record<string, OutlineKpis | undefined>)`
+  returns `{ followers: YtdGraph; views: YtdGraph; invalid: { month: string; graph: 'followers' | 'views' }[];
+  missingColumn: ('followers' | 'views')[] }`. `built` holds the Data block's answer for each month from
+  `monthsNeedingDash`. Labels as version 1 (`Jan`, ..., `Oct (live)`). Each graph is decided separately, per month:
 
 | Sheet cell | Month on or after `firstMonth` | Month before `firstMonth` |
 |---|---|---|
@@ -76,7 +94,8 @@ today. Each graph (Followers, Views) is decided separately, per month:
 | `invalid` | a gap, plus a warning log | a gap, plus a warning log |
 | no column for this channel | as `blank` for every month, plus one warning log | a gap |
 
-A gap means the month is left off that graph and named under it ("No follower data for Jan, Feb"), never drawn as 0.
+A gap means the month is left off that graph and named under it ("No follower data for Jan, Feb" and "No views data
+for Mar"; version 1's shared line, `ytd-review.tsx:49`, stays as it is in version 1), never drawn as 0.
 Months before `firstMonth` never call Dash, so they can never create a lock row (the problem section "The problem a
 naive change creates" in the 2026-09-29 spec described). Dash is called only for months on or after `firstMonth`
 whose cell is blank, at most 3 at a time (`mapWithConcurrency`, `lib/concurrency.ts:19`).
@@ -85,8 +104,9 @@ whose cell is blank, at most 3 at a time (`mapWithConcurrency`, `lib/concurrency
 New `YtdSheetReviewSection` in `parts/ytd-review-sheet.tsx`, registered as `'ytd-review': { 1: ytdReviewV1, 2:
 ytdReviewV2 }`, unpublished. Same title, same two cards, same bars-for-one-point rule, same render gate (outline
 channel and valid `reportingMonths`). Each graph gets its own point list. Version 1 is not edited.
-- `ytdSheet` absent or invalid: renders exactly what version 1 renders (it calls `YtdReviewSection`), with one warning
-  log when present but invalid. So pinning version 2 before the config is set changes nothing.
+- No valid `ytdSheets` entry for the year on screen: renders exactly what version 1 renders (it calls
+  `YtdReviewSection`), with one warning log when an entry is present but invalid. So pinning version 2 before the config
+  is set changes nothing.
 
 ### 4.5 Failure behaviour (the rest of the page is never affected)
 | Failure | What the viewer sees | Log line (never the sheet id or any value) |
@@ -116,20 +136,36 @@ channel and valid `reportingMonths`). Each graph gets its own point list. Versio
 - `lib/organic-social/ytd-sheet.test.ts`: cell kinds; layout found with "July " and extra columns; layout errors name
   what is missing; header mapping (X and Twitter both map to `TWITTER`); `readYtdTab` sends one GET with the readonly
   scope and a timeout, and throws on non-200 without logging the sheet id.
-- `lib/organic-social/ytd.test.ts`: `ytdSheetSeries` for every row of the table in 4.3 and every edge case in 5;
-  Dash is asked only for blank months on or after `firstMonth`.
-- `parts/ytd-review-sheet.test.tsx`: renders both graphs from a stubbed sheet; gaps named per graph; error card on a
-  read failure and on a layout error; falls back to version 1 output when `ytdSheet` is absent; at most 3 Dash
-  requests in flight.
+- `lib/organic-social/ytd-sheet.test.ts` also: the range is quoted, `'` doubled and URL-encoded; a short or missing
+  row reads as `blank`; `ytdSheetFor` accepts a valid entry and rejects a bad id, an empty or over-long tab, a
+  non-object, and returns null for a year with no entry.
+- `lib/organic-social/ytd.test.ts`: `ytdSheetMonths` (null wherever `ytdMonths` is null or empty, including a
+  multi-month custom range; January start; the live month carried over); `monthsNeedingDash` (only blank months on or
+  after `firstMonth`, and every such month when the column is missing); `ytdSheetSeries` for every row of the table in
+  4.3 and every edge case in 5, including a sheet number on a partial month keeping `(live)`, and `invalid` and
+  `missingColumn` filled.
+- `parts/ytd-review-sheet.test.tsx`: renders both graphs from a stubbed sheet; Dash asked only for
+  `monthsNeedingDash`, at most 3 in flight; the per-graph gap lines; error card on a read failure and on a layout
+  error; version 1 output when there is no entry, an invalid entry (one warning), or the year on screen has no entry;
+  nothing rendered for a multi-month range; the warning lines for an invalid cell and a missing column; no log line
+  contains the sheet id or a value.
 - `parts/ytd-parity.test.ts`: version 1 is still the same object; version 2 registered and unpublished.
 - `lib/organic-social/lock-key-pin.test.ts` passes unchanged (no Dash request changes shape).
 
 ## 7. Rollout
 1. PR into `dev` (#286), Paul's review, merge after the dependency scan is green (Paul, 2026-10-01).
-2. Staging, guarded script kept privately (host guard, dry run, my go): for the five outline clients set `ytdSheet`
+2. Staging, guarded script kept privately (host guard, dry run, my go): for the five outline clients set `ytdSheets.2026`
    (their tab) and change the `ytd-review` pin from 1 to 2. Reversal: set the pin back to 1.
 3. Production with the October release, the same script against production with my written consent.
 
-## 8. Not in this build
+## 8. Review round 1 MINOR items, for the plan
+State `healthCritical` explicitly; keep the sheet id, tab and values out of every thrown error message (`cached()` logs
+and memoizes them, `lib/cache.ts:161-193`); accept or stop `mapWithConcurrency` scheduling after a failure
+(`lib/concurrency.ts:13-33`); add failure rows for `getClientBySlug`, a malformed key and the missing-column warning,
+and define the `status` values; define a header row (at least one known platform), first column wins on duplicates,
+comma groups of three; log or dry-run-print the tab's CLIENT row so a wrong tab is caught at rollout; the bars rule
+per graph on its own point count.
+
+## 9. Not in this build
 The source caption (held); Piper's X tab (no outline rows, so no YTD at all, `ytd-review.tsx:20`); any change to the
 tiles' own null-as-0 (separate follow-up).
