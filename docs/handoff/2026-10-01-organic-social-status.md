@@ -1,10 +1,68 @@
-# Organic Social: current status (2026-10-01, end of day)
+# Organic Social: current status (2026-10-01, end of day; updated that night)
 
 Written by me (Thomas) with Claude so the next session picks up with nothing lost. This is the current state. The
 2026-09-30 doc beside it is the previous state, and the 2026-09-29 doc is the history and dated decision log. This file
 is in the public repo: no brand ids, client figures, secrets, login details, links to client data or security findings.
 Those are in my private folder (section 12). Every SHA, state and check below was read from GitHub, git or Vercel at
 the time of writing.
+
+## 0. Update, 2026-10-01 night (read first; where it differs, it replaces sections 1 to 7)
+Read from GitHub at 21:30 UTC.
+
+**Paul's sign-off.**
+- Approved on the current head: #282, #283, #284, #291 and #292.
+- #281: approved on `300939ed`. It now has one new commit (`90560f37`, the dependency fixes below) that needs his look.
+- #285, #287 and #293: not approved yet. He answered every question (below), and each answer is built in or replied to.
+- #286 (YTD from the team's sheet): new, review requested.
+
+**Paul's answers (2026-10-01, 20:02):**
+- **#285:** happy with the rule (whole numbers from 1%, one decimal under 1%). One ask before launch: a one-line
+  heads-up to Jasmine, mine to send. The outline fallback arrow fix (Piper's X) is approved. Renaissance's flipped
+  arrow: fix it as its own PR after this batch, with the goldens updated and a heads-up to the Renaissance account
+  owner.
+- **#287:** not OK merging past the red dependency scan; get it green. Done in #281 (`90560f37`):
+  - `npm audit fix` without `--force`;
+  - every `@tiptap` package moved together to 3.31.4;
+  - the Commentary editor gains `role="textbox"`, and the client view is identical;
+  - #281's `checks / checks` is green;
+  - all ten open PRs merged together: 1943 tests, typecheck, RSC check and build pass.
+  The other PRs' scans go green once #281 is in `dev` and `dev` is brought into each branch.
+- **#293:**
+  - Staff session length: option A, as a follow-up PR (about 24 hours for staff plus a hard 30-day cap for everyone).
+  - Every request or a cache: every request, no cache, measured on staging against a bar set first. Proposed bar: at
+    most 50 ms added at p95, and no rise in peak database connections.
+  - Both recorded in its spec (`e8f694a7`).
+
+**#286, YTD from the team's sheet: built.**
+- The sheet is the source of truth for the two YTD graphs (my decision, 2026-10-01). A month it has not filled in
+  yet shows our Data block's value. Caption held.
+- Process: spec `docs/superpowers/specs/2026-10-01-ytd-from-sheet-design.md` (two review rounds), plan,
+  test-first build, final fresh review (one fix).
+- `make check`: 1738 tests. Merges clean with every open PR. Head `5a4e63c1`.
+
+**Threads open on purpose now (6):**
+- #281 x2: the refreshes and the crash screen.
+- #284 x1: toolbar accessibility, on hold, touches Renaissance.
+- #287 x2: the unauthenticated API route (its own PR before client logins), and the scan thread for Paul to confirm.
+- #293 x2: the log id after #287, and the `/api/auth/session` refresh, which the follow-up's cap closes.
+- Every other thread is resolved, including the seven from Paul's 2026-09-29 #287 review.
+
+**Path to staging for the Jasmine demo (2026-10-02):**
+1. Paul approves #281's new commit, #285, #287, #293 and #286.
+2. I run the merge script, phase 1 (#281).
+3. Claude brings `dev` into the other branches, so their scans re-run green.
+4. I run phase 2.
+5. I promote `dev` to staging.
+6. The guarded YTD switch-on on staging (dry run clean), on my go.
+7. A check of every client's YTD graphs.
+
+The merge script and the switch-on are in my private records.
+
+**Follow-ups now decided:**
+- #293's staff limit and cap;
+- Renaissance's arrow;
+- the API route PR;
+- the Jasmine rounding heads-up.
 
 ## 1. Where we are
 - Paul reviewed all nine open PRs on 2026-10-01 (51 comments, none a blocker). Every comment is fixed, answered or held
