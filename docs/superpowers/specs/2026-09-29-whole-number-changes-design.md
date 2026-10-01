@@ -48,24 +48,40 @@ Renaissance (my standing rule).
 
 ### 3.1 The rounding rule, `roundDelta(delta: number): number` (new, `lib/delta-rounding.ts`)
 - Input: a finite signed percent change.
-- Output: the nearest whole number to it, halves rounded away from zero by size (so a rise and a drop round alike), with
-  the sign kept, and plain `0` (never `-0`) when it rounds to zero.
+- Output: from 1%, the nearest whole number to it; under 1%, one decimal (Thomas, 2026-10-01, after Paul's review: so a
+  small real move on a large account, 120,000 to 119,500 followers or -0.42%, shows 0.4% rather than a flat 0%). Halves
+  round away from zero by size (so a rise and a drop round alike), the sign is kept, a size that rounds to 1.0 at one
+  decimal (0.95 and up) is shown whole as 1, and it is plain `0` (never `-0`) when it rounds to zero (under 0.05).
 - The real value is rounded, not the one-decimal display: 6.45 gives 6, not 7 (rounding to 6.5 first would give 7).
   Float noise is removed first by rounding the size to 9 decimals, so a true 6.5 computed as 6.4999999999 gives 7 (with
   priors up to 2,000, 310 true halves land just below .5 without it; all round correctly with it). Six decimals was too
   wide: a real 6.4999999675% (200,000,001 to 213,000,001, a large account's Views) showed 7% (Paul, #285). At nine, a
   real value would have to sit within 0.0000000005 of a half, which no realistic prior produces.
-- Examples: 6.3 gives 6; 6.57 gives 7 (her two); 6.5 gives 7; 0.4 gives 0; 0.5 gives 1; -6.3 gives -6; -6.57 gives -7;
-  -0.2 gives 0; 123.5 gives 124.
+- Examples: 6.3 gives 6; 6.57 gives 7 (her two); 6.5 gives 7; 0.42 gives 0.4; 0.35 gives 0.4; 0.05 gives 0.1; 0.95
+  gives 1; -6.3 gives -6; -6.57 gives -7; -0.42 gives -0.4; -0.04 gives 0; 123.5 gives 124. Checked against exact
+  integer rounding over 4,839,831 pairs (priors 100 to 20,000, currents within 1.2%): no difference.
 - In `lib/`, not under Organic Social, because the shared `KpiCard` imports it.
 
 ### 3.2 `KpiCard` gets an optional `wholeDelta?: boolean`
 - Absent or false: the component renders exactly as today, byte for byte.
 - True, with `delta` defined: `shown = roundDelta(delta)`. The arrow, the colour and the text all come from `shown`:
   up arrow and green when `shown > 0`, down arrow and red when `shown < 0`, the flat mark and muted when `shown` is 0
-  (colours swapped under `invertDelta`, as today); the text is `Math.abs(shown)` with no decimal, then "%", then the label.
-  So a +0.3% change shows `— 0% vs prior period` in the muted colour, never a green arrow next to "0%".
+  (colours swapped under `invertDelta`, as today); the text is `Math.abs(shown)`, with one decimal when it is under 1
+  and not 0, else none, then "%", then the label. So +0.3% shows "↑ 0.3% vs prior period", and +0.04% shows
+  `— 0% vs prior period` in the muted colour, never a green arrow next to "0%".
 - True, with `delta` undefined: unchanged (the placeholder when `comparisonExpected`, else nothing).
+
+### 3.4 The change on an outline client's fallback tabs (after Paul's review, 2026-10-01)
+- An outline client's tab with no outline rows (Piper's X; Overview, hidden for all five today) shows the v1 tiles. Those
+  measured the change with the shared `delta()`, which divides by the signed prior, so -2 to +4 Net New Followers read
+  as a red "↓ 300%". The fallback now asks for the size-based change (`outlineDelta`, as the outline tiles already use):
+  `HeadlinesSection` takes one `outline` flag, which asks `getPlatformHeadlines` for `'size'` and turns on the rounding
+  above, so the two cannot drift apart. It is worked out after Dash answers, so the request and every lock key are
+  unchanged (`lock-key-pin.test.ts`).
+- Every client on the outline Data part gets it (on staging 2026-10-01: A Place For Mom, Akara, Joy of Life, PIMCO and
+  Piper; Piper's X is the one fallback tab they show).
+- Renaissance is unchanged: the v1 part asks with exactly its four arguments and keeps the signed change, still with the
+  flipped arrow after a negative prior. Fixing it for Renaissance is deferred, a decision for Thomas and Paul together.
 
 ### 3.3 Who sets it
 - `OutlineTiles`: every card it draws with a value passes `wholeDelta` (`outline-tiles.tsx:22-29`). The flagged blank card
@@ -97,7 +113,7 @@ Renaissance (my standing rule).
 
 ## 4. Failure handling
 - `delta` undefined: unchanged (section 3.2).
-- A change that rounds to zero: muted flat mark and "0%", no arrow.
+- A change that rounds to zero (under 0.05%): muted flat mark and "0%", no arrow.
 - A non-finite `delta` cannot come from `outlineDelta` (`outline-delta.ts:13-14` returns undefined for a missing or zero
   prior). If one ever reached the card it would print "NaN%" with or without the prop, as `toFixed` does today: out of
   scope.
@@ -109,7 +125,7 @@ Renaissance (my standing rule).
 | 2 | exact halves, 6.5 and 0.5 | 7% and 1% | R2 |
 | 3 | 6.45 | 6%, not 7% | R3 |
 | 4 | float noise, 6.4999999999 and 5.0000000001 | 7% and 5% | R4 |
-| 5 | a small change, 0.3 or -0.2 | `— 0%`, muted, no arrow; never -0 | R5, K2, K3 |
+| 5 | a small change, 0.3 or -0.42; a tiny one, 0.04 or -0.04 | "↑ 0.3%", "↓ 0.4%"; `— 0%`, muted, no arrow, never -0 | R5, K2, K3 |
 | 6 | drops, -6.3 and -6.57 | down arrow, 6% and 7% | R2, K2 |
 | 7 | large changes, 123.5 and -1000.4 | 124% and 1000% | R6 |
 | 8 | no prior | the placeholder, unchanged | K4 |
@@ -127,12 +143,13 @@ Renaissance (my standing rule).
   - R2 `[6.5, 0.4, 0.5, -6.3, -6.57, -6.5, 0]` map to `[7, 0, 1, -6, -7, -7, 0]`.
   - R3 6.45 gives 6 and -6.45 gives -6.
   - R4 6.4999999999 gives 7 and 5.0000000001 gives 5.
-  - R5 `Object.is(roundDelta(-0.2), 0)`.
+  - R5 `Object.is(roundDelta(-0.04), 0)`; under 1%, one decimal (0.42 gives 0.4, 0.95 gives 1).
   - R6 123.5 gives 124 and -1000.4 gives -1000.
 - `components/charts/kpi-card.test.tsx` (in the include list already):
   - K1 without the prop, `delta` 6.34 reads "↑ 6.3% vs prior period".
-  - K2 with the prop: 6.34 "↑ 6% vs prior period", 6.57 "↑ 7% ...", -6.57 "↓ 7% ...", 0.3 `— 0% ...`.
-  - K3 with the prop, 0.3 is muted (`text-text-muted`), not green.
+  - K2 with the prop: 6.34 "↑ 6% vs prior period", 6.57 "↑ 7% ...", -6.57 "↓ 7% ...", 0.3 "↑ 0.3% ...", -0.42
+    "↓ 0.4% ...", 0.96 "↑ 1% ...", 0.04 `— 0% ...`.
+  - K3 with the prop, 0.04 is muted (`text-text-muted`), not green.
   - K4 with the prop and no `delta`, `comparisonExpected` still reads `— vs prior period`.
   - K5 with the prop and `invertDelta`, -6.57 reads "↓ 7% ..." in green.
 - `components/report-sections/organic-social/parts/outline-parts.test.tsx`:

@@ -6,6 +6,8 @@
 
 **Architecture:** One pure function turns a change into its nearest whole number. `KpiCard` takes an optional `wholeDelta` prop; absent means today's one decimal, byte for byte. Only `OutlineTiles` sets it, which covers the Data block (`outline-tiles.tsx:43`) and the engagement breakdown (`parts/engagement-breakdown.tsx:14`). (After a37cdd2 it also reaches `KpiCard` through `PlatformHeadlines`, on the outline Data part's fallback for Overview and X; corrected after Paul's review.)
 
+> **Changed after Paul's review (2026-10-01), see the spec:** under 1% a change keeps one decimal (3.1, 3.2), and an outline client's fallback tabs measure the change against the size of the prior (3.4). Renaissance is unchanged; its arrow is a decision for Thomas and Paul.
+
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
 **Spec:** `docs/superpowers/specs/2026-09-29-whole-number-changes-design.md` (reviewed twice; it wins where this plan differs; R1 to R6, K1 to K5, O1 to O4 below are its section 6). Source: Jasmine's staging feedback, round 1: "Can all percent changes be rounded up?" Settled 2026-09-29: rate values are not changed (her ask names percent changes; her guide already states the rate rule, `lib/organic-social/format.ts:13`). DECIDED (Jasmine, Slack 2026-09-29 5:12 PM): "6% but if it was 6.57 it should show as 7%", so the nearest whole number; an exact half rounds away from zero by size (my decision, spec section 1). Only that rule is built. Applies to outline clients only, never Renaissance.
