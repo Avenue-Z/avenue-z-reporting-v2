@@ -85,20 +85,33 @@ function getAuth(): GoogleAuth {
   return auth
 }
 
+const TIMEOUT_MS = 10_000
+
+/** One read under one 10 second deadline that covers the token, the request and the body: a stall anywhere ends as
+ *  a 'timeout' rather than holding the block's Suspense boundary open (lib/cache.ts, NEGATIVE CACHING). */
 export async function readYtdTabImpl(sheetId: string, tab: string): Promise<unknown[][]> {
+  const ctrl = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { ctrl.abort(); reject(new YtdSheetReadError('timeout')) }, TIMEOUT_MS)
+  })
+  try {
+    return await Promise.race([read(sheetId, tab, ctrl.signal), deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function read(sheetId: string, tab: string, signal: AbortSignal): Promise<unknown[][]> {
   let token: string | null | undefined
   try { token = await getAuth().getAccessToken() } catch (e) { throw e instanceof YtdSheetReadError ? e : new YtdSheetReadError('auth') }
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 10_000)
   let res: Response
   try {
     res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${rangeFor(tab)}`, {
-      headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal, cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` }, signal, cache: 'no-store',
     })
   } catch {
-    throw new YtdSheetReadError(ctrl.signal.aborted ? 'timeout' : 'network')
-  } finally {
-    clearTimeout(timer)
+    throw new YtdSheetReadError(signal.aborted ? 'timeout' : 'network')
   }
   if (!res.ok) throw new YtdSheetReadError(String(res.status))
   const body = (await res.json().catch(() => null)) as { values?: unknown } | null

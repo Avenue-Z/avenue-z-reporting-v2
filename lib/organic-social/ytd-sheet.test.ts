@@ -98,3 +98,24 @@ test('an answer with no values is an empty grid; a malformed answer throws', asy
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ values: 'x' }), { status: 200 })))
   expect((await readYtdTabImpl(ID, 'T').catch((x) => x)).status).toBe('malformed')
 })
+
+test('the 10 second limit covers the token and the body, not only the response headers', async () => {
+  vi.useFakeTimers()
+  try {
+    const never = () => new Promise<never>(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: never }) as unknown as Response))
+    const body = readYtdTabImpl(ID, 'T').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10_000)
+    const e1 = await Promise.race([body, Promise.resolve('still pending')])
+    expect(e1).toBeInstanceOf(YtdSheetReadError)
+    expect((e1 as YtdSheetReadError).status).toBe('timeout')
+
+    getAccessToken.mockImplementationOnce(never as never)
+    const tok = readYtdTabImpl(ID, 'T').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10_000)
+    const e2 = await Promise.race([tok, Promise.resolve('still pending')])
+    expect((e2 as YtdSheetReadError).status).toBe('timeout')
+  } finally {
+    vi.useRealTimers()
+  }
+})
