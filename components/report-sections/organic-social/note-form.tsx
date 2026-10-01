@@ -107,7 +107,9 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
       if (!r.ok) { setError(r.error ?? 'Could not save. Try again.'); return }
       const ex = notes?.[day]
       onSaved({ day, had: ex ? (ex.draft ? 'draft' : 'approved') : 'none', text: text.trim(), postIds: picked })
-      router.refresh() // re-runs the RSC; the action already expired the cached rows
+      // Re-runs the RSC. Notes and hides are read straight from the database (React.cache, per request; they are
+      // not behind the db tag), so the new answer has this save. #281 tracks dropping this refresh across every save.
+      router.refresh()
     })
   }
 

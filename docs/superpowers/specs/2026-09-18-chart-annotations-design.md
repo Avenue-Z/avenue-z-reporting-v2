@@ -571,7 +571,7 @@ exist, and a note named by id must belong to it. Anything else is refused before
 | Revoke while a draft is open on that day | Refused: delete or approve the draft first. |
 | Two people start a draft on the same day | The second is refused by the index and told a draft is open. |
 | The day is hidden | Clients get neither callout nor note; the team sees both, faded. |
-| A note added on a day the team had already hidden | The client never receives it. The team sees it unfaded until the next navigation: the chart seeds hidden days once per view. Accepted, and tracked in CLAUDE.md (chart notes follow-ups). |
+| A note added on a day the team had already hidden | The client never receives it. The team sees it faded once the save's refresh arrives: the chart follows the server per day (#283). |
 | Every channel toggled off, or the Annotations button off | Notes, dots and hover lines go with the callouts. |
 | Neighbouring top days, or notes a day apart | One card opens at a time, so cards never overlap. |
 | A callout on the first or last day of the month | Its card stays inside the chart's sides; the red line still ends on the dot. |

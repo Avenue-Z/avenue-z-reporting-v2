@@ -16,7 +16,9 @@ import type { TrendSeries } from '@/lib/organic-social/types'
  * Hidden days are different since #277: a day the team did not toggle here follows the server's answer,
  * including a new answer under the SAME key (a save's in-place refresh), and a day the team toggled keeps
  * that choice until an answer agrees with it. Never one hash over the whole answer: an answer can be older
- * than a hide still in flight, which the third test guards. The last three pin the per-day behaviour.
+ * than a hide still in flight, which the third test guards. The rest pin the per-day behaviour: a day that
+ * arrives hidden, another member's hide, a server change after it agreed, and a failed write (the only test
+ * of the revert path, now the chart's `onRevert`).
  *
  * Every number, day and slug below is invented.
  */
