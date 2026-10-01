@@ -1,3 +1,5 @@
+> **Superseded on 2026-10-01** by `2026-10-01-organic-social-status.md` beside it. Kept as the 2026-09-30 record.
+
 # Organic Social: current status (2026-09-30, end of day)
 
 Written by me (Thomas) with Claude so the next session picks up with nothing lost. This is the current state; the
