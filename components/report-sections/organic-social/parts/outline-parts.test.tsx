@@ -116,6 +116,16 @@ test('on Overview or an uncovered channel the Data part is the v1 tiles with who
   }
 })
 
+test('HeadlinesSection passes the flag on to the tiles, so the fallback really shows whole numbers (O4)', async () => {
+  const { getPlatformHeadlines } = await import('@/lib/organic-social/headlines')
+  const h: PlatformHeadline[] = [{ channel: 'TWITTER', label: 'X', noData: false,
+    kpis: [{ key: 'followers', label: 'Total Followers', value: 100, format: 'number', delta: 5.2 }] }]
+  vi.mocked(getPlatformHeadlines).mockResolvedValueOnce(h as never)
+  expect((await text(HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX, wholeDelta: true }))).textContent).toContain('↑ 5% vs prior period')
+  vi.mocked(getPlatformHeadlines).mockResolvedValueOnce(h as never)
+  expect((await text(HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX }))).textContent).toContain('↑ 5.2% vs prior period')
+})
+
 test('the shared tiles round only when told to (O4)', () => {
   const h: PlatformHeadline[] = [{ channel: 'TWITTER', label: 'X', noData: false,
     kpis: [{ key: 'followers', label: 'Total Followers', value: 100, format: 'number', delta: 5.2 }] }]
