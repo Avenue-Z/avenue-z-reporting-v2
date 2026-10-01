@@ -2,6 +2,8 @@
 // show, the request for each, and the points. Pure. It reads only the range on screen and the client's
 // own reportingMonths setting, so it needs nothing from locked months (PR 256).
 import type { OutlineKpis } from './outline-headlines'
+import type { DashChannel } from './metrics'
+import type { YtdCell, YtdTab } from './ytd-sheet'
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 const CUSTOM_RE = /^custom:(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})$/
@@ -72,4 +74,65 @@ export function ytdSeries(months: YtdMonth[], built: Record<string, OutlineKpis 
     points.push({ key: m.key, label, followers: f.value, views: v.value })
   }
   return { points, noData }
+}
+
+export type YtdGraph = { points: { key: string; label: string; value: number }[]; gaps: string[] }
+export type YtdGraphKey = 'followers' | 'views'
+const GRAPHS: readonly YtdGraphKey[] = ['followers', 'views']
+const labelOf = (m: YtdMonth) => { const short = SHORT[Number(m.key.slice(5, 7)) - 1]; return m.partial ? `${short} (live)` : short }
+/** The cell for a month, or null when the tab has no column for this channel in that block. */
+const cellAt = (tab: YtdTab, g: YtdGraphKey, ch: DashChannel, key: string): YtdCell | null => {
+  const c = tab[g][ch]
+  return c ? c[Number(key.slice(5, 7)) - 1] ?? { kind: 'blank' } : null
+}
+
+/** ytd-review@2's months (spec 4.3): null wherever version 1 draws nothing; otherwise January of the year on screen
+ *  through the month on screen. Months from firstMonth are ytdMonths's entries unchanged, so their Dash requests are
+ *  version 1's; earlier months are built the same way and never requested. */
+export function ytdSheetMonths(dateRange: string, compareRange: string, cfg: YtdConfig): YtdMonth[] | null {
+  const base = ytdMonths(dateRange, compareRange, cfg)
+  if (!base || base.length === 0) return null
+  const out: YtdMonth[] = []
+  for (let k = `${base[base.length - 1].key.slice(0, 4)}-01`; k < base[0].key; k = addMonths(k, 1)) {
+    const ref = addMonths(k, cfg.comparison === 'previous-year' ? -12 : -1)
+    out.push({ key: k, dateRange: `custom:${k}-01,${lastOf(k)}`, compareRange: `custom:${ref}-01,${lastOf(ref)}`, partial: false })
+  }
+  return [...out, ...base]
+}
+
+/** Months on or after firstMonth with a blank cell (or no column) on either graph: the only ones Dash is asked for. */
+export function monthsNeedingDash(months: YtdMonth[], tab: YtdTab, channel: DashChannel, firstMonth: string): YtdMonth[] {
+  return months.filter((m) => m.key >= firstMonth && GRAPHS.some((g) => {
+    const c = cellAt(tab, g, channel, m.key)
+    return c === null || c.kind === 'blank'
+  }))
+}
+
+/** Each graph decided separately per month (spec 4.3 table): the sheet's number wins; a blank from firstMonth uses
+ *  the Data block's value (a gap when that month is noData); N/A, invalid and earlier blanks are gaps. */
+export function ytdSheetSeries(
+  months: YtdMonth[], tab: YtdTab, channel: DashChannel, firstMonth: string, built: Record<string, OutlineKpis | undefined>,
+): { followers: YtdGraph; views: YtdGraph; invalid: { month: string; graph: YtdGraphKey }[]; missingColumn: YtdGraphKey[] } {
+  const res = {
+    followers: { points: [], gaps: [] } as YtdGraph,
+    views: { points: [], gaps: [] } as YtdGraph,
+    invalid: [] as { month: string; graph: YtdGraphKey }[],
+    missingColumn: GRAPHS.filter((g) => !tab[g][channel]),
+  }
+  for (const m of months) {
+    const label = labelOf(m)
+    for (const g of GRAPHS) {
+      const c = cellAt(tab, g, channel, m.key) ?? { kind: 'blank' as const }
+      if (c.kind === 'number') { res[g].points.push({ key: m.key, label, value: c.value }); continue }
+      if (c.kind === 'invalid') res.invalid.push({ month: m.key, graph: g })
+      if (c.kind === 'blank' && m.key >= firstMonth) {
+        const b = built[m.key]
+        const k = b?.kpis[g === 'followers' ? 'followers' : 'exposure']
+        if (!b || !k) throw new Error(`YTD: no tiles for ${m.key}`)
+        if (!b.noData) { res[g].points.push({ key: m.key, label, value: k.value }); continue }
+      }
+      res[g].gaps.push(label)
+    }
+  }
+  return res
 }

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { ytdConfig, ytdMonths, ytdSeries } from './ytd'
+import { monthsNeedingDash, ytdConfig, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
+import type { YtdCell, YtdTab } from './ytd-sheet'
 
 const CFG = { firstMonth: '2026-08', comparison: 'previous-month' } as const
 const keys = (ms: { key: string }[] | null) => ms?.map((m) => m.key)
@@ -62,4 +63,64 @@ test('a no-data month is never plotted as zero; it is named instead', () => {
 test('a month with no built tiles at all throws (a wiring error, never a zero)', () => {
   const months = ytdMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', CFG)!
   expect(() => ytdSeries(months, { '2026-08': built(1, 1) })).toThrow('YTD: no tiles for 2026-09')
+})
+
+const n = (value: number): YtdCell => ({ kind: 'number', value })
+const B: YtdCell = { kind: 'blank' }
+const NA: YtdCell = { kind: 'na' }
+const BAD: YtdCell = { kind: 'invalid' }
+const col = (cells: Record<number, YtdCell>, fill: YtdCell = B) => Array.from({ length: 12 }, (_, i) => cells[i + 1] ?? fill)
+const tabOf = (f: YtdCell[] | undefined, v: YtdCell[] | undefined): YtdTab => ({ followers: f ? { INSTAGRAM: f } : {}, views: v ? { INSTAGRAM: v } : {} })
+const tile = (followers: number, views: number, noData = false) => ({ noData, kpis: { followers: { key: 'followers', label: 'Total Followers', format: 'number', value: followers }, exposure: { key: 'exposure', label: 'Views', format: 'number', value: views } } }) as never
+
+test('ytdSheetMonths: January to the month on screen; months from firstMonth are ytdMonths entries unchanged', () => {
+  const m = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', CFG)!
+  expect(keys(m)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'])
+  expect(m.slice(7)).toEqual(ytdMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', CFG))
+  expect(m[0]).toEqual({ key: '2026-01', dateRange: 'custom:2026-01-01,2026-01-31', compareRange: 'custom:2025-12-01,2025-12-31', partial: false })
+  expect(ytdSheetMonths('custom:2026-10-01,2026-10-19', 'custom:2026-09-01,2026-09-19', CFG)!.at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-19', compareRange: 'custom:2026-09-01,2026-09-19', partial: true })
+})
+test('ytdSheetMonths is null wherever ytdMonths draws nothing', () => {
+  for (const r of ['last_30_days', 'custom:2026-09-01,2026-10-31', 'custom:2026-09-02,2026-09-30']) expect(ytdSheetMonths(r, 'x', CFG)).toBeNull()
+  expect(ytdSheetMonths('custom:2026-07-01,2026-07-31', 'x', CFG)).toBeNull() // before firstMonth: ytdMonths is []
+  expect(keys(ytdSheetMonths('custom:2027-02-01,2027-02-28', 'x', CFG))).toEqual(['2027-01', '2027-02'])
+})
+test('monthsNeedingDash: only blank months on or after firstMonth, and every such month when a column is missing', () => {
+  const months = ytdSheetMonths('custom:2026-10-01,2026-10-31', 'custom:2026-09-01,2026-09-30', CFG)!
+  const t = tabOf(col({ 1: n(1), 8: n(8), 9: n(9) }), col({ 1: n(1), 8: n(8) }))
+  expect(keys(monthsNeedingDash(months, t, 'INSTAGRAM', '2026-08'))).toEqual(['2026-09', '2026-10'])
+  expect(keys(monthsNeedingDash(months, tabOf(col({}, n(1)), undefined), 'INSTAGRAM', '2026-08'))).toEqual(['2026-08', '2026-09', '2026-10'])
+  expect(keys(monthsNeedingDash(months, tabOf(col({}, NA), col({}, BAD)), 'INSTAGRAM', '2026-08'))).toEqual([])
+})
+test('ytdSheetSeries: the sheet wins; blank from firstMonth uses our value; N/A, invalid and early blanks are gaps', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', CFG)!
+  const t = tabOf(col({ 1: NA, 2: n(20), 3: BAD, 8: n(80) }), col({ 2: n(2), 8: n(8), 9: n(9) }))
+  const s = ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', { '2026-09': tile(900, 999) })
+  expect(s.followers.points).toEqual([{ key: '2026-02', label: 'Feb', value: 20 }, { key: '2026-08', label: 'Aug', value: 80 }, { key: '2026-09', label: 'Sep', value: 900 }])
+  expect(s.followers.gaps).toEqual(['Jan', 'Mar', 'Apr', 'May', 'Jun', 'Jul'])
+  expect(s.views.points.map((p) => [p.label, p.value])).toEqual([['Feb', 2], ['Aug', 8], ['Sep', 9]])
+  expect(s.invalid).toEqual([{ month: '2026-03', graph: 'followers' }])
+  expect(s.missingColumn).toEqual([])
+})
+test('a blank month whose Data block is noData is a gap; a missing built entry throws', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const t = tabOf(col({}), col({}))
+  const s = ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', { '2026-08': tile(1, 1, true), '2026-09': tile(5, 6) })
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Sep'])
+  expect(s.followers.gaps).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'])
+  expect(() => ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', {})).toThrow('YTD: no tiles for 2026-08')
+})
+test('a sheet number on the live month keeps (live); a missing column is reported per graph', () => {
+  const months = ytdSheetMonths('custom:2026-10-01,2026-10-19', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({}, n(7)), undefined), 'INSTAGRAM', '2026-08', { '2026-08': tile(1, 1), '2026-09': tile(1, 2), '2026-10': tile(1, 3) })
+  expect(s.followers.points.at(-1)).toEqual({ key: '2026-10', label: 'Oct (live)', value: 7 })
+  expect(s.missingColumn).toEqual(['views'])
+  expect(s.views.points.map((p) => [p.label, p.value])).toEqual([['Aug', 1], ['Sep', 2], ['Oct (live)', 3]])
+  expect(s.views.gaps).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'])
+})
+test('N/A from firstMonth on is a gap even when our own value exists: the sheet says there is no number', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({ 8: NA, 9: n(9) }), col({ 8: n(8), 9: n(9) })), 'INSTAGRAM', '2026-08', { '2026-08': tile(800, 80) })
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Sep'])
+  expect(s.followers.gaps).toContain('Aug')
 })
