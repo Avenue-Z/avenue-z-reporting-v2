@@ -1,10 +1,14 @@
 import { sql, eq, and } from 'drizzle-orm'
-import { updateTag } from 'next/cache'
 import { db } from './client'
 import { clients, users, type ClientRole } from './schema'
 import { interpretAddResult } from './seat-result'
 
 export { interpretAddResult }
+
+// These writers do not expire the db-tagged client cache: their callers do, after a write that took
+// effect (app/actions/client-access.ts, app/actions/team.ts). updateTag works only inside a Server
+// Action and throws after the write has landed anywhere else, so keeping it out of this module lets
+// any caller use these safely.
 
 export async function getClientAccessOverview(slug: string) {
   const row = await db.query.clients.findFirst({
@@ -26,7 +30,6 @@ export async function getClientAccessOverview(slug: string) {
 
 export async function setClientSharedPassword(clientId: string, hash: string): Promise<void> {
   await db.update(clients).set({ sharedPasswordHash: hash, updatedAt: new Date() }).where(eq(clients.id, clientId))
-  updateTag('db')
 }
 
 export async function setClientMaxSeats(
@@ -39,7 +42,6 @@ export async function setClientMaxSeats(
     .where(eq(users.clientId, clientId))
   if (maxSeats < count) return { ok: false, reason: 'below_current_count' }
   await db.update(clients).set({ maxSeats, updatedAt: new Date() }).where(eq(clients.id, clientId))
-  updateTag('db')
   return { ok: true }
 }
 
@@ -82,7 +84,6 @@ export async function addClientUser(args: {
     const rows = (exists as { rows?: unknown[] }).rows ?? (exists as unknown as unknown[])
     if (Array.isArray(rows) && rows.length > 0) duplicate = true
   }
-  if (insertedRows > 0) updateTag('db')
   return interpretAddResult({ insertedRows, duplicate })
 }
 
@@ -95,6 +96,5 @@ export async function removeClientUser(args: {
     .where(and(eq(users.id, args.userId), eq(users.clientId, args.clientId)))
     .returning({ id: users.id })
   if (deleted.length === 0) return { ok: false, reason: 'not_found' }
-  updateTag('db')
   return { ok: true }
 }
