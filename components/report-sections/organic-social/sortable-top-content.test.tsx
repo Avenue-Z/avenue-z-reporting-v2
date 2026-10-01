@@ -62,15 +62,22 @@ test('T2 sortKeys limits the toolbar to those metrics, in toolbar order, and Vie
   expect(shownIn(document.body)).toEqual(['cap-1', 'cap-2'])
 })
 
-test('T3 a list without Engagements starts on its first listed metric', () => {
+test('T3 a list without Engagements starts on the first toolbar metric', () => {
   view({ owned: group([mk(1, 9, 1), mk(2, 1, 9)]), sortKeys: ['impressions'] })
   expect(sortButtons()).toEqual(['Views / Impr. ↓'])
   expect(shownIn(document.body)).toEqual(['cap-2', 'cap-1'])
 })
 
-test('T4 an empty list is treated as no list', () => {
-  view({ owned: group([mk(1, 2)]), sortKeys: [] })
-  expect(sortButtons()).toHaveLength(4)
+test('T3b with two keys and no Engagements, the start follows toolbar order, not the order the caller lists', () => {
+  // SORT_METRICS puts Engagement Rate before Views / Impr., so that is the first button and the starting sort.
+  view({ owned: group([mk(1, 1)]), sortKeys: ['impressions', 'engagementRate'] })
+  expect(sortButtons()).toEqual(['Engagement Rate ↓', 'Views / Impr.'])
+})
+
+test('T4 an empty list does not type-check, so a toolbar can never be empty (make check runs tsc on this file)', () => {
+  // @ts-expect-error an empty list is not a list: on an outline tab it would silently bring back all four buttons.
+  const empty: Parameters<typeof SortableTopContent>[0]['sortKeys'] = []
+  expect(empty).toEqual([])
 })
 
 test('T5 influencer rows sort by the listed metrics too', () => {

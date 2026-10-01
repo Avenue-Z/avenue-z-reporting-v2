@@ -87,12 +87,11 @@ export function SortableTopContent({
   /** Cap each owned platform row at its top N (no pager). Absent: today's paging. Influencer rows
    *  always page. */
   ownedLimit?: number
-  /** Only these sort buttons, in toolbar order. Absent or empty: all four, as today. */
-  sortKeys?: readonly SortKey[]
+  /** Only these sort buttons, in toolbar order. Absent: all four, as today. The type rules out an empty list, so
+   *  the toolbar is never empty and an outline tab can't silently get all four back. */
+  sortKeys?: readonly [SortKey, ...SortKey[]]
 }) {
-  const listed = sortKeys ? SORT_METRICS.filter((m) => sortKeys.includes(m.key)) : []
-  // A toolbar is never empty: a list that leaves nothing is treated as no list.
-  const metrics = listed.length > 0 ? listed : SORT_METRICS
+  const metrics = sortKeys ? SORT_METRICS.filter((m) => sortKeys.includes(m.key)) : SORT_METRICS
   const [sortKey, setSortKey] = useState<SortKey>(metrics.some((m) => m.key === 'engagements') ? 'engagements' : metrics[0].key)
   const [dir, setDir] = useState<SortDir>('desc')
 
