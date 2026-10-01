@@ -16,19 +16,26 @@ const filesUnder = (dir: string): string[] =>
 const URL_READ = /^ {2}const \{\s*[\w$]+(\s*,\s*[\w$]+)*\s*\} = await (params|searchParams)$/
 
 /** The lines of the default export's body before the first line of the check, or null when the check
- *  is not a statement of its own at the top level of the body (inside a try, a condition, a callback). */
+ *  is not a statement of its own at the top level of the body (inside a try, a condition, a callback).
+ *  Throws when it cannot find the body at all, so an unusual page shape is reported as that, never as
+ *  "runs something before its check" (which would invite loosening the guard). */
 function beforeCheck(src: string, check: RegExp): string[] | null {
   const lines = src.split('\n')
   const start = lines.findIndex((l) => l.startsWith('export default'))
-  if (start < 0) return null
-  const bodyStart = lines.findIndex((l, i) => i >= start && /\) \{$/.test(l)) + 1
+  const brace = start < 0 ? -1 : lines.findIndex((l, i) => i >= start && /\) \{$/.test(l))
+  if (brace < 0) {
+    throw new Error("could not find the default export's body: the walk wants `export default` and then a line ending in " +
+      '`) {`. Write the page in that shape, or teach the walk the new one; do not loosen the guard.')
+  }
+  const bodyStart = brace + 1
   const at = lines.findIndex((l, i) => i >= bodyStart && check.test(l))
   return at < 0 ? null : lines.slice(bodyStart, at)
 }
 
 const CHECKS = {
-  portal: /^ {2}await requirePortalAccess\(clientSlug\)$/,
-  staff: /^ {2}await requireStaff\(\)$/,
+  // The check alone, or the check keeping the session it returns (so the page does not call auth() again).
+  portal: /^ {2}(const session = )?await requirePortalAccess\(clientSlug\)$/,
+  staff: /^ {2}(const session = )?await requireStaff\(\)$/,
 }
 
 function assertGuarded(file: string, check: RegExp) {
@@ -91,6 +98,22 @@ test('the guard itself catches the ways a check can be defeated', () => {
     const before = beforeCheck(page(bad), CHECKS.portal)
     expect(before === null || before.some((l) => l.trim() && !URL_READ.test(l)), bad).toBe(true)
   }
+})
+
+test('a page may keep the session its check returns', () => {
+  const page = (body: string) => `export default async function P({\n  params,\n}: {\n  params: Promise<{ clientSlug: string }>\n}) {\n${body}\n}`
+  const portal = page('  const { clientSlug } = await params\n  const session = await requirePortalAccess(clientSlug)\n  const c = await getClientBySlug(clientSlug)')
+  expect(beforeCheck(portal, CHECKS.portal)!.filter((l) => l.trim() && !URL_READ.test(l))).toEqual([])
+  const staff = page('  const session = await requireStaff()\n  const d = await getClientsWithDashboards()')
+  expect(beforeCheck(staff, CHECKS.staff)).toEqual([])
+  // Only that exact form: anything else on the line still counts as not the check.
+  expect(beforeCheck(page('  const s = await requireStaff().catch(() => null)'), CHECKS.staff)).toBeNull()
+})
+
+test('a default export whose body the walk cannot find fails with that reason, not a false "runs something first"', () => {
+  const annotated = 'export default async function P(): Promise<JSX.Element> {\n  await requireStaff()\n}'
+  const separate = 'async function P() {\n  await requireStaff()\n}\nexport default P'
+  for (const src of [annotated, separate]) expect(() => beforeCheck(src, CHECKS.staff), src).toThrow(/could not find the default export's body/)
 })
 
 test('the route-file rules match the files they are meant to catch', () => {
