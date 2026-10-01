@@ -71,10 +71,10 @@ export function ChannelTrendChart({
   // once an answer agrees with it, and only then: an answer can be older than a hide still in flight, so
   // disagreement never reverts one (pinned in the same test). Never one hash over the whole answer.
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
-  const setHidden = (day: string, hidden: boolean) => setOverrides((o) => ({ ...o, [day]: hidden }))
-  // A write that failed drops the day's override rather than setting the old value, so the day follows the
-  // server again and a later hide by someone else is drawn.
-  const dropOverride = (day: string) => setOverrides((o) => {
+  // `null` (a write that failed) drops the day's override rather than setting the old value, so the day
+  // follows the server again and a later hide by someone else is drawn.
+  const setHidden = (day: string, hidden: boolean | null) => setOverrides((o) => {
+    if (hidden !== null) return { ...o, [day]: hidden }
     if (!hasOwn(o, day)) return o
     const rest = { ...o }
     delete rest[day]
@@ -108,7 +108,12 @@ export function ChannelTrendChart({
   // undefined → a blank [0,'auto'] axis. Legend stays visible so the user can toggle back on.
   const activeEmpty = isEmptyTrend(series, activeChannels)
   const hasAnnotations = !!annotations && annotations.length > 0
-  const current = annotations?.map((a) => ({ ...a, hidden: hasOwn(overrides, a.date) ? overrides[a.date] : !!a.hidden }))
+  // Each card's annotation as drawn: hides follow the override above, and a day with a note saved here whose
+  // refreshed answer has not arrived is marked, so its card's Approve, Revoke and Delete wait (Paul, #283).
+  const current = annotations?.map((a) => ({
+    ...a, hidden: hasOwn(overrides, a.date) ? overrides[a.date] : !!a.hidden,
+    ...(hasOwn(justSaved, a.date) ? { noteSaving: true as const } : {}),
+  }))
   // Annotations explain the line, so they go when the line does (every channel toggled off).
   const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
   // A dot marks what a client sees: a top day, or a day with an approved note. A draft-only day and a
@@ -137,8 +142,6 @@ export function ChannelTrendChart({
     existing[a.date] = { text: ed.draft?.text ?? a.note ?? '', postIds: ed.draft?.postIds ?? ed.approvedPostIds, draft: !!ed.draft }
   }
   for (const [day, note] of Object.entries(justSaved)) existing[day] = note
-  // A card still shows the previous answer for these days, so its Approve, Revoke and Delete wait (Paul, #283).
-  const savedDays = new Set(Object.keys(justSaved))
 
   return (
     <section className="space-y-3">
@@ -212,7 +215,7 @@ export function ChannelTrendChart({
             <p role="status" className="no-print text-xs text-text-muted">{savedLine(saved, noteControls.canApprove)}</p>
           )}
           {inRow && inRow.length > 0 && (
-            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onRevert={dropOverride} onEdit={onEdit} savedDays={savedDays} />
+            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
           )}
           {activeEmpty ? (
             <NoData />
@@ -228,7 +231,7 @@ export function ChannelTrendChart({
                     x: a.date,
                     label: a.label,
                     muted: !!a.hidden || (!!a.noteOnly && !a.note),
-                    content: <CalloutCard annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onRevert={dropOverride} onEdit={onEdit} savedDays={savedDays} />,
+                    content: <CalloutCard annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
                   }))
                 : undefined}
             />

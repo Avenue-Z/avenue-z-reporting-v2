@@ -176,6 +176,9 @@ export interface ChartAnnotation {
   noteOnly?: true
   /** Phase 2, editors only: the ids and the draft behind the controls. */
   noteEditor?: NoteEditorState
+  /** Client only, set by the chart (trends.tsx): a note saved on this page whose refreshed answer has not
+   *  arrived, so this card still shows the previous answer and its Approve, Revoke and Delete wait. */
+  noteSaving?: true
 }
 
 /** The pictures a callout's card shows: the note's picked posts, else the day's top post, else none. The
