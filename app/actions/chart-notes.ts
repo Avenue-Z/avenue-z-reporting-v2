@@ -6,7 +6,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { authorizeRowForClient, canDeleteDraft, guardNotDeleted } from '@/lib/commentary/mutations'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
 import { isNoteId, isSeenNote, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
-import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { firstOf, hasReportingMonths, parseReportingMonths } from '@/lib/organic-social/reporting-months'
 import {
   approveNote, findChartNote, findOpenDraft, insertDraft, isOpenDraftConflict,
   revokeNote, softDeleteDraft, updateDraft, type NoteKey,
@@ -48,6 +48,11 @@ export async function saveChartNoteAction(input: {
   const client = await getClientBySlug(input.clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
   if (!hasReportingMonths(client)) return NOT_ON
+  // A day before the client's first reporting month is in no month the team can open, so a note there would be
+  // an orphan draft no view reaches (Paul's review of #292). A firstMonth too broken to read means no months at all.
+  const months = parseReportingMonths(client.dashSocialConfig?.reportingMonths)
+  if (!months.ok) return NOT_ON
+  if (input.day < firstOf(months.cfg.firstMonth)) return { ok: false, error: "That day is before this client's first reporting month." }
 
   const key: NoteKey = { clientId: client.id, channel: input.channel as DashChannel, chart: input.chart as AnnotationChart, day: input.day }
   const body = input.body.trim()

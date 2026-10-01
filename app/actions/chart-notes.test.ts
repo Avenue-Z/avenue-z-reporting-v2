@@ -241,3 +241,12 @@ test('delete: a second delete of the same draft is "not found", not a false succ
   vi.mocked(m.softDeleteDraft).mockResolvedValueOnce(false)
   expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual({ ok: false, error: 'not found' })
 })
+
+// Paul's review of #292: a day before the client's first reporting month is in no month the team can
+// open, so a note there would be an orphan draft no view reaches.
+test('save: a day before the client\'s first reporting month is refused, with nothing written', async () => {
+  as('INTERNAL_ANALYST')
+  expect(await saveChartNoteAction({ ...INPUT, day: '2026-07-31' })).toEqual({ ok: false, error: "That day is before this client's first reporting month." })
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+  expect(await saveChartNoteAction({ ...INPUT, day: '2026-08-01' })).toEqual({ ok: true })
+})
