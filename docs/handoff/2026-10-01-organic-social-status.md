@@ -74,7 +74,7 @@ Issues #275 to #278 are open. #283 fixes #276 and #277, #282 fixes #278: close t
 3. #287: merge past the red security scan for now, or a dependency-bump PR first.
 4. #285: Renaissance's flipped arrow after a negative prior: fix it or not (Paul and me together; deferred).
 
-**Mine, next:** the YTD source rule (section 6).
+**Mine, next:** the YTD source rule (section 6): keep 2026-09-29's "sheet to August, our locks from September", or let her sheet win.
 
 ## 6. Jasmine's YTD sheet (#286)
 - Jasmine's "AVZ–OS 2026 YTD Tracker", one tab per client, "updated monthly moving forward". The app's service account
@@ -87,9 +87,10 @@ Issues #275 to #278 are open. #283 fixes #276 and #277, #282 fixes #278: close t
 - The reader must handle: "July " with a trailing space; "N/A" cells (Joy of Life Instagram followers in January, TikTok
   followers January to March, Akara's Facebook views in February); blank cells (Akara Instagram, January to May); columns
   the dashboard does not show (Akara's Facebook, Piper's X).
-- **The decision:** for a month in both her sheet and our locked numbers, which does the graph show? My lean: her sheet,
-  for any month it has (she says the YTD graphs come from it); our locked numbers only for months the sheet has not
-  reached. Then: rework #286's spec around a live, read-only read (a per-client sheet setting, a data check, caching),
+- **The decision:** on 2026-09-29 I decided "YTD January to August from her sheet, our locks from September" (the
+  2026-09-30 doc, section 5). Her sheet now also has September for most clients, and she will keep it updated monthly.
+  So: keep that rule, or let her sheet win for any month it has (she says the YTD graphs come from it), with our locked
+  numbers only for months the sheet has not reached? My lean: her sheet wins. Then: rework #286's spec around a live, read-only read (a per-client sheet setting, a data check, caching),
   fresh-eyed review, my review, build test-first. Her figures never go into the repo.
 
 ## 7. Next steps, in order
