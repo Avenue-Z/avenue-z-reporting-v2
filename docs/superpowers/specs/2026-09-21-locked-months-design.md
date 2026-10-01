@@ -192,7 +192,7 @@ Three outcomes, used by the routes and the logging:
 - `replaced`: the param is present and not canonical. SPA routes redirect; deep links serve in
   place. Logged only when it is a `hidden-month` attempt (the param parses as a whole month or
   live-month range that exists but is not in this viewer's list: the live month or an unopened
-  month, for a client). A month older than the last one a client's list shows under `clientMonths` is not hidden (the client saw it before): it is replaced with the newest month silently. Stale presets, junk and arrays are replaced silently.
+  month, for a client). An opened month older than the last one a client's list shows under `clientMonths` is replaced with the newest month silently, not logged as an attempt (usually the client saw it before the cap reached it; for a client capped from its first month this is a blind spot in the attempt log, with nothing served from it). Stale presets, junk and arrays are replaced silently.
 
 The canonical form is a fixed point: resolving a canonical string returns `canonical`. This rules
 out redirect loops.
@@ -659,7 +659,8 @@ zero-conflict proof.
 1. Add `reportingMonths` to the client's `dash_social_config` with its `firstMonth` and any SOP
    variation (3.1), using a generic host-guarded script that takes the slug and the values as
    arguments: staging first, pre-change snapshot, dry run, then my go; production on my express
-   consent.
+   consent. Include `clientMonths: 1` (Jasmine, 2026-09-29: clients see only the newest opened
+   month). The key is opt-in on purpose, so a client without it keeps every opened month as today.
 2. Nothing else. The picker, the gate, the comparison and Commentary follow from the config.
 
 ## 12. Out of scope

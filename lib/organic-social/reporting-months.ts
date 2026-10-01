@@ -211,8 +211,10 @@ export function resolveLockedRange(cfgValue: unknown, viewer: Viewer, clock: Clo
   const outcome: LockedRange['outcome'] = !present ? 'absent' : month && requested === month.dateRange ? 'canonical' : 'replaced'
   // A hidden-month attempt (logged): a whole-month or live-month request for a month that exists but
   // is not in a CLIENT's list, i.e. the live month or a finished month that has not opened (spec 3.7).
-  // A month the client saw before and no longer does (older than the last one listed under clientMonths)
-  // is not hidden: an old link to it is replaced with the newest month and not logged.
+  // A request for an opened month older than the cap (older than the last one listed under clientMonths) is
+  // replaced with the newest month and not logged. Usually the client saw it before the cap reached it, but a
+  // client capped from its first month never did, so for it this is a blind spot in the attempt log. Nothing
+  // leaks either way: the newest month is served.
   const wholeOrLive = reqKey !== null && (reqKey === current ? liveExists(current, clock) : req!.end === lastOf(reqKey))
   const agedOut = cfg.clientMonths !== undefined && months.length > 0 && reqKey !== null && reqKey < months[months.length - 1].key
   const hiddenMonthAttempt = viewer === 'client' && match === null && wholeOrLive && !agedOut

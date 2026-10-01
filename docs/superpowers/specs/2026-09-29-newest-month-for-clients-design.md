@@ -85,7 +85,9 @@ the team's only signal that a month is gone for clients; Commentary's team note 
 - The newest month's canonical string stays `canonical`.
 - A request for a month that dropped off the client's list is `replaced` by the newest month: the SPA routes redirect,
   the deep link serves it in place, exactly as any other replaced request today. It is NOT a hidden-month attempt and is
-  not logged: the client saw that month before.
+  not logged. That is any opened month older than the cap: usually one the client saw before the cap reached it, but a
+  client capped from its first month never saw them, so for it this is a blind spot in the attempt log (Paul, #291).
+  No data leaks either way: the newest month is served.
 - The exact rule. `hiddenMonthAttempt` is today's predicate (`reporting-months.ts:197-199`) AND NOT `agedOut`, where
   `agedOut` is true only when all three hold: `cfg.clientMonths` is set (valid), the client's list is non-empty, and
   the requested month key is earlier than the last month in that list (`months[months.length - 1].key`). In every
@@ -115,6 +117,11 @@ the team's only signal that a month is gone for clients; Commentary's team note 
   `clientMonths`, `lock-day.ts:31-37`). As with any bad knob, the team's
   Commentary "Clients see this from ..." notes also disappear while it is invalid (`clientOpensNote` returns null on a
   `badKey`, `lib/commentary/month.ts:25`).
+  In plain terms: a bad value takes that client's Organic Social report down ("No reports are available yet") until it
+  is fixed; it is not a silent fallback. Kept on purpose after Paul's review: his alternative (treat a bad value as 1)
+  would need a per-key exception in the client list (`reporting-months.ts:174`), the team tag (`:156`), the no-months
+  text (`:225`) and the Commentary note (`commentary/month.ts:25`). Instead the write cannot land a bad value: the
+  production SQL in section 7 writes the number 1 and reads every row back.
 - `clientMonths` at or above the number of opened months: the client sees every opened month and no team month gets the
   new tag (nothing is dropped). T12.
 - No opened month yet: unchanged ("Your first report opens on ...", `noMonthsText`, `:208-213`).
@@ -179,6 +186,36 @@ host guard, dry run first, every row checked before any write, one transaction, 
 after, run from the main checkout. Production gets the same with the October release, with my written consent; the production run re-checks that the five
 rows have `reportingMonths` and that Renaissance has none before any write, since section 2's facts are from staging.
 Nothing visible changes before Oct 12, since August is still the newest opened month.
+
+**Production (after Paul's review).** Run in the Neon SQL editor (CLAUDE.md rule 3), on my written go, after the
+launch deploy and before Oct 12. Owner: me. It targets every client opted in to locked months, so it needs no slugs,
+and never Renaissance (no `reportingMonths`; excluded by name as well). Checked against staging without writing
+(2026-10-01, a read-only transaction): it selects exactly the five outline clients and writes
+`{"firstMonth":"2026-08","clientMonths":1}` with `clientMonths` a number, which `parseReportingMonths` accepts
+(`reporting-months.ts:132`).
+
+```sql
+-- 1. Before: the rows it will touch (expect the five outline clients, never renaissance).
+SELECT slug, dash_social_config->'reportingMonths' AS reporting_months
+FROM clients WHERE dash_social_config ? 'reportingMonths' ORDER BY slug;
+
+-- 2. The write, one statement, with its own read-back.
+UPDATE clients
+SET dash_social_config = jsonb_set(dash_social_config, '{reportingMonths,clientMonths}', '1'::jsonb, true),
+    updated_at = now()
+WHERE dash_social_config ? 'reportingMonths'
+  AND jsonb_typeof(dash_social_config->'reportingMonths') = 'object'
+  AND slug <> 'renaissance'
+RETURNING slug, dash_social_config->'reportingMonths' AS reporting_months;
+
+-- 3. After: every row shows clientMonths 1, as a number.
+SELECT slug, dash_social_config->'reportingMonths'->'clientMonths' AS client_months,
+       jsonb_typeof(dash_social_config->'reportingMonths'->'clientMonths') AS client_months_type
+FROM clients WHERE dash_social_config ? 'reportingMonths' ORDER BY slug;
+```
+
+Dated check, by Oct 9 (owner: me): step 3 shows `1` and `number` on every row, and a client login sees only the
+newest opened month. Staging gets the same statements first, after merge, with a dry run (step 1) and my go.
 
 ## 8. Out of scope
 - Any change to what the team sees beyond the tag.

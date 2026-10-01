@@ -21,7 +21,7 @@
 
 ## Review Focus
 1. Between the 1st and the opening day the newest opened month is still the previous one: on Oct 5 a client with `clientMonths: 1` sees August, not nothing (September has not opened). Pinned in Task 2.
-2. An old bookmark to a month the client no longer sees redirects to the newest month and is NOT logged as a hidden-month attempt: that month is not secret, the client saw it last month. The live month and an unopened month still are attempts. Pinned in Task 2.
+2. An old bookmark to a month the client no longer sees redirects to the newest month and is NOT logged as a hidden-month attempt: that month is not secret, the client saw it last month. (Corrected after Paul's review: this covers any opened month older than the cap, so for a client capped from its first month it is a blind spot in the attempt log; the newest month is served either way.) The live month and an unopened month still are attempts. Pinned in Task 2.
 3. Commentary for a client still follows the newest month: its cutoff is `lastOf(locked.months[0].key)` (`components/report-sections/commentary/monthly.tsx:35`), and the cap always keeps `months[0]`. No change needed; the Task 2 tests pin that `months[0]` is unchanged.
 4. A typo in `clientMonths` must never stop a month locking. Pinned in Task 2 (`settledThrough` equal with and without it).
 5. The deep-link route (`/portal/[slug]/reports/[reportSlug]`) resolves the month inside the section (`components/report-sections/organic-social/index.tsx:85-96`), so an old deep link serves the newest month without a redirect. Same list, same answer; no change.
@@ -290,8 +290,10 @@ In `resolveLockedRange`, the attempt check (`:195-199`) becomes:
 ```ts
   // A hidden-month attempt (logged): a whole-month or live-month request for a month that exists but
   // is not in a CLIENT's list, i.e. the live month or a finished month that has not opened (spec 3.7).
-  // A month the client saw before and no longer does (older than the last one listed under clientMonths)
-  // is not hidden: an old link to it is replaced with the newest month and not logged.
+  // A request for an opened month older than the cap (older than the last one listed under clientMonths) is
+  // replaced with the newest month and not logged. Usually the client saw it before the cap reached it, but a
+  // client capped from its first month never did, so for it this is a blind spot in the attempt log. Nothing
+  // leaks either way: the newest month is served.
   const wholeOrLive = reqKey !== null && (reqKey === current ? liveExists(current, clock) : req!.end === lastOf(reqKey))
   const agedOut = cfg.clientMonths !== undefined && months.length > 0 && reqKey !== null && reqKey < months[months.length - 1].key
   const hiddenMonthAttempt = viewer === 'client' && match === null && wholeOrLive && !agedOut
@@ -311,7 +313,7 @@ Expected: PASS, every test, old and new.
 
 and change the sentence under the table, which is wrapped across `:72-73` ("The opted-in" at the end of `:72`, "clients set only `firstMonth`." at the start of `:73`), to "The opted-in clients set `firstMonth`, and `clientMonths: 1` (Jasmine, 2026-09-29: clients see only the newest month)." Edit the two lines by hand; a one-line find and replace will not match.
 
-In 3.7 (`:192-194`), after "the live month or an unopened month, for a client)." add: "A month older than the last one a client's list shows under `clientMonths` is not hidden (the client saw it before): it is replaced with the newest month silently."
+In 3.7 (`:192-194`), after "the live month or an unopened month, for a client)." add: "A month older than the last one a client's list shows under `clientMonths` is not hidden (the client saw it before): it is replaced with the newest month silently." (Reworded after Paul's review; see the spec.)
 
 - [ ] **Step 6: Run everything that reads the month list, and commit**
 
