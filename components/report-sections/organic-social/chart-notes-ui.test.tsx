@@ -670,4 +670,21 @@ describe('right after a save, before the refreshed answer arrives (#276)', () =>
     open(); fireEvent.click(postButtons()[1])
     expect(text()).toBe('Changed by someone else')
   })
+
+  // Paul's review of #283: the card still drew the previous answer, so Approve would send the old draft text and
+  // fail, and an approved-only day offered Revoke, which the server refuses while the new draft is open.
+  test("inside that window the card's Approve, Revoke and Delete wait for the server's answer, and come back with it", async () => {
+    const { rerender } = draw([PEAK, APPROVED_ONLY], CONTROLS)
+    const button = (day: string, name: string) => within(cardOf(day)).getByRole('button', { name }) as HTMLButtonElement
+    expect(button('2026-08-20', 'Revoke').disabled).toBe(false)
+    open(); fireEvent.click(postButtons().find((b) => b.getAttribute('aria-label') === 'Post from 8/20')!)
+    type('Event, updated'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    expect(button('2026-08-20', 'Revoke').disabled).toBe(true)
+    expect(button('2026-08-20', 'Edit note').disabled).toBe(false)
+    const refreshed = { ...APPROVED_ONLY, noteEditor: { approvedId: 'a', approvedPostIds: [21], draft: { id: 'd2', text: 'Event, updated', postIds: [21] } } }
+    rerender(<ChannelTrendChart title="T" series={SERIES} annotations={[PEAK, refreshed]} noteControls={CONTROLS} />)
+    expect(button('2026-08-20', 'Approve').disabled).toBe(false)
+    expect(button('2026-08-20', 'Delete draft').disabled).toBe(false)
+  })
 })

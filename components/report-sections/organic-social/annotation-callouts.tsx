@@ -57,14 +57,18 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
  *  comes from the action's revalidateTag('db'). */
-function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating }: {
+function AnnotationItem({ annotation, controls, onToggle, onRevert, noteControls, onEdit, savedDays, as, floating }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
-  /** Set by the chart, which holds which days are hidden so the dot goes with the row. `revert` marks the
-   *  undo after a failed write, so the chart goes back to the server's answer for that day. */
-  onToggle?: (day: string, hidden: boolean, revert?: boolean) => void
+  /** Set by the chart, which holds which days are hidden so the dot goes with the row. */
+  onToggle?: (day: string, hidden: boolean) => void
+  /** After a failed write: the chart forgets this day's override, so the day follows the server's answer again. */
+  onRevert?: (day: string) => void
   noteControls?: NoteControls
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+  /** Days with a note saved on this page whose refreshed answer has not arrived: their card still shows the
+   *  previous answer, so its Approve, Revoke and Delete wait for the new one. */
+  savedDays?: ReadonlySet<string>
   as?: 'li' | 'div'
   floating?: boolean
 }) {
@@ -82,7 +86,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       } catch {
         ok = false
       }
-      if (!ok) onToggle(annotation.date, !next, true) // put it back
+      if (!ok) onRevert?.(annotation.date) // put it back: the day follows the server again
     })
   }
 
@@ -138,7 +142,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
               {hidden ? 'Unhide' : floating ? 'Hide' : 'Hide from client'}
             </button>
           )}
-          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} />}
+          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} saving={!!savedDays?.has(annotation.date)} />}
         </span>
       )}
     </Tag>
@@ -148,12 +152,14 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
 /** The row of callouts above the chart. Since Phase 2b it holds only a callout whose day has no point
  *  on the series (it has no dot to open a card from); every other callout is a card that opens from
  *  its dot (CalloutCard, trends.tsx). */
-export function AnnotationCallouts({ items, controls, noteControls, onToggle, onEdit }: {
+export function AnnotationCallouts({ items, controls, noteControls, onToggle, onRevert, onEdit, savedDays }: {
   items: ChartAnnotation[]
   controls?: AnnotationControls
   noteControls?: NoteControls
-  onToggle?: (day: string, hidden: boolean, revert?: boolean) => void
+  onToggle?: (day: string, hidden: boolean) => void
+  onRevert?: (day: string) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+  savedDays?: ReadonlySet<string>
 }) {
   if (items.length === 0) return null
   // Hiding every card is not enough: the list is a non-last child of the chart's section, so
@@ -163,7 +169,7 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   return (
     <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
       {items.map((a) => (
-        <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} onEdit={onEdit} />
+        <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} onRevert={onRevert} onEdit={onEdit} savedDays={savedDays} />
       ))}
     </ul>
   )
@@ -177,8 +183,10 @@ export function CalloutCard(props: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   noteControls?: NoteControls
-  onToggle?: (day: string, hidden: boolean, revert?: boolean) => void
+  onToggle?: (day: string, hidden: boolean) => void
+  onRevert?: (day: string) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+  savedDays?: ReadonlySet<string>
 }) {
   return <AnnotationItem {...props} as="div" floating />
 }
