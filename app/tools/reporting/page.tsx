@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { auth } from '@/auth'
 import { getClientsWithDashboards } from '@/lib/db/queries'
-import { isInternalStaff } from '@/lib/dashboard/permissions'
 import { AddReportCard } from '@/components/dashboard/add-report/add-report-card'
 import { requireStaff } from '@/lib/auth/page-access'
 
@@ -11,14 +9,14 @@ const cardCls =
 
 export default async function ReportingHubPage() {
   await requireStaff()
-  const [session, dashboards] = await Promise.all([auth(), getClientsWithDashboards()])
-  const canAdd = isInternalStaff(session?.user?.role ?? '')
+  // Only staff get this far, and every staff member may add a dashboard.
+  const dashboards = await getClientsWithDashboards()
 
   return (
     <>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Reporting</h1>
-        <p className="mt-1 text-sm text-text-muted">Client dashboards. {canAdd ? 'Add a new one any time.' : ''}</p>
+        <p className="mt-1 text-sm text-text-muted">Client dashboards. Add a new one any time.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -37,7 +35,7 @@ export default async function ReportingHubPage() {
             <ArrowRight className="h-4 w-4 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />
           </Link>
         ))}
-        {canAdd && <AddReportCard />}
+        <AddReportCard />
       </div>
     </>
   )
