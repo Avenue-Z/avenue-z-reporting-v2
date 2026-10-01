@@ -18,7 +18,7 @@ import type { TrendSeries } from '@/lib/organic-social/types'
  * that choice until an answer agrees with it. Never one hash over the whole answer: an answer can be older
  * than a hide still in flight, which the third test guards. The rest pin the per-day behaviour: a day that
  * arrives hidden, another member's hide, a server change after it agreed, and a failed write (the only test
- * of the revert path, now the chart's `onRevert`).
+ * of the revert path: the card calls `onToggle(day, null)` and the chart drops that day's override).
  *
  * Every number, day and slug below is invented.
  */
