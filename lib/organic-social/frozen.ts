@@ -1,37 +1,33 @@
 import { fetchTopContent } from './top-content'
 import { readSnapshot, writeSnapshot } from './snapshot'
 import { isoRange } from './base'
+import { resolveDateRange } from '@/lib/date-range'
 import { getClientBySlug } from '@/lib/db/queries'
 import { hasReportingMonths } from './reporting-months'
 import type { DashChannel } from './metrics'
 import type { TopContentPost } from './content-types'
 
-/** A window is OPEN while its end is recent — today, the future, or yesterday. The yesterday
- *  boundary is load-bearing: rolling presets (last_N_days, incl. the default last_30_days) resolve
- *  range_end to YESTERDAY — today's partial day is excluded (lib/date-range.ts) — yet still advance
- *  daily and must stay live. A settled past window (a named month, last_month) ends ≥2 days ago →
- *  CLOSED and frozen. (snapshot §3 edge: a straddling window is open and freezes on the first
- *  render after it settles.) */
-export function isPeriodOpen(rangeEnd: string, today: string): boolean {
-  const y = new Date(`${today}T00:00:00Z`)
-  y.setUTCDate(y.getUTCDate() - 1)
-  return rangeEnd >= y.toISOString().slice(0, 10)
+/** The newest day a rolling range can end on: resolveDateRange's own last_1_days end, so yesterday on the
+ *  clock every preset is resolved on (lib/date-range.ts). Asking the range code itself, rather than redoing its
+ *  arithmetic, keeps the freeze and the range on one clock in every time zone, through daylight-saving changes,
+ *  and through any later change to how ranges pick today (#278; Paul, #282). On a machine set to UTC this is
+ *  the UTC date minus one day, exactly the boundary the freeze used before. */
+export function rollingRangeEnd(): string {
+  return resolveDateRange('last_1_days').endDate
 }
 
-/** Today on the clock resolveDateRange ends its ranges on (lib/date-range.ts:44-45): the ISO (UTC) date of
- *  the machine's local midnight, the same expression it uses. isPeriodOpen compares a range's end with it,
- *  so the two must agree. They used not to (#278): today came from the UTC date, so on a machine behind UTC
- *  in the evening a rolling range already read as two days old, closed, and was frozen early. On a machine
- *  set to UTC this is exactly the UTC date, as before. East of UTC it is the day before the local date,
- *  like every date resolveDateRange gives there, so a finished month freezes a day late, never early. */
-export function freezeToday(now: Date = new Date()): string {
-  const midnight = new Date(now)
-  midnight.setHours(0, 0, 0, 0)
-  return midnight.toISOString().slice(0, 10)
+/** A window is OPEN while it ends on or after `rollingEnd` (rollingRangeEnd above): every rolling preset
+ *  (last_N_days, incl. the default last_30_days) ends exactly there, since today's partial day is excluded, and
+ *  must stay live as it advances daily. A settled past window (a named month, last_month) ends before it ->
+ *  CLOSED and frozen. (snapshot §3 edge: a straddling window is open and freezes on the first render after it
+ *  settles.) */
+export function isPeriodOpen(rangeEnd: string, rollingEnd: string): boolean {
+  return rangeEnd >= rollingEnd
 }
 
 interface Deps {
-  today: string
+  /** rollingRangeEnd() unless a test injects it. */
+  rollingEnd: string
   isoRange: (dateRange: string) => { start: string; end: string }
   clientId: (slug: string) => Promise<string | null>
   fetchLive: (slug: string, dateRange: string, channel: DashChannel | null) => Promise<TopContentPost[]>
@@ -44,7 +40,7 @@ interface Deps {
 
 function defaultDeps(): Deps {
   return {
-    today: freezeToday(),
+    rollingEnd: rollingRangeEnd(),
     isoRange,
     clientId: async (slug) => (await getClientBySlug(slug))?.id ?? null,
     fetchLive: fetchTopContent,
@@ -75,7 +71,7 @@ export async function fetchTopContentFrozen(
   let clientId: string | null = null
   try { clientId = await d.clientId(slug) } catch { clientId = null }
 
-  const open = isPeriodOpen(end, d.today)
+  const open = isPeriodOpen(end, d.rollingEnd)
 
   // Closed period already frozen → serve the snapshot (no live query), INCLUDING a frozen-empty
   // window (returns []). A read that THROWS is a transient failure, not proof of absence: fall
