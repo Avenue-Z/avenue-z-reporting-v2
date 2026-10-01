@@ -1,6 +1,6 @@
 # YTD sheet: find each client's tab automatically: design
 
-Status: DRAFT for review. Builds on #286 (`ytd-review@2`, head `5a4e63c1`, not yet merged); code here is cited at that
+Status: REVIEWED (two fresh-eyed rounds; the round 2 MAJOR fixed on my go, 2026-10-01). Builds on #286 (`ytd-review@2`, head `5a4e63c1`, not yet merged); code here is cited at that
 head. Built only after #286 merges, on this branch off `dev` (no PR stacked on an open PR). Public repo: no sheet id,
 no figures; the sheet id lives in an environment variable and the database, never here.
 
@@ -32,6 +32,8 @@ no figures; the sheet id lives in an environment variable and the database, neve
   "Renaissance". With the normalization in 4.4, four outline clients match their tab exactly; Akara matches none (it
   needs the override); "Renaissance" matches the Renaissance tab, so Renaissance's protection is that it never pins
   `ytd-review@2` (section 4.7).
+- A read of a tab name that does not exist answers HTTP 400 with `INVALID_ARGUMENT` ("Unable to parse range"),
+  measured with one read-only request.
 - Production's client names are UNVERIFIED (production reads are blocked); its rows are copied from staging at launch.
 
 ## 4. Design
@@ -94,9 +96,10 @@ An invalid override warns as #286 does and renders version 1. An index read fail
 with `ytd sheet read failed slug=… status=…`, as a tab read failure does.
 The index and each tab read are cached separately for an hour, so after a rename the index can name a title that no
 longer exists, or a cached grid can outlive its match. Two checks close this: a tab read that answers HTTP 400 (the
-range names no tab) renders version 1 with warning `ytd sheet tab gone slug=… year=…`, not the error card; and the
-read grid's A1 must normalize (4.4) to the matched index entry's `clientRow`, else version 1 with warning
-`ytd sheet tab changed slug=… year=…`. Everything after these checks (the months, the series, the graphs) is #286's
+range names no tab; measured in section 3) renders version 1 with warning `ytd sheet tab gone slug=… year=…`, not the
+error card; and the read grid's A1 must match the chosen index entry's CLIENT row with both sides normalized,
+`normalizeName(String(grid[0]?.[0] ?? '')) === normalizeName(clientRow)` (two empty values are equal), else version 1
+with warning `ytd sheet tab changed slug=… year=…`. Everything after these checks (the months, the series, the graphs) is #286's
 code, unchanged.
 
 ### 4.6 What still needs a person, and when
@@ -169,6 +172,13 @@ number of clients sharing it; the batch URL length at 100 tabs (lower the cap or
 limit); a warning when a pinned client's year is missing from the setting (`ytd sheet no year`); tests for override
 against auto precedence, the client-list failure log, no tab title in any log, the index `cached()` options; the new
 tests stub and restore `ORGANIC_SOCIAL_YTD_SHEETS`, and #286's suite runs with it unset.
+Round 2 MINOR items: step 1 (the override) uses the same merged client list as step 2 and the same two post-read
+checks (`tab gone`, `tab changed`); the "Tab renamed" row says the old grid can still be served from cache until it
+expires (right client, old title), then `tab gone`; any 400 now renders version 1, which also covers a 400 for another
+reason (accepted: never another client's numbers); the current-client merge is tested in the part's tests, and an
+absent `hidden` in the index tests; a batch entry that is not an object, a `values` that is not an array, or a
+non-string A1 is read with `String(...).trim()` as `firstCell` does (`lib/organic-social/ytd-sheet.ts:24` at
+`5a4e63c1`).
 
 ## 10. Not in scope
 Creating a client row for a new tab (onboarding stays a person's job); fuzzy matching; the held source caption.
