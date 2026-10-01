@@ -43,11 +43,12 @@ board" (26:01 to 26:02) means every outline client (clients on locked months), n
 
 ## 3. The change
 
-### 3.1 `SortableTopContent` gets an optional `sortKeys?: readonly SortKey[]`
+### 3.1 `SortableTopContent` gets an optional `sortKeys?: readonly [SortKey, ...SortKey[]]`
 - Absent: the toolbar is `SORT_METRICS`, all four, exactly as today.
 - Present: the toolbar is `SORT_METRICS` filtered to the listed keys, always in `SORT_METRICS` order whatever order the
-  caller lists (so Engagements then Views / Impr.). If that filter leaves nothing (an empty list), the toolbar is all
-  four, as if absent: a toolbar is never empty.
+  caller lists (so Engagements then Views / Impr.). The type rules out an empty list (after Paul's review), and every
+  `SortKey` is in `SORT_METRICS`, so the filter never leaves nothing: a toolbar is never empty, and an outline tab can't
+  silently fall back to all four.
 - The starting sort: Engagements, descending, when Engagements is on the toolbar (today's start); otherwise the first
   button on the toolbar, descending. It is seeded once, on mount (`sortable-top-content.tsx:90`); the caller's list is a
   module constant, so the sort in effect always has a button. A list that changed under the same instance would not
@@ -69,7 +70,7 @@ The outline part passes `sortKeys={OUTLINE_SORT_KEYS}` on its `SortableTopConten
 - No request, lock key or data shape.
 
 ## 4. Failure handling
-Display only; no new failure path. An empty list falls back to all four (3.1). No data, or a Dash failure, shows what it
+Display only; no new failure path. An empty list does not compile (3.1). No data, or a Dash failure, shows what it
 shows today (the part's own fallback, `top-content-outline.tsx`, `safe`/`Fallback`).
 
 ## 5. Edge cases

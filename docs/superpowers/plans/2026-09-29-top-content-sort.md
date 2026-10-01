@@ -20,8 +20,8 @@
 - Checks: `DATABASE_URL=postgresql://ci:ci@db.invalid/ci make check` (the placeholder is what CI uses, `.github/workflows/ci.yml:51`).
 
 ## Review Focus
-1. A list without Engagements: the first sort key in the list becomes the starting sort, never a sort that has no button.
-2. An empty list: treated as absent (all four), never a toolbar with no buttons.
+1. A list without Engagements: the first button on the toolbar (`SORT_METRICS` order, not the caller's order) becomes the starting sort, never a sort that has no button. (Corrected after Paul's review to match spec 3.1; T3b pins it.)
+2. An empty list: does not type-check (`readonly [SortKey, ...SortKey[]]`, after Paul's review), so a toolbar can never be empty and an outline tab can't silently get all four back. T4 is a `@ts-expect-error` that `make check`'s typecheck enforces.
 3. Influencer Posts follows the same toolbar, so it sorts only by the listed keys too.
 4. Order: the buttons keep `SORT_METRICS` order (Engagements, then Views / Impr.), whatever order the caller lists.
 5. The Renaissance drift check hashes `sortable-top-content.tsx`, so it will report it as changed. That is expected. The Top Content goldens do NOT hold the toolbar (spec section 2), so the proof that Renaissance renders the same is T7 (the v2 part passes no `sortKeys`) plus v1 never using `SortableTopContent`.
@@ -38,7 +38,7 @@
 - Test: `components/report-sections/organic-social/parts/top-content-outline.test.tsx`
 
 **Interfaces:**
-- Produces: `OUTLINE_SORT_KEYS: readonly SortKey[]` in `lib/organic-social/outline-top-content.ts`, value `['engagements', 'impressions']`.
+- Produces: `OUTLINE_SORT_KEYS: readonly SortKey[]` in `lib/organic-social/outline-top-content.ts`, value `['engagements', 'impressions']`. (After Paul's review both types are `readonly [SortKey, ...SortKey[]]`, so an empty list does not compile; the step code below is the original build.)
 - Produces: `SortableTopContent` prop `sortKeys?: readonly SortKey[]`.
 
 - [ ] **Step 1: Write the failing component tests** (append to `sortable-top-content.test.tsx`)
@@ -175,74 +175,10 @@ git add lib/organic-social/outline-top-content.ts components/report-sections/org
 git commit -m "feat(organic-social): Outline tabs sort Top Content by Engagements and Views only"
 ```
 
-### Task 2: Post cards show only the listed metrics (NOT BUILT: decided 2026-09-29 that the cards keep all four)
+### Task 2: Post cards show only the listed metrics (dropped)
 
-**Files:**
-- Modify: `components/report-sections/organic-social/post-card.tsx:11-20,55-57,70`
-- Modify: `components/report-sections/organic-social/sortable-top-content.tsx` (pass the list to each card)
-- Modify: `components/report-sections/organic-social/parts/top-content-outline.tsx` (pass `cardKeys`)
-- Test: `components/report-sections/organic-social/post-card.pct.test.tsx`, `sortable-top-content.test.tsx`, `parts/top-content-outline.test.tsx`
-
-**Interfaces:**
-- Consumes: `OUTLINE_SORT_KEYS` (Task 1).
-- Produces: `PostCard` prop `metrics?: readonly SortKey[]`; `SortableTopContent` prop `cardKeys?: readonly SortKey[]`.
-
-- [ ] **Step 1: Write the failing card tests** (append to `post-card.pct.test.tsx`, reusing its post factory)
-
-```tsx
-const rowLabels = (c: HTMLElement) => [...c.querySelectorAll('li')].map((li) => li.firstChild?.textContent)
-
-test('without metrics a card lists all four rows', () => {
-  const { container } = render(<PostCard post={makePost({})} clientSlug="c" canEdit={false} />)
-  expect(rowLabels(container)).toEqual(['Effectiveness', 'Engagement Rate', 'Engagements', 'Views / Impr.'])
-})
-
-test('metrics limits the card to those rows, in card order', () => {
-  const { container } = render(<PostCard post={makePost({})} clientSlug="c" canEdit={false} metrics={['impressions', 'engagements']} />)
-  expect(rowLabels(container)).toEqual(['Engagements', 'Views / Impr.'])
-})
-```
-
-(`makePost` is the file's own factory, `post-card.pct.test.tsx:13-21`.)
-
-Run: `npx vitest run components/report-sections/organic-social/post-card.pct.test.tsx`
-Expected: the `metrics` test FAILS.
-
-- [ ] **Step 2: Filter the card rows** (`post-card.tsx`)
-
-```tsx
-function cardMetrics(post: TopContentPost, sortKey: string, only?: readonly string[]): CardMetric[] {
-  const m = post.metrics
-  const rows = [
-    // effectiveness + engagementRate are both fractions (×100 for %).
-    { key: 'effectiveness', label: 'Effectiveness', value: m.effectiveness != null ? pctCompact(m.effectiveness * 100) : '—' },
-    { key: 'engagementRate', label: 'Engagement Rate', value: m.engagementRate != null ? pctCompact(m.engagementRate * 100) : '—' },
-    { key: 'engagements', label: 'Engagements', value: num(m.engagements) },
-    { key: 'impressions', label: 'Views / Impr.', value: num(m.impressions) },
-  ]
-  return rows.filter((x) => !only || only.length === 0 || only.includes(x.key)).map((x) => ({ ...x, emphasised: x.key === sortKey }))
-}
-```
-
-Add `metrics?: readonly string[]` to `PostCard`'s props and call `cardMetrics(post, sortKey, metrics)`.
-
-- [ ] **Step 3: Thread the list through** (`sortable-top-content.tsx`): add `cardKeys?: readonly SortKey[]` to `SortableTopContent`, pass it to `PlatformCardRow` as `cardKeys`, and render `<PostCard ... metrics={cardKeys} />`. Add a test in `sortable-top-content.test.tsx` that `cardKeys: ['engagements', 'impressions']` leaves two rows per card and that no `cardKeys` leaves four.
-
-- [ ] **Step 4: Pass it from the outline part** and extend the Task 1 wiring test to expect `cardKeys` equal to `['engagements', 'impressions']`.
-
-```tsx
-        ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS} cardKeys={OUTLINE_SORT_KEYS} />
-```
-
-- [ ] **Step 5: Run and commit**
-
-Run: `npx vitest run components/report-sections/organic-social/`
-Expected: PASS, goldens unchanged.
-
-```bash
-git add components/report-sections/organic-social/post-card.tsx components/report-sections/organic-social/post-card.pct.test.tsx components/report-sections/organic-social/sortable-top-content.tsx components/report-sections/organic-social/sortable-top-content.test.tsx components/report-sections/organic-social/parts/top-content-outline.tsx components/report-sections/organic-social/parts/top-content-outline.test.tsx
-git commit -m "feat(organic-social): Outline post cards show Engagements and Views only"
-```
+Not built and not to be built: on 2026-09-29 Jasmine decided the cards keep all four metrics (call 26:06 to 26:28; spec
+section 3). Its steps were removed after Paul's review so nothing here reads as pending work.
 
 ### Task 3: Prove it and hand it over
 
