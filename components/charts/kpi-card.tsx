@@ -19,7 +19,8 @@ interface KpiCardProps {
   /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a caveat like the
    *  Facebook influencer note. */
   subValue?: string
-  /** Show the change as the nearest whole number (outline clients' Organic Social tiles). Absent: one decimal. */
+  /** Show the change as the outline clients' Organic Social tiles do (roundDelta): whole numbers from 1%, one
+   *  decimal under 1%. Absent: one decimal. */
   wholeDelta?: boolean
 }
 
@@ -74,7 +75,7 @@ export function KpiCard({
           )}
         >
           {shown > 0 ? '↑' : shown < 0 ? '↓' : '—'}{' '}
-          {Math.abs(shown).toFixed(wholeDelta ? 0 : 1)}% {deltaLabel}
+          {Math.abs(shown).toFixed(wholeDelta && (shown === 0 || Math.abs(shown) >= 1) ? 0 : 1)}% {deltaLabel}
         </p>
       ) : comparisonExpected ? (
         // No prior value to compare against — show a greyed placeholder (no % so it can't be

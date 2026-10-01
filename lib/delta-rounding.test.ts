@@ -8,7 +8,15 @@ test('her two examples', () => {
 })
 
 test('nearest by size, half up, sign kept', () => {
-  expect([6.5, 0.4, 0.5, -6.3, -6.57, -6.5, 0].map(roundDelta)).toEqual([7, 0, 1, -6, -7, -7, 0])
+  expect([6.5, 1.5, -6.3, -6.57, -6.5, 0].map(roundDelta)).toEqual([7, 2, -6, -7, -7, 0])
+})
+
+// Thomas, 2026-10-01 (Paul's review of #285): a change under 1% keeps one decimal, so a small real move on a
+// large account (120,000 to 119,500 followers is -0.42%) is not shown as a flat 0%.
+test('under 1% the change keeps one decimal, half up by size; from 1% it is whole', () => {
+  expect([0.42, 0.35, 0.05, 0.94, -0.42, -0.35].map(roundDelta)).toEqual([0.4, 0.4, 0.1, 0.9, -0.4, -0.4])
+  expect([0.95, 0.99, 1, 1.4].map(roundDelta)).toEqual([1, 1, 1, 1])
+  expect(roundDelta(((119500 - 120000) / 120000) * 100)).toBe(-0.4)
 })
 
 test('the real value is rounded, not the one-decimal display', () => {
@@ -22,7 +30,8 @@ test('float noise never moves a half across the line', () => {
 })
 
 test('a change that rounds to zero is plain 0, never -0', () => {
-  expect(Object.is(roundDelta(-0.2), 0)).toBe(true)
+  expect(Object.is(roundDelta(-0.04), 0)).toBe(true)
+  expect(roundDelta(0.04)).toBe(0)
 })
 
 test('large changes round the same way', () => {
