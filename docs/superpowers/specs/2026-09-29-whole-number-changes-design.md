@@ -51,8 +51,10 @@ Renaissance (my standing rule).
 - Output: the nearest whole number to it, halves rounded away from zero by size (so a rise and a drop round alike), with
   the sign kept, and plain `0` (never `-0`) when it rounds to zero.
 - The real value is rounded, not the one-decimal display: 6.45 gives 6, not 7 (rounding to 6.5 first would give 7).
-  Float noise is removed first by rounding the size to 6 decimals, so a true 6.5 computed as 6.4999999999 gives 7; the
-  cost is that a real value within 0.0000005 of a half (6.4999995) also rounds up, which no tile can show.
+  Float noise is removed first by rounding the size to 9 decimals, so a true 6.5 computed as 6.4999999999 gives 7 (with
+  priors up to 2,000, 310 true halves land just below .5 without it; all round correctly with it). Six decimals was too
+  wide: a real 6.4999999675% (200,000,001 to 213,000,001, a large account's Views) showed 7% (Paul, #285). At nine, a
+  real value would have to sit within 0.0000000005 of a half, which no realistic prior produces.
 - Examples: 6.3 gives 6; 6.57 gives 7 (her two); 6.5 gives 7; 0.4 gives 0; 0.5 gives 1; -6.3 gives -6; -6.57 gives -7;
   -0.2 gives 0; 123.5 gives 124.
 - In `lib/`, not under Organic Social, because the shared `KpiCard` imports it.

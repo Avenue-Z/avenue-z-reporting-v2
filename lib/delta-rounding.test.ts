@@ -29,3 +29,11 @@ test('large changes round the same way', () => {
   expect(roundDelta(123.5)).toBe(124)
   expect(roundDelta(-1000.4)).toBe(-1000)
 })
+
+test('only float noise is snapped: a real change just under a half on a large account still rounds down', () => {
+  // 200,000,001 to 213,000,001 is a real 6.4999999675%, which a six-decimal snap would have shown as 7%.
+  // The snap still fixes float-noise halves: with priors up to 2,000, every true half rounds up (Paul, #285).
+  expect(roundDelta(((213000001 - 200000001) / 200000001) * 100)).toBe(6)
+  // 40 to 63 is exactly 57.5%, which floating point computes as 57.49999999999999: the snap still rounds it up.
+  expect(roundDelta(((63 - 40) / 40) * 100)).toBe(58)
+})
