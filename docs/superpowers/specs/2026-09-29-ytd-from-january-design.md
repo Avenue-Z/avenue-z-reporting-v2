@@ -1,6 +1,6 @@
 # YTD Review from January 2026: design
 
-Status: ON HOLD, to be reworked when Jasmine's sheet arrives. Code read on `origin/dev` d4f4a42.
+Status: SUPERSEDED on 2026-10-01 by `2026-10-01-ytd-from-sheet-design.md` (the sheet is the source of truth). Kept for the record. Was: ON HOLD, to be reworked when Jasmine's sheet arrives. Code read on `origin/dev` d4f4a42.
 
 **Read the Decision update at the end first.** Everything between here and it describes the earlier design (history read from Dash, a `ytdFrom` setting, a no-lock rule), which the 2026-09-29 call superseded. It stays for the record until the rework replaces it.
 
