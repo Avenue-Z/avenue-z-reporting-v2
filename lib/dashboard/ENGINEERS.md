@@ -185,7 +185,7 @@ Two paths, both landing on a validated `BlockConfig`:
   rejected server-side even if force-cast.
 
 Saving always funnels through `saveDashboardConfig` → `parseDashboardConfig` →
-DB write → `revalidateTag`. Inline copy edits (`updateBlockText`) and dimension
+DB write → `updateTag('db')`. Inline copy edits (`updateBlockText`) and dimension
 relabels (`updateLabelOverride`) build the next config via
 [config-mutations.ts](../../components/dashboard/config-mutations.ts) and reuse the
 same save (so they inherit the same auth + validation gate).
