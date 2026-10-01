@@ -187,17 +187,17 @@ takes a dry run and my go.
 5. Staff keep the default analyst view when their row is deleted (known limit, row 5).
 6. A test admin password change does not revoke old preview sessions (known limit, decided; section 3.1, row 2).
 7. The sign-in lookup now also throws a fresh error on failure (section 3.1).
-8. DECISION FOR PAUL AND THOMAS (from Paul's review, 2026-10-01): how long staff stay signed in. Most staff have no
-   row (any `@avenuez.com` Google account gets the analyst default), so deleting a row cannot sign a leaver out, and
-   a disabled Google account does not end the cookie: up to 30 days, longer through `/api/auth/session`. Options:
-   (a) staff sessions end after a set time (for example 24 hours) and every session has a hard 30-day cap, using a
-   sign-in time stored in the token at sign-in (the token's `iat` is reset on every re-encode, section 2); (b) keep
-   30 days and accept it, with rotating `AUTH_SECRET` as the emergency stop (signs everyone out); (c) a disabled-staff
-   list in the database (schema change). Not decided; nothing in this PR changes it.
-9. DECISION FOR PAUL AND THOMAS (from Paul's review, 2026-10-01): a database read on every request, or a short cache.
-   The proxy and the render each read `users`, and prefetches add more. Options: (a) keep every request and measure
-   it on staging with `PERF_LOG=1` after merge, adding a cache only if needed; (b) a per-instance cache of 30 to 60
-   seconds, so a removal takes effect within that time instead of on the next click. Not decided.
+8. DECIDED (Paul, 2026-10-01; I agree): how long staff stay signed in. Option (a), as a follow-up PR so it does not
+   hold this one up: staff sessions end after about 24 hours and every session has a hard 30-day cap, using a sign-in
+   time stored in the token at sign-in (the token's `iat` is reset on every re-encode, section 2). That ties a
+   leaver's access back to their Google account, which offboarding already disables. Not the disabled-staff list
+   (a schema change plus someone remembering each leaver). Rotating `AUTH_SECRET` stays the emergency stop. The
+   `/api/auth/session` 30-day refresh is closed by the same cap. Nothing in this PR changes it.
+9. DECIDED (Paul, 2026-10-01; I agree): keep the read on every request, no cache. It is one indexed read, and a
+   per-instance cache across many short-lived Vercel instances would save little while delaying a removal by up to a
+   minute. Measure on staging with `PERF_LOG=1` after merge, against a bar set before measuring (proposed, for Paul
+   and me to confirm): no more than 50 ms added to a page load at p95, and no rise in peak database connections.
+   A cache is added only if the measurement misses that bar.
 
 ## 10. Other open PRs
 - #281 upgrades next-auth; the paths read here are the same in its version (section 2). It adds
