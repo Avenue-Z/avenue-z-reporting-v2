@@ -23,3 +23,15 @@ test('a service cookie minted with another secret does not decode', async () => 
   const token = await mintServiceCookie(SECRET, salt, { email: 'sweep@example.test', name: 'sweep' })
   await expect(decode({ token, secret: 'another-secret-not-real-0123456789ab', salt })).rejects.toThrow()
 })
+
+// The session cookie format is @auth/core's, and a cookie written by one version was checked to decode under
+// the next only for 0.41.0 and 0.41.3 (the findings note above). So both are pinned exactly: a later beta is a
+// deliberate bump that gets the same check. @auth/core is declared because this mint imports it directly,
+// at the version next-auth itself requires, so there is one copy.
+test('next-auth and @auth/core are pinned exactly, @auth/core at the version next-auth requires', async () => {
+  const { readFileSync } = await import('node:fs')
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  const nextAuth = JSON.parse(readFileSync('node_modules/next-auth/package.json', 'utf8'))
+  expect(pkg.dependencies['next-auth']).toBe('5.0.0-beta.32')
+  expect(pkg.dependencies['@auth/core']).toBe(nextAuth.dependencies['@auth/core'])
+})
