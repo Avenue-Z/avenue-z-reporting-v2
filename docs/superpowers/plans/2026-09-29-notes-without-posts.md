@@ -4,6 +4,8 @@
 
 **Goal:** The team can add a note on any day of the month up to today, including a day with no post (a PR hit, an announcement), and the client sees it as a text-only card once approved.
 
+> **Corrected after Paul's review (2026-10-01):** "up to today" below is "up to the last complete UTC day": the live month's window ends there, as the chart does, so today is never offered. The code was right; the wording and S3/S7 were not. See the spec.
+
 **Architecture:** The server already accepts and draws a note with no posts; only the Add annotation panel is limited to days with posts. The panel's day list (`withNotes`) offers every day up to today, and the form gets a Day list beside the existing picture row. Picking a picture works exactly as today.
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.

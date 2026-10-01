@@ -9,7 +9,9 @@ Jasmine on the call, 2026-09-29, 17:44 to 18:21: if a day had no post but someth
 able to add an annotation to that date ... sometimes even if we don't post, but we know like a PR announcement went
 live ... then we would want to be able to note that for the client." I said "I will add that" (18:36).
 
-So: the team can add a note on any day of the month up to today, with or without a post, and the client sees it once
+So: the team can add a note on any day of the month the chart shows (in the live month, up to yesterday: the chart's
+window ends at the last complete UTC day, so today's event is noted tomorrow; corrected after Paul's review), with or
+without a post, and the client sees it once
 approved, like any other note.
 
 ## 2. What happens today
@@ -54,7 +56,7 @@ approved, like any other note.
 - Effect: Add annotation now appears whenever the graph itself renders for a locked-months client, even in a month
   with no posts. It still does not appear when the series is empty or the trend fetch fails (the button is inside the
   non-empty branch, `trends.tsx:116-172`; a failed fetch shows the fallback, `parts/engagement-trend.tsx:49` and `parts/follower-graph.tsx:62`), or when
-  the window has no day up to today (`windowDays` returns `[]`, `parts/chart-notes.ts:14-22`).
+  the window has no day (`windowDays` returns `[]`, `parts/chart-notes.ts:14-22`).
 - Nothing else in `withNotes` changes (items, notes, peaks, controls' other fields), except the comment above `days`
   (`:98`, "only days with at least one post"), which is rewritten.
 
@@ -80,17 +82,25 @@ approved, like any other note.
   and its "already has ..." line stay together).
 - Save: unchanged (`note-form.tsx:93-110`): a day and text; `postIds` may be `[]`.
 - The line under the pictures, first match wins (the first three are today's, `note-form.tsx:144`):
-  1. no pictures on screen but picks kept: the keeps-picks line;
+  1. no pictures on screen but picks kept: the keeps-picks line when the posts failed to load, else the gone-pick line
+     ("A picked post did not come back from Dash this time; it stays picked until you remove it.");
   2. two posts picked: "Up to 2 posts";
   3. Edit from a card: "Pick up to 2 of this day's posts";
-  4. a day chosen from the list that has no posts: the keeps-picks line if the note has picks Dash no longer returns,
-     else "No posts went live this day";
+  4. a day chosen from the list that has no posts: the gone-pick line if the note has picks Dash no longer returns (the
+     posts loaded, so "could not load" would be false and contradict "(no posts)"), else "No posts went live this day";
   5. a day chosen from the list that has posts: "Pick up to 2 of this day's posts, or just write what happened";
   6. otherwise (no day yet, or a day set by a picture): "Pick a post, then write what happened", as today.
-  So the existing tests at `chart-notes-ui.test.tsx:314` and `:318` are unchanged.
+  So the existing tests at `chart-notes-ui.test.tsx:314` and `:318` are unchanged. After Paul's review the keeps-picks
+  line ("Posts could not load ...") is said only when the posts really failed (`controls.postsFailed`), and the rule is
+  a `hint()` function with one `if` per case, in this order.
 - The line when the window has no pictures at all (`note-form.tsx:147-150`): the keeps-picks line when posts failed (as
   today); "No posts went live this day" when there is a day (Edit, or a day chosen from the list); otherwise, new, "No
   posts went live this month".
+- Under the Day list, one caption: "Days are UTC, as on the chart, so a post late in the Eastern evening is on the
+  next day." The "(no posts)" claim is per UTC day and the team works in Eastern time (Paul's review).
+- The save action re-checks the role and email, the client, the day (not in the future and, after Paul's review, not
+  before the client's first reporting month), the text and the post ids' shape. It does not check that a picked
+  post is from that day (only team members can call it; the worst case is an odd pick on a team draft).
 - Edit from a card: unchanged, no Day list.
 - Comments that become false are rewritten: the component's doc (`note-form.tsx:31-36`, "starts from a post ... only
   days with posts") and the comment above `canSave` (`:91-92`).
@@ -109,14 +119,14 @@ clients receive, and every client not on locked months.
 - A day the team has hidden is offered like any other, as the pictures already offer it; a note there stays hidden from
   clients until the day is unhidden (`annotation-hides/apply.ts:11-12`). Not new; the Day list only makes it easier to
   reach on a day with no post.
-- The live month on the 1st offers one day (the 1st); a window with no day up to today offers none and draws no Add
-  annotation.
+- There is no live month on the 1st (`liveExists`); on the 2nd the live month offers one day (the 1st). A window with
+  no day offers none and draws no Add annotation.
 
 ## 5. Edge cases
 | # | Case | Expected | Test |
 |---|---|---|---|
 | 1 | a finished month, posts on some days | every day offered; each day carries its posts or none | S1, S2 |
-| 2 | the live month | every day up to today, none after | S3 |
+| 2 | the live month | every day up to the last complete UTC day (yesterday), never today | S3 |
 | 3 | a month with no posts | every day offered, all "(no posts)"; Add annotation shown | S4, U6 |
 | 4 | posts failed to load | no days, flag set, no Add annotation; Edit still works | S5, U7 |
 | 5 | choose a no-post day, write, save | saved with `postIds: []` on that day | U1 |

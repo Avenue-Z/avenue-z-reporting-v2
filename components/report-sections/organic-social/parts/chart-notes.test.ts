@@ -110,7 +110,7 @@ test('a team role without an @avenuez.com email gets exactly the client view', a
   expect(r.controls).toBeUndefined()
 })
 
-test('in the live month the form offers every day up to today and none after', async () => {
+test('a window that runs past today stops at today (defensive: the live month already ends earlier)', async () => {
   const r = await withNotes({
     ...EDITOR, from: '2026-09-01', to: '2026-09-30', today: '2026-09-24', series: { channels: ['Instagram'], points: [] },
     posts: [post(7, '2026-09-24', 1), post(8, '2026-09-25', 1)],
@@ -134,8 +134,20 @@ test('a month with no posts still offers every day, so a note needs no post', as
   expect(r.controls!.days.every((d) => d.posts.length === 0)).toBe(true)
 })
 
-test('the live month on the 1st offers one day (S7)', async () => {
-  const r = await withNotes({ ...EDITOR, from: '2026-09-01', to: '2026-09-30', today: '2026-09-01', series: { channels: ['Instagram'], points: [] } })
+// Paul's review of #292: the live month's window ends at the last complete UTC day (reporting-months.ts, the live
+// option's end), so the list ends yesterday, never today, and there is no live month on the 1st (liveExists).
+test('S3 in the live month, as production sends it, the list ends at yesterday: today is not offered', async () => {
+  const r = await withNotes({
+    ...EDITOR, from: '2026-09-01', to: '2026-09-23', today: '2026-09-24', series: { channels: ['Instagram'], points: [] },
+    posts: [post(7, '2026-09-23', 1), post(8, '2026-09-24', 1)],
+  })
+  const days = r.controls!.days.map((d) => d.day)
+  expect([days.length, days[0], days[days.length - 1]]).toEqual([23, '2026-09-01', '2026-09-23'])
+  expect(r.controls!.days.at(-1)!.posts.map((p) => p.id)).toEqual([7])
+})
+
+test('S7 on the 2nd, the first day of a live month, the list offers just the 1st', async () => {
+  const r = await withNotes({ ...EDITOR, from: '2026-09-01', to: '2026-09-01', today: '2026-09-02', series: { channels: ['Instagram'], points: [] } })
   expect(r.controls!.days.map((d) => d.day)).toEqual(['2026-09-01'])
 })
 
