@@ -1006,10 +1006,17 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
   the refreshed chart arrives (about a second), it does not yet know about the note just saved: a
   second save on that day still edits the draft on the server, as it should, but the line after it may
   say "Saved a draft" where "Updated the draft" is true.
-- [x] **RESOLVED in #282 (issue #278): the freeze uses the same clock as the range, `freezeToday()`.** **Top Content freezes a rolling window when the server is not on UTC.** `isPeriodOpen` compares
-  against the UTC date (`lib/organic-social/frozen.ts:15-18`, today at `:35`), while `last_N_days`
-  uses the server's local date (`lib/date-range.ts:44`, `:64`). On a machine in Eastern time after 8pm,
-  the default window ends two days before the UTC date, reads as closed, and is frozen. Seen on the
-  local app on 2026-09-24 (17 rows for Renaissance, deleted on my go the same night). Production and
-  staging have frozen only month windows (read-only check), consistent with servers on UTC, but that
-  setting is not verified. On Renaissance's path, so its own PR with a Renaissance proof, my call.
+- [x] **RESOLVED in #282 (issue #278): the Top Content freeze and the range share one clock.** `isPeriodOpen`
+  compares a range's end with `rollingRangeEnd()`, which is `resolveDateRange('last_1_days').endDate`
+  (`lib/organic-social/frozen.ts`), so a rolling preset can never read as closed in any time zone. History:
+  it compared against the UTC date and froze rolling windows on a machine behind UTC in the evening (seen
+  locally 2026-09-24). Vercel's functions run on UTC (verified on #282), where the boundary is unchanged.
+- [ ] **Dates from `resolveDateRange` are a day early east of UTC, and the GA4 picker labels them on another
+  clock** (Paul, #282). `toISO` (`lib/date-range.ts:7-9`) turns local midnight into a UTC date, so in Tokyo or
+  summer London `last_month` on 2026-09-15 is 2026-07-31..2026-08-30 (run 2026-10-01; UTC and New York give
+  August). The GA4 date picker is a client component that resolves its label in the browser
+  (`components/report-sections/ga4/date-picker.tsx:105`, `formatResolvedRange`), while the data is resolved
+  on the UTC server, so the label can name a different day than the data. Paul's fix: `toISO` as
+  `format(d, 'yyyy-MM-dd')` (date-fns is already imported; identical on a UTC server), and the server passes
+  the resolved start and end to the picker. Reaches GA4 and Renaissance: its own PR with a Renaissance proof,
+  before clients get logins, my call.
