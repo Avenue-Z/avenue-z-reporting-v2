@@ -36,7 +36,7 @@ const QUIET = (over: Partial<ChartAnnotation>): ChartAnnotation =>
 const DRAFT = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } }
 const CONTROLS: NoteControls = {
   clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements', canApprove: true,
-  // What the server sends: every day of the window up to today, each with its posts or none (8/14 has none;
+  // What the server sends: every day of the window, each with its posts or none (8/14 has none;
   // the real list has every day of the month, trimmed here to the three the tests use).
   days: [
     { day: '2026-08-10', posts: [{ id: 11, thumb: IMG(1) }, { id: 12, thumb: IMG(2) }, { id: 13, thumb: IMG(3) }] },
@@ -390,7 +390,7 @@ describe('the Add annotation panel: pick a post by its picture, or a day from th
   })
 })
 
-// Jasmine, 2026-09-29: a note on a day with no post (a PR hit). The Day list reaches any day up to today.
+// Jasmine, 2026-09-29: a note on a day with no post (a PR hit). The Day list reaches any day of the window.
 // Test names carry the spec's ids (U1 to U9, section 6).
 describe('the Day list: a note on any day, with or without a post', () => {
   const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
@@ -524,6 +524,23 @@ describe('the Day list: a note on any day, with or without a post', () => {
     open()
     expect(list().className).toContain('bg-bg-surface')
     expect(list().className).toContain('text-white')
+  })
+
+  // Paul's review of #292: the posts loaded, so "Posts could not load" was false here, and the list said "(no posts)".
+  test('U10 a chosen day whose note has a pick Dash did not return says that, not that the posts could not load', () => {
+    const GONE_814 = QUIET({ note: 'PR hit', noteEditor: { approvedId: 'aid', approvedPostIds: [77], draft: null } })
+    draw([PEAK, GONE_814], CONTROLS)
+    open()
+    choose('2026-08-14')
+    expect(within(panel()).getByText('A picked post did not come back from Dash this time; it stays picked until you remove it.')).toBeTruthy()
+    expect(within(panel()).queryByText('Posts could not load, so this note keeps its picked posts.')).toBeNull()
+  })
+
+  // Paul's review of #292: the "(no posts)" claim is made per UTC day, and the team works in Eastern time.
+  test('U11 the Day list says its days are UTC, as on the chart', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    expect(within(panel()).getByText('Days are UTC, as on the chart, so a post late in the Eastern evening is on the next day.')).toBeTruthy()
   })
 })
 
@@ -686,7 +703,8 @@ describe('after a save, one line says what happened; a day with a note loads it 
     fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
     expect(tiles()).toEqual([[GONE_TILE, 'true', false], [GONE_TILE, 'true', false]])
     expect(within(postButtons()[0]).getByText('creative no longer available')).toBeTruthy()
-    expect(within(panel()).getByText('Posts could not load, so this note keeps its picked posts.')).toBeTruthy()
+    // The answer came back, just without the picks: the posts did not fail to load (Paul's review of #292).
+    expect(within(panel()).getByText('A picked post did not come back from Dash this time; it stays picked until you remove it.')).toBeTruthy()
     expect(within(panel()).queryByText('No posts went live this day')).toBeNull()
     type('Old, fixed'); fireEvent.click(save())
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ body: 'Old, fixed', postIds: [11, 12] })))
