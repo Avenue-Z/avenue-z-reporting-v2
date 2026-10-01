@@ -51,6 +51,17 @@ describe('routeAccess', () => {
     }
   })
 
+  test('the RSC file forms of a portal root are refused, even for its own client (fail closed)', () => {
+    // The slug is the raw second segment, so these read as slug "acme.rsc" / "acme.segments". The app never
+    // requests them: Next's router fetches the page path with headers and a _rsc query, and adds a segment
+    // suffix only in output: 'export' mode (next/dist/client/components/segment-cache/cache.js,
+    // addSegmentPathToUrlInOutputExportMode), which next.config.ts does not set. Nothing links to the portal
+    // root either (app/page.tsx sends a client to /reports). So only a hand-made request is refused.
+    for (const p of ['/portal/acme.rsc', '/portal/acme.prefetch.rsc', '/portal/acme.segments/_tree.segment.rsc']) {
+      expect(routeAccess(p, viewer), p).toBe('unauthorized')
+    }
+  })
+
   test('a signed-in account with no client, or no role, reaches no portal it is not assigned to', () => {
     expect(routeAccess('/portal/acme/reports', { role: 'CLIENT_VIEWER', clientSlug: null })).toBe('unauthorized')
     expect(routeAccess('/portal/acme/reports', {})).toBe('unauthorized')
