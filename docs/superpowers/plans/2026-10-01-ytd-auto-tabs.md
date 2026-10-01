@@ -323,7 +323,7 @@ test('normalizeName: case, accents, &, a CLIENT: prefix and punctuation', () => 
   expect(normalizeName('client:Bravo and Sons')).toBe('bravoandsons')
   expect(normalizeName('Bravo & Sons')).toBe('bravoandsons')
   expect(normalizeName('Café Délta')).toBe('cafedelta')
-  expect(normalizeName('— , ')).toBe('')
+  expect(normalizeName('-- , ')).toBe('')
 })
 
 test('a tab claims every client its title or CLIENT row names', () => {
@@ -350,7 +350,7 @@ test('never guesses: a tab naming two clients is used for neither; two tabs for 
 test('a name another row shares is ambiguous, counted as the clients sharing it; an empty name matches nothing', () => {
   const rows = [...CLIENTS, C('alpha-dash', 'ALPHA homes')]
   expect(matchYtdTab('alpha', rows, [T('Alpha Homes')])).toEqual({ kind: 'ambiguous', count: 2 })
-  expect(matchYtdTab('blank', [...CLIENTS, C('blank', '—')], [T('—')])).toEqual({ kind: 'none' })
+  expect(matchYtdTab('blank', [...CLIENTS, C('blank', '--')], [T('--')])).toEqual({ kind: 'none' })
   expect(matchYtdTab('missing', CLIENTS, [T('Alpha Homes')])).toEqual({ kind: 'none' })
 })
 
