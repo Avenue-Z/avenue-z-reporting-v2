@@ -4,7 +4,7 @@
 
 **Goal:** On outline clients' tiles, every percent change shows as the nearest whole number, with the arrow and colour following the rounded value. Renaissance and every other section keep one decimal.
 
-**Architecture:** One pure function turns a change into its nearest whole number. `KpiCard` takes an optional `wholeDelta` prop; absent means today's one decimal, byte for byte. Only `OutlineTiles` sets it, which covers the Data block (`outline-tiles.tsx:43`) and the engagement breakdown (`parts/engagement-breakdown.tsx:14`).
+**Architecture:** One pure function turns a change into its nearest whole number. `KpiCard` takes an optional `wholeDelta` prop; absent means today's one decimal, byte for byte. Only `OutlineTiles` sets it, which covers the Data block (`outline-tiles.tsx:43`) and the engagement breakdown (`parts/engagement-breakdown.tsx:14`). (After a37cdd2 it also reaches `KpiCard` through `PlatformHeadlines`, on the outline Data part's fallback for Overview and X; corrected after Paul's review.)
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Vitest with Testing Library.
 
@@ -87,7 +87,7 @@ Expected: FAIL, module not found.
 ```ts
 /** A percent change as the nearest whole number, for the outline tiles (Jasmine, 2026-09-29: 6.3%
  *  shows 6%, 6.57% shows 7%). The size is rounded half up, then the sign goes back, so a drop rounds
- *  like a rise. Only float noise is removed first (six decimals), never the one-decimal display: 6.45
+ *  like a rise. Only float noise is removed first (six decimals; nine after Paul's review), never the one-decimal display: 6.45
  *  is 6, not 7. Zero is always plain 0, so the card shows no arrow. */
 export function roundDelta(delta: number): number {
   const size = Math.round(Math.abs(delta) * 1e6) / 1e6

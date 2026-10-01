@@ -13,14 +13,19 @@ export async function HeadlinesSection({ clientSlug, dateRange, compareRange, ch
   return r.data ? <PlatformHeadlines headlines={r.data} wholeDelta={wholeDelta} /> : <Fallback kind={r.error!} />
 }
 
+/** The v1 tiles in their Suspense, the one copy both callers render: the v1 part below, and the outline Data part's
+ *  fallback (outline-data.tsx) with `wholeDelta`. Without it the element carries no `wholeDelta` prop at all, so
+ *  the v1 part renders exactly as before. */
+export const headlinesV1 = (ctx: OrganicSocialCtx, wholeDelta?: boolean) => (
+  <Suspense fallback={<HeadlinesSkeleton />}>
+    <HeadlinesSection {...ctx} {...(wholeDelta ? { wholeDelta } : {})} />
+  </Suspense>
+)
+
 export const platformHeadlinesV1: PartImpl<OrganicSocialCtx> = {
   id: 'platform-headlines',
   version: 1,
   published: true,
   defaultLabel: 'Platform Headlines',
-  render: (ctx) => (
-    <Suspense fallback={<HeadlinesSkeleton />}>
-      <HeadlinesSection {...ctx} />
-    </Suspense>
-  ),
+  render: (ctx) => headlinesV1(ctx),
 }

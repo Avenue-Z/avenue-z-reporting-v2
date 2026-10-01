@@ -7,7 +7,7 @@ import { MEDIA_FAILED, OUTLINE_DATA_ROWS, mediaRowsFor, type OutlineRow, type Ou
 import { OutlineHeadlines } from '../outline-tiles'
 import { HeadlinesSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
-import { HeadlinesSection } from './platform-headlines'
+import { headlinesV1 } from './platform-headlines'
 import { safe, Fallback } from './shared'
 
 /** The tiles' request, plus Views on Reels when the rows show it. A failed Reels request flags only
@@ -41,7 +41,7 @@ function outlineData(version: number, variant: OutlineVariant): PartImpl<Organic
     render: (ctx) => {
       const rows = ctx.channel ? OUTLINE_DATA_ROWS[variant][ctx.channel] : undefined
       // An outline client's tab no outline covers (Piper's X, or Overview) keeps the v1 tiles, with whole-number changes.
-      if (!ctx.channel || !rows) return <Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>
+      if (!ctx.channel || !rows) return headlinesV1(ctx, true)
       return (
         <Suspense fallback={<HeadlinesSkeleton />}>
           <OutlineDataSection ctx={ctx} channel={ctx.channel} rows={rows} />
