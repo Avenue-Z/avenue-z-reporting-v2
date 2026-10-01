@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
-import { logId } from './log-id'
+import { refusalLine } from './log-id'
 import { canOpenPortal, isStaff } from './route-access'
 
 // The first thing every protected page runs, before it loads any data. The proxy and the layouts
@@ -14,10 +14,8 @@ export async function requirePortalAccess(slug: string) {
   if (!session) redirect('/login')
   if (!canOpenPortal(slug, session.user)) {
     // Normally the proxy refuses first and this never runs, so a line here means that check was skipped.
-    // JSON.stringify escapes the slug (the decoded route param), and the two line separators it leaves
-    // alone are escaped too, so no character in a URL can start a new log line.
-    console.warn(`[access] page refused slug=${JSON.stringify(slug.slice(0, 120)).replace(/[\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16)}`)} role=${session.user.role ?? 'none'} ` +
-      `client=${session.user.clientSlug ?? 'none'} who=${await logId(session.user.email)}`)
+    // The slug is the decoded route param; refusalLine escapes and caps it.
+    console.warn(await refusalLine('page refused', session.user, ['slug', slug]))
     redirect('/unauthorized')
   }
   return session
@@ -28,8 +26,7 @@ export async function requireStaff() {
   const session = await auth()
   if (!session) redirect('/login')
   if (!isStaff(session.user)) {
-    console.warn(`[access] page refused staff-only role=${session.user.role ?? 'none'} client=${session.user.clientSlug ?? 'none'} ` +
-      `who=${await logId(session.user.email)}`)
+    console.warn(await refusalLine('page refused staff-only', session.user))
     redirect('/unauthorized')
   }
   return session

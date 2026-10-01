@@ -4,11 +4,8 @@
 // also checks its own slug first (lib/auth/page-access.ts), and the layouts keep their checks.
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { logId } from '@/lib/auth/log-id'
+import { refusalLine } from '@/lib/auth/log-id'
 import { routeAccess } from '@/lib/auth/route-access'
-
-/** The caller chooses the path, so the log keeps only this much of it. */
-const LOG_PATH_MAX = 120
 
 export default async function proxy(req: NextRequest) {
   const session = await auth()
@@ -17,8 +14,8 @@ export default async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
   if (access === 'unauthorized') {
-    console.warn(`[access] refused path=${req.nextUrl.pathname.slice(0, LOG_PATH_MAX)} role=${session?.user.role ?? 'none'} ` +
-      `client=${session?.user.clientSlug ?? 'none'} who=${await logId(session?.user.email)}`)
+    // The caller chooses the path; refusalLine escapes and caps it.
+    console.warn(await refusalLine('refused', session?.user, ['path', req.nextUrl.pathname]))
     return NextResponse.redirect(new URL('/unauthorized', req.url))
   }
   return NextResponse.next()

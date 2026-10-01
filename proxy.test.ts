@@ -55,7 +55,7 @@ describe('proxy', () => {
     await proxy(new NextRequest('https://example.test/portal/other/reports?x=1'))
     expect(warn).toHaveBeenCalledTimes(1)
     const line = String(warn.mock.calls[0][0])
-    expect(line).toContain('path=/portal/other/reports')
+    expect(line).toContain('path="/portal/other/reports"')
     expect(line).toContain('role=CLIENT_VIEWER')
     expect(line).toContain('client=acme')
     expect(line).toMatch(/ who=[0-9a-f]{8}$/)
@@ -79,7 +79,7 @@ describe('proxy', () => {
     as('CLIENT_VIEWER', 'acme')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await proxy(new NextRequest(`https://example.test/portal/other/${'x'.repeat(500)}`))
-    const path = String(warn.mock.calls[0][0]).match(/path=(\S*)/)![1]
+    const path = String(warn.mock.calls[0][0]).match(/path="([^"]*)"/)![1]
     expect(path).toHaveLength(120)
   })
 
