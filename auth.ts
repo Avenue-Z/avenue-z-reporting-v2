@@ -2,12 +2,10 @@ import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 import { getClientByEmail, getUserAuthRecord } from '@/lib/db/queries'
-import { jwtCallback } from '@/lib/auth/jwt-callback'
+import { jwtCallback, WORKSPACE_DOMAIN } from '@/lib/auth/jwt-callback'
 import { evaluateCredentialLogin } from '@/lib/auth/credential-login'
 import { evaluateTestAdminLogin } from '@/lib/auth/test-admin'
 import { verifyPassword } from '@/lib/auth/password'
-
-const WORKSPACE_DOMAIN = 'avenuez.com'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [

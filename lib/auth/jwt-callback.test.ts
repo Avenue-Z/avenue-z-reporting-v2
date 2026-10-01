@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from 'vitest'
 import type { JWT } from 'next-auth/jwt'
-import { jwtCallback, type Lookup, type TestAdminEnv } from './jwt-callback'
+import { jwtCallback, WORKSPACE_DOMAIN, type Lookup, type TestAdminEnv } from './jwt-callback'
+import { evaluateTestAdminLogin, testAdminAllows } from './test-admin'
 
 // Spec: docs/superpowers/specs/2026-09-30-session-recheck-design.md (J1 to J10, W1). Every value is invented.
 const NO_TEST_ADMIN: TestAdminEnv = {}
@@ -94,8 +95,8 @@ describe('every later read re-checks the login against the database', () => {
   })
 })
 
-describe('sign-in keeps today\'s rules (auth.ts:54-77 before this change)', () => {
-  test('J10 the test admin, a row, staff with no row, anyone else with no row, and a user with no email', async () => {
+describe('sign-in keeps today\'s rules (auth.ts:54-77 before this change), except anyone else with no row', () => {
+  test('J10 the test admin, a row, staff with no row, anyone else with no row (no session), and a user with no email', async () => {
     const admin = lookupOf(null)
     const t1 = await signIn({ email: 'admin@example.test', role: 'INTERNAL_ADMIN', clientSlug: 'avenue-z' }, admin)
     expect([t1?.role, t1?.clientSlug]).toEqual(['INTERNAL_ADMIN', 'avenue-z'])
@@ -104,8 +105,10 @@ describe('sign-in keeps today\'s rules (auth.ts:54-77 before this change)', () =
     expect([t2?.role, t2?.clientSlug]).toEqual(['CLIENT_VIEWER', 'acme'])
     const t3 = await signIn({ email: 'someone@avenuez.com' }, lookupOf(null))
     expect([t3?.role, t3?.clientSlug]).toEqual(['INTERNAL_ANALYST', 'avenue-z'])
-    const t4 = await signIn({ email: 'someone@client.test' }, lookupOf(null))
-    expect([t4?.role, t4?.clientSlug]).toEqual(['CLIENT_VIEWER', null])
+    // Anyone else with no row gets no session, the same answer the re-check gives (it was a CLIENT_VIEWER with
+    // no client that the very next request turned away). Unreachable today: Credentials needs a row and Google
+    // needs the workspace domain (auth.ts). Auth.js clears the cookie when the callback returns null.
+    expect(await signIn({ email: 'someone@client.test' }, lookupOf(null))).toBeNull()
     const none = lookupOf(null)
     expect(await jwtCallback({ token: { sub: 'x' }, user: { email: null } }, { lookup: none, testAdmin: NO_TEST_ADMIN })).toEqual({ sub: 'x' })
     expect(none).not.toHaveBeenCalled()
@@ -117,4 +120,34 @@ test('W1 auth.ts hands its jwt callback to jwtCallback and no longer looks users
   const src = readFileSync(join(process.cwd(), 'auth.ts'), 'utf8')
   expect(src).toContain('jwtCallback(')
   expect(src).not.toContain('getClientByEmail(user.email)')
+})
+
+describe('one rule for the preview test admin, at sign-in and on every re-check (lib/auth/test-admin.ts)', () => {
+  const env = { email: ' Admin@Example.test ', password: 'not-a-real-password', vercelEnv: 'preview' }
+  test('testAdminAllows: the configured email in a non-production deployment with a password set', () => {
+    expect(testAdminAllows('admin@example.test', env)).toBe(true)
+    expect(testAdminAllows('ADMIN@example.test ', env)).toBe(true)
+    expect(testAdminAllows('other@example.test', env)).toBe(false)
+    expect(testAdminAllows('admin@example.test', { ...env, vercelEnv: 'production' })).toBe(false)
+    expect(testAdminAllows('admin@example.test', { ...env, email: undefined })).toBe(false)
+    expect(testAdminAllows('admin@example.test', { ...env, password: undefined })).toBe(false)
+    expect(testAdminAllows('', env)).toBe(false)
+  })
+  test('sign-in uses the same rule, then checks the password', () => {
+    expect(evaluateTestAdminLogin({ email: 'admin@example.test', password: 'not-a-real-password' }, env)?.role).toBe('INTERNAL_ADMIN')
+    expect(evaluateTestAdminLogin({ email: 'admin@example.test', password: 'wrong' }, env)).toBeNull()
+    expect(evaluateTestAdminLogin({ email: 'admin@example.test', password: 'not-a-real-password' }, { ...env, vercelEnv: 'production' })).toBeNull()
+  })
+  test('the re-check calls that rule instead of a copy of it', () => {
+    const src = readFileSync(join(process.cwd(), 'lib/auth/jwt-callback.ts'), 'utf8')
+    expect(src).toMatch(/import \{[^}]*\btestAdminAllows\b[^}]*\} from '\.\/test-admin'/)
+    expect(src).not.toContain("vercelEnv === 'production'")
+  })
+})
+
+test('W2 the workspace domain is defined once, in jwt-callback.ts, and auth.ts imports it', () => {
+  expect(WORKSPACE_DOMAIN).toBe('avenuez.com')
+  const src = readFileSync(join(process.cwd(), 'auth.ts'), 'utf8')
+  expect(src).not.toMatch(/const WORKSPACE_DOMAIN\s*=/)
+  expect(src).toMatch(/import \{[^}]*\bWORKSPACE_DOMAIN\b[^}]*\} from '@\/lib\/auth\/jwt-callback'/)
 })
