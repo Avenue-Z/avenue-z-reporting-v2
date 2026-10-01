@@ -28,6 +28,12 @@ row 5), so the goal fully holds for client users.
   the session from the browser (no `SessionProvider`, `useSession` or `/api/auth/session` in `app`, `components`,
   `lib`). So the cookie is written only at sign-in, and a login lasts 30 days from sign-in (the Auth.js default; no
   `session.maxAge` in `auth.ts`). UNVERIFIED by a live run: read from the code only.
+- One exception (Paul, #293): the public Auth.js route `app/api/auth/[...nextauth]/route.ts` serves
+  `GET /api/auth/session`, and that response does apply the session action's cookies. A returned token is re-encoded
+  with a new issue time and a fresh 30-day expiry (`@auth/core/lib/actions/session.js:46-51`, `@auth/core/jwt.js:57-58`),
+  so each call rolls the login forward another 30 days; a `null` or a thrown error clears the cookie (`session.js:55`,
+  `:58-61`). Nothing in the app calls it, but any signed-in browser can. So a login lasts 30 days from sign-in or from
+  the last call to that route, and the token's own `iat` cannot tell when someone signed in.
 - So an hourly re-check cannot remember when it last checked (the timestamp would live in a cookie nothing saves): after
   the first hour it would check on every request anyway. Checking on every request is the same cost, simpler, and
   takes effect on the next click.
@@ -82,9 +88,10 @@ row 7 below (today the original error propagates). The recheck rows below apply 
 - Row 5 matches sign-in, so staff without a row (and staff whose row is deleted) keep the default team view, which
   sees every client (`app/dashboard/layout.tsx:17-19`). Known limit, unchanged by design: any `@avenuez.com` Google account
   gets that at sign-in today (`auth.ts:68-70`). A staff row whose role changes does take effect.
-- Row 6 is a removed client user. Sign-in would give `CLIENT_VIEWER` / null (`auth.ts:71-73`), but nobody reaches that
-  at sign-in any more: Google sign-in is `@avenuez.com` only (`auth.ts:51`) and the credentials login needs a row
-  (`credential-login.ts:30`). `null` is fail closed.
+- Row 6 is a removed client user. `null` is fail closed. Sign-in gives the same answer since Paul's review (it used to
+  give `CLIENT_VIEWER` / null, `auth.ts:71-73`, which the next request then refused); nobody reaches it at sign-in
+  anyway: Google sign-in is `@avenuez.com` only (`auth.ts:51`) and the credentials login needs a row
+  (`credential-login.ts:30`). Auth.js clears the cookie when sign-in's callback returns `null`.
 - Row 7 logs `[auth] session recheck failed: <error name>`: never the email, the token or the message. It throws a
   fresh error with no `cause`, so no detail of the original error reaches Auth.js, which prints a thrown error's stack
   and cause (`@auth/core/errors.js:10-13`, `lib/utils/logger.js:14-19`; `auth.ts` sets no `logger`).
@@ -115,7 +122,8 @@ request; staff with no row keep the default `INTERNAL_ANALYST` view.
 
 ## 5. Failure handling
 - Database down or slow: the lookup throws, that request has no session and goes to `/login`. The cookie is not
-  cleared (nothing saves the clear, section 2), so the next request after recovery works with no new sign-in. Pages
+  cleared (nothing saves the clear, section 2), so the next request after recovery works with no new sign-in. The
+  exception is a call to `/api/auth/session` during the outage, which does clear it and signs that user out (section 2). Pages
   already read the database on every request, so an outage already breaks them; this adds the login page as the
   landing spot.
 - Sessions from before the deploy: real users are simply re-checked (the goal); a preview test admin session keeps
@@ -135,7 +143,7 @@ request; staff with no row keep the default `INTERNAL_ANALYST` view.
 | 7 | test admin (preview) | unchanged, no lookup; on production, or with changed `TEST_ADMIN_*`, the lookup path | J7 |
 | 8 | lookup throws | rejects with a fresh error, one log line, no email anywhere | J8 |
 | 9 | token with no email | `null` | J9 |
-| 10 | sign-in paths | today's four results | J10 |
+| 10 | sign-in paths | today's results, except anyone else with no row gets no session | J10 |
 | 11 | other claims | kept | J1 |
 | 12 | email in mixed case | the lookup lower-cases (`queries.ts:51`) | existing behaviour |
 
@@ -157,7 +165,7 @@ request; staff with no row keep the default `INTERNAL_ANALYST` view.
   lookup rejects).
 - J9 a token with no email returns `null`; `lookup` not called.
 - J10 sign-in: the test admin user gives its role and slug with no lookup; a user with a row gives the row;
-  `@avenuez.com` with no row gives the default; any other email with no row gives `CLIENT_VIEWER` / null; a `user` with
+  `@avenuez.com` with no row gives the default; any other email with no row gives no session (`null`); a `user` with
   no email returns the token unchanged.
 `lib/auth/service-cookie-marker.test.ts` (new, not the `service-cookie.test.ts` #281 adds; `// @vitest-environment
 node`, as #281's is): S1 a minted cookie decodes with `service: true`.
@@ -179,6 +187,17 @@ takes a dry run and my go.
 5. Staff keep the default analyst view when their row is deleted (known limit, row 5).
 6. A test admin password change does not revoke old preview sessions (known limit, decided; section 3.1, row 2).
 7. The sign-in lookup now also throws a fresh error on failure (section 3.1).
+8. DECISION FOR PAUL AND THOMAS (from Paul's review, 2026-10-01): how long staff stay signed in. Most staff have no
+   row (any `@avenuez.com` Google account gets the analyst default), so deleting a row cannot sign a leaver out, and
+   a disabled Google account does not end the cookie: up to 30 days, longer through `/api/auth/session`. Options:
+   (a) staff sessions end after a set time (for example 24 hours) and every session has a hard 30-day cap, using a
+   sign-in time stored in the token at sign-in (the token's `iat` is reset on every re-encode, section 2); (b) keep
+   30 days and accept it, with rotating `AUTH_SECRET` as the emergency stop (signs everyone out); (c) a disabled-staff
+   list in the database (schema change). Not decided; nothing in this PR changes it.
+9. DECISION FOR PAUL AND THOMAS (from Paul's review, 2026-10-01): a database read on every request, or a short cache.
+   The proxy and the render each read `users`, and prefetches add more. Options: (a) keep every request and measure
+   it on staging with `PERF_LOG=1` after merge, adding a cache only if needed; (b) a per-instance cache of 30 to 60
+   seconds, so a removal takes effect within that time instead of on the next click. Not decided.
 
 ## 10. Other open PRs
 - #281 upgrades next-auth; the paths read here are the same in its version (section 2). It adds
