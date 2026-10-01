@@ -6,19 +6,24 @@ import { HeadlinesSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 
-/** The v1 tiles for one view. `wholeDelta` is set only by the outline Data part's fallback (outline-data.tsx);
- *  the v1 part below never passes it. */
-export async function HeadlinesSection({ clientSlug, dateRange, compareRange, channel, wholeDelta }: OrganicSocialCtx & { wholeDelta?: boolean }) {
-  const r = await safe(getPlatformHeadlines(clientSlug, dateRange, compareRange, channel))
-  return r.data ? <PlatformHeadlines headlines={r.data} wholeDelta={wholeDelta} /> : <Fallback kind={r.error!} />
+/** The v1 tiles for one view. `outline` is set only by the outline Data part's fallback (outline-data.tsx): an
+ *  outline client's Overview or uncovered channel (Piper's X) then follows its outline tiles' rules, the change
+ *  measured against the size of the prior (so a rise from a negative prior shows a rise) and shown whole from 1%,
+ *  one decimal under it. The v1 part below never passes it: Renaissance asks with exactly the four arguments it
+ *  always has and keeps the signed change, which only Thomas and Paul together may change. */
+export async function HeadlinesSection({ clientSlug, dateRange, compareRange, channel, outline }: OrganicSocialCtx & { outline?: boolean }) {
+  const r = await safe(outline
+    ? getPlatformHeadlines(clientSlug, dateRange, compareRange, channel, 'size')
+    : getPlatformHeadlines(clientSlug, dateRange, compareRange, channel))
+  return r.data ? <PlatformHeadlines headlines={r.data} wholeDelta={outline} /> : <Fallback kind={r.error!} />
 }
 
 /** The v1 tiles in their Suspense, the one copy both callers render: the v1 part below, and the outline Data part's
- *  fallback (outline-data.tsx) with `wholeDelta`. Without it the element carries no `wholeDelta` prop at all, so
- *  the v1 part renders exactly as before. */
-export const headlinesV1 = (ctx: OrganicSocialCtx, wholeDelta?: boolean) => (
+ *  fallback (outline-data.tsx) with `outline`. Without it the element carries no `outline` prop at all, so the v1
+ *  part renders exactly as before. */
+export const headlinesV1 = (ctx: OrganicSocialCtx, outline?: boolean) => (
   <Suspense fallback={<HeadlinesSkeleton />}>
-    <HeadlinesSection {...ctx} {...(wholeDelta ? { wholeDelta } : {})} />
+    <HeadlinesSection {...ctx} {...(outline ? { outline } : {})} />
   </Suspense>
 )
 

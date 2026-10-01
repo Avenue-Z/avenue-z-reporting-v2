@@ -174,3 +174,13 @@ test('TikTok completion rate: a 0 to 1 fraction from Dash renders as a percent',
   expect(kpi?.format).toBe('percent')
   expect(kpi?.value).toBeCloseTo(42)
 })
+
+// Paul's review of #285: an outline client's fallback tabs (Overview, an uncovered channel such as Piper's X)
+// use the outline tiles' change, so a rise from a negative prior shows a rise. The default is left signed:
+// Renaissance reads it, and changing it is a decision for Thomas and Paul together.
+test("'size' measures the change against the size of the prior; the default stays signed", () => {
+  const key = platformKpiKeys('TWITTER')[0]
+  const metrics = { [metricForKey('TWITTER', key)]: { value: 4, context: -2, context_change: null } as TotalMetric }
+  expect(buildPlatformHeadline('TWITTER', metrics, [key], true, 'size').kpis[0].delta).toBe(300)
+  expect(buildPlatformHeadline('TWITTER', metrics, [key], true).kpis[0].delta).toBe(-300)
+})

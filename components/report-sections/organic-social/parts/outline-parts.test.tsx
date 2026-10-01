@@ -108,10 +108,10 @@ test('on Overview or an uncovered channel the Data part is the v1 tiles with who
   const brk = ORGANIC_SOCIAL_PARTS['engagement-breakdown'][1]
   const r = { id: 'platform-headlines', version: 2, label: 'x' }
   for (const ctx of [FIXTURE_ORGANIC_SOCIAL_CTX, { ...FIXTURE_ORGANIC_SOCIAL_CTX, channel: 'TWITTER' as const }]) {
-    expect(v2.render(ctx, r)).toEqual(<Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} wholeDelta /></Suspense>)
+    expect(v2.render(ctx, r)).toEqual(<Suspense fallback={<HeadlinesSkeleton />}><HeadlinesSection {...ctx} outline /></Suspense>)
     // The v1 part, which Renaissance renders, never passes the flag.
     const v1 = platformHeadlinesV1.render(ctx, { ...r, version: 1 }) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>
-    expect(v1.props.children.props).not.toHaveProperty('wholeDelta')
+    expect(v1.props.children.props).not.toHaveProperty('outline')
     expect(brk.render(ctx, { id: 'engagement-breakdown', version: 1, label: 'x' })).toBeNull()
   }
 })
@@ -121,9 +121,41 @@ test('HeadlinesSection passes the flag on to the tiles, so the fallback really s
   const h: PlatformHeadline[] = [{ channel: 'TWITTER', label: 'X', noData: false,
     kpis: [{ key: 'followers', label: 'Total Followers', value: 100, format: 'number', delta: 5.2 }] }]
   vi.mocked(getPlatformHeadlines).mockResolvedValueOnce(h as never)
-  expect((await text(HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX, wholeDelta: true }))).textContent).toContain('↑ 5% vs prior period')
+  expect((await text(HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX, outline: true }))).textContent).toContain('↑ 5% vs prior period')
   vi.mocked(getPlatformHeadlines).mockResolvedValueOnce(h as never)
   expect((await text(HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX }))).textContent).toContain('↑ 5.2% vs prior period')
+})
+
+// Paul's review of #285: an outline client's fallback tabs measure the change against the size of the prior, as
+// its outline tiles do, so a rise from a negative prior shows a rise. The v1 part, which Renaissance renders,
+// still asks for exactly the four arguments it always has (the signed change): Renaissance is unchanged.
+test('the outline fallback asks for the size-based change; the v1 part (Renaissance) asks exactly as before', async () => {
+  const { getPlatformHeadlines } = await import('@/lib/organic-social/headlines')
+  const g = vi.mocked(getPlatformHeadlines)
+  const { clientSlug, dateRange, compareRange, channel } = FIXTURE_ORGANIC_SOCIAL_CTX
+  g.mockClear(); g.mockResolvedValueOnce([])
+  await HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX, outline: true })
+  expect(g.mock.calls[0]).toEqual([clientSlug, dateRange, compareRange, channel, 'size'])
+  g.mockClear(); g.mockResolvedValueOnce([])
+  await HeadlinesSection({ ...FIXTURE_ORGANIC_SOCIAL_CTX })
+  expect(g.mock.calls[0]).toEqual([clientSlug, dateRange, compareRange, channel])
+})
+
+test("Piper's X tab, -2 to +4 Net New Followers: an outline client sees a green rise; the v1 path (Renaissance) still shows the old arrow", async () => {
+  const { getPlatformHeadlines } = await import('@/lib/organic-social/headlines')
+  const { buildPlatformHeadline } = await import('@/lib/organic-social/headline-build')
+  const { metricForKey } = await import('@/lib/organic-social/metrics')
+  const metrics = { [metricForKey('TWITTER', 'netNewFollowers')]: { value: 4, context: -2, context_change: null } }
+  // The real builder, with whatever change the caller asks for.
+  const viaBuilder = async (...a: unknown[]) => [buildPlatformHeadline('TWITTER', metrics as never, ['netNewFollowers'], true, a[4] as never)]
+  const X = { ...FIXTURE_ORGANIC_SOCIAL_CTX, channel: 'TWITTER' as const }
+  vi.mocked(getPlatformHeadlines).mockImplementationOnce(viaBuilder as never)
+  const outline = await text(HeadlinesSection({ ...X, outline: true }))
+  const rise = [...outline.querySelectorAll('p')].find((p) => p.textContent?.includes('vs prior period'))!
+  expect(rise.textContent).toBe('↑ 300% vs prior period')
+  expect(rise.className).toContain('text-brand-green')
+  vi.mocked(getPlatformHeadlines).mockImplementationOnce(viaBuilder as never)
+  expect((await text(HeadlinesSection(X))).textContent).toContain('↓ 300.0% vs prior period')
 })
 
 test('the shared tiles round only when told to (O4)', () => {
