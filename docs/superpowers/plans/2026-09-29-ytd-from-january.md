@@ -1,5 +1,7 @@
 # YTD Review from January 2026, Implementation Plan
 
+> SUPERSEDED on 2026-10-01 by `docs/superpowers/plans/2026-10-01-ytd-from-sheet.md` (the team's sheet is the source of truth). Kept for the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The YTD graphs can start in January 2026 through a new `reportingMonths.ytdFrom` setting, without changing any number a client already sees. Missing months show as gaps, and the requests are capped.
