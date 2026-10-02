@@ -1,5 +1,7 @@
 # Organic Social: current status (2026-10-01, end of day; updated that night)
 
+> SUPERSEDED on 2026-10-02 by `2026-10-02-organic-social-status.md` (all ten PRs merged and on staging). Kept as the previous state.
+
 Written by me (Thomas) with Claude so the next session picks up with nothing lost. This is the current state. The
 2026-09-30 doc beside it is the previous state, and the 2026-09-29 doc is the history and dated decision log. This file
 is in the public repo: no brand ids, client figures, secrets, login details, links to client data or security findings.
