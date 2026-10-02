@@ -12,6 +12,8 @@ vi.mock('@/lib/organic-social/outline-headlines', async () => ({
 }))
 const { getOutlineMediaKpis } = vi.hoisted(() => ({ getOutlineMediaKpis: vi.fn() }))
 vi.mock('@/lib/organic-social/outline-media', () => ({ getOutlineMediaKpis }))
+const { loadTileSheets } = vi.hoisted(() => ({ loadTileSheets: vi.fn() }))
+vi.mock('@/lib/organic-social/tile-sheets', () => ({ loadTileSheets }))
 
 import { ORGANIC_SOCIAL_PARTS } from './registry'
 import { HeadlinesSection, platformHeadlinesV1 } from './platform-headlines'
@@ -37,7 +39,10 @@ const builtFor = (ch: 'FACEBOOK' | 'INSTAGRAM', value: number) => buildOutlineKp
   outlineSpecsFor(ch))
 /** Views on Reels, as the media request returns it. */
 const REELS = { videoViews: { key: 'videoViews', label: 'Video Views', format: 'number' as const, value: 1234 } }
-beforeEach(() => { getOutlineMediaKpis.mockReset(); getOutlineMediaKpis.mockResolvedValue(REELS) })
+beforeEach(() => {
+  getOutlineMediaKpis.mockReset(); getOutlineMediaKpis.mockResolvedValue(REELS)
+  loadTileSheets.mockReset(); loadTileSheets.mockResolvedValue(null)
+})
 /** The KpiCard whose title is exactly `title`. */
 const card = (c: HTMLElement, title: string) =>
   ([...c.querySelectorAll('p')].find((p) => p.textContent === title)?.closest('div.rounded-lg') ?? null) as HTMLElement | null
@@ -222,4 +227,29 @@ test('outline tiles show percent changes as whole numbers, the arrow following t
   expect(card(c, 'Views')!.textContent).toContain('↑ 6% vs prior period')
   expect(card(c, 'Views')!.textContent).not.toContain('6.3%')
   expect(card(c, 'Likes')!.textContent).not.toContain('↑')
+})
+
+const cells = (m: Record<number, number>) => Array.from({ length: 12 }, (_, i) => (m[i + 1] === undefined ? { kind: 'blank' as const } : { kind: 'number' as const, value: m[i + 1] }))
+const SEPT_IG = { ...IG, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'custom:2026-08-01,2026-08-31' }
+
+test('a finished month the sheet has: Total Followers and Views show the sheet with sheet arrows; the Dash request is exactly today\'s', async () => {
+  getOutlineKpis.mockReset(); getOutlineKpis.mockResolvedValueOnce(built(10))
+  loadTileSheets.mockResolvedValueOnce({ key: '2026-09', compareKey: '2026-08', sheets: {
+    current: { followers: { INSTAGRAM: cells({ 8: 1000, 9: 1100 }) }, views: { INSTAGRAM: cells({ 8: 200, 9: 300 }) } }, prior: null,
+  } })
+  const c = await text(OutlineDataSection({ ctx: SEPT_IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
+  expect(getOutlineKpis.mock.calls).toEqual([[SEPT_IG.clientSlug, 'custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', 'INSTAGRAM']])
+  expect(loadTileSheets.mock.calls).toEqual([[SEPT_IG.clientSlug, 'custom:2026-09-01,2026-09-30']])
+  expect(card(c, 'Total Followers')!.textContent).toContain('1,100')
+  expect(card(c, 'Total Followers')!.textContent).toContain('↑ 10% vs prior period')
+  expect(card(c, 'Views')!.textContent).toContain('300')
+  expect(card(c, 'Views')!.textContent).toContain('↑ 50% vs prior period')
+  expect(card(c, 'Net New Followers')!.textContent).toContain('10') // Dash, unchanged
+})
+
+test('with no sheet plan the tiles are exactly Dash\'s', async () => {
+  getOutlineKpis.mockReset(); getOutlineKpis.mockResolvedValueOnce(built(10))
+  const c = await text(OutlineDataSection({ ctx: SEPT_IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
+  expect(card(c, 'Total Followers')!.textContent).toContain('10')
+  expect(card(c, 'Total Followers')!.textContent).not.toContain('1,100')
 })
