@@ -52,6 +52,8 @@ export default defineConfig({
       'lib/dash-social/content.test.ts',
       'lib/dash-social/uncached.test.ts',
       'lib/cache-warm/run.test.ts',
+      'lib/auth/service-cookie.test.ts',
+      'app/global-error.test.tsx',
       'app/actions/**/*.test.{ts,tsx}',
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
