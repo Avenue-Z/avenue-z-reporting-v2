@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { clients, sectionTemplates } from '@/lib/db/schema'
@@ -37,7 +37,7 @@ async function persist(slug: string, cfg: ReportSectionConfig): Promise<Result> 
   await db.update(clients).set({ reportSectionConfig: cfg, updatedAt: new Date() }).where(eq(clients.slug, slug))
   // Same targeted bust as saveDashboardConfig: getClientBySlug is cached ~5min via
   // the 'db' tag, so without this the next render re-reads the stale config.
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -148,6 +148,6 @@ export async function promoteToTemplate(
       },
     })
 
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
