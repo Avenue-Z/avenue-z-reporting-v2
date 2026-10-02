@@ -47,7 +47,7 @@ Review closed. These go to the plan with the round 1 minors:
 |---|---|---|
 | 1 | Jasmine's 19:17 condition ("If it has influencer posts, I might just have you remove that") was said about both Piper and PIMCO | S2 now quotes it as covering both. Section 4: whether PIMCO's only tab (LinkedIn) shows the section is unverified until a staff session checks; if it does, it comes to me as a decision, and the fix is a data write only |
 | 2 | Akara's other tabs could still say "Influencer Posts" | Rebutted: staging read 2026-10-02 shows Akara has only Instagram. S3 says so |
-| 3 | @3 uses live Dash for a blank past month, which goes beyond Paul's "live Dash for the current month" | Left to me as an open decision in section 8, recommending keep |
+| 3 | @3 uses live Dash for a blank past month, which goes beyond Paul's "live Dash for the current month" | Decided by me: keep (section 8) |
 | 4 | The 12:36 Facebook Views paid plus organic question had no row | New S15: no change, the sheet already holds the same Dash metric |
 | 5 | The delivery dates were missing | Release step 0: code review today, staging for Whitney on Tuesday 10-06, production ready for Wednesday 10-07 on Jasmine's approval and my go |
 | 6 | Nobody who heard "it will not change" (17:14) is told that sheet edits now change a month's Followers and Views | Release step 1a |
@@ -60,3 +60,5 @@ Review closed. These go to the plan with the round 1 minors:
 24. The S4 quote has been fixed (Jasmine at 09:22 is the authority; 08:57 was my question). Done in the spec.
 25. Piper added to the default-outline row S13. Done in the spec.
 26. Name the sheet's Total Followers change against Dash's Net New Followers as an accepted mismatch, beside Engagement Rate.
+
+Correction after round 3: the 19:17 remark may cover PIMCO, but the transcript does not settle it. Jasmine reviewed PIMCO and said "You won't have to change anything here" (19:54). The spec wording now says "may".
