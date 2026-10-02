@@ -24,6 +24,7 @@ export default defineConfig({
       'lib/ga4/order-by.test.ts',
       'lib/ga4/lead-events.test.ts',
       'lib/concurrency.test.ts',
+      'lib/delta-rounding.test.ts',
       'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
       'lib/meta/kpis.test.ts',

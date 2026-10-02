@@ -73,6 +73,16 @@ const keysFrom = async (run: () => Promise<unknown>): Promise<string[]> => {
   return readLock.mock.calls.map((c) => String(c[1]))
 }
 
+// Paul's review of #285: the outline fallback asks for the size-based change. That is worked out after the answer
+// arrives, so the request, and every lock key, must be exactly the default's.
+test("the size-based change ('size') sends the same request and hands the lock store the same keys", async () => {
+  const signed = await keysFrom(() => getPlatformHeadlines('client-a', MONTH, COMPARE, 'INSTAGRAM'))
+  const signedParams = params
+  const size = await keysFrom(() => getPlatformHeadlines('client-a', MONTH, COMPARE, 'INSTAGRAM', 'size'))
+  expect(size).toEqual(signed)
+  expect(params).toEqual(signedParams)
+})
+
 test('the headline tiles: one key for the month, one for the locked compare baseline', async () => {
   const keys = await keysFrom(() => getPlatformHeadlines('client-a', MONTH, COMPARE, 'INSTAGRAM'))
   // The request that produced them. isoRangeTz appends the T04:00:00Z suffix Paul named.
