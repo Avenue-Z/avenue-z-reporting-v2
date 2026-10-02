@@ -7,7 +7,7 @@ import type { SourceType } from '@/lib/organic-social/types'
 /** Internal-staff-only control. Rendered only when `canEdit` is true (the parent gates
  *  on canSetDesignation server-side); the server action re-checks regardless. Optimistic:
  *  flips immediately, reverts on failure. Freshness after success comes from the action's
- *  revalidateTag('db'), which re-partitions the post into the other section. */
+ *  updateTag('db'), which re-partitions the post into the other section. */
 export function DesignationToggle({
   clientSlug, postId, value,
 }: { clientSlug: string; postId: number; value: SourceType }) {
