@@ -78,6 +78,7 @@ export function SortableTopContent({
   pageSize = 15,
   ownedLimit,
   sortKeys,
+  influencerHeading,
 }: {
   owned: PlatformGroup[]
   influencer: PlatformGroup[]
@@ -90,6 +91,9 @@ export function SortableTopContent({
   /** Only these sort buttons, in toolbar order. Absent: all four, as today. The type rules out an empty list, so
    *  the toolbar is never empty and an outline tab can't silently get all four back. */
   sortKeys?: readonly [SortKey, ...SortKey[]]
+  /** The Influencer section's heading and region name, set per client by top-content@3 (Akara's "Partnership Posts").
+   *  Absent: today's text, so top-content@2 (Renaissance) renders exactly as before. */
+  influencerHeading?: string
 }) {
   const metrics = sortKeys ? SORT_METRICS.filter((m) => sortKeys.includes(m.key)) : SORT_METRICS
   const [sortKey, setSortKey] = useState<SortKey>(metrics.some((m) => m.key === 'engagements') ? 'engagements' : metrics[0].key)
@@ -152,8 +156,8 @@ export function SortableTopContent({
       <div className="space-y-5">{rows(owned, 'owned')}</div>
 
       {influencer.length > 0 && (
-        <section aria-label="Influencer posts" className="space-y-3">
-          <h3 className="text-xs font-extrabold uppercase tracking-widest text-text-muted">Influencer Posts</h3>
+        <section aria-label={influencerHeading ?? 'Influencer posts'} className="space-y-3">
+          <h3 className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{influencerHeading ?? 'Influencer Posts'}</h3>
           <div className="space-y-5">{rows(influencer, 'influencer')}</div>
         </section>
       )}

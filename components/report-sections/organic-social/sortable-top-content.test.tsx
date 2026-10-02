@@ -97,3 +97,21 @@ test('T8 the cards keep all four metrics under a list', () => {
     expect(screen.getAllByText(label).some((el) => !el.closest('button'))).toBe(true)
   }
 })
+
+test('the influencer heading and region name follow influencerHeading; absent, they are exactly today\'s', () => {
+  const influencer = group([mk(100, 1)])
+  const first = view({ influencer })
+  expect(screen.getByRole('region', { name: 'Influencer posts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Influencer Posts' })).toBeInTheDocument()
+  first.unmount()
+  view({ influencer, influencerHeading: 'Partnership Posts' })
+  expect(screen.getByRole('region', { name: 'Partnership Posts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Partnership Posts' })).toBeInTheDocument()
+  expect(screen.queryByText('Influencer Posts')).toBeNull()
+})
+
+test('with no influencer rows left (a hidden platform was the only one), there is no influencer region and no heading', () => {
+  view({ influencer: [], influencerHeading: 'Partnership Posts' })
+  expect(screen.queryByRole('region')).toBeNull()
+  expect(screen.queryByText('Partnership Posts')).toBeNull()
+})
