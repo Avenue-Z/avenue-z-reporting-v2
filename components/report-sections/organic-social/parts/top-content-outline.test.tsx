@@ -146,7 +146,7 @@ test('no influencerSection: the influencer row and the default heading, exactly 
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
   expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
-  expect(SortableTopContent.mock.calls.at(-1)![0]).not.toHaveProperty('influencerHeading')
+  expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('influencerHeading')
 })
 
 test('Instagram hidden (Piper): no influencer row on the Instagram tab; the owned top 5 is unchanged; the posts are not moved', async () => {
@@ -202,7 +202,7 @@ test('a failed client read keeps the default section and logs no influencerSecti
   getClientBySlug.mockRejectedValueOnce(new Error('db down'))
   fetchTopContentFrozen.mockResolvedValue([post(2, { author: 'creator_one' })])
   await show()
-  expect(SortableTopContent.mock.calls.at(-1)![0]).not.toHaveProperty('influencerHeading')
+  expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('influencerHeading')
   expect(warn.mock.calls.some((c) => c.join(' ').includes('influencerSection'))).toBe(false)
   warn.mockRestore()
 })
