@@ -30,3 +30,12 @@ two rounds at most. Code checked at `origin/dev` 7243ec7f.
 11. S7 still has three open cases: does a leading invalid cell break the leading run; what exactly "No data" means; and whether the 2027 v1 path (`ytdSeries`) should also hide leading months.
 12. S12 step 3: "from production" is my decision. Jasmine's Slack says "once the data has locked on the dashboard".
 13. More tests: @3 with a Dash failure shows the fallback; the NY/UTC month-end boundary; S4 January and `previous-year`; top-content@3 reads `influencerSection` and passes it to the component.
+
+## Round 2 (2026-10-02, changed lines only): 0 BLOCKER, 0 MAJOR, 6 MINOR
+Review closed. These go to the plan with the round 1 minors:
+14. @3's previous month is still partial from 00:00 to 04:00 UTC on the 1st, because the Dash windows end at `T04:00:00Z`. Keep "(live)" while `liveDayInProgress` is true, and test the 1st at 02:00 UTC.
+15. Define "logs once" for the @3 skip (per render), and test that.
+16. A failed read of the prior year's sheet, used for the arrow, logs the same `ytd sheet read failed (tiles)` line with the year. Add it to the failure tests.
+17. The staging script validates against `REGISTRIES['organic-social:platform']` and the part ids of the template the environment resolves: the DB row, else the code template.
+18. The staging script prints `resolveSection(dbTemplate, newOverride)` and refuses unless the result is exactly the five pins.
+19. The staging script keeps every other `dash_social_config` key byte for byte, and refuses if `reportingMonths` is present before or after the write.

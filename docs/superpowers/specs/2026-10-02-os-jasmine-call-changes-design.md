@@ -1,6 +1,6 @@
 # Organic Social: Jasmine's 2026-10-02 walkthrough changes, and Renaissance annotations and YTD: design
 
-Status: DRAFT. Review round 1 done (7 MAJOR fixed with targeted edits, 13 MINOR listed for the plan in the review log beside this file). Next: round 2 on the changed lines, then the plan.
+Status: REVIEWED (two rounds: round 1 found 7 MAJOR, fixed; round 2 found 0 MAJOR). Minors for the plan are in the review log beside this file. Next: the plan.
 Code is cited at `origin/dev` 7243ec7f (the same files as `origin/staging` f495f9a4). Public repo: no brand ids, sheet
 ids, client figures or login details here.
 
