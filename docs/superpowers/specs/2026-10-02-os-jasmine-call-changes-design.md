@@ -54,10 +54,11 @@ New optional key `dash_social_config.influencerSection`, validated at runtime:
   `{ "INSTAGRAM": { "label": "Partnership Posts" } }`. Other Piper tabs stay as they are (S2 is Instagram only).
 - Edge: a staff member can no longer re-mark Piper's hidden Instagram influencer posts from that tab (accepted: Jasmine asked
   for the section to go).
-- Unverified until checked with a staff session: which other Piper tabs, and whether PIMCO's only tab (LinkedIn, staging read
-  2026-10-02), show an influencer section today. Jasmine's 19:17 condition may cover both clients, but she reviewed PIMCO with
-  "You won't have to change anything here" (19:54) and named only Instagram for Piper (20:13). If a tab shows the section, it
-  comes to me as a decision; acting on it is a data write only (`influencerSection.<CHANNEL>.hidden`), no code.
+- Checked on staging 2026-10-02: Piper's Instagram (August) is the only Piper tab with an influencer section; Facebook,
+  LinkedIn and X show none in August or September (staff session). PIMCO's only tab, LinkedIn, shows none in August (client
+  session). Jasmine's 19:17 condition may cover PIMCO, but there is nothing there to remove, and she asked for no PIMCO change
+  (19:54). If a section appears on another Piper or PIMCO tab in a later month, it comes to me as a decision; acting on it is a
+  data write only (`influencerSection.<CHANNEL>.hidden`), no code.
 
 ## 5. S4 and S5: Total Followers and Views tiles follow the sheet
 Applies to the outline Data block only (`parts/outline-data.tsx:15-31`, platform-headlines@2 and @3), for a client with a

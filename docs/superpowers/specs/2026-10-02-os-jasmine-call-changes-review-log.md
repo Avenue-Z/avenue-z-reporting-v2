@@ -64,3 +64,4 @@ Review closed. These go to the plan with the round 1 minors:
 Correction after round 3: the 19:17 remark may cover PIMCO, but the transcript does not settle it. Jasmine reviewed PIMCO and said "You won't have to change anything here" (19:54). The spec wording now says "may".
 
 Checked 2026-10-02 on staging, signed in as the PIMCO demo client: PIMCO LinkedIn, August 2026, Top Content loaded with no influencer section. Nothing to decide for PIMCO.
+Checked 2026-10-02 on staging, staff session: Piper Instagram (August) is the only Piper tab with an influencer section; Facebook, LinkedIn and X show none in August or September.
