@@ -39,7 +39,8 @@ export function buildOutlineKpis(
       format: spec.format,
       value: spec.format === 'percent' ? raw * 100 : raw,
       delta: outlineDelta(m),
-      footnote: spec.footnote, // outline tabs are always one channel, where footnotes show
+      // No footnote: Jasmine removed the Facebook one from the outline tabs (2026-10-02). Renaissance's
+      // tiles (headline-build.ts) still show it.
     }
   }
   return { kpis, noData }
