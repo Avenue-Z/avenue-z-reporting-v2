@@ -29,7 +29,7 @@ export type LockedRange = {
 
 type WeekendRule = 'next-monday' | 'previous-friday'
 type Comparison = 'previous-month' | 'previous-year'
-type Config = { firstMonth: string; opensOnDay: number; weekendRule: WeekendRule; comparison: Comparison }
+type Config = { firstMonth: string; opensOnDay: number; weekendRule: WeekendRule; comparison: Comparison; clientMonths?: number }
 type Parsed = { ok: true; cfg: Config; badKey: string | null } | { ok: false; key: string }
 
 const TEAM_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
@@ -125,7 +125,16 @@ export function parseReportingMonths(value: unknown): Parsed {
     if (v === 'previous-month' || v === 'previous-year') comparison = v
     else bad('comparison')
   }
-  return { ok: true, cfg: { firstMonth, opensOnDay, weekendRule, comparison }, badKey }
+  // How many of the newest opened months a client may pick (Jasmine, 2026-09-29). Absent: all of them.
+  let clientMonths: number | undefined
+  if (hasOwn(value, 'clientMonths')) {
+    const v = value.clientMonths
+    if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= MAX_REPORTING_MONTHS) clientMonths = v
+    else bad('clientMonths')
+  }
+  const cfg: Config = { firstMonth, opensOnDay, weekendRule, comparison }
+  if (clientMonths !== undefined) cfg.clientMonths = clientMonths
+  return { ok: true, cfg, badKey }
 }
 
 function comparisonFor(key: string, end: string, live: boolean, comparison: Comparison) {
@@ -135,7 +144,7 @@ function comparisonFor(key: string, end: string, live: boolean, comparison: Comp
   return { range: `custom:${firstOf(ref)},${refEnd}`, label: `vs ${shortDay(firstOf(ref))} to ${shortDay(refEnd)}` }
 }
 
-function option(key: string, live: boolean, end: string, cfg: Config, badKey: string | null, viewer: Viewer, clock: Clock): MonthOption {
+function option(key: string, live: boolean, end: string, cfg: Config, badKey: string | null, viewer: Viewer, clock: Clock, agedOut: boolean): MonthOption {
   const open = opensOn(key, cfg.opensOnDay, cfg.weekendRule)
   const cmp = comparisonFor(key, end, live, cfg.comparison)
   const label = live
@@ -146,6 +155,7 @@ function option(key: string, live: boolean, end: string, cfg: Config, badKey: st
     if (live) tag = 'Live, team only'
     else if (badKey) tag = 'Hidden from clients: config error'
     else if (clock.today < open) tag = `Team only until ${shortDay(open)}`
+    else if (agedOut) tag = 'No longer shown to clients'
   }
   return { key, label, dateRange: `custom:${firstOf(key)},${end}`, compareRange: cmp.range, compareLabel: cmp.label, live, opensOn: open, tag }
 }
@@ -153,18 +163,25 @@ function option(key: string, live: boolean, end: string, cfg: Config, badKey: st
 const liveExists = (current: string, clock: Clock) => clock.lastCompleteUtcDay >= firstOf(current)
 
 /** Newest first: the team gets the live month (when there is one) and every finished month back to
- *  firstMonth; a client gets the finished months that have opened. Bounded by MAX_REPORTING_MONTHS. */
+ *  firstMonth; a client gets the finished months that have opened, only the newest `clientMonths` of
+ *  them when that is set (the team keeps the rest, tagged). Bounded by MAX_REPORTING_MONTHS. */
 function monthsFor(cfg: Config, badKey: string | null, viewer: Viewer, clock: Clock): MonthOption[] {
   const current = monthOf(clock.today)
   const out: MonthOption[] = []
   if (viewer === 'team' && current >= cfg.firstMonth && liveExists(current, clock)) {
-    out.push(option(current, true, clock.lastCompleteUtcDay, cfg, badKey, viewer, clock))
+    out.push(option(current, true, clock.lastCompleteUtcDay, cfg, badKey, viewer, clock, false))
   }
   if (viewer === 'client' && badKey) return out
+  let opened = 0
   let key = addMonths(current, -1)
   for (let i = 0; i < MAX_REPORTING_MONTHS + 2 && key >= cfg.firstMonth && out.length < MAX_REPORTING_MONTHS; i++, key = addMonths(key, -1)) {
-    if (viewer === 'client' && clock.today < opensOn(key, cfg.opensOnDay, cfg.weekendRule)) continue
-    out.push(option(key, false, lastOf(key), cfg, badKey, viewer, clock))
+    const isOpen = clock.today >= opensOn(key, cfg.opensOnDay, cfg.weekendRule)
+    if (viewer === 'client' && !isOpen) continue
+    // Every month older than an opened month has opened too, so once one is past the cap all older ones are.
+    const agedOut = isOpen && cfg.clientMonths !== undefined && opened >= cfg.clientMonths
+    if (isOpen) opened++
+    if (viewer === 'client' && agedOut) break
+    out.push(option(key, false, lastOf(key), cfg, badKey, viewer, clock, agedOut))
   }
   return out
 }
@@ -194,8 +211,13 @@ export function resolveLockedRange(cfgValue: unknown, viewer: Viewer, clock: Clo
   const outcome: LockedRange['outcome'] = !present ? 'absent' : month && requested === month.dateRange ? 'canonical' : 'replaced'
   // A hidden-month attempt (logged): a whole-month or live-month request for a month that exists but
   // is not in a CLIENT's list, i.e. the live month or a finished month that has not opened (spec 3.7).
+  // A request for an opened month older than the cap (older than the last one listed under clientMonths) is
+  // replaced with the newest month and not logged. Usually the client saw it before the cap reached it, but a
+  // client capped from its first month never did, so for it this is a blind spot in the attempt log. Nothing
+  // leaks either way: the newest month is served.
   const wholeOrLive = reqKey !== null && (reqKey === current ? liveExists(current, clock) : req!.end === lastOf(reqKey))
-  const hiddenMonthAttempt = viewer === 'client' && match === null && wholeOrLive
+  const agedOut = cfg.clientMonths !== undefined && months.length > 0 && reqKey !== null && reqKey < months[months.length - 1].key
+  const hiddenMonthAttempt = viewer === 'client' && match === null && wholeOrLive && !agedOut
     && reqKey! >= cfg.firstMonth && reqKey! <= current && !months.some((m) => m.key === reqKey)
   const reason: LockedRange['reason'] = badKey ? 'malformed-config'
     : months.length ? 'ok'
