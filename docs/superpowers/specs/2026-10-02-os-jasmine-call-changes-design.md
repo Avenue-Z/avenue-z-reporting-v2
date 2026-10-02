@@ -1,6 +1,6 @@
 # Organic Social: Jasmine's 2026-10-02 walkthrough changes, and Renaissance annotations and YTD: design
 
-Status: DRAFT, not yet reviewed. Next step: one fresh-eyed adversarial review (two rounds at most), then the plan.
+Status: DRAFT. Review round 1 done (7 MAJOR fixed with targeted edits, 13 MINOR listed for the plan in the review log beside this file). Next: round 2 on the changed lines, then the plan.
 Code is cited at `origin/dev` 7243ec7f (the same files as `origin/staging` f495f9a4). Public repo: no brand ids, sheet
 ids, client figures or login details here.
 
@@ -20,7 +20,7 @@ after the call; Paul's Slack after the call; my decisions after the call. Nothin
 | S8 | Renaissance: annotations exactly like the new organic social clients, automatic callouts and written notes (call 21:31 to 22:08; Paul's Slack: "yes that sounds fine") | 7 | change |
 | S9 | Renaissance: YTD Review January through now, sheet first, current month live from Dash (call 21:31; Paul's Slack: "yes that sounds good to me as well") | 8 | change |
 | S10 | Renaissance stays live: rolling date picker, never locked; its tiles and footnote are unchanged (my decision; Paul approved only S8 and S9) | 7, 8, 9 | no change |
-| S11 | Locked months: once a month locks, its numbers never change (call 16:20 to 17:19) | 2 | no change: confirmed in code |
+| S11 | Locked months: once a month locks, Dash's stored answer never changes (call 16:20 to 17:19). The Total Followers and Views tiles and YTD follow the sheet instead whenever it has the month (S4, S5) | 2, 5 | no change to locking: confirmed in code |
 | S12 | Release: tell Jasmine (call 25:11) and Maddie (Paul's Slack) before Renaissance reaches production; no demo logins in production (call 08:37); Jasmine copies September from production once it is live | 10 | release step |
 | S13 | Already done or no change: PIMCO keeps the default outline (19:09 to 19:54); the sort shows Engagements and Views only (11:56); the follower graph format is accepted (13:55 to 15:21) | n/a | no change |
 | S14 | Out of scope: Nick's email request (01:39), RPass setup (05:10), LastPass (05:54) | n/a | none |
@@ -63,9 +63,14 @@ from the sheet.
 - After `getOutlineKpis` returns (the request, its cache and its lock key are unchanged), the tab's sheet is read with the
   existing cached reader and parser. For the month on screen, a sheet number replaces `followers.value` and/or
   `exposure.value` (each separately). TikTok's "Video Views" row reads `exposure` (`outline-layout.ts:65`) and follows.
-- Change arrow: computed with `outlineDelta` from the sheet number against the sheet's number for the comparison month (the
-  previous month, or 12 months back for `previous-year`) when the sheet has it, else against the existing `context` (Dash, or
-  the prior month's lock).
+- Change arrow, sheet against sheet only, never mixed sources: when a tile shows the sheet's number, its arrow is
+  `outlineDelta` of that number against the sheet's number for the comparison month. The comparison month is the previous
+  month, or the same month a year back for `previous-year`; a comparison month in the prior year reads that year's own entry
+  (`ytdSheets["<year-1>"]`). If the comparison month has no sheet number (no entry for that year, a blank, N/A or invalid
+  cell, or a read failure), the tile shows no arrow, as it does today when there is no prior (`outline-delta.ts:13`). A tile
+  that keeps the dashboard's value keeps today's arrow.
+- No data: when Dash's answer for the month is all null (`noData`, `outline-headlines.ts:31`), the Data block stays No data
+  (`outline-tiles.tsx:45`) even if the sheet has the month, because the other tiles would read 0.
 - Unchanged: Net New Followers, Total Engagements, Engagement Rate, Profile Views, Profile Clicks, Video Views (except TikTok's,
   above) and the engagement breakdown stay Dash. So a tile pair need not reconcile (for example Instagram Engagement Rate is
   Dash's views-based rate, `outline-layout.ts:47`). Accepted.
@@ -101,10 +106,13 @@ from the sheet.
 
 ## 8. S9: Renaissance YTD Review (live mode)
 New part version `ytd-review@3`, registered with the outline parts (`parts/registry.ts:24-29`), unpublished, pinned per client.
-- Needs no `reportingMonths`. Months: January of the current New York year (`clockFor(...).today`, `reporting-months.ts:82-93`)
-  through the current month, whatever the date picker shows. Earlier months are whole months; the current month runs
-  `custom:<YYYY-MM>-01,<lastCompleteUtcDay>` and is labelled "(live)". On the 1st (no complete day yet) the current month is
-  left out.
+- For live clients only: a client with `reportingMonths` (`hasReportingMonths`, `reporting-months.ts:75-79`) that has @3
+  pinned renders nothing and logs once `ytd-review@3 skipped (client has reportingMonths) slug=…`, so it can never create
+  new lock rows or requests for an outline client.
+- Months, whatever the date picker shows, anchored on the last complete UTC day `D` (`clockFor(...).lastCompleteUtcDay`,
+  `reporting-months.ts:87`): January of `D`'s year through `D`'s month. Earlier months are whole months; `D`'s month runs
+  `custom:<YYYY-MM>-01,<D>` and is labelled "(live)" unless `D` is that month's last day. So on the 1st the block shows the
+  previous month whole, and on January 1 it shows the previous year January to December (its own `ytdSheets` entry).
 - Per month and graph: a sheet number wins; a blank or missing column uses live Dash (`getOutlineKpis` with no comparison;
   Renaissance's reads are never locked); N/A or invalid is a gap; S7's leading-run rule applies.
 - Sheet: Renaissance's own `ytdSheets["<year>"] = { sheetId, tab }` (the existing shape, `ytd-sheet.ts:28-37`), written by the
@@ -117,7 +125,14 @@ New part version `ytd-review@3`, registered with the outline parts (`parts/regis
   as @2.
 - Placement: Renaissance's `organic-social:platform` override adds `extraParts` ytd-review@3 and an `order` with ytd-review
   first, then platform-headlines, follower-graph, engagement-trend, top-content (the outline clients' order without the parts
-  Renaissance does not have).
+  Renaissance does not have). Resolved result on a platform tab: ytd-review@3, platform-headlines@1, follower-graph@2,
+  engagement-trend@2, top-content@2.
+- The staging write (S8 and S9 together, one guarded script): staging read 2026-10-02 shows Renaissance has an
+  `organic-social` override holding only `sharedParts` (Commentary, read at `index.tsx:38`) and no `organic-social:platform`
+  key. The script creates only `organic-social:platform` (platform tabs read that key, `index.tsx:61`), refuses if that key
+  already exists or carries `frozen` (`resolve.ts:9-11, 44`), leaves `organic-social` and every other key byte for byte,
+  validates with `validateSectionOverride` (`lib/report-sections/mutations.ts:90`), adds `chartNotes` and `ytdSheets` to `dash_social_config` without touching
+  `brandId`, prints the before and after, and takes a Renaissance fingerprint before and after.
 
 ## 9. Unchanged (stated so nothing drifts)
 Renaissance's tiles, Facebook footnote, date picker, Top Content (@2, heading "Influencer Posts"), Overview, Commentary and the
@@ -148,7 +163,12 @@ PIMCO's setup. The sort buttons. The month rules.
 | Akara YTD, January to May blank | Not listed as gaps; graph starts at the first point |
 | Joy of Life YTD, leading N/A | Not listed; a later N/A is named |
 | Renaissance, picker on last 30 days | YTD January through current month (live) |
-| Renaissance on the 1st of a month | YTD through the previous month |
+| Renaissance on the 1st of a month (UTC) | YTD through the previous month, whole |
+| Renaissance on January 1 (UTC) | YTD January to December of the previous year |
+| Outline client with ytd-review@3 pinned | Renders nothing, one log line; no new Dash requests or locks |
+| Finished month from the sheet, comparison month not in the sheet | Sheet value, no arrow |
+| January or `previous-year`, prior year's sheet entry present | Arrow against that year's sheet number |
+| Dash all null for the month, sheet has the month | Data block shows No data |
 | Renaissance X tab | No YTD block |
 | Renaissance note approved | Visible to its clients at once on ranges covering the day |
 | Renaissance note on a future day | Refused |
@@ -159,14 +179,20 @@ PIMCO's setup. The sort buttons. The month rules.
 - `sortable-top-content`: hidden platform renders no row and no heading when it was the only row; a label replaces the
   heading and aria-label; absent props render today's markup (existing snapshots unchanged).
 - `influencerSection` parser: valid, absent, invalid shapes; unknown channel ignored.
-- Tiles from the sheet: replaces followers and exposure for a finished month; arrow uses the sheet's prior month, else
-  context; live month untouched; each failure case keeps the dashboard value and logs without the sheet id; TikTok Video Views
+- Tiles from the sheet: replaces followers and exposure for a finished month; arrow uses the sheet's comparison month,
+  including the prior year's entry for January and `previous-year`; no arrow when the comparison month is not in the sheet;
+  Dash all null stays No data; live month untouched; each failure case keeps the dashboard value and logs without the sheet id; TikTok Video Views
   follows Views; the request passed to `getOutlineKpis` is unchanged.
 - YTD leading run: blank and N/A leading months unlisted; later gaps named; invalid always named; all-empty is No data.
 - Notes gate: on with `reportingMonths`, on with `chartNotes: true`, off otherwise; no first-month floor without
   `reportingMonths`; future day refused.
-- `ytd-review@3`: months from January to the current month on any picker range; the 1st drops the current month; sheet
-  wins; blank uses Dash; X renders nothing; sheet failure is the error card; concurrency 3.
+- `ytd-review@3`: months from January to `D`'s month on any picker range; the 1st shows the previous month whole; January 1
+  shows the previous year; sheet wins; blank uses Dash; X renders nothing; sheet failure is the error card; concurrency 3; a
+  client with `reportingMonths` renders nothing, logs once and makes no Dash call.
+- Placement: `resolveSection` with Renaissance's exact new `organic-social:platform` override returns ytd-review@3,
+  platform-headlines@1, follower-graph@2, engagement-trend@2, top-content@2 in that order, and passes
+  `validateSectionOverride`; the `organic-social` key (Overview) still resolves as today (beside
+  `parts/outline-composition.test.tsx:21-24`).
 - Renaissance golden render snapshots and `lock-key-pin.test.ts` pass unchanged before the staging data writes.
 
 ## 13. Not in scope
