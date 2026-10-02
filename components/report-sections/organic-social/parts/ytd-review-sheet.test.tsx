@@ -65,12 +65,13 @@ test('both graphs from the sheet, January to September; Dash asked only for Sept
   expect(container.textContent).toContain('Views, Year to Date')
 })
 
-test('gaps are named under each graph; a blank before firstMonth never calls Dash', async () => {
+test('a later gap is named under its graph; the months before the first point are not; a blank before firstMonth never calls Dash', async () => {
   readYtdTab.mockResolvedValue(sheet((i) => (i === 0 ? 'N/A' : i < 5 ? '' : String(i)), (i) => (i === 2 ? '12k' : String(i))))
   const el = await YtdSheetReviewSection({ ctx: SEPT })
   expect(getOutlineKpis).not.toHaveBeenCalled()
   const { container } = render(<>{el}</>)
-  expect(container.textContent).toContain('No follower data for Jan, Feb, Mar, Apr, May')
+  // Jan (N/A) and Feb to May (blank before firstMonth) come before the first point (Jun): not listed (S7).
+  expect(container.textContent).not.toContain('No follower data')
   expect(container.textContent).toContain('No views data for Mar')
   expect(logs().some((l) => l.includes('ytd sheet cell invalid slug=c channel=INSTAGRAM month=2026-03 graph=views'))).toBe(true)
 })

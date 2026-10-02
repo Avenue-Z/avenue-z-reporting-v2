@@ -109,7 +109,9 @@ export function monthsNeedingDash(months: YtdMonth[], tab: YtdTab, channel: Dash
 }
 
 /** Each graph decided separately per month (spec 4.3 table): the sheet's number wins; a blank from firstMonth uses
- *  the Data block's value (a gap when that month is noData); N/A, invalid and earlier blanks are gaps. */
+ *  the Data block's value (a gap when that month is noData); N/A, invalid and earlier blanks are gaps. Months before an
+ *  account had data are not gaps (spec 2026-10-02 section 6, S7): per graph, the leading run of blank or N/A months
+ *  that produced no point is not listed. An invalid cell is always listed and ends that run. */
 export function ytdSheetSeries(
   months: YtdMonth[], tab: YtdTab, channel: DashChannel, firstMonth: string, built: Record<string, OutlineKpis | undefined>,
 ): { followers: YtdGraph; views: YtdGraph; invalid: { month: string; graph: YtdGraphKey }[]; missingColumn: YtdGraphKey[] } {
@@ -119,19 +121,20 @@ export function ytdSheetSeries(
     invalid: [] as { month: string; graph: YtdGraphKey }[],
     missingColumn: GRAPHS.filter((g) => !tab[g][channel]),
   }
+  const leading: Record<YtdGraphKey, boolean> = { followers: true, views: true }
   for (const m of months) {
     const label = labelOf(m)
     for (const g of GRAPHS) {
       const c = cellAt(tab, g, channel, m.key) ?? { kind: 'blank' as const }
-      if (c.kind === 'number') { res[g].points.push({ key: m.key, label, value: c.value }); continue }
-      if (c.kind === 'invalid') res.invalid.push({ month: m.key, graph: g })
+      if (c.kind === 'number') { res[g].points.push({ key: m.key, label, value: c.value }); leading[g] = false; continue }
+      if (c.kind === 'invalid') { res.invalid.push({ month: m.key, graph: g }); leading[g] = false }
       if (c.kind === 'blank' && m.key >= firstMonth) {
         const b = built[m.key]
         const k = b?.kpis[g === 'followers' ? 'followers' : 'exposure']
         if (!b || !k) throw new Error(`YTD: no tiles for ${m.key}`)
-        if (!b.noData) { res[g].points.push({ key: m.key, label, value: k.value }); continue }
+        if (!b.noData) { res[g].points.push({ key: m.key, label, value: k.value }); leading[g] = false; continue }
       }
-      res[g].gaps.push(label)
+      if (!leading[g]) res[g].gaps.push(label)
     }
   }
   return res
