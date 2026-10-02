@@ -4,6 +4,7 @@ import { buildOutlineKpis, selectOutlineRows } from './outline-headlines'
 import { outlineSpecsFor, OUTLINE_DATA_ROWS } from './outline-layout'
 import { metricFor, type DashChannel } from './metrics'
 import type { YtdCell, YtdTab } from './ytd-sheet'
+import { clockFor, resolveLockedRange } from './reporting-months'
 
 // Made-up numbers only.
 const n = (value: number): YtdCell => ({ kind: 'number', value })
@@ -57,7 +58,7 @@ test('each tile separately: a blank, N/A or invalid cell, or a missing column, k
     expect(out.kpis.exposure.value).toBe(300)
   }
   const noColumn = applySheetToTiles(b, 'INSTAGRAM', '2026-09', '2026-08', { current: tab('FACEBOOK', { 9: n(1) }, { 9: n(1) }), prior: null })
-  expect(noColumn).toEqual(b)
+  expect(noColumn).toBe(b) // nothing changed: the same object back
 })
 
 test('the comparison month is not in the sheet: the sheet value with no arrow, never sheet against Dash', () => {
@@ -95,4 +96,28 @@ test('TikTok Video Views reads Views, so it follows the sheet too', () => {
   const rows = selectOutlineRows('TIKTOK', out, OUTLINE_DATA_ROWS.standard.TIKTOK!)
   expect(rows.kpis.find((k) => k.key === 'videoViews')?.value).toBe(4321)
   expect(rows.kpis.find((k) => k.key === 'exposure')?.value).toBe(4321)
+})
+
+test('finishedMonthOnScreen with real clocks: the live month stays live until New York\'s midnight, summer and winter', () => {
+  const sep = 'custom:2026-09-01,2026-09-30'
+  expect(finishedMonthOnScreen(sep, clockFor(new Date('2026-10-01T03:59:00Z')))).toBeNull() // 23:59 New York, Sep 30
+  expect(finishedMonthOnScreen(sep, clockFor(new Date('2026-10-01T04:30:00Z')))).toBe('2026-09') // 00:30 New York, Oct 1
+  const nov = 'custom:2026-11-01,2026-11-30'
+  expect(finishedMonthOnScreen(nov, clockFor(new Date('2026-12-01T04:30:00Z')))).toBeNull() // 23:30 New York, Nov 30
+  expect(finishedMonthOnScreen(nov, clockFor(new Date('2026-12-01T05:30:00Z')))).toBe('2026-11') // 00:30 New York, Dec 1
+})
+
+test('a comparison month of 0 in the sheet gives no arrow, as outlineDelta does for any zero prior', () => {
+  const out = applySheetToTiles(built('INSTAGRAM'), 'INSTAGRAM', '2026-09', '2026-08', { current: tab('INSTAGRAM', { 8: n(0), 9: n(5) }, {}), prior: null })
+  expect(out.kpis.followers.value).toBe(5)
+  expect(out.kpis.followers.delta).toBeUndefined()
+})
+
+test('comparisonMonth is the month locked months compares a finished month with, for both settings', () => {
+  const clock = clockFor(new Date('2026-10-20T12:00:00Z'))
+  for (const comparison of ['previous-month', 'previous-year'] as const) {
+    const r = resolveLockedRange({ firstMonth: '2026-01', comparison }, 'team', clock, 'custom:2026-09-01,2026-09-30')
+    expect(r.month?.key).toBe('2026-09')
+    expect(String(r.month?.compareRange).slice(7, 14)).toBe(comparisonMonth('2026-09', comparison))
+  }
 })

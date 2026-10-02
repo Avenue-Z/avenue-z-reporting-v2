@@ -48,7 +48,7 @@ These are the five inputs most likely to bite someone, which the spec implies bu
 | 8, 14 | @3's live month: the month runs to the last complete UTC day, and "(live)" stays on while `liveDayInProgress` is true (Task 11). The Dash fetch cache is one hour, so "(live)" can be up to an hour old, and past months re-read at most hourly. Accepted, and recorded in the CLAUDE.md follow-ups (Task 13). |
 | 9, 26 | Accepted mismatches, recorded in the CLAUDE.md follow-ups and the SOP list: Renaissance's YTD points against its rolling tiles, and the sheet's Total Followers change against Dash's Net New Followers. |
 | 10 | The new Renaissance Dash requests are listed in the PR body for the Renaissance proof (Task 13). |
-| 11 | S7: an invalid cell is always named and ends the leading run. If no month has a point, the card shows No data with no gap sentence, because every month was in the leading run. The 2027 v1 path (`ytdSeries`) is not changed: the spec keeps version 1 as it is. |
+| 11 | S7: an invalid cell is always named and ends the leading run (a leading run is the contiguous blank or N/A months from January). If no month has a point and no cell is invalid, the card shows No data with no gap sentence; an invalid cell is still named under the card. The 2027 v1 path (`ytdSeries`) is not changed: the spec keeps version 1 as it is. |
 | 12 | Release step 3 says Jasmine copies from the locked dashboard. "From production" is my decision. Recorded in the SOP list (Task 15). |
 | 13 | Tests added: @3 with a Dash failure shows the fallback card (Task 12); the NY/UTC boundary (Task 11); S4 January and `previous-year` (Tasks 6, 7); top-content@3 reads `influencerSection` and passes it on (Task 4). |
 | 15 | "Logs once" means one log line per render (Tasks 4, 12). |

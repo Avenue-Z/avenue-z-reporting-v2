@@ -148,3 +148,15 @@ test('S7: a graph with no point at all lists no gaps (the card shows No data)', 
   expect(s.followers.points).toEqual([])
   expect(s.followers.gaps).toEqual([])
 })
+test('S7: after the first point, a blank month whose Data block is noData is named', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({ 2: n(20) }), col({ 2: n(2) })), 'INSTAGRAM', '2026-08', { '2026-08': tile(1, 1, true), '2026-09': tile(5, 6) })
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Feb', 'Sep'])
+  expect(s.followers.gaps).toEqual(['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'])
+})
+test('S7: after the first point, an N/A from firstMonth is named and never filled from Dash', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({ 2: n(20), 8: NA, 9: n(9) }), col({}, n(1))), 'INSTAGRAM', '2026-08', { '2026-08': tile(800, 80) })
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Feb', 'Sep'])
+  expect(s.followers.gaps).toContain('Aug')
+})

@@ -146,7 +146,7 @@ test('no influencerSection: the influencer row and the default heading, exactly 
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
   expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
-  expect(heading()).toBeUndefined()
+  expect(SortableTopContent.mock.calls.at(-1)![0]).not.toHaveProperty('influencerHeading')
 })
 
 test('Instagram hidden (Piper): no influencer row on the Instagram tab; the owned top 5 is unchanged; the posts are not moved', async () => {
@@ -194,5 +194,15 @@ test('an invalid influencerSection keeps today\'s section and warns once with th
   const lines = warn.mock.calls.map((c) => c.join(' ')).filter((l) => l.includes('influencerSection'))
   expect(lines).toEqual(['[organic-social] influencerSection invalid slug=client-a; showing the default Influencer section'])
   expect(lines.join('')).not.toContain('secret-looking-value')
+  warn.mockRestore()
+})
+
+test('a failed client read keeps the default section and logs no influencerSection warning', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  getClientBySlug.mockRejectedValueOnce(new Error('db down'))
+  fetchTopContentFrozen.mockResolvedValue([post(2, { author: 'creator_one' })])
+  await show()
+  expect(SortableTopContent.mock.calls.at(-1)![0]).not.toHaveProperty('influencerHeading')
+  expect(warn.mock.calls.some((c) => c.join(' ').includes('influencerSection'))).toBe(false)
   warn.mockRestore()
 })
