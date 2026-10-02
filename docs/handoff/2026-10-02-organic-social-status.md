@@ -69,6 +69,13 @@ Full results: `docs/qa/2026-10-02-october-batch-staging-qa.md`, section 2. In sh
   Organic Social graph is never logged".
 
 ## 6. Next steps, in order
+**Morning priorities (my note, 2026-10-02 just after midnight ET):** (a) in the Jasmine meeting, settle the source of
+truth for the YTD graphs with her, since it changes values on the chart (staging plots her sheet today; going back to
+Dash is a per-client pin change to version 1, a staging write); (b) the client-side QA; (c) confirm the automatic tab
+plan (section 7) covers her adding clients to the sheet; (d) a read-only audit proving every item of her feedback is
+accounted for, because after she tests staging we go live; (e) rewrite the team SOP in plain English from the code
+only, covering dates, time ranges, cutoffs and every edge case.
+
 1. **Client-side QA on staging** (checklist: the QA record, section 3). Prerequisite: only A Place For Mom has a client
    login on staging today; Akara, Joy of Life, PIMCO and Piper need a shared password and a test client user set in
    Manage Access first (I enter passwords myself; Claude never types them).
