@@ -148,6 +148,9 @@ export interface DashSocialConfig {
    *  { "INSTAGRAM": { "hidden": true } } or { "INSTAGRAM": { "label": "Partnership Posts" } }. Validated at runtime
    *  (parseInfluencerSection), so typed unknown. */
   influencerSection?: unknown
+  /** Written notes on the v2 graphs for a client without reportingMonths (spec 2026-10-02 section 7). Only exactly
+   *  `true` turns them on (notesOn), so typed unknown. */
+  chartNotes?: unknown
 }
 
 /**

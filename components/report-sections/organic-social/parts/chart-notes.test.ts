@@ -233,3 +233,17 @@ test("the panel's days list each day's posts in Dash's order, and a post with no
     .toEqual([['2026-08-10', [12]], ['2026-08-14', [21, 20]]])
 })
 
+
+test('a live client with chartNotes on (Renaissance after the switch): notes are read and shown, with no first-month limit', async () => {
+  getClientBySlug.mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1, chartNotes: true } })
+  getChartNotes.mockResolvedValue([row({ day: '2026-01-14', body: 'Launch' })])
+  const r = await withNotes({ ...CLIENT, from: '2026-01-01', to: '2026-01-31', items: [], series: { channels: ['Instagram'], points: [] } })
+  expect(getChartNotes).toHaveBeenCalledWith('client-uuid', 'INSTAGRAM')
+  expect(r.items.map((a) => [a.date, a.note?.text])).toEqual([['2026-01-14', 'Launch']])
+})
+test('a live client without chartNotes (Renaissance today): the notes table is never read', async () => {
+  getClientBySlug.mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1 } })
+  const r = await withNotes(EDITOR)
+  expect(getChartNotes).not.toHaveBeenCalled()
+  expect(r).toEqual({ items: EDITOR.items })
+})
