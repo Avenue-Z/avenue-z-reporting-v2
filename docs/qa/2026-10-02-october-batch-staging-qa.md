@@ -94,3 +94,39 @@ shows to another client.
 
 **Cleanup:** every "QA test" note and Commentary created for the client pass is deleted afterwards and confirmed in the
 staging database; the test client users and shared passwords stay (they are how the team views the client side).
+
+## 4. Client-side results (2026-10-02, 14:25 to 15:00 UTC): PASSED
+Run signed in as each client's test client admin (one per client, set up by me in Manage Access; I typed every
+password), one client at a time, in a separate browser from my staff session. Values read from the page text and each
+chart's own data.
+
+| # | A Place For Mom | Akara | Joy of Life | PIMCO | Piper |
+|---|---|---|---|---|---|
+| CA1 sign in lands on own portal | PASS | PASS | PASS | PASS | PASS |
+| CA2 refresh and second tab keep the session | PASS | PASS | PASS | PASS | PASS |
+| CA3 another client's portal refused | PASS | PASS | PASS | PASS (Piper refused) | PASS (PIMCO refused) |
+| CA4 staff pages refused | PASS | PASS | PASS | PASS | PASS |
+| CA5 sign out, then the portal asks to sign in | PASS | PASS | PASS | PASS | PASS |
+| CB1 picker shows August only | PASS | PASS | PASS | PASS | PASS |
+| CB2 September or October by URL serves August | PASS | PASS | PASS | PASS | PASS |
+| CE1 YTD Jan to Aug equals the sheet | PASS (3 tabs) | PASS | PASS (3 tabs) | PASS | PASS (3 tabs; X has no YTD block, as expected) |
+| CE2 named gaps, never 0 | PASS (none) | PASS (Jan to May) | PASS (Jan, Feb) | PASS (none) | PASS (none) |
+| CC1 whole numbers from 1%, one decimal under 1% | PASS | PASS | PASS | PASS | PASS |
+| CD1 two sort options, both work; cards keep four metrics | PASS | PASS | PASS | PASS | PASS |
+| CF1 right tabs, no Overview | PASS | PASS | PASS | PASS | PASS |
+| CG1 no draft or hidden note, no Add annotation | PASS | PASS | PASS | PASS | PASS |
+| CH1 no editor; a draft Commentary is not shown | PASS | PASS | PASS | PASS | PASS |
+| CI1 own logo and name | PASS | PASS | PASS | PASS | PASS |
+| CI2 no error card | PASS | PASS | PASS | PASS | PASS |
+
+- CG2 (approved note) on A Place For Mom: a "QA test" note on a day with no post was invisible as a draft, shown to the
+  client once approved, removed for the client when hidden, and never shown to another client. Then revoked and deleted
+  (soft-deleted, confirmed in the staging database).
+- CH2 (approved Commentary): not run. Only the staging Commentary approvers can approve (Jasmine is one; I am not).
+  To be shown live with Jasmine. The test draft was deleted (soft-deleted, confirmed).
+- Observations (none blocks): LinkedIn post captions show raw LinkedIn mention and hashtag markup to clients; on one
+  Facebook tab the Views tile and the YTD chart's August point (from the sheet) differ widely. Read-only check: the tile
+  equals Dash's post-based views at the moment the month locked (posts keep gaining views after the month ends), so it is
+  the sheet-versus-Dash Views difference, not a calculation error. Raised with Jasmine as part of the source-of-truth
+  question.
+- Nothing else was written. The test client logins stay (they are how the team views the client side).
