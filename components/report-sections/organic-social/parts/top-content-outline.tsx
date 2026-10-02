@@ -4,7 +4,7 @@ import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { fetchTopContent } from '@/lib/organic-social/top-content'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
-import { handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
+import { OUTLINE_SORT_KEYS, handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
 import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
@@ -41,7 +41,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
     <section className="space-y-6">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
       <SortableTopContent owned={groupPostsByPlatform(owned, channel)} influencer={groupPostsByPlatform(influencer, channel)}
-        clientSlug={clientSlug} canEdit={canSetDesignation(role)} ownedLimit={ownedLimit} />
+        clientSlug={clientSlug} canEdit={canSetDesignation(role)} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS} />
     </section>
   )
 }
