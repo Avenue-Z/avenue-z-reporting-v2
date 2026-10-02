@@ -18,7 +18,7 @@ const isDay = (s: string) => {
   const d = new Date(`${s}T00:00:00Z`)
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
 }
-const addMonths = (key: string, n: number) => {
+export const addMonths = (key: string, n: number) => {
   const [y, m] = key.split('-').map(Number)
   const total = y * 12 + (m - 1) + n
   return `${String(Math.floor(total / 12)).padStart(4, '0')}-${pad((total % 12) + 1)}`
@@ -81,7 +81,7 @@ export type YtdGraphKey = 'followers' | 'views'
 const GRAPHS: readonly YtdGraphKey[] = ['followers', 'views']
 const labelOf = (m: YtdMonth) => { const short = SHORT[Number(m.key.slice(5, 7)) - 1]; return m.partial ? `${short} (live)` : short }
 /** The cell for a month, or null when the tab has no column for this channel in that block. */
-const cellAt = (tab: YtdTab, g: YtdGraphKey, ch: DashChannel, key: string): YtdCell | null => {
+export const cellAt = (tab: YtdTab, g: YtdGraphKey, ch: DashChannel, key: string): YtdCell | null => {
   const c = tab[g][ch]
   return c ? c[Number(key.slice(5, 7)) - 1] ?? { kind: 'blank' } : null
 }
