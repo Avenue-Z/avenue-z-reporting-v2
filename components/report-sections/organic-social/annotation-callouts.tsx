@@ -56,7 +56,7 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
 /** One annotation. With controls (staff only; the parent gets them from the server and the
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
- *  comes from the action's revalidateTag('db'). */
+ *  comes from the action's updateTag('db'). */
 function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls

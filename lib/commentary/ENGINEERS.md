@@ -194,7 +194,8 @@ it behind `canEdit`. That one is cosmetic; the three above are not.
 
 `getCommentaryForView(clientId, viewKey)` ([lib/db/queries.ts](../db/queries.ts)) is the
 only read. `React.cache`-wrapped for per-render dedup; freshness after writes comes from
-`revalidateTag('db', 'max')`, which every action calls.
+`updateTag('db')`, which every action calls (it expires the tag at once, so the refresh after a save reads
+the write; `revalidateTag('db', 'max')` would serve that refresh the stale entry from next 16.2 on).
 
 Selection is pure and lives in [select.ts](./select.ts):
 
