@@ -1,6 +1,6 @@
 # Organic Social: Jasmine's 2026-10-02 walkthrough changes, and Renaissance annotations and YTD: design
 
-Status: REVIEWED (two rounds: round 1 found 7 MAJOR, fixed; round 2 found 0 MAJOR). Minors for the plan are in the review log beside this file. Next: the plan.
+Status: REVIEWED (round 1: 7 MAJOR fixed; round 2: 0 MAJOR; round 3, against the call sources at my request: 6 MAJOR, 5 fixed, 1 rebutted with a staging read, plus one open decision in section 8). Minors for the plan are in the review log beside this file. Next: the plan.
 Code is cited at `origin/dev` 7243ec7f (the same files as `origin/staging` f495f9a4). Public repo: no brand ids, sheet
 ids, client figures or login details here.
 
@@ -11,9 +11,9 @@ after the call; Paul's Slack after the call; my decisions after the call. Nothin
 | # | What (source) | Section | Status |
 |---|---|---|---|
 | S1 | Remove the Facebook footnote "Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive)." for the outline clients (call 12:24 to 13:46; again for Joy of Life 18:07) | 3 | change |
-| S2 | Piper Aircraft: remove the Influencer Posts section on Instagram (call 19:17, 20:13 "For the Instagram. Yes, the influencer section. That's it.", 20:34) | 4 | change |
-| S3 | Akara Living, Kenect Nashville: rename "Influencer Posts" to "Partnership Posts" on Instagram (call 23:13 to 24:23) | 4 | change |
-| S4 | Default to Jasmine's YTD sheet whenever it differs from Dash, "views or anything" (call 08:57 to 09:50): the Total Followers and Views tiles show the sheet's number for a month the sheet has filled | 5 | change |
+| S2 | Piper Aircraft: remove the Influencer Posts section on Instagram (call 19:17, said of Piper and PIMCO before either was shown: "If it has influencer posts, I might just have you remove that"; 20:13 "For the Instagram. Yes, the influencer section. That's it.", 20:34) | 4 | change |
+| S3 | Akara Living, Kenect Nashville: rename "Influencer Posts" to "Partnership Posts" on Instagram (call 23:13 to 24:23). Akara's only channel is Instagram (staging read 2026-10-02), so this is every tab it has | 4 | change |
+| S4 | Default to Jasmine's YTD sheet whenever it differs from Dash (my question at 08:57; Jasmine 09:22: "whatever is on the actual Excel sheet should be what the clients have historically"; 09:50): the Total Followers and Views tiles show the sheet's number for a month the sheet has filled | 5 | change |
 | S5 | The dashboard follows Jasmine's later edits to the sheet (my decision) | 5, 6 | change (S4), already true (YTD) |
 | S6 | YTD: a month she has not filled yet shows the dashboard's locked number. She fills each month after the 5th from the locked dashboard (Slack: "that was on purpose, I was going to add after the 5th once the data has locked on the dahsboard") | 6 | no change: already the behaviour |
 | S7 | YTD: months before an account had data are not listed as gaps (call 10:32; my decision) | 6 | change |
@@ -22,8 +22,9 @@ after the call; Paul's Slack after the call; my decisions after the call. Nothin
 | S10 | Renaissance stays live: rolling date picker, never locked; its tiles and footnote are unchanged (my decision; Paul approved only S8 and S9) | 7, 8, 9 | no change |
 | S11 | Locked months: once a month locks, Dash's stored answer never changes (call 16:20 to 17:19). The Total Followers and Views tiles and YTD follow the sheet instead whenever it has the month (S4, S5) | 2, 5 | no change to locking: confirmed in code |
 | S12 | Release: tell Jasmine (call 25:11) and Maddie (Paul's Slack) before Renaissance reaches production; no demo logins in production (call 08:37); Jasmine copies September from production once it is live | 10 | release step |
-| S13 | Already done or no change: PIMCO keeps the default outline (19:09 to 19:54); the sort shows Engagements and Views only (11:56); the follower graph format is accepted (13:55 to 15:21) | n/a | no change |
+| S13 | Already done or no change: PIMCO and Piper use the default (A Place For Mom) outline (19:09); PIMCO needs no change (19:54; its influencer status is in section 4); the sort shows Engagements and Views only (11:56); the follower graph format is accepted (13:55 to 15:21) | n/a | no change |
 | S14 | Out of scope: Nick's email request (01:39), RPass setup (05:10), LastPass (05:54) | n/a | none |
+| S15 | Facebook Views basis (my question, call 12:36; 10:06): no change. The Views tile reads Dash's paid plus organic views (`lib/organic-social/metrics.ts:123`), and Jasmine's sheet holds the same number (exact matches across several clients and months, private probe 2026-10-01). So a sheet copied from the dashboard keeps one basis | n/a | no change: settled from evidence |
 
 ## 2. What happens today (cited)
 - **Locked months.** For a client with `reportingMonths`, the Dash client is the locking client (`lib/organic-social/base.ts:51`). From the lock day (New York date; the 5th by default, the Friday before when it is a weekend, `lib/organic-social/lock-day.ts:11-40`) a request whose dates are all settled is answered from `dash_response_locks`. The first such read asks Dash once through an uncached client (`base.ts:34-37`) and stores the answer (`lib/organic-social/locking-client.ts:85-106`); every later read is the stored answer. Reports and content calls are locked (`locking-client.ts:115-121`); `getMedia` is not (`:122-124`) and has no caller. An incomplete answer is not stored (`:100-102`).
@@ -53,7 +54,10 @@ New optional key `dash_social_config.influencerSection`, validated at runtime:
   `{ "INSTAGRAM": { "label": "Partnership Posts" } }`. Other Piper tabs stay as they are (S2 is Instagram only).
 - Edge: a staff member can no longer re-mark Piper's hidden Instagram influencer posts from that tab (accepted: Jasmine asked
   for the section to go).
-- Unverified until checked with a staff session: which other Piper tabs show an influencer section today.
+- Unverified until checked with a staff session: which other Piper tabs, and whether PIMCO's only tab (LinkedIn, staging read
+  2026-10-02), show an influencer section today. Jasmine's 19:17 condition covers both clients, but she reviewed PIMCO with
+  "You won't have to change anything here" (19:54) and named only Instagram for Piper (20:13). If a tab shows the section, it
+  comes to me as a decision; acting on it is a data write only (`influencerSection.<CHANNEL>.hidden`), no code.
 
 ## 5. S4 and S5: Total Followers and Views tiles follow the sheet
 Applies to the outline Data block only (`parts/outline-data.tsx:15-31`, platform-headlines@2 and @3), for a client with a
@@ -115,6 +119,9 @@ New part version `ytd-review@3`, registered with the outline parts (`parts/regis
   previous month whole, and on January 1 it shows the previous year January to December (its own `ytdSheets` entry).
 - Per month and graph: a sheet number wins; a blank or missing column uses live Dash (`getOutlineKpis` with no comparison;
   Renaissance's reads are never locked); N/A or invalid is a gap; S7's leading-run rule applies.
+- Open decision (review round 3): Paul approved "sheet first and live Dash for the current month". Below, a blank or missing
+  past month also uses live Dash (the outline clients' rule, where a blank uses the dashboard), which goes past his literal
+  words. Recommended: keep it, so a month Jasmine has not filled yet is not a gap. The alternative: a blank past month is a gap.
 - Sheet: Renaissance's own `ytdSheets["<year>"] = { sheetId, tab }` (the existing shape, `ytd-sheet.ts:28-37`), written by the
   guarded switch-on script that prints the tab's CLIENT row. No sheet for the year: every month from live Dash.
 - Channels: only tabs with outline Data rows (`ytd-review-sheet.tsx:24` uses the same check). Renaissance has no channel
@@ -140,7 +147,14 @@ absence of locks. The outline clients' requests and lock keys (`lib/organic-soci
 PIMCO's setup. The sort buttons. The month rules.
 
 ## 10. Release steps (S12)
+0. Dates (call 21:40, 25:17, 25:48 to 26:31): the changes are built and sent to Paul for review on 2026-10-02; staging is
+   ready for the Whitney review on Tuesday 2026-10-06 (staging, the environment Jasmine approves on); production is ready
+   to launch for A Place For Mom on Wednesday 2026-10-07 if Jasmine approves on Tuesday and I give my written go
+   (production client rows, `ytdSheets`, no `.test` users, migrations, approvers).
 1. Tell Jasmine and Maddie before the Renaissance change reaches production; tell Jasmine when it is live.
+1a. Tell Jasmine and Paul (and Kylie through Jasmine) that on the call I said a locked month "will not change" (17:14): Dash's
+   stored answer still never changes, but a month's Total Followers and Views tiles and YTD points now follow the sheet, so a
+   sheet edit changes what that month shows.
 2. No `.test` demo client users in production (the client Team page lists every user of the client).
 3. Jasmine copies September from the production dashboard once it is live (production saves its own September on its first
    run after launch, after the 5th).
