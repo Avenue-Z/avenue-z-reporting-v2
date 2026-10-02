@@ -65,3 +65,18 @@ Correction after round 3: the 19:17 remark may cover PIMCO, but the transcript d
 
 Checked 2026-10-02 on staging, signed in as the PIMCO demo client: PIMCO LinkedIn, August 2026, Top Content loaded with no influencer section. Nothing to decide for PIMCO.
 Checked 2026-10-02 on staging, staff session: Piper Instagram (August) is the only Piper tab with an influencer section; Facebook, LinkedIn and X show none in August or September.
+
+## Plan review (2026-10-02): `docs/superpowers/plans/2026-10-02-os-jasmine-call-changes.md`
+- Round 1, whole plan: 1 BLOCKER, 6 MAJOR, 7 MINOR. Every one was fixed with a targeted edit:
+  - Task 4's fixtures now trust the client's own handle.
+  - Three line references were off by one.
+  - Host names and a test login were removed from the public plan.
+  - A production task was added (Task 18).
+  - The live month can no longer take sheet numbers.
+  - The test expectations were corrected.
+- Round 2, changed lines only: 0 BLOCKER, 0 MAJOR, 4 MINOR, all applied:
+  - New York's current month is never read from the sheet, in any season.
+  - The secrets check covers the docs too.
+  - Task 18 now lists its writes correctly.
+  - One test is marked as a pin.
+- Review closed.

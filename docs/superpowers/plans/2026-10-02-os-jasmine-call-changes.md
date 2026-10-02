@@ -382,7 +382,7 @@ test('with no influencer rows left (a hidden platform was the only one), there i
 - [ ] **Step 2: Run it and watch it fail**
 
 Run: `perl -e 'alarm 120; exec @ARGV' -- npx vitest run components/report-sections/organic-social/sortable-top-content.test.tsx`
-Expected: FAIL. `getByRole('region', { name: 'Partnership Posts' })` finds nothing. (Vitest does not typecheck, so the unknown prop compiles in the test run; `npm run typecheck` would flag it until Step 3.)
+Expected: the heading test FAILS: `getByRole('region', { name: 'Partnership Posts' })` finds nothing. The no-rows test PASSES today (`influencer.length > 0`, `sortable-top-content.tsx:154`) and pins the empty case. (Vitest does not typecheck, so the unknown prop compiles in the test run; `npm run typecheck` would flag it until Step 3.)
 
 - [ ] **Step 3: Implement**
 
@@ -736,10 +736,10 @@ perl -e 'alarm 60; exec @ARGV' -- git push -q
 - Create: `lib/organic-social/tiles-from-sheet.test.ts`
 
 **Interfaces:**
-- Consumes: `OutlineKpis` (`outline-headlines.ts:13`), `outlineDelta(m: TotalMetric | undefined)` (`outline-delta.ts:9`), `TotalMetric` (`lib/dash-social/types.ts:30`), `lastOf` and `Clock` (`reporting-months.ts:56, :8`), `YtdTab` (`ytd-sheet.ts:9`), `YtdConfig` (`ytd.ts:12`).
+- Consumes: `OutlineKpis` (`outline-headlines.ts:13`), `outlineDelta(m: TotalMetric | undefined)` (`outline-delta.ts:9`), `TotalMetric` (`lib/dash-social/types.ts:30`), `lastOf`, `monthOf` and `Clock` (`reporting-months.ts:56, :57, :8`), `YtdTab` (`ytd-sheet.ts:9`), `YtdConfig` (`ytd.ts:12`).
 - Produces:
   - from `ytd.ts`: `export const addMonths(key: string, n: number): string` and `export const cellAt(tab: YtdTab, g: YtdGraphKey, ch: DashChannel, key: string): YtdCell | null`
-  - `finishedMonthOnScreen(dateRange: string, clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): string | null`
+  - `finishedMonthOnScreen(dateRange: string, clock: Pick<Clock, 'today' | 'lastCompleteUtcDay'>): string | null`
   - `comparisonMonth(key: string, comparison: YtdConfig['comparison']): string`
   - `type TileSheets = { current: YtdTab; prior: YtdTab | null }`
   - `applySheetToTiles(built: OutlineKpis, channel: DashChannel, key: string, compareKey: string, sheets: TileSheets): OutlineKpis`
@@ -764,7 +764,7 @@ const tab = (ch: DashChannel, f: Record<number, YtdCell>, v: Record<number, YtdC
 const built = (ch: DashChannel, value: number | null = 10, context: number | null = 8) => buildOutlineKpis(ch,
   Object.fromEntries(outlineSpecsFor(ch).map((s) => [metricFor(s), { value, context, context_change: null }])), outlineSpecsFor(ch))
 
-const at = (lastCompleteUtcDay: string, liveDayInProgress = false) => ({ lastCompleteUtcDay, liveDayInProgress })
+const at = (lastCompleteUtcDay: string, today = '2026-10-15') => ({ lastCompleteUtcDay, today })
 
 test('finishedMonthOnScreen: a whole month that has ended; anything else is null', () => {
   expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-10-01'))).toBe('2026-09')
@@ -777,10 +777,12 @@ test('finishedMonthOnScreen: a whole month that has ended; anything else is null
   expect(finishedMonthOnScreen('last_30_days', at('2026-10-05'))).toBeNull()
 })
 
-test('finishedMonthOnScreen: 00:00 to 04:00 UTC on the 1st the team\'s live month reads as a whole month but is still live', () => {
-  // monthsFor ends the live month at lastCompleteUtcDay (reporting-months.ts:163-172), so its range is the whole month.
-  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-09-30', true))).toBeNull()
-  expect(finishedMonthOnScreen('custom:2026-08-01,2026-08-31', at('2026-09-30', true))).toBe('2026-08')
+test('finishedMonthOnScreen: while New York is still on the last day, the team\'s live month reads as a whole month but is still live', () => {
+  // monthsFor offers New York's current month as live, ending at lastCompleteUtcDay (reporting-months.ts:168-172). From
+  // 00:00 UTC on the 1st until New York's midnight (04:00 or 05:00 UTC by season) that range is the whole month.
+  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-09-30', '2026-09-30'))).toBeNull()
+  expect(finishedMonthOnScreen('custom:2026-11-01,2026-11-30', at('2026-11-30', '2026-11-30'))).toBeNull() // winter, 04:30 UTC
+  expect(finishedMonthOnScreen('custom:2026-08-01,2026-08-31', at('2026-09-30', '2026-09-30'))).toBe('2026-08')
 })
 
 test('comparisonMonth: the month before, or the same month a year back', () => {
@@ -868,20 +870,20 @@ import type { TotalMetric } from '@/lib/dash-social/types'
 import type { DashChannel } from './metrics'
 import type { OutlineKpis } from './outline-headlines'
 import { outlineDelta } from './outline-delta'
-import { lastOf, type Clock } from './reporting-months'
+import { lastOf, monthOf, type Clock } from './reporting-months'
 import { addMonths, cellAt, type YtdConfig } from './ytd'
 import type { YtdTab } from './ytd-sheet'
 
 const WHOLE_MONTH = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,(\d{4}-\d{2}-\d{2})$/
 
-/** The month on screen when the range is exactly one whole month whose last day is complete and whose Dash window
- *  has closed; otherwise null and the tiles keep Dash's numbers (the live month is never replaced). From 00:00 to 04:00
- *  UTC on the 1st the live month's range is the whole month (monthsFor, reporting-months.ts) but its window is still
- *  open, so liveDayInProgress keeps it live. */
-export function finishedMonthOnScreen(dateRange: string, clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): string | null {
+/** The month on screen when the range is exactly one whole month whose last day is complete and which is not New
+ *  York's current month; otherwise null and the tiles keep Dash's numbers (the live month is never replaced). The team's
+ *  live month is New York's current month (monthsFor, reporting-months.ts), and from 00:00 UTC on the 1st until New
+ *  York's midnight its range is already the whole month, so the month check is what keeps it live in every season. */
+export function finishedMonthOnScreen(dateRange: string, clock: Pick<Clock, 'today' | 'lastCompleteUtcDay'>): string | null {
   const m = WHOLE_MONTH.exec(dateRange)
   if (!m || m[2] !== lastOf(m[1]) || m[2] > clock.lastCompleteUtcDay) return null
-  if (m[2] === clock.lastCompleteUtcDay && clock.liveDayInProgress) return null
+  if (monthOf(clock.today) === m[1]) return null
   return m[1]
 }
 
@@ -2022,7 +2024,7 @@ Expected: exit 0. The tail shows the vitest totals (more tests than the Task 0 b
 
 ```bash
 git diff origin/dev -- . ':!docs' | perl -CSD -ne 'print if /^\+.*[\x{2013}\x{2014}]/' | wc -l   # dashes added by this branch
-git diff origin/dev -- . ':!docs' | grep -nE '1[A-Za-z0-9_-]{40,}|brandId: [0-9]{4,}|@[a-z-]+\.test' ; echo "secrets: $?"   # code only; the docs were checked when written
+git diff origin/dev | grep -nE '1[A-Za-z0-9_-]{40,}|brandId: [0-9]{4,}|@[a-z-]+\.test|ep-[a-z]+-[a-z]+' ; echo "secrets: $?"   # code and docs: both are public
 ```
 Expected: the dash count is `0`, and the secrets line prints `secrets: 1` (no match). Anything else is fixed before going on.
 
@@ -2186,7 +2188,7 @@ rows, `clientMonths`, migrations, approvers, Jasmine's INTERNAL_ADMIN row, `NEXT
 task adds only what this PR's features need on top of that list.
 
 - [ ] **Step 1: Code reaches production** through the normal `staging → main` promotion, on my explicit go (never without it), after the self-review comment and the `self-reviewed` label, with checks green.
-- [ ] **Step 2: Production data, the same three writes as Task 16,** each a production copy of its staging script. Each copy has a production host guard in place of the staging one, a dry run first, and refuses unless `origin/main` contains the code. Each needs my written consent, and each Renaissance write has a production fingerprint before and after:
+- [ ] **Step 2: Production data: the two writes of Task 16 (steps 1 and 3) plus the outline clients' `ytdSheets`,** each a production copy of its staging script (`ytdSheets` from the existing private `staging-ytd-switch-on-2026-10-01.ts`). Each copy has a production host guard in place of the staging one, a dry run first, and refuses unless `origin/main` contains the code. Each needs my written consent, and each Renaissance write has a production fingerprint before and after:
   1. Piper `influencerSection.INSTAGRAM.hidden` and Akara `influencerSection.INSTAGRAM.label "Partnership Posts"`, with the production client rows created by the launch list first.
   2. The production `ytdSheets` for the five outline clients, the same way as staging (already on the launch list).
   3. Renaissance: the `organic-social:platform` override, `chartNotes: true` and `ytdSheets["2026"]`, only after Jasmine and Maddie have been told (Task 15 step 4).
