@@ -30,8 +30,8 @@ These are the five inputs most likely to bite someone, which the spec implies bu
 
 1. **A Renaissance tab after the staging write, picker on "Last 30 days".** Expected: the YTD block shows January through the current month marked "(live)", whatever the picker range. The graphs, the tiles and Top Content otherwise look exactly as they do now. Test: Task 12 `picker range is ignored`, and Task 12 composition test.
 2. **An outline client's finished month where Dash returned all null but the sheet has the month.** Expected: the Data block still says No data. It never shows two sheet tiles next to zeros. Test: Task 6 `noData stays No data`.
-3. **January, or a `previous-year` client, where the prior year has no sheet entry.** Expected: the tile shows the sheet's number with no arrow, never a sheet number compared against Dash. Test: Task 6 `January with no prior-year tab`, and Task 7 `prior-year read failure`.
-4. **A sheet tab that cannot be read (429, timeout, layout changed) while a client is looking.** Expected: the tiles show the dashboard's numbers, the page never blanks, and one log line names the slug and status, never the sheet. Test: Task 7 failure tests and Task 8 `sheet loader returns null`.
+3. **January, or a `previous-year` client, where the prior year has no sheet entry.** Expected: the tile shows the sheet's number with no arrow, never a sheet number compared against Dash. Test: Task 6 `January with no prior-year tab: ...`, and Task 7 `January: the prior year's tab is read for the arrow; its failure is logged ...`.
+4. **A sheet tab that cannot be read (429, timeout, layout changed) while a client is looking.** Expected: the tiles show the dashboard's numbers, the page never blanks, and one log line names the slug and status, never the sheet. Test: Task 7 `a read failure or a layout error: ...`, and Task 8 `with no sheet plan the tiles are exactly Dash's`.
 5. **The 1st of a month between 00:00 and 04:00 UTC on Renaissance.** Expected: the previous month still says "(live)", because its Dash window is still open. Test: Task 11 `liveDayInProgress keeps (live)`.
 
 ## Rulings on the review minors (spec review log 1 to 26)
@@ -56,6 +56,7 @@ These are the five inputs most likely to bite someone, which the spec implies bu
 | 17, 18, 19 | The Renaissance staging script validates against `REGISTRIES['organic-social:platform']` and the DB template's part ids. It prints `resolveSection(dbTemplate, newOverride)` and refuses unless it equals the five pins. It keeps every other `dash_social_config` key byte for byte, and refuses if `reportingMonths` is present (Task 16). |
 | 20, 21, 22, 23 | SOP list and release steps (Task 15). Maddie is told before the Renaissance staging write, not only before production (Task 16 step 1). |
 | 24, 25 | Already done in the spec. |
+| Plan review round 1, finding 7 | Production writes get their own task (Task 18). The launch list itself stays in the private `OCTOBER-CHECKLIST.md` section 5, because it names hosts and accounts. |
 
 ---
 
@@ -90,7 +91,7 @@ Tests: one test file per new module, plus edits to the existing test files named
 
 - [ ] **Step 1: Create the worktree from the spec branch**
 
-The spec branch is `origin/dev` 7243ec7f plus docs-only commits (`git log origin/dev..origin/docs/os-jasmine-call-changes-spec` lists only `docs(spec)` commits). This PR carries the spec, its review log and this plan with the code, the way #286 carried its spec. So the feature branch starts at the spec branch tip. It does not stack on any open PR.
+The spec branch is `origin/dev` 7243ec7f plus docs-only commits (`git log origin/dev..origin/docs/os-jasmine-call-changes-spec` lists only `docs(spec)` and `docs(plan)` commits). This PR carries the spec, its review log and this plan with the code, the way #286 carried its spec. So the feature branch starts at the spec branch tip. It does not stack on any open PR.
 
 ```bash
 cd /Users/thomaschangavenuez/code/reporting-ren-add-overview
@@ -100,7 +101,7 @@ git worktree add -b feat/os-jasmine-call-changes /Users/thomaschangavenuez/code/
 cd /Users/thomaschangavenuez/code/worktrees/reporting-ren-add-overview-feat-os-jasmine-call-changes
 git merge-base --is-ancestor origin/dev HEAD && echo "based on dev"
 ```
-Expected: the log lists only `docs(spec)` commits, and the last line prints `based on dev`.
+Expected: the log lists only `docs(spec)` and `docs(plan)` commits, and the last line prints `based on dev`.
 
 - [ ] **Step 2: Install and take the baseline**
 
@@ -370,12 +371,18 @@ test('the influencer heading and region name follow influencerHeading; absent, t
   expect(screen.getByRole('heading', { name: 'Partnership Posts' })).toBeInTheDocument()
   expect(screen.queryByText('Influencer Posts')).toBeNull()
 })
+
+test('with no influencer rows left (a hidden platform was the only one), there is no influencer region and no heading', () => {
+  view({ influencer: [], influencerHeading: 'Partnership Posts' })
+  expect(screen.queryByRole('region')).toBeNull()
+  expect(screen.queryByText('Partnership Posts')).toBeNull()
+})
 ```
 
 - [ ] **Step 2: Run it and watch it fail**
 
 Run: `perl -e 'alarm 120; exec @ARGV' -- npx vitest run components/report-sections/organic-social/sortable-top-content.test.tsx`
-Expected: FAIL. TypeScript accepts the unknown prop in the test's spread, but `getByRole('region', { name: 'Partnership Posts' })` finds nothing.
+Expected: FAIL. `getByRole('region', { name: 'Partnership Posts' })` finds nothing. (Vitest does not typecheck, so the unknown prop compiles in the test run; `npm run typecheck` would flag it until Step 3.)
 
 - [ ] **Step 3: Implement**
 
@@ -452,7 +459,7 @@ perl -e 'alarm 60; exec @ARGV' -- git push -q
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `parts/top-content-outline.test.tsx` (it already mocks `getClientBySlug`, `fetchTopContentFrozen` and `SortableTopContent`, and defines `IG`, `post`, `props`, `show`):
+Append to `parts/top-content-outline.test.tsx` (it already mocks `getClientBySlug`, `fetchTopContentFrozen` and `SortableTopContent`, and defines `IG`, `post`, `props`, `show`). Every fixture with an influencer post also has a `brand_handle` post: without one, `handleMatchesNoAuthor` distrusts the handle and the #ad rule sends the creator's post to owned (`outline-top-content.ts:57-61`, `top-content-outline.tsx:27-36`).
 
 ```tsx
 const withSection = (influencerSection: unknown) =>
@@ -476,14 +483,14 @@ test('Instagram hidden (Piper): no influencer row on the Instagram tab; the owne
 
 test('a hide on another channel leaves this tab alone', async () => {
   withSection({ FACEBOOK: { hidden: true } })
-  fetchTopContentFrozen.mockResolvedValue([post(2, { author: 'creator_one' })])
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
   expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
 })
 
 test('Instagram label (Akara): the heading is "Partnership Posts" on the Instagram tab only', async () => {
   withSection({ INSTAGRAM: { label: 'Partnership Posts' } })
-  fetchTopContentFrozen.mockResolvedValue([post(2, { author: 'creator_one' })])
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
   expect(heading()).toBe('Partnership Posts')
   render(<>{await TopContentOutlineSection({ ctx: { ...IG, channel: 'FACEBOOK' }, ownedLimit: 5 })}</>)
@@ -493,6 +500,7 @@ test('Instagram label (Akara): the heading is "Partnership Posts" on the Instagr
 test('on Overview a hidden platform drops only its own row', async () => {
   withSection({ INSTAGRAM: { hidden: true } })
   fetchTopContentFrozen.mockResolvedValue([
+    post(1, { author: 'brand_handle' }),
     post(2, { author: 'creator_one' }),
     post(5, { channel: 'FACEBOOK', platform: 'Facebook', ugc: true }), // a tagged post is a collab post (outline-top-content.ts:29)
   ])
@@ -503,7 +511,7 @@ test('on Overview a hidden platform drops only its own row', async () => {
 test('an invalid influencerSection keeps today\'s section and warns once with the slug, never the value', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   withSection({ INSTAGRAM: { label: 'secret-looking-value', hidden: true } })
-  fetchTopContentFrozen.mockResolvedValue([post(2, { author: 'creator_one' })])
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
   expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
   expect(heading()).toBeUndefined()
@@ -527,7 +535,7 @@ In `parts/top-content-outline.tsx`, add the import:
 import { hiddenInfluencerPlatforms, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
 ```
 
-Replace line 23 (`let own: OwnHandles = {}` and its `try`) with:
+Replace lines 22-23 (`let own: OwnHandles = {}` and its `try`) with:
 
 ```tsx
   // One client read for both settings. A failed read keeps today's rules: no own handles, the default section.
@@ -658,7 +666,7 @@ and rename that test to `'a later gap is named under its graph; the months befor
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `perl -e 'alarm 180; exec @ARGV' -- npx vitest run lib/organic-social/ytd.test.ts components/report-sections/organic-social/parts/ytd-review-sheet.test.tsx`
-Expected: FAIL in exactly these: the four edited `ytd.test.ts` tests, the first and third new tests (gaps still include the leading months), and the edited `ytd-review-sheet` test. The invalid-cell test passes today, since every month before it is already named. That's fine: it pins the rule.
+Expected: FAIL in exactly these: the four edited `ytd.test.ts` tests, the first and third new tests (gaps still include the leading months), and the edited `ytd-review-sheet` test. The invalid-cell test FAILS too: today Jan (a blank before firstMonth) is also listed, so gaps are `['Jan', 'Feb', 'Mar']`.
 
 - [ ] **Step 3: Implement**
 
@@ -728,10 +736,10 @@ perl -e 'alarm 60; exec @ARGV' -- git push -q
 - Create: `lib/organic-social/tiles-from-sheet.test.ts`
 
 **Interfaces:**
-- Consumes: `OutlineKpis` (`outline-headlines.ts:13`), `outlineDelta(m: TotalMetric | undefined)` (`outline-delta.ts:9`), `TotalMetric` (`lib/dash-social/types.ts:30`), `lastOf` (`reporting-months.ts:56`), `YtdTab` (`ytd-sheet.ts:9`), `YtdConfig` (`ytd.ts:12`).
+- Consumes: `OutlineKpis` (`outline-headlines.ts:13`), `outlineDelta(m: TotalMetric | undefined)` (`outline-delta.ts:9`), `TotalMetric` (`lib/dash-social/types.ts:30`), `lastOf` and `Clock` (`reporting-months.ts:56, :8`), `YtdTab` (`ytd-sheet.ts:9`), `YtdConfig` (`ytd.ts:12`).
 - Produces:
   - from `ytd.ts`: `export const addMonths(key: string, n: number): string` and `export const cellAt(tab: YtdTab, g: YtdGraphKey, ch: DashChannel, key: string): YtdCell | null`
-  - `finishedMonthOnScreen(dateRange: string, lastCompleteUtcDay: string): string | null`
+  - `finishedMonthOnScreen(dateRange: string, clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): string | null`
   - `comparisonMonth(key: string, comparison: YtdConfig['comparison']): string`
   - `type TileSheets = { current: YtdTab; prior: YtdTab | null }`
   - `applySheetToTiles(built: OutlineKpis, channel: DashChannel, key: string, compareKey: string, sheets: TileSheets): OutlineKpis`
@@ -756,15 +764,23 @@ const tab = (ch: DashChannel, f: Record<number, YtdCell>, v: Record<number, YtdC
 const built = (ch: DashChannel, value: number | null = 10, context: number | null = 8) => buildOutlineKpis(ch,
   Object.fromEntries(outlineSpecsFor(ch).map((s) => [metricFor(s), { value, context, context_change: null }])), outlineSpecsFor(ch))
 
+const at = (lastCompleteUtcDay: string, liveDayInProgress = false) => ({ lastCompleteUtcDay, liveDayInProgress })
+
 test('finishedMonthOnScreen: a whole month that has ended; anything else is null', () => {
-  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', '2026-10-01')).toBe('2026-09')
-  expect(finishedMonthOnScreen('custom:2026-02-01,2026-02-28', '2026-03-05')).toBe('2026-02')
-  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', '2026-09-30')).toBe('2026-09') // its last day is complete
-  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', '2026-09-29')).toBeNull() // not over yet
-  expect(finishedMonthOnScreen('custom:2026-10-01,2026-10-14', '2026-10-14')).toBeNull() // the live month
-  expect(finishedMonthOnScreen('custom:2026-09-02,2026-09-30', '2026-10-05')).toBeNull()
-  expect(finishedMonthOnScreen('custom:2026-08-01,2026-09-30', '2026-10-05')).toBeNull()
-  expect(finishedMonthOnScreen('last_30_days', '2026-10-05')).toBeNull()
+  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-10-01'))).toBe('2026-09')
+  expect(finishedMonthOnScreen('custom:2026-02-01,2026-02-28', at('2026-03-05'))).toBe('2026-02')
+  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-09-30'))).toBe('2026-09') // its last day is complete
+  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-09-29'))).toBeNull() // not over yet
+  expect(finishedMonthOnScreen('custom:2026-10-01,2026-10-14', at('2026-10-14'))).toBeNull() // the live month
+  expect(finishedMonthOnScreen('custom:2026-09-02,2026-09-30', at('2026-10-05'))).toBeNull()
+  expect(finishedMonthOnScreen('custom:2026-08-01,2026-09-30', at('2026-10-05'))).toBeNull()
+  expect(finishedMonthOnScreen('last_30_days', at('2026-10-05'))).toBeNull()
+})
+
+test('finishedMonthOnScreen: 00:00 to 04:00 UTC on the 1st the team\'s live month reads as a whole month but is still live', () => {
+  // monthsFor ends the live month at lastCompleteUtcDay (reporting-months.ts:163-172), so its range is the whole month.
+  expect(finishedMonthOnScreen('custom:2026-09-01,2026-09-30', at('2026-09-30', true))).toBeNull()
+  expect(finishedMonthOnScreen('custom:2026-08-01,2026-08-31', at('2026-09-30', true))).toBe('2026-08')
 })
 
 test('comparisonMonth: the month before, or the same month a year back', () => {
@@ -852,17 +868,20 @@ import type { TotalMetric } from '@/lib/dash-social/types'
 import type { DashChannel } from './metrics'
 import type { OutlineKpis } from './outline-headlines'
 import { outlineDelta } from './outline-delta'
-import { lastOf } from './reporting-months'
+import { lastOf, type Clock } from './reporting-months'
 import { addMonths, cellAt, type YtdConfig } from './ytd'
 import type { YtdTab } from './ytd-sheet'
 
 const WHOLE_MONTH = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,(\d{4}-\d{2}-\d{2})$/
 
-/** The month on screen when the range is exactly one whole month whose last day is complete; otherwise null and the
- *  tiles keep Dash's numbers (the live month is never replaced). */
-export function finishedMonthOnScreen(dateRange: string, lastCompleteUtcDay: string): string | null {
+/** The month on screen when the range is exactly one whole month whose last day is complete and whose Dash window
+ *  has closed; otherwise null and the tiles keep Dash's numbers (the live month is never replaced). From 00:00 to 04:00
+ *  UTC on the 1st the live month's range is the whole month (monthsFor, reporting-months.ts) but its window is still
+ *  open, so liveDayInProgress keeps it live. */
+export function finishedMonthOnScreen(dateRange: string, clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): string | null {
   const m = WHOLE_MONTH.exec(dateRange)
-  if (!m || m[2] !== lastOf(m[1]) || m[2] > lastCompleteUtcDay) return null
+  if (!m || m[2] !== lastOf(m[1]) || m[2] > clock.lastCompleteUtcDay) return null
+  if (m[2] === clock.lastCompleteUtcDay && clock.liveDayInProgress) return null
   return m[1]
 }
 
@@ -1095,7 +1114,7 @@ async function readYear(slug: string, ytdSheets: unknown, year: string): Promise
  *  the range is not a finished whole month (checked first, so a rolling range never reads the client row), the client
  *  is not on locked months (Renaissance never is), or there is no usable sheet for that year. */
 export async function loadTileSheets(slug: string, dateRange: string): Promise<TileSheetPlan | null> {
-  const key = finishedMonthOnScreen(dateRange, requestClock().lastCompleteUtcDay)
+  const key = finishedMonthOnScreen(dateRange, requestClock())
   if (!key) return null
   let dsc: { reportingMonths?: unknown; ytdSheets?: unknown } | null | undefined
   // The tiles' own Dash request needs the same row; if it cannot be read, that request fails and shows the error card.
@@ -1169,7 +1188,7 @@ const { loadTileSheets } = vi.hoisted(() => ({ loadTileSheets: vi.fn() }))
 vi.mock('@/lib/organic-social/tile-sheets', () => ({ loadTileSheets }))
 ```
 
-and change line 43 to:
+and change the `beforeEach` on line 40 to:
 
 ```tsx
 beforeEach(() => {
@@ -1787,7 +1806,7 @@ test('leading N/A months are not listed; a later gap is (S7)', async () => {
   getOutlineKpis.mockResolvedValue(kpis(9, 9))
   const { container } = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
   expect(container.textContent).toContain('No follower data for May')
-  expect(container.textContent).not.toContain('Jan')
+  expect(container.textContent).not.toContain('No follower data for Jan')
 })
 
 test('on January 1 the block shows last year from last year\'s entry', async () => {
@@ -1817,7 +1836,7 @@ Expected: FAIL. `ytd-review-live` doesn't resolve, and the composition test thro
 
 - [ ] **Step 3: Implement**
 
-In `parts/ytd-review-sheet.tsx`, replace lines 56-65 (from the `NoData` return to the end of the JSX) with:
+In `parts/ytd-review-sheet.tsx`, replace lines 56-66 (from the `NoData` return through the function's closing brace) with:
 
 ```tsx
   if (s.followers.points.length === 0 && s.views.points.length === 0) return <NoData />
@@ -2003,7 +2022,7 @@ Expected: exit 0. The tail shows the vitest totals (more tests than the Task 0 b
 
 ```bash
 git diff origin/dev -- . ':!docs' | perl -CSD -ne 'print if /^\+.*[\x{2013}\x{2014}]/' | wc -l   # dashes added by this branch
-git diff origin/dev | grep -nE '1[A-Za-z0-9_-]{40,}|brandId: [0-9]{4,}|@[a-z-]+\.test' ; echo "secrets: $?"
+git diff origin/dev -- . ':!docs' | grep -nE '1[A-Za-z0-9_-]{40,}|brandId: [0-9]{4,}|@[a-z-]+\.test' ; echo "secrets: $?"   # code only; the docs were checked when written
 ```
 Expected: the dash count is `0`, and the secrets line prints `secrets: 1` (no match). Anything else is fixed before going on.
 
@@ -2020,7 +2039,7 @@ perl -e 'alarm 60; exec @ARGV' -- git push -q
 - [ ] **Step 5b: Local look on our own app (dev database) before anyone reviews**
 
 Standing rule: every feature runs on our local app against the dev database, and I see it there before staging.
-1. Run a read-only, dev-guarded probe (host `still-tree`, pattern `~/.claude/organic-social-work/probes/dev-*.mts`) and print three things. Which migrations are applied. Whether `notes-test` (a copy of staging's akara-living setup) still exists. Renaissance's dev row md5, which is never touched.
+1. Run a read-only, dev-guarded probe (the dev host guard, pattern `~/.claude/organic-social-work/probes/dev-*.mts`) and print three things. Which migrations are applied. Whether `notes-test` (a copy of staging's akara-living setup) still exists. Renaissance's dev row md5, which is never touched.
 2. Write a dev-only guarded script, dry run first, and apply it on my written go. It sets `notes-test`'s `influencerSection` to `{ "INSTAGRAM": { "label": "Partnership Posts" } }` and gives it a `ytdSheets["2026"]` entry pointing at the Kenect tab. It also creates one throwaway live client, `live-test`: a copy of Renaissance's `dash_social_config` (its brand, no channel allowlist, no `reportingMonths`), plus `chartNotes: true`, plus the Task 12 `organic-social:platform` override. Renaissance's own dev row stays byte for byte, checked by md5 before and after.
 3. Start the app with the Browser pane's `preview_start` and the `reporting-dev` config, open `/login`, and let me sign in myself.
 4. Walk spec section 11 on `notes-test` and `live-test` as far as dev data allows, and read values from page text: no footnote; "Partnership Posts"; tiles from the sheet on a finished month; YTD with the leading months hidden; `live-test` YTD January to now (live) on Last 30 days; a note added, approved and visible.
@@ -2091,7 +2110,7 @@ No code. These are carried into the release and the SOP rewrite.
 ### Task 16: Staging data writes (private scripts, each with a dry run and my go)
 
 These scripts live in `~/.claude/organic-social-work/probes/`, never in the repo: they hold the sheet id and tab names. They follow the tested pattern of `staging-ytd-switch-on-2026-10-01.ts`:
-- the staging host guard (`ep-restless-union`)
+- the staging host guard (the host name is in the private scripts)
 - a dry run by default, with `--write` as the only way to change anything
 - a refusal unless `origin/staging` contains the code
 - a refusal on any unexpected existing value
@@ -2152,10 +2171,27 @@ Use a staff session in Claude in Chrome, and client sessions in the app's browse
 - [ ] A finished month with the sheet filled: both tiles show the sheet's number, and the arrows compare against the sheet's prior month. A blank month: the locked dashboard value. The live month (team only): live Dash.
 - [ ] Akara YTD: the leading blank months are not listed. Joy of Life: a leading N/A is not listed, and a later one is.
 - [ ] Renaissance, picker on Last 30 days: YTD from January to the current month (live) on Instagram, Facebook and LinkedIn; no YTD block on X. The follower graph is titled "<Platform> Follower Growth Graph". Callouts show and Hide works.
-- [ ] Renaissance note: added and approved by an approver, then visible right away as `qa-client@renaissance.test` on a range covering the day. A future day is refused. The test note is soft-deleted afterwards and recorded.
+- [ ] Renaissance note: added and approved by an approver, then visible right away to Renaissance's staging test client (login in the private QA notes) on a range covering the day. A future day is refused. The test note is soft-deleted afterwards and recorded.
 - [ ] Renaissance digest after the checks equals the new baseline (only the notes count may differ by the test note, which is soft-deleted. Record the exact counts).
 
 Then I tell Jasmine that staging is ready for the Whitney review.
+
+---
+
+### Task 18: Production (after Jasmine approves on staging, every write with my written consent)
+
+Spec sections 7, 8 and 10 put the same data in production, with my written consent, for the A Place For Mom launch on
+Wednesday 2026-10-07. The production launch list itself lives in the private `OCTOBER-CHECKLIST.md` section 5 (client
+rows, `clientMonths`, migrations, approvers, Jasmine's INTERNAL_ADMIN row, `NEXT_PUBLIC_APP_URL`, no `.test` users). This
+task adds only what this PR's features need on top of that list.
+
+- [ ] **Step 1: Code reaches production** through the normal `staging → main` promotion, on my explicit go (never without it), after the self-review comment and the `self-reviewed` label, with checks green.
+- [ ] **Step 2: Production data, the same three writes as Task 16,** each a production copy of its staging script. Each copy has a production host guard in place of the staging one, a dry run first, and refuses unless `origin/main` contains the code. Each needs my written consent, and each Renaissance write has a production fingerprint before and after:
+  1. Piper `influencerSection.INSTAGRAM.hidden` and Akara `influencerSection.INSTAGRAM.label "Partnership Posts"`, with the production client rows created by the launch list first.
+  2. The production `ytdSheets` for the five outline clients, the same way as staging (already on the launch list).
+  3. Renaissance: the `organic-social:platform` override, `chartNotes: true` and `ytdSheets["2026"]`, only after Jasmine and Maddie have been told (Task 15 step 4).
+- [ ] **Step 3: Access.** Production database reads are blocked for this session, and I do not work around that. If the block also stops the production scripts, I run them myself from the printed dry run, or I grant access for that one run. Either way the dry run output is what I approve.
+- [ ] **Step 4: Tell people.** When Renaissance is live, tell Jasmine (call 25:11). Once production is live, Jasmine copies September from the locked dashboard (Task 15 step 3).
 
 ---
 
@@ -2169,7 +2205,7 @@ Then I tell Jasmine that staging is ready for the Whitney review.
    - S7 (section 6): Task 5
    - S8 (section 7): Tasks 9 and 10, data in Task 16 step 3
    - S9 (section 8): Tasks 11 and 12, data in Task 16 step 3
-   - S10 to S15: the Global Constraints, Task 13 step 1 and Task 15
+   - S10 to S15: the Global Constraints, Task 13 step 1, Task 15 and Task 18 (production)
    - Section 9 (unchanged list): Task 13 step 1
    - Section 10 (release steps): Task 15
    - Section 11 (edge cases): tests in Tasks 1 to 12, and Task 17
