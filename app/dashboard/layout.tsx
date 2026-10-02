@@ -1,10 +1,9 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
+import { isStaff } from '@/lib/auth/route-access'
 import { Sidebar } from '@/components/layout/sidebar'
 import { getVisibleClients } from '@/lib/db/queries'
-
-const INTERNAL_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
 
 export default async function DashboardLayout({
   children,
@@ -14,7 +13,7 @@ export default async function DashboardLayout({
   const session = await auth()
 
   if (!session) redirect('/login')
-  if (!INTERNAL_ROLES.has(session.user.role ?? '')) redirect('/unauthorized')
+  if (!isStaff(session.user)) redirect('/unauthorized')
 
   const clients = await getVisibleClients()
 

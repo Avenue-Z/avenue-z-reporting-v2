@@ -56,12 +56,13 @@ function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
 /** One annotation. With controls (staff only; the parent gets them from the server and the
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
- *  comes from the action's revalidateTag('db'). */
+ *  comes from the action's updateTag('db'). */
 function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
-  /** Set by the chart, which holds which days are hidden so the dot goes with the row. */
-  onToggle?: (day: string, hidden: boolean) => void
+  /** Set by the chart, which holds which days are hidden so the dot goes with the row. `null` after a failed
+   *  write: no choice of ours for that day any more, so the chart follows the server's answer for it again. */
+  onToggle?: (day: string, hidden: boolean | null) => void
   noteControls?: NoteControls
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
   as?: 'li' | 'div'
@@ -81,7 +82,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
       } catch {
         ok = false
       }
-      if (!ok) onToggle(annotation.date, !next) // put it back
+      if (!ok) onToggle(annotation.date, null) // put it back: the day follows the server again
     })
   }
 
@@ -137,7 +138,7 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
               {hidden ? 'Unhide' : floating ? 'Hide' : 'Hide from client'}
             </button>
           )}
-          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} />}
+          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} saving={!!annotation.noteSaving} />}
         </span>
       )}
     </Tag>
@@ -151,7 +152,7 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   items: ChartAnnotation[]
   controls?: AnnotationControls
   noteControls?: NoteControls
-  onToggle?: (day: string, hidden: boolean) => void
+  onToggle?: (day: string, hidden: boolean | null) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   if (items.length === 0) return null
@@ -176,7 +177,7 @@ export function CalloutCard(props: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   noteControls?: NoteControls
-  onToggle?: (day: string, hidden: boolean) => void
+  onToggle?: (day: string, hidden: boolean | null) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
 }) {
   return <AnnotationItem {...props} as="div" floating />

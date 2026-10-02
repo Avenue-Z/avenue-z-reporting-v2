@@ -4,6 +4,7 @@ import {
   resolveLockedRange, viewerForRole, type Clock,
 } from './reporting-months'
 import { isPeriodOpen } from './frozen'
+import { settledThrough } from './lock-day'
 
 const C = (today: string, lastCompleteUtcDay: string, liveDayInProgress = false): Clock => ({ today, lastCompleteUtcDay, liveDayInProgress })
 const CFG = { firstMonth: '2026-08' }
@@ -42,7 +43,8 @@ describe('clock', () => {
       const live = resolveLockedRange({ firstMonth: '2025-01' }, 'team', clockFor(now), undefined).months.find((m) => m.live)
       if (!live) continue
       lives++
-      if (!isPeriodOpen(live.dateRange.split(',')[1], now.toISOString().slice(0, 10))) {
+      // The freeze's boundary on the servers' UTC clock: the UTC date minus one day (rollingRangeEnd there, #282).
+      if (!isPeriodOpen(live.dateRange.split(',')[1], new Date(t - 864e5).toISOString().slice(0, 10))) {
         closed.push(`${now.toISOString()}: live range ${live.dateRange} reads closed to the freeze check`)
       }
     }
@@ -60,7 +62,7 @@ describe('opening day', () => {
     expect(opensOn('2026-11', 12, 'previous-friday')).toBe('2026-12-11')
     expect(opensOn('2027-08', 12, 'previous-friday')).toBe('2027-09-10')
     expect(opensOn('2026-09', 4, 'previous-friday')).toBe('2026-10-02')
-    expect(isPeriodOpen('2026-09-30', '2026-10-02')).toBe(false)
+    expect(isPeriodOpen('2026-09-30', '2026-10-01')).toBe(false) // on 10/2 the rolling end is 10/1: September is closed
   })
 })
 
@@ -80,6 +82,19 @@ describe('config (edge 13)', () => {
     for (const [k, v] of [['opensOnDay', 3], ['opensOnDay', 29], ['opensOnDay', 4.5], ['opensOnDay', '12'], ['weekendRule', 'x'], ['comparison', 'x']] as const) {
       expect(parseReportingMonths({ firstMonth: '2026-08', [k]: v })).toMatchObject({ ok: true, badKey: k })
     }
+  })
+  test('clientMonths is a whole number from 1 to 36; absent, it is not in the config at all', () => {
+    expect(parseReportingMonths({ firstMonth: '2026-08', clientMonths: 1 })).toMatchObject({ ok: true, badKey: null, cfg: { clientMonths: 1 } })
+    expect(parseReportingMonths({ firstMonth: '2026-08', clientMonths: 36 })).toMatchObject({ ok: true, badKey: null, cfg: { clientMonths: 36 } })
+    const absent = parseReportingMonths({ firstMonth: '2026-08' })
+    expect(absent.ok && absent.cfg).not.toHaveProperty('clientMonths')
+    for (const v of [0, 37, 1.5, -1, '1', null, true]) {
+      const r = parseReportingMonths({ firstMonth: '2026-08', clientMonths: v })
+      expect(r).toMatchObject({ ok: true, badKey: 'clientMonths' })
+      expect(r.ok && r.cfg).not.toHaveProperty('clientMonths')
+    }
+    // Checked after comparison: with two bad knobs the earlier one is named (spec 3.1).
+    expect(parseReportingMonths({ firstMonth: '2026-08', opensOnDay: 3, clientMonths: 0 })).toMatchObject({ ok: true, badKey: 'opensOnDay' })
   })
 })
 
@@ -229,6 +244,120 @@ describe('no months and bad config', () => {
       const r = resolveLockedRange({ firstMonth: '0001-01' }, v, OCT20, undefined)
       expect(r.months).toHaveLength(36)
       expect(r.months[r.months.length - 1].key).toBe(v === 'team' ? '2023-11' : '2023-10')
+    }
+  })
+})
+
+// Jasmine, 2026-09-29: once September is out, clients see only September; the team keeps both.
+describe('clientMonths: clients see only the newest opened months', () => {
+  const ONE = { firstMonth: '2026-08', clientMonths: 1 }
+  const OCT5 = C('2026-10-05', '2026-10-04')
+
+  test('from the opening day a client sees only the newest month and lands on it', () => {
+    const r = resolveLockedRange(ONE, 'client', OCT20, undefined)
+    expect([keys(r), r.month?.key, r.reason]).toEqual([['2026-09'], '2026-09', 'ok'])
+    expect(keys(resolveLockedRange(ONE, 'client', C('2026-10-12', '2026-10-11'), undefined))).toEqual(['2026-09'])
+  })
+
+  test('before the opening day the newest opened month is still the one before', () => {
+    expect(keys(resolveLockedRange(ONE, 'client', OCT5, undefined))).toEqual(['2026-08'])
+  })
+
+  test('the team keeps every month, and the one clients no longer see is tagged', () => {
+    const r = resolveLockedRange(ONE, 'team', OCT20, undefined)
+    expect(r.months.map((m) => [m.key, m.tag])).toEqual([
+      ['2026-10', 'Live, team only'], ['2026-09', null], ['2026-08', 'No longer shown to clients'],
+    ])
+    expect(r.month?.key).toBe('2026-09')
+  })
+
+  test('before the opening day the team sees the newer month as team only and the older one untagged', () => {
+    expect(resolveLockedRange(ONE, 'team', OCT5, undefined).months.map((m) => [m.key, m.tag])).toEqual([
+      ['2026-10', 'Live, team only'], ['2026-09', 'Team only until Oct 12'], ['2026-08', null],
+    ])
+  })
+
+  test('an old link to a month clients no longer see goes to the newest month and is not logged as an attempt (T6)', () => {
+    expect(resolveLockedRange(ONE, 'client', OCT20, 'custom:2026-08-01,2026-08-31'))
+      .toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: false, month: { key: '2026-09' } })
+    // A partial range pins today's behaviour: a partial range is never an attempt (reporting-months.ts:197).
+    expect(resolveLockedRange(ONE, 'client', OCT20, 'custom:2026-08-01,2026-08-15'))
+      .toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: false, month: { key: '2026-09' } })
+  })
+
+  test('reaching for the live month or an unopened month is still an attempt', () => {
+    expect(resolveLockedRange(ONE, 'client', OCT20, 'custom:2026-10-01,2026-10-19')).toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: true })
+    expect(resolveLockedRange(ONE, 'client', OCT5, 'custom:2026-09-01,2026-09-30'))
+      .toMatchObject({ outcome: 'replaced', hiddenMonthAttempt: true, month: { key: '2026-08' } })
+  })
+
+  test('the newest month is canonical and stays put', () => {
+    expect(resolveLockedRange(ONE, 'client', OCT20, 'custom:2026-09-01,2026-09-30')).toMatchObject({ outcome: 'canonical', month: { key: '2026-09' } })
+  })
+
+  test('two months: the newest two; absent: every opened month, as today', () => {
+    const dec20 = C('2026-12-20', '2026-12-19')
+    expect(keys(resolveLockedRange({ ...ONE, clientMonths: 2 }, 'client', dec20, undefined))).toEqual(['2026-11', '2026-10'])
+    expect(keys(resolveLockedRange(CFG, 'client', dec20, undefined))).toEqual(['2026-11', '2026-10', '2026-09', '2026-08'])
+  })
+
+  test('a cap at or above the opened count drops nothing and tags nothing (T12)', () => {
+    const two = { ...ONE, clientMonths: 2 }
+    expect(keys(resolveLockedRange(two, 'client', OCT20, undefined))).toEqual(['2026-09', '2026-08'])
+    expect(resolveLockedRange(two, 'team', OCT20, undefined).months.map((m) => m.tag)).toEqual(['Live, team only', null, null])
+    const all = { firstMonth: '0001-01', clientMonths: 36 }
+    const client = resolveLockedRange(all, 'client', OCT20, undefined)
+    expect([client.months.length, client.months[35].key]).toEqual([36, '2023-10'])
+    expect(resolveLockedRange(all, 'team', OCT20, undefined).months.some((m) => m.tag === 'No longer shown to clients')).toBe(false)
+  })
+
+  test("outside the new case, today's attempt rule is kept, bad knobs included (T13)", () => {
+    const aug = 'custom:2026-08-01,2026-08-31'
+    expect(resolveLockedRange({ firstMonth: '2026-08', opensOnDay: 3 }, 'client', OCT20, aug)).toMatchObject({ hiddenMonthAttempt: true })
+    expect(resolveLockedRange({ firstMonth: '2026-08', clientMonths: 0 }, 'client', OCT20, aug)).toMatchObject({ hiddenMonthAttempt: true })
+  })
+
+  test('a bad clientMonths hides every month from clients and tags them for the team, like any bad knob', () => {
+    const bad = { firstMonth: '2026-08', clientMonths: 0 }
+    expect(resolveLockedRange(bad, 'client', OCT20, undefined)).toMatchObject({ months: [], month: null, reason: 'malformed-config', malformedKey: 'clientMonths' })
+    expect(resolveLockedRange(bad, 'team', OCT20, undefined).months.map((m) => m.tag))
+      .toEqual(['Live, team only', 'Hidden from clients: config error', 'Hidden from clients: config error'])
+  })
+
+  // Collected and asserted once, as the edge 9 sweep does, and kept apart from its pinned count. The counts are the
+  // spec's (section 6, T11, with their derivation); if a run disagrees, find why before changing a number.
+  test('with clientMonths set, all year: offered months are fixed points, aged-out months go to the newest (T11)', () => {
+    const drift: string[] = []
+    const checked = { team: 0, client: 0 }
+    let daysWithAgedOut = 0
+    for (let t = Date.UTC(2026, 8, 1, 14); t < Date.UTC(2027, 8, 1, 14); t += 24 * 3600 * 1000) {
+      const clock = clockFor(new Date(t))
+      for (const v of ['team', 'client'] as const) {
+        for (const m of resolveLockedRange(ONE, v, clock, undefined).months) {
+          checked[v]++
+          const r = resolveLockedRange(ONE, v, clock, m.dateRange)
+          if (r.outcome !== 'canonical' || r.month?.key !== m.key) drift.push(`${v} ${clock.today} ${m.dateRange} -> ${r.outcome} ${r.month?.key}`)
+        }
+      }
+      // Every month the team sees tagged as aged out, asked for by a client, goes to the client's newest month, unlogged.
+      const newest = resolveLockedRange(ONE, 'client', clock, undefined).months[0]?.key
+      const aged = resolveLockedRange(ONE, 'team', clock, undefined).months.filter((m) => m.tag === 'No longer shown to clients')
+      if (aged.length > 0) daysWithAgedOut++
+      for (const m of aged) {
+        const r = resolveLockedRange(ONE, 'client', clock, m.dateRange)
+        if (r.outcome !== 'replaced' || r.month?.key !== newest || r.hiddenMonthAttempt) drift.push(`aged ${clock.today} ${m.dateRange} -> ${r.outcome} ${r.month?.key} ${r.hiddenMonthAttempt}`)
+      }
+    }
+    expect(drift.slice(0, 5)).toEqual([])
+    expect(checked).toEqual({ team: 2731, client: 352 })
+    // From 2026-10-12, when September opens and August drops off, through 2027-08-31: 20 + 30 + 31 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31.
+    expect(daysWithAgedOut).toBe(324)
+  })
+
+  test('locking never reads clientMonths: the settled day is the same with or without it, or with a bad one', () => {
+    for (const today of ['2026-10-04', '2026-10-05', '2026-10-20', '2026-11-05']) {
+      expect(settledThrough(ONE, today)).toBe(settledThrough(CFG, today))
+      expect(settledThrough({ ...ONE, clientMonths: 0 }, today)).toBe(settledThrough(CFG, today))
     }
   })
 })

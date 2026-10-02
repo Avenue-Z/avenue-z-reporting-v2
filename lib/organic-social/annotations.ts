@@ -105,7 +105,9 @@ export interface NoteControls {
   /** Set when the day's posts could not be fetched (Paul's review of #273, C4): `days` is then empty
    *  because nothing loaded, not because nothing went live, so Edit keeps a note's picks as they are. */
   postsFailed?: true
-  /** The days a note may go on, oldest first (never after today), each with that day's posts. */
+  /** The days a note may go on: every day of the window (in the live month it ends at the last complete UTC day,
+   *  as the chart does, so never today), oldest first, each with that day's
+   *  posts (possibly none). Empty when the posts could not load (`postsFailed`). */
   days: { day: string; posts: { id: number; thumb: ChartThumb }[] }[]
 }
 
@@ -176,6 +178,9 @@ export interface ChartAnnotation {
   noteOnly?: true
   /** Phase 2, editors only: the ids and the draft behind the controls. */
   noteEditor?: NoteEditorState
+  /** Client only, set by the chart (trends.tsx): a note saved on this page whose refreshed answer has not
+   *  arrived, so this card still shows the previous answer and its Approve, Revoke and Delete wait. */
+  noteSaving?: true
 }
 
 /** The pictures a callout's card shows: the note's picked posts, else the day's top post, else none. The

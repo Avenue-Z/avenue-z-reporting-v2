@@ -36,6 +36,7 @@ import { HealthProbe } from '@/lib/health/probe'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organic-social/locked-range'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
+import { requireStaff } from '@/lib/auth/page-access'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -120,6 +121,7 @@ export default async function ReportPage({
   searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string }>
 }) {
   const { clientSlug } = await params
+  await requireStaff()
   const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
@@ -269,7 +271,8 @@ export default async function ReportPage({
             Organic Social keys on the RESOLVED subsection (organicEntry.id), not the
             raw param — a disallowed/bogus subsection degrades to Overview and must key
             identically to a plain Overview visit, or it forces a needless remount
-            (PR #174 review). */}
+            (PR #174 review). The key also gives each tab and month its own trend chart:
+            the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)}
         </Suspense>

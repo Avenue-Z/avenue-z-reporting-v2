@@ -12,6 +12,7 @@ import {
   Users,
   Settings,
 } from 'lucide-react'
+import { requireStaff } from '@/lib/auth/page-access'
 
 const API_CONNECTIONS = [
   {
@@ -55,6 +56,7 @@ function StatusBadge({ connected }: { connected: boolean }) {
 }
 
 export default async function SettingsPage() {
+  await requireStaff()
   const clients = await getVisibleClients()
 
   // Collect all team members across all clients

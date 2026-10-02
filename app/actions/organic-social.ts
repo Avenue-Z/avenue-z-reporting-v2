@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
@@ -33,7 +33,7 @@ export async function setDesignationAction(input: {
   await setDesignation({
     clientId: client.id, postId: input.postId, designation: input.designation, setBy: email ?? 'unknown',
   })
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -59,6 +59,6 @@ export async function setAnnotationHiddenAction(input: {
     clientId: client.id, channel: input.channel as DashChannel, chart: input.chart as AnnotationChart,
     day: input.day, hidden: input.hidden, setBy: email ?? 'unknown',
   })
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }

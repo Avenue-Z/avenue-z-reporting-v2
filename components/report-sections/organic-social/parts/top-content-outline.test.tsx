@@ -28,7 +28,7 @@ const post = (id: number, over: Record<string, unknown> = {}) => ({
 const props = () => (SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0] as {
   owned: { platform: string; posts: { id: number; metrics: { engagementRate: number | null } }[] }[]
   influencer: { platform: string; posts: { id: number }[] }[]
-  ownedLimit?: number; pageSize?: number
+  ownedLimit?: number; pageSize?: number; sortKeys?: string[]
 }
 const show = async (ownedLimit = 5) => render(<>{await TopContentOutlineSection({ ctx: IG, ownedLimit })}</>)
 
@@ -122,4 +122,18 @@ test('top-content@3 is headed "Top Performing Content"; @2 keeps "Top Content"',
   expect([...c.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Performing Content'])
   const v2 = render(<>{await TopContentV2Section(IG)}</>).container
   expect([...v2.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Content'])
+})
+
+test('T6 outline tabs pass only the Engagements and Views sort buttons', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1)])
+  await show()
+  expect(props().sortKeys).toEqual(['engagements', 'impressions'])
+})
+
+// The Renaissance-path guard: the goldens hold no toolbar, so this pins that v2 never passes a list.
+test('T7 the v2 part (Renaissance) passes no sortKeys', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1)])
+  render(<>{await TopContentV2Section(IG)}</>)
+  expect(SortableTopContent).toHaveBeenCalledTimes(1)
+  expect(props()).not.toHaveProperty('sortKeys')
 })

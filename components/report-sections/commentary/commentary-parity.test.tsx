@@ -83,6 +83,13 @@ describe('Commentary follows the month (locked-months clients)', () => {
     expect(await run('CLIENT_VIEWER', 'writer@avenuez.com')).toEqual(client)
     expect(await run('CLIENT_VIEWER', 'approver@avenuez.com')).toEqual(client)
   })
+  test('clientMonths: 1: a client asking for August gets September\'s entry; the team still gets August\'s', async () => {
+    const one = { ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08', clientMonths: 1 } } }
+    const client = await run('CLIENT_VIEWER', 'client@example.com', 'custom:2026-08-01,2026-08-31', one)
+    expect([client.key, (client.props!.entries as CommentaryEntry[]).map((e) => e.id)]).toEqual(['2026-09', ['sep']])
+    const team = await run('INTERNAL_ADMIN', 'writer@avenuez.com', 'custom:2026-08-01,2026-08-31', one)
+    expect([team.key, (team.props!.entries as CommentaryEntry[]).map((e) => e.id)]).toEqual(['2026-08', ['aug']])
+  })
   test('a client never gets the live month, even by asking for it', async () => {
     const { props } = await run('CLIENT_VIEWER', 'client@example.com', 'custom:2026-10-01,2026-10-19')
     expect((props!.entries as CommentaryEntry[]).map((e) => e.id)).toEqual(['sep'])

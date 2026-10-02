@@ -24,6 +24,7 @@ export default defineConfig({
       'lib/ga4/order-by.test.ts',
       'lib/ga4/lead-events.test.ts',
       'lib/concurrency.test.ts',
+      'lib/delta-rounding.test.ts',
       'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
       'lib/meta/kpis.test.ts',
@@ -40,6 +41,8 @@ export default defineConfig({
       'lib/salesforce/base.timeout.test.ts',
       'lib/supermetrics/client.retry.test.ts',
       'lib/linkedin/kpis.dash.test.ts',
+      'lib/auth/jwt-callback.test.ts',
+      'lib/auth/service-cookie-marker.test.ts',
       // Paid Search regression guards (converted from node:assert scripts): the
       // item-10 no-cap keyword guard + the exact-cents CPL (items 11c/11d). The
       // other lib/paid-search/*.test.ts files are still node-assert tsx scripts,
@@ -49,9 +52,16 @@ export default defineConfig({
       'lib/paid-search/campaigns.test.ts',
       'lib/organic-social/**/*.test.{ts,tsx}',
       'lib/portal/**/*.test.{ts,tsx}',
+      'lib/auth/route-access.test.ts',
+      'lib/auth/page-access.test.ts',
+      'lib/auth/log-id.test.ts',
+      'lib/auth/protected-pages.test.ts',
+      'proxy.test.ts',
       'lib/dash-social/content.test.ts',
       'lib/dash-social/uncached.test.ts',
       'lib/cache-warm/run.test.ts',
+      'lib/auth/service-cookie.test.ts',
+      'app/global-error.test.tsx',
       'app/actions/**/*.test.{ts,tsx}',
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.

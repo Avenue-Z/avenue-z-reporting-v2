@@ -36,9 +36,11 @@ const QUIET = (over: Partial<ChartAnnotation>): ChartAnnotation =>
 const DRAFT = { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } }
 const CONTROLS: NoteControls = {
   clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements', canApprove: true,
-  // What the server sends since Phase 2b: only the days with at least one post.
+  // What the server sends: every day of the window, each with its posts or none (8/14 has none;
+  // the real list has every day of the month, trimmed here to the three the tests use).
   days: [
     { day: '2026-08-10', posts: [{ id: 11, thumb: IMG(1) }, { id: 12, thumb: IMG(2) }, { id: 13, thumb: IMG(3) }] },
+    { day: '2026-08-14', posts: [] },
     { day: '2026-08-20', posts: [{ id: 21, thumb: IMG(4) }] },
   ],
 }
@@ -259,7 +261,7 @@ describe("the team's buttons sit on their own row, so the date, number and note 
   })
 })
 
-describe('the Add annotation panel: pick a post by its picture, days with posts only (Phase 2b)', () => {
+describe('the Add annotation panel: pick a post by its picture, or a day from the Day list (Phase 2b)', () => {
   const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
   const panel = () => screen.getByRole('group', { name: 'Note' })
   const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
@@ -275,12 +277,13 @@ describe('the Add annotation panel: pick a post by its picture, days with posts 
     expect(within(cardOf(PEAK.date)).getByRole('button', { name: 'Add note' }).textContent).toBe('Note')
   })
 
-  test('only days with posts appear, oldest first, each picture with its date, and no date list', () => {
-    draw([PEAK], { ...CONTROLS, days: [CONTROLS.days[0], { day: '2026-08-14', posts: [] }, CONTROLS.days[1]] })
+  test('the pictures are only the days with posts, oldest first; every day is in the Day list', () => {
+    draw([PEAK], CONTROLS)
     open()
     expect(postButtons().map((b) => b.getAttribute('aria-label'))).toEqual(['Post from 8/10', 'Post from 8/10', 'Post from 8/10', 'Post from 8/20'])
     expect(postButtons()[3].textContent).toContain('8/20')
-    expect(within(panel()).queryByLabelText('Day')).toBeNull()
+    const list = within(panel()).getByLabelText('Day') as HTMLSelectElement
+    expect([...list.options].map((o) => o.textContent)).toEqual(['Pick a day', '8/10', '8/14 (no posts)', '8/20'])
   })
 
   // Seen live: the browser's own scrollbar showed as a bright white bar under the pictures. The row
@@ -333,7 +336,7 @@ describe('the Add annotation panel: pick a post by its picture, days with posts 
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-08-20', postIds: [21] })))
   })
 
-  test('a new note needs a picked post and text before it can be saved', () => {
+  test('a new note needs a day (from a picture or the Day list) and text before it can be saved', () => {
     draw([PEAK], CONTROLS)
     open()
     type('Went live')
@@ -384,6 +387,160 @@ describe('the Add annotation panel: pick a post by its picture, days with posts 
     type('Event, updated')
     fireEvent.click(save())
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-08-14', postIds: [], body: 'Event, updated' })))
+  })
+})
+
+// Jasmine, 2026-09-29: a note on a day with no post (a PR hit). The Day list reaches any day of the window.
+// Test names carry the spec's ids (U1 to U9, section 6).
+describe('the Day list: a note on any day, with or without a post', () => {
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
+  const panel = () => screen.getByRole('group', { name: 'Note' })
+  const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
+  const save = () => within(panel()).getByRole('button', { name: 'Save draft' }) as HTMLButtonElement
+  const type = (value: string) => fireEvent.change(within(panel()).getByLabelText('Note text'), { target: { value } })
+  const list = () => within(panel()).getByLabelText('Day') as HTMLSelectElement
+  const choose = (day: string) => fireEvent.change(list(), { target: { value: day } })
+  const text = () => (within(panel()).getByLabelText('Note text') as HTMLInputElement).value
+  // postButtons()[3] is post 21, the one post of 8/20.
+  const APPROVED_820 = QUIET({ date: '2026-08-20', label: '8/20', note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [21], draft: null } })
+  const DRAFT_814 = QUIET({ noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] } } })
+
+  test('U1 a day with no posts is chosen from the list and saved with the text alone', async () => {
+    draw([PEAK], CONTROLS)
+    open()
+    choose('2026-08-14')
+    expect(within(panel()).getByText('No posts went live this day')).toBeTruthy()
+    expect(save().disabled).toBe(true)
+    type('PR coverage went live')
+    fireEvent.click(save())
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(actions.saveChartNoteAction).toHaveBeenCalledWith({
+      clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'engagements', day: '2026-08-14', body: 'PR coverage went live', postIds: [],
+    })
+  })
+
+  test('U2 a picture moves the list to its day; a chosen day with posts says posts are optional', async () => {
+    draw([PEAK], CONTROLS)
+    open()
+    fireEvent.click(postButtons()[3])
+    expect(list().value).toBe('2026-08-20')
+    choose('2026-08-10')
+    expect(postButtons()[3].getAttribute('aria-pressed')).toBe('false')
+    expect(within(panel()).getByText(`Pick up to 2 of this day's posts, or just write what happened`)).toBeTruthy()
+    fireEvent.click(postButtons()[0])
+    type('Launch')
+    fireEvent.click(save())
+    await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-08-10', postIds: [11] })))
+  })
+
+  test('U3 (a) a day chosen from the list stays when its pick is undone', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    choose('2026-08-10')
+    fireEvent.click(postButtons()[0])
+    fireEvent.click(postButtons()[0])
+    expect(list().value).toBe('2026-08-10')
+    type('Still this day')
+    expect(save().disabled).toBe(false)
+  })
+
+  test('U3 (b) undoing the picks on a chosen day keeps its loaded note and its line together', () => {
+    draw([PEAK, APPROVED_820], CONTROLS)
+    open()
+    choose('2026-08-20')
+    expect(text()).toBe('Event')
+    expect(postButtons()[3].getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(postButtons()[3])
+    expect([list().value, text()]).toEqual(['2026-08-20', 'Event'])
+    expect(within(panel()).getByText('8/20 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
+  })
+
+  test('U3 (c) a picture from another day makes it a picture-set day, which clears when its pick is undone', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    type('My words')
+    choose('2026-08-10')
+    fireEvent.click(postButtons()[3])
+    expect(list().value).toBe('2026-08-20')
+    fireEvent.click(postButtons()[3])
+    expect(list().value).toBe('')
+    expect(save().disabled).toBe(true)
+    expect(text()).toBe('My words')
+  })
+
+  test('U4 choosing a day with a note loads its text and picks, and says a save changes it', () => {
+    draw([PEAK, APPROVED_820], CONTROLS)
+    open()
+    choose('2026-08-20')
+    expect(text()).toBe('Event')
+    expect(postButtons()[3].getAttribute('aria-pressed')).toBe('true')
+    expect(within(panel()).getByText('8/20 already has an approved note. Saving drafts a change to it.')).toBeTruthy()
+    choose('2026-08-14')
+    expect(text()).toBe('')
+    expect(postButtons().every((b) => b.getAttribute('aria-pressed') === 'false')).toBe(true)
+  })
+
+  test('U4 a draft on a chosen day loads with its own line', () => {
+    draw([PEAK, DRAFT_814], CONTROLS)
+    open()
+    choose('2026-08-14')
+    expect(text()).toBe('Soon')
+    expect(within(panel()).getByText('8/14 already has a draft. Saving updates it.')).toBeTruthy()
+  })
+
+  test('U5 text already typed is never replaced by the chosen day\'s note', () => {
+    draw([PEAK, APPROVED_820], CONTROLS)
+    open()
+    type('My own words')
+    choose('2026-08-20')
+    expect(text()).toBe('My own words')
+  })
+
+  test('U6 a month with no posts: every day is in the list, and the line says so until a day is chosen', () => {
+    draw([PEAK], { ...CONTROLS, days: [{ day: '2026-08-13', posts: [] }, { day: '2026-08-14', posts: [] }] })
+    open()
+    expect(within(panel()).getByText('No posts went live this month')).toBeTruthy()
+    choose('2026-08-13')
+    expect(within(panel()).getByText('No posts went live this day')).toBeTruthy()
+  })
+
+  // With no days the button is not drawn at all (trends.tsx:162), so no new note starts on a day whose
+  // posts are unknown; Edit from a card still opens, fixed to its day, with no Day list.
+  test('U7 when the posts could not load, Add annotation is not offered, and Edit on a card has no Day list', () => {
+    draw([QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], { ...CONTROLS, postsFailed: true, days: [] })
+    expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
+    fireEvent.click(within(cardOf('2026-08-14')).getByRole('button', { name: 'Edit note' }))
+    expect(within(panel()).queryByLabelText('Day')).toBeNull()
+  })
+
+  test('U8 Edit on a card has no Day list: it stays on its card\'s day', () => {
+    draw([QUIET({ note: 'Event', noteEditor: { approvedId: 'aid', approvedPostIds: [], draft: null } })], CONTROLS)
+    fireEvent.click(within(cardOf('2026-08-14')).getByRole('button', { name: 'Edit note' }))
+    expect(within(panel()).queryByLabelText('Day')).toBeNull()
+  })
+
+  test('U9 the list is dark like the month picker, so its options are readable', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    expect(list().className).toContain('bg-bg-surface')
+    expect(list().className).toContain('text-white')
+  })
+
+  // Paul's review of #292: the posts loaded, so "Posts could not load" was false here, and the list said "(no posts)".
+  test('U10 a chosen day whose note has a pick Dash did not return says that, not that the posts could not load', () => {
+    const GONE_814 = QUIET({ note: 'PR hit', noteEditor: { approvedId: 'aid', approvedPostIds: [77], draft: null } })
+    draw([PEAK, GONE_814], CONTROLS)
+    open()
+    choose('2026-08-14')
+    expect(within(panel()).getByText('A picked post did not come back from Dash this time; it stays picked until you remove it.')).toBeTruthy()
+    expect(within(panel()).queryByText('Posts could not load, so this note keeps its picked posts.')).toBeNull()
+  })
+
+  // Paul's review of #292: the "(no posts)" claim is made per UTC day, and the team works in Eastern time.
+  test('U11 the Day list says its days are UTC, as on the chart', () => {
+    draw([PEAK], CONTROLS)
+    open()
+    expect(within(panel()).getByText('Days are UTC, as on the chart, so a post late in the Eastern evening is on the next day.')).toBeTruthy()
   })
 })
 
@@ -546,7 +703,8 @@ describe('after a save, one line says what happened; a day with a note loads it 
     fireEvent.click(within(cardOf(PEAK.date)).getByRole('button', { name: 'Edit note' }))
     expect(tiles()).toEqual([[GONE_TILE, 'true', false], [GONE_TILE, 'true', false]])
     expect(within(postButtons()[0]).getByText('creative no longer available')).toBeTruthy()
-    expect(within(panel()).getByText('Posts could not load, so this note keeps its picked posts.')).toBeTruthy()
+    // The answer came back, just without the picks: the posts did not fail to load (Paul's review of #292).
+    expect(within(panel()).getByText('A picked post did not come back from Dash this time; it stays picked until you remove it.')).toBeTruthy()
     expect(within(panel()).queryByText('No posts went live this day')).toBeNull()
     type('Old, fixed'); fireEvent.click(save())
     await waitFor(() => expect(actions.saveChartNoteAction).toHaveBeenCalledWith(expect.objectContaining({ body: 'Old, fixed', postIds: [11, 12] })))
@@ -623,5 +781,68 @@ describe('after a save, one line says what happened; a day with a note loads it 
     expect(within(panel()).queryByText(/already has/)).toBeNull()
     type('Sooner'); fireEvent.click(save())
     await waitFor(() => expect(status()!.textContent).toBe("Updated the draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
+  })
+})
+
+// #276: after a save the page refreshes in the background (router.refresh). Until the refreshed answer
+// arrives, the chart keeps what was just saved, so a second save on that day reads as the update it is and
+// the reopened panel, or Edit on the card, shows the text and picks just saved.
+describe('right after a save, before the refreshed answer arrives (#276)', () => {
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
+  const panel = () => screen.getByRole('group', { name: 'Note' })
+  const postButtons = () => within(panel()).getAllByRole('button', { name: /^Post from / })
+  const save = () => within(panel()).getByRole('button', { name: 'Save draft' }) as HTMLButtonElement
+  const type = (value: string) => fireEvent.change(within(panel()).getByLabelText('Note text'), { target: { value } })
+  const text = () => (within(panel()).getByLabelText('Note text') as HTMLInputElement).value
+  const status = () => screen.queryByRole('status')
+  const APPROVED_ONLY = QUIET({ date: '2026-08-20', label: '8/20', note: 'Event', noteEditor: { approvedId: 'a', approvedPostIds: [21], draft: null } })
+
+  test('a second save on the same day says the draft was updated, and the reopened panel shows what was just saved', async () => {
+    draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(status()!.textContent).toBe("Saved a draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
+    open(); fireEvent.click(postButtons()[0])
+    expect(text()).toBe('Went live')
+    expect(postButtons()[0].getAttribute('aria-pressed')).toBe('true')
+    type('Went live, fixed'); fireEvent.click(save())
+    await waitFor(() => expect(status()!.textContent).toBe("Updated the draft for 8/10. Clients see it once it's approved. Hover its dot to approve it."))
+    expect(actions.saveChartNoteAction).toHaveBeenLastCalledWith(expect.objectContaining({ day: '2026-08-10', body: 'Went live, fixed', postIds: [11] }))
+  })
+
+  test("Edit on a card, inside that window, loads the draft just saved rather than the card's older note", async () => {
+    draw([PEAK, APPROVED_ONLY], CONTROLS)
+    open(); fireEvent.click(postButtons().find((b) => b.getAttribute('aria-label') === 'Post from 8/20')!)
+    expect(text()).toBe('Event')
+    type('Event, updated'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    fireEvent.click(within(cardOf('2026-08-20')).getByRole('button', { name: 'Edit note' }))
+    expect(text()).toBe('Event, updated')
+  })
+
+  test('a newer answer from the server takes over from what was just saved', async () => {
+    const { rerender } = draw([PEAK], CONTROLS)
+    open(); fireEvent.click(postButtons()[0]); type('Went live'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    const refreshed = { ...PEAK, noteEditor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Changed by someone else', postIds: [12] } } }
+    rerender(<ChannelTrendChart title="T" series={SERIES} annotations={[refreshed]} noteControls={CONTROLS} />)
+    open(); fireEvent.click(postButtons()[1])
+    expect(text()).toBe('Changed by someone else')
+  })
+
+  // Paul's review of #283: the card still drew the previous answer, so Approve would send the old draft text and
+  // fail, and an approved-only day offered Revoke, which the server refuses while the new draft is open.
+  test("inside that window the card's Approve, Revoke and Delete wait for the server's answer, and come back with it", async () => {
+    const { rerender } = draw([PEAK, APPROVED_ONLY], CONTROLS)
+    const button = (day: string, name: string) => within(cardOf(day)).getByRole('button', { name }) as HTMLButtonElement
+    expect(button('2026-08-20', 'Revoke').disabled).toBe(false)
+    open(); fireEvent.click(postButtons().find((b) => b.getAttribute('aria-label') === 'Post from 8/20')!)
+    type('Event, updated'); fireEvent.click(save())
+    await waitFor(() => expect(status()).toBeTruthy())
+    expect(button('2026-08-20', 'Revoke').disabled).toBe(true)
+    expect(button('2026-08-20', 'Edit note').disabled).toBe(false)
+    const refreshed = { ...APPROVED_ONLY, noteEditor: { approvedId: 'a', approvedPostIds: [21], draft: { id: 'd2', text: 'Event, updated', postIds: [21] } } }
+    rerender(<ChannelTrendChart title="T" series={SERIES} annotations={[PEAK, refreshed]} noteControls={CONTROLS} />)
+    expect(button('2026-08-20', 'Approve').disabled).toBe(false)
+    expect(button('2026-08-20', 'Delete draft').disabled).toBe(false)
   })
 })

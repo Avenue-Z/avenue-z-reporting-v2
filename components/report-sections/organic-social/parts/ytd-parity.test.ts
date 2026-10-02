@@ -8,6 +8,8 @@ import { engagementTrendV1 } from './engagement-trend'
 import { followerGraphV1 } from './follower-graph'
 import { topContentV1, topContentV2 } from './top-content'
 import { topContentV3 } from './top-content-outline'
+import { ytdReviewV1 } from './ytd-review'
+import { ytdReviewV2 } from './ytd-review-sheet'
 
 // Pre-change record for YTD Review: adding a part must leave every existing entry in place and the
 // same object. Never an exact key list: PR 252 adds v2 of both graphs on its own branch.
@@ -25,4 +27,10 @@ test('every part registered today is still there, and still the same object', ()
 test('the parts a client pins are unpublished, and the shared defaults stay published', () => {
   expect([platformHeadlinesV1.published, engagementTrendV1.published, followerGraphV1.published, topContentV1.published, topContentV2.published]).toEqual([true, true, true, true, true])
   expect([platformHeadlinesV2.published, platformHeadlinesV3.published, engagementBreakdownV1.published, topContentV3.published]).toEqual([false, false, false, false])
+})
+
+test('ytd-review version 1 is untouched and version 2 is registered, unpublished', () => {
+  expect(lookup(ORGANIC_SOCIAL_PARTS, 'ytd-review', 1)).toBe(ytdReviewV1)
+  expect(lookup(ORGANIC_SOCIAL_PARTS, 'ytd-review', 2)).toBe(ytdReviewV2)
+  expect(ytdReviewV2.published).toBe(false)
 })

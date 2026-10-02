@@ -153,6 +153,23 @@ describe('locked months in the section', () => {
     for (const c of seen) expect(c).toEqual({ ...ctx0, role: 'CLIENT_VIEWER' })
   })
 
+
+  test('clientMonths: 1: a client deep link to August is served September, with no hidden-month log; the team keeps August', async () => {
+    const one = { ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08', clientMonths: 1 } } }
+    const AUG = 'custom:2026-08-01,2026-08-31'
+    as('CLIENT_VIEWER'); getClientBySlug.mockResolvedValue(one)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await OrganicSocialBody({ ctx: ctxFor(AUG) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(SEP)
+    expect(warn).not.toHaveBeenCalled()
+    seen = []
+    as('INTERNAL_ADMIN')
+    await OrganicSocialBody({ ctx: ctxFor(AUG) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(AUG)
+  })
+
   test('no months: the one line and no parts', async () => {
     as('CLIENT_VIEWER')
     getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2027-01' } } })

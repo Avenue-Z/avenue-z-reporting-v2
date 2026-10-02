@@ -141,6 +141,9 @@ export interface DashSocialConfig {
   /** Locked months for Organic Social (docs/superpowers/specs/2026-09-21-locked-months-design.md).
    *  Present with any value means opted in; validated at runtime, so typed unknown. */
   reportingMonths?: unknown
+  /** The team's YTD sheet per year, read by ytd-review@2 (docs/superpowers/specs/2026-10-01-ytd-from-sheet-design.md):
+   *  { "<year>": { sheetId, tab } }. Validated at runtime (ytdSheetFor), so typed unknown. */
+  ytdSheets?: unknown
 }
 
 /**

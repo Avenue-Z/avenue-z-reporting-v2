@@ -33,7 +33,7 @@ export function gridColsMd(n: number): string {
   return 'md:grid-cols-2'
 }
 
-function PlatformSection({ h }: { h: PlatformHeadline }) {
+function PlatformSection({ h, wholeDelta }: { h: PlatformHeadline; wholeDelta?: boolean }) {
   const n = h.kpis.length
   return (
     <section className="space-y-3">
@@ -50,6 +50,7 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
               delta={k.delta}
               comparisonExpected={expectsComparison(k.key)}
               subValue={k.footnote}
+              wholeDelta={wholeDelta}
             />
           ))}
         </div>
@@ -58,11 +59,12 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
   )
 }
 
-export function PlatformHeadlines({ headlines }: { headlines: PlatformHeadline[] }) {
+/** `wholeDelta`: whole-number changes, set only by the outline Data part's fallback, never by the v1 part. */
+export function PlatformHeadlines({ headlines, wholeDelta }: { headlines: PlatformHeadline[]; wholeDelta?: boolean }) {
   return (
     <div className="space-y-6">
       {headlines.map((h) => (
-        <PlatformSection key={h.channel} h={h} />
+        <PlatformSection key={h.channel} h={h} wholeDelta={wholeDelta} />
       ))}
     </div>
   )

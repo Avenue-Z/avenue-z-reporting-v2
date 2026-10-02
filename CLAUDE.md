@@ -99,8 +99,10 @@ combined with NextAuth's JWT callback. The conceptual model is the same:
 unauthenticated requests redirect to `/login`, internal routes (`/dashboard`)
 require `INTERNAL_ADMIN` or `INTERNAL_ANALYST` role, and client portal routes
 (`/portal/[clientSlug]`) are scoped to the session's `clientSlug`. Role and
-`clientSlug` are baked into the JWT at sign-in from the DB lookup — no DB hit
-on subsequent requests.
+`clientSlug` are set at sign-in and re-read from the database on every request
+(`getClientByEmail`, once per render, in `lib/auth/jwt-callback.ts`), so a
+removed or moved client user loses the old access on their next request; staff
+with no row keep the default `INTERNAL_ANALYST` view.
 
 ---
 
@@ -562,8 +564,9 @@ CLIENT_VIEWER     → Read-only: own client's enabled reports only
 ```
 
 Role is derived at sign-in from a DB lookup (`getClientByEmail` in `lib/db/queries.ts`)
-and baked into the JWT. Subsequent requests decode role from the token — no DB hit
-per request.
+and re-read from the database on every request (`lib/auth/jwt-callback.ts`), so a
+removed or moved client user loses the old access on their next request. The minted
+service cookie and the preview test admin have no user row and are left as they are.
 
 ---
 
@@ -581,21 +584,10 @@ per request.
   client-scoped fix in the outline Data block alone would also work. Decide before the graphs go in
   front of a client.
 
-- [ ] **The trend charts' per-view state is correct only because the report pages key the section by
-  tab and month.** `ChannelTrendChart` seeds which channels are on and which days are hidden once,
-  on mount, and re-seeds neither (`components/report-sections/organic-social/trends.tsx`). Both
-  report pages wrap the section in a Suspense keyed on the resolved subsection and the date range
-  (`app/dashboard/[clientSlug]/reports/page.tsx`, `app/portal/[clientSlug]/reports/page.tsx`), so a
-  new tab or month is a new instance and both seeds are fresh. Verified by running it: through that
-  key a tab switch and a month change both carry the right hides and the right legend. What is left
-  is a new answer arriving under the SAME key, which takes an in-place refresh someone else caused
-  and clears on any navigation. Closing that means `useOptimistic` (react 19 is installed) or an
-  override held per day; a single hash over the whole answer looks right and is not, because it
-  reverts a hide still in flight whose write then succeeds. `trends.identity.test.tsx` pins all of
-  it, including that trap. No user-visible defect today, so this is a hardening item, not a fix.
-  The note belongs at the key itself as well, which is not done here: #256 rewrites that exact line
-  in both pages (the key takes the served locked range), so a comment there would be the one thing
-  in this set that does not merge cleanly in any order. Add it once #256 has landed.
+- [x] **RESOLVED in #283: the trend charts follow the server per day.** Hides follow each new answer per day,
+  with an override held only until an answer agrees (never one hash over the whole answer), and both report
+  pages note the Suspense key the legend still relies on. `trends.identity.test.tsx` pins it. History: the
+  chart seeded its hidden days once per view, so a new answer under the same key was not picked up.
 
 ## Known Follow-ups — Configurable Dashboard (from PR #108 review)
 
@@ -726,13 +718,14 @@ Still open:
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
   a 401, a 500 or a malformed answer. Add the error's name and status.
-- [ ] **Renaissance's tiles still flip the change arrow on a negative prior** (from the QA fixes, F2
-  in `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The outline tiles now use `outlineDelta`
+- [ ] **Renaissance's tiles still flip the change arrow on a negative prior; a decision for Thomas and Paul
+  together** (from the QA fixes, F2 in `docs/superpowers/plans/2026-09-24-qa-fixes.md`; the outline clients'
+  fallback tabs were fixed in #285 on 2026-10-01, so this is now Renaissance only). The outline tiles now use `outlineDelta`
   (`lib/organic-social/outline-delta.ts`), which divides by the size of the prior value. The shared
-  `delta()` (`lib/organic-social/headline-build.ts:12-18`) still divides by the signed prior, so in a
-  month after a net follower loss Renaissance's Net New Followers tile, and an outline client's v1
-  fallback tab (Overview or X), shows a red "down" arrow for a rise. Fixing it changes what
-  Renaissance renders, so it is my call (Thomas) under the golden rule; `outline-delta.test.ts` pins
+  `delta()` (`lib/organic-social/headline-build.ts:18-24`) still divides by the signed prior, so in a
+  month after a net follower loss Renaissance's Net New Followers tile shows a red "down" arrow for a rise
+  (an outline client's v1 fallback tab did too, until #285 gave it the size-based change, `basis: 'size'`). Fixing it changes what
+  Renaissance renders, so Paul and I decide it together under the golden rule; `outline-delta.test.ts` pins
   today's behaviour so it cannot change by accident. Paul (#268) suggests choosing the signed or the
   size-based change by client (for example `hasReportingMonths`,
   `lib/organic-social/reporting-months.ts:75`, or the pinned part) instead of by builder, which would
@@ -998,18 +991,23 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
   a message and never logs, so nothing says at 3am which client or day a save or approve failed on.
   Commentary's actions do the same (`app/actions/commentary.ts` has no logging either), so add both
   together, with the client, the chart and the day, never the note text.
-- [ ] **A note added on a day the team has already hidden shows unfaded, for the team, until the next
-  navigation.** The chart seeds its hidden days once per view (`trends.tsx`, `hiddenDays`), so a note
-  day that arrives later under the same key is drawn as shown. Clients never receive it (the server
-  removes hidden days). It is the per-view-state item above; close both together.
-- [ ] **Right after a save, the Add annotation panel can read the previous answer.** Reopened before
+- [x] **RESOLVED in #283 (issue #277): a note added on a day the team had already hidden now arrives faded**
+  with the save's refresh, since the chart follows the server per day (the entry above). Clients never received it.
+- [x] **RESOLVED in #283 (issue #276).** **Right after a save, the Add annotation panel can read the previous answer.** Reopened before
   the refreshed chart arrives (about a second), it does not yet know about the note just saved: a
   second save on that day still edits the draft on the server, as it should, but the line after it may
   say "Saved a draft" where "Updated the draft" is true.
-- [ ] **Top Content freezes a rolling window when the server is not on UTC.** `isPeriodOpen` compares
-  against the UTC date (`lib/organic-social/frozen.ts:15-18`, today at `:35`), while `last_N_days`
-  uses the server's local date (`lib/date-range.ts:44`, `:64`). On a machine in Eastern time after 8pm,
-  the default window ends two days before the UTC date, reads as closed, and is frozen. Seen on the
-  local app on 2026-09-24 (17 rows for Renaissance, deleted on my go the same night). Production and
-  staging have frozen only month windows (read-only check), consistent with servers on UTC, but that
-  setting is not verified. On Renaissance's path, so its own PR with a Renaissance proof, my call.
+- [x] **RESOLVED in #282 (issue #278): the Top Content freeze and the range share one clock.** `isPeriodOpen`
+  compares a range's end with `rollingRangeEnd()`, which is `resolveDateRange('last_1_days').endDate`
+  (`lib/organic-social/frozen.ts`), so a rolling preset can never read as closed in any time zone. History:
+  it compared against the UTC date and froze rolling windows on a machine behind UTC in the evening (seen
+  locally 2026-09-24). Vercel's functions run on UTC (verified on #282), where the boundary is unchanged.
+- [ ] **Dates from `resolveDateRange` are a day early east of UTC, and the GA4 picker labels them on another
+  clock** (Paul, #282). `toISO` (`lib/date-range.ts:7-9`) turns local midnight into a UTC date, so in Tokyo or
+  summer London `last_month` on 2026-09-15 is 2026-07-31..2026-08-30 (run 2026-10-01; UTC and New York give
+  August). The GA4 date picker is a client component that resolves its label in the browser
+  (`components/report-sections/ga4/date-picker.tsx:105`, `formatResolvedRange`), while the data is resolved
+  on the UTC server, so the label can name a different day than the data. Paul's fix: `toISO` as
+  `format(d, 'yyyy-MM-dd')` (date-fns is already imported; identical on a UTC server), and the server passes
+  the resolved start and end to the picker. Reaches GA4 and Renaissance: its own PR with a Renaissance proof,
+  before clients get logins, my call.

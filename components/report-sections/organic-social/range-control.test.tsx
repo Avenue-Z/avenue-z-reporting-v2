@@ -40,3 +40,11 @@ test('no months: the picker gets the spec 3.8 text; a client without the key get
   expect((await pickerProps({ client: later, requested: undefined, role: 'CLIENT_VIEWER' })).emptyText).toBe('Your first report opens on Feb 12')
   expect(await OrganicRangeControl({ client: { dashSocialConfig: { brandId: 1 } }, requested: undefined, role: null })).toBeNull()
 })
+
+test('clientMonths: 1 gives a client only the newest opened month; the team keeps every month', async () => {
+  const one = { dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08', clientMonths: 1 } } }
+  const client = await pickerProps({ client: one, requested: 'custom:2026-08-01,2026-08-31', role: 'CLIENT_VIEWER' })
+  expect([client.months.map((m) => m.key), client.value]).toEqual([['2026-09'], '2026-09'])
+  const team = await pickerProps({ client: one, requested: undefined, role: 'INTERNAL_ADMIN' })
+  expect(team.months.map((m) => m.key)).toEqual(['2026-10', '2026-09', '2026-08'])
+})

@@ -11,6 +11,11 @@ vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getCli
 vi.mock('@/components/report-sections/organic-social', () => ({
   OrganicSocialReport: function OrganicSocialReport() { return null },
 }))
+// The portal pages run their real access check: every session below carries the client 'c' these
+// routes render, as a real client sign-in does. The staff pages are also rendered with a client role,
+// which the staff layout and the staff check never allow (lib/auth/page-access.test.ts covers that), so
+// only requireStaff is stubbed as granted, and every assertion and stored digest stays as it was.
+vi.mock('@/lib/auth/page-access', async (orig) => ({ ...(await orig<object>()), requireStaff: vi.fn(async () => undefined) }))
 
 import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'
@@ -34,7 +39,7 @@ const INPUTS: (string | string[] | undefined)[] = [undefined, 'last_30_days', 'l
 type Route = (a: never) => Promise<unknown>
 const spa = (Route: Route, q: Record<string, unknown>) =>
   Route({ params: Promise.resolve({ clientSlug: 'c' }), searchParams: Promise.resolve(Object.fromEntries(Object.entries(q).filter(([, v]) => v !== undefined))) } as never)
-const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role, email: 'someone@example.com' } } as never)
+const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role, email: 'someone@example.com', clientSlug: 'c' } } as never)
 const sectionOf = (tree: unknown) => findElements(tree, (e) => e.type === OrganicSocialReport)[0]?.props as { dateRange: string; compareRange: string | null } | undefined
 const pickerOf = (tree: unknown) => findElements(tree, (e) => e.type === OrganicRangeControl)[0]?.props
 
@@ -161,4 +166,57 @@ describe('deep links', () => {
       }
     }
   })
+})
+
+describe('clientMonths: 1, through the real routes (Jasmine 2026-09-29: clients see only the newest opened month)', () => {
+  const ONE = { ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, reportingMonths: { firstMonth: '2026-08', clientMonths: 1 } } }
+  const ROUTES = [['portal', PortalSpa as Route, '/portal/c/reports'], ['dashboard', DashboardSpa as Route, '/dashboard/c/reports']] as const
+  for (const [name, Route, base] of ROUTES) {
+    test(`${name}: a client lands on September; an old August link goes to September with no hidden-month log`, async () => {
+      getClientBySlug.mockResolvedValue(ONE)
+      as('CLIENT_VIEWER')
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const r = await runRoute(spa(Route, { section: 'organic-social' }))
+      if (!('element' in r)) throw new Error(`unexpected redirect ${r.redirect}`)
+      expect(sectionOf(r.element)).toMatchObject({ dateRange: SEP, compareRange: AUG })
+      expect(await redirectOf(spa(Route, { section: 'organic-social', dateRange: AUG }))).toBe(`${base}?section=organic-social&dateRange=custom%3A2026-09-01%2C2026-09-30`)
+      expect(warn).not.toHaveBeenCalled()
+    })
+    test(`${name}: the team still opens August`, async () => {
+      getClientBySlug.mockResolvedValue(ONE)
+      as('INTERNAL_ADMIN')
+      const r = await runRoute(spa(Route, { section: 'organic-social', dateRange: AUG }))
+      if (!('element' in r)) throw new Error('unexpected redirect')
+      expect(sectionOf(r.element)).toMatchObject({ dateRange: AUG })
+    })
+    test(`${name}: sweep, every input: a client is only ever served September, the team any of its months`, async () => {
+      getClientBySlug.mockResolvedValue(ONE)
+      const allowed: Record<string, string[]> = { CLIENT_VIEWER: [SEP], INTERNAL_ADMIN: [LIVE, SEP, AUG] }
+      for (const role of ['CLIENT_VIEWER', 'INTERNAL_ADMIN'] as const) {
+        as(role)
+        vi.spyOn(console, 'warn').mockImplementation(() => {})
+        for (const dateRange of INPUTS) {
+          const first = await runRoute(spa(Route, { section: 'organic-social', dateRange }))
+          let tree: unknown
+          if ('redirect' in first) {
+            const second = await runRoute(spa(Route, Object.fromEntries(new URL(first.redirect, 'http://x').searchParams)))
+            if (!('element' in second)) throw new Error(`second hop for ${role} ${JSON.stringify(dateRange)}`)
+            tree = second.element
+          } else tree = first.element
+          expect(allowed[role]).toContain(sectionOf(tree)!.dateRange)
+        }
+      }
+    })
+    test(`${name}: capped from the first month (firstMonth 2026-07) on 1 Oct: August only, and a July link goes to August unlogged`, async () => {
+      vi.setSystemTime(new Date('2026-10-01T14:00:00Z'))
+      getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, reportingMonths: { firstMonth: '2026-07', clientMonths: 1 } } })
+      as('CLIENT_VIEWER')
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const r = await runRoute(spa(Route, { section: 'organic-social' }))
+      if (!('element' in r)) throw new Error(`unexpected redirect ${r.redirect}`)
+      expect(sectionOf(r.element)).toMatchObject({ dateRange: AUG })
+      expect(await redirectOf(spa(Route, { section: 'organic-social', dateRange: 'custom:2026-07-01,2026-07-31' }))).toBe(`${base}?section=organic-social&dateRange=custom%3A2026-08-01%2C2026-08-31`)
+      expect(warn).not.toHaveBeenCalled()
+    })
+  }
 })

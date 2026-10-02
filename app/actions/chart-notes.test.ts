@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ revalidateTag: vi.fn(), updateTag: vi.fn() }))
 // An October-shaped client: on locked months. Renaissance's config has no reportingMonths.
 // vi.hoisted, because vi.mock is hoisted above every plain const in the file.
 const { ON } = vi.hoisted(() => ({ ON: { id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } } }))
@@ -18,7 +18,7 @@ vi.mock('@/lib/organic-social/chart-notes/mutations', async () => {
 })
 
 import { auth } from '@/auth'
-import { revalidateTag } from 'next/cache'
+import { revalidateTag, updateTag } from 'next/cache'
 import { getClientBySlug } from '@/lib/db/queries'
 import * as m from '@/lib/organic-social/chart-notes/mutations'
 import { approveChartNoteAction, deleteChartNoteDraftAction, revokeChartNoteAction, saveChartNoteAction } from './chart-notes'
@@ -97,7 +97,8 @@ test('save: with no open draft, a trimmed draft is created by the signed-in edit
     clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14',
     body: 'Influencer post went live', postIds: [11], by: 'writer@avenuez.com',
   })
-  expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
+  expect(updateTag).toHaveBeenCalledWith('db')
+  expect(revalidateTag).not.toHaveBeenCalled()
 })
 
 // The outlines' other platforms: the draft is stored against the graph it was written on.
@@ -127,7 +128,8 @@ test('save: a draft approved or deleted between the read and the write is saved 
     clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-14',
     body: 'Influencer post went live', postIds: [11], by: 'writer@avenuez.com',
   })
-  expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
+  expect(updateTag).toHaveBeenCalledWith('db')
+  expect(revalidateTag).not.toHaveBeenCalled()
 })
 
 test('save: if another draft opened on that day meanwhile, the new draft gets the clear conflict message', async () => {
@@ -136,6 +138,7 @@ test('save: if another draft opened on that day meanwhile, the new draft gets th
   vi.mocked(m.updateDraft).mockResolvedValueOnce(false)
   vi.mocked(m.insertDraft).mockRejectedValueOnce({ code: '23505', constraint: 'chart_notes_one_open_draft' })
   expect(await saveChartNoteAction(INPUT)).toEqual({ ok: false, error: 'A draft is already open on this day. Reload to see it.' })
+  expect(updateTag).not.toHaveBeenCalled()
   expect(revalidateTag).not.toHaveBeenCalled()
 })
 
@@ -181,7 +184,8 @@ test('approve: an approver approves exactly what they were shown, stamped with t
   vi.mocked(m.findChartNote).mockResolvedValueOnce(ROW as never)
   expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: true })
   expect(m.approveNote).toHaveBeenCalledWith(ID, 'approver@avenuez.com', SEEN)
-  expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
+  expect(updateTag).toHaveBeenCalledWith('db')
+  expect(revalidateTag).not.toHaveBeenCalled()
 })
 
 test('approve: a note edited after the approver opened the page is not approved', async () => {
@@ -189,6 +193,7 @@ test('approve: a note edited after the approver opened the page is not approved'
   vi.mocked(m.findChartNote).mockResolvedValueOnce(ROW as never)
   vi.mocked(m.approveNote).mockResolvedValueOnce(false)
   expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: false, error: 'This note changed since you opened the page. Reload to see it.' })
+  expect(updateTag).not.toHaveBeenCalled()
   expect(revalidateTag).not.toHaveBeenCalled()
 })
 
@@ -223,6 +228,7 @@ test('revoke: a note that is no longer the one clients see is refused as changed
   vi.mocked(m.findChartNote).mockResolvedValueOnce({ ...ROW, status: 'approved' } as never)
   vi.mocked(m.revokeNote).mockResolvedValueOnce(false)
   expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: false, error: 'This note changed since you opened the page. Reload to see it.' })
+  expect(updateTag).not.toHaveBeenCalled()
   expect(revalidateTag).not.toHaveBeenCalled()
 })
 
@@ -240,4 +246,13 @@ test('delete: a second delete of the same draft is "not found", not a false succ
   vi.mocked(m.findChartNote).mockResolvedValueOnce(ROW as never)
   vi.mocked(m.softDeleteDraft).mockResolvedValueOnce(false)
   expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual({ ok: false, error: 'not found' })
+})
+
+// Paul's review of #292: a day before the client's first reporting month is in no month the team can
+// open, so a note there would be an orphan draft no view reaches.
+test('save: a day before the client\'s first reporting month is refused, with nothing written', async () => {
+  as('INTERNAL_ANALYST')
+  expect(await saveChartNoteAction({ ...INPUT, day: '2026-07-31' })).toEqual({ ok: false, error: "That day is before this client's first reporting month." })
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+  expect(await saveChartNoteAction({ ...INPUT, day: '2026-08-01' })).toEqual({ ok: true })
 })

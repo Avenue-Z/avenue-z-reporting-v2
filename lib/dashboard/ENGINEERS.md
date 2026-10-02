@@ -109,10 +109,11 @@ Cache keys are built by helpers (`smDataKey`, `buildSmGroupedKey`, `buildSmSerie
 Keys always include the source id + account + metric + dimension/granularity +
 ISO range + serialized filter, so nothing collides across clients or ranges.
 
-Saving a config calls `revalidateTag('db', 'max')`. This is load-bearing:
+Saving a config calls `updateTag('db')`. This is load-bearing:
 `getDashboardConfig`/`getClientBySlug` persist for ~5 min via `cache()`, so
 without the bust the next `router.refresh()` re-reads the **stale** config and the
-edit appears to revert. The tag targets only the DB reads — the SM/TW Data Cache
+edit appears to revert. It must expire the tag at once: from next 16.2, `revalidateTag('db', 'max')`
+serves that refresh the stale entry, which is the same revert. The tag targets only the DB reads: the SM/TW Data Cache
 is untagged, so a save does not cold-re-resolve every chart.
 
 > ⚠️ `keyHash` is currently duplicated in four files
@@ -184,7 +185,7 @@ Two paths, both landing on a validated `BlockConfig`:
   rejected server-side even if force-cast.
 
 Saving always funnels through `saveDashboardConfig` → `parseDashboardConfig` →
-DB write → `revalidateTag`. Inline copy edits (`updateBlockText`) and dimension
+DB write → `updateTag('db')`. Inline copy edits (`updateBlockText`) and dimension
 relabels (`updateLabelOverride`) build the next config via
 [config-mutations.ts](../../components/dashboard/config-mutations.ts) and reuse the
 same save (so they inherit the same auth + validation gate).

@@ -95,9 +95,10 @@ export async function withNotes(args: {
       controls: {
         clientSlug: args.clientSlug, channel: args.channel, chart: args.chart, canApprove: caps.canApprove,
         ...(args.posts === null ? { postsFailed: true as const } : {}),
-        // Phase 2b: the Add annotation panel starts from a post, so only days with at least one post.
-        days: windowDays(args.from, last)
-          .filter((day) => postsOn(day).length > 0)
+        // Every day of the window, each with its posts or none, so a note can go on a day with no post (a PR
+        // hit, Jasmine 2026-09-29). None when the posts could not load: a day's posts are then unknown.
+        // The window ends where the chart does: in the live month the last complete UTC day (yesterday), never today.
+        days: args.posts === null ? [] : windowDays(args.from, last)
           .map((day) => ({ day, posts: postsOn(day).map((p) => ({ id: p.id, thumb: thumbOf(p) })) })),
       },
     }

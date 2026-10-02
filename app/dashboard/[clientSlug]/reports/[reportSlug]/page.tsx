@@ -24,6 +24,7 @@ import { OrganicSocialReport } from '@/components/report-sections/organic-social
 import { ReportDateRange } from './report-date-range'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
+import { requireStaff } from '@/lib/auth/page-access'
 
 function ReportSkeleton() {
   return (
@@ -92,6 +93,7 @@ export default async function ReportPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
+  await requireStaff()
   const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
