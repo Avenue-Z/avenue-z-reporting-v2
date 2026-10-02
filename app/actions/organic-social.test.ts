@@ -1,6 +1,6 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ revalidateTag: vi.fn(), updateTag: vi.fn() }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn(async () => ({ id: 'client-uuid' })) }))
 vi.mock('@/lib/organic-social/annotation-hides/mutations', async () => {
   const actual = await vi.importActual<typeof import('@/lib/organic-social/annotation-hides/mutations')>(
@@ -10,7 +10,7 @@ vi.mock('@/lib/organic-social/annotation-hides/mutations', async () => {
 })
 
 import { auth } from '@/auth'
-import { revalidateTag } from 'next/cache'
+import { revalidateTag, updateTag } from 'next/cache'
 import { getClientBySlug } from '@/lib/db/queries'
 import { setAnnotationHidden } from '@/lib/organic-social/annotation-hides/mutations'
 import { setAnnotationHiddenAction } from './organic-social'
@@ -58,5 +58,6 @@ test('internal staff hide an annotation: one write, then the page data refreshes
   expect(setAnnotationHidden).toHaveBeenCalledWith({
     clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'followers', day: '2026-08-10', hidden: true, setBy: 'someone@avenuez.com',
   })
-  expect(revalidateTag).toHaveBeenCalledWith('db', 'max')
+  expect(updateTag).toHaveBeenCalledWith('db')
+  expect(revalidateTag).not.toHaveBeenCalled()
 })

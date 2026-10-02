@@ -65,7 +65,9 @@ export function CommentaryPanel({
 
   function refresh() {
     setEditing(null)
-    router.refresh() // re-runs the RSC; revalidateTag already busted the cache
+    // The action's updateTag already sends the re-rendered page back with its response, so this refresh
+    // renders it a second time. Kept on purpose for now; it goes when every save path drops it together.
+    router.refresh()
   }
   function doApprove(id: string) { startTransition(async () => { await approveCommentary(clientSlug, id); refresh() }) }
   function doRevoke(id: string) { startTransition(async () => { await revokeCommentary(clientSlug, id); refresh() }) }

@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { authorizeRowForClient, canDeleteDraft, guardNotDeleted } from '@/lib/commentary/mutations'
@@ -64,7 +64,7 @@ export async function saveChartNoteAction(input: {
     if (isOpenDraftConflict(e)) return { ok: false, error: 'A draft is already open on this day. Reload to see it.' }
     throw e
   }
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -85,7 +85,7 @@ export async function approveChartNoteAction(clientSlug: string, id: string, see
   const alive = guardNotDeleted(row)
   if (!alive.ok) return { ok: false, error: alive.error! }
   if (!(await approveNote(id, v.email!, seen))) return CHANGED
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -111,7 +111,7 @@ export async function revokeChartNoteAction(clientSlug: string, id: string): Pro
     if (isOpenDraftConflict(e)) return busy
     throw e
   }
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -130,6 +130,6 @@ export async function deleteChartNoteDraftAction(clientSlug: string, id: string)
   const deletable = canDeleteDraft(row)
   if (!deletable.ok) return { ok: false, error: deletable.error! }
   if (!(await softDeleteDraft(id, v.email!))) return NOT_FOUND
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
