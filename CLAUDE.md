@@ -99,8 +99,10 @@ combined with NextAuth's JWT callback. The conceptual model is the same:
 unauthenticated requests redirect to `/login`, internal routes (`/dashboard`)
 require `INTERNAL_ADMIN` or `INTERNAL_ANALYST` role, and client portal routes
 (`/portal/[clientSlug]`) are scoped to the session's `clientSlug`. Role and
-`clientSlug` are baked into the JWT at sign-in from the DB lookup — no DB hit
-on subsequent requests.
+`clientSlug` are set at sign-in and re-read from the database on every request
+(`getClientByEmail`, once per render, in `lib/auth/jwt-callback.ts`), so a
+removed or moved client user loses the old access on their next request; staff
+with no row keep the default `INTERNAL_ANALYST` view.
 
 ---
 
@@ -562,8 +564,9 @@ CLIENT_VIEWER     → Read-only: own client's enabled reports only
 ```
 
 Role is derived at sign-in from a DB lookup (`getClientByEmail` in `lib/db/queries.ts`)
-and baked into the JWT. Subsequent requests decode role from the token — no DB hit
-per request.
+and re-read from the database on every request (`lib/auth/jwt-callback.ts`), so a
+removed or moved client user loses the old access on their next request. The minted
+service cookie and the preview test admin have no user row and are left as they are.
 
 ---
 

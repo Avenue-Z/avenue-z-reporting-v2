@@ -14,6 +14,17 @@ export interface TestAdminUser {
   clientSlug: string
 }
 
+/** Whether the preview test admin may use `email` here: a deployment that is not production, both
+ *  settings present, and exactly the configured email (case and spaces ignored). Sign-in
+ *  (evaluateTestAdminLogin, below) and every session re-check (lib/auth/jwt-callback.ts) call this one
+ *  rule, so tightening it can never leave an existing test-admin session that sign-in would now refuse. */
+export function testAdminAllows(email: string, env: TestAdminEnv): boolean {
+  if (env.vercelEnv === 'production') return false
+  if (!env.email || !env.password) return false
+  const normalized = normalizeEmail(email ?? '')
+  return normalized !== '' && normalized === normalizeEmail(env.email)
+}
+
 /**
  * Preview/testing-only admin login. Lets an internal admin sign in through the
  * credentials form on deployments where Google OAuth is unavailable (Vercel
@@ -31,11 +42,8 @@ export function evaluateTestAdminLogin(
   input: { email: string; password: string },
   env: TestAdminEnv,
 ): TestAdminUser | null {
-  if (env.vercelEnv === 'production') return null
-  if (!env.email || !env.password) return null
-  const email = normalizeEmail(input.email ?? '')
-  if (!email || !input.password) return null
-  if (email !== normalizeEmail(env.email)) return null
-  if (input.password !== env.password) return null
+  if (!testAdminAllows(input.email ?? '', env)) return null
+  if (!input.password || input.password !== env.password) return null
+  const email = normalizeEmail(input.email)
   return { id: email, email, name: 'Test Admin', role: 'INTERNAL_ADMIN', clientSlug: 'avenue-z' }
 }
