@@ -42,7 +42,8 @@ describe('clock', () => {
       const live = resolveLockedRange({ firstMonth: '2025-01' }, 'team', clockFor(now), undefined).months.find((m) => m.live)
       if (!live) continue
       lives++
-      if (!isPeriodOpen(live.dateRange.split(',')[1], now.toISOString().slice(0, 10))) {
+      // The freeze's boundary on the servers' UTC clock: the UTC date minus one day (rollingRangeEnd there, #282).
+      if (!isPeriodOpen(live.dateRange.split(',')[1], new Date(t - 864e5).toISOString().slice(0, 10))) {
         closed.push(`${now.toISOString()}: live range ${live.dateRange} reads closed to the freeze check`)
       }
     }
@@ -60,7 +61,7 @@ describe('opening day', () => {
     expect(opensOn('2026-11', 12, 'previous-friday')).toBe('2026-12-11')
     expect(opensOn('2027-08', 12, 'previous-friday')).toBe('2027-09-10')
     expect(opensOn('2026-09', 4, 'previous-friday')).toBe('2026-10-02')
-    expect(isPeriodOpen('2026-09-30', '2026-10-02')).toBe(false)
+    expect(isPeriodOpen('2026-09-30', '2026-10-01')).toBe(false) // on 10/2 the rolling end is 10/1: September is closed
   })
 })
 
