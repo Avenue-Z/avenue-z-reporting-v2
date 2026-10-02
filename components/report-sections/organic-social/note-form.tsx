@@ -16,8 +16,10 @@ const KEEPS_PICKS = 'Posts could not load, so this note keeps its picked posts.'
 /** A day's note already on this chart, as the Add annotation panel needs it: the text and picks to load
  *  (its draft's, else the approved note's) and whether a draft exists. Editors only. */
 export type ExistingNote = { text: string; postIds: number[]; draft: boolean }
-/** What a save did, for the line shown after it: the day, and what that day had before. */
-export type SavedNote = { day: string; had: 'none' | 'draft' | 'approved' }
+/** What a save did, for the line shown after it: the day, and what that day had before. It also carries the
+ *  text and picks saved, stored as the action stores them (the body trimmed), so the chart can keep them until
+ *  the refreshed answer arrives (#276). */
+export type SavedNote = { day: string; had: 'none' | 'draft' | 'approved'; text: string; postIds: number[] }
 
 /** The one line shown after a save (Phase 2c, D18), so it is clear what happened. */
 export function savedLine({ day, had }: SavedNote, canApprove: boolean): string {
@@ -104,8 +106,10 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
       }
       if (!r.ok) { setError(r.error ?? 'Could not save. Try again.'); return }
       const ex = notes?.[day]
-      onSaved({ day, had: ex ? (ex.draft ? 'draft' : 'approved') : 'none' })
-      router.refresh() // re-runs the RSC; the action's revalidateTag already busted the cache
+      onSaved({ day, had: ex ? (ex.draft ? 'draft' : 'approved') : 'none', text: text.trim(), postIds: picked })
+      // Re-runs the RSC. Notes and hides are read straight from the database (React.cache, per request; they are
+      // not behind the db tag), so the new answer has this save. #281 tracks dropping this refresh across every save.
+      router.refresh()
     })
   }
 

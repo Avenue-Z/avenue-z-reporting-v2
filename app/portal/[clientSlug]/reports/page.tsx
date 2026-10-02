@@ -285,7 +285,8 @@ export default async function PortalReportPage({
         {/* Organic Social keys on the RESOLVED subsection (organicEntry.id), not the raw
             param — a disallowed/bogus subsection degrades to Overview and must key
             identically to a plain Overview visit, or it forces a needless remount
-            (PR #174 review). */}
+            (PR #174 review). The key also gives each tab and month its own trend chart:
+            the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null)}
         </Suspense>

@@ -9,12 +9,15 @@ import { CARD_PILL as BUTTON } from './pill'
 /** A card's note buttons, for someone who can edit: add or edit the note, delete a draft, and for an
  *  approver, approve a draft or revoke an approved note. Each action re-checks the session. The form
  *  itself opens above the chart (`onEdit`), never inside the card. On a card opened from its dot the visible
- *  words are shorter to fit; the accessible names stay the same everywhere. */
-export function NoteActions({ annotation, controls, compact, onEdit }: {
+ *  words are shorter to fit; the accessible names stay the same everywhere. While `saving` (a note saved on this
+ *  page whose refreshed answer has not arrived), Approve, Revoke and Delete wait: this card still shows the
+ *  previous answer, so they would act on it. Edit stays, since it opens what was just saved. */
+export function NoteActions({ annotation, controls, compact, onEdit, saving }: {
   annotation: ChartAnnotation
   controls: NoteControls
   compact?: boolean
   onEdit: (day: string, initial?: { text: string; postIds: number[] }) => void
+  saving?: boolean
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
@@ -44,17 +47,17 @@ export function NoteActions({ annotation, controls, compact, onEdit }: {
         {ed ? say('Edit note', 'Edit') : say('Add note', 'Note')}
       </button>
       {ed?.draft && controls.canApprove && (
-        <button type="button" className={BUTTON} disabled={pending} aria-label="Approve"
+        <button type="button" className={BUTTON} disabled={pending || saving} aria-label="Approve"
           onClick={() => run(() => approveChartNoteAction(controls.clientSlug, ed.draft!.id, { text: ed.draft!.text, postIds: ed.draft!.postIds }))}>Approve</button>
       )}
       {/* Revoke is refused while a draft is open on the day, so it is offered only when there is none
           (Paul's review of #273, C9): delete or approve the draft first. */}
       {ed?.approvedId && !ed.draft && controls.canApprove && (
-        <button type="button" className={BUTTON} disabled={pending} aria-label="Revoke"
+        <button type="button" className={BUTTON} disabled={pending || saving} aria-label="Revoke"
           onClick={() => run(() => revokeChartNoteAction(controls.clientSlug, ed.approvedId!))}>Revoke</button>
       )}
       {ed?.draft && (
-        <button type="button" className={BUTTON} disabled={pending} aria-label="Delete draft"
+        <button type="button" className={BUTTON} disabled={pending || saving} aria-label="Delete draft"
           onClick={() => run(() => deleteChartNoteDraftAction(controls.clientSlug, ed.draft!.id))}>
           {say('Delete draft', 'Delete')}
         </button>
