@@ -1,0 +1,36 @@
+import { expect, test } from 'vitest'
+import { hiddenInfluencerPlatforms, influencerLabel, parseInfluencerSection } from './influencer-section'
+
+test('absent is none; a valid hide and a valid label parse', () => {
+  expect(parseInfluencerSection(undefined)).toEqual({ kind: 'none' })
+  expect(parseInfluencerSection({ INSTAGRAM: { hidden: true } })).toEqual({ kind: 'ok', section: { INSTAGRAM: { hidden: true } } })
+  expect(parseInfluencerSection({ INSTAGRAM: { label: '  Partnership Posts ' } })).toEqual({ kind: 'ok', section: { INSTAGRAM: { label: 'Partnership Posts' } } })
+  expect(parseInfluencerSection({})).toEqual({ kind: 'ok', section: {} })
+})
+
+test('an unknown channel key is ignored, the rest still applies', () => {
+  expect(parseInfluencerSection({ instagram: { hidden: true }, MYSPACE: { hidden: true }, FACEBOOK: { hidden: true } }))
+    .toEqual({ kind: 'ok', section: { FACEBOOK: { hidden: true } } })
+})
+
+test('anything malformed is invalid', () => {
+  for (const bad of [null, 'x', 1, [], { INSTAGRAM: true }, { INSTAGRAM: { hidden: false } }, { INSTAGRAM: { hidden: 'yes' } },
+    { INSTAGRAM: { label: '' } }, { INSTAGRAM: { label: '   ' } }, { INSTAGRAM: { label: 'x'.repeat(41) } }, { INSTAGRAM: { label: 5 } },
+    { INSTAGRAM: { hidden: true, label: 'Both' } }, { INSTAGRAM: {} }, { INSTAGRAM: [] }]) {
+    expect(parseInfluencerSection(bad)).toEqual({ kind: 'invalid' })
+  }
+})
+
+test('hidden platforms are the display labels the gallery groups by', () => {
+  expect(hiddenInfluencerPlatforms({ INSTAGRAM: { hidden: true }, FACEBOOK: { label: 'P' }, TWITTER: { hidden: true } }))
+    .toEqual(new Set(['Instagram', 'X']))
+  expect(hiddenInfluencerPlatforms({})).toEqual(new Set())
+})
+
+test('the label applies only on that channel\'s tab; Overview and other tabs get the default (undefined)', () => {
+  const s = { INSTAGRAM: { label: 'Partnership Posts' } } as const
+  expect(influencerLabel(s, 'INSTAGRAM')).toBe('Partnership Posts')
+  expect(influencerLabel(s, 'FACEBOOK')).toBeUndefined()
+  expect(influencerLabel(s, null)).toBeUndefined()
+  expect(influencerLabel({ INSTAGRAM: { hidden: true } }, 'INSTAGRAM')).toBeUndefined()
+})
