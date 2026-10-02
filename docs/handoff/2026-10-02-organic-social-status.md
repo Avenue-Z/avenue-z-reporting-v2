@@ -74,7 +74,8 @@ truth for the YTD graphs with her, since it changes values on the chart (staging
 Dash is a per-client pin change to version 1, a staging write); (b) the client-side QA; (c) confirm the automatic tab
 plan (section 7) covers her adding clients to the sheet; (d) a read-only audit proving every item of her feedback is
 accounted for, because after she tests staging we go live; (e) rewrite the team SOP in plain English from the code
-only, covering dates, time ranges, cutoffs and every edge case.
+only, covering dates, time ranges, cutoffs, every edge case, and roles and permissions (who can add notes, who can
+do what on the platform, who approves).
 
 1. **Client-side QA on staging** (checklist: the QA record, section 3). Prerequisite: only A Place For Mom has a client
    login on staging today; Akara, Joy of Life, PIMCO and Piper need a shared password and a test client user set in
