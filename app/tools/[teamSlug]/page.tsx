@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { TEAMS } from '@/lib/constants'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { requireStaff } from '@/lib/auth/page-access'
 
 const cardCls =
   'group relative flex items-center gap-4 rounded-lg border border-white/[0.06] bg-bg-surface p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.02]'
@@ -14,6 +15,7 @@ export default async function TeamToolsPage({
   params: Promise<{ teamSlug: string }>
 }) {
   const { teamSlug } = await params
+  await requireStaff()
   const team = TEAMS.find((t) => t.slug === teamSlug)
   if (!team) notFound()
 

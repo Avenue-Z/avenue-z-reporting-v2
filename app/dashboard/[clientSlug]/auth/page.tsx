@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/header'
 import { PlatformCard } from '@/components/auth-hub/platform-card'
 import { PLATFORM_IDS } from '@/lib/platforms/constants'
 import type { PlatformId } from '@/lib/platforms/constants'
+import { requireStaff } from '@/lib/auth/page-access'
 
 /** Platforms currently integrated via direct API */
 const ACTIVE_PLATFORMS: PlatformId[] = [
@@ -17,6 +18,7 @@ export default async function AuthHubPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
+  await requireStaff()
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 

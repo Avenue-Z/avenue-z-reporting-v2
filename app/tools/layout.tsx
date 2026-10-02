@@ -1,9 +1,8 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
+import { isStaff } from '@/lib/auth/route-access'
 import { Sidebar } from '@/components/layout/sidebar'
-
-const INTERNAL_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
 
 export default async function ToolsLayout({
   children,
@@ -13,7 +12,7 @@ export default async function ToolsLayout({
   const session = await auth()
 
   if (!session) redirect('/login')
-  if (!INTERNAL_ROLES.has(session.user.role ?? '')) redirect('/unauthorized')
+  if (!isStaff(session.user)) redirect('/unauthorized')
 
   return (
     <div className="flex h-screen bg-black" data-print-layout>

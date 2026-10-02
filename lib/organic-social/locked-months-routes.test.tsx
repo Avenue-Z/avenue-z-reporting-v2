@@ -11,6 +11,11 @@ vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getCli
 vi.mock('@/components/report-sections/organic-social', () => ({
   OrganicSocialReport: function OrganicSocialReport() { return null },
 }))
+// The portal pages run their real access check: every session below carries the client 'c' these
+// routes render, as a real client sign-in does. The staff pages are also rendered with a client role,
+// which the staff layout and the staff check never allow (lib/auth/page-access.test.ts covers that), so
+// only requireStaff is stubbed as granted, and every assertion and stored digest stays as it was.
+vi.mock('@/lib/auth/page-access', async (orig) => ({ ...(await orig<object>()), requireStaff: vi.fn(async () => undefined) }))
 
 import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'
@@ -34,7 +39,7 @@ const INPUTS: (string | string[] | undefined)[] = [undefined, 'last_30_days', 'l
 type Route = (a: never) => Promise<unknown>
 const spa = (Route: Route, q: Record<string, unknown>) =>
   Route({ params: Promise.resolve({ clientSlug: 'c' }), searchParams: Promise.resolve(Object.fromEntries(Object.entries(q).filter(([, v]) => v !== undefined))) } as never)
-const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role, email: 'someone@example.com' } } as never)
+const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role, email: 'someone@example.com', clientSlug: 'c' } } as never)
 const sectionOf = (tree: unknown) => findElements(tree, (e) => e.type === OrganicSocialReport)[0]?.props as { dateRange: string; compareRange: string | null } | undefined
 const pickerOf = (tree: unknown) => findElements(tree, (e) => e.type === OrganicRangeControl)[0]?.props
 
