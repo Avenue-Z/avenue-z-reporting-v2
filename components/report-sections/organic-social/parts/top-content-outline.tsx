@@ -4,6 +4,7 @@ import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { fetchTopContent } from '@/lib/organic-social/top-content'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
+import { hiddenInfluencerPlatforms, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
 import { OUTLINE_SORT_KEYS, handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
 import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
@@ -19,8 +20,16 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
     fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true, markUgc: true }),
   }))
   if (!r.data) return <Fallback kind={r.error!} />
+  // One client read for both settings. A failed read keeps today's rules: no own handles, the default section.
+  let dsc: unknown
   let own: OwnHandles = {}
-  try { own = parseOwnHandles((await getClientBySlug(clientSlug))?.dashSocialConfig) } catch { own = {} }
+  try {
+    dsc = (await getClientBySlug(clientSlug))?.dashSocialConfig
+    own = parseOwnHandles(dsc)
+  } catch { own = {} }
+  const parsed = parseInfluencerSection((dsc as { influencerSection?: unknown } | null | undefined)?.influencerSection)
+  if (parsed.kind === 'invalid') console.warn(`[organic-social] influencerSection invalid slug=${clientSlug}; showing the default Influencer section`)
+  const section = parsed.kind === 'ok' ? parsed.section : {}
   if (missingAuthors(r.data, own)) {
     console.warn(`[organic-social] top content has no post authors slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)
   }
@@ -37,11 +46,17 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const posts = withViewsBasisRate(r.data)
   const stored = await loadDesignations(clientSlug, posts.map((p) => p.id))
   const { owned, influencer } = partitionByAuthor(posts, stored, own)
+  const hidden = hiddenInfluencerPlatforms(section)
+  const label = influencerLabel(section, channel)
   return (
     <section className="space-y-6">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
-      <SortableTopContent owned={groupPostsByPlatform(owned, channel)} influencer={groupPostsByPlatform(influencer, channel)}
-        clientSlug={clientSlug} canEdit={canSetDesignation(role)} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS} />
+      {/* A hidden platform's influencer row is not rendered, for staff and clients alike (Piper's Instagram, spec section
+          4). Its posts stay classified as influencer: they are not moved into the owned top 5. */}
+      <SortableTopContent owned={groupPostsByPlatform(owned, channel)}
+        influencer={groupPostsByPlatform(influencer, channel).filter((g) => !hidden.has(g.platform))}
+        clientSlug={clientSlug} canEdit={canSetDesignation(role)} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}
+        {...(label ? { influencerHeading: label } : {})} />
     </section>
   )
 }

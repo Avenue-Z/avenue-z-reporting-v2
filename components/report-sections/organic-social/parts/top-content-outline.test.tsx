@@ -137,3 +137,62 @@ test('T7 the v2 part (Renaissance) passes no sortKeys', async () => {
   expect(SortableTopContent).toHaveBeenCalledTimes(1)
   expect(props()).not.toHaveProperty('sortKeys')
 })
+
+const withSection = (influencerSection: unknown) =>
+  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' }, influencerSection } })
+const heading = () => (SortableTopContent.mock.calls.at(-1) as unknown as [{ influencerHeading?: string }])[0].influencerHeading
+
+test('no influencerSection: the influencer row and the default heading, exactly as today', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
+  expect(heading()).toBeUndefined()
+})
+
+test('Instagram hidden (Piper): no influencer row on the Instagram tab; the owned top 5 is unchanged; the posts are not moved', async () => {
+  withSection({ INSTAGRAM: { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' }), post(3)])
+  await show()
+  expect(props().influencer).toEqual([])
+  expect(props().owned[0].posts.map((x) => x.id)).toEqual([1, 3])
+})
+
+test('a hide on another channel leaves this tab alone', async () => {
+  withSection({ FACEBOOK: { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
+})
+
+test('Instagram label (Akara): the heading is "Partnership Posts" on the Instagram tab only', async () => {
+  withSection({ INSTAGRAM: { label: 'Partnership Posts' } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect(heading()).toBe('Partnership Posts')
+  render(<>{await TopContentOutlineSection({ ctx: { ...IG, channel: 'FACEBOOK' }, ownedLimit: 5 })}</>)
+  expect(heading()).toBeUndefined()
+})
+
+test('on Overview a hidden platform drops only its own row', async () => {
+  withSection({ INSTAGRAM: { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([
+    post(1, { author: 'brand_handle' }),
+    post(2, { author: 'creator_one' }),
+    post(5, { channel: 'FACEBOOK', platform: 'Facebook', ugc: true }), // a tagged post is a collab post (outline-top-content.ts:29)
+  ])
+  render(<>{await TopContentOutlineSection({ ctx: { ...IG, channel: null }, ownedLimit: 5 })}</>)
+  expect(props().influencer.map((g) => g.platform)).toEqual(['Facebook'])
+})
+
+test('an invalid influencerSection keeps today\'s section and warns once with the slug, never the value', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  withSection({ INSTAGRAM: { label: 'secret-looking-value', hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
+  expect(heading()).toBeUndefined()
+  const lines = warn.mock.calls.map((c) => c.join(' ')).filter((l) => l.includes('influencerSection'))
+  expect(lines).toEqual(['[organic-social] influencerSection invalid slug=client-a; showing the default Influencer section'])
+  expect(lines.join('')).not.toContain('secret-looking-value')
+  warn.mockRestore()
+})
