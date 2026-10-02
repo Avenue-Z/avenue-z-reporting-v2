@@ -7,7 +7,7 @@ import type { AnnotationChart } from '../annotations'
 import type { DashChannel } from '../metrics'
 
 /** The annotations hidden from the client on one platform, as hideKey strings. React.cache
- *  for per-render dedup; freshness after a write comes from revalidateTag('db') in the
+ *  for per-render dedup; freshness after a write comes from updateTag('db') in the
  *  server action. */
 export const getAnnotationHides = cache(async (clientId: string, channel: DashChannel): Promise<Set<string>> => {
   const rows = await db
