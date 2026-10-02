@@ -1,7 +1,7 @@
 // The outline parts' data (platform-headlines@2/@3, engagement-breakdown@1). One Dash request per
 // tab for the channel's shared tile metrics plus its outline extras, in the same request shape as
 // getPlatformHeadlines, built as buildPlatformHeadline builds except the change (outlineDelta, by
-// the prior's size). Both parts call getOutlineKpis alike, so React's cache makes it one request.
+// the prior's size) and the footnote (none: Jasmine removed it from the outline tabs, 2026-10-02). Both parts call getOutlineKpis alike, so React's cache makes it one request.
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
 import { CHANNEL_LABEL, metricFor, resolveTargets, type DashChannel, type KpiSpec } from './metrics'

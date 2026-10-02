@@ -47,7 +47,8 @@ New optional key `dash_social_config.influencerSection`, validated at runtime:
   `SortableTopContent` as two optional props. Renaissance uses top-content@2, so it cannot change.
 - `hidden: true`: that platform's influencer row is not rendered, for staff and clients; when no influencer row is left, the
   section and its heading are not rendered. The posts are not moved into the owned top 5 (the split is unchanged).
-- `label`: replaces the heading text and the `aria-label` for that platform's row only. The staff-only card toggle
+- `label`: replaces the section's heading text and `aria-label` on that platform's tab (the heading is one per section;
+  Overview always keeps the default, plan ruling 1). The staff-only card toggle
   ("Influencer · change", `designation-toggle.tsx:33`) is unchanged.
 - Absent or invalid key: today's behaviour (heading "Influencer Posts"). An invalid key logs once with the slug, never the value.
 - Staging data (guarded script, dry run first, my go): Piper `{ "INSTAGRAM": { "hidden": true } }`; Akara

@@ -34,3 +34,20 @@ test('the label applies only on that channel\'s tab; Overview and other tabs get
   expect(influencerLabel(s, null)).toBeUndefined()
   expect(influencerLabel({ INSTAGRAM: { hidden: true } }, 'INSTAGRAM')).toBeUndefined()
 })
+
+test('pinned edges: an unknown key is ignored whatever its value; one bad known channel makes the whole setting invalid', () => {
+  expect(parseInfluencerSection({ MYSPACE: 'x', INSTAGRAM: { hidden: true } })).toEqual({ kind: 'ok', section: { INSTAGRAM: { hidden: true } } })
+  expect(parseInfluencerSection({ INSTAGRAM: { hidden: true }, FACEBOOK: { hidden: 'yes' } })).toEqual({ kind: 'invalid' })
+  expect(parseInfluencerSection({ INSTAGRAM: { label: 'x'.repeat(40) } })).toEqual({ kind: 'ok', section: { INSTAGRAM: { label: 'x'.repeat(40) } } })
+})
+
+test('pinned edges: JSON prototype keys are ignored and pollute nothing', () => {
+  const parsed = parseInfluencerSection(JSON.parse('{"__proto__": {"hidden": true}, "constructor": {"hidden": true}, "INSTAGRAM": {"hidden": true}}'))
+  expect(parsed).toEqual({ kind: 'ok', section: { INSTAGRAM: { hidden: true } } })
+  expect(({} as Record<string, unknown>).hidden).toBeUndefined()
+})
+
+test('a setting\'s hidden or label must be its own key, never inherited', () => {
+  const inherited = Object.assign(Object.create({ hidden: true }), { other: 1 })
+  expect(parseInfluencerSection({ INSTAGRAM: inherited })).toEqual({ kind: 'invalid' })
+})

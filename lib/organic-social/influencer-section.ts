@@ -8,6 +8,7 @@ export type InfluencerSection = Partial<Record<DashChannel, InfluencerSetting>>
 
 const MAX_LABEL = 40
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const hasOwn = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
 
 export function parseInfluencerSection(value: unknown): { kind: 'ok'; section: InfluencerSection } | { kind: 'none' } | { kind: 'invalid' } {
   if (value === undefined) return { kind: 'none' }
@@ -17,8 +18,9 @@ export function parseInfluencerSection(value: unknown): { kind: 'ok'; section: I
     // Keys are Dash channel names. Anything else (a lowercase name, a channel we do not report) is ignored.
     if (!(CHANNELS as readonly string[]).includes(key)) continue
     if (!isObj(setting) || Object.keys(setting).length !== 1) return { kind: 'invalid' }
-    if (setting.hidden === true) { section[key as DashChannel] = { hidden: true }; continue }
-    if (typeof setting.label === 'string') {
+    // Own keys only: the one key counted above must be the one read here, never an inherited property.
+    if (hasOwn(setting, 'hidden') && setting.hidden === true) { section[key as DashChannel] = { hidden: true }; continue }
+    if (hasOwn(setting, 'label') && typeof setting.label === 'string') {
       const label = setting.label.trim()
       if (label.length === 0 || label.length > MAX_LABEL) return { kind: 'invalid' }
       section[key as DashChannel] = { label }
