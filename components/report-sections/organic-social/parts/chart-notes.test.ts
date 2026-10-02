@@ -96,8 +96,8 @@ test('the team gets the draft, the ids and the controls, with that day\'s posts'
   // No picks and no post that day: the draft preview is empty (R2: present for every draft).
   expect(r.items[1].note).toEqual({ text: null, posts: [], editor: { approvedId: null, approvedPostIds: [], draft: { id: 'd', text: 'Soon', postIds: [] }, draftThumbs: [] } })
   expect(r.controls).toMatchObject({ clientSlug: 'a-client', channel: 'INSTAGRAM', chart: 'followers', canApprove: false })
-  // Phase 2b: only the days with at least one post are offered.
-  expect(r.controls?.days).toHaveLength(1)
+  // Every day of the window is offered (Jasmine, 2026-09-29); 8/10 carries its post.
+  expect(r.controls?.days).toHaveLength(31)
   expect(r.controls?.days.find((d) => d.day === '2026-08-10')?.posts).toEqual([
     { id: 5, thumb: { creative: post(5, '2026-08-10', 1).creative, mediaType: 'IMAGE', url: 'https://example.com/5' } },
   ])
@@ -110,18 +110,45 @@ test('a team role without an @avenuez.com email gets exactly the client view', a
   expect(r.controls).toBeUndefined()
 })
 
-test('in the live month the form offers no day after today', async () => {
-  // Posts on today AND tomorrow: with no posts the list would be empty and prove nothing.
+test('a window that runs past today stops at today (defensive: the live month already ends earlier)', async () => {
   const r = await withNotes({
     ...EDITOR, from: '2026-09-01', to: '2026-09-30', today: '2026-09-24', series: { channels: ['Instagram'], points: [] },
     posts: [post(7, '2026-09-24', 1), post(8, '2026-09-25', 1)],
   })
-  expect(r.controls?.days.map((d) => d.day)).toEqual(['2026-09-24'])
+  const days = r.controls!.days.map((d) => d.day)
+  expect([days.length, days[0], days[days.length - 1]]).toEqual([24, '2026-09-01', '2026-09-24'])
+  expect(r.controls!.days.at(-1)!.posts.map((p) => p.id)).toEqual([7])
 })
 
-test('the form is offered only the days with at least one post, oldest first', async () => {
+test('the form is offered every day of the window, oldest first, each with its posts or none', async () => {
   const r = await withNotes({ ...EDITOR, posts: [post(9, '2026-08-12', 1), post(5, '2026-08-10', 1), post(6, '2026-08-10', 2)] })
-  expect(r.controls?.days.map((d) => [d.day, d.posts.map((p) => p.id)])).toEqual([['2026-08-10', [5, 6]], ['2026-08-12', [9]]])
+  const days = r.controls!.days
+  expect([days.length, days[0].day, days[30].day]).toEqual([31, '2026-08-01', '2026-08-31'])
+  expect(days.filter((d) => d.day >= '2026-08-10' && d.day <= '2026-08-12').map((d) => [d.day, d.posts.map((p) => p.id)]))
+    .toEqual([['2026-08-10', [5, 6]], ['2026-08-11', []], ['2026-08-12', [9]]])
+})
+
+test('a month with no posts still offers every day, so a note needs no post', async () => {
+  const r = await withNotes({ ...EDITOR, posts: [] })
+  expect(r.controls!.days).toHaveLength(31)
+  expect(r.controls!.days.every((d) => d.posts.length === 0)).toBe(true)
+})
+
+// Paul's review of #292: the live month's window ends at the last complete UTC day (reporting-months.ts, the live
+// option's end), so the list ends yesterday, never today, and there is no live month on the 1st (liveExists).
+test('S3 in the live month, as production sends it, the list ends at yesterday: today is not offered', async () => {
+  const r = await withNotes({
+    ...EDITOR, from: '2026-09-01', to: '2026-09-23', today: '2026-09-24', series: { channels: ['Instagram'], points: [] },
+    posts: [post(7, '2026-09-23', 1), post(8, '2026-09-24', 1)],
+  })
+  const days = r.controls!.days.map((d) => d.day)
+  expect([days.length, days[0], days[days.length - 1]]).toEqual([23, '2026-09-01', '2026-09-23'])
+  expect(r.controls!.days.at(-1)!.posts.map((p) => p.id)).toEqual([7])
+})
+
+test('S7 on the 2nd, the first day of a live month, the list offers just the 1st', async () => {
+  const r = await withNotes({ ...EDITOR, from: '2026-09-01', to: '2026-09-01', today: '2026-09-02', series: { channels: ['Instagram'], points: [] } })
+  expect(r.controls!.days.map((d) => d.day)).toEqual(['2026-09-01'])
 })
 
 test('unreadable notes fail closed for everyone, and say which chart', async () => {
@@ -202,6 +229,7 @@ test('when the posts loaded, even none, the controls carry no flag', async () =>
 test("the panel's days list each day's posts in Dash's order, and a post with no date is on no day", async () => {
   const undated = { ...post(30, '2026-08-14', 1), publishedAt: null } as unknown as TopContentPost
   const r = await withNotes({ ...EDITOR, posts: [post(21, '2026-08-14', 1), post(12, '2026-08-10', 9), undated, post(20, '2026-08-14', 3)] })
-  expect(r.controls!.days.map((d) => [d.day, d.posts.map((p) => p.id)])).toEqual([['2026-08-10', [12]], ['2026-08-14', [21, 20]]])
+  expect(r.controls!.days.filter((d) => d.posts.length > 0).map((d) => [d.day, d.posts.map((p) => p.id)]))
+    .toEqual([['2026-08-10', [12]], ['2026-08-14', [21, 20]]])
 })
 
