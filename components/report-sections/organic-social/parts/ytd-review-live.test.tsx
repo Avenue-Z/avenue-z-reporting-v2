@@ -186,3 +186,20 @@ test('three Dash requests really run at once with no sheet (ten months)', async 
   await YtdLiveReviewSection({ ctx: CTX })
   expect(peak).toBe(3)
 })
+
+test('a Dash failure is logged with slug, channel, month, kind and status, never the request URL', async () => {
+  const { DashApiError, DashTimeoutError } = await import('@/lib/dash-social/client')
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
+    if (range.startsWith('custom:2026-09')) throw new DashApiError('500 persistent at https://api.example/brands/123456/reports')
+    if (range.startsWith('custom:2026-10')) throw new DashTimeoutError()
+    return kpis(1, 1)
+  })
+  const r = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
+  expect(r.container.textContent).toContain("Couldn't load this section.")
+  const l = logs().filter((x) => x.includes('ytd-review@3 Dash request failed'))
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-09 kind=api status=500')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-10 kind=timeout status=none')
+  expect(logs().join('\n')).not.toContain('123456')
+  expect(logs().join('\n')).not.toContain('https://')
+})

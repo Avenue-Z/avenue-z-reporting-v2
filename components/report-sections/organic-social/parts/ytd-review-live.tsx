@@ -8,6 +8,7 @@ import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { monthsNeedingDash, ytdLiveMonths, ytdSheetSeries } from '@/lib/organic-social/ytd'
 import { parseYtdGrid, readYtdTab, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError, type YtdTab } from '@/lib/organic-social/ytd-sheet'
 import { mapWithConcurrency } from '@/lib/concurrency'
+import { DashApiError, DashAuthError, DashRateLimitError, DashTimeoutError } from '@/lib/dash-social/client'
 import { TrendSkeleton } from '../skeletons'
 import { NoData } from '../no-data'
 import type { OrganicSocialCtx } from '../ctx'
@@ -15,6 +16,15 @@ import { safe, Fallback } from './shared'
 import { ytdReviewBlock } from './ytd-review-sheet'
 
 const NO_SHEET: YtdTab = { followers: {}, views: {} }
+
+/** A Dash failure as a log can carry it: the kind and the HTTP status only. Dash's messages hold the request URL, which
+ *  names the brand (lib/dash-social/client.ts), so the message itself is never logged. */
+function dashFailure(e: unknown): { kind: string; status: string } {
+  const kind = e instanceof DashTimeoutError ? 'timeout' : e instanceof DashRateLimitError ? 'rate-limit'
+    : e instanceof DashAuthError ? 'auth' : e instanceof DashApiError ? 'api' : 'other'
+  const status = e instanceof DashApiError && !(e instanceof DashTimeoutError) ? (/^(\d{3})\b/.exec(e.message)?.[1] ?? 'none') : 'none'
+  return { kind, status }
+}
 
 /** YTD Review for a live client (spec docs/superpowers/specs/2026-10-02-os-jasmine-call-changes-design.md section 8,
  *  S9; Paul approved 2026-10-02). January through the current month whatever the date picker shows; the sheet's number
@@ -46,7 +56,13 @@ export async function YtdLiveReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
     }
   }
   const need = monthsNeedingDash(months, tab, channel, floor)
-  const r = await safe(mapWithConcurrency(need, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel))
+  // Each failed month is logged on its own line (the block still shows the fallback card), so whoever reads the log
+  // sees which month and what kind of failure it was.
+  const r = await safe(mapWithConcurrency(need, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel).catch((e: unknown) => {
+    const f = dashFailure(e)
+    console.error(`[organic-social] ytd-review@3 Dash request failed slug=${clientSlug} channel=${channel} month=${m.key} kind=${f.kind} status=${f.status}`)
+    throw e
+  }))
     .then((all) => ytdSheetSeries(months, tab, channel, floor, Object.fromEntries(need.map((m, i) => [m.key, all[i]])))))
   if (!r.data) return <Fallback kind={r.error!} />
   const s = r.data
