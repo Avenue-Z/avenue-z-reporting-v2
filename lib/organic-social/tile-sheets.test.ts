@@ -110,3 +110,16 @@ test('a failed client read is null, not a thrown error', async () => {
   getClientBySlug.mockRejectedValue(new Error('db down'))
   await expect(loadTileSheets('c', SEPT)).resolves.toBeNull()
 })
+
+test('a read rejected with something that is not an Error logs status=error; a ytdSheets that is not an object warns as invalid', async () => {
+  getClientBySlug.mockResolvedValue(client({ ...LOCKED, ytdSheets: { 2026: { sheetId: ID, tab: 'Test Co' } } }))
+  readYtdTab.mockRejectedValueOnce('plain string')
+  expect(await loadTileSheets('c', SEPT)).toBeNull()
+  getClientBySlug.mockResolvedValue(client({ ...LOCKED, ytdSheets: 'not an object' }))
+  expect(await loadTileSheets('c', SEPT)).toBeNull()
+  // logs() lists warnings before errors, so compare as a set.
+  expect(logs().sort()).toEqual([
+    '[organic-social] ytd sheet config invalid (tiles) slug=c year=2026',
+    '[organic-social] ytd sheet read failed (tiles) slug=c year=2026 status=error',
+  ])
+})

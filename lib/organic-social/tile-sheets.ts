@@ -1,6 +1,7 @@
 // The reads behind the tiles from the sheet (spec 2026-10-02 section 5): the client's config, then at most two cached
-// sheet reads (the year on screen, and the comparison month's year when it differs). Never throws: every failure is
-// logged with the slug and year, never the sheet id, the tab or a value (ytd-sheet.ts), and the tiles keep Dash's numbers.
+// sheet reads (the year on screen, and the comparison month's year when it differs). Never throws: every sheet failure
+// is logged with the slug and year, never the sheet id, the tab or a value (ytd-sheet.ts), and the tiles keep Dash's
+// numbers. A failed client read is silent here, because the tiles' own Dash request needs the same row and fails with it.
 import { getClientBySlug } from '@/lib/db/queries'
 import { requestClock } from './locked-range'
 import { comparisonMonth, finishedMonthOnScreen, type TileSheets } from './tiles-from-sheet'

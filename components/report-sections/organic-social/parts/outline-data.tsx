@@ -18,7 +18,8 @@ import { safe, Fallback } from './shared'
  *  section's fallback card, as today. */
 export async function OutlineDataSection({ ctx, channel, rows }: { ctx: OrganicSocialCtx; channel: DashChannel; rows: readonly OutlineRow[] }) {
   const media = mediaRowsFor(channel, rows)
-  // All three gate the block (one Suspense). The sheet read is cached hourly and has a 10 second deadline; the Dash
+  // All three gate the block (one Suspense). The sheet read is cached hourly and has a 10 second deadline, so a stalled
+  // Sheets API can hold the tiles up to 10 seconds on a cache miss (a failure is then replayed for 30 seconds). The Dash
   // request, its cache and its lock key are exactly today's.
   const [r, m, sheet] = await Promise.all([
     safe(getOutlineKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel)),

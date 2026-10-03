@@ -245,6 +245,8 @@ test('a finished month the sheet has: Total Followers and Views show the sheet w
   expect(card(c, 'Views')!.textContent).toContain('300')
   expect(card(c, 'Views')!.textContent).toContain('↑ 50% vs prior period')
   expect(card(c, 'Net New Followers')!.textContent).toContain('10') // Dash, unchanged
+  expect(card(c, 'Net New Followers')!.textContent).not.toContain('1,100')
+  expect(card(c, 'Video Views')!.textContent).toContain('1,234') // Views on Reels: the sheet never touches media rows
 })
 
 test('with no sheet plan the tiles are exactly Dash\'s', async () => {
@@ -252,4 +254,14 @@ test('with no sheet plan the tiles are exactly Dash\'s', async () => {
   const c = await text(OutlineDataSection({ ctx: SEPT_IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
   expect(card(c, 'Total Followers')!.textContent).toContain('10')
   expect(card(c, 'Total Followers')!.textContent).not.toContain('1,100')
+})
+
+test('a sheet loader that rejects (an Error or anything else) still renders Dash\'s tiles', async () => {
+  for (const reason of [new Error('boom'), 'not an error']) {
+    getOutlineKpis.mockReset(); getOutlineKpis.mockResolvedValueOnce(built(10))
+    loadTileSheets.mockRejectedValueOnce(reason)
+    const c = await text(OutlineDataSection({ ctx: SEPT_IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
+    expect(card(c, 'Total Followers')!.textContent).toContain('10')
+    expect(card(c, 'Views')!.textContent).toContain('10')
+  }
 })
