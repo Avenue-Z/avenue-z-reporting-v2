@@ -1011,3 +1011,28 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
   `format(d, 'yyyy-MM-dd')` (date-fns is already imported; identical on a UTC server), and the server passes
   the resolved start and end to the picker. Reaches GA4 and Renaissance: its own PR with a Renaissance proof,
   before clients get logins, my call.
+
+## Known Follow-ups: Organic Social (from the 2026-10-02 walkthrough changes)
+
+- [ ] **A hidden influencer section is a one-way door for staff.** With `influencerSection.<CHANNEL>.hidden` (Piper's
+  Instagram), a staff member who marks an owned post as Influencer moves it into a section nobody can see, and no page
+  can undo it. The way back is deleting that post's row from the designations table, on my go. Accepted because Jasmine
+  asked for the section to go (call 2026-10-02, 20:13). A staff-only greyed row would close it.
+- [ ] **Renaissance's YTD points will not match its tiles.** `ytd-review@3` plots whole months (the sheet, or Dash for
+  that month), while Renaissance's v1 tiles follow the rolling picker window. Accepted (spec 2026-10-02 section 8).
+- [ ] **The sheet's Total Followers change will not equal Dash's Net New Followers.** On an outline client's finished
+  month, Total Followers and Views follow the sheet and every other tile stays Dash. Accepted (spec section 5).
+- [ ] **`ytd-review@3`'s "(live)" month can be up to an hour old, and its past months re-read Dash hourly.** The live
+  range ends at the last complete UTC day, while the Dash window ends at a fixed `T04:00:00Z` (`base.ts`), so "(live)"
+  stays on until 04:00 UTC on the 1st. Renaissance is not locked, so a past month taken from Dash can move if Dash
+  revises it. Accepted for a live client.
+- [ ] **A live client can put a note on any past day.** With `chartNotes`, the save action has no first-month floor
+  (spec section 7: "any day up to today"), so a note on a day years back is accepted and no view may ever reach it.
+  Clamp to a sane floor (for example January of last year) if that becomes noise.
+- [ ] **The tiles and the YTD block can each start the same sheet read on a cold cache.** `cached()` replays a finished
+  read or failure, but two reads of one tab that start in the same render both go to the Sheets API. A quota cost, not a
+  correctness one; a per-request `cache()` around the read would make it one.
+- [ ] **`ytd-review@3` shares the YTD timeout copy and all-or-nothing behaviour.** Its timeout card says to shorten the
+  date range, which a YTD viewer cannot do, and `mapWithConcurrency` keeps starting months after one fails. Fold both into
+  the existing YTD follow-ups above.
+
