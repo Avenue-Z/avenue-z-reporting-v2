@@ -203,3 +203,21 @@ test('a Dash failure is logged with slug, channel, month, kind and status, never
   expect(logs().join('\n')).not.toContain('123456')
   expect(logs().join('\n')).not.toContain('https://')
 })
+
+test('auth and rate-limit failures log their own kind and status; a lone timeout still shows the timeout card', async () => {
+  const { DashAuthError, DashRateLimitError, DashTimeoutError } = await import('@/lib/dash-social/client')
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
+    if (range.startsWith('custom:2026-08')) throw new DashAuthError('401 from https://api.example/brands/123456')
+    if (range.startsWith('custom:2026-09')) throw new DashRateLimitError('429 persistent at https://api.example/brands/123456')
+    return kpis(1, 1)
+  })
+  await YtdLiveReviewSection({ ctx: CTX })
+  const l = logs().filter((x) => x.includes('ytd-review@3 Dash request failed'))
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-08 kind=auth status=401')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-09 kind=rate-limit status=429')
+  getOutlineKpis.mockReset()
+  getOutlineKpis.mockImplementation(async (_s: string, range: string) => { if (range.startsWith('custom:2026-05')) throw new DashTimeoutError(); return kpis(1, 1) })
+  const r = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
+  expect(r.container.textContent).toContain('Taking longer than usual')
+})
