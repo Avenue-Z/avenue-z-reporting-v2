@@ -234,6 +234,7 @@ test('an invalid setting with a miscased key warns once, as invalid, and not abo
 // Fix list X6: staff can still reach a hidden platform's posts behind a closed control; clients never receive them.
 const hiddenProp = () => (SortableTopContent.mock.calls.at(-1) as unknown as [{ hiddenInfluencer?: { platform: string; posts: { id: number }[] }[] }])[0].hiddenInfluencer
 
+// A pin: this passed before X6 too, and must keep passing.
 test('Instagram hidden, client viewer: the hidden posts are not passed to the component at all', async () => {
   withSection({ INSTAGRAM: { hidden: true } })
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
@@ -251,6 +252,7 @@ test('Instagram hidden, staff: the hidden row is passed as hiddenInfluencer, and
   expect(hiddenProp()!.map((g) => [g.platform, g.posts.map((p) => p.id)])).toEqual([['Instagram', [2]]])
 })
 
+// A pin: this passed before X6 too, and must keep passing.
 test('a hidden-platform post a team member marked Organic leaves the hidden row and is in the owned row', async () => {
   withSection({ INSTAGRAM: { hidden: true } })
   getDesignations.mockResolvedValueOnce(new Map([[2, 'organic']]))
@@ -260,8 +262,23 @@ test('a hidden-platform post a team member marked Organic leaves the hidden row 
   expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('hiddenInfluencer')
 })
 
+// A pin: this passed before X6 too, and must keep passing.
 test('no hidden platform: staff get no hiddenInfluencer', async () => {
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
   expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('hiddenInfluencer')
+})
+
+// Batch C review: on Overview, every hidden platform sits behind the one control; a visible platform keeps its row.
+test('Overview with Instagram and Facebook hidden: both rows go to hiddenInfluencer, LinkedIn stays visible', async () => {
+  withSection({ INSTAGRAM: { hidden: true }, FACEBOOK: { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([
+    post(1, { author: 'creator_one' }),
+    post(2, { channel: 'FACEBOOK', platform: 'Facebook', ugc: true }),
+    post(3, { channel: 'FACEBOOK', platform: 'Facebook', ugc: true }),
+    post(4, { channel: 'LINKEDIN', platform: 'LinkedIn', ugc: true }),
+  ])
+  render(<>{await TopContentOutlineSection({ ctx: { ...IG, channel: null }, ownedLimit: 5 })}</>)
+  expect(props().influencer.map((g) => g.platform)).toEqual(['LinkedIn'])
+  expect(hiddenProp()!.map((g) => [g.platform, g.posts.map((p) => p.id).sort()]).sort()).toEqual([['Facebook', [2, 3]], ['Instagram', [1]]])
 })
