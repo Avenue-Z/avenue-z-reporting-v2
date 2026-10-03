@@ -9,7 +9,17 @@ const OMITTED = /^(?:INSTAGRAM|FACEBOOK|TWITTER|LINKEDIN|TIKTOK): Dash omitted r
 const NO_METRICS = /^(?:INSTAGRAM|FACEBOOK|TWITTER|LINKEDIN|TIKTOK): Dash returned no metrics for this brand$/
 const SAFE_NAME = /^[A-Za-z][A-Za-z0-9]{0,39}$/
 
+/** Never throws: an error object with a throwing getter, or a hostile proxy, gives `error=other` (a throw here would
+ *  replace the real error the block rethrows, and lose the log line). */
 export function ytdFailureFields(e: unknown): string {
+  try {
+    return fields(e)
+  } catch {
+    return 'kind=other status=none error=other'
+  }
+}
+
+function fields(e: unknown): string {
   if (e instanceof DashApiError) {
     const kind = e instanceof DashTimeoutError ? 'timeout' : e instanceof DashRateLimitError ? 'rate-limit'
       : e instanceof DashAuthError ? 'auth' : 'api'

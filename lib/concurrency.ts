@@ -10,8 +10,9 @@
  * overlapped), spiking Function CPU Duration and tripping Neon errors. A rolling
  * window keeps peak concurrency flat while still overlapping work.
  *
- * A rejected `fn` rejects the whole call with the first error, matching Promise.all semantics, and no new item
- * starts after it: the YTD blocks (parts/ytd-review*.tsx) throw a month's answer away once any month fails, so starting
+ * A rejected `fn` rejects the whole call with the first error, matching Promise.all semantics, and no worker starts a
+ * new item once it has seen that failure (a sibling that settles in the same tick can still start one more, so at most
+ * limit - 1 extra): the YTD blocks (parts/ytd-review*.tsx) throw a month's answer away once any month fails, so starting
  * more would only spend Dash requests. Items already in flight are not cancelled; they run to completion, and a later
  * rejection is handled by the Promise.all below, so it is never unhandled. The cache warmer and the health sweep catch
  * inside `fn` and never reject, so none of this changes them.

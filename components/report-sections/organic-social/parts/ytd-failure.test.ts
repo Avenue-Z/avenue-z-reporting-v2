@@ -57,3 +57,10 @@ test('the log lines carry the version, slug, channel and month', () => {
     '[organic-social] ytd-review@1 client read failed slug=c',
   ])
 })
+
+test('an error whose fields throw, or a hostile proxy, still gives a line and never throws', () => {
+  const badMessage = new Error('x'); Object.defineProperty(badMessage, 'message', { get() { throw new Error('boom') } })
+  const badName = new Error('x'); Object.defineProperty(badName, 'name', { get() { throw new Error('boom') } })
+  const proxy = new Proxy({}, { getPrototypeOf() { throw new Error('boom') } })
+  for (const e of [badMessage, badName, proxy]) expect(ytdFailureFields(e)).toBe('kind=other status=none error=other')
+})
