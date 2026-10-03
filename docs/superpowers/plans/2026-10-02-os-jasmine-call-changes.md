@@ -2087,7 +2087,7 @@ The merge happens only after CI is green, every comment from Paul and me is reso
 Runs only after Task 13 Step 8.
 
 - [ ] **Step 1:** Open the `dev → staging` promotion PR the same way #305 was opened, and merge it on my go.
-- [ ] **Step 2:** Confirm the staging deployment finished on the new staging tip (bounded `vercel inspect staging.reporting.avenuez.com`), and record its `dpl_` id.
+- [ ] **Step 2:** Confirm the staging deployment finished on the new staging tip (a bounded `vercel inspect` of the staging domain), and record its `dpl_` id.
 - [ ] **Step 3:** With a staff session on staging, before any data write, check two things. The outline clients' Facebook tabs show no footnote. A finished month whose sheet cells are filled shows the sheet's Total Followers and Views, while a blank month shows the locked number. Read values from page text, not screenshots (handoff prompt section 7). Also confirm Renaissance's platform tabs render exactly as before (the v1 graphs, no YTD block), and run the read-only staging Renaissance digest probe (`gate-staging-readonly-2.mts` pattern) against `ren-baseline-before-qa-2026-10-02.json`. Expected: Renaissance matches its baseline.
 
 ---
