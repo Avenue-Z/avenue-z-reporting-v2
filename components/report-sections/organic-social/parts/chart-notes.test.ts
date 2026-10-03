@@ -255,6 +255,8 @@ test('a live client\'s clients see approved notes only, and only inside the rang
     row({ id: 'a1', day: '2026-02-03', body: 'Outside the range' }),
   ])
   const r = await withNotes({ ...CLIENT, from: '2026-01-01', to: '2026-01-31', items: [], series: { channels: ['Instagram'], points: [] } })
+  // The table must be read, so the empty result comes from filtering, not from notes being off.
+  expect(getChartNotes).toHaveBeenCalledWith('client-uuid', 'INSTAGRAM')
   expect(r.items).toEqual([])
   expect(r.controls).toBeUndefined()
 })
