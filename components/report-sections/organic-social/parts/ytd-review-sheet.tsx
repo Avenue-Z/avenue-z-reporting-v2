@@ -54,12 +54,17 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
   for (const g of s.missingColumn) console.warn(`[organic-social] ytd sheet column missing slug=${clientSlug} channel=${channel} graph=${g}`)
   for (const x of s.invalid) console.warn(`[organic-social] ytd sheet cell invalid slug=${clientSlug} channel=${channel} month=${x.month} graph=${x.graph}`)
   if (s.followers.points.length === 0 && s.views.points.length === 0) return <NoData />
+  return ytdReviewBlock(s.followers, s.views)
+}
+
+/** The YTD Review block from its two graphs. Shared by version 2 and version 3 (live), so both draw the same markup. */
+export function ytdReviewBlock(followers: YtdGraph, views: YtdGraph) {
   return (
     <section className="space-y-4">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
       <div className="grid gap-5 lg:grid-cols-2">
-        {graph('Follower Growth, Year to Date', 'followers', 'Total Followers', 'follower', s.followers)}
-        {graph('Views, Year to Date', 'views', 'Views', 'views', s.views)}
+        {graph('Follower Growth, Year to Date', 'followers', 'Total Followers', 'follower', followers)}
+        {graph('Views, Year to Date', 'views', 'Views', 'views', views)}
       </div>
     </section>
   )

@@ -7,7 +7,7 @@ vi.mock('@/lib/organic-social/top-content', () => import('./__mocks__/top-conten
 import { resolveSection } from '@/lib/report-sections/resolve'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
-import { ORGANIC_SOCIAL_PLATFORM_TEMPLATE } from '../template'
+import { ORGANIC_SOCIAL_PLATFORM_TEMPLATE, ORGANIC_SOCIAL_TEMPLATE } from '../template'
 import type { SectionOverride } from '@/lib/report-sections/types'
 
 const KEY = 'organic-social:platform'
@@ -44,4 +44,23 @@ test('the new parts can never be promoted into the shared template Renaissance r
     'referenced part platform-headlines@3 is not published',
     'referenced part engagement-breakdown@1 is not published',
   ])
+})
+
+// Renaissance's override after the staging write (spec section 8): exactly this JSON goes into
+// report_section_config['organic-social:platform']. Its 'organic-social' entry (Commentary) is left alone.
+const RENAISSANCE_PLATFORM: SectionOverride = {
+  versions: { 'follower-graph': 2, 'engagement-trend': 2 },
+  extraParts: [{ id: 'ytd-review', version: 3 }],
+  order: ['ytd-review', 'platform-headlines', 'follower-graph', 'engagement-trend', 'top-content'],
+}
+
+test("Renaissance's new platform override resolves to exactly the approved parts and passes the app's validator", () => {
+  expect(pins(RENAISSANCE_PLATFORM)).toEqual(['ytd-review@3', 'platform-headlines@1', 'follower-graph@2', 'engagement-trend@2', 'top-content@2'])
+  expect(() => validateSectionOverride(KEY, RENAISSANCE_PLATFORM, REGISTRIES, ORGANIC_SOCIAL_PLATFORM_TEMPLATE.order.map((p) => p.id))).not.toThrow()
+})
+
+test("Renaissance's Overview resolves exactly as today whatever its platform override says", () => {
+  const ov = (o?: SectionOverride) => resolveSection(ORGANIC_SOCIAL_TEMPLATE, o).map((p) => `${p.id}@${p.version}`)
+  const renaissance = { 'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] }, 'organic-social:platform': RENAISSANCE_PLATFORM } as Record<string, SectionOverride>
+  expect(ov(renaissance['organic-social'])).toEqual(ov(undefined))
 })
