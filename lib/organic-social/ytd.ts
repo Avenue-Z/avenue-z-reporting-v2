@@ -4,13 +4,15 @@
 import type { OutlineKpis } from './outline-headlines'
 import type { DashChannel } from './metrics'
 import type { YtdCell, YtdTab } from './ytd-sheet'
+import type { Clock } from './reporting-months'
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 const CUSTOM_RE = /^custom:(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})$/
 const SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export type YtdConfig = { firstMonth: string; comparison: 'previous-month' | 'previous-year' }
-export type YtdMonth = { key: string; dateRange: string; compareRange: string; partial: boolean }
+/** compareRange is null only for ytd-review@3's live months, which ask Dash with no comparison. */
+export type YtdMonth = { key: string; dateRange: string; compareRange: string | null; partial: boolean }
 export type YtdPoint = { key: string; label: string; followers: number; views: number }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -98,6 +100,22 @@ export function ytdSheetMonths(dateRange: string, compareRange: string, cfg: Ytd
     out.push({ key: k, dateRange: `custom:${k}-01,${lastOf(k)}`, compareRange: `custom:${ref}-01,${lastOf(ref)}`, partial: false })
   }
   return [...out, ...base]
+}
+
+/** ytd-review@3's months for a live client (spec 2026-10-02 section 8): January of the last complete UTC day's year
+ *  through that day's month, whatever the date picker shows. Earlier months are whole. The last runs to that day and is
+ *  partial ("(live)") unless that day ends the month and its Dash window has closed: every Dash window ends at a fixed
+ *  T04:00:00Z (base.ts), so the day is still open while liveDayInProgress. So on the 1st the previous month is shown
+ *  whole, and on January 1 the previous year is. No comparison: compareRange is null. */
+export function ytdLiveMonths(clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): YtdMonth[] {
+  const day = clock.lastCompleteUtcDay
+  const key = day.slice(0, 7)
+  const out: YtdMonth[] = []
+  for (let k = `${key.slice(0, 4)}-01`; k < key; k = addMonths(k, 1)) {
+    out.push({ key: k, dateRange: `custom:${k}-01,${lastOf(k)}`, compareRange: null, partial: false })
+  }
+  out.push({ key, dateRange: `custom:${key}-01,${day}`, compareRange: null, partial: day < lastOf(key) || clock.liveDayInProgress })
+  return out
 }
 
 /** Months on or after firstMonth with a blank cell (or no column) on either graph: the only ones Dash is asked for. */

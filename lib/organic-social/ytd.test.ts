@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { monthsNeedingDash, ytdConfig, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
+import { monthsNeedingDash, ytdConfig, ytdLiveMonths, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
+import { clockFor } from './reporting-months'
 import type { YtdCell, YtdTab } from './ytd-sheet'
 
 const CFG = { firstMonth: '2026-08', comparison: 'previous-month' } as const
@@ -159,4 +160,31 @@ test('S7: after the first point, an N/A from firstMonth is named and never fille
   const s = ytdSheetSeries(months, tabOf(col({ 2: n(20), 8: NA, 9: n(9) }), col({}, n(1))), 'INSTAGRAM', '2026-08', { '2026-08': tile(800, 80) })
   expect(s.followers.points.map((p) => p.label)).toEqual(['Feb', 'Sep'])
   expect(s.followers.gaps).toContain('Aug')
+})
+
+const live = (iso: string) => ytdLiveMonths(clockFor(new Date(iso)))
+
+test('ytdLiveMonths: January through the last complete UTC day\'s month; the last month is live and runs to that day; no comparison', () => {
+  const r = live('2026-10-15T12:00:00Z')
+  expect(keys(r)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'])
+  expect(r[8]).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: false })
+  expect(r[9]).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-14', compareRange: null, partial: true })
+})
+test('ytdLiveMonths: on the 1st after 04:00 UTC the previous month is whole and no longer live', () => {
+  const r = live('2026-11-01T12:00:00Z')
+  expect(r.at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: false })
+})
+test('ytdLiveMonths: liveDayInProgress keeps (live) on the 1st before 04:00 UTC, while that Dash window is still open', () => {
+  expect(live('2026-11-01T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: true })
+})
+test('ytdLiveMonths: on January 1 the block shows the previous year, January to December', () => {
+  const r = live('2027-01-01T12:00:00Z')
+  expect(keys(r)).toHaveLength(12)
+  expect(r[0].key).toBe('2026-01')
+  expect(r.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: false })
+  expect(keys(live('2027-01-02T12:00:00Z'))).toEqual(['2027-01'])
+})
+test('ytdLiveMonths: the New York evening of the last day is still that month (UTC is ahead)', () => {
+  // 2026-09-30 22:00 New York = 2026-10-01 02:00 UTC: the last complete UTC day is Sep 30, still in progress.
+  expect(live('2026-10-01T02:00:00Z').at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: true })
 })
