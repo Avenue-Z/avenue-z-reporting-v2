@@ -275,7 +275,7 @@ test('a live client: a future day is still refused, before any write', async () 
   as('INTERNAL_ADMIN', 'approver@avenuez.com')
   vi.mocked(getClientBySlug).mockResolvedValue(LIVE as never)
   const r = await saveChartNoteAction({ ...INPUT, day: '2026-09-25' })
-  expect(r.ok).toBe(false)
+  expect(r).toEqual({ ok: false, error: 'That day has not happened yet.' })
   for (const w of writes()) expect(w).not.toHaveBeenCalled()
 })
 

@@ -1,6 +1,7 @@
 // YTD Review (Jasmine's outlines, block 2 of every platform tab): which months the year-to-date graphs
 // show, the request for each, and the points. Pure. It reads only the range on screen and the client's
-// own reportingMonths setting, so it needs nothing from locked months (PR 256).
+// own reportingMonths setting, so it needs nothing from locked months (PR 256). ytdLiveMonths (ytd-review@3, a live
+// client) reads only the request clock it is given.
 import type { OutlineKpis } from './outline-headlines'
 import type { DashChannel } from './metrics'
 import type { YtdCell, YtdTab } from './ytd-sheet'

@@ -188,3 +188,10 @@ test('ytdLiveMonths: the New York evening of the last day is still that month (U
   // 2026-09-30 22:00 New York = 2026-10-01 02:00 UTC: the last complete UTC day is Sep 30, still in progress.
   expect(live('2026-10-01T02:00:00Z').at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: true })
 })
+test('ytdLiveMonths: a leap February, a December date, and January 1 before 04:00 UTC', () => {
+  expect(live('2028-03-01T12:00:00Z').at(-1)).toEqual({ key: '2028-02', dateRange: 'custom:2028-02-01,2028-02-29', compareRange: null, partial: false })
+  const dec = live('2026-12-15T12:00:00Z')
+  expect(dec).toHaveLength(12)
+  expect(dec.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-14', compareRange: null, partial: true })
+  expect(live('2027-01-01T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: true })
+})

@@ -157,3 +157,32 @@ test('at most 3 Dash requests in flight', async () => {
   await YtdLiveReviewSection({ ctx: CTX })
   expect(peak).toBeLessThanOrEqual(3)
 })
+
+test('a client with a malformed reportingMonths (null or broken) is still skipped: no Dash call, no lock rows', async () => {
+  for (const reportingMonths of [null, 'broken']) {
+    vi.mocked(console.warn).mockClear()
+    getClientBySlug.mockResolvedValue(client({ reportingMonths, ...ENTRY }))
+    expect(await YtdLiveReviewSection({ ctx: CTX })).toBeNull()
+    expect(logs()).toEqual(['[organic-social] ytd-review@3 skipped (client has reportingMonths) slug=live-co'])
+  }
+  expect(getOutlineKpis).not.toHaveBeenCalled()
+  expect(readYtdTab).not.toHaveBeenCalled()
+})
+
+test('Facebook and LinkedIn tabs draw the block too', async () => {
+  readYtdTab.mockResolvedValue([['CLIENT: Live Co'], ['FOLLOWER GROWTH'], ['', 'Facebook', 'LinkedIn'], ...MONTHS.map((m, i) => [m, String(i + 1), String(i + 2)]),
+    [], ['VIEWS'], ['', 'Facebook', 'LinkedIn'], ...MONTHS.map((m, i) => [m, String(i + 3), String(i + 4)])])
+  for (const channel of ['FACEBOOK', 'LINKEDIN'] as const) {
+    const el = await YtdLiveReviewSection({ ctx: { ...CTX, channel } })
+    expect(charts(el)[0].data.map((d) => d.month)).toHaveLength(10)
+  }
+  expect(getOutlineKpis).not.toHaveBeenCalled() // every month Jan to Oct filled in both columns
+})
+
+test('three Dash requests really run at once with no sheet (ten months)', async () => {
+  getClientBySlug.mockResolvedValue(client())
+  let inFlight = 0, peak = 0
+  getOutlineKpis.mockImplementation(async () => { inFlight++; peak = Math.max(peak, inFlight); await Promise.resolve(); await Promise.resolve(); inFlight--; return kpis(1, 1) })
+  await YtdLiveReviewSection({ ctx: CTX })
+  expect(peak).toBe(3)
+})

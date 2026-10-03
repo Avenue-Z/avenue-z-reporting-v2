@@ -59,7 +59,7 @@ test("Renaissance's new platform override resolves to exactly the approved parts
   expect(() => validateSectionOverride(KEY, RENAISSANCE_PLATFORM, REGISTRIES, ORGANIC_SOCIAL_PLATFORM_TEMPLATE.order.map((p) => p.id))).not.toThrow()
 })
 
-test("Renaissance's Overview resolves exactly as today whatever its platform override says", () => {
+test("Renaissance's Overview override (Commentary sharedParts only) resolves exactly as no override", () => {
   const ov = (o?: SectionOverride) => resolveSection(ORGANIC_SOCIAL_TEMPLATE, o).map((p) => `${p.id}@${p.version}`)
   const renaissance = { 'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] }, 'organic-social:platform': RENAISSANCE_PLATFORM } as Record<string, SectionOverride>
   expect(ov(renaissance['organic-social'])).toEqual(ov(undefined))

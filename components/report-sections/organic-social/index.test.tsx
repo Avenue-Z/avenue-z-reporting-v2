@@ -208,3 +208,26 @@ describe('locked months in the section', () => {
     for (const c of seen) expect(c.email).toBe('writer@avenuez.com')
   })
 })
+
+// Renaissance after its staging write (spec section 8, plan Task 16): the new parts live only under the platform key, so
+// Overview keeps exactly today's parts. This pins the key split at index.tsx:61 with the exact planned config.
+test("Renaissance's planned config: Overview asks for today's parts; a platform tab asks for YTD@3 and the v2 graphs", async () => {
+  const registry = await import('@/lib/report-sections/registry')
+  const asked: string[] = []
+  const spy = vi.spyOn(registry, 'lookup').mockImplementation((_reg, id, version) => { asked.push(`${id}@${version}`); return { render: () => null } as never })
+  getSectionTemplate.mockResolvedValue(null)
+  getClientBySlug.mockResolvedValue({ slug: 'renaissance', dashSocialConfig: { brandId: 1, chartNotes: true }, reportSectionConfig: {
+    'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] },
+    'organic-social:platform': {
+      versions: { 'follower-graph': 2, 'engagement-trend': 2 },
+      extraParts: [{ id: 'ytd-review', version: 3 }],
+      order: ['ytd-review', 'platform-headlines', 'follower-graph', 'engagement-trend', 'top-content'],
+    },
+  } })
+  await OrganicSocialBody({ ctx })
+  expect(asked).toEqual(['platform-headlines@1', 'engagement-trend@1', 'top-content@2'])
+  asked.length = 0
+  await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: 'INSTAGRAM' }) })
+  expect(asked).toEqual(['ytd-review@3', 'platform-headlines@1', 'follower-graph@2', 'engagement-trend@2', 'top-content@2'])
+  spy.mockRestore()
+})

@@ -117,7 +117,8 @@ New part version `ytd-review@3`, registered with the outline parts (`parts/regis
   new lock rows or requests for an outline client.
 - Months, whatever the date picker shows, anchored on the last complete UTC day `D` (`clockFor(...).lastCompleteUtcDay`,
   `reporting-months.ts:87`): January of `D`'s year through `D`'s month. Earlier months are whole months; `D`'s month runs
-  `custom:<YYYY-MM>-01,<D>` and is labelled "(live)" unless `D` is that month's last day. So on the 1st the block shows the
+  `custom:<YYYY-MM>-01,<D>` and is labelled "(live)" unless `D` is that month's last day and its Dash window has closed
+  (`liveDayInProgress` false, from 04:00 UTC). So on the 1st the block shows the
   previous month whole, and on January 1 it shows the previous year January to December (its own `ytdSheets` entry).
 - Per month and graph: a sheet number wins; a blank or missing column uses live Dash (`getOutlineKpis` with no comparison;
   Renaissance's reads are never locked); N/A or invalid is a gap; S7's leading-run rule applies.
@@ -179,7 +180,7 @@ PIMCO's setup. The sort buttons. The month rules.
 | Akara YTD, January to May blank | Not listed as gaps; graph starts at the first point |
 | Joy of Life YTD, leading N/A | Not listed; a later N/A is named |
 | Renaissance, picker on last 30 days | YTD January through current month (live) |
-| Renaissance on the 1st of a month (UTC) | YTD through the previous month, whole |
+| Renaissance on the 1st of a month (UTC) | YTD through the previous month: "(live)" before 04:00 UTC, whole after |
 | Renaissance on January 1 (UTC) | YTD January to December of the previous year |
 | Outline client with ytd-review@3 pinned | Renders nothing, one log line; no new Dash requests or locks |
 | Finished month from the sheet, comparison month not in the sheet | Sheet value, no arrow |
