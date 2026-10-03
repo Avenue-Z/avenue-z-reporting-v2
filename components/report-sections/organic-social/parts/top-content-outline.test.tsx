@@ -219,3 +219,14 @@ test('a miscased or unknown key keeps today\'s section and warns once, naming on
   expect(lines.join('\n')).not.toContain('123456')
   warn.mockRestore()
 })
+
+// Batch B review: an invalid setting gets only the invalid warning, even when it also has a skipped key.
+test('an invalid setting with a miscased key warns once, as invalid, and not about ignored keys', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  withSection({ INSTAGRAM: { label: 'x', hidden: true }, Instagram: {} })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  const lines = warn.mock.calls.map((c) => c.join(' ')).filter((l) => l.includes('influencerSection'))
+  expect(lines).toEqual(['[organic-social] influencerSection invalid slug=client-a; showing the default Influencer section'])
+  warn.mockRestore()
+})
