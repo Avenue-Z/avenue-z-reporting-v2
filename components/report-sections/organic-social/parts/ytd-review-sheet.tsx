@@ -12,8 +12,9 @@ import { BarChart } from '@/components/charts/bar-chart'
 import { TrendSkeleton } from '../skeletons'
 import { NoData } from '../no-data'
 import type { OrganicSocialCtx } from '../ctx'
-import { safe, Fallback } from './shared'
+import { safe, Fallback, YTD_TIMEOUT_TEXT } from './shared'
 import { YtdReviewSection } from './ytd-review'
+import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
 
 /** YTD Review from the team's YTD sheet (docs/superpowers/specs/2026-10-01-ytd-from-sheet-design.md). The sheet is
  *  the source of truth; a month it has not filled in yet, from firstMonth on, shows the Data block's own value. With
@@ -23,7 +24,7 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
   const { clientSlug, channel, dateRange, compareRange } = ctx
   if (!channel || !OUTLINE_DATA_ROWS.standard[channel]) return null
   let client: Awaited<ReturnType<typeof getClientBySlug>>
-  try { client = await getClientBySlug(clientSlug) } catch { return <Fallback kind="error" /> }
+  try { client = await getClientBySlug(clientSlug) } catch { logYtdClientReadFailed(2, clientSlug); return <Fallback kind="error" /> }
   const dsc = client?.dashSocialConfig as { reportingMonths?: unknown; ytdSheets?: unknown } | null | undefined
   const cfg = ytdConfig(dsc?.reportingMonths)
   if (!cfg) {
@@ -47,19 +48,27 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
     return <Fallback kind="error" />
   }
   const need = monthsNeedingDash(months, tab, channel, cfg.firstMonth)
-  const r = await safe(mapWithConcurrency(need, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel))
+  const r = await safe(mapWithConcurrency(need, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel).catch((e: unknown) => {
+    logYtdMonthFailed(2, clientSlug, channel, m.key, e)
+    throw e
+  }))
     .then((all) => ytdSheetSeries(months, tab, channel, cfg.firstMonth, Object.fromEntries(need.map((m, i) => [m.key, all[i]])))))
-  if (!r.data) return <Fallback kind={r.error!} />
+  if (!r.data) return <Fallback kind={r.error!} timeoutText={YTD_TIMEOUT_TEXT} />
   const s = r.data
   for (const g of s.missingColumn) console.warn(`[organic-social] ytd sheet column missing slug=${clientSlug} channel=${channel} graph=${g}`)
   for (const x of s.invalid) console.warn(`[organic-social] ytd sheet cell invalid slug=${clientSlug} channel=${channel} month=${x.month} graph=${x.graph}`)
   if (s.followers.points.length === 0 && s.views.points.length === 0) return <NoData />
+  return ytdReviewBlock(s.followers, s.views)
+}
+
+/** The YTD Review block from its two graphs. Shared by version 2 and version 3 (live), so both draw the same markup. */
+export function ytdReviewBlock(followers: YtdGraph, views: YtdGraph) {
   return (
     <section className="space-y-4">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
       <div className="grid gap-5 lg:grid-cols-2">
-        {graph('Follower Growth, Year to Date', 'followers', 'Total Followers', 'follower', s.followers)}
-        {graph('Views, Year to Date', 'views', 'Views', 'views', s.views)}
+        {graph('Follower Growth, Year to Date', 'followers', 'Total Followers', 'follower', followers)}
+        {graph('Views, Year to Date', 'views', 'Views', 'views', views)}
       </div>
     </section>
   )

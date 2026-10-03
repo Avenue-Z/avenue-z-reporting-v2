@@ -119,7 +119,23 @@ async function read(sheetId: string, tab: string, signal: AbortSignal): Promise<
   return (body.values as unknown[][] | undefined) ?? []
 }
 
+/** Reads of one tab that overlap share one request (the tiles and the YTD block can start the same read in one render
+ *  on a cold cache). The entry lives only while the read is in flight, so the hourly cache and the failure replay in
+ *  cached() are untouched, and every caller still passes through cached() for its own health and PERF record. The
+ *  read's deadline and abort belong to the read, so one caller can never cancel another's. */
+const inFlight = new Map<string, Promise<unknown[][]>>()
+function readYtdTabShared(sheetId: string, tab: string): Promise<unknown[][]> {
+  const key = JSON.stringify([sheetId, tab])
+  const pending = inFlight.get(key)
+  if (pending) return pending
+  const read = readYtdTabImpl(sheetId, tab)
+  inFlight.set(key, read)
+  // The cleanup chain swallows the rejection it sees, so it can never be unhandled; callers get `read` itself.
+  read.then(() => inFlight.delete(key), () => inFlight.delete(key))
+  return read
+}
+
 /** At most one read per tab an hour; a failure is replayed for 30 seconds rather than re-asked on every render. */
-export const readYtdTab = cached('google-sheets', 'ytdTab', readYtdTabImpl, {
+export const readYtdTab = cached('google-sheets', 'ytdTab', readYtdTabShared, {
   version: '1', ttlSeconds: 3600, negativeTtlSeconds: 30, healthCritical: true,
 })

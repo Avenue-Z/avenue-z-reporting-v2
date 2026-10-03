@@ -123,3 +123,40 @@ test('ytd-review is registered at version 1 and unpublished', () => {
   expect(ORGANIC_SOCIAL_PARTS['ytd-review'][1]).toBe(ytdReviewV1)
   expect(ytdReviewV1.published).toBe(false)
 })
+
+// Fix list X5 and X1: @1 sends at most three months at once with the same arguments, and says which month failed.
+test('at most three months in flight, with the same request per month in month order', async () => {
+  getClientBySlug.mockResolvedValue(client({ firstMonth: '2026-01' }))
+  let live = 0, peak = 0
+  getOutlineKpis.mockImplementation(async () => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 2)); live--; return kpis(1, 1) })
+  const DEC = { ...SEPT, dateRange: 'custom:2026-12-01,2026-12-31', compareRange: 'custom:2026-11-01,2026-11-30' }
+  await YtdReviewSection({ ctx: DEC })
+  expect(peak).toBe(3)
+  expect(getOutlineKpis).toHaveBeenCalledTimes(12)
+  expect(getOutlineKpis.mock.calls[0]).toEqual(['c', 'custom:2026-01-01,2026-01-31', 'custom:2025-12-01,2025-12-31', 'INSTAGRAM'])
+  expect(getOutlineKpis.mock.calls.at(-1)).toEqual(['c', 'custom:2026-12-01,2026-12-31', 'custom:2026-11-01,2026-11-30', 'INSTAGRAM'])
+})
+
+test('a failed month logs one line naming the month; a failed client read logs one line', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  getOutlineKpis.mockResolvedValueOnce(kpis(1, 1)).mockRejectedValueOnce(new Error('dash down'))
+  await YtdReviewSection({ ctx: SEPT })
+  getClientBySlug.mockRejectedValueOnce(new Error('db down'))
+  await YtdReviewSection({ ctx: SEPT })
+  expect(err.mock.calls.map((c) => c.join(' '))).toEqual([
+    '[organic-social] ytd-review@1 Dash request failed slug=c channel=INSTAGRAM month=2026-09 kind=other status=none error=Error',
+    '[organic-social] ytd-review@1 client read failed slug=c',
+  ])
+  err.mockRestore()
+})
+
+// Fix list X4: the YTD block picks its own months, so its timeout card never says to shorten the date range.
+test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
+  const { DashTimeoutError } = await import('@/lib/dash-social/client')
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  getOutlineKpis.mockRejectedValue(new DashTimeoutError())
+  const text = render(<>{await YtdReviewSection({ ctx: SEPT })}</>).container.textContent
+  expect(text).toBe('Taking longer than usual. Try again in a minute.')
+  expect(text).not.toContain('shorter date range')
+  err.mockRestore()
+})

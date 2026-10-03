@@ -97,3 +97,48 @@ test('T8 the cards keep all four metrics under a list', () => {
     expect(screen.getAllByText(label).some((el) => !el.closest('button'))).toBe(true)
   }
 })
+
+test('the influencer heading and region name follow influencerHeading; absent, they are exactly today\'s', () => {
+  const influencer = group([mk(100, 1)])
+  const first = view({ influencer })
+  expect(screen.getByRole('region', { name: 'Influencer posts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Influencer Posts' })).toBeInTheDocument()
+  first.unmount()
+  view({ influencer, influencerHeading: 'Partnership Posts' })
+  expect(screen.getByRole('region', { name: 'Partnership Posts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Partnership Posts' })).toBeInTheDocument()
+  expect(screen.queryByText('Influencer Posts')).toBeNull()
+})
+
+test('with no influencer rows left (a hidden platform was the only one), there is no influencer region and no heading', () => {
+  view({ influencer: [], influencerHeading: 'Partnership Posts' })
+  expect(screen.queryByRole('region')).toBeNull()
+  expect(screen.queryByText('Partnership Posts')).toBeNull()
+})
+
+// Fix list X7: an empty heading falls back to today's text for both the heading and the region name.
+test('an empty influencerHeading renders today\'s heading and region name', () => {
+  view({ influencer: group([mk(100, 1)]), influencerHeading: '' })
+  expect(screen.getByRole('region', { name: 'Influencer posts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Influencer Posts' })).toBeInTheDocument()
+})
+
+// Fix list X6: posts hidden from clients sit behind a closed, staff-only control, so a designation can be undone.
+test('hiddenInfluencer renders a closed control with its post count and the rows inside', () => {
+  const { container } = view({ canEdit: true, hiddenInfluencer: [{ platform: 'Instagram', posts: [mk(1, 5), mk(2, 3)] }, { platform: 'Facebook', posts: [mk(3, 1)] }] })
+  const details = container.querySelector('details')!
+  expect(details).not.toBeNull()
+  expect(details.open).toBe(false)
+  expect(details.querySelector('summary')!.textContent).toBe('Show posts hidden from clients (3)')
+  const region = within(details).getByRole('region', { name: 'Hidden from clients' })
+  expect(shownIn(region).sort()).toEqual(['cap-1', 'cap-2', 'cap-3'])
+})
+
+test('without hiddenInfluencer, or with no hidden posts, there is no control and the markup is today\'s', () => {
+  const a = view({ influencer: group([mk(100, 1)]) })
+  expect(a.container.querySelector('details')).toBeNull()
+  expect(a.container.textContent).not.toContain('hidden from clients')
+  a.unmount()
+  const b = view({ hiddenInfluencer: [] })
+  expect(b.container.querySelector('details')).toBeNull()
+})

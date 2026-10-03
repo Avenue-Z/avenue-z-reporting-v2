@@ -2,7 +2,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { getChartNotes } from '@/lib/organic-social/chart-notes/select'
 import { notesByDay, type DayNote } from '@/lib/organic-social/chart-notes/pick'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
-import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { notesOn } from '@/lib/organic-social/chart-notes/enabled'
 import { dayLabel, thumbOf, topPostByDate } from '@/lib/organic-social/annotations'
 import type { Annotation, AnnotationChart, NoteControls } from '@/lib/organic-social/annotations'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
@@ -56,9 +56,9 @@ export async function withNotes(args: {
   try {
     const client = await getClientBySlug(args.clientSlug)
     if (!client) throw new Error(`no client row for ${args.clientSlug}`)
-    // Notes are only for clients on locked months. Renaissance is not, so its graphs never read
-    // the table, whoever renders them. Not an error: nothing to log.
-    if (!hasReportingMonths(client)) return { items: args.items }
+    // Notes are on for clients on locked months, and for a live client with chartNotes switched on (Renaissance). For
+    // anyone else the graphs never read the table, whoever renders them. Not an error: nothing to log.
+    if (!notesOn(client)) return { items: args.items }
     const rows = await getChartNotes(client.id, args.channel)
     const byDay = notesByDay(rows, { chart: args.chart, from: args.from, to: args.to, canEdit: caps.canEdit })
     const posts = args.posts ?? []
@@ -97,7 +97,8 @@ export async function withNotes(args: {
         ...(args.posts === null ? { postsFailed: true as const } : {}),
         // Every day of the window, each with its posts or none, so a note can go on a day with no post (a PR
         // hit, Jasmine 2026-09-29). None when the posts could not load: a day's posts are then unknown.
-        // The window ends where the chart does: in the live month the last complete UTC day (yesterday), never today.
+        // The window ends at min(today UTC, range end): in a locked client's live month that is yesterday; a live
+        // client's range (Renaissance, this month or this week) can include today, which is allowed (plan ruling 5).
         days: args.posts === null ? [] : windowDays(args.from, last)
           .map((day) => ({ day, posts: postsOn(day).map((p) => ({ id: p.id, thumb: thumbOf(p) })) })),
       },

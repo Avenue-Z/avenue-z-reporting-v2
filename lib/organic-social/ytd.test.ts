@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { monthsNeedingDash, ytdConfig, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
+import { monthsNeedingDash, ytdConfig, ytdLiveMonths, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
+import { clockFor } from './reporting-months'
 import type { YtdCell, YtdTab } from './ytd-sheet'
 
 const CFG = { firstMonth: '2026-08', comparison: 'previous-month' } as const
@@ -97,17 +98,19 @@ test('ytdSheetSeries: the sheet wins; blank from firstMonth uses our value; N/A,
   const t = tabOf(col({ 1: NA, 2: n(20), 3: BAD, 8: n(80) }), col({ 2: n(2), 8: n(8), 9: n(9) }))
   const s = ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', { '2026-09': tile(900, 999) })
   expect(s.followers.points).toEqual([{ key: '2026-02', label: 'Feb', value: 20 }, { key: '2026-08', label: 'Aug', value: 80 }, { key: '2026-09', label: 'Sep', value: 900 }])
-  expect(s.followers.gaps).toEqual(['Jan', 'Mar', 'Apr', 'May', 'Jun', 'Jul'])
+  // Jan is N/A before the first point (Feb): not listed (S7). Mar is invalid: always named.
+  expect(s.followers.gaps).toEqual(['Mar', 'Apr', 'May', 'Jun', 'Jul'])
   expect(s.views.points.map((p) => [p.label, p.value])).toEqual([['Feb', 2], ['Aug', 8], ['Sep', 9]])
   expect(s.invalid).toEqual([{ month: '2026-03', graph: 'followers' }])
   expect(s.missingColumn).toEqual([])
 })
-test('a blank month whose Data block is noData is a gap; a missing built entry throws', () => {
+test('a blank month whose Data block is noData is a gap after the first point; before it, it is not listed', () => {
   const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
   const t = tabOf(col({}), col({}))
   const s = ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', { '2026-08': tile(1, 1, true), '2026-09': tile(5, 6) })
   expect(s.followers.points.map((p) => p.label)).toEqual(['Sep'])
-  expect(s.followers.gaps).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'])
+  // Jan to Jul blank before firstMonth and Aug noData all come before the first point (Sep): none is listed (S7).
+  expect(s.followers.gaps).toEqual([])
   expect(() => ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', {})).toThrow('YTD: no tiles for 2026-08')
 })
 test('a sheet number on the live month keeps (live); a missing column is reported per graph', () => {
@@ -116,11 +119,79 @@ test('a sheet number on the live month keeps (live); a missing column is reporte
   expect(s.followers.points.at(-1)).toEqual({ key: '2026-10', label: 'Oct (live)', value: 7 })
   expect(s.missingColumn).toEqual(['views'])
   expect(s.views.points.map((p) => [p.label, p.value])).toEqual([['Aug', 1], ['Sep', 2], ['Oct (live)', 3]])
-  expect(s.views.gaps).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'])
+  // A missing column reads as blank: Jan to Jul come before the first point (Aug) and are not listed (S7).
+  expect(s.views.gaps).toEqual([])
 })
-test('N/A from firstMonth on is a gap even when our own value exists: the sheet says there is no number', () => {
+test('N/A from firstMonth on is never filled from Dash, even when our own value exists', () => {
   const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
   const s = ytdSheetSeries(months, tabOf(col({ 8: NA, 9: n(9) }), col({ 8: n(8), 9: n(9) })), 'INSTAGRAM', '2026-08', { '2026-08': tile(800, 80) })
-  expect(s.followers.points.map((p) => p.label)).toEqual(['Sep'])
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Sep']) // Aug's Dash value is not used
+  expect(s.followers.gaps).toEqual([]) // Jan to Aug come before the first point: not listed (S7)
+})
+test('S7: a leading run of blank and N/A months is not listed; a gap after the first point is named', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const t = tabOf(col({ 1: NA, 2: B, 3: n(30), 4: NA, 5: B, 6: n(60), 7: n(70), 8: n(80), 9: n(90) }), col({}, n(1)))
+  const s = ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', {})
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Mar', 'Jun', 'Jul', 'Aug', 'Sep'])
+  expect(s.followers.gaps).toEqual(['Apr', 'May'])
+  expect(s.views.gaps).toEqual([])
+})
+test('S7: an invalid cell is always named and ends the leading run', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const t = tabOf(col({ 1: B, 2: BAD, 3: B, 4: n(40), 5: n(50), 6: n(60), 7: n(70), 8: n(80), 9: n(90) }), col({}, n(1)))
+  const s = ytdSheetSeries(months, t, 'INSTAGRAM', '2026-08', {})
+  expect(s.followers.gaps).toEqual(['Feb', 'Mar'])
+  expect(s.invalid).toEqual([{ month: '2026-02', graph: 'followers' }])
+})
+test('S7: a graph with no point at all lists no gaps (the card shows No data)', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({}, NA), col({}, n(1))), 'INSTAGRAM', '2026-08', {})
+  expect(s.followers.points).toEqual([])
+  expect(s.followers.gaps).toEqual([])
+})
+test('S7: after the first point, a blank month whose Data block is noData is named', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({ 2: n(20) }), col({ 2: n(2) })), 'INSTAGRAM', '2026-08', { '2026-08': tile(1, 1, true), '2026-09': tile(5, 6) })
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Feb', 'Sep'])
+  expect(s.followers.gaps).toEqual(['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'])
+})
+test('S7: after the first point, an N/A from firstMonth is named and never filled from Dash', () => {
+  const months = ytdSheetMonths('custom:2026-09-01,2026-09-30', 'x', CFG)!
+  const s = ytdSheetSeries(months, tabOf(col({ 2: n(20), 8: NA, 9: n(9) }), col({}, n(1))), 'INSTAGRAM', '2026-08', { '2026-08': tile(800, 80) })
+  expect(s.followers.points.map((p) => p.label)).toEqual(['Feb', 'Sep'])
   expect(s.followers.gaps).toContain('Aug')
+})
+
+const live = (iso: string) => ytdLiveMonths(clockFor(new Date(iso)))
+
+test('ytdLiveMonths: January through the last complete UTC day\'s month; the last month is live and runs to that day; no comparison', () => {
+  const r = live('2026-10-15T12:00:00Z')
+  expect(keys(r)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'])
+  expect(r[8]).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: false })
+  expect(r[9]).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-14', compareRange: null, partial: true })
+})
+test('ytdLiveMonths: on the 1st after 04:00 UTC the previous month is whole and no longer live', () => {
+  const r = live('2026-11-01T12:00:00Z')
+  expect(r.at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: false })
+})
+test('ytdLiveMonths: liveDayInProgress keeps (live) on the 1st before 04:00 UTC, while that Dash window is still open', () => {
+  expect(live('2026-11-01T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: true })
+})
+test('ytdLiveMonths: on January 1 the block shows the previous year, January to December', () => {
+  const r = live('2027-01-01T12:00:00Z')
+  expect(keys(r)).toHaveLength(12)
+  expect(r[0].key).toBe('2026-01')
+  expect(r.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: false })
+  expect(keys(live('2027-01-02T12:00:00Z'))).toEqual(['2027-01'])
+})
+test('ytdLiveMonths: the New York evening of the last day is still that month (UTC is ahead)', () => {
+  // 2026-09-30 22:00 New York = 2026-10-01 02:00 UTC: the last complete UTC day is Sep 30, still in progress.
+  expect(live('2026-10-01T02:00:00Z').at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: true })
+})
+test('ytdLiveMonths: a leap February, a December date, and January 1 before 04:00 UTC', () => {
+  expect(live('2028-03-01T12:00:00Z').at(-1)).toEqual({ key: '2028-02', dateRange: 'custom:2028-02-01,2028-02-29', compareRange: null, partial: false })
+  const dec = live('2026-12-15T12:00:00Z')
+  expect(dec).toHaveLength(12)
+  expect(dec.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-14', compareRange: null, partial: true })
+  expect(live('2027-01-01T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: true })
 })
