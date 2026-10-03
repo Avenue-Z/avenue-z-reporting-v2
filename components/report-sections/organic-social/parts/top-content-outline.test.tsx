@@ -230,3 +230,38 @@ test('an invalid setting with a miscased key warns once, as invalid, and not abo
   expect(lines).toEqual(['[organic-social] influencerSection invalid slug=client-a; showing the default Influencer section'])
   warn.mockRestore()
 })
+
+// Fix list X6: staff can still reach a hidden platform's posts behind a closed control; clients never receive them.
+const hiddenProp = () => (SortableTopContent.mock.calls.at(-1) as unknown as [{ hiddenInfluencer?: { platform: string; posts: { id: number }[] }[] }])[0].hiddenInfluencer
+
+test('Instagram hidden, client viewer: the hidden posts are not passed to the component at all', async () => {
+  withSection({ INSTAGRAM: { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  render(<>{await TopContentOutlineSection({ ctx: { ...IG, role: 'CLIENT_VIEWER' }, ownedLimit: 5 })}</>)
+  expect(props().influencer).toEqual([])
+  expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('hiddenInfluencer')
+  expect(JSON.stringify(SortableTopContent.mock.calls.at(-1))).not.toContain('creator_one')
+})
+
+test('Instagram hidden, staff: the hidden row is passed as hiddenInfluencer, and still not as a visible influencer row', async () => {
+  withSection({ INSTAGRAM: { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect(props().influencer).toEqual([])
+  expect(hiddenProp()!.map((g) => [g.platform, g.posts.map((p) => p.id)])).toEqual([['Instagram', [2]]])
+})
+
+test('a hidden-platform post a team member marked Organic leaves the hidden row and is in the owned row', async () => {
+  withSection({ INSTAGRAM: { hidden: true } })
+  getDesignations.mockResolvedValueOnce(new Map([[2, 'organic']]))
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one', ugc: true })])
+  await show()
+  expect(props().owned[0].posts.map((x) => x.id).sort()).toEqual([1, 2])
+  expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('hiddenInfluencer')
+})
+
+test('no hidden platform: staff get no hiddenInfluencer', async () => {
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('hiddenInfluencer')
+})

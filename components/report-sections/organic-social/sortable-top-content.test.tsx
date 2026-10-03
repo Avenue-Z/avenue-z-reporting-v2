@@ -122,3 +122,23 @@ test('an empty influencerHeading renders today\'s heading and region name', () =
   expect(screen.getByRole('region', { name: 'Influencer posts' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Influencer Posts' })).toBeInTheDocument()
 })
+
+// Fix list X6: posts hidden from clients sit behind a closed, staff-only control, so a designation can be undone.
+test('hiddenInfluencer renders a closed control with its post count and the rows inside', () => {
+  const { container } = view({ canEdit: true, hiddenInfluencer: [{ platform: 'Instagram', posts: [mk(1, 5), mk(2, 3)] }, { platform: 'Facebook', posts: [mk(3, 1)] }] })
+  const details = container.querySelector('details')!
+  expect(details).not.toBeNull()
+  expect(details.open).toBe(false)
+  expect(details.querySelector('summary')!.textContent).toBe('Show posts hidden from clients (3)')
+  const region = within(details).getByRole('region', { name: 'Hidden from clients' })
+  expect(shownIn(region).sort()).toEqual(['cap-1', 'cap-2', 'cap-3'])
+})
+
+test('without hiddenInfluencer, or with no hidden posts, there is no control and the markup is today\'s', () => {
+  const a = view({ influencer: group([mk(100, 1)]) })
+  expect(a.container.querySelector('details')).toBeNull()
+  expect(a.container.textContent).not.toContain('hidden from clients')
+  a.unmount()
+  const b = view({ hiddenInfluencer: [] })
+  expect(b.container.querySelector('details')).toBeNull()
+})

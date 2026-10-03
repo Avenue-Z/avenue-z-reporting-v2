@@ -45,16 +45,17 @@ New optional key `dash_social_config.influencerSection`, validated at runtime:
 `{ "<CHANNEL>": { "hidden": true } | { "label": "<text>" } }`, keys from the Dash channels (`INSTAGRAM`, `FACEBOOK`, ...).
 - Read by `top-content@3` only (`parts/top-content-outline.tsx`, which already reads the client row at `:23`) and passed to
   `SortableTopContent` as two optional props. Renaissance uses top-content@2, so it cannot change.
-- `hidden: true`: that platform's influencer row is not rendered, for staff and clients; when no influencer row is left, the
-  section and its heading are not rendered. The posts are not moved into the owned top 5 (the split is unchanged).
+- `hidden: true`: that platform's influencer row is not rendered as a section, for staff and clients; when no influencer row
+  is left, the section and its heading are not rendered. The posts are not moved into the owned top 5 (the split is
+  unchanged). Staff only: the hidden row sits behind a closed "Show posts hidden from clients (n)" control, so a post can
+  be marked Organic again (fix list X6); clients never receive those posts.
 - `label`: replaces the section's heading text and `aria-label` on that platform's tab (the heading is one per section;
   Overview always keeps the default, plan ruling 1). The staff-only card toggle
   ("Influencer · change", `designation-toggle.tsx:33`) is unchanged.
 - Absent or invalid key: today's behaviour (heading "Influencer Posts"). An invalid key logs once with the slug, never the value.
 - Staging data (guarded script, dry run first, my go): Piper `{ "INSTAGRAM": { "hidden": true } }`; Akara
   `{ "INSTAGRAM": { "label": "Partnership Posts" } }`. Other Piper tabs stay as they are (S2 is Instagram only).
-- Edge: a staff member can no longer re-mark Piper's hidden Instagram influencer posts from that tab (accepted: Jasmine asked
-  for the section to go).
+- Edge: a staff member re-marks Piper's hidden Instagram influencer posts by opening the closed staff control (fix list X6).
 - Checked on staging 2026-10-02: Piper's Instagram (August) is the only Piper tab with an influencer section; Facebook,
   LinkedIn and X show none in August or September (staff session). PIMCO's only tab, LinkedIn, shows none in August (client
   session). Jasmine's 19:17 condition may cover PIMCO, but there is nothing there to remove, and she asked for no PIMCO change

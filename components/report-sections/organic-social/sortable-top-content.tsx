@@ -79,6 +79,7 @@ export function SortableTopContent({
   ownedLimit,
   sortKeys,
   influencerHeading,
+  hiddenInfluencer,
 }: {
   owned: PlatformGroup[]
   influencer: PlatformGroup[]
@@ -94,6 +95,10 @@ export function SortableTopContent({
   /** The Influencer section's heading and region name, set per client by top-content@3 (Akara's "Partnership Posts").
    *  Absent: today's text, so top-content@2 (Renaissance) renders exactly as before. */
   influencerHeading?: string
+  /** Staff only (top-content@3 passes it only when the role may set designations): influencer rows on a platform the
+   *  client hides (Piper's Instagram), behind a closed control so the default view matches the client's, and so a post
+   *  can still be marked Organic again. Absent or empty: no control, today's markup. */
+  hiddenInfluencer?: PlatformGroup[]
 }) {
   const metrics = sortKeys ? SORT_METRICS.filter((m) => sortKeys.includes(m.key)) : SORT_METRICS
   const [sortKey, setSortKey] = useState<SortKey>(metrics.some((m) => m.key === 'engagements') ? 'engagements' : metrics[0].key)
@@ -160,6 +165,15 @@ export function SortableTopContent({
           <h3 className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{influencerHeading || 'Influencer Posts'}</h3>
           <div className="space-y-5">{rows(influencer, 'influencer')}</div>
         </section>
+      )}
+
+      {hiddenInfluencer && hiddenInfluencer.length > 0 && (
+        <details className="space-y-3">
+          <summary className="cursor-pointer text-xs font-bold text-text-muted hover:text-white">
+            Show posts hidden from clients ({hiddenInfluencer.reduce((n, g) => n + g.posts.length, 0)})
+          </summary>
+          <section aria-label="Hidden from clients" className="space-y-5 pt-3">{rows(hiddenInfluencer, 'hidden')}</section>
+        </details>
       )}
     </div>
   )

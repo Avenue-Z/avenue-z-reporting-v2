@@ -56,15 +56,20 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const { owned, influencer } = partitionByAuthor(posts, stored, own)
   const hidden = hiddenInfluencerPlatforms(section)
   const label = influencerLabel(section, channel)
+  const canEdit = canSetDesignation(role)
+  const influencerRows = groupPostsByPlatform(influencer, channel)
+  // A hidden platform's influencer row is never shown as a section (Piper's Instagram, spec section 4), and its posts
+  // stay influencer: they are not moved into the owned top 5. Staff get the row behind a closed control so a designation
+  // can be undone (fix list X6); for anyone else it is filtered out here, on the server, so it never reaches a browser.
+  const hiddenRows = canEdit ? influencerRows.filter((g) => hidden.has(g.platform)) : []
   return (
     <section className="space-y-6">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
-      {/* A hidden platform's influencer row is not rendered, for staff and clients alike (Piper's Instagram, spec section
-          4). Its posts stay classified as influencer: they are not moved into the owned top 5. */}
       <SortableTopContent owned={groupPostsByPlatform(owned, channel)}
-        influencer={groupPostsByPlatform(influencer, channel).filter((g) => !hidden.has(g.platform))}
-        clientSlug={clientSlug} canEdit={canSetDesignation(role)} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}
-        {...(label ? { influencerHeading: label } : {})} />
+        influencer={influencerRows.filter((g) => !hidden.has(g.platform))}
+        clientSlug={clientSlug} canEdit={canEdit} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}
+        {...(label ? { influencerHeading: label } : {})}
+        {...(hiddenRows.length > 0 ? { hiddenInfluencer: hiddenRows } : {})} />
     </section>
   )
 }
