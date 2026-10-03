@@ -156,8 +156,8 @@ export function SortableTopContent({
       <div className="space-y-5">{rows(owned, 'owned')}</div>
 
       {influencer.length > 0 && (
-        <section aria-label={influencerHeading ?? 'Influencer posts'} className="space-y-3">
-          <h3 className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{influencerHeading ?? 'Influencer Posts'}</h3>
+        <section aria-label={influencerHeading || 'Influencer posts'} className="space-y-3">
+          <h3 className="text-xs font-extrabold uppercase tracking-widest text-text-muted">{influencerHeading || 'Influencer Posts'}</h3>
           <div className="space-y-5">{rows(influencer, 'influencer')}</div>
         </section>
       )}

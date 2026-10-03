@@ -149,3 +149,14 @@ test('a failed month logs one line naming the month; a failed client read logs o
   ])
   err.mockRestore()
 })
+
+// Fix list X4: the YTD block picks its own months, so its timeout card never says to shorten the date range.
+test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
+  const { DashTimeoutError } = await import('@/lib/dash-social/client')
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  getOutlineKpis.mockRejectedValue(new DashTimeoutError())
+  const text = render(<>{await YtdReviewSection({ ctx: SEPT })}</>).container.textContent
+  expect(text).toBe('Taking longer than usual. Try again in a minute.')
+  expect(text).not.toContain('shorter date range')
+  err.mockRestore()
+})

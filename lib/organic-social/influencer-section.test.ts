@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { hiddenInfluencerPlatforms, influencerLabel, parseInfluencerSection } from './influencer-section'
+import { hiddenInfluencerPlatforms, ignoredInfluencerKeys, influencerLabel, parseInfluencerSection } from './influencer-section'
 
 test('absent is none; a valid hide and a valid label parse', () => {
   expect(parseInfluencerSection(undefined)).toEqual({ kind: 'none' })
@@ -50,4 +50,13 @@ test('pinned edges: JSON prototype keys are ignored and pollute nothing', () => 
 test('a setting\'s hidden or label must be its own key, never inherited', () => {
   const inherited = Object.assign(Object.create({ hidden: true }), { other: 1 })
   expect(parseInfluencerSection({ INSTAGRAM: inherited })).toEqual({ kind: 'invalid' })
+})
+
+// Fix list X2: keys the parser skips are reported, naming only a miscased channel; anything else is only counted,
+// since a hand-typed key could hold anything.
+test('ignored keys: a miscased channel is named, any other unknown key is counted, valid keys are not reported', () => {
+  expect(ignoredInfluencerKeys({ Instagram: { hidden: true }, FACEBOOK: { hidden: true } })).toEqual({ miscased: ['Instagram'], other: 0 })
+  expect(ignoredInfluencerKeys({ instagram: { label: 'P' }, MYSPACE: {}, 'brand 123456': {} })).toEqual({ miscased: ['instagram'], other: 2 })
+  expect(ignoredInfluencerKeys({ INSTAGRAM: { hidden: true } })).toEqual({ miscased: [], other: 0 })
+  for (const v of [undefined, null, 'x', [], 5]) expect(ignoredInfluencerKeys(v)).toEqual({ miscased: [], other: 0 })
 })

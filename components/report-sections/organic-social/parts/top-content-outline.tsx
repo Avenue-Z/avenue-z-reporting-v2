@@ -4,7 +4,7 @@ import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { fetchTopContent } from '@/lib/organic-social/top-content'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
-import { hiddenInfluencerPlatforms, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
+import { hiddenInfluencerPlatforms, ignoredInfluencerKeys, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
 import { OUTLINE_SORT_KEYS, handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
 import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
@@ -27,8 +27,16 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
     dsc = (await getClientBySlug(clientSlug))?.dashSocialConfig
     own = parseOwnHandles(dsc)
   } catch { own = {} }
-  const parsed = parseInfluencerSection((dsc as { influencerSection?: unknown } | null | undefined)?.influencerSection)
+  const rawSection = (dsc as { influencerSection?: unknown } | null | undefined)?.influencerSection
+  const parsed = parseInfluencerSection(rawSection)
   if (parsed.kind === 'invalid') console.warn(`[organic-social] influencerSection invalid slug=${clientSlug}; showing the default Influencer section`)
+  if (parsed.kind === 'ok') {
+    // Keys the parser skipped do nothing, as the spec says; say so, so a miscased channel is not silent (fix list X2).
+    const ignored = ignoredInfluencerKeys(rawSection)
+    if (ignored.miscased.length > 0 || ignored.other > 0) {
+      console.warn(`[organic-social] influencerSection ignored keys slug=${clientSlug} keys=${ignored.miscased.join(',') || 'none'} other=${ignored.other}`)
+    }
+  }
   const section = parsed.kind === 'ok' ? parsed.section : {}
   if (missingAuthors(r.data, own)) {
     console.warn(`[organic-social] top content has no post authors slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)

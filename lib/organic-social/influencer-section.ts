@@ -31,6 +31,20 @@ export function parseInfluencerSection(value: unknown): { kind: 'ok'; section: I
   return { kind: 'ok', section }
 }
 
+/** The keys the parser skips, for a warning (fix list X2): a key whose upper-case form is a channel (a miscased
+ *  channel, the slip this exists to catch) is named; any other key is only counted, since hand-typed jsonb could hold
+ *  anything. Anything that is not an object reports nothing (the parser already calls it invalid or absent). */
+export function ignoredInfluencerKeys(value: unknown): { miscased: string[]; other: number } {
+  const out = { miscased: [] as string[], other: 0 }
+  if (!isObj(value)) return out
+  for (const key of Object.keys(value)) {
+    if ((CHANNELS as readonly string[]).includes(key)) continue
+    if ((CHANNELS as readonly string[]).includes(key.toUpperCase())) out.miscased.push(key)
+    else out.other++
+  }
+  return out
+}
+
 /** The platforms whose influencer row is not rendered, as the gallery labels them (PlatformGroup.platform). */
 export function hiddenInfluencerPlatforms(section: InfluencerSection): Set<string> {
   return new Set((Object.keys(section) as DashChannel[]).filter((c) => section[c] && 'hidden' in section[c]!).map((c) => CHANNEL_LABEL[c]))

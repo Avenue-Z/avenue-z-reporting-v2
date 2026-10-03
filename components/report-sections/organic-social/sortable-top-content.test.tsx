@@ -115,3 +115,10 @@ test('with no influencer rows left (a hidden platform was the only one), there i
   expect(screen.queryByRole('region')).toBeNull()
   expect(screen.queryByText('Partnership Posts')).toBeNull()
 })
+
+// Fix list X7: an empty heading falls back to today's text for both the heading and the region name.
+test('an empty influencerHeading renders today\'s heading and region name', () => {
+  view({ influencer: group([mk(100, 1)]), influencerHeading: '' })
+  expect(screen.getByRole('region', { name: 'Influencer posts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Influencer Posts' })).toBeInTheDocument()
+})

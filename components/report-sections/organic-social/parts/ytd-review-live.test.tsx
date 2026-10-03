@@ -255,3 +255,13 @@ test('after a failed month no new month starts', async () => {
   await new Promise((done) => setTimeout(done, 40))
   expect(getOutlineKpis).toHaveBeenCalledTimes(3)
 })
+
+// Fix list X4.
+test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
+  const { DashTimeoutError } = await import('@/lib/dash-social/client')
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockRejectedValue(new DashTimeoutError())
+  const text = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>).container.textContent
+  expect(text).toBe('Taking longer than usual. Try again in a minute.')
+  expect(text).not.toContain('shorter date range')
+})

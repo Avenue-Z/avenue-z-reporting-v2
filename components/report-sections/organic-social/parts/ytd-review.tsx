@@ -11,7 +11,7 @@ import { BarChart } from '@/components/charts/bar-chart'
 import { TrendSkeleton } from '../skeletons'
 import { NoData } from '../no-data'
 import type { OrganicSocialCtx } from '../ctx'
-import { safe, Fallback } from './shared'
+import { safe, Fallback, YTD_TIMEOUT_TEXT } from './shared'
 import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
 
 /** YTD Review (Jasmine's outlines, block 2 of every platform tab). Each point is the request that
@@ -36,7 +36,7 @@ export async function YtdReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
     throw e
   }))
     .then((all) => ytdSeries(months, Object.fromEntries(months.map((m, i) => [m.key, all[i]])))))
-  if (!r.data) return <Fallback kind={r.error!} />
+  if (!r.data) return <Fallback kind={r.error!} timeoutText={YTD_TIMEOUT_TEXT} />
   if (r.data.points.length === 0) return <NoData />
   const data = r.data.points.map((p) => ({ month: p.label, followers: p.followers, views: p.views }))
   const followerKeys = [{ key: 'followers', label: 'Total Followers' }]

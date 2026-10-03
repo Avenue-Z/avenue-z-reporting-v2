@@ -12,7 +12,7 @@ import { BarChart } from '@/components/charts/bar-chart'
 import { TrendSkeleton } from '../skeletons'
 import { NoData } from '../no-data'
 import type { OrganicSocialCtx } from '../ctx'
-import { safe, Fallback } from './shared'
+import { safe, Fallback, YTD_TIMEOUT_TEXT } from './shared'
 import { YtdReviewSection } from './ytd-review'
 import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
 
@@ -53,7 +53,7 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
     throw e
   }))
     .then((all) => ytdSheetSeries(months, tab, channel, cfg.firstMonth, Object.fromEntries(need.map((m, i) => [m.key, all[i]])))))
-  if (!r.data) return <Fallback kind={r.error!} />
+  if (!r.data) return <Fallback kind={r.error!} timeoutText={YTD_TIMEOUT_TEXT} />
   const s = r.data
   for (const g of s.missingColumn) console.warn(`[organic-social] ytd sheet column missing slug=${clientSlug} channel=${channel} graph=${g}`)
   for (const x of s.invalid) console.warn(`[organic-social] ytd sheet cell invalid slug=${clientSlug} channel=${channel} month=${x.month} graph=${x.graph}`)

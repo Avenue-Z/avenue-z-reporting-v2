@@ -149,3 +149,13 @@ test('a failed month logs one line naming the month and the missing metrics; a f
     '[organic-social] ytd-review@2 client read failed slug=c',
   ])
 })
+
+// Fix list X4.
+test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
+  const { DashTimeoutError } = await import('@/lib/dash-social/client')
+  readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? '1' : ''), (i) => (i < 8 ? '1' : '')))
+  getOutlineKpis.mockRejectedValue(new DashTimeoutError())
+  const text = render(<>{await YtdSheetReviewSection({ ctx: SEPT })}</>).container.textContent
+  expect(text).toBe('Taking longer than usual. Try again in a minute.')
+  expect(text).not.toContain('shorter date range')
+})

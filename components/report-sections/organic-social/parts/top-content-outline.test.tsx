@@ -206,3 +206,16 @@ test('a failed client read keeps the default section and logs no influencerSecti
   expect(warn.mock.calls.some((c) => c.join(' ').includes('influencerSection'))).toBe(false)
   warn.mockRestore()
 })
+
+// Fix list X2: a miscased key does nothing (as the spec says), but now says so, by slug, without any other key's text.
+test('a miscased or unknown key keeps today\'s section and warns once, naming only the miscased key', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  withSection({ Instagram: { hidden: true }, 'brand 123456': { hidden: true } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
+  await show()
+  expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
+  const lines = warn.mock.calls.map((c) => c.join(' ')).filter((l) => l.includes('influencerSection'))
+  expect(lines).toEqual(['[organic-social] influencerSection ignored keys slug=client-a keys=Instagram other=1'])
+  expect(lines.join('\n')).not.toContain('123456')
+  warn.mockRestore()
+})
