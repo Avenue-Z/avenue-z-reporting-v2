@@ -135,3 +135,17 @@ test('a missing column warns and uses our value from firstMonth; at most 3 Dash 
   expect(charts(el)[0].data.map((d) => d.month)).toEqual(['Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
   expect(logs().filter((l) => l.includes('ytd sheet column missing slug=c channel=INSTAGRAM'))).toHaveLength(2)
 })
+
+// Fix list X1: @2 says which month failed and why (never the message), and logs a failed client read.
+test('a failed month logs one line naming the month and the missing metrics; a failed client read logs one line', async () => {
+  readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? '1' : ''), (i) => (i < 8 ? '1' : '')))
+  getOutlineKpis.mockRejectedValue(new Error('INSTAGRAM: Dash omitted requested metric(s): PROFILE_CLICKS'))
+  const r = render(<>{await YtdSheetReviewSection({ ctx: SEPT })}</>)
+  expect(r.container.textContent).toContain("Couldn't load this section.")
+  getClientBySlug.mockRejectedValueOnce(new Error('db down'))
+  await YtdSheetReviewSection({ ctx: SEPT })
+  expect(logs()).toEqual([
+    '[organic-social] ytd-review@2 Dash request failed slug=c channel=INSTAGRAM month=2026-09 kind=other status=none missing=PROFILE_CLICKS',
+    '[organic-social] ytd-review@2 client read failed slug=c',
+  ])
+})

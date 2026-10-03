@@ -14,6 +14,7 @@ import { NoData } from '../no-data'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 import { YtdReviewSection } from './ytd-review'
+import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
 
 /** YTD Review from the team's YTD sheet (docs/superpowers/specs/2026-10-01-ytd-from-sheet-design.md). The sheet is
  *  the source of truth; a month it has not filled in yet, from firstMonth on, shows the Data block's own value. With
@@ -23,7 +24,7 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
   const { clientSlug, channel, dateRange, compareRange } = ctx
   if (!channel || !OUTLINE_DATA_ROWS.standard[channel]) return null
   let client: Awaited<ReturnType<typeof getClientBySlug>>
-  try { client = await getClientBySlug(clientSlug) } catch { return <Fallback kind="error" /> }
+  try { client = await getClientBySlug(clientSlug) } catch { logYtdClientReadFailed(2, clientSlug); return <Fallback kind="error" /> }
   const dsc = client?.dashSocialConfig as { reportingMonths?: unknown; ytdSheets?: unknown } | null | undefined
   const cfg = ytdConfig(dsc?.reportingMonths)
   if (!cfg) {
@@ -47,7 +48,10 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
     return <Fallback kind="error" />
   }
   const need = monthsNeedingDash(months, tab, channel, cfg.firstMonth)
-  const r = await safe(mapWithConcurrency(need, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel))
+  const r = await safe(mapWithConcurrency(need, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel).catch((e: unknown) => {
+    logYtdMonthFailed(2, clientSlug, channel, m.key, e)
+    throw e
+  }))
     .then((all) => ytdSheetSeries(months, tab, channel, cfg.firstMonth, Object.fromEntries(need.map((m, i) => [m.key, all[i]])))))
   if (!r.data) return <Fallback kind={r.error!} />
   const s = r.data

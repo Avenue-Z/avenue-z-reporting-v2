@@ -191,15 +191,17 @@ test('a Dash failure is logged with slug, channel, month, kind and status, never
   const { DashApiError, DashTimeoutError } = await import('@/lib/dash-social/client')
   getClientBySlug.mockResolvedValue(client())
   getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
-    if (range.startsWith('custom:2026-09')) throw new DashApiError('500 persistent at https://api.example/brands/123456/reports')
-    if (range.startsWith('custom:2026-10')) throw new DashTimeoutError()
+    // August and September, not September and October: after the first failure no new month starts (fix list X5), so
+    // both failures sit in one batch of three. The API error lands first, so the card is the error card.
+    if (range.startsWith('custom:2026-08')) throw new DashApiError('500 persistent at https://api.example/brands/123456/reports')
+    if (range.startsWith('custom:2026-09')) throw new DashTimeoutError()
     return kpis(1, 1)
   })
   const r = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
   expect(r.container.textContent).toContain("Couldn't load this section.")
   const l = logs().filter((x) => x.includes('ytd-review@3 Dash request failed'))
-  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-09 kind=api status=500')
-  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-10 kind=timeout status=none')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-08 kind=api status=500')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-09 kind=timeout status=none')
   expect(logs().join('\n')).not.toContain('123456')
   expect(logs().join('\n')).not.toContain('https://')
 })
@@ -220,4 +222,22 @@ test('auth and rate-limit failures log their own kind and status; a lone timeout
   getOutlineKpis.mockImplementation(async (_s: string, range: string) => { if (range.startsWith('custom:2026-05')) throw new DashTimeoutError(); return kpis(1, 1) })
   const r = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
   expect(r.container.textContent).toContain('Taking longer than usual')
+})
+
+// Fix list X1: a failure that is not a Dash error says why, and a failed client read is logged.
+test('an omitted metric or a plain error says why; a failed client read logs one line', async () => {
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
+    if (range.startsWith('custom:2026-01')) throw new Error('INSTAGRAM: Dash omitted requested metric(s): PROFILE_CLICKS, AVG_ENGAGEMENT_RATE_VIEWS')
+    if (range.startsWith('custom:2026-02')) throw new TypeError('https://api.example/brands/123456')
+    return kpis(1, 1)
+  })
+  await YtdLiveReviewSection({ ctx: CTX })
+  getClientBySlug.mockRejectedValueOnce(new Error('db down'))
+  await YtdLiveReviewSection({ ctx: CTX })
+  const l = logs()
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-01 kind=other status=none missing=PROFILE_CLICKS,AVG_ENGAGEMENT_RATE_VIEWS')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-02 kind=other status=none error=TypeError')
+  expect(l).toContain('[organic-social] ytd-review@3 client read failed slug=live-co')
+  expect(l.join('\n')).not.toContain('123456')
 })

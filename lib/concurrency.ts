@@ -10,10 +10,11 @@
  * overlapped), spiking Function CPU Duration and tripping Neon errors. A rolling
  * window keeps peak concurrency flat while still overlapping work.
  *
- * A rejected `fn` rejects the whole call, matching Promise.all semantics.
- * Note: like raw Promise.all, in-flight siblings are NOT cancelled on rejection
- * — they run to completion, and a second rejection surfaces as an unhandled
- * rejection. Current callers can't reject (they try/catch internally).
+ * A rejected `fn` rejects the whole call with the first error, matching Promise.all semantics, and no new item
+ * starts after it: the YTD blocks (parts/ytd-review*.tsx) throw a month's answer away once any month fails, so starting
+ * more would only spend Dash requests. Items already in flight are not cancelled; they run to completion, and a later
+ * rejection is handled by the Promise.all below, so it is never unhandled. The cache warmer and the health sweep catch
+ * inside `fn` and never reject, so none of this changes them.
  * `limit` is clamped to at least 1 so a zero/negative value can't deadlock.
  */
 export async function mapWithConcurrency<T, R>(
@@ -24,11 +25,17 @@ export async function mapWithConcurrency<T, R>(
   const results = new Array<R>(items.length)
   const workers = Math.max(1, Math.min(limit, items.length))
   let next = 0
+  let failed = false
 
   async function worker(): Promise<void> {
-    while (next < items.length) {
+    while (!failed && next < items.length) {
       const i = next++
-      results[i] = await fn(items[i], i)
+      try {
+        results[i] = await fn(items[i], i)
+      } catch (e) {
+        failed = true
+        throw e
+      }
     }
   }
 

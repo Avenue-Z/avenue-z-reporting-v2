@@ -5,7 +5,7 @@ vi.mock('google-auth-library', () => ({ GoogleAuth: vi.fn(function () { return {
 vi.mock('@/lib/cache', () => ({ cached: (_v: string, _f: string, impl: unknown) => impl }))
 
 import { GoogleAuth } from 'google-auth-library'
-import { classifyCell, parseYtdGrid, rangeFor, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
+import { classifyCell, parseYtdGrid, rangeFor, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
 
 // Made-up sheet id and numbers only.
 const ID = 'TESTSHEETID_abcdefghij0123'
@@ -117,5 +117,48 @@ test('the 10 second limit covers the token and the body, not only the response h
     expect((e2 as YtdSheetReadError).status).toBe('timeout')
   } finally {
     vi.useRealTimers()
+  }
+})
+
+// Fix list X3: the tiles and the YTD block can start the same read in one render; while it is in flight it is shared.
+// (cached() is a passthrough in this file, so these calls reach the shared read directly.)
+test('two reads of one tab in flight together make one request, and both get the grid', async () => {
+  let release!: () => void
+  const gate = new Promise<void>((r) => { release = r })
+  const fetchMock = vi.fn(async () => { await gate; return new Response(JSON.stringify({ values: [['a']] }), { status: 200 }) })
+  vi.stubGlobal('fetch', fetchMock)
+  const a = readYtdTab(ID, 'Test Co')
+  const b = readYtdTab(ID, 'Test Co')
+  release()
+  expect(await Promise.all([a, b])).toEqual([[['a']], [['a']]])
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+test('two different tabs are two requests; a read after the first has settled is a fresh request', async () => {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ values: [['a']] }), { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  await Promise.all([readYtdTab(ID, 'One'), readYtdTab(ID, 'Two')])
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  await readYtdTab(ID, 'One')
+  expect(fetchMock).toHaveBeenCalledTimes(3)
+})
+
+test('a shared failure reaches both callers, is not kept, and leaves no unhandled rejection', async () => {
+  const seen: unknown[] = []
+  const onUnhandled = (e: unknown) => { seen.push(e) }
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    const fetchMock = vi.fn(async () => new Response('no', { status: 500 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const [a, b] = await Promise.all([readYtdTab(ID, 'T').catch((e) => e), readYtdTab(ID, 'T').catch((e) => e)])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((a as YtdSheetReadError).status).toBe('500')
+    expect(b).toBe(a)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ values: [['ok']] }), { status: 200 })))
+    expect(await readYtdTab(ID, 'T')).toEqual([['ok']])
+    await new Promise((r) => setTimeout(r, 10))
+    expect(seen).toEqual([])
+  } finally {
+    process.off('unhandledRejection', onUnhandled)
   }
 })

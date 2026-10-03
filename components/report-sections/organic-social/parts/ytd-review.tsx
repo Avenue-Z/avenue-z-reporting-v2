@@ -4,6 +4,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { getOutlineKpis } from '@/lib/organic-social/outline-headlines'
 import { OUTLINE_DATA_ROWS } from '@/lib/organic-social/outline-layout'
 import { ytdConfig, ytdMonths, ytdSeries } from '@/lib/organic-social/ytd'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import { ChartCard } from '@/components/charts/chart-card'
 import { LineChart } from '@/components/charts/line-chart'
 import { BarChart } from '@/components/charts/bar-chart'
@@ -11,6 +12,7 @@ import { TrendSkeleton } from '../skeletons'
 import { NoData } from '../no-data'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
+import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
 
 /** YTD Review (Jasmine's outlines, block 2 of every platform tab). Each point is the request that
  *  month's Data block sends (the month on screen reuses ctx's own range and comparison), so the graphs
@@ -19,7 +21,7 @@ export async function YtdReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   const { clientSlug, channel, dateRange, compareRange } = ctx
   if (!channel || !OUTLINE_DATA_ROWS.standard[channel]) return null
   let client: Awaited<ReturnType<typeof getClientBySlug>>
-  try { client = await getClientBySlug(clientSlug) } catch { return <Fallback kind="error" /> }
+  try { client = await getClientBySlug(clientSlug) } catch { logYtdClientReadFailed(1, clientSlug); return <Fallback kind="error" /> }
   const cfg = ytdConfig((client?.dashSocialConfig as { reportingMonths?: unknown } | null | undefined)?.reportingMonths)
   if (!cfg) {
     console.warn(`[organic-social] ytd-review pinned without reportingMonths slug=${clientSlug}`)
@@ -27,7 +29,12 @@ export async function YtdReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   }
   const months = ytdMonths(dateRange, compareRange, cfg)
   if (!months || months.length === 0) return null
-  const r = await safe(Promise.all(months.map((m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel)))
+  // Three months at a time, each the same request as before, and no new month starts once one has failed (the block is
+  // all or nothing). Each failed month is logged (ytd-failure.ts).
+  const r = await safe(mapWithConcurrency(months, 3, (m) => getOutlineKpis(clientSlug, m.dateRange, m.compareRange, channel).catch((e: unknown) => {
+    logYtdMonthFailed(1, clientSlug, channel, m.key, e)
+    throw e
+  }))
     .then((all) => ytdSeries(months, Object.fromEntries(months.map((m, i) => [m.key, all[i]])))))
   if (!r.data) return <Fallback kind={r.error!} />
   if (r.data.points.length === 0) return <NoData />
