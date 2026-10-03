@@ -2137,6 +2137,7 @@ In-transaction checks: both rows hold exactly the planned `dash_social_config`, 
 - [ ] **Step 2: Maddie has been told** (Task 15 release step 1). I confirm before Step 3.
 
 - [ ] **Step 2b: Renaissance's brand answers the outline request in full** (added after the fresh review of #306). `ytd-review@3` sends `getOutlineKpis`'s request for every month the sheet has not filled, and `buildOutlineKpis` throws when Dash leaves out any requested metric (`lib/organic-social/outline-headlines.ts:29-30`). That request was probed live on 2026-09-22 for the outline clients only (`outline-headlines.ts:83-87`). Before Step 3, run one read-only private probe that sends that exact request for Renaissance's brand on Instagram, Facebook and LinkedIn for one finished month, and prints only the metric names returned against the names asked for. Expected: none missing on any channel. If one is missing, Step 3 waits and it comes to me as a decision.
+  Done 2026-10-02 (fix list X8): none missing and no null values on Instagram, Facebook or LinkedIn for September 2026. Re-run it right before Step 3 if weeks have passed.
 
 - [ ] **Step 3: Renaissance (`staging-renaissance-annotations-ytd-2026-10-02.mts`)**
 

@@ -1,6 +1,8 @@
 # Fix list: every open minor on #306, closed before Paul's review
 
-Status: REVIEWED (round 1: 3 MAJOR, 10 MINOR, all taken; changes below are marked "(review)"). Round 2 reviews the changed lines only. Branch `feat/os-jasmine-call-changes` at 0c60ff9e. Code
+Status: DONE. Reviewed twice before code (round 1: 3 MAJOR, 10 MINOR, all taken; round 2: 0 MAJOR, 4 MINOR, folded into
+the build), built test-first in three batches with a fresh review after each (0 BLOCKER, 0 MAJOR in every batch; every
+minor fixed). Commits b2f08e02 to 597f25b1. X8 run 2026-10-02: every metric returned on every channel.
 cited at that commit. Public repo: no brand ids, sheet ids, tab names or client figures here.
 
 I asked for no minor to carry over. This list takes every open item from the build reviews, the fresh review of the

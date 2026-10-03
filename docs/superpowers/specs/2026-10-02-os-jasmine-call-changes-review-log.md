@@ -80,3 +80,10 @@ Checked 2026-10-02 on staging, staff session: Piper Instagram (August) is the on
   - Task 18 now lists its writes correctly.
   - One test is marked as a pin.
 - Review closed.
+
+## Fix list (2026-10-02 night): every open minor closed before Paul's review
+After the fresh review of the finished branch (0 BLOCKER, 0 MAJOR), I asked for no minor to carry over. The fix list
+(`2026-10-02-os-jasmine-call-changes-fix-list.md`) was reviewed twice before any code: round 1, 3 MAJOR and 10 MINOR, all
+taken (YTD version 1 added, Facebook's `_V2` metric names, the staff control closed by default); round 2, 0 MAJOR and 4
+MINOR, folded into the build. It was built test-first in three batches with a fresh review after each: 0 BLOCKER and
+0 MAJOR every time, and every minor fixed.
