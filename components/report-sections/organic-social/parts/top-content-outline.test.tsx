@@ -273,7 +273,7 @@ test('no hidden platform: staff get no hiddenInfluencer', async () => {
 test('Overview with Instagram and Facebook hidden: both rows go to hiddenInfluencer, LinkedIn stays visible', async () => {
   withSection({ INSTAGRAM: { hidden: true }, FACEBOOK: { hidden: true } })
   fetchTopContentFrozen.mockResolvedValue([
-    post(1, { author: 'creator_one' }),
+    post(1, { ugc: true }), // tagged, so influencer whatever the own-handle rule decides
     post(2, { channel: 'FACEBOOK', platform: 'Facebook', ugc: true }),
     post(3, { channel: 'FACEBOOK', platform: 'Facebook', ugc: true }),
     post(4, { channel: 'LINKEDIN', platform: 'LinkedIn', ugc: true }),
