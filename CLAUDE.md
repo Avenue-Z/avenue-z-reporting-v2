@@ -1035,4 +1035,15 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
 - [ ] **`ytd-review@3` shares the YTD timeout copy and all-or-nothing behaviour.** Its timeout card says to shorten the
   date range, which a YTD viewer cannot do, and `mapWithConcurrency` keeps starting months after one fails. Fold both into
   the existing YTD follow-ups above.
+- [ ] **`ytd-review@3` logs too little when a month fails for a reason that is not a Dash error.** `dashFailure`
+  (`parts/ytd-review-live.tsx:22-26`) names only Dash's error classes, so "Dash omitted requested metric(s)" (thrown by
+  `buildOutlineKpis`, `lib/organic-social/outline-headlines.ts:30`) logs as `kind=other status=none`, and a failed client
+  read (`ytd-review-live.tsx:38`) shows the error card with no log at all. The message is left out on purpose because
+  Dash's messages carry the request URL with the brand id; the omitted-metric message holds only channel and metric
+  names, so it could be logged by name. `ytd-review@2` has the same gaps. Found in the fresh review of #306.
+- [ ] **A wrongly cased `influencerSection` key is skipped without a warning.** `parseInfluencerSection`
+  (`lib/organic-social/influencer-section.ts:19`) ignores any key that is not a Dash channel name, as the spec says, so
+  `{"Instagram": {"hidden": true}}` parses as an empty setting and the section stays. The staging write validates the
+  exact planned value and the staging checklist looks at the page, so a slip is caught there. A warning with the slug
+  only would make it visible in the logs too. Found in the fresh review of #306.
 
