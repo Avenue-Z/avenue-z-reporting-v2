@@ -180,6 +180,11 @@ test('ytdLiveMonths: on the 1st after 04:00 UTC the previous month is whole and 
 test('ytdLiveMonths: on the 1st before 04:00 UTC the previous month is live through the day before its last day', () => {
   expect(live('2026-11-01T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-30', compareRange: null, partial: true })
 })
+test('ytdLiveMonths: mid-month before 04:00 UTC the live month runs to the day before the open day', () => {
+  // 2026-10-15 02:00 UTC: Oct 14's Dash window closes at 04:00 UTC, so the live month runs to Oct 13.
+  expect(live('2026-10-15T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-13', compareRange: null, partial: true })
+  expect(live('2026-10-15T04:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-14', compareRange: null, partial: true })
+})
 test('ytdLiveMonths: on the 2nd before 04:00 UTC the previous month is whole and the new month has not started', () => {
   const r = live('2026-10-02T02:00:00Z')
   expect(r.at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: false })
