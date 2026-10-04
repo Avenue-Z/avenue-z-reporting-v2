@@ -60,7 +60,7 @@ describe('mapWithConcurrency', () => {
     const withIdx = await mapWithConcurrency(['a', 'b', 'c'], 2, async (s, i) => `${s}${i}`)
     expect(withIdx).toEqual(['a0', 'b1', 'c2'])
   })
-  // Fix list X5: a failed YTD month should not keep sending Dash requests whose answers are thrown away.
+  // PR #306 review: a failed YTD month should not keep sending Dash requests whose answers are thrown away.
   test('after a rejection no new item starts; items in flight finish; the call rejects with the first error', async () => {
     const started: number[] = []
     const finished: number[] = []

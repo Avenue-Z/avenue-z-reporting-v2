@@ -683,11 +683,10 @@ Still open:
   can no longer store a null Total Followers; a live month still shows it as 0
   (`outline-headlines.ts:35`), and the YTD Views line reads a post-level metric
   (`lib/organic-social/metrics.ts:110,123,160,184`), so a blank there can still lock as 0.
-- [x] **The YTD block fails all or nothing across up to 12 requests: RESOLVED** (fix list X5 on #306,
-  `docs/superpowers/specs/2026-10-02-os-jasmine-call-changes-fix-list.md`). Every YTD version now sends
-  at most three months at a time with the same requests, and no new month starts once one has failed
+- [x] **The YTD block fails all or nothing across up to 12 requests: RESOLVED** (PR #306). Every YTD
+  version now sends at most three months at a time with the same requests, and no new month starts once one has failed
   (`lib/concurrency.ts`). A partial graph is still never drawn, by design.
-- [x] **The timeout card tells a YTD viewer to shorten the date range: RESOLVED** (fix list X4 on
+- [x] **The timeout card tells a YTD viewer to shorten the date range: RESOLVED** (PR
   #306). `Fallback` takes an optional `timeoutText`; the YTD blocks pass "Taking longer than usual. Try
   again in a minute." Every other part's card is unchanged.
 - [ ] **One Organic Social title rule instead of four copies** (from my own #255 work). The tab title
@@ -1013,22 +1012,23 @@ Found while building and QA'ing the notes on the annotated graphs. None blocks t
 
 ## Known Follow-ups: Organic Social (from the 2026-10-02 walkthrough changes)
 
-Every open item from the reviews of #306 was fixed or closed before review, per the fix list
-(`docs/superpowers/specs/2026-10-02-os-jasmine-call-changes-fix-list.md`). Resolved there: the hidden
-influencer section is no longer a one-way door for staff (X6), overlapping sheet reads share one request
-(X3), the YTD blocks log why a month failed and a failed client read (X1), a miscased `influencerSection`
-key warns (X2), the YTD timeout copy and early stop (X4, X5), and an empty heading falls back (X7).
-Renaissance's brand was probed read-only on 2026-10-02 and returns every metric the YTD request asks for
-on Instagram, Facebook and LinkedIn (X8).
+Every open item from the reviews of #306 was fixed or closed in the PR. Resolved: the hidden influencer
+section is no longer a one-way door for staff, overlapping sheet reads share one request, the YTD blocks log
+why a month failed and a failed client read, a miscased `influencerSection` key warns, the YTD timeout copy
+and early stop, an empty heading falls back, the live month never shares the finished month's request, and
+the live YTD block names a missing client row. Renaissance's brand was probed read-only on 2026-10-02 and
+returns every metric the YTD request asks for on Instagram, Facebook and LinkedIn. Paul's non-blocking
+findings that were not fixed in the PR are filed as issues and linked from it.
 
 **Known behaviour, approved, not defects** (kept here so nobody files them as bugs):
 - Renaissance's YTD points will not match its tiles: `ytd-review@3` plots whole months (the sheet, or Dash
-  for that month), while its v1 tiles follow the rolling picker window (spec section 8).
+  for that month), while its v1 tiles follow the rolling picker window.
 - On an outline client's finished month, Total Followers and Views follow the sheet and every other tile
-  stays Dash, so the sheet's Total Followers change need not equal Dash's Net New Followers (spec section 5).
-- `ytd-review@3`'s "(live)" month can be up to an hour old, it stays "(live)" until 04:00 UTC on the 1st
-  (the Dash window ends at a fixed `T04:00:00Z`), and its past months taken from Dash can move if Dash
-  revises them, because Renaissance is not locked.
+  stays Dash, so the sheet's Total Followers change need not equal Dash's Net New Followers.
+- `ytd-review@3`'s "(live)" month can be up to an hour old (Dash answers are cached an hour). It runs to the
+  last day whose Dash window has closed (every window ends at a fixed `T04:00:00Z`), so from 00:00 to 04:00
+  UTC it stops at the day before, and the previous month turns whole at 04:00 UTC on the 1st. Its past
+  months taken from Dash can move if Dash revises them, because Renaissance is not locked.
 - A live client's note can be on any past day the page offers: the Day list holds only days inside the
   range on screen (`parts/chart-notes.ts:92-103`), so a note always shows on the range it was made on.
 - The tiles' prior-year sheet read counts toward health, so an unreadable prior-year entry flags the page.

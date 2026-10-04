@@ -136,7 +136,7 @@ test('a missing column warns and uses our value from firstMonth; at most 3 Dash 
   expect(logs().filter((l) => l.includes('ytd sheet column missing slug=c channel=INSTAGRAM'))).toHaveLength(2)
 })
 
-// Fix list X1: @2 says which month failed and why (never the message), and logs a failed client read.
+// PR #306 review: @2 says which month failed and why (never the message), and logs a failed client read.
 test('a failed month logs one line naming the month and the missing metrics; a failed client read logs one line', async () => {
   readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? '1' : ''), (i) => (i < 8 ? '1' : '')))
   getOutlineKpis.mockRejectedValue(new Error('INSTAGRAM: Dash omitted requested metric(s): PROFILE_CLICKS'))
@@ -150,7 +150,7 @@ test('a failed month logs one line naming the month and the missing metrics; a f
   ])
 })
 
-// Fix list X4.
+// PR #306 review.
 test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
   const { DashTimeoutError } = await import('@/lib/dash-social/client')
   readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? '1' : ''), (i) => (i < 8 ? '1' : '')))

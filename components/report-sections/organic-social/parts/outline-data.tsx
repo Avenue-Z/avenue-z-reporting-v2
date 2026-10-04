@@ -13,7 +13,7 @@ import { headlinesV1 } from './platform-headlines'
 import { safe, Fallback } from './shared'
 
 /** The tiles' request, plus Views on Reels when the rows show it, plus the team's YTD sheet for a finished month (Total
- *  Followers and Views follow the sheet, spec 2026-10-02 section 5). A failed Reels request flags only its row; a failed
+ *  Followers and Views follow the sheet, PR #306). A failed Reels request flags only its row; a failed
  *  sheet read keeps Dash's numbers (logged by the loader); a failed tiles request (or a row with no tile) is the
  *  section's fallback card, as today. */
 export async function OutlineDataSection({ ctx, channel, rows }: { ctx: OrganicSocialCtx; channel: DashChannel; rows: readonly OutlineRow[] }) {

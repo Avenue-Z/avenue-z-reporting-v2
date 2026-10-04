@@ -105,7 +105,7 @@ test('a Dash failure shows the same fallback card as the v1 tiles', async () => 
   expect(c.textContent).toContain("Couldn't load this section.")
   getOutlineKpis.mockRejectedValueOnce(new DashTimeoutError())
   const d = await text(BreakdownSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_BREAKDOWN_ROWS.INSTAGRAM! }))
-  // The default timeout copy, exactly: only the YTD blocks pass their own (fix list X4).
+  // The default timeout copy, exactly: only the YTD blocks pass their own.
   expect(d.textContent).toBe('Taking longer than usual — try a shorter date range.')
 })
 

@@ -136,7 +136,7 @@ export function monthsNeedingDash(months: YtdMonth[], tab: YtdTab, channel: Dash
 
 /** Each graph decided separately per month (spec 4.3 table): the sheet's number wins; a blank from firstMonth uses
  *  the Data block's value (a gap when that month is noData); N/A, invalid and earlier blanks are gaps. Months before an
- *  account had data are not gaps (spec 2026-10-02 section 6, S7): per graph, the leading run of blank or N/A months
+ *  account had data are not gaps (PR #306): per graph, the leading run of blank or N/A months
  *  that produced no point is not listed. An invalid cell is always listed and ends that run. */
 export function ytdSheetSeries(
   months: YtdMonth[], tab: YtdTab, channel: DashChannel, firstMonth: string, built: Record<string, OutlineKpis | undefined>,

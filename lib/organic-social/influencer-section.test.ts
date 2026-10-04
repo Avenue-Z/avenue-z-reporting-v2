@@ -52,7 +52,7 @@ test('a setting\'s hidden or label must be its own key, never inherited', () => 
   expect(parseInfluencerSection({ INSTAGRAM: inherited })).toEqual({ kind: 'invalid' })
 })
 
-// Fix list X2: keys the parser skips are reported, naming only a miscased channel; anything else is only counted,
+// PR #306 review: keys the parser skips are reported, naming only a miscased channel; anything else is only counted,
 // since a hand-typed key could hold anything.
 test('ignored keys: a miscased channel is named, any other unknown key is counted, valid keys are not reported', () => {
   expect(ignoredInfluencerKeys({ Instagram: { hidden: true }, FACEBOOK: { hidden: true } })).toEqual({ miscased: ['Instagram'], other: 0 })

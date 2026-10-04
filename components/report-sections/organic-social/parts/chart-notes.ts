@@ -98,7 +98,7 @@ export async function withNotes(args: {
         // Every day of the window, each with its posts or none, so a note can go on a day with no post (a PR
         // hit, Jasmine 2026-09-29). None when the posts could not load: a day's posts are then unknown.
         // The window ends at min(today UTC, range end): in a locked client's live month that is yesterday; a live
-        // client's range (Renaissance, this month or this week) can include today, which is allowed (plan ruling 5).
+        // client's range (Renaissance, this month or this week) can include today, which is allowed.
         days: args.posts === null ? [] : windowDays(args.from, last)
           .map((day) => ({ day, posts: postsOn(day).map((p) => ({ id: p.id, thumb: thumbOf(p) })) })),
       },

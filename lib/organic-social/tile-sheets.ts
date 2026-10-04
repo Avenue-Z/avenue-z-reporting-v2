@@ -1,4 +1,4 @@
-// The reads behind the tiles from the sheet (spec 2026-10-02 section 5): the client's config, then at most two cached
+// The reads behind the tiles from the sheet (PR #306): the client's config, then at most two cached
 // sheet reads (the year on screen, and the comparison month's year when it differs). Never throws: every sheet failure
 // is logged with the slug and year, never the sheet id, the tab or a value (ytd-sheet.ts), and the tiles keep Dash's
 // numbers. A failed client read is silent here, because the tiles' own Dash request needs the same row and fails with it.

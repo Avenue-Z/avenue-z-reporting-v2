@@ -58,7 +58,7 @@ test('every metric null is no data, with zero values', () => {
   expect(b.kpis.videoViews.value).toBe(0)
 })
 
-test('percents scale by 100, deltas come from the context value; outline tiles carry no footnote (Jasmine, 2026-10-02)', () => {
+test('percents scale by 100, deltas come from the context value; outline tiles carry no footnote (2026-10-02 walkthrough)', () => {
   const metrics = allOf('FACEBOOK')
   metrics.AVG_ENGAGEMENT_RATE_V2 = m(0.25)
   metrics.PAID_AND_ORGANIC_VIDEO_VIEWS = m(150, 100)

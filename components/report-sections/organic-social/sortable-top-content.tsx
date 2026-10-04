@@ -92,11 +92,11 @@ export function SortableTopContent({
   /** Only these sort buttons, in toolbar order. Absent: all four, as today. The type rules out an empty list, so
    *  the toolbar is never empty and an outline tab can't silently get all four back. */
   sortKeys?: readonly [SortKey, ...SortKey[]]
-  /** The Influencer section's heading and region name, set per client by top-content@3 (Akara's "Partnership Posts").
+  /** The Influencer section's heading and region name, set per client by top-content@3 (for example "Partnership Posts").
    *  Absent: today's text, so top-content@2 (Renaissance) renders exactly as before. */
   influencerHeading?: string
   /** Staff only (top-content@3 passes it only when the role may set designations): influencer rows on a platform the
-   *  client hides (Piper's Instagram), behind a closed control so the default view matches the client's, and so a post
+   *  client hides on that channel, behind a closed control so the default view matches the client's, and so a post
    *  can still be marked Organic again. Absent or empty: no control, today's markup. */
   hiddenInfluencer?: PlatformGroup[]
 }) {

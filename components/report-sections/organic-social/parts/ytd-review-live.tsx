@@ -17,8 +17,7 @@ import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
 
 const NO_SHEET: YtdTab = { followers: {}, views: {} }
 
-/** YTD Review for a live client (spec docs/superpowers/specs/2026-10-02-os-jasmine-call-changes-design.md section 8,
- *  S9; Paul approved 2026-10-02). January through the current month whatever the date picker shows; the sheet's number
+/** YTD Review for a live client (PR #306; Paul approved 2026-10-02). January through the current month whatever the date picker shows; the sheet's number
  *  wins, and any month it has not filled comes from live Dash with no comparison (a live client has no first month).
  *  Only for clients without reportingMonths: a locked-months client renders nothing, so this can never create new lock
  *  rows or requests for one. Log lines carry the slug, never the sheet id, the tab or a value. */

@@ -5,7 +5,7 @@ export async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeo
   catch (e) { return { error: e instanceof DashTimeoutError ? 'timeout' : 'error' } }
 }
 
-/** The YTD blocks pick their own months, so a viewer cannot shorten their range (fix list X4). */
+/** The YTD blocks pick their own months, so a viewer cannot shorten their range. */
 export const YTD_TIMEOUT_TEXT = 'Taking longer than usual. Try again in a minute.'
 
 /** `timeoutText` replaces only the timeout copy; absent, the card is exactly as before for every other part. */

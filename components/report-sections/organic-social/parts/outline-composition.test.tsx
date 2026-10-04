@@ -46,7 +46,7 @@ test('the new parts can never be promoted into the shared template Renaissance r
   ])
 })
 
-// Renaissance's override after the staging write (spec section 8): exactly this JSON goes into
+// Renaissance's override after the staging write: exactly this JSON goes into
 // report_section_config['organic-social:platform']. Its 'organic-social' entry (Commentary) is left alone.
 const RENAISSANCE_PLATFORM: SectionOverride = {
   versions: { 'follower-graph': 2, 'engagement-trend': 2 },

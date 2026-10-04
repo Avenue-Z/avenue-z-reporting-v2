@@ -124,7 +124,7 @@ test('ytd-review is registered at version 1 and unpublished', () => {
   expect(ytdReviewV1.published).toBe(false)
 })
 
-// Fix list X5 and X1: @1 sends at most three months at once with the same arguments, and says which month failed.
+// PR #306 review: @1 sends at most three months at once with the same arguments, and says which month failed.
 test('at most three months in flight, with the same request per month in month order', async () => {
   getClientBySlug.mockResolvedValue(client({ firstMonth: '2026-01' }))
   let live = 0, peak = 0
@@ -150,7 +150,7 @@ test('a failed month logs one line naming the month; a failed client read logs o
   err.mockRestore()
 })
 
-// Fix list X4: the YTD block picks its own months, so its timeout card never says to shorten the date range.
+// PR #306 review: the YTD block picks its own months, so its timeout card never says to shorten the date range.
 test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
   const { DashTimeoutError } = await import('@/lib/dash-social/client')
   const err = vi.spyOn(console, 'error').mockImplementation(() => {})

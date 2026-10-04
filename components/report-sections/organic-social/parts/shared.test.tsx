@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { render } from '@testing-library/react'
 import { Fallback } from './shared'
 
-// Fix list X4: the default copy is pinned exactly, because nine other Organic Social parts (Renaissance's included)
+// PR #306 review: the default copy is pinned exactly, because nine other Organic Social parts (Renaissance's included)
 // render it; only the YTD blocks pass their own timeout text.
 test('without timeoutText the card is exactly today\'s', () => {
   expect(render(<Fallback kind="timeout" />).container.textContent).toBe('Taking longer than usual — try a shorter date range.')

@@ -1,5 +1,5 @@
-// Total Followers and Views tiles from the team's YTD sheet (spec docs/superpowers/specs/2026-10-02-os-jasmine-call-
-// changes-design.md section 5, S4). Pure: the loader (tile-sheets.ts) does the reads. The Dash request, its cache and
+// Total Followers and Views tiles from the team's YTD sheet (PR #306). Pure: the loader (tile-sheets.ts) does the
+// reads. The Dash request, its cache and
 // its lock key are untouched; the sheet only replaces two values after Dash has answered.
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { DashChannel } from './metrics'

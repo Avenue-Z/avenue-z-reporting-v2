@@ -222,7 +222,7 @@ test('auth and rate-limit failures log their own kind and status; a lone timeout
   expect(r.container.textContent).toContain('Taking longer than usual')
 })
 
-// Fix list X1: a failure that is not a Dash error says why, and a failed client read is logged.
+// PR #306 review: a failure that is not a Dash error says why, and a failed client read is logged.
 test('an omitted metric or a plain error says why; a failed client read logs one line', async () => {
   getClientBySlug.mockResolvedValue(client())
   getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
@@ -240,7 +240,7 @@ test('an omitted metric or a plain error says why; a failed client read logs one
   expect(l.join('\n')).not.toContain('123456')
 })
 
-// Fix list X5 in the block itself: once a month has failed, no new month is sent to Dash.
+// PR #306 review: once a month has failed, no new month is sent to Dash.
 test('after a failed month no new month starts', async () => {
   getClientBySlug.mockResolvedValue(client())
   getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
@@ -256,7 +256,7 @@ test('after a failed month no new month starts', async () => {
   expect(getOutlineKpis).toHaveBeenCalledTimes(3)
 })
 
-// Fix list X4.
+// PR #306 review.
 test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
   const { DashTimeoutError } = await import('@/lib/dash-social/client')
   getClientBySlug.mockResolvedValue(client())

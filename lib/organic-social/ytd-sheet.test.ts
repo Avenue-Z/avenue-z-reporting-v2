@@ -120,7 +120,7 @@ test('the 10 second limit covers the token and the body, not only the response h
   }
 })
 
-// Fix list X3: the tiles and the YTD block can start the same read in one render; while it is in flight it is shared.
+// PR #306 review: the tiles and the YTD block can start the same read in one render; while it is in flight it is shared.
 // (cached() is a passthrough in this file, so these calls reach the shared read directly.)
 test('two reads of one tab in flight together make one request, and both get the grid', async () => {
   let release!: () => void

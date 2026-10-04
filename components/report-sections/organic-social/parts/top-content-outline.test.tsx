@@ -149,7 +149,7 @@ test('no influencerSection: the influencer row and the default heading, exactly 
   expect((SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('influencerHeading')
 })
 
-test('Instagram hidden (Piper): no influencer row on the Instagram tab; the owned top 5 is unchanged; the posts are not moved', async () => {
+test('Instagram hidden: no influencer row on the Instagram tab; the owned top 5 is unchanged; the posts are not moved', async () => {
   withSection({ INSTAGRAM: { hidden: true } })
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' }), post(3)])
   await show()
@@ -164,7 +164,7 @@ test('a hide on another channel leaves this tab alone', async () => {
   expect(props().influencer[0].posts.map((x) => x.id)).toEqual([2])
 })
 
-test('Instagram label (Akara): the heading is "Partnership Posts" on the Instagram tab only', async () => {
+test('Instagram label: the heading is "Partnership Posts" on the Instagram tab only', async () => {
   withSection({ INSTAGRAM: { label: 'Partnership Posts' } })
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' })])
   await show()
@@ -207,7 +207,7 @@ test('a failed client read keeps the default section and logs no influencerSecti
   warn.mockRestore()
 })
 
-// Fix list X2: a miscased key does nothing (as the spec says), but now says so, by slug, without any other key's text.
+// PR #306 review: a miscased key does nothing (by design), but now says so, by slug, without any other key's text.
 test('a miscased or unknown key keeps today\'s section and warns once, naming only the miscased key', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   withSection({ Instagram: { hidden: true }, 'brand 123456': { hidden: true } })
@@ -231,7 +231,7 @@ test('an invalid setting with a miscased key warns once, as invalid, and not abo
   warn.mockRestore()
 })
 
-// Fix list X6: staff can still reach a hidden platform's posts behind a closed control; clients never receive them.
+// PR #306 review: staff can still reach a hidden platform's posts behind a closed control; clients never receive them.
 const hiddenProp = () => (SortableTopContent.mock.calls.at(-1) as unknown as [{ hiddenInfluencer?: { platform: string; posts: { id: number }[] }[] }])[0].hiddenInfluencer
 
 // A pin: this passed before X6 too, and must keep passing.

@@ -1,6 +1,5 @@
-// What a YTD block may log about a failed month or a failed client read (fix list X1,
-// docs/superpowers/specs/2026-10-02-os-jasmine-call-changes-fix-list.md). Dash's messages hold the request URL, which
-// names the brand (lib/dash-social/client.ts), so a message is never logged. Only these are: a Dash error's kind and
+// What a YTD block may log about a failed month or a failed client read (PR #306). Dash's messages hold the request
+// URL, which names the brand (lib/dash-social/client.ts), so a message is never logged. Only these are: a Dash error's kind and
 // HTTP status; the metric names from the one omitted-metric message (outline-headlines.ts), matched whole; the fixed
 // no-metrics message; or an error's class name when it is a plain identifier.
 import { DashApiError, DashAuthError, DashRateLimitError, DashTimeoutError } from '@/lib/dash-social/client'

@@ -20,7 +20,7 @@ type Result = { ok: true } | { ok: false; error: string }
 const FORBIDDEN: Result = { ok: false, error: 'forbidden' }
 const NOT_FOUND: Result = { ok: false, error: 'not found' }
 // Notes are on for clients on locked months (the October set) and for a live client with chartNotes switched on
-// (Renaissance, spec 2026-10-02 section 7). For anyone else no action here can ever write a row, whoever calls it.
+// (Renaissance, PR #306). For anyone else no action here can ever write a row, whoever calls it.
 const NOT_ON: Result = { ok: false, error: 'Notes are not on for this client.' }
 // Approve or Revoke from a page opened before the note changed.
 const CHANGED: Result = { ok: false, error: 'This note changed since you opened the page. Reload to see it.' }

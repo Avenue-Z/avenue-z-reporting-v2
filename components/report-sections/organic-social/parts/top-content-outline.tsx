@@ -31,7 +31,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const parsed = parseInfluencerSection(rawSection)
   if (parsed.kind === 'invalid') console.warn(`[organic-social] influencerSection invalid slug=${clientSlug}; showing the default Influencer section`)
   if (parsed.kind === 'ok') {
-    // Keys the parser skipped do nothing, as the spec says; say so, so a miscased channel is not silent (fix list X2).
+    // Keys the parser skipped do nothing, by design; say so, so a miscased channel is not silent.
     const ignored = ignoredInfluencerKeys(rawSection)
     if (ignored.miscased.length > 0 || ignored.other > 0) {
       console.warn(`[organic-social] influencerSection ignored keys slug=${clientSlug} keys=${ignored.miscased.join(',') || 'none'} other=${ignored.other}`)
@@ -58,9 +58,9 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const label = influencerLabel(section, channel)
   const canEdit = canSetDesignation(role)
   const influencerRows = groupPostsByPlatform(influencer, channel)
-  // A hidden platform's influencer row is never shown as a section (Piper's Instagram, spec section 4), and its posts
+  // A hidden platform's influencer row is never shown as a section, and its posts
   // stay influencer: they are not moved into the owned top 5. Staff get the row behind a closed control so a designation
-  // can be undone (fix list X6); for anyone else it is filtered out here, on the server, so it never reaches a browser.
+  // can be undone; for anyone else it is filtered out here, on the server, so it never reaches a browser.
   const hiddenRows = canEdit ? influencerRows.filter((g) => hidden.has(g.platform)) : []
   return (
     <section className="space-y-6">

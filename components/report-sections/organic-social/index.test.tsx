@@ -209,7 +209,7 @@ describe('locked months in the section', () => {
   })
 })
 
-// Renaissance after its staging write (spec section 8, plan Task 16): the new parts live only under the platform key, so
+// Renaissance after its staging write: the new parts live only under the platform key, so
 // Overview keeps exactly today's parts. This pins the key split at index.tsx:61 with the exact planned config.
 test("Renaissance's planned config: Overview asks for today's parts; a platform tab asks for YTD@3 and the v2 graphs", async () => {
   const registry = await import('@/lib/report-sections/registry')

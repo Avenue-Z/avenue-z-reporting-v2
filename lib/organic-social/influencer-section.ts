@@ -1,5 +1,4 @@
-// dash_social_config.influencerSection (spec docs/superpowers/specs/2026-10-02-os-jasmine-call-changes-design.md
-// section 4): per channel, hide top-content@3's Influencer Posts section or rename it. Read only by top-content@3, which
+// dash_social_config.influencerSection (PR #306): per channel, hide top-content@3's Influencer Posts section or rename it. Read only by top-content@3, which
 // Renaissance never renders. Absent: today's section. Invalid: today's section, and the part warns with the slug.
 import { CHANNELS, CHANNEL_LABEL, type DashChannel } from './metrics'
 
@@ -31,7 +30,7 @@ export function parseInfluencerSection(value: unknown): { kind: 'ok'; section: I
   return { kind: 'ok', section }
 }
 
-/** The keys the parser skips, for a warning (fix list X2): a key whose upper-case form is a channel (a miscased
+/** The keys the parser skips, for a warning: a key whose upper-case form is a channel (a miscased
  *  channel, the slip this exists to catch) is named; any other key is only counted, since hand-typed jsonb could hold
  *  anything. Anything that is not an object reports nothing (the parser already calls it invalid or absent). */
 export function ignoredInfluencerKeys(value: unknown): { miscased: string[]; other: number } {
