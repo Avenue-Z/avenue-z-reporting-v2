@@ -144,6 +144,13 @@ export interface DashSocialConfig {
   /** The team's YTD sheet per year, read by ytd-review@2 (docs/superpowers/specs/2026-10-01-ytd-from-sheet-design.md):
    *  { "<year>": { sheetId, tab } }. Validated at runtime (ytdSheetFor), so typed unknown. */
   ytdSheets?: unknown
+  /** Per channel, hide or rename top-content@3's Influencer Posts section (PR #306):
+   *  { "INSTAGRAM": { "hidden": true } } or { "INSTAGRAM": { "label": "Partnership Posts" } }. Validated at runtime
+   *  (parseInfluencerSection), so typed unknown. */
+  influencerSection?: unknown
+  /** Written notes on the v2 graphs for a client without reportingMonths (PR #306). Only exactly
+   *  `true` turns them on (notesOn), so typed unknown. */
+  chartNotes?: unknown
 }
 
 /**

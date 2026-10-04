@@ -58,7 +58,7 @@ test('every metric null is no data, with zero values', () => {
   expect(b.kpis.videoViews.value).toBe(0)
 })
 
-test('percents scale by 100, deltas come from the context value, footnotes carry through', () => {
+test('percents scale by 100, deltas come from the context value; outline tiles carry no footnote (2026-10-02 walkthrough)', () => {
   const metrics = allOf('FACEBOOK')
   metrics.AVG_ENGAGEMENT_RATE_V2 = m(0.25)
   metrics.PAID_AND_ORGANIC_VIDEO_VIEWS = m(150, 100)
@@ -68,7 +68,9 @@ test('percents scale by 100, deltas come from the context value, footnotes carry
   expect(b.kpis.engagementRate.value).toBe(25)
   expect(b.kpis.videoViews.delta).toBe(50)
   expect(b.kpis.reactions.delta).toBeUndefined()
-  expect(b.kpis.engagements.footnote).toMatch(/Influencer/)
+  for (const k of Object.values(b.kpis)) expect(k.footnote).toBeUndefined()
+  // The shared spec keeps it: Renaissance's Facebook tile still shows it (headline-build.test.ts).
+  expect(outlineSpecsFor('FACEBOOK').find((s) => s.key === 'engagements')?.footnote).toMatch(/Influencer/)
 })
 
 test('selectOutlineRows picks the rows in outline order with the outline labels', () => {

@@ -7,6 +7,7 @@ import { authorizeRowForClient, canDeleteDraft, guardNotDeleted } from '@/lib/co
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
 import { isNoteId, isSeenNote, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
 import { firstOf, hasReportingMonths, parseReportingMonths } from '@/lib/organic-social/reporting-months'
+import { notesOn } from '@/lib/organic-social/chart-notes/enabled'
 import {
   approveNote, findChartNote, findOpenDraft, insertDraft, isOpenDraftConflict,
   revokeNote, softDeleteDraft, updateDraft, type NoteKey,
@@ -18,8 +19,8 @@ type Result = { ok: true } | { ok: false; error: string }
 
 const FORBIDDEN: Result = { ok: false, error: 'forbidden' }
 const NOT_FOUND: Result = { ok: false, error: 'not found' }
-// Notes are only for clients on locked months (the October set). Renaissance is not on locked
-// months, so no action here can ever write a row for it, whoever calls the action.
+// Notes are on for clients on locked months (the October set) and for a live client with chartNotes switched on
+// (Renaissance, PR #306). For anyone else no action here can ever write a row, whoever calls it.
 const NOT_ON: Result = { ok: false, error: 'Notes are not on for this client.' }
 // Approve or Revoke from a page opened before the note changed.
 const CHANGED: Result = { ok: false, error: 'This note changed since you opened the page. Reload to see it.' }
@@ -47,12 +48,16 @@ export async function saveChartNoteAction(input: {
 
   const client = await getClientBySlug(input.clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
-  if (!hasReportingMonths(client)) return NOT_ON
-  // A day before the client's first reporting month is in no month the team can open, so a note there would be
-  // an orphan draft no view reaches (Paul's review of #292). A firstMonth too broken to read means no months at all.
-  const months = parseReportingMonths(client.dashSocialConfig?.reportingMonths)
-  if (!months.ok) return NOT_ON
-  if (input.day < firstOf(months.cfg.firstMonth)) return { ok: false, error: "That day is before this client's first reporting month." }
+  if (!notesOn(client)) return NOT_ON
+  // On locked months, a day before the client's first reporting month is in no month the team can open, so a note there
+  // would be an orphan draft no view reaches (Paul's review of #292). A firstMonth too broken to read means no months at
+  // all. A live client (chartNotes) has no first month: any day up to today is fine, and validateNoteInput refuses the
+  // future.
+  if (hasReportingMonths(client)) {
+    const months = parseReportingMonths(client.dashSocialConfig?.reportingMonths)
+    if (!months.ok) return NOT_ON
+    if (input.day < firstOf(months.cfg.firstMonth)) return { ok: false, error: "That day is before this client's first reporting month." }
+  }
 
   const key: NoteKey = { clientId: client.id, channel: input.channel as DashChannel, chart: input.chart as AnnotationChart, day: input.day }
   const body = input.body.trim()
@@ -83,7 +88,7 @@ export async function approveChartNoteAction(clientSlug: string, id: string, see
   if (!isNoteId(id) || !isSeenNote(seen)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
-  if (!hasReportingMonths(client)) return NOT_ON
+  if (!notesOn(client)) return NOT_ON
   const row = await findChartNote(id)
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }
@@ -103,7 +108,7 @@ export async function revokeChartNoteAction(clientSlug: string, id: string): Pro
   if (!isNoteId(id)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
-  if (!hasReportingMonths(client)) return NOT_ON
+  if (!notesOn(client)) return NOT_ON
   const row = await findChartNote(id)
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }
@@ -128,7 +133,7 @@ export async function deleteChartNoteDraftAction(clientSlug: string, id: string)
   if (!isNoteId(id)) return NOT_FOUND
   const client = await getClientBySlug(clientSlug)
   if (!client) return { ok: false, error: 'client not found' }
-  if (!hasReportingMonths(client)) return NOT_ON
+  if (!notesOn(client)) return NOT_ON
   const row = await findChartNote(id)
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }

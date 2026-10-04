@@ -65,12 +65,13 @@ test('both graphs from the sheet, January to September; Dash asked only for Sept
   expect(container.textContent).toContain('Views, Year to Date')
 })
 
-test('gaps are named under each graph; a blank before firstMonth never calls Dash', async () => {
+test('a later gap is named under its graph; the months before the first point are not; a blank before firstMonth never calls Dash', async () => {
   readYtdTab.mockResolvedValue(sheet((i) => (i === 0 ? 'N/A' : i < 5 ? '' : String(i)), (i) => (i === 2 ? '12k' : String(i))))
   const el = await YtdSheetReviewSection({ ctx: SEPT })
   expect(getOutlineKpis).not.toHaveBeenCalled()
   const { container } = render(<>{el}</>)
-  expect(container.textContent).toContain('No follower data for Jan, Feb, Mar, Apr, May')
+  // Jan (N/A) and Feb to May (blank before firstMonth) come before the first point (Jun): not listed (S7).
+  expect(container.textContent).not.toContain('No follower data')
   expect(container.textContent).toContain('No views data for Mar')
   expect(logs().some((l) => l.includes('ytd sheet cell invalid slug=c channel=INSTAGRAM month=2026-03 graph=views'))).toBe(true)
 })
@@ -133,4 +134,28 @@ test('a missing column warns and uses our value from firstMonth; at most 3 Dash 
   expect(peak).toBeLessThanOrEqual(3)
   expect(charts(el)[0].data.map((d) => d.month)).toEqual(['Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
   expect(logs().filter((l) => l.includes('ytd sheet column missing slug=c channel=INSTAGRAM'))).toHaveLength(2)
+})
+
+// PR #306 review: @2 says which month failed and why (never the message), and logs a failed client read.
+test('a failed month logs one line naming the month and the missing metrics; a failed client read logs one line', async () => {
+  readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? '1' : ''), (i) => (i < 8 ? '1' : '')))
+  getOutlineKpis.mockRejectedValue(new Error('INSTAGRAM: Dash omitted requested metric(s): PROFILE_CLICKS'))
+  const r = render(<>{await YtdSheetReviewSection({ ctx: SEPT })}</>)
+  expect(r.container.textContent).toContain("Couldn't load this section.")
+  getClientBySlug.mockRejectedValueOnce(new Error('db down'))
+  await YtdSheetReviewSection({ ctx: SEPT })
+  expect(logs()).toEqual([
+    '[organic-social] ytd-review@2 Dash request failed slug=c channel=INSTAGRAM month=2026-09 kind=other status=none missing=PROFILE_CLICKS',
+    '[organic-social] ytd-review@2 client read failed slug=c',
+  ])
+})
+
+// PR #306 review.
+test('a timeout shows the YTD timeout copy, never "shorter date range"', async () => {
+  const { DashTimeoutError } = await import('@/lib/dash-social/client')
+  readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? '1' : ''), (i) => (i < 8 ? '1' : '')))
+  getOutlineKpis.mockRejectedValue(new DashTimeoutError())
+  const text = render(<>{await YtdSheetReviewSection({ ctx: SEPT })}</>).container.textContent
+  expect(text).toBe('Taking longer than usual. Try again in a minute.')
+  expect(text).not.toContain('shorter date range')
 })
