@@ -265,3 +265,13 @@ test('a timeout shows the YTD timeout copy, never "shorter date range"', async (
   expect(text).toBe('Taking longer than usual. Try again in a minute.')
   expect(text).not.toContain('shorter date range')
 })
+
+// Paul's review of #306 (finding 2): a missing client row is named as such and never reaches Dash.
+test('a missing client row logs one line naming it, shows the error card, and asks Dash and the sheet nothing', async () => {
+  getClientBySlug.mockResolvedValue(null)
+  const r = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
+  expect(r.container.textContent).toBe("Couldn't load this section.")
+  expect(logs()).toEqual(['[organic-social] ytd-review@3 client row missing slug=live-co'])
+  expect(getOutlineKpis).not.toHaveBeenCalled()
+  expect(readYtdTab).not.toHaveBeenCalled()
+})

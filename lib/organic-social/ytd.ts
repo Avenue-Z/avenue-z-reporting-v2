@@ -26,6 +26,11 @@ export const addMonths = (key: string, n: number) => {
   const total = y * 12 + (m - 1) + n
   return `${String(Math.floor(total / 12)).padStart(4, '0')}-${pad((total % 12) + 1)}`
 }
+const dayBefore = (day: string) => {
+  const d = new Date(`${day}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
 const lastOf = (key: string) => {
   const [y, m] = key.split('-').map(Number)
   return `${key}-${pad(new Date(Date.UTC(y, m, 0)).getUTCDate())}`
@@ -103,19 +108,21 @@ export function ytdSheetMonths(dateRange: string, compareRange: string, cfg: Ytd
   return [...out, ...base]
 }
 
-/** ytd-review@3's months for a live client (spec 2026-10-02 section 8): January of the last complete UTC day's year
- *  through that day's month, whatever the date picker shows. Earlier months are whole. The last runs to that day and is
- *  partial ("(live)") unless that day ends the month and its Dash window has closed: every Dash window ends at a fixed
- *  T04:00:00Z (base.ts), so the day is still open while liveDayInProgress. So on the 1st the previous month is shown
- *  whole, and on January 1 the previous year is. No comparison: compareRange is null. */
+/** ytd-review@3's months for a live client (PR #306): January of the last closed day's year through that day's month,
+ *  whatever the date picker shows. Earlier months are whole. The last runs to that day and is partial ("(live)") unless
+ *  that day ends the month. The last closed day is the last complete UTC day, or the day before it while that day's
+ *  Dash window is still open: every Dash window ends at a fixed T04:00:00Z (base.ts), so it is open while
+ *  liveDayInProgress. Ending there means a partial month never sends the finished month's request, so Dash's partial
+ *  answer is never cached under the finished month's key (Paul's review of #306). So the previous month shows whole from
+ *  04:00 UTC on the 1st, and the previous year from 04:00 UTC on January 1. No comparison: compareRange is null. */
 export function ytdLiveMonths(clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): YtdMonth[] {
-  const day = clock.lastCompleteUtcDay
+  const day = clock.liveDayInProgress ? dayBefore(clock.lastCompleteUtcDay) : clock.lastCompleteUtcDay
   const key = day.slice(0, 7)
   const out: YtdMonth[] = []
   for (let k = `${key.slice(0, 4)}-01`; k < key; k = addMonths(k, 1)) {
     out.push({ key: k, dateRange: `custom:${k}-01,${lastOf(k)}`, compareRange: null, partial: false })
   }
-  out.push({ key, dateRange: `custom:${key}-01,${day}`, compareRange: null, partial: day < lastOf(key) || clock.liveDayInProgress })
+  out.push({ key, dateRange: `custom:${key}-01,${day}`, compareRange: null, partial: day < lastOf(key) })
   return out
 }
 

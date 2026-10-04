@@ -27,6 +27,11 @@ export async function YtdLiveReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   if (!channel || !OUTLINE_DATA_ROWS.standard[channel]) return null
   let client: Awaited<ReturnType<typeof getClientBySlug>>
   try { client = await getClientBySlug(clientSlug) } catch { logYtdClientReadFailed(3, clientSlug); return <Fallback kind="error" /> }
+  // No row: say so, rather than letting Dash fail on the missing config and the log blame Dash (Paul's review of #306).
+  if (!client) {
+    console.error(`[organic-social] ytd-review@3 client row missing slug=${clientSlug}`)
+    return <Fallback kind="error" />
+  }
   if (hasReportingMonths(client)) {
     console.warn(`[organic-social] ytd-review@3 skipped (client has reportingMonths) slug=${clientSlug}`)
     return null

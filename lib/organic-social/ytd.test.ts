@@ -174,8 +174,29 @@ test('ytdLiveMonths: on the 1st after 04:00 UTC the previous month is whole and 
   const r = live('2026-11-01T12:00:00Z')
   expect(r.at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: false })
 })
-test('ytdLiveMonths: liveDayInProgress keeps (live) on the 1st before 04:00 UTC, while that Dash window is still open', () => {
-  expect(live('2026-11-01T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: true })
+// Paul's review of #306 (finding 1): while the newest UTC day's Dash window is still open (before 04:00 UTC), the live
+// month ends on the day before, the last day whose window has closed. So a partial month never sends the finished
+// month's request, and Dash's partial answer is never cached under the finished month's key.
+test('ytdLiveMonths: on the 1st before 04:00 UTC the previous month is live through the day before its last day', () => {
+  expect(live('2026-11-01T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-30', compareRange: null, partial: true })
+})
+test('ytdLiveMonths: on the 2nd before 04:00 UTC the previous month is whole and the new month has not started', () => {
+  const r = live('2026-10-02T02:00:00Z')
+  expect(r.at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: false })
+  expect(keys(r)).not.toContain('2026-10')
+  expect(live('2027-01-02T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: false })
+})
+test('ytdLiveMonths: at every hour across two month ends, a live month never sends the whole month\'s request', () => {
+  for (const start of ['2026-09-29T00:00:00Z', '2026-12-30T00:00:00Z']) {
+    for (let h = 0; h < 96; h++) {
+      const at = new Date(Date.parse(start) + h * 3600_000)
+      for (const m of ytdLiveMonths(clockFor(at))) {
+        const whole = `custom:${m.key}-01,${m.key}-${String(new Date(Date.UTC(+m.key.slice(0, 4), +m.key.slice(5, 7), 0)).getUTCDate()).padStart(2, '0')}`
+        if (m.partial) expect(m.dateRange, `${at.toISOString()} ${m.key}`).not.toBe(whole)
+        else expect(m.dateRange, `${at.toISOString()} ${m.key}`).toBe(whole)
+      }
+    }
+  }
 })
 test('ytdLiveMonths: on January 1 the block shows the previous year, January to December', () => {
   const r = live('2027-01-01T12:00:00Z')
@@ -185,13 +206,13 @@ test('ytdLiveMonths: on January 1 the block shows the previous year, January to 
   expect(keys(live('2027-01-02T12:00:00Z'))).toEqual(['2027-01'])
 })
 test('ytdLiveMonths: the New York evening of the last day is still that month (UTC is ahead)', () => {
-  // 2026-09-30 22:00 New York = 2026-10-01 02:00 UTC: the last complete UTC day is Sep 30, still in progress.
-  expect(live('2026-10-01T02:00:00Z').at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: true })
+  // 2026-09-30 22:00 New York = 2026-10-01 02:00 UTC: Sep 30's Dash window is still open, so the live month runs to Sep 29.
+  expect(live('2026-10-01T02:00:00Z').at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-29', compareRange: null, partial: true })
 })
 test('ytdLiveMonths: a leap February, a December date, and January 1 before 04:00 UTC', () => {
   expect(live('2028-03-01T12:00:00Z').at(-1)).toEqual({ key: '2028-02', dateRange: 'custom:2028-02-01,2028-02-29', compareRange: null, partial: false })
   const dec = live('2026-12-15T12:00:00Z')
   expect(dec).toHaveLength(12)
   expect(dec.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-14', compareRange: null, partial: true })
-  expect(live('2027-01-01T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: true })
+  expect(live('2027-01-01T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-30', compareRange: null, partial: true })
 })
