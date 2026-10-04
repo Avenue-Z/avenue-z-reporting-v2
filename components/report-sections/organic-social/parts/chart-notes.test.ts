@@ -233,3 +233,30 @@ test("the panel's days list each day's posts in Dash's order, and a post with no
     .toEqual([['2026-08-10', [12]], ['2026-08-14', [21, 20]]])
 })
 
+
+test('a live client with chartNotes on (Renaissance after the switch): notes are read and shown', async () => {
+  getClientBySlug.mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1, chartNotes: true } })
+  getChartNotes.mockResolvedValue([row({ day: '2026-01-14', body: 'Launch' })])
+  const r = await withNotes({ ...CLIENT, from: '2026-01-01', to: '2026-01-31', items: [], series: { channels: ['Instagram'], points: [] } })
+  expect(getChartNotes).toHaveBeenCalledWith('client-uuid', 'INSTAGRAM')
+  expect(r.items.map((a) => [a.date, a.note?.text])).toEqual([['2026-01-14', 'Launch']])
+})
+test('a live client without chartNotes (Renaissance today): the notes table is never read', async () => {
+  getClientBySlug.mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1 } })
+  const r = await withNotes(EDITOR)
+  expect(getChartNotes).not.toHaveBeenCalled()
+  expect(r).toEqual({ items: EDITOR.items })
+})
+
+test('a live client\'s clients see approved notes only, and only inside the range on screen', async () => {
+  getClientBySlug.mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1, chartNotes: true } })
+  getChartNotes.mockResolvedValue([
+    row({ id: 'd1', day: '2026-01-14', body: 'Draft only', status: 'draft', approvedBy: null, approvedAt: null }),
+    row({ id: 'a1', day: '2026-02-03', body: 'Outside the range' }),
+  ])
+  const r = await withNotes({ ...CLIENT, from: '2026-01-01', to: '2026-01-31', items: [], series: { channels: ['Instagram'], points: [] } })
+  // The table must be read, so the empty result comes from filtering, not from notes being off.
+  expect(getChartNotes).toHaveBeenCalledWith('client-uuid', 'INSTAGRAM')
+  expect(r.items).toEqual([])
+  expect(r.controls).toBeUndefined()
+})

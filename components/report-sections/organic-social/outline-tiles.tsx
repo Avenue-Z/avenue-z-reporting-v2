@@ -36,7 +36,8 @@ export function OutlineTiles({ kpis }: { kpis: OutlineKpi[] }) {
 
 /** The outline's Data block: the same markup as the shared PlatformHeadlines for one platform when
  *  no tile has a prior (a test holds the two together; with a prior, the change here is a whole number) under the outline's heading "Data", not the platform name, drawn
- *  with OutlineTiles so a flagged row can show blank. The shared component is not changed. */
+ *  with OutlineTiles so a flagged row can show blank. The shared component is not changed. One more difference: the
+ *  outline tiles carry no footnote, so on Facebook the shared tiles' footnote line has no outline twin (2026-10-02). */
 export function OutlineHeadlines({ headline }: { headline: OutlineHeadline }) {
   return (
     <div className="space-y-6">

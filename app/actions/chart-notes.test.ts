@@ -256,3 +256,41 @@ test('save: a day before the client\'s first reporting month is refused, with no
   for (const w of writes()) expect(w).not.toHaveBeenCalled()
   expect(await saveChartNoteAction({ ...INPUT, day: '2026-08-01' })).toEqual({ ok: true })
 })
+
+const LIVE = { id: 'client-uuid', dashSocialConfig: { brandId: 1, chartNotes: true } }
+const NOT_ON = { ok: false, error: 'Notes are not on for this client.' }
+
+test('a live client with chartNotes on: every action works, and any past day can take a note (no first month)', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue(LIVE as never)
+  vi.mocked(m.findChartNote).mockResolvedValue({ ...ROW, id: ID } as never)
+  expect(await saveChartNoteAction({ ...INPUT, day: '2026-01-05' })).toEqual({ ok: true })
+  expect(m.insertDraft).toHaveBeenCalledWith(expect.objectContaining({ day: '2026-01-05', clientId: 'client-uuid' }))
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual({ ok: true })
+  expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: true })
+  expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual({ ok: true })
+})
+
+test('a live client: a future day is still refused, before any write', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue(LIVE as never)
+  const r = await saveChartNoteAction({ ...INPUT, day: '2026-09-25' })
+  expect(r).toEqual({ ok: false, error: 'That day has not happened yet.' })
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+
+test('chartNotes other than exactly true is refused by every action', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1, chartNotes: 'yes' } } as never)
+  expect(await saveChartNoteAction(INPUT)).toEqual(NOT_ON)
+  expect(await approveChartNoteAction('a-client', ID, SEEN)).toEqual(NOT_ON)
+  expect(await revokeChartNoteAction('a-client', ID)).toEqual(NOT_ON)
+  expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual(NOT_ON)
+})
+
+test('locked-months rules win: a malformed reportingMonths with chartNotes true still refuses a save', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue({ id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: 'broken', chartNotes: true } } as never)
+  expect(await saveChartNoteAction(INPUT)).toEqual(NOT_ON)
+  expect(m.insertDraft).not.toHaveBeenCalled()
+})
