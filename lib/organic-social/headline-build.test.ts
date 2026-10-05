@@ -76,10 +76,14 @@ test('X uses Profile Clicks (not Views); Facebook omits Profile Views', () => {
   expect(platformKpiKeys('FACEBOOK')).not.toContain('profileViews')
 })
 
-test('Facebook engagements carries the decision-6 footnote on the scoped platform build', () => {
-  const keys = platformKpiKeys('FACEBOOK')
-  const h = buildPlatformHeadline('FACEBOOK', metricsForKeys('FACEBOOK', keys, 1), keys, true)
-  expect(h.kpis.find((k) => k.key === 'engagements')?.footnote).toMatch(/Influencer/)
+// The decision-6 footnote was removed for every client after the 2026-10-02 walkthrough:
+// Renaissance's scoped Facebook tile no longer carries it either, and no tile on any channel does.
+test('no tile carries a footnote on the scoped platform build, Facebook included', () => {
+  for (const ch of ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN', 'TIKTOK'] as const) {
+    const keys = platformKpiKeys(ch)
+    const h = buildPlatformHeadline(ch, metricsForKeys(ch, keys, 1), keys, true)
+    for (const k of h.kpis) expect(k.footnote, `${ch} ${k.key}`).toBeUndefined()
+  }
 })
 
 // PR #174 review #2: footnote is a platform-subpage-only caveat — Overview must render

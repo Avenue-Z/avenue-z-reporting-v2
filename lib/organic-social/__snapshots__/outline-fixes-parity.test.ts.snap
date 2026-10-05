@@ -241,7 +241,6 @@ exports[`requests, shared tiles and rows that must not move 1`] = `
         },
       },
       {
-        "footnote": "Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive).",
         "format": "number",
         "key": "engagements",
         "label": "Engagements",

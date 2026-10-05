@@ -77,7 +77,7 @@ test('TikTok breakdown KPIs carry the post-based name under byPost', () => {
 // Renaissance renders Instagram, Facebook, X and LinkedIn and must not move when TikTok changes.
 // Pins every tile on those four as a WHOLE object, in order: key, label, format, both metric
 // names, footnote, and any field added to KpiSpec later. Copied from origin/dev's PLATFORM_KPIS on
-// 2026-09-21 and hard-coded, so the test never reads the module it guards. The first version pinned
+// 2026-09-21 (Facebook's footnote removed 2026-10-05) and hard-coded, so the test never reads the module it guards. The first version pinned
 // only keys and metric names, so renaming "Profile Views" passed (Paul's re-review of PR 247).
 // Pinning the whole object closes that for every field at once, not one field at a time.
 test('the non-TikTok channels are untouched by TikTok changes', () => {
@@ -99,7 +99,8 @@ test('the non-TikTok channels are untouched by TikTok changes', () => {
       { key: 'followers', label: 'Total Followers', format: 'number', metric: { allPosts: 'TOTAL_FOLLOWERS', byPost: 'TOTAL_FOLLOWERS' } },
       { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
       { key: 'exposure', label: 'Views', format: 'number', metric: { allPosts: 'PAID_AND_ORGANIC_VIEWS_BY_POST', byPost: 'PAID_AND_ORGANIC_VIEWS_BY_POST' } },
-      { key: 'engagements', label: 'Engagements', format: 'number', metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' }, footnote: 'Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive).' },
+      // footnote removed after the 2026-10-02 walkthrough (the influencer-inclusion note, for every client)
+      { key: 'engagements', label: 'Engagements', format: 'number', metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' } },
       { key: 'engagementRate', label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE_V2', byPost: 'AVG_ENGAGEMENT_RATE_V2' } },
       { key: 'reactions', label: 'Reactions', format: 'number', metric: { allPosts: 'REACTIONS', byPost: 'REACTIONS' } },
       { key: 'comments', label: 'Comments', format: 'number', metric: { allPosts: 'TOTAL_COMMENTS', byPost: 'TOTAL_COMMENTS' } },

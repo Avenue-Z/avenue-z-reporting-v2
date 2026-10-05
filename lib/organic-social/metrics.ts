@@ -87,7 +87,7 @@ export interface KpiSpec {
   /** number vs percent formatting. Carried on the spec now; consumed when M3 renders
    *  the KPI list generically (M2's headline formats its fixed five fields inline). */
   format: 'number' | 'percent'
-  /** Rendered as a caveat under the card (used by M3 — decision 6, Facebook). */
+  /** Rendered as a caveat under the card. No tile sets one today (Facebook's was removed after the 2026-10-02 walkthrough). */
   footnote?: string
 }
 
@@ -121,8 +121,8 @@ export const PLATFORM_KPIS: Record<DashChannel, KpiSpec[]> = {
     { key: 'followers',       label: 'Total Followers', format: 'number',  metric: { allPosts: 'TOTAL_FOLLOWERS',   byPost: 'TOTAL_FOLLOWERS' } },
     { key: 'netNewFollowers', label: 'Net New Followers', format: 'number', metric: { allPosts: 'NET_NEW_FOLLOWERS', byPost: 'NET_NEW_FOLLOWERS' } },
     { key: 'exposure',        label: 'Views',           format: 'number',  metric: { allPosts: 'PAID_AND_ORGANIC_VIEWS_BY_POST', byPost: 'PAID_AND_ORGANIC_VIEWS_BY_POST' } },
-    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' },
-      footnote: 'Includes engagement on posts marked Influencer (Dash reports Facebook totals inclusive).' },
+    // No footnote: the influencer-inclusion note was removed for every client after the 2026-10-02 walkthrough.
+    { key: 'engagements',     label: 'Engagements',     format: 'number',  metric: { allPosts: 'TOTAL_ENGAGEMENTS_POSTS_V2', byPost: 'TOTAL_ENGAGEMENTS_POSTS_V2' } },
     { key: 'engagementRate',  label: 'Engagement Rate', format: 'percent', metric: { allPosts: 'AVG_ENGAGEMENT_RATE_V2', byPost: 'AVG_ENGAGEMENT_RATE_V2' } },
     // Facebook has NO Profile Views KPI (decision 7 / findings §7.5) — omitted.
     { key: 'reactions',       label: 'Reactions',       format: 'number',  metric: { allPosts: 'REACTIONS',        byPost: 'REACTIONS' } },
