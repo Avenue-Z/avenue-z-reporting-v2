@@ -100,7 +100,7 @@ export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
  * non-zero the two diverge with no on-screen signal that they were ever different measures. The
  * divergence is with the profile KPI, not with this line — pointing Facebook Top Content at
  * `organic_views` is correct here (`impressions` is 0). Recorded alongside the decision-6
- * Facebook footnote (metrics.ts FACEBOOK engagements). If reader-facing surfacing is wanted, add
+ * Facebook footnote (removed from the tiles after the 2026-10-02 walkthrough). If reader-facing surfacing is wanted, add
  * it as a "Views / Impr." column-header tooltip.
  */
 export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {

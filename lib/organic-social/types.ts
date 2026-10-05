@@ -7,7 +7,7 @@ export interface HeadlineKpi {
   value: number
   format: 'number' | 'percent'
   delta?: number            // prior-period % change, when Dash returned a context
-  footnote?: string         // caveat under the card (decision 6, Facebook)
+  footnote?: string         // caveat under the card (none today; Facebook's was removed 2026-10-02)
 }
 
 /** Headline KPIs for a single platform (channel) — Overview shows 5, subpages 10–11. */

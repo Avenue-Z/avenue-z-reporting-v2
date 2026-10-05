@@ -78,8 +78,8 @@ test('percents scale by 100, deltas come from the context value; outline tiles c
   expect(b.kpis.videoViews.delta).toBe(50)
   expect(b.kpis.reactions.delta).toBeUndefined()
   for (const k of Object.values(b.kpis)) expect(k.footnote).toBeUndefined()
-  // The shared spec keeps it: Renaissance's Facebook tile still shows it (headline-build.test.ts).
-  expect(outlineSpecsFor('FACEBOOK').find((s) => s.key === 'engagements')?.footnote).toMatch(/Influencer/)
+  // The shared spec no longer carries it either (removed for Renaissance too; headline-build.test.ts).
+  expect(outlineSpecsFor('FACEBOOK').find((s) => s.key === 'engagements')?.footnote).toBeUndefined()
 })
 
 test('selectOutlineRows picks the rows in outline order with the outline labels', () => {

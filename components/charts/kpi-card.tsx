@@ -16,8 +16,7 @@ interface KpiCardProps {
    *  of nothing — signalling "comparison not possible" (distinct from a real 0.0% change). Opt-in
    *  so cards on sections without a comparison are unaffected. */
   comparisonExpected?: boolean
-  /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a caveat like the
-   *  Facebook influencer note. */
+  /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a short caveat. */
   subValue?: string
   /** Show the change as the outline clients' Organic Social tiles do (roundDelta): whole numbers from 1%, one
    *  decimal under 1%. Absent: one decimal. */
