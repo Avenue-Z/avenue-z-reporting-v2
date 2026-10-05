@@ -56,7 +56,7 @@ export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }:
   post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string
 }) {
   return (
-    <div className="w-56 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
+    <div className="w-56 shrink-0 overflow-hidden rounded-xl print:w-[calc(25%-9px)] border border-white/[0.08] bg-white/[0.02]">
       <div className="relative">
         <Media post={post} />
         {post.mediaType === 'CAROUSEL' && (

@@ -60,7 +60,7 @@ export function StickyReportHeader({
     <div
       ref={wrapperRef}
       className={cn(
-        'sticky top-0 z-30 -mx-8 -mt-8 px-8 transition-all duration-300',
+        'sticky top-0 z-30 -mx-8 -mt-8 px-8 transition-all duration-300 print:static',
         scrolled ? 'bg-black/60 backdrop-blur-md' : 'bg-black'
       )}
     >
@@ -75,7 +75,9 @@ export function StickyReportHeader({
         <div
           className={cn(
             'flex min-w-0 flex-1 items-center gap-4 overflow-hidden transition-all duration-300',
-            scrolled ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100'
+            scrolled ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100',
+            // Export PDF prints the page as it is: a scrolled header would print with no title.
+            'print:max-h-none print:opacity-100'
           )}
         >
           {logoUrl && (
@@ -118,7 +120,8 @@ export function StickyReportHeader({
       <div
         className={cn(
           'divider-full transition-opacity duration-300',
-          scrolled ? 'opacity-0' : 'opacity-100'
+          scrolled ? 'opacity-0' : 'opacity-100',
+          'print:opacity-100'
         )}
       />
     </div>

@@ -4,6 +4,8 @@ import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
+import { ExportPdfButton } from '@/components/export-pdf-button'
+import { exportPeriodLabel } from '@/lib/export-period'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { GA4Report } from '@/components/report-sections/ga4'
 import { ConversionJourneyReport } from '@/components/report-sections/ga4/conversion-journey'
@@ -259,6 +261,7 @@ export default async function ReportPage({
             <ModelFilter selected={models} />
           </Suspense>
         )}
+        <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={exportPeriodLabel(servedDateRange)} />
       </StickyReportHeader>
 
       <div className="h-8" />

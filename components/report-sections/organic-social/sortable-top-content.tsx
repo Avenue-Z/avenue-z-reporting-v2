@@ -57,7 +57,7 @@ function PlatformCardRow({
           </div>
         )}
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex gap-3 overflow-x-auto pb-2 print:flex-wrap print:overflow-visible">
         {pg.slice.map((p) => (
           <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} />
         ))}

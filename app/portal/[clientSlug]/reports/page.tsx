@@ -38,6 +38,7 @@ import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import { parseModelsParam, type AEOModel } from '@/lib/peec/models'
 import { ExportPdfButton } from '@/components/export-pdf-button'
+import { exportPeriodLabel } from '@/lib/export-period'
 import { DataChat } from '@/components/data-chat'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
@@ -276,7 +277,7 @@ export default async function PortalReportPage({
             <ModelFilter selected={models} />
           </Suspense>
         )}
-        <ExportPdfButton />
+        <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={exportPeriodLabel(servedDateRange)} />
       </StickyReportHeader>
 
       <div className="h-8" />
