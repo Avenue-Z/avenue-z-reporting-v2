@@ -36,6 +36,15 @@ test('one getOutlineKpis call sends one request: shared tile metrics plus the ex
   expect(p.metrics).toEqual([...shared, 'PROFILE_CLICKS'])
 })
 
+// Pinned: ytd-review@3 sends this request on X for any month the sheet has not filled. Renaissance's brand was
+// probed read-only on 2026-10-05 with exactly these metrics and returned every one, so a change here needs a new probe.
+test('the X request matches the one probed live for Renaissance', () => {
+  expect(outlineSpecsFor('TWITTER').map(metricFor)).toEqual([
+    'TOTAL_FOLLOWERS', 'NET_NEW_FOLLOWERS', 'IMPRESSIONS_BY_POST', 'TOTAL_ENGAGEMENTS_POSTS', 'AVG_ENGAGEMENT_RATE',
+    'PROFILE_CLICKS', 'LIKES', 'REPLIES', 'RETWEETS', 'LINK_CLICKS',
+  ])
+})
+
 test('a tab for a channel outside the client allowlist errors, as the tiles do', async () => {
   await expect(getOutlineKpis('c', 'range-b', 'previous_period', 'TWITTER')).rejects.toThrow(/allowlist/)
   expect(getReportsData).not.toHaveBeenCalled()

@@ -19,6 +19,8 @@ import { ytdReviewV2 } from './ytd-review-sheet'
 import { ORGANIC_SOCIAL_PARTS } from './registry'
 import { YtdSheetReadError } from '@/lib/organic-social/ytd-sheet'
 import { FIXTURE_ORGANIC_SOCIAL_CTX } from './__fixtures__/organic-social-ctx'
+import { CHANNELS } from '@/lib/organic-social/metrics'
+import { outlineSpecsFor } from '@/lib/organic-social/outline-layout'
 
 // Made-up sheet id and numbers only. A Renaissance-shaped client: no reportingMonths, no channel allowlist.
 const ID = 'TESTSHEETID_abcdefghij0123'
@@ -118,11 +120,48 @@ test('a Dash failure for a needed month is the fallback card', async () => {
   expect(r.container.textContent).toContain("Couldn't load this section.")
 })
 
-test('the X tab and Overview render nothing and read nothing', async () => {
-  expect(await YtdLiveReviewSection({ ctx: { ...CTX, channel: 'TWITTER' as const } })).toBeNull()
+test('Overview renders nothing and reads nothing', async () => {
   expect(await YtdLiveReviewSection({ ctx: { ...CTX, channel: null } })).toBeNull()
   expect(getClientBySlug).not.toHaveBeenCalled()
   expect(readYtdTab).not.toHaveBeenCalled()
+})
+
+// A live client's sheet tracks X like any other channel, so the X tab draws the block too. Before this, @3 copied
+// the outline clients' rule (only channels with outline Data rows, which X has none of) and showed nothing on X.
+test('the X tab draws the block from the sheet\'s X column; only the live month asks Dash, for X', async () => {
+  const withX = sheet((i) => (i < 9 ? String(500 + i) : ''), (i) => (i < 9 ? String(50 + i) : ''))
+    .map((row) => (row[1] === 'Instagram' ? ['', 'X'] : row))
+  readYtdTab.mockResolvedValue(withX)
+  getOutlineKpis.mockResolvedValue(kpis(600, 7))
+  const el = await YtdLiveReviewSection({ ctx: { ...CTX, channel: 'TWITTER' as const } })
+  expect(getOutlineKpis.mock.calls).toEqual([['live-co', 'custom:2026-10-01,2026-10-14', null, 'TWITTER']])
+  const c = charts(el)
+  expect(c[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct (live)'])
+  expect(c[0].data[0]).toEqual({ month: 'Jan', followers: 500 })
+  expect(c[0].data.slice(-2)).toEqual([{ month: 'Sep', followers: 508 }, { month: 'Oct (live)', followers: 600 }])
+  expect(c[1].data.slice(-2)).toEqual([{ month: 'Sep', views: 58 }, { month: 'Oct (live)', views: 7 }])
+  expect(logs()).toEqual([])
+})
+
+test('every channel a tab can have carries the followers and exposure tiles a Dash month needs', () => {
+  for (const ch of CHANNELS) {
+    const keys = outlineSpecsFor(ch).map((k) => k.key)
+    expect(keys, ch).toContain('followers')
+    expect(keys, ch).toContain('exposure')
+  }
+})
+
+test('the X tab without an X column in the sheet: one warning per graph, every month from live Dash', async () => {
+  readYtdTab.mockResolvedValue(sheet((i) => String(i), (i) => String(i)))
+  getOutlineKpis.mockResolvedValue(kpis(5, 6))
+  const el = await YtdLiveReviewSection({ ctx: { ...CTX, channel: 'TWITTER' as const } })
+  expect(getOutlineKpis).toHaveBeenCalledTimes(10)
+  expect(getOutlineKpis.mock.calls.every((call) => call[3] === 'TWITTER')).toBe(true)
+  expect(charts(el)[0].data).toHaveLength(10)
+  expect(logs()).toEqual([
+    '[organic-social] ytd sheet column missing slug=live-co channel=TWITTER graph=followers',
+    '[organic-social] ytd sheet column missing slug=live-co channel=TWITTER graph=views',
+  ])
 })
 
 test('a client on locked months renders nothing, logs one line, and asks Dash nothing', async () => {
