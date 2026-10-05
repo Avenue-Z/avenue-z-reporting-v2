@@ -39,8 +39,7 @@ export function buildOutlineKpis(
       format: spec.format,
       value: spec.format === 'percent' ? raw * 100 : raw,
       delta: outlineDelta(m),
-      // No footnote: the Facebook one was removed from the outline tabs after the 2026-10-02 walkthrough. Renaissance's
-      // tiles (headline-build.ts) still show it.
+      // No footnote: the Facebook one was removed for every client after the 2026-10-02 walkthrough.
     }
   }
   return { kpis, noData }
