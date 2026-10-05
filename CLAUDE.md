@@ -1017,12 +1017,18 @@ section is no longer a one-way door for staff, overlapping sheet reads share one
 why a month failed and a failed client read, a miscased `influencerSection` key warns, the YTD timeout copy
 and early stop, an empty heading falls back, the live month never shares the finished month's request, and
 the live YTD block names a missing client row. Renaissance's brand was probed read-only on 2026-10-02 and
-returns every metric the YTD request asks for on Instagram, Facebook and LinkedIn. Paul's non-blocking
+returns every metric the YTD request asks for on Instagram, Facebook and LinkedIn, and on X on 2026-10-05 (a
+finished month, the live month and January). Paul's non-blocking
 findings that were not fixed in the PR are filed as issues and linked from it.
 
 **Known behaviour, approved, not defects** (kept here so nobody files them as bugs):
 - Renaissance's YTD points will not match its tiles: `ytd-review@3` plots whole months (the sheet, or Dash
   for that month), while its v1 tiles follow the rolling picker window.
+- `ytd-review@3` draws on every platform tab, X included; the outline clients' versions (@1, @2) still skip X,
+  which has no outline Data rows. Where a month comes from Dash, the views graph plots the tab's exposure tile
+  (`IMPRESSIONS_BY_POST` on X and LinkedIn, a views metric elsewhere) under the block's fixed "Views, Year to Date"
+  title. On X that by-post figure need not match how the sheet's X column was counted; only months the sheet has
+  not filled (in practice the live month) use it.
 - On an outline client's finished month, Total Followers and Views follow the sheet and every other tile
   stays Dash, so the sheet's Total Followers change need not equal Dash's Net New Followers.
 - `ytd-review@3`'s "(live)" month can be up to an hour old (Dash answers are cached an hour). It runs to the
