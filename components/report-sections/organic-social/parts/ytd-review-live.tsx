@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import type { PartImpl } from '@/lib/report-sections/types'
 import { getClientBySlug } from '@/lib/db/queries'
 import { getOutlineKpis } from '@/lib/organic-social/outline-headlines'
-import { OUTLINE_DATA_ROWS } from '@/lib/organic-social/outline-layout'
 import { requestClock } from '@/lib/organic-social/locked-range'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { monthsNeedingDash, ytdLiveMonths, ytdSheetSeries } from '@/lib/organic-social/ytd'
@@ -23,7 +22,10 @@ const NO_SHEET: YtdTab = { followers: {}, views: {} }
  *  rows or requests for one. Log lines carry the slug, never the sheet id, the tab or a value. */
 export async function YtdLiveReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   const { clientSlug, channel } = ctx
-  if (!channel || !OUTLINE_DATA_ROWS.standard[channel]) return null
+  // Every platform tab, X included: a live client's sheet tracks every channel, and every channel's tiles carry the
+  // followers and exposure numbers a Dash month needs (PLATFORM_KPIS, metrics.ts). Only Overview (no channel) has none.
+  // Not the outline clients' rule (@1, @2: only channels with outline Data rows), which left this client's X tab empty.
+  if (!channel) return null
   let client: Awaited<ReturnType<typeof getClientBySlug>>
   try { client = await getClientBySlug(clientSlug) } catch { logYtdClientReadFailed(3, clientSlug); return <Fallback kind="error" /> }
   // No row: say so, rather than letting Dash fail on the missing config and the log blame Dash (Paul's review of #306).
