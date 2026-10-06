@@ -18,12 +18,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Keyboar
 import { CHART_COLORS } from '@/lib/constants'
 import { money } from '@/lib/paid-media/format'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
+import { useExportMode } from '@/components/export/export-mode'
 
 /** A day to flag on the x axis. Optional everywhere: a chart given no marks renders
  *  exactly as it did before this prop existed. */
 export interface ChartMark {
   /** Must equal an x value present in `data`, else Recharts drops the dot silently. */
   x: string
+  /** Drawn above the dot, e.g. the annotation's number in the PDF export. Absent: a plain dot. */
+  label?: string
 }
 
 /** A day whose card shows when its dot is hovered, focused or tapped (Phase 2b: dots only on the
@@ -242,6 +245,10 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
+  // In the PDF export the lines must be complete on first paint (no draw-in animation to catch half way),
+  // and the panel keeps the dark theme its colours were chosen for (app/export/export-theme.css).
+  const exportMode = useExportMode()
+  const panel = exportMode ? { 'data-export-chart': '' } : {}
   const [layout, setLayout] = useState<CalloutLayout | null>(null)
   const [open, setOpen] = useState<{ x: string; by: 'pointer' | 'key' } | null>(null)
   // A refresh can remove the open card's callout (a deleted draft, a top day that moved). That card
@@ -380,6 +387,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             stroke={series.color ?? CHART_COLORS.primary}
             strokeWidth={2}
             dot={false}
+            {...(exportMode ? { isAnimationActive: false } : {})}
           />
         ))}
         {/* Marks ride the FIRST series, so a multi-series chart gets one dot per day
@@ -396,6 +404,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
               fill={CHART_COLORS.primary}
               stroke="#0B0B0B"
               strokeWidth={2}
+              {...(m.label ? { label: { value: m.label, position: 'top' as const, offset: 10, fill: '#FFFFFF', fontSize: 12, fontWeight: 800 } } : {})}
             />
           ))}
         {hasCallouts && (
@@ -405,7 +414,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
       </RechartsLineChart>
     </ResponsiveContainer>
   )
-  if (!hasCallouts) return <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
+  if (!hasCallouts) return <div {...panel} className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
   const callout = openLive ? callouts!.find((c) => c.x === openLive.x) : undefined
   const spot = openLive ? layout?.spots.find((s) => s.x === openLive.x) : undefined
   let card = null
@@ -447,7 +456,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     ]
   })
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
+    <div {...panel} className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       {/* Focus moving to anything outside this chart closes its card, as a tap outside does (C8): with the
           keyboard, Tab to the other graph's dot then Enter left both cards open (Paul's second review,
           R5). Focus lost to nothing (the window, a removed element) leaves the card as it is. */}

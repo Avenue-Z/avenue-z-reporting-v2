@@ -6,10 +6,12 @@ import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isEmptyTrend } from '@/lib/organic-social/trend-series'
 import type { TrendSeries } from '@/lib/organic-social/types'
-import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
+import { isClientVisible, type AnnotationControls, type ChartAnnotation, type NoteControls } from '@/lib/organic-social/annotations'
 import { NoData } from './no-data'
 import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
 import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-form'
+import { ExportAnnotationList } from './export-annotations'
+import { useExportMode } from '@/components/export/export-mode'
 
 /** How long the line after a save stays (Phase 2c, D18). */
 const SAVED_LINE_MS = 8000
@@ -53,6 +55,8 @@ export function ChannelTrendChart({
   // Annotations default ON, as in the deck. Only rendered at all when the caller supplies
   // at least one.
   const [showAnnotations, setShowAnnotations] = useState(true)
+  // In the PDF export the chart is static: every channel, the annotations a client sees, no editors.
+  const exportMode = useExportMode()
   // The Add annotation or Edit form, open above the chart: {} for a new note, or the day and its text.
   const [form, setForm] = useState<{ day?: string; initial?: { text: string; postIds: number[] } } | null>(null)
   // The line after a save (Phase 2c, D18): a save closed the panel and nothing said what happened. Its
@@ -118,7 +122,7 @@ export function ChannelTrendChart({
   const visible = hasAnnotations && showAnnotations && !activeEmpty ? current : undefined
   // A dot marks what a client sees: a top day, or a day with an approved note. A draft-only day and a
   // hidden day get none, so the team's chart matches the client's.
-  const shown = visible?.filter((a) => !a.hidden && (!a.noteOnly || !!a.note))
+  const shown = visible?.filter(isClientVisible)
   const noted = shown?.filter((a) => a.note)
   const notes = noted && noted.length > 0 ? Object.fromEntries(noted.map((a) => [a.date, a.note!])) : undefined
   // Phase 2b: the graph shows dots only, and each callout's card opens from its dot (hover, focus
@@ -142,6 +146,8 @@ export function ChannelTrendChart({
     existing[a.date] = { text: ed.draft?.text ?? a.note ?? '', postIds: ed.draft?.postIds ?? ed.approvedPostIds, draft: !!ed.draft }
   }
   for (const [day, note] of Object.entries(justSaved)) existing[day] = note
+
+  if (exportMode) return <ExportChannelTrendChart title={title} series={series} annotations={annotations} />
 
   return (
     <section className="space-y-3">
@@ -238,6 +244,37 @@ export function ChannelTrendChart({
           )}
         </>
       )}
+    </section>
+  )
+}
+
+/** The chart as the PDF export prints it (spec 2026-10-06 §7): title, legend and chart as one unbreakable
+ *  block; the annotations a client sees, numbered in date order, as a mark at each day's point and a list
+ *  under the chart. No hover cards, toggles or note editors. */
+function ExportChannelTrendChart({ title, series, annotations }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] }) {
+  const printable = (annotations ?? []).filter(isClientVisible).sort((a, b) => a.date.localeCompare(b.date))
+  const onSeries = new Set(series.points.map((p) => String(p.date)))
+  const marks = printable.flatMap((a, i) => (onSeries.has(a.date) ? [{ x: a.date, label: String(i + 1) }] : []))
+  const yKeys = series.channels.map((c) => ({ key: c, label: c, color: colorFor(c) }))
+  return (
+    <section className="space-y-3">
+      <div data-export-block="" className="space-y-3">
+        <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{title}</h2>
+        {isEmptyTrend(series) ? <NoData /> : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {series.channels.map((c) => (
+                <span key={c} className="flex items-center gap-1.5 rounded-full border border-white/20 px-3 py-1 text-xs font-bold text-white">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorFor(c) }} />
+                  {c}
+                </span>
+              ))}
+            </div>
+            <LineChart data={series.points} xKey="date" yKeys={yKeys} marks={marks} />
+          </>
+        )}
+      </div>
+      {printable.length > 0 && !isEmptyTrend(series) && <ExportAnnotationList items={printable} />}
     </section>
   )
 }

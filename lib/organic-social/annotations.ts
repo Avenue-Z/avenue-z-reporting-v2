@@ -183,6 +183,12 @@ export interface ChartAnnotation {
   noteSaving?: true
 }
 
+/** Whether a client sees this day: not hidden by the team, and not a day shown only for a note that is still a
+ *  draft. The chart's dots, the callout row's print rule and the PDF export's annotations all use this one rule. */
+export function isClientVisible(a: Pick<ChartAnnotation, 'hidden' | 'noteOnly' | 'note'>): boolean {
+  return !a.hidden && (!a.noteOnly || !!a.note)
+}
+
 /** The pictures a callout's card shows: the note's picked posts, else the day's top post, else none. The
  *  card (annotation-callouts.tsx) and the draft preview's parity test both use this one rule. */
 export function cardThumbs(a: Pick<ChartAnnotation, 'thumbs' | 'thumb'>): ChartThumb[] {

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
-import { cardThumbs, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
+import { cardThumbs, isClientVisible, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
 import { NoteActions } from './note-actions'
 import { CARD_PILL } from './pill'
@@ -47,7 +47,7 @@ export function Picture({ creative, alt, tile = TILE }: { creative: Creative | n
 
 /** The annotation's own label describes the picture: no caption crosses the server to client
  *  boundary (only the day, the value and the thumbnail do). */
-function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
+export function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
   const picture = <Picture creative={thumb.creative} alt={alt} />
   const href = safeHref(thumb.url)
   return href ? <a href={href} target="_blank" rel="noopener noreferrer">{picture}</a> : picture
@@ -159,7 +159,7 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   // Hiding every card is not enough: the list is a non-last child of the chart's section, so
   // Tailwind still gives it a margin and the printed page keeps a gap where the row was. A
   // draft-only day prints nothing either.
-  const nothingPrintable = items.every((a) => a.hidden || (a.noteOnly && !a.note))
+  const nothingPrintable = !items.some(isClientVisible)
   return (
     <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
       {items.map((a) => (
