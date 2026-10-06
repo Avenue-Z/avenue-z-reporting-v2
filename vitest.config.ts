@@ -70,6 +70,8 @@ export default defineConfig({
       'components/export-pdf-button.test.tsx',
       'lib/export-period.test.ts',
       'lib/export-period.pages.test.tsx',
+      'lib/export/**/*.test.{ts,tsx}',
+      'components/export/**/*.test.{ts,tsx}',
       'components/layout/sticky-report-header.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
