@@ -13,10 +13,11 @@ import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback, YTD_TIMEOUT_TEXT } from './shared'
 import { ytdReviewBlock } from './ytd-review-sheet'
 import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
+import { readYtdNotes } from './ytd-notes'
 
 const NO_SHEET: YtdTab = { followers: {}, views: {} }
 
-/** YTD Review for a live client (PR #306; Paul approved 2026-10-02). January through the current month whatever the date picker shows; the sheet's number
+/** YTD Review for a live client (PR #306; Paul approved 2026-10-02). January through the last finished month whatever the date picker shows; the sheet's number
  *  wins, and any month it has not filled comes from live Dash with no comparison (a live client has no first month).
  *  Only for clients without reportingMonths: a locked-months client renders nothing, so this can never create new lock
  *  rows or requests for one. Log lines carry the slug, never the sheet id, the tab or a value. */
@@ -65,7 +66,7 @@ export async function YtdLiveReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   if (sheet.kind === 'ok') for (const g of s.missingColumn) console.warn(`[organic-social] ytd sheet column missing slug=${clientSlug} channel=${channel} graph=${g}`)
   for (const x of s.invalid) console.warn(`[organic-social] ytd sheet cell invalid slug=${clientSlug} channel=${channel} month=${x.month} graph=${x.graph}`)
   if (s.followers.points.length === 0 && s.views.points.length === 0) return <NoData />
-  return ytdReviewBlock(s.followers, s.views)
+  return ytdReviewBlock(s.followers, s.views, await readYtdNotes(client, ctx, months, s))
 }
 
 export const ytdReviewV3: PartImpl<OrganicSocialCtx> = {

@@ -263,3 +263,14 @@ test('every callout carries the exact value its dot sits on', async () => {
   for (const a of annotations) expect(a.value).toBe(values[a.date])
   for (const a of annotations.filter((x) => !x.noteOnly)) expect(a.label).toContain(`+${a.value} Followers`)
 })
+
+// Notes on the YTD graphs (spec 2026-10-06-os-ytd-notes-design.md) share the table: a daily graph never shows one.
+// A regression guard: notesByDay already filters by chart.
+test('a YTD note in the same window never appears on a daily graph', async () => {
+  vi.mocked(getFollowerGraph).mockResolvedValueOnce(ig({ '2026-08-10': 28 }))
+  graphPosts.mockResolvedValueOnce([])
+  getChartNotes.mockResolvedValueOnce([noteRow({ chart: 'ytd-followers', day: '2026-08-01', body: 'A YTD note' })])
+  const annotations = propsOf(await FollowerSectionV2(AUG)).annotations!
+  expect(annotations.map((a) => a.date)).toEqual(['2026-08-10'])
+  expect(JSON.stringify(annotations)).not.toContain('A YTD note')
+})

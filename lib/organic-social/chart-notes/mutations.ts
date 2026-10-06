@@ -2,10 +2,10 @@ import { and, eq, gt, isNull, notExists, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '@/lib/db/client'
 import { chartNotes } from '@/lib/db/schema'
-import type { AnnotationChart } from '../annotations'
+import type { NoteChart } from '../annotations'
 import type { DashChannel } from '../metrics'
 
-export type NoteKey = { clientId: string; channel: DashChannel; chart: AnnotationChart; day: string }
+export type NoteKey = { clientId: string; channel: DashChannel; chart: NoteChart; day: string }
 
 export const OPEN_DRAFT_INDEX = 'chart_notes_one_open_draft'
 

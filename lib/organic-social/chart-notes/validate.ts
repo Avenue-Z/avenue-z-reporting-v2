@@ -1,5 +1,25 @@
-import { checkAnnotationKey } from '../annotation-hides/mutations'
+import { checkAnnotationChannel, checkAnnotationDay, checkAnnotationKey } from '../annotation-hides/mutations'
+import { YTD_NOTE_CHARTS, type YtdNoteChart } from '../annotations'
 import { NOTE_MAX_CHARS, NOTE_MAX_POSTS } from './limits'
+
+const YTD_CHARTS = new Set<string>(YTD_NOTE_CHARTS)
+
+/** One of the YTD Review graphs' note charts (spec 2026-10-06-os-ytd-notes-design.md). */
+export function isYtdNoteChart(chart: unknown): chart is YtdNoteChart {
+  return typeof chart === 'string' && YTD_CHARTS.has(chart)
+}
+
+/** A note's key: the shared annotation key (platform, daily chart, day) for the daily graphs; for a YTD chart the same
+ *  platform and day checks, in the same order, and a day that is the 1st of its month (where a month's note is
+ *  stored). Hides never call this, so they keep refusing every YTD chart. */
+export function checkNoteKey(input: { channel: unknown; chart: unknown; day: unknown }): { ok: boolean; error?: string } {
+  if (!isYtdNoteChart(input.chart)) return checkAnnotationKey(input)
+  const channel = checkAnnotationChannel(input.channel)
+  if (!channel.ok) return channel
+  const day = checkAnnotationDay(input.day)
+  if (!day.ok) return day
+  return (input.day as string).endsWith('-01') ? { ok: true } : { ok: false, error: 'invalid day' }
+}
 
 const NOTE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -36,12 +56,13 @@ function hasControl(text: string): boolean {
 
 /** Pure validation for the save action's payload, the same way authorizeAnnotationHide is kept out
  *  of the action file. The platform, chart and day checks are the ones hides make, shared through
- *  checkAnnotationKey (Paul's review of #273, C12); the rest are new for notes. */
+ *  checkAnnotationKey (Paul's review of #273, C12), plus the YTD note charts (checkNoteKey); the rest are new for
+ *  notes. */
 export function validateNoteInput(
   input: { channel: unknown; chart: unknown; day: unknown; body: unknown; postIds: unknown },
   today: string,
 ): { ok: boolean; error?: string } {
-  const key = checkAnnotationKey(input)
+  const key = checkNoteKey(input)
   if (!key.ok) return key
   if ((input.day as string) > today) return { ok: false, error: 'That day has not happened yet.' }
   if (typeof input.body !== 'string') return { ok: false, error: 'invalid note' }
@@ -54,5 +75,7 @@ export function validateNoteInput(
     !Array.isArray(ids) || ids.length > NOTE_MAX_POSTS || new Set(ids).size !== ids.length
     || !ids.every((id) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0)
   ) return { ok: false, error: `Pick at most ${NOTE_MAX_POSTS} posts.` }
+  // A month's note on a YTD graph has no pictures (spec 2026-10-06-os-ytd-notes-design.md): ids would be stored unseen.
+  if (isYtdNoteChart(input.chart) && ids.length > 0) return { ok: false, error: 'A note on a YTD graph has no posts.' }
   return { ok: true }
 }
