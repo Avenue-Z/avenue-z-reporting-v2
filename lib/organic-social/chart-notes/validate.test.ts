@@ -120,3 +120,8 @@ test('a YTD note is still checked for platform, real day, text and posts like an
   expect(v({ chart: 'ytd-followers', day: '2026-02-30' })).toEqual({ ok: false, error: 'invalid day' })
   expect(v({ chart: 'ytd-followers', day: '2026-08-01', body: '   ' })).toEqual({ ok: false, error: 'A note is 1 to 80 characters.' })
 })
+
+test('a YTD note carries no posts: post ids are refused even when sent directly', () => {
+  expect(v({ chart: 'ytd-followers', day: '2026-08-01', postIds: [11] })).toEqual({ ok: false, error: 'A note on a YTD graph has no posts.' })
+  expect(v({ chart: 'followers', postIds: [11] })).toEqual({ ok: true })
+})

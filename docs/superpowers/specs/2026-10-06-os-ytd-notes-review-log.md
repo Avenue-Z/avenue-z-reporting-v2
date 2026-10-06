@@ -40,3 +40,18 @@ here; there is no round 3.
 | R5 | MINOR | Test 3 needs a firstMonth after January; tests 9 and 10 pass before the change. | Corrected in place: `firstMonth: '2026-08'`; regression guards marked as such. |
 | R6 | MINOR | "Drafts have no dot" read as a claim about the daily graphs. | Corrected in place. |
 | R7 | MINOR | `trends.tsx:123` covers `notes` only. | Corrected in place. |
+
+## Final code review (fresh reviewer, whole branch against the spec, 2026-10-06)
+No Critical, no Important; verdict: ready for human review. Every spec section checked against the code; no draft, id
+or control reaches a viewer who cannot edit; YTD charts cannot reach the hide action; the daily graphs, hides and the
+actions are unchanged; `LineChart` and `BarChart` untouched; the new tests fail on revert except the declared guards.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| F1 | MINOR | The save accepted post ids on a YTD note (stored, never shown). | Fixed: refused, "A note on a YTD graph has no posts."; test. |
+| F2 | MINOR | Fail-closed covered the read, not the build. | Fixed: the read and the build are both inside it, as the daily graphs' `withNotes`; test. |
+| F3 | MINOR | Off-point approved notes do not print from the staff view (the spec prints the client lines only). | Follow-up: decide with the PDF export work. |
+| F4 | MINOR | Edit clicked twice on the same open month keeps typed text. | Follow-up (polish). |
+| F5 | MINOR | The two graphs' panels use the same accessible names. | Follow-up (polish). |
+| F6 | MINOR | Spec item 3 called the malformed-config case a regression guard; it fails before the change. | Fixed: wording. |
+| F7 | MINOR | The month-label rule has a second copy, pinned by a parity test (kept apart from `ytd.ts`, which #322 edits). | Kept, deliberately. |

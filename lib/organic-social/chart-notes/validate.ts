@@ -75,5 +75,7 @@ export function validateNoteInput(
     !Array.isArray(ids) || ids.length > NOTE_MAX_POSTS || new Set(ids).size !== ids.length
     || !ids.every((id) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0)
   ) return { ok: false, error: `Pick at most ${NOTE_MAX_POSTS} posts.` }
+  // A month's note on a YTD graph has no pictures (spec 2026-10-06-os-ytd-notes-design.md): ids would be stored unseen.
+  if (isYtdNoteChart(input.chart) && ids.length > 0) return { ok: false, error: 'A note on a YTD graph has no posts.' }
   return { ok: true }
 }

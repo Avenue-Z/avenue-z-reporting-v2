@@ -135,3 +135,9 @@ test('the month labels match the labels the YTD graphs draw (ytdSheetSeries), in
   const s = ytdSheetSeries(months, tab, 'INSTAGRAM', '2026-01', {})
   expect(months.map(ytdMonthLabel)).toEqual(s.followers.points.map((p) => p.label))
 })
+
+test('a failure while building the notes (not only the read) also shows none and logs the same one line', async () => {
+  getChartNotes.mockResolvedValue(null as never)
+  expect(await readYtdNotes(NOTES_ON, EDITOR, MONTHS, GRAPHS)).toBeUndefined()
+  expect(logs()).toEqual(['[organic-social] ytd notes unreadable slug=a-client channel=INSTAGRAM; showing none'])
+})

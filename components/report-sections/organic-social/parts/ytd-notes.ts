@@ -38,19 +38,27 @@ export async function readYtdNotes(
   if (!channel || months.length === 0 || !notesOn(client)) return undefined
   const id = (client as { id?: unknown }).id
   if (typeof id !== 'string') return undefined
-  let rows: Awaited<ReturnType<typeof getChartNotes>>
   try {
-    rows = await getChartNotes(id, channel)
+    return buildYtdNotes(await getChartNotes(id, channel), { ...ctx, channel }, months, graphs)
   } catch {
+    // The read and the build both, as the daily graphs' withNotes does (parts/chart-notes.ts): nothing half-built shows.
     console.error(`[organic-social] ytd notes unreadable slug=${clientSlug} channel=${channel}; showing none`)
     return undefined
   }
+}
+
+/** Both graphs' notes from the rows read. Pure; readYtdNotes catches anything it throws. */
+function buildYtdNotes(
+  rows: Awaited<ReturnType<typeof getChartNotes>>, ctx: OrganicSocialCtx & { channel: DashChannel },
+  months: YtdMonth[], graphs: { followers: YtdGraph; views: YtdGraph },
+): YtdNotes {
+  const { clientSlug, channel } = ctx
   const caps = noteCapabilities(ctx.role, ctx.email ?? null)
   const labels = new Map(months.map((m) => [m.key, ytdMonthLabel(m)]))
   const from = `${months[0].key}-01`
   const to = `${months[months.length - 1].key}-01`
 
-  const build = (chart: YtdNoteChart, g: YtdGraph): YtdGraphNotes => {
+  const graphNotes = (chart: YtdNoteChart, g: YtdGraph): YtdGraphNotes => {
     const line = g.points.length >= 2 // one point is drawn as a bar (ytd-review-sheet.tsx graph())
     const onPoint = new Set(g.points.map((p) => p.key))
     const notes: Record<string, string> = {}
@@ -72,5 +80,5 @@ export async function readYtdNotes(
       ...(caps.canEdit ? { controls: { clientSlug, channel, chart, canApprove: caps.canApprove, months: months.map((m) => ({ key: m.key, label: labels.get(m.key)! })) } } : {}),
     }
   }
-  return { followers: build('ytd-followers', graphs.followers), views: build('ytd-views', graphs.views) }
+  return { followers: graphNotes('ytd-followers', graphs.followers), views: graphNotes('ytd-views', graphs.views) }
 }

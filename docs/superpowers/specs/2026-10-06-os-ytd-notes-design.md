@@ -178,8 +178,9 @@ the panel line or form (`note-actions.tsx:65`, `note-form.tsx:219` pattern). No 
    which the renamed parity test pins), so the two cannot drift.
 2. `lib/organic-social/annotation-hides/mutations.test.ts`: a YTD chart is refused by the hide key check.
 3. `app/actions/chart-notes.test.ts`, with `firstMonth: '2026-08'`: a YTD note on `2026-01-01` is saved (fails before
-   the change); one on `2025-12-01` is refused with the new message; a daily note before `2026-08-01` is still refused,
-   and a malformed `reportingMonths` refuses a YTD note too (both regression guards, passing before and after).
+   the change); one on `2025-12-01` is refused with the new message; a daily note before `2026-08-01` is still refused
+   (a regression guard); a malformed `reportingMonths` refuses a YTD note with "Notes are not on" (before the change it
+   was refused earlier, as an invalid chart). A YTD note with post ids is refused: "A note on a YTD graph has no posts."
 4. `parts/ytd-notes.test.ts`: per graph, approved notes by label and marks only for months with a point; drafts only for
    editors; the window is the block's months; "(live)" matched by key; fail closed with one log line and no text;
    `notesOn` false reads nothing.
