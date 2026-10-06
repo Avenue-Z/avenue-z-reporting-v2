@@ -64,6 +64,7 @@ export default defineConfig({
       'app/global-error.test.tsx',
       'app/actions/**/*.test.{ts,tsx}',
       'app/api/export/**/*.test.{ts,tsx}',
+      'app/export/**/*.test.{ts,tsx}',
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
       'components/charts/line-chart.test.tsx',

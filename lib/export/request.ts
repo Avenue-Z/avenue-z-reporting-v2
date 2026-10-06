@@ -13,7 +13,8 @@ export interface ExportRequest {
 const SLUG = /^[a-z0-9-]{1,64}$/
 const RANGE = /^[A-Za-z0-9_:,-]{1,64}$/
 
-function validTz(tz: unknown): string {
+/** `tz` if it is an IANA timezone this runtime knows, else UTC. */
+export function safeTimeZone(tz: unknown): string {
   if (typeof tz !== 'string' || tz.length > 64) return 'UTC'
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: tz })
@@ -35,7 +36,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     subsection: (b.subsection as string | null | undefined) ?? null,
     dateRange: b.dateRange,
     compareRange: (b.compareRange as string | null | undefined) ?? null,
-    tz: validTz(b.tz),
+    tz: safeTimeZone(b.tz),
   }
 }
 
