@@ -12,7 +12,7 @@ const CUSTOM_RE = /^custom:(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})$/
 const SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export type YtdConfig = { firstMonth: string; comparison: 'previous-month' | 'previous-year' }
-/** compareRange is null only for ytd-review@3's live months, which ask Dash with no comparison. */
+/** compareRange is null only for ytd-review@3's months (a live client's), which ask Dash with no comparison. */
 export type YtdMonth = { key: string; dateRange: string; compareRange: string | null; partial: boolean }
 export type YtdPoint = { key: string; label: string; followers: number; views: number }
 
@@ -108,21 +108,20 @@ export function ytdSheetMonths(dateRange: string, compareRange: string, cfg: Ytd
   return [...out, ...base]
 }
 
-/** ytd-review@3's months for a live client (PR #306): January of the last closed day's year through that day's month,
- *  whatever the date picker shows. Earlier months are whole. The last runs to that day and is partial ("(live)") unless
- *  that day ends the month. The last closed day is the last complete UTC day, or the day before it while that day's
- *  Dash window is still open: every Dash window ends at a fixed T04:00:00Z (base.ts), so it is open while
- *  liveDayInProgress. Ending there means a partial month never sends the finished month's request, so Dash's partial
- *  answer is never cached under the finished month's key (Paul's review of #306). So the previous month shows whole from
- *  04:00 UTC on the 1st, and the previous year from 04:00 UTC on January 1. No comparison: compareRange is null. */
+/** ytd-review@3's months for a live client (PR #306): January through the last finished month, whatever the date picker
+ *  shows, never a month in progress (a few days of a month plotted next to whole months read as a drop; spec
+ *  2026-10-06-os-ren-ytd-finished-months-design.md). A month is finished once its last day is the last closed day: the
+ *  last complete UTC day, or the day before it while that day's Dash window is still open (every Dash window ends at a
+ *  fixed T04:00:00Z, base.ts, so it is open while liveDayInProgress). So a month appears at 04:00 UTC on the 1st of the
+ *  next month; in January the block shows the whole previous year, and in February January alone. Every month is
+ *  whole, so no request for a month in progress is ever sent. No comparison: compareRange is null. */
 export function ytdLiveMonths(clock: Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>): YtdMonth[] {
   const day = clock.liveDayInProgress ? dayBefore(clock.lastCompleteUtcDay) : clock.lastCompleteUtcDay
-  const key = day.slice(0, 7)
+  const end = day === lastOf(day.slice(0, 7)) ? day.slice(0, 7) : addMonths(day.slice(0, 7), -1)
   const out: YtdMonth[] = []
-  for (let k = `${key.slice(0, 4)}-01`; k < key; k = addMonths(k, 1)) {
+  for (let k = `${end.slice(0, 4)}-01`; k <= end; k = addMonths(k, 1)) {
     out.push({ key: k, dateRange: `custom:${k}-01,${lastOf(k)}`, compareRange: null, partial: false })
   }
-  out.push({ key, dateRange: `custom:${key}-01,${day}`, compareRange: null, partial: day < lastOf(key) })
   return out
 }
 
