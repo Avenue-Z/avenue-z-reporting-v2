@@ -90,9 +90,15 @@ None new. The formatter cannot throw (string test, then split) and falls back to
    axis and the callouts can never disagree.
 3. Rendered with `ResponsiveContainer` stubbed to a fixed size (the method `v1-render.golden.test.tsx:5-13` uses): with
    `xFormat="month-day"` the axis ticks read `M/D`; without it they read the raw keys.
-4. The hover box: `NotedTooltip` given `labelFormatter` and a raw `label` prints `9/21` in its header, with and without
-   a note, and the note is still found by the raw key.
-5. `LineChart` without `xFormat` passes no `tickFormatter` or `labelFormatter` (props unchanged from today).
+4. The hover box, through `LineChart` itself, using the file's existing Tooltip recorder (`line-chart.test.tsx:7-19`,
+   `tooltipProps`):
+   - without notes: `LineChart` with `xFormat="month-day"` hands `Tooltip` a `labelFormatter` that maps `2026-09-21` to
+     `9/21`;
+   - with notes (`notes={{ '2026-09-21': 'Influencer post went live' }}`): rendering the recorded `content` with
+     `{ ...recordedProps, label: '2026-09-21', payload }` shows `9/21` in the header and the note text, so the note is
+     still found by the raw key (`line-chart.tsx:370`).
+5. `LineChart` without `xFormat`: the recorded Tooltip props carry no `labelFormatter`, and the x-axis gets no
+   `tickFormatter` (props unchanged from today).
 
 `components/report-sections/organic-social/v1-render.golden.test.tsx`:
 6. The `Paid Media shaped chart, no marks` snapshot stays byte-identical (not updated).
