@@ -1,0 +1,111 @@
+// Server-side PDF rendering for the export (spec docs/superpowers/specs/2026-10-06-organic-social-pdf-export-v2-design.md §8).
+// Opens the export page in headless Chromium as the requester, waits until the page reports itself
+// fully loaded, and prints it at US Letter landscape. Never returns a partial PDF: a page that is not
+// ready in time is an ExportNotReadyError, and nothing is printed.
+
+/** Content box of the page: 11 × 8.5 in less 0.4 in margins, at 96 px/in. */
+export const CONTENT_WIDTH = 979
+export const CONTENT_HEIGHT = 739
+const MARGIN = '0.4in'
+const READY_TIMEOUT_MS = 45_000
+
+export type ExportStep = 'launch' | 'navigate' | 'auth' | 'pdf'
+
+/** The page did not finish loading within the budget: report "still loading", print nothing. */
+export class ExportNotReadyError extends Error {
+  constructor() { super('export page not ready in time'); this.name = 'ExportNotReadyError' }
+}
+
+/** A failure at a named step. The message never carries the URL (it holds the client and range). */
+export class ExportRenderError extends Error {
+  constructor(readonly step: ExportStep, cause?: unknown) {
+    super(`export failed at ${step}`, cause === undefined ? undefined : { cause })
+    this.name = 'ExportRenderError'
+  }
+}
+
+// The slice of puppeteer this module uses, so tests can drive it with fakes.
+export interface PageLike {
+  setViewport(v: { width: number; height: number }): Promise<void>
+  goto(url: string, o: { waitUntil: 'domcontentloaded'; timeout: number }): Promise<{ status(): number } | null>
+  url(): string
+  waitForFunction(fn: string, o: { timeout: number; polling: number }): Promise<unknown>
+  emulateMediaType(type: 'screen'): Promise<void>
+  pdf(o: { width: string; height: string; margin: Record<'top' | 'right' | 'bottom' | 'left', string>; printBackground: boolean }): Promise<Uint8Array>
+}
+export interface BrowserLike {
+  setCookie(...c: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean }[]): Promise<void>
+  newPage(): Promise<PageLike>
+  close(): Promise<void>
+}
+
+const isTimeout = (e: unknown) => e instanceof Error && e.name === 'TimeoutError'
+
+export async function renderPdf(
+  opts: { url: string; cookies: { name: string; value: string }[]; readyTimeoutMs?: number },
+  deps: { launch: () => Promise<BrowserLike> } = { launch: launchChromium },
+): Promise<Uint8Array> {
+  const budget = opts.readyTimeoutMs ?? READY_TIMEOUT_MS
+  const started = Date.now()
+  let browser: BrowserLike
+  try {
+    browser = await deps.launch()
+  } catch (e) {
+    throw e instanceof ExportRenderError ? e : new ExportRenderError('launch', e)
+  }
+  try {
+    const target = new URL(opts.url)
+    if (opts.cookies.length > 0) {
+      await browser.setCookie(...opts.cookies.map((c) => ({
+        name: c.name, value: c.value, domain: target.hostname, path: '/', httpOnly: true, secure: target.protocol === 'https:',
+      })))
+    }
+    const page = await browser.newPage()
+    await page.setViewport({ width: CONTENT_WIDTH, height: CONTENT_HEIGHT })
+
+    // The export page streams: navigation completes only once every part has resolved on the server,
+    // so running out of time here is the same "still loading" as the ready wait below.
+    let res: { status(): number } | null
+    try {
+      res = await page.goto(opts.url, { waitUntil: 'domcontentloaded', timeout: budget })
+    } catch (e) {
+      throw isTimeout(e) ? new ExportNotReadyError() : new ExportRenderError('navigate', e)
+    }
+    const landed = new URL(page.url()).pathname
+    if (landed.startsWith('/login') || landed.startsWith('/unauthorized')) throw new ExportRenderError('auth')
+    if (res && res.status() >= 400) throw new ExportRenderError('navigate')
+
+    try {
+      await page.waitForFunction('window.__exportReady === true', { timeout: Math.max(1_000, budget - (Date.now() - started)), polling: 250 })
+    } catch (e) {
+      throw isTimeout(e) ? new ExportNotReadyError() : new ExportRenderError('navigate', e)
+    }
+
+    // Print what the page lays out on screen at the content width: the export page owns its styling,
+    // and the app's global @media print rules (made for printing the live page) must not apply.
+    await page.emulateMediaType('screen')
+    try {
+      return await page.pdf({
+        width: '11in', height: '8.5in', margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN }, printBackground: true,
+      })
+    } catch (e) {
+      throw new ExportRenderError('pdf', e)
+    }
+  } finally {
+    await browser.close().catch(() => {})
+  }
+}
+
+/** Chromium for this environment: the serverless build on Vercel, a local Chrome elsewhere. */
+export async function launchChromium(): Promise<BrowserLike> {
+  const { default: puppeteer } = await import('puppeteer-core')
+  if (process.env.VERCEL) {
+    const { default: chromium } = await import('@sparticuz/chromium')
+    const browser = await puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true })
+    return browser as unknown as BrowserLike
+  }
+  const executablePath = process.env.CHROME_EXECUTABLE_PATH
+  if (!executablePath) throw new ExportRenderError('launch', new Error('CHROME_EXECUTABLE_PATH is not set (see .env.example)'))
+  const browser = await puppeteer.launch({ executablePath, headless: true })
+  return browser as unknown as BrowserLike
+}
