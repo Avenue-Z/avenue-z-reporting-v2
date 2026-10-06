@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveChartNoteAction } from '@/app/actions/chart-notes'
 import { NOTE_MAX_CHARS } from '@/lib/organic-social/chart-notes/limits'
@@ -10,6 +10,8 @@ import { NoteActions } from './note-actions'
 import { PILL as BUTTON } from './pill'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
+/** How long the line after a save stays, as on the daily graphs (trends.tsx, SAVED_LINE_MS). */
+const SAVED_LINE_MS = 8000
 
 type Had = 'none' | 'draft' | 'approved'
 
@@ -44,7 +46,16 @@ const asAnnotation = (r: YtdNoteRow): ChartAnnotation => ({
 
 function EditorPanel({ notes, controls, title }: { notes: YtdGraphNotes; controls: YtdNoteControls; title: string }) {
   const [form, setForm] = useState<{ fixed?: string; initial?: string } | null>(null)
-  const [saved, setSaved] = useState<string | null>(null)
+  const [saved, setSavedState] = useState<string | null>(null)
+  // The line after a save clears after SAVED_LINE_MS, as on the daily graphs (trends.tsx), so it never outlives what it
+  // says ("Approve it in the list below" after the note is approved). Opening the form clears it too.
+  const savedClock = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setSaved = (next: string | null) => {
+    if (savedClock.current) clearTimeout(savedClock.current)
+    savedClock.current = next ? setTimeout(() => { savedClock.current = null; setSavedState(null) }, SAVED_LINE_MS) : null
+    setSavedState(next)
+  }
+  useEffect(() => () => { if (savedClock.current) clearTimeout(savedClock.current) }, [])
   // Months saved on this page whose refreshed answer has not arrived: their Approve, Revoke and Delete wait, as on the
   // daily card (note-actions.tsx, trends.tsx). A new answer from the server clears them.
   const [justSaved, setJustSaved] = useState<ReadonlySet<string>>(new Set())

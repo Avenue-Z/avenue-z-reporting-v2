@@ -139,3 +139,24 @@ test('the editor controls never print', () => {
   const { container } = render(<YtdNotesPanel notes={EDITOR_NOTES} title="T" />)
   expect(container.firstElementChild?.className).toContain('no-print')
 })
+
+// As on the daily graphs (trends.tsx, SAVED_LINE_MS): the line after a save clears after 8 seconds, so "Approve it in the
+// list below" does not linger after the note is approved (seen in the local check, 2026-10-06).
+test('the line after a save clears after 8 seconds', async () => {
+  vi.useFakeTimers()
+  try {
+    render(<YtdNotesPanel notes={EDITOR_NOTES} title="T" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Month' }), { target: { value: '2026-09' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note text' }), { target: { value: 'x' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save draft' })) })
+    expect(screen.getByRole('status')).toBeTruthy()
+    act(() => { vi.advanceTimersByTime(7999) })
+    expect(screen.getByRole('status')).toBeTruthy()
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(screen.queryByRole('status')).toBeNull()
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
