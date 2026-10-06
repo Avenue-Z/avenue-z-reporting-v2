@@ -14,7 +14,8 @@ import { CARD_PILL as BUTTON } from './pill'
  *  previous answer, so they would act on it. Edit stays, since it opens what was just saved. */
 export function NoteActions({ annotation, controls, compact, onEdit, saving }: {
   annotation: ChartAnnotation
-  controls: NoteControls
+  /** Only the two fields read here, so the YTD notes panel can pass its own controls (ytd-notes-panel.tsx). */
+  controls: Pick<NoteControls, 'clientSlug' | 'canApprove'>
   compact?: boolean
   onEdit: (day: string, initial?: { text: string; postIds: number[] }) => void
   saving?: boolean
