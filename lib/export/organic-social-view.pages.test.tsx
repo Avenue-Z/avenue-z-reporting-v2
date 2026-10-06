@@ -20,7 +20,7 @@ import { organicSocialExportView } from './organic-social-view'
 import type { OrganicTabsClient } from '@/lib/constants'
 
 const CLIENT = {
-  name: 'Client', slug: 'c', logoUrl: null, enabledReports: ['organic-social'], hiddenReports: [],
+  name: 'Client', slug: 'c', logoUrl: null, enabledReports: ['organic-social', 'paid-media'], hiddenReports: [],
   dashSocialConfig: { brandId: 1 }, reportSectionConfig: {},
 }
 // The page reads the whole row; the view reads only its tabs.
@@ -47,3 +47,23 @@ test('a platform tab resolves to its id; Overview and an unknown tab to none', (
   expect(organicSocialExportView(TABS, null)).toEqual({ subsectionId: null, pageTitle: 'Organic Social' })
   expect(organicSocialExportView(TABS, 'not-a-tab')).toEqual({ subsectionId: null, pageTitle: 'Organic Social' })
 })
+
+// Organic Social exports on the server (app/api/export/pdf); every other section still prints in the browser.
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  const button = async (q: Record<string, string>) => {
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }), searchParams: Promise.resolve(q) } as never))
+    if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+    return findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')[0]
+  }
+
+  test(`${routeName}: Organic Social's button exports the served view on the server`, async () => {
+    const b = await button({ section: 'organic-social', subsection: 'organic-linkedin', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'previous_period' })
+    expect(b.props.serverExport).toEqual({ clientSlug: 'c', subsection: 'organic-linkedin', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'previous_period' })
+    expect((await button({ section: 'organic-social', dateRange: 'last_30_days' })).props.serverExport)
+      .toEqual({ clientSlug: 'c', subsection: null, dateRange: 'last_30_days', compareRange: null })
+  })
+
+  test(`${routeName}: other sections keep the browser print`, async () => {
+    expect((await button({ section: 'paid-media', dateRange: 'last_30_days' })).props.serverExport).toBeUndefined()
+  })
+}

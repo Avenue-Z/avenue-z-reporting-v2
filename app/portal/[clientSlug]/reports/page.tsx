@@ -286,7 +286,10 @@ export default async function PortalReportPage({
             <ModelFilter selected={models} />
           </Suspense>
         )}
-        <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={usesPageRange ? exportPeriodLabel(servedDateRange) : null} />
+        <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={usesPageRange ? exportPeriodLabel(servedDateRange) : null}
+          {...(activeSection === 'organic-social'
+            ? { serverExport: { clientSlug, subsection: organicEntry?.id ?? null, dateRange: servedDateRange, compareRange: servedCompareRange } }
+            : {})} />
       </StickyReportHeader>
 
       <div className="h-8" />
