@@ -1,5 +1,5 @@
 import type { ChartNote } from '@/lib/db/schema'
-import type { AnnotationChart, NoteEditorState } from '../annotations'
+import type { NoteChart, NoteEditorState } from '../annotations'
 
 type Row = Pick<ChartNote, 'id' | 'chart' | 'day' | 'body' | 'postIds' | 'status' | 'approvedAt' | 'updatedAt' | 'deletedAt'>
 
@@ -28,7 +28,7 @@ export function latestApproved<T extends Pick<Row, 'approvedAt' | 'updatedAt'>>(
  *  ids and the open draft. A day with only a draft does not exist for someone who cannot edit. */
 export function notesByDay(
   rows: Row[],
-  o: { chart: AnnotationChart; from: string; to: string; canEdit: boolean },
+  o: { chart: NoteChart; from: string; to: string; canEdit: boolean },
 ): Map<string, DayNote> {
   const live = rows.filter((r) => !r.deletedAt && r.chart === o.chart && r.day >= o.from && r.day <= o.to)
   const out = new Map<string, DayNote>()

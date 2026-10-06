@@ -83,8 +83,9 @@ test('line and paragraph separators and C1 controls are refused too; ordinary te
 })
 
 // Paul's review of #273 (C12): hides and notes kept separate copies of the chart allowlist and of the
-// platform, chart and day checks. They now share one; this pins that they answer alike.
-test('hides and notes accept and refuse exactly the same platforms, charts and days', () => {
+// platform, chart and day checks. They now share one; this pins that they answer alike on the daily charts. The YTD
+// charts (spec 2026-10-06-os-ytd-notes-design.md) are note charts only: notes accept them, hides refuse them.
+test('hides and notes accept and refuse exactly the same platforms, daily charts and days', () => {
   const cases: [unknown, unknown, unknown][] = [
     ['INSTAGRAM', 'followers', '2026-08-14'], ['TIKTOK', 'engagements', '2026-08-01'], ['MYSPACE', 'followers', '2026-08-14'],
     ['INSTAGRAM', 'reach', '2026-08-14'], ['INSTAGRAM', 'followers', '2026-02-30'], [7, 'followers', '2026-08-14'],
@@ -95,5 +96,27 @@ test('hides and notes accept and refuse exactly the same platforms, charts and d
     const hide = authorizeAnnotationHide({ channel, chart, day, hidden: true } as never)
     expect([note.ok, note.error]).toEqual([hide.ok, hide.error])
   }
+  for (const chart of ['ytd-followers', 'ytd-views']) {
+    expect(validateNoteInput({ ...OK, chart, day: '2026-08-01', postIds: [] }, TODAY)).toEqual({ ok: true })
+    expect(authorizeAnnotationHide({ channel: 'INSTAGRAM', chart, day: '2026-08-01', hidden: true })).toEqual({ ok: false, error: 'invalid chart' })
+  }
 })
 
+// Notes on the YTD graphs (spec 2026-10-06-os-ytd-notes-design.md): a month's note is stored on its 1st.
+test.each(['ytd-followers', 'ytd-views'])('a %s note on the 1st of a past month passes', (chart) => {
+  expect(v({ chart, day: '2026-08-01', postIds: [] })).toEqual({ ok: true })
+  expect(v({ chart, day: '2026-01-01', postIds: [] })).toEqual({ ok: true })
+})
+test('a YTD note must be on the 1st of its month', () => {
+  expect(v({ chart: 'ytd-followers', day: '2026-08-15', postIds: [] })).toEqual({ ok: false, error: 'invalid day' })
+  expect(v({ chart: 'ytd-views', day: '2026-08-31', postIds: [] })).toEqual({ ok: false, error: 'invalid day' })
+})
+test('a YTD note on a future month is refused; the current month\'s 1st passes', () => {
+  expect(v({ chart: 'ytd-followers', day: '2026-10-01', postIds: [] })).toEqual({ ok: false, error: 'That day has not happened yet.' })
+  expect(v({ chart: 'ytd-followers', day: '2026-09-01', postIds: [] })).toEqual({ ok: true })
+})
+test('a YTD note is still checked for platform, real day, text and posts like any note', () => {
+  expect(v({ chart: 'ytd-followers', channel: 'MYSPACE', day: '2026-08-01' })).toEqual({ ok: false, error: 'invalid channel' })
+  expect(v({ chart: 'ytd-followers', day: '2026-02-30' })).toEqual({ ok: false, error: 'invalid day' })
+  expect(v({ chart: 'ytd-followers', day: '2026-08-01', body: '   ' })).toEqual({ ok: false, error: 'A note is 1 to 80 characters.' })
+})
