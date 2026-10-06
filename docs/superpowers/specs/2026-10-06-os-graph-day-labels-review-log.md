@@ -30,3 +30,15 @@ key (`line-chart.tsx:370`), so test 4 fails before the change and passes after. 
 | R6 | MINOR | Test 5's axis half cannot be checked (only `Tooltip` is recorded). | Corrected in place: the axis half is test 3's raw-key case. |
 | R7 | MINOR | Test 4's notes case needs a non-empty payload, or the label is never formatted (`DefaultTooltipContent.js:123`). | Corrected in place. |
 | R8 | MINOR | Test 3 should cite the stub in `line-chart.test.tsx:15-16` (B8's range was also off). | Corrected in place. |
+
+## Final code review (fresh reviewer, whole branch against the spec, 2026-10-06)
+No Critical, no Important; verdict: ready for human review. The reviewer checked `formatMonthDay` on edge inputs,
+that the new props are absent without `xFormat` (spread of `{}`), and diffed the golden snapshot programmatically:
+Paid Media's entry and the no-data entries byte-identical, the five Organic Social entries differing only in tick text.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| D1 | MINOR | The Paid Media test file (one added assertion) was not listed in spec section 8. | Fixed: listed; test only, Paid Media's code and output unchanged. |
+| D2 | MINOR | No direct test that `XAxis` gets no `tickFormatter` without `xFormat`. | Fixed: `XAxis` props recorded like `Tooltip`'s; absent without the prop, a month/day formatter with it. |
+| D3 | MINOR | An unneeded cast in the `labelFormatter`. | Fixed: Recharts types the label as `ReactNode`, so it now narrows (string or number formatted, anything else returned unchanged) instead of casting. |
+| D4 | MINOR | A Paid Media test comment says its label density matches Organic Social. | Kept: editing it would touch a Paid Media file for no behaviour change. |

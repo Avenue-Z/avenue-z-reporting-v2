@@ -81,7 +81,9 @@ None new. The formatter cannot throw (string test, then split) and falls back to
 - `components/charts/line-chart.tsx`: the `xFormat` prop, the exported `formatMonthDay`, and passing the formatter to
   `XAxis` and `Tooltip` only when `xFormat === 'month-day'`.
 - `components/report-sections/organic-social/trends.tsx`: `xFormat="month-day"` on its `LineChart` (`:223`).
-- Tests and the one golden snapshot file (section 9).
+- Tests and the one golden snapshot file (section 9), including one added assertion in
+  `components/report-sections/paid-media/overview/trend.test.tsx` that Paid Media passes no `xFormat` (test only; Paid
+  Media's code and output do not change).
 
 ## 9. Tests (written first, watched fail, then made to pass)
 `components/charts/line-chart.test.tsx`:

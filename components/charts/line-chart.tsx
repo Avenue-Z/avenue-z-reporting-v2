@@ -258,7 +258,9 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
   // Spread only when asked for, so a chart without xFormat hands Recharts exactly the props it did before.
   const xTicks = xFormat === 'month-day' ? { tickFormatter: (v: string | number) => formatMonthDay(v) } : {}
-  const xLabel = xFormat === 'month-day' ? { labelFormatter: (label: unknown) => formatMonthDay(label as string | number) } : {}
+  const xLabel = xFormat === 'month-day'
+    ? { labelFormatter: (label: ReactNode) => (typeof label === 'string' || typeof label === 'number' ? formatMonthDay(label) : label) }
+    : {}
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
   const [layout, setLayout] = useState<CalloutLayout | null>(null)
   const [open, setOpen] = useState<{ x: string; by: 'pointer' | 'key' } | null>(null)

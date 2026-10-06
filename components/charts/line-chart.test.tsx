@@ -9,14 +9,17 @@ vi.mock('recharts', async () => {
   const { cloneElement } = await import('react')
   // Records the props the chart hands Recharts' Tooltip, then renders the real one.
   const Tooltip = (props: Record<string, unknown>) => { tooltipProps.push(props); return <actual.Tooltip {...props} /> }
+  // Records the props the chart hands Recharts' XAxis, then renders the real one.
+  const XAxis = (props: Record<string, unknown>) => { xAxisProps.push(props); return <actual.XAxis {...props} /> }
   return {
     ...actual,
     Tooltip,
+    XAxis,
     ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
       cloneElement(children, { width: 800, height: 300 }),
   }
 })
-const { tooltipProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[] }))
+const { tooltipProps, xAxisProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[], xAxisProps: [] as Record<string, unknown>[] }))
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
@@ -578,10 +581,18 @@ describe('dates as month/day (xFormat="month-day")', () => {
     expect(text).toContain('Influencer post went live')
   })
 
-  test('without xFormat the Tooltip gets no labelFormatter, so its props are what they were before', () => {
+  test('without xFormat the Tooltip gets no labelFormatter and the XAxis no tickFormatter, so their props are what they were before', () => {
     tooltipProps.length = 0
+    xAxisProps.length = 0
     render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
     expect(tooltipProps.at(-1)).not.toHaveProperty('labelFormatter')
+    expect(xAxisProps.at(-1)).not.toHaveProperty('tickFormatter')
+  })
+
+  test('with xFormat the XAxis gets a tickFormatter that reads month/day', () => {
+    xAxisProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" />)
+    expect((xAxisProps.at(-1)!.tickFormatter as (v: string) => string)('2026-08-02')).toBe('8/2')
   })
 })
 
