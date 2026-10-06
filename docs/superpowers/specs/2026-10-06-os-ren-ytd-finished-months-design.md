@@ -119,8 +119,9 @@ fewer Dash requests (the month in progress is never asked for), so no new failur
     2027-01-15T12:00Z the block shows 2026 January to December and `readYtdTab` is called with the 2026 entry; at
     2027-02-15T12:00Z, with the 2027 sheet filling January on both graphs, each graph is a single `BarChart` with the one
     point "Jan" and Dash is asked nothing.
-10. Unchanged and still passing: Overview renders nothing; a `reportingMonths` client is skipped; the January 1 test
-    (`:183-190`); the concurrency and failure-logging tests.
+10. Unchanged and still passing: Overview renders nothing; a `reportingMonths` client is skipped; the part's January 1
+    test (`parts/ytd-review-live.test.tsx:183-190`); the concurrency and failure-logging tests. (The rule's January 1
+    test in `ytd.test.ts` is replaced by the section 5 rows: its January 2 line expected the partial January.)
 
 The full suite, the type check (`tsc --noEmit`) and the linter must pass with the commands CI runs.
 

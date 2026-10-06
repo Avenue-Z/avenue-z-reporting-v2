@@ -31,3 +31,14 @@ No BLOCKER, no MAJOR. Both round 1 MAJORs confirmed fixed from the code: one poi
 | R3 | MINOR | The January and February windows were not in UTC bounds; the February change starts at 04:00 UTC on February 2. | Corrected in place. |
 | R4 | MINOR | One bar only when January has a value; a January gap shows "No data" (`:85`). | Corrected in place. |
 | R5 | MINOR | Test 9a must prove the 2026 entry is chosen over a 2027 one, and avoid an unmocked Dash call in February. | Corrected in place: fixture with both entries; the 2027 sheet fills January. |
+
+## Final code review (fresh reviewer, whole branch against the spec, 2026-10-06)
+No Critical, no Important; verdict: ready for human review. The reviewer recomputed `ytdLiveMonths` by hand at 15 clocks
+(month ends, 03:59 and 04:00 UTC on the 1st, January 1 and 2, February 1 and 15, leap February) and found every result
+matches the spec; scope, callers, comments and types clean; every changed test assertion justified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| C1 | MINOR | Spec item 10 said the January 1 test stays; the rule's version contradicted the section 5 table and was replaced. | Fixed: item 10 reworded. |
+| C2 | MINOR | The "(live)" test's date pattern would accept an impossible end such as 02-30. | Fixed: compares against the month's real last day. |
+| C3 | MINOR | `CLAUDE.md:1018`, `:1021` mention "the live month" in the #306 history paragraph. | Kept: accurate as history; the current behaviour is stated at `:1034-1037`. |

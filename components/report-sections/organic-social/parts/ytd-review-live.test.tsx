@@ -321,7 +321,11 @@ test('no label in the block says "(live)", and no range in progress is requested
   const el = await YtdLiveReviewSection({ ctx: CTX })
   for (const c of charts(el)) expect(c.data.map((d) => String(d.month)).filter((m) => m.includes('(live)'))).toEqual([])
   expect(render(<>{el}</>).container.textContent).not.toContain('(live)')
-  for (const call of getOutlineKpis.mock.calls) expect(call[1]).toMatch(/^custom:2026-(0[1-9])-01,2026-\1-(28|29|30|31)$/)
+  for (const call of getOutlineKpis.mock.calls) {
+    const month = String(call[1]).slice(7, 14)
+    const last = String(new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 0)).getUTCDate()).padStart(2, '0')
+    expect(call[1]).toBe(`custom:${month}-01,${month}-${last}`)
+  }
 })
 
 // The stakeholder's case, 2026-10-06: the block ends at September and asks Dash nothing for October.
