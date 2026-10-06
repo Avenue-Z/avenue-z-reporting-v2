@@ -7,7 +7,9 @@
 export const CONTENT_WIDTH = 979
 export const CONTENT_HEIGHT = 739
 const MARGIN = '0.4in'
-const READY_TIMEOUT_MS = 45_000
+/** One budget for launch + navigation + the ready wait. The route's maxDuration is 60 s; 40 s here leaves room
+ *  for auth before and page.pdf() after, so a slow but successful render is never cut off by the platform. */
+const READY_TIMEOUT_MS = 40_000
 
 export type ExportStep = 'launch' | 'navigate' | 'auth' | 'pdf'
 
@@ -27,6 +29,7 @@ export class ExportRenderError extends Error {
 // The slice of puppeteer this module uses, so tests can drive it with fakes.
 export interface PageLike {
   setViewport(v: { width: number; height: number }): Promise<void>
+  setExtraHTTPHeaders(h: Record<string, string>): Promise<void>
   goto(url: string, o: { waitUntil: 'domcontentloaded'; timeout: number }): Promise<{ status(): number } | null>
   url(): string
   waitForFunction(fn: string, o: { timeout: number; polling: number }): Promise<unknown>
@@ -62,12 +65,17 @@ export async function renderPdf(
     }
     const page = await browser.newPage()
     await page.setViewport({ width: CONTENT_WIDTH, height: CONTENT_HEIGHT })
+    // Dash's image service negotiates on Accept: Chrome's own (it lists image/webp) gets WebP even for the
+    // format=jpeg print URLs (lib/export/print-image.ts), and Chromium stores WebP losslessly in a PDF. With */* it
+    // serves the JPEG, which the PDF embeds as is. Harmless for the page's other requests.
+    await page.setExtraHTTPHeaders({ accept: '*/*' })
 
     // The export page streams: navigation completes only once every part has resolved on the server,
     // so running out of time here is the same "still loading" as the ready wait below.
+    const left = () => Math.max(1_000, budget - (Date.now() - started))
     let res: { status(): number } | null
     try {
-      res = await page.goto(opts.url, { waitUntil: 'domcontentloaded', timeout: budget })
+      res = await page.goto(opts.url, { waitUntil: 'domcontentloaded', timeout: left() })
     } catch (e) {
       throw isTimeout(e) ? new ExportNotReadyError() : new ExportRenderError('navigate', e)
     }
@@ -76,7 +84,7 @@ export async function renderPdf(
     if (res && res.status() >= 400) throw new ExportRenderError('navigate')
 
     try {
-      await page.waitForFunction('window.__exportReady === true', { timeout: Math.max(1_000, budget - (Date.now() - started)), polling: 250 })
+      await page.waitForFunction('window.__exportReady === true', { timeout: left(), polling: 250 })
     } catch (e) {
       throw isTimeout(e) ? new ExportNotReadyError() : new ExportRenderError('navigate', e)
     }
@@ -101,7 +109,12 @@ export async function launchChromium(): Promise<BrowserLike> {
   const { default: puppeteer } = await import('puppeteer-core')
   if (process.env.VERCEL) {
     const { default: chromium } = await import('@sparticuz/chromium')
-    const browser = await puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true })
+    // As @sparticuz/chromium's README: its args through puppeteer's defaults, and the headless shell build.
+    const browser = await puppeteer.launch({
+      args: await puppeteer.defaultArgs({ args: chromium.args, headless: 'shell' }),
+      executablePath: await chromium.executablePath(),
+      headless: 'shell',
+    })
     return browser as unknown as BrowserLike
   }
   const executablePath = process.env.CHROME_EXECUTABLE_PATH

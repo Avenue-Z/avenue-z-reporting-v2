@@ -94,7 +94,8 @@ export function ExportPdfButton({ clientName, pageTitle, periodLabel, serverExpo
       a.href = url
       a.download = filenameFrom(res.headers.get('content-disposition'))
       a.click()
-      URL.revokeObjectURL(url)
+      // Revoked later, not at once: some browsers start the download after click() returns.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch {
       setError(FAILED)
     } finally {

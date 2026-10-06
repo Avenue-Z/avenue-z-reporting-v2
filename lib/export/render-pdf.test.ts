@@ -7,6 +7,7 @@ const timeout = () => Object.assign(new Error('Waiting failed: 45000ms exceeded'
 function fakes(over: Partial<PageLike> = {}, landed = 'https://app.example/export/renaissance/organic-social?dateRange=x') {
   const page: PageLike = {
     setViewport: vi.fn(async () => {}),
+    setExtraHTTPHeaders: vi.fn(async () => {}),
     goto: vi.fn(async () => ({ status: () => 200 })),
     url: vi.fn(() => landed),
     waitForFunction: vi.fn(async () => true),
@@ -63,4 +64,32 @@ test('a failure printing is a pdf failure, and the browser is still closed', asy
   expect(err).toBeInstanceOf(ExportRenderError)
   expect(err.step).toBe('pdf')
   expect(browser.close).toHaveBeenCalled()
+})
+
+// Launch, navigation and the ready wait share ONE budget, so a slow cold start cannot push the PDF step past the
+// route's maxDuration (review of #332): navigation gets what is left, not the whole budget.
+test('time spent launching comes out of the navigation budget', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-06T12:00:00Z'))
+  const { page, browser } = fakes()
+  const launch = vi.fn(async () => { vi.setSystemTime(new Date('2026-10-06T12:00:10Z')); return browser })
+  await renderPdf({ ...opts, readyTimeoutMs: 40_000 }, { launch })
+  vi.useRealTimers()
+  expect(page.goto).toHaveBeenCalledWith(opts.url, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+})
+
+test('the default budget leaves the PDF step room inside the 60s function limit', async () => {
+  const { page, launch } = fakes()
+  await renderPdf(opts, { launch })
+  const { timeout } = vi.mocked(page.goto).mock.calls[0][1]
+  expect(timeout).toBeLessThanOrEqual(40_000)
+})
+
+// Dash's image service negotiates on Accept: Chrome's (which lists image/webp) gets WebP even for format=jpeg, and
+// Chromium stores WebP losslessly in a PDF. With Accept */* it serves the JPEG, which is embedded as is.
+test('the server browser asks for any type, so print images arrive as JPEG', async () => {
+  const { page, launch } = fakes()
+  await renderPdf(opts, { launch })
+  expect(page.setExtraHTTPHeaders).toHaveBeenCalledWith({ accept: '*/*' })
+  expect(vi.mocked(page.setExtraHTTPHeaders).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(page.goto).mock.invocationCallOrder[0])
 })

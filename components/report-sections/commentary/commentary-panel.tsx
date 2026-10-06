@@ -9,6 +9,7 @@ import { approveCommentary, revokeCommentary, deleteCommentaryDraft } from '@/ap
 import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory, CommentaryVersionTag } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { useExportMode } from '@/components/export/export-mode'
+import { pickDefaultEntry } from '@/lib/commentary/select'
 
 function fmt(d: string): string {
   // 'YYYY-MM-DD' → 'Mon D, YYYY' without timezone drift.
@@ -65,7 +66,7 @@ export function CommentaryPanel({
   const selected = entries.find((e) => e.id === selectedId) ?? null
   const exportMode = useExportMode()
 
-  if (exportMode) return <ExportCommentary entries={entries} initialId={initialId} />
+  if (exportMode) return <ExportCommentary entries={entries} />
 
   function refresh() {
     setEditing(null)
@@ -218,14 +219,12 @@ export function CommentaryPanel({
   )
 }
 
-/** Commentary as the PDF export prints it: what the client sees for the page's period, whoever exports.
- *  The page opens on `initialId`; for staff that can be a draft, so the approved entry for the same period
- *  is printed instead, and nothing when there is none (never another period's). No controls; one block. */
-function ExportCommentary({ entries, initialId }: { entries: CommentaryEntry[]; initialId: string | null }) {
-  const page = entries.find((e) => e.id === initialId) ?? null
-  const shown = page?.status === 'approved'
-    ? page
-    : page ? entries.find((e) => e.status === 'approved' && e.periodStart === page.periodStart && e.periodEnd === page.periodEnd) ?? null : null
+/** Commentary as the PDF export prints it: what the client sees, whoever exports. A client's panel opens on the
+ *  newest approved entry (lib/commentary/select.ts pickDefaultEntry over approved only); staff open on the newest
+ *  entry including drafts, so the export picks the client's entry itself rather than following `initialId`. On a
+ *  locked month the entries are already that month's (monthly.tsx). No approved entry, nothing. No controls; one block. */
+function ExportCommentary({ entries }: { entries: CommentaryEntry[] }) {
+  const shown = pickDefaultEntry(entries.filter((e) => e.status === 'approved'))
   if (!shown) return null
   return (
     <section data-export-block="" className="mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4">

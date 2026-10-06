@@ -163,7 +163,7 @@ delivers a partial file. Other sections keep #320's browser-print button.
 3. Add **the requester's own session cookie** to the browser context and open the export page on
    this deployment (`VERCEL_URL`, else `APP_URL`, else the request origin — cache-warm's rule). No
    cookie is minted and no role is taken from the request.
-4. Wait for `window.__exportReady` (45 s cap).
+4. Wait for `window.__exportReady`. One 40 s budget covers launch, navigation and the wait (changed from 45 s in review of #332, so `page.pdf()` keeps headroom inside `maxDuration = 60`).
 5. `page.pdf({ width: '11in', height: '8.5in', margin: 0.4in all round, printBackground: true })`.
 6. Close the browser in `finally`. `maxDuration = 60`; memory sized for Chromium.
 
@@ -172,7 +172,7 @@ delivers a partial file. Other sections keep #320's browser-print button.
 | Case | Response |
 |---|---|
 | No session, or the page would deny access | 403 |
-| Not ready within 45 s | 504 `{ error: 'still-loading' }` |
+| Not ready within the 40 s budget | 504 `{ error: 'still-loading' }` |
 | Chromium launch / navigation / PDF error | 500 `{ error: 'render-failed' }` |
 
 **Operator visibility.** One log line per export: client slug, section/tab, outcome, duration, and
@@ -181,6 +181,10 @@ tokens.
 
 **Load.** One browser per request, no fan-out, manual and infrequent. Expected 5–15 s of function
 time per export.
+
+**Size.** Vercel caps a function's response at 4.5 MB. Post images are requested from Dash's image service as
+print-sized JPEGs (`lib/export/print-image.ts`) with `Accept: */*` (the service negotiates WebP otherwise, which
+Chromium stores losslessly): Renaissance's Overview went from 31 MB to 2.5 MB. The acceptance run gates on size.
 
 ## 9. Rollout and prerequisites
 

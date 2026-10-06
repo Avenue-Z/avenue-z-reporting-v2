@@ -17,10 +17,13 @@ export const maxDuration = 60
 /** Auth.js's session cookie, plain or __Secure-, whole or chunked (.0, .1, …). Nothing else is forwarded. */
 const SESSION_COOKIE = /^(__Secure-)?authjs\.session-token(\.\d+)?$/
 
-/** The deployment the server's browser loads the export page from: cache-warm's rule (lib/cache-warm/run.ts). */
-function baseUrl(req: NextRequest): string {
+/** The deployment the server's browser loads the export page from: cache-warm's rule (lib/cache-warm/run.ts),
+ *  except that in production it never falls back to the request's own origin, which comes from its Host header.
+ *  null: not configured. */
+function baseUrl(req: NextRequest): string | null {
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-  return process.env.APP_URL || req.nextUrl.origin
+  if (process.env.APP_URL) return process.env.APP_URL
+  return process.env.NODE_ENV === 'production' ? null : req.nextUrl.origin
 }
 
 export async function POST(req: NextRequest) {
@@ -54,9 +57,14 @@ export async function POST(req: NextRequest) {
   const view = organicSocialExportView(client, parsed.subsection)
   const r: ExportRequest = { ...parsed, subsection: view.subsectionId }
   const cookies = req.cookies.getAll().filter((c) => SESSION_COOKIE.test(c.name)).map(({ name, value }) => ({ name, value }))
+  const base = baseUrl(req)
+  if (!base) {
+    log(r, 'render-failed', 'config')
+    return NextResponse.json({ error: 'render-failed' }, { status: 500 })
+  }
 
   try {
-    const pdf = await renderPdf({ url: new URL(exportPagePath(r), baseUrl(req)).toString(), cookies })
+    const pdf = await renderPdf({ url: new URL(exportPagePath(r), base).toString(), cookies })
     log(r, 'ok')
     return new NextResponse(Buffer.from(pdf), {
       status: 200,

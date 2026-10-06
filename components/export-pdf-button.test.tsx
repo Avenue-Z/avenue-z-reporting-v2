@@ -116,3 +116,21 @@ describe('server export (Organic Social)', () => {
     expect(window.print).toHaveBeenCalled()
   })
 })
+
+describe('the downloaded file', () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+  test('the blob URL outlives the click, so a slower browser can still start the download', async () => {
+    vi.useRealTimers()
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:pdf'), revokeObjectURL: revoke }))
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['%PDF-']), { status: 200, headers: { 'content-disposition': 'attachment; filename="a.pdf"' } })))
+    render(<ExportPdfButton {...props} serverExport={{ clientSlug: 'c', subsection: null, dateRange: 'last_30_days', compareRange: null }} />)
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /Export PDF/ }))
+    await vi.waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled())
+    expect(revoke).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(60_000)
+    expect(revoke).toHaveBeenCalledWith('blob:pdf')
+  })
+})

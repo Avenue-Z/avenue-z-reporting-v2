@@ -64,8 +64,9 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const hiddenRows = canEdit ? influencerRows.filter((g) => hidden.has(g.platform)) : []
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
-      <SortableTopContent owned={groupPostsByPlatform(owned, channel)}
+      {/* In the PDF export this title moves into the first row's block (SortableTopContent's heading). */}
+      <h2 data-export-hide="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
+      <SortableTopContent heading="Top Performing Content" owned={groupPostsByPlatform(owned, channel)}
         influencer={influencerRows.filter((g) => !hidden.has(g.platform))}
         clientSlug={clientSlug} canEdit={canEdit} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}
         {...(label ? { influencerHeading: label } : {})}

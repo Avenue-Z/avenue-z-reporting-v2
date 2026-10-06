@@ -111,3 +111,14 @@ test('a page still loading is 504 still-loading, a render failure 500 render-fai
   expect(lines.some((l) => /outcome=render-failed step=launch/.test(l))).toBe(true)
   expect(lines.join('\n')).not.toContain('SESSION')
 })
+
+// Off Vercel, without APP_URL the self-load would trust the request's Host header. In production that is refused:
+// the server's browser only ever loads this deployment (review of #332).
+test('in production with no deployment URL configured, nothing is rendered', async () => {
+  as('INTERNAL_ADMIN', 'avenue-z')
+  vi.stubEnv('NODE_ENV', 'production')
+  const res = await post(body)
+  expect(res.status).toBe(500)
+  expect(renderPdf).not.toHaveBeenCalled()
+  expect(vi.mocked(console.info).mock.calls.map((c) => String(c[0])).some((l) => /outcome=render-failed step=config/.test(l))).toBe(true)
+})

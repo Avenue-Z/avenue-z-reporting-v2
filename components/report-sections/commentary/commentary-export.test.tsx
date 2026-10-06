@@ -30,8 +30,17 @@ test("a staff export prints the approved commentary for the page's period, never
   expect(screen.getByText('Reporting period: Sep 1, 2026 – Sep 30, 2026')).toBeTruthy()
 })
 
-test("with no approved commentary for the page's period, nothing prints (not another period's)", () => {
-  const { container } = exportPanel([SEP_DRAFT, AUG_APPROVED], 'd')
+// What a client sees is the newest APPROVED entry (lib/commentary/select.ts pickDefaultEntry over approved only); staff
+// open on the newest entry including drafts. A staff export must print the client's, not nothing (review of #332).
+test('a staff export with a newer draft for another period prints the commentary the client sees', () => {
+  const OCT_DRAFT = entry('o', 'draft', '2026-10-01', '2026-10-31', 'October draft.')
+  exportPanel([OCT_DRAFT, SEP_APPROVED, AUG_APPROVED], 'o')
+  expect(screen.getByText('September went well.')).toBeTruthy()
+  expect(screen.queryByText('October draft.')).toBeNull()
+})
+
+test('with no approved commentary at all, nothing prints', () => {
+  const { container } = exportPanel([SEP_DRAFT], 'd')
   expect(container.textContent).toBe('')
 })
 
