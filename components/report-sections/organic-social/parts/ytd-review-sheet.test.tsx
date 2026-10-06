@@ -57,6 +57,8 @@ test('both graphs from the sheet, January to September; Dash asked only for Sept
   expect(getOutlineKpis.mock.calls).toEqual([['c', 'custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', 'INSTAGRAM']])
   const c = charts(el)
   expect(c.map((x) => [x.name, x.yKeys[0].key])).toEqual([['LineChart', 'followers'], ['LineChart', 'views']])
+  // Month labels, not days: the YTD graphs pass no xFormat (spec 2026-10-06-os-graph-day-labels-design.md).
+  for (const x of c) expect(x).not.toHaveProperty('xFormat')
   expect(c[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'])
   expect(c[0].data.at(-1)).toEqual({ month: 'Sep', followers: 900 })
   expect(c[1].data[0]).toEqual({ month: 'Jan', views: 10 })

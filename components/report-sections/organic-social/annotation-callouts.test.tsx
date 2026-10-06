@@ -263,3 +263,15 @@ test('a client, who has no controls, sees no hidden rows at all: hides are appli
   expect(container.querySelectorAll('li')).toHaveLength(2)
   expect(container.querySelector('button')).toBeNull()
 })
+
+// Spec 2026-10-06-os-graph-day-labels-design.md: every Organic Social daily graph prints its dates as month/day.
+test('every daily graph (the trend chart, Follower Graph, Engagement Trend) hands the chart xFormat="month-day"', () => {
+  const lastXFormat = () => vi.mocked(LineChart).mock.lastCall?.[0].xFormat
+  render(<ChannelTrendChart title="T" series={SERIES} />)
+  expect(lastXFormat()).toBe('month-day')
+  render(<FollowerGraph series={SERIES} />)
+  expect(lastXFormat()).toBe('month-day')
+  render(<EngagementTrend series={SERIES} />)
+  expect(lastXFormat()).toBe('month-day')
+})
+

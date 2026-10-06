@@ -223,6 +223,7 @@ export function ChannelTrendChart({
             <LineChart
               data={series.points}
               xKey="date"
+              xFormat="month-day"
               yKeys={yKeys}
               marks={shown?.map((a) => ({ x: a.date }))}
               notes={notes}
