@@ -512,3 +512,76 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(container.querySelector('.relative')).toBeNull()
   })
 })
+
+import { formatMonthDay } from './line-chart'
+import { dayLabel } from '@/lib/organic-social/annotations'
+
+// Organic Social's daily graphs print their dates as month/day ("9/16"), the stakeholder's format (spec
+// 2026-10-06-os-graph-day-labels-design.md). Opt-in: a chart without xFormat is unchanged (Paid Media, the YTD graphs).
+describe('dates as month/day (xFormat="month-day")', () => {
+  test.each([
+    ['2026-09-16', '9/16'], ['2026-10-20', '10/20'], ['2026-08-02', '8/2'],
+    ['2026-01-01', '1/1'], ['2026-12-31', '12/31'], ['2028-02-29', '2/29'],
+    // Impossible dates print the way dayLabel prints them, pinned on purpose: Dash never sends one.
+    ['2026-13-45', '13/45'], ['2026-00-00', '0/0'],
+    // Anything that is not exactly yyyy-mm-dd comes back unchanged, never NaN/NaN.
+    ['Sep', 'Sep'], ['Oct (live)', 'Oct (live)'], ['', ''], ['2026-9-16', '2026-9-16'], ['2026-09-16T00:00:00Z', '2026-09-16T00:00:00Z'],
+  ])('formatMonthDay(%j) is %j', (value, out) => {
+    expect(formatMonthDay(value)).toBe(out)
+  })
+
+  test('a number prints unchanged', () => {
+    expect(formatMonthDay(20260916)).toBe('20260916')
+  })
+
+  test('every day of 2026 and of 2028 reads exactly as the callouts write it (dayLabel)', () => {
+    for (const year of [2026, 2028]) {
+      for (const d = new Date(Date.UTC(year, 0, 1)); d.getUTCFullYear() === year; d.setUTCDate(d.getUTCDate() + 1)) {
+        const day = d.toISOString().slice(0, 10)
+        expect(formatMonthDay(day), day).toBe(dayLabel(day))
+      }
+    }
+  })
+
+  const DAYS = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`)
+  const DATA = DAYS.map((date, i) => ({ date, v: 3 + ((i * 7) % 11) }))
+  // Recharts 3 draws the x-axis tick labels in their own layer, not inside the .recharts-xAxis group.
+  const xTicks = (c: HTMLElement) => [...c.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((t) => t.textContent ?? '')
+
+  test('with xFormat the x-axis ticks read month/day; without it they read the raw keys', () => {
+    const on = xTicks(render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" />).container)
+    expect(on.length).toBeGreaterThan(0)
+    for (const t of on) expect(DAYS.map(dayLabel)).toContain(t)
+    const off = xTicks(render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />).container)
+    expect(off.length).toBeGreaterThan(0)
+    for (const t of off) expect(DAYS).toContain(t)
+  })
+
+  test('with xFormat, LineChart hands the Tooltip a labelFormatter that reads month/day', () => {
+    tooltipProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" />)
+    const last = tooltipProps.at(-1)!
+    expect(typeof last.labelFormatter).toBe('function')
+    expect((last.labelFormatter as (label: unknown) => unknown)('2026-09-21')).toBe('9/21')
+  })
+
+  test('with xFormat and notes, the hover box shows 9/21 and still finds the note by the raw date', () => {
+    tooltipProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" notes={{ '2026-09-21': 'Influencer post went live' }} />)
+    const last = tooltipProps.at(-1)!
+    const content = last.content as (p: Record<string, unknown>) => ReactElement
+    // A non-empty payload: the default box formats the label only when a payload is present.
+    const box = content({ ...last, active: true, label: '2026-09-21', payload: [{ name: 'v', value: 9, dataKey: 'v', color: '#ffffff' }] })
+    const text = render(box).container.textContent ?? ''
+    expect(text).toContain('9/21')
+    expect(text).not.toContain('2026-09-21')
+    expect(text).toContain('Influencer post went live')
+  })
+
+  test('without xFormat the Tooltip gets no labelFormatter, so its props are what they were before', () => {
+    tooltipProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect(tooltipProps.at(-1)).not.toHaveProperty('labelFormatter')
+  })
+})
+
