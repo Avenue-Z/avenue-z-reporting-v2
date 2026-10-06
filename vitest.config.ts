@@ -69,6 +69,7 @@ export default defineConfig({
       'components/charts/kpi-card.test.tsx',
       'components/export-pdf-button.test.tsx',
       'lib/export-period.test.ts',
+      'lib/export-period.pages.test.tsx',
       'components/layout/sticky-report-header.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
