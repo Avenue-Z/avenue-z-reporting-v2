@@ -18,3 +18,16 @@ No BLOCKER.
 | A6 | MINOR | Add exact boundary rows at 2026-10-01 03:59Z (Jan to Aug) and 04:00Z (Jan to Sep). | Plan: add to test 1. |
 | A7 | MINOR | Two test titles become false (`ytd-review-live.test.tsx:66`, `:131`). | Plan: retitle them. |
 | A8 | MINOR | `CLAUDE.md:1037` continues the bullet started at `:1034`; the rewrite must keep a subject for "Its". The #314 buffer is unproven until the merge is tested. | Plan: keep "Its past" ending `:1036`; prove the merge both ways. |
+
+## Round 2 (fresh reviewer, changed lines only, 2026-10-06)
+No BLOCKER, no MAJOR. Both round 1 MAJORs confirmed fixed from the code: one point draws as a bar
+(`ytd-review-sheet.tsx:85-86`); the January parity holds for the outline clients' client view and default staff view
+(`lockedRangeFor` callers in both report pages; `reporting-months.ts:176-184`, `:210`). The review ends here; there is no round 3.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| R1 | MINOR | The January-start rule is version 2's (`ytd.ts:100-109`), not `ytdMonths` (`:52-67`, clamped at firstMonth). | Corrected in place: cites `:100-109`. |
+| R2 | MINOR | The parity basis needs the default (`:210`), the client opens-on gate (`:178-179`) and the team's live pick (`:171-172`). | Corrected in place. |
+| R3 | MINOR | The January and February windows were not in UTC bounds; the February change starts at 04:00 UTC on February 2. | Corrected in place. |
+| R4 | MINOR | One bar only when January has a value; a January gap shows "No data" (`:85`). | Corrected in place. |
+| R5 | MINOR | Test 9a must prove the 2026 entry is chosen over a 2027 one, and avoid an unmocked Dash call in February. | Corrected in place: fixture with both entries; the 2027 sheet fills January. |

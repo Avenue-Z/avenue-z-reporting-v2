@@ -39,14 +39,16 @@ logging, and versions 1 and 2 stay exactly as they are. With no partial month, v
 "(live)" and never asks Dash for a month in progress.
 
 Two visible consequences, deliberate and for sign-off before code:
-- **January (from the 2nd to the 31st):** the block shows the whole previous year, read from that year's sheet entry
-  (`ytd-review-live.tsx:41-43`), instead of a one-month "Jan (live)". The titles carry no year
-  (`ytd-review-sheet.tsx:70-71`). This matches the five outline clients, whose YTD runs January through the month on
-  screen (`ytd.ts:52-67`), and whose month on screen in January is a finished month of the previous year
-  (`reporting-months.ts:176-184`). Today Renaissance already shows the previous year on January 1 (`ytd.test.ts:206-210`).
-- **February (from 04:00 UTC on the 1st to 04:00 UTC on March 1):** only January is finished, so each graph has one
-  point and is drawn as a single bar, not a line (`ytd-review-sheet.tsx:84-86`). Today it is a line through January and
-  "Feb (live)".
+- **January (from 04:00 UTC on January 2 to 04:00 UTC on February 1):** the block shows the whole previous year, read
+  from that year's sheet entry (`ytd-review-live.tsx:41-43`), instead of a one-month "Jan (live)". The titles carry no
+  year (`ytd-review-sheet.tsx:70-71`). Today Renaissance already shows the previous year until 04:00 UTC on January 2
+  (`ytd.test.ts:192`, `:206-210`). This matches the five outline clients by default: their version 2 YTD runs January
+  through the month on screen (`ytd.ts:100-109`), and in January their default month on screen is a finished month of
+  the previous year (`reporting-months.ts:176-184`, default at `:210`); their clients see November until December opens
+  on the 12th (`:178-179`), and their team can pick the live January on purpose (`:171-172`).
+- **February (from 04:00 UTC on February 2 to 04:00 UTC on March 1):** only January is finished, so a graph with a
+  January value has one point and is drawn as a single bar, not a line (`ytd-review-sheet.tsx:84-86`); a January gap
+  shows that graph's "No data" (`:85`). Today it is a line through January and "Feb (live)".
 
 ## 4. Inputs and outputs
 - **Input:** the request clock (`Pick<Clock, 'lastCompleteUtcDay' | 'liveDayInProgress'>`), as today. Nothing new.
@@ -113,8 +115,10 @@ fewer Dash requests (the month in progress is never asked for), so no new failur
 8. New: no rendered label anywhere in the block contains "(live)" at the default clock.
 9. New, the stakeholder's case: at 2026-10-06T12:00Z the last point of both graphs is September, and no Dash request
    is made for any October range.
-9a. New, the two section 3 consequences: at 2027-01-15T12:00Z the block shows 2026 January to December and reads the
-    2026 sheet entry; at 2027-02-15T12:00Z each graph is a single `BarChart` with the one point "Jan".
+9a. New, the two section 3 consequences, with a fixture holding a 2026 and a 2027 sheet entry on different tabs: at
+    2027-01-15T12:00Z the block shows 2026 January to December and `readYtdTab` is called with the 2026 entry; at
+    2027-02-15T12:00Z, with the 2027 sheet filling January on both graphs, each graph is a single `BarChart` with the one
+    point "Jan" and Dash is asked nothing.
 10. Unchanged and still passing: Overview renders nothing; a `reportingMonths` client is skipped; the January 1 test
     (`:183-190`); the concurrency and failure-logging tests.
 
