@@ -24,3 +24,19 @@ changes. Baseline tests pass.
 | N10 | MINOR | Empty-graph cases missing. | Fixed: two rows. |
 | N11 | MINOR | No test that the daily graphs never show a YTD row. | Fixed: test 9. |
 | N12 | MINOR | The revoke cast, the schema comment, the unneeded `NoteControls` widening, "day" in messages. | Fixed: listed in section 8; widening dropped. |
+
+## Round 2 (fresh reviewer, changed lines only, 2026-10-06)
+No BLOCKER, no MAJOR. N1 to N4 confirmed fixed from the code (the daily card's contents, `annotation-callouts.tsx:112-141`;
+the version 2 YTD never draws before January of firstMonth's year, `ytd.ts:57-65`, `:100-108`; the save action at
+`chart-notes.ts:54-59`; `NoteActions` reads only `clientSlug` and `canApprove`, `note-actions.tsx:49-61`). The review ends
+here; there is no round 3.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| R1 | MINOR | `NoteActions` needs its `controls` type narrowed; section 3 called it unchanged. | Corrected in place: buttons unchanged, type narrowed, listed in section 8. |
+| R2 | MINOR | The daily card passes `saving` so actions wait for the refresh; the panel did not. | Corrected in place. |
+| R3 | MINOR | Reusing the platform and day checks splits `checkAnnotationKey`, on the hides path; not listed. | Corrected in place: listed, answers and error order unchanged, pinned by the parity test. |
+| R4 | MINOR | The YTD refusal had no message. | Corrected in place: "That month is before this client's first reporting year." |
+| R5 | MINOR | Test 3 needs a firstMonth after January; tests 9 and 10 pass before the change. | Corrected in place: `firstMonth: '2026-08'`; regression guards marked as such. |
+| R6 | MINOR | "Drafts have no dot" read as a claim about the daily graphs. | Corrected in place. |
+| R7 | MINOR | `trends.tsx:123` covers `notes` only. | Corrected in place. |
