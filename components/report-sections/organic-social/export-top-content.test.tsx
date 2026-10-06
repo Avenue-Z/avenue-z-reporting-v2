@@ -80,3 +80,11 @@ test("a video prints its poster frame, not a player", () => {
   expect(container.querySelector('video')).toBeNull()
   expect(container.querySelector('img')?.getAttribute('src')).toBe('https://cdn.example/p.jpg')
 })
+
+// Two card rows must fit one landscape page (739px): measured at 979px, square images made a row 387px,
+// so every row took a page of its own. A 4:3 crop brings a row to ~341px.
+test('export cards crop their image to 4:3 so two rows fit a page', () => {
+  const post = mk(10, 10, { creative: { kind: 'image', thumb: 'https://cdn.example/t.jpg', full: 'https://cdn.example/f.jpg' } as never })
+  const { container } = render(<TooltipProvider><ExportModeProvider><PostCard post={post} clientSlug="c" canEdit={false} /></ExportModeProvider></TooltipProvider>)
+  expect(container.querySelector('img')?.className).toContain('aspect-[4/3]')
+})

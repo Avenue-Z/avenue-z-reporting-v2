@@ -62,13 +62,13 @@ function ExportMedia({ post }: { post: TopContentPost }) {
   const src = c?.kind === 'video' ? c.poster : c?.thumb
   if (broken || !src) {
     return (
-      <div className="flex aspect-square items-center justify-center bg-white/[0.04] text-center text-[11px] text-text-muted">
+      <div className="flex aspect-[4/3] items-center justify-center bg-white/[0.04] text-center text-[11px] text-text-muted">
         {c?.kind === 'video' ? 'video' : 'creative no longer available'}
       </div>
     )
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img className="aspect-square w-full object-cover" src={src} alt={post.caption.slice(0, 80)} onError={() => setBroken(true)} />
+  return <img className="aspect-[4/3] w-full object-cover" src={src} alt={post.caption.slice(0, 80)} onError={() => setBroken(true)} />
 }
 
 /** A card as the PDF export prints it: the whole card is one link to the post (http(s) only), "View post"
