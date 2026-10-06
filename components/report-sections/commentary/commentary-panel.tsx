@@ -8,6 +8,7 @@ import { CommentaryEditor } from './commentary-editor'
 import { approveCommentary, revokeCommentary, deleteCommentaryDraft } from '@/app/actions/commentary'
 import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory, CommentaryVersionTag } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
+import { useExportMode } from '@/components/export/export-mode'
 
 function fmt(d: string): string {
   // 'YYYY-MM-DD' → 'Mon D, YYYY' without timezone drift.
@@ -62,6 +63,9 @@ export function CommentaryPanel({
 
   const selectedId = userSelectedId ?? initialId
   const selected = entries.find((e) => e.id === selectedId) ?? null
+  const exportMode = useExportMode()
+
+  if (exportMode) return <ExportCommentary entries={entries} initialId={initialId} />
 
   function refresh() {
     setEditing(null)
@@ -210,6 +214,27 @@ export function CommentaryPanel({
           )}
         </div>
       )}
+    </section>
+  )
+}
+
+/** Commentary as the PDF export prints it: what the client sees for the page's period, whoever exports.
+ *  The page opens on `initialId`; for staff that can be a draft, so the approved entry for the same period
+ *  is printed instead, and nothing when there is none (never another period's). No controls; one block. */
+function ExportCommentary({ entries, initialId }: { entries: CommentaryEntry[]; initialId: string | null }) {
+  const page = entries.find((e) => e.id === initialId) ?? null
+  const shown = page?.status === 'approved'
+    ? page
+    : page ? entries.find((e) => e.status === 'approved' && e.periodStart === page.periodStart && e.periodEnd === page.periodEnd) ?? null : null
+  if (!shown) return null
+  return (
+    <section data-export-block="" className="mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4">
+      <h2 className="text-sm font-extrabold text-white">Commentary</h2>
+      <p className="text-xs text-text-muted">Reporting period: {fmt(shown.periodStart)} – {fmt(shown.periodEnd)}</p>
+      <div
+        className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"
+        dangerouslySetInnerHTML={{ __html: shown.bodyHtml }}
+      />
     </section>
   )
 }

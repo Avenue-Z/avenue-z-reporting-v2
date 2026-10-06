@@ -63,8 +63,8 @@
 .export-theme [data-export-chart] .text-text-muted { color: #8a8a8a; }
 .export-theme [data-export-chart].border-white\/\[0\.06\] { border-color: rgb(255 255 255 / 0.06); }
 
-/* Links read as links on paper. */
+/* A whole card is a link: it keeps its own colours (its "View post ↗" line is styled as the link). */
 .export-theme a[data-export-link] {
-  color: #0e7490;
-  text-decoration: underline;
+  color: inherit;
+  text-decoration: none;
 }

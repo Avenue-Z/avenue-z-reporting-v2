@@ -12,7 +12,7 @@ const TILE = 'h-16 w-16 shrink-0 rounded-md'
 
 /** Only http(s) links are rendered. The URL comes from Dash, so a javascript: URL must never
  *  become an href. */
-const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : null)
+export const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : null)
 
 /** Same fallback as the Top Content card (post-card.tsx, Media): a missing or purged image
  *  shows the placeholder, never a broken image. onError catches a load that fails after
