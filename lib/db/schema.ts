@@ -415,7 +415,7 @@ export const chartNotes = pgTable('chart_notes', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   channel: text('channel').notNull(),   // DashChannel, e.g. 'INSTAGRAM'
-  chart: text('chart').notNull(),       // 'followers' | 'engagements'
+  chart: text('chart').notNull(),       // 'followers' | 'engagements', or 'ytd-followers' | 'ytd-views' (a month's note, on its 1st)
   day: date('day').notNull(),           // yyyy-mm-dd, the UTC day Dash counts
   body: text('body').notNull(),         // 1 to 80 characters of plain text, checked by the action
   postIds: bigint('post_ids', { mode: 'number' }).array().notNull().default(sql`'{}'::bigint[]`), // Dash post ids, at most 2

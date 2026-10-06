@@ -53,6 +53,8 @@ test('September on screen: one request per month, and both graphs plot August th
   ])
   const c = charts(el)
   expect(c.map((x) => [x.name, x.yKeys.map((k) => k.key)])).toEqual([['LineChart', ['followers']], ['LineChart', ['views']]])
+  // Month labels, not days: the YTD graphs pass no xFormat (spec 2026-10-06-os-graph-day-labels-design.md).
+  for (const x of c) expect(x).not.toHaveProperty('xFormat')
   expect(c[0].data).toEqual([{ month: 'Aug', followers: 100, views: 10 }, { month: 'Sep', followers: 120, views: 30 }])
   const { container } = render(<>{el}</>)
   expect(container.textContent).toContain('YTD Review')

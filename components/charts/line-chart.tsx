@@ -59,6 +59,21 @@ interface LineChartProps {
   height?: number
   /** 'currency-cents' formats the Y axis + tooltip via money(); default = raw number. */
   valueFormat?: 'currency-cents'
+  /** 'month-day' prints x values that are yyyy-mm-dd days as month/day ("9/16") on the x axis and in the hover box.
+   *  The data, marks, callouts and notes keep the raw key. A string, like valueFormat, so a Server Component can pass
+   *  it. Absent: no formatter is passed to Recharts, and the chart renders exactly as before this prop existed. */
+  xFormat?: 'month-day'
+}
+
+const DAY_KEY = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** A yyyy-mm-dd day as month/day with no leading zeros and no year ("2026-09-16" is "9/16"), the way the callouts write
+ *  it (dayLabel, lib/organic-social/annotations.ts). Splits the string and builds no Date, so no time zone can move
+ *  the day. Anything else, a month label like "Sep" included, comes back unchanged. */
+export function formatMonthDay(value: string | number): string {
+  const s = String(value)
+  const m = DAY_KEY.exec(s)
+  return m ? `${Number(m[2])}/${Number(m[3])}` : s
 }
 
 // Auto-scale the Y axis to the data instead of pinning the baseline to 0.
@@ -240,10 +255,15 @@ function areaTop(el: HTMLElement): number {
   return 0
 }
 
-export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 300, valueFormat }: LineChartProps) {
+export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 300, valueFormat, xFormat }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
+  // Spread only when asked for, so a chart without xFormat hands Recharts exactly the props it did before.
+  const xTicks = xFormat === 'month-day' ? { tickFormatter: (v: string | number) => formatMonthDay(v) } : {}
+  const xLabel = xFormat === 'month-day'
+    ? { labelFormatter: (label: ReactNode) => (typeof label === 'string' || typeof label === 'number' ? formatMonthDay(label) : label) }
+    : {}
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
   // In the PDF export the lines must be complete on first paint (no draw-in animation to catch half way),
   // and the panel keeps the dark theme its colours were chosen for (app/export/export-theme.css).
@@ -356,6 +376,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           tick={{ fill: '#8A8A8A', fontSize: 12 }}
           axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
           tickLine={false}
+          {...xTicks}
         />
         <YAxis
           domain={yDomain ?? [0, 'auto']}
@@ -376,6 +397,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           }}
           content={notes ? (p) => <NotedTooltip {...p} note={notes[String(p.label)]} /> : undefined}
           {...(callouts ? { active: openLive ? false : undefined } : {})}
+          {...xLabel}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {yKeys.map((series) => (

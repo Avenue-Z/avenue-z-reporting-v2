@@ -35,14 +35,15 @@ test('only what a client sees prints, numbered in date order', () => {
   const list = screen.getByRole('list', { name: 'Annotations' })
   const entries = within(list).getAllByRole('listitem').map((li) => li.textContent)
   expect(entries).toHaveLength(3)
-  expect(entries[0]).toMatch(/^Annotations1Aug 30 · Before the month.*Teaser posted\./) // the list title rides in the first entry
-  expect(entries[1]).toMatch(/^2Sep 1 · Launch.*Benefits campaign went live\./)
-  expect(entries[2]).toMatch(/^3Sep 2 · Peak engagement/)
+  expect(entries[0]).toMatch(/^Annotations18\/30 · Before the month.*Teaser posted\./) // the list title rides in the first entry
+  expect(entries[1]).toMatch(/^29\/1 · Launch.*Benefits campaign went live\./)
+  expect(entries[2]).toMatch(/^39\/2 · Peak engagement/)
 })
 
-test('the chart marks each printed day that has a point with its number', () => {
+test('the chart marks each printed day that has a point with its number, dates as month/day like the live chart', () => {
   exportChart()
   expect(chartProps.at(-1)!.marks).toEqual([{ x: '2026-09-01', label: '2' }, { x: '2026-09-02', label: '3' }])
+  expect(chartProps.at(-1)!.xFormat).toBe('month-day')
   expect(chartProps.at(-1)!.callouts).toBeUndefined()
 })
 

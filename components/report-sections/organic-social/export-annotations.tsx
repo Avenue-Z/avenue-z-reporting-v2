@@ -1,14 +1,7 @@
 'use client'
 
-import { cardThumbs, type ChartAnnotation } from '@/lib/organic-social/annotations'
+import { cardThumbs, dayLabel, type ChartAnnotation } from '@/lib/organic-social/annotations'
 import { Thumb } from './annotation-callouts'
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-/** `2026-09-10` → `Sep 10`, read from the string so no timezone can move the day. */
-const dayLabel = (iso: string) => {
-  const [, m, d] = iso.split('-').map(Number)
-  return `${MONTHS[m - 1]} ${d}`
-}
 
 /** The chart's annotations as the PDF export prints them, under the chart: numbered (the number is also
  *  drawn at the day's point on the chart), dated, with the full approved note and the post(s) behind

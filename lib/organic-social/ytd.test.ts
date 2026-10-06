@@ -163,61 +163,73 @@ test('S7: after the first point, an N/A from firstMonth is named and never fille
 })
 
 const live = (iso: string) => ytdLiveMonths(clockFor(new Date(iso)))
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const lastDayOf = (key: string) => `${key}-${pad2(new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7), 0)).getUTCDate())}`
+const wholeRange = (key: string) => `custom:${key}-01,${lastDayOf(key)}`
+const nextKey = (key: string) => { const y = +key.slice(0, 4), m = +key.slice(5, 7); return m === 12 ? `${y + 1}-01` : `${y}-${pad2(m + 1)}` }
+const monthsFrom = (first: string, last: string) => { const out = [first]; while (out.at(-1)! < last) out.push(nextKey(out.at(-1)!)); return out }
 
-test('ytdLiveMonths: January through the last complete UTC day\'s month; the last month is live and runs to that day; no comparison', () => {
-  const r = live('2026-10-15T12:00:00Z')
-  expect(keys(r)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'])
-  expect(r[8]).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: false })
-  expect(r[9]).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-14', compareRange: null, partial: true })
+// ytd-review@3 (Renaissance) shows finished months only: January of the last finished month's year through that month,
+// never a month in progress (spec 2026-10-06-os-ren-ytd-finished-months-design.md, section 5). `day` is the last day
+// whose Dash window has closed: the last complete UTC day, or the day before it while the UTC hour is before 4.
+test.each([
+  // [clock (UTC), first month, last month shown]
+  ['2026-10-15T12:00:00Z', '2026-01', '2026-09'],
+  ['2026-10-15T02:00:00Z', '2026-01', '2026-09'],
+  ['2026-10-15T04:00:00Z', '2026-01', '2026-09'],
+  ['2026-11-01T12:00:00Z', '2026-01', '2026-10'],
+  ['2026-11-01T02:00:00Z', '2026-01', '2026-09'],
+  ['2026-10-02T02:00:00Z', '2026-01', '2026-09'],
+  ['2026-10-01T02:00:00Z', '2026-01', '2026-08'],
+  ['2026-10-01T03:59:00Z', '2026-01', '2026-08'],
+  ['2026-10-01T04:00:00Z', '2026-01', '2026-09'],
+  ['2026-12-15T12:00:00Z', '2026-01', '2026-11'],
+  ['2027-01-01T12:00:00Z', '2026-01', '2026-12'],
+  ['2027-01-01T02:00:00Z', '2026-01', '2026-11'],
+  ['2027-01-02T12:00:00Z', '2026-01', '2026-12'],
+  ['2027-02-01T12:00:00Z', '2027-01', '2027-01'],
+  ['2027-02-15T12:00:00Z', '2027-01', '2027-01'],
+  ['2028-03-01T12:00:00Z', '2028-01', '2028-02'],
+])('ytdLiveMonths at %s: %s through %s, every month whole, no comparison', (iso, first, last) => {
+  const r = live(iso)
+  expect(keys(r)).toEqual(monthsFrom(first, last))
+  expect(r.at(-1)).toEqual({ key: last, dateRange: wholeRange(last), compareRange: null, partial: false })
 })
-test('ytdLiveMonths: on the 1st after 04:00 UTC the previous month is whole and no longer live', () => {
-  const r = live('2026-11-01T12:00:00Z')
-  expect(r.at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-31', compareRange: null, partial: false })
+test('ytdLiveMonths: a leap February ends on the 29th', () => {
+  expect(live('2028-03-01T12:00:00Z').at(-1)!.dateRange).toBe('custom:2028-02-01,2028-02-29')
 })
-// Paul's review of #306 (finding 1): while the newest UTC day's Dash window is still open (before 04:00 UTC), the live
-// month ends on the day before, the last day whose window has closed. So a partial month never sends the finished
-// month's request, and Dash's partial answer is never cached under the finished month's key.
-test('ytdLiveMonths: on the 1st before 04:00 UTC the previous month is live through the day before its last day', () => {
-  expect(live('2026-11-01T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-30', compareRange: null, partial: true })
-})
-test('ytdLiveMonths: mid-month before 04:00 UTC the live month runs to the day before the open day', () => {
-  // 2026-10-15 02:00 UTC: Oct 14's Dash window closes at 04:00 UTC, so the live month runs to Oct 13.
-  expect(live('2026-10-15T02:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-13', compareRange: null, partial: true })
-  expect(live('2026-10-15T04:00:00Z').at(-1)).toEqual({ key: '2026-10', dateRange: 'custom:2026-10-01,2026-10-14', compareRange: null, partial: true })
-})
-test('ytdLiveMonths: on the 2nd before 04:00 UTC the previous month is whole and the new month has not started', () => {
-  const r = live('2026-10-02T02:00:00Z')
-  expect(r.at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, partial: false })
-  expect(keys(r)).not.toContain('2026-10')
-  expect(live('2027-01-02T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: false })
-})
-test('ytdLiveMonths: at every hour across two month ends, a live month never sends the whole month\'s request', () => {
+test('ytdLiveMonths: at every hour across two month ends, no month is in progress and every range is a whole month', () => {
   for (const start of ['2026-09-29T00:00:00Z', '2026-12-30T00:00:00Z']) {
     for (let h = 0; h < 96; h++) {
       const at = new Date(Date.parse(start) + h * 3600_000)
       for (const m of ytdLiveMonths(clockFor(at))) {
-        const whole = `custom:${m.key}-01,${m.key}-${String(new Date(Date.UTC(+m.key.slice(0, 4), +m.key.slice(5, 7), 0)).getUTCDate()).padStart(2, '0')}`
-        if (m.partial) expect(m.dateRange, `${at.toISOString()} ${m.key}`).not.toBe(whole)
-        else expect(m.dateRange, `${at.toISOString()} ${m.key}`).toBe(whole)
+        expect(m.partial, `${at.toISOString()} ${m.key}`).toBe(false)
+        expect(m.dateRange, `${at.toISOString()} ${m.key}`).toBe(wholeRange(m.key))
+        expect(m.compareRange).toBeNull()
       }
     }
   }
 })
-test('ytdLiveMonths: on January 1 the block shows the previous year, January to December', () => {
-  const r = live('2027-01-01T12:00:00Z')
-  expect(keys(r)).toHaveLength(12)
-  expect(r[0].key).toBe('2026-01')
-  expect(r.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-31', compareRange: null, partial: false })
-  expect(keys(live('2027-01-02T12:00:00Z'))).toEqual(['2027-01'])
-})
-test('ytdLiveMonths: the New York evening of the last day is still that month (UTC is ahead)', () => {
-  // 2026-09-30 22:00 New York = 2026-10-01 02:00 UTC: Sep 30's Dash window is still open, so the live month runs to Sep 29.
-  expect(live('2026-10-01T02:00:00Z').at(-1)).toEqual({ key: '2026-09', dateRange: 'custom:2026-09-01,2026-09-29', compareRange: null, partial: true })
-})
-test('ytdLiveMonths: a leap February, a December date, and January 1 before 04:00 UTC', () => {
-  expect(live('2028-03-01T12:00:00Z').at(-1)).toEqual({ key: '2028-02', dateRange: 'custom:2028-02-01,2028-02-29', compareRange: null, partial: false })
-  const dec = live('2026-12-15T12:00:00Z')
-  expect(dec).toHaveLength(12)
-  expect(dec.at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-14', compareRange: null, partial: true })
-  expect(live('2027-01-01T02:00:00Z').at(-1)).toEqual({ key: '2026-12', dateRange: 'custom:2026-12-01,2026-12-30', compareRange: null, partial: true })
-})
+test('ytdLiveMonths: every hour of 2026 and of 2028 shows January through the latest month finished by the last closed day', () => {
+  for (const year of [2026, 2028]) {
+    const hours = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 3600_000
+    for (let h = 0; h < hours; h++) {
+      const at = new Date(Date.UTC(year, 0, 1) + h * 3600_000)
+      const c = clockFor(at)
+      // The last closed day, recomputed here from the clock's own fields.
+      const d = new Date(`${c.lastCompleteUtcDay}T00:00:00Z`)
+      if (c.liveDayInProgress) d.setUTCDate(d.getUTCDate() - 1)
+      const day = d.toISOString().slice(0, 10)
+      const r = ytdLiveMonths(c)
+      const tag = at.toISOString()
+      expect(r.length, tag).toBeGreaterThan(0)
+      expect(r.length, tag).toBeLessThanOrEqual(12)
+      const last = r.at(-1)!.key
+      expect(r[0].key, tag).toBe(`${last.slice(0, 4)}-01`)
+      expect(keys(r), tag).toEqual(monthsFrom(r[0].key, last))
+      for (const m of r) expect([m.partial, m.dateRange, m.compareRange], `${tag} ${m.key}`).toEqual([false, wholeRange(m.key), null])
+      expect(lastDayOf(last) <= day, `${tag} last month finished by ${day}`).toBe(true)
+      expect(lastDayOf(nextKey(last)) > day, `${tag} the next month is not finished by ${day}`).toBe(true)
+    }
+  }
+}, 60_000) // 17,568 hours through the real clock: seconds under a loaded full run, so not the 5 s default

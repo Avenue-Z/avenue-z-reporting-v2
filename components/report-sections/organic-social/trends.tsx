@@ -229,6 +229,7 @@ export function ChannelTrendChart({
             <LineChart
               data={series.points}
               xKey="date"
+              xFormat="month-day"
               yKeys={yKeys}
               marks={shown?.map((a) => ({ x: a.date }))}
               notes={notes}
@@ -270,7 +271,7 @@ function ExportChannelTrendChart({ title, series, annotations }: { title: string
                 </span>
               ))}
             </div>
-            <LineChart data={series.points} xKey="date" yKeys={yKeys} marks={marks} />
+            <LineChart data={series.points} xKey="date" yKeys={yKeys} marks={marks} xFormat="month-day" />
           </>
         )}
       </div>
