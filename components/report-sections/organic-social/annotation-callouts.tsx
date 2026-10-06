@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
+import { useExportMode } from '@/components/export/export-mode'
+import { printImageUrl } from '@/lib/export/print-image'
 import { cardThumbs, isClientVisible, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
 import { NoteActions } from './note-actions'
@@ -20,7 +22,9 @@ export const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url
  *  with no poster keeps a muted video tile, as the card keeps a live video. */
 export function Picture({ creative, alt, tile = TILE }: { creative: Creative | null; alt: string; tile?: string }) {
   const [broken, setBroken] = useState(false)
-  if (broken || !creative) {
+  // In the PDF export a video cannot print a frame, and the image is fetched as a small JPEG (lib/export/print-image.ts).
+  const exportMode = useExportMode()
+  if (broken || !creative || (exportMode && creative.kind === 'video' && !creative.poster)) {
     return (
       <div className={`${tile} flex items-center justify-center bg-white/[0.04] p-1 text-center text-[9px] leading-tight text-text-muted`}>
         creative no longer available
@@ -36,7 +40,7 @@ export function Picture({ creative, alt, tile = TILE }: { creative: Creative | n
   const src = creative.kind === 'image' ? creative.thumb : creative.poster!
   return (
     <img
-      src={src}
+      src={exportMode ? printImageUrl(src, 160, 160) : src}
       alt={alt}
       className={`${tile} object-cover`}
       ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setBroken(true) }}

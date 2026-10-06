@@ -88,3 +88,22 @@ test('export cards crop their image to 4:3 so two rows fit a page', () => {
   const { container } = render(<TooltipProvider><ExportModeProvider><PostCard post={post} clientSlug="c" canEdit={false} /></ExportModeProvider></TooltipProvider>)
   expect(container.querySelector('img')?.className).toContain('aspect-[4/3]')
 })
+
+// Print-sized JPEGs keep the PDF under Vercel's 4.5 MB response limit (lib/export/print-image.ts).
+test('an export card asks Dash for a print-sized JPEG of its image', () => {
+  const post = mk(11, 10, { creative: { kind: 'image', thumb: 'https://images.dashsocial.com/abc?w=640&h=640&fit=cover', full: 'x' } as never })
+  const { container } = render(<TooltipProvider><ExportModeProvider><PostCard post={post} clientSlug="c" canEdit={false} /></ExportModeProvider></TooltipProvider>)
+  expect(container.querySelector('img')?.getAttribute('src')).toBe('https://images.dashsocial.com/abc?w=360&h=270&fit=cover&format=jpeg&quality=70')
+})
+
+test('an image that failed before the page hydrated prints the placeholder, not a broken image', () => {
+  const post = mk(12, 10, { creative: { kind: 'image', thumb: 'https://images.dashsocial.com/gone', full: 'x' } as never })
+  const complete = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'complete')
+  Object.defineProperty(HTMLImageElement.prototype, 'complete', { configurable: true, get: () => true })
+  try {
+    render(<TooltipProvider><ExportModeProvider><PostCard post={post} clientSlug="c" canEdit={false} /></ExportModeProvider></TooltipProvider>)
+    expect(screen.getByText('creative no longer available')).toBeTruthy()
+  } finally {
+    if (complete) Object.defineProperty(HTMLImageElement.prototype, 'complete', complete)
+  }
+})

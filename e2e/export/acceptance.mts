@@ -87,6 +87,8 @@ if (!process.env.AUTH_SECRET) {
     const viewPost = live.words.filter((w, i) => w.text === 'View' && live.words[i + 1]?.text === 'post').length
     check(viewPost > 0 && countLinks(bytes) >= viewPost, `every post is a link (${countLinks(bytes)} links, ${viewPost} posts)`)
     check(live.pages.every((p) => p.width === 792 && p.height === 612), `${live.pages.length} pages, all Letter landscape`)
+    // Vercel caps a function's response body at 4.5 MB; full-size WebP post images once made this export 31 MB.
+    check(bytes.length < 4_500_000, `under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
     console.log(`  live PDF: ${livePdf}`)
   }
 }

@@ -6,6 +6,7 @@ import { pctCompact } from '@/lib/organic-social/format'
 import { DesignationToggle } from './designation-toggle'
 import { safeHref } from './annotation-callouts'
 import { useExportMode } from '@/components/export/export-mode'
+import { printImageUrl } from '@/lib/export/print-image'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
 interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
@@ -67,8 +68,15 @@ function ExportMedia({ post }: { post: TopContentPost }) {
       </div>
     )
   }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img className="aspect-[4/3] w-full object-cover" src={src} alt={post.caption.slice(0, 80)} onError={() => setBroken(true)} />
+  // A print-sized JPEG: Chromium stores WebP losslessly, and full-size post images made a 31 MB PDF.
+  // onError catches a load that fails after hydration; the ref catches one that failed before it, which in the
+  // export is the usual case (images load while the HTML streams), as the live card's Media does.
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className="aspect-[4/3] w-full object-cover" src={printImageUrl(src, 360, 270)} alt={post.caption.slice(0, 80)}
+      ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setBroken(true) }}
+      onError={() => setBroken(true)} />
+  )
 }
 
 /** A card as the PDF export prints it: the whole card is one link to the post (http(s) only), "View post"

@@ -17,7 +17,7 @@ const SERIES: TrendSeries = {
   channels: ['Instagram'],
   points: ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'].map((date, i) => ({ date, Instagram: [3, 9, 4, 7][i] })),
 }
-const thumb = { creative: null, mediaType: 'IMAGE' as const, url: 'https://www.instagram.com/p/abc/' }
+const thumb = { creative: { kind: 'image' as const, thumb: 'https://images.dashsocial.com/t?w=640', full: 'x' }, mediaType: 'IMAGE' as const, url: 'https://www.instagram.com/p/abc/' }
 const ANNOTATIONS: ChartAnnotation[] = [
   { date: '2026-09-02', value: 9, label: 'Peak engagement', thumb },
   { date: '2026-09-03', value: 4, label: 'Hidden by the team', thumb: null, hidden: true },
@@ -77,4 +77,10 @@ test('outside the export the chart is unchanged: hover cards, unnumbered dots, n
   expect(props.marks).toEqual([{ x: '2026-09-02' }, { x: '2026-09-01' }, { x: '2026-08-30' }]) // every client-visible day, as today
   expect((props.callouts as unknown[]).length).toBeGreaterThan(0)
   expect(container.querySelector('[data-export-block]')).toBeNull()
+})
+
+test("an annotation's thumbnail is a print-sized JPEG", () => {
+  exportChart()
+  const entry = within(screen.getByRole('list', { name: 'Annotations' })).getAllByRole('listitem')[2]
+  expect(within(entry).getByRole('img').getAttribute('src')).toBe('https://images.dashsocial.com/t?w=160&h=160&fit=cover&format=jpeg&quality=70')
 })
