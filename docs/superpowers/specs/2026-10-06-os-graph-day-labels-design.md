@@ -88,17 +88,18 @@ None new. The formatter cannot throw (string test, then split) and falls back to
 1. `formatMonthDay`: every row of the section 5 table.
 2. Parity: for every day of 2026 and of 2028, `formatMonthDay(day) === dayLabel(day)` (`annotations.ts:120`), so the
    axis and the callouts can never disagree.
-3. Rendered with `ResponsiveContainer` stubbed to a fixed size (the method `v1-render.golden.test.tsx:5-13` uses): with
+3. Rendered with `ResponsiveContainer` stubbed to a fixed size (the stub already in this file, `line-chart.test.tsx:15-16`): with
    `xFormat="month-day"` the axis ticks read `M/D`; without it they read the raw keys.
 4. The hover box, through `LineChart` itself, using the file's existing Tooltip recorder (`line-chart.test.tsx:7-19`,
    `tooltipProps`):
    - without notes: `LineChart` with `xFormat="month-day"` hands `Tooltip` a `labelFormatter` that maps `2026-09-21` to
      `9/21`;
    - with notes (`notes={{ '2026-09-21': 'Influencer post went live' }}`): rendering the recorded `content` with
-     `{ ...recordedProps, label: '2026-09-21', payload }` shows `9/21` in the header and the note text, so the note is
-     still found by the raw key (`line-chart.tsx:370`).
-5. `LineChart` without `xFormat`: the recorded Tooltip props carry no `labelFormatter`, and the x-axis gets no
-   `tickFormatter` (props unchanged from today).
+     `{ ...recordedProps, label: '2026-09-21', payload: [one series item] }` shows `9/21` in the header and the note
+     text, so the note is still found by the raw key (`line-chart.tsx:370`). The payload must be non-empty, since the
+     default box formats the label only when a payload is present (`DefaultTooltipContent.js:123`).
+5. `LineChart` without `xFormat`: the recorded Tooltip props carry no `labelFormatter` (the axis half of "unchanged" is
+   test 3's raw-key case).
 
 `components/report-sections/organic-social/v1-render.golden.test.tsx`:
 6. The `Paid Media shaped chart, no marks` snapshot stays byte-identical (not updated).

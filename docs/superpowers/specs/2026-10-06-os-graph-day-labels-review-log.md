@@ -19,3 +19,14 @@ that mock `LineChart` read single props. No BLOCKER.
 | B7 | MINOR | Say the three no-data snapshots stay byte-identical. | Plan: assert in the snapshot review. |
 | B8 | MINOR | `v1-render.golden.test.tsx:5-13` is `:5-15`; `line-chart.test.tsx` already has the same stub. | Plan: reuse that stub. |
 | B9 | MINOR | The change reaches every `ChannelTrendChart` render of any version, including clients still on v1 graphs. | Plan: say so in the PR description (within "all clients"). |
+
+## Round 2 (fresh reviewer, changed lines only, 2026-10-06)
+No BLOCKER, no MAJOR. B1 confirmed fixed: the recorder at `line-chart.test.tsx:7-19` records Tooltip props, the default
+box applies `labelFormatter` to the raw label (`DefaultTooltipContent.js:123-124`), and the note is looked up by the raw
+key (`line-chart.tsx:370`), so test 4 fails before the change and passes after. The review ends here; there is no round 3.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| R6 | MINOR | Test 5's axis half cannot be checked (only `Tooltip` is recorded). | Corrected in place: the axis half is test 3's raw-key case. |
+| R7 | MINOR | Test 4's notes case needs a non-empty payload, or the label is never formatted (`DefaultTooltipContent.js:123`). | Corrected in place. |
+| R8 | MINOR | Test 3 should cite the stub in `line-chart.test.tsx:15-16` (B8's range was also off). | Corrected in place. |
