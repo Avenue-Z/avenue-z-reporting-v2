@@ -13,6 +13,7 @@ import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback, YTD_TIMEOUT_TEXT } from './shared'
 import { ytdReviewBlock } from './ytd-review-sheet'
 import { logYtdClientReadFailed, logYtdMonthFailed } from './ytd-failure'
+import { readYtdNotes } from './ytd-notes'
 
 const NO_SHEET: YtdTab = { followers: {}, views: {} }
 
@@ -65,7 +66,7 @@ export async function YtdLiveReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
   if (sheet.kind === 'ok') for (const g of s.missingColumn) console.warn(`[organic-social] ytd sheet column missing slug=${clientSlug} channel=${channel} graph=${g}`)
   for (const x of s.invalid) console.warn(`[organic-social] ytd sheet cell invalid slug=${clientSlug} channel=${channel} month=${x.month} graph=${x.graph}`)
   if (s.followers.points.length === 0 && s.views.points.length === 0) return <NoData />
-  return ytdReviewBlock(s.followers, s.views)
+  return ytdReviewBlock(s.followers, s.views, await readYtdNotes(client, ctx, months, s))
 }
 
 export const ytdReviewV3: PartImpl<OrganicSocialCtx> = {

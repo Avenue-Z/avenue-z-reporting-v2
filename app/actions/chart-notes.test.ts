@@ -294,3 +294,44 @@ test('locked-months rules win: a malformed reportingMonths with chartNotes true 
   expect(await saveChartNoteAction(INPUT)).toEqual(NOT_ON)
   expect(m.insertDraft).not.toHaveBeenCalled()
 })
+
+// Notes on the YTD graphs (spec 2026-10-06-os-ytd-notes-design.md). ON's first reporting month is 2026-08; its YTD
+// draws January onward from the sheet, so a YTD note may go from January 1 of 2026, never an earlier year.
+const YTD = { ...INPUT, chart: 'ytd-followers', day: '2026-01-01', postIds: [] }
+test('save: a YTD note in January of a locked client\'s first reporting year is saved, on its 1st, with no posts', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(ON as never)
+  expect(await saveChartNoteAction(YTD)).toEqual({ ok: true })
+  expect(m.insertDraft).toHaveBeenCalledWith({
+    clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'ytd-followers', day: '2026-01-01',
+    body: 'Influencer post went live', postIds: [], by: 'writer@avenuez.com',
+  })
+  expect(await saveChartNoteAction({ ...YTD, chart: 'ytd-views', day: '2026-07-01' })).toEqual({ ok: true })
+})
+test('save: a YTD note before January 1 of a locked client\'s first reporting year is refused, with nothing written', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(ON as never)
+  expect(await saveChartNoteAction({ ...YTD, day: '2025-12-01' })).toEqual({ ok: false, error: "That month is before this client's first reporting year." })
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+test('save: the daily first-month rule is unchanged, and a malformed reportingMonths refuses a YTD note too', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(ON as never)
+  expect(await saveChartNoteAction({ ...INPUT, day: '2026-07-31' })).toEqual({ ok: false, error: "That day is before this client's first reporting month." })
+  vi.mocked(getClientBySlug).mockResolvedValueOnce({ id: 'client-uuid', dashSocialConfig: { brandId: 1, reportingMonths: 'broken' } } as never)
+  expect(await saveChartNoteAction(YTD)).toEqual(NOT_ON)
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+test('save: a live client (no first month) may put a YTD note on any past month\'s 1st', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(LIVE as never)
+  expect(await saveChartNoteAction({ ...YTD, day: '2025-03-01' })).toEqual({ ok: true })
+  expect(m.insertDraft).toHaveBeenCalledWith(expect.objectContaining({ chart: 'ytd-followers', day: '2025-03-01' }))
+})
+test('revoke: a YTD note checks its own month for an open draft', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue(ON as never)
+  vi.mocked(m.findChartNote).mockResolvedValue({ ...ROW, chart: 'ytd-views', day: '2026-08-01', status: 'approved' } as never)
+  expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: true })
+  expect(m.findOpenDraft).toHaveBeenCalledWith({ clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'ytd-views', day: '2026-08-01' })
+})

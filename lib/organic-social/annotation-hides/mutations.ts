@@ -11,13 +11,24 @@ export function isRealDay(day: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day
 }
 
+/** A known platform. Shared by every annotation and note key check. */
+export function checkAnnotationChannel(channel: unknown): { ok: boolean; error?: string } {
+  return typeof channel === 'string' && (CHANNELS as readonly string[]).includes(channel) ? { ok: true } : { ok: false, error: 'invalid channel' }
+}
+
+/** A real calendar day, yyyy-mm-dd. Shared by every annotation and note key check. */
+export function checkAnnotationDay(day: unknown): { ok: boolean; error?: string } {
+  return typeof day === 'string' && isRealDay(day) ? { ok: true } : { ok: false, error: 'invalid day' }
+}
+
 /** The key every annotation write shares: a known platform, a known annotated chart and a real
- *  calendar day. Hides and notes both call it, so the two cannot drift (Paul's review of #273, C12). */
+ *  calendar day, checked in that order. Hides and notes both call it, so the two cannot drift (Paul's review of
+ *  #273, C12); the YTD note charts reuse its platform and day checks (chart-notes/validate.ts). */
 export function checkAnnotationKey(input: { channel: unknown; chart: unknown; day: unknown }): { ok: boolean; error?: string } {
-  if (typeof input.channel !== 'string' || !(CHANNELS as readonly string[]).includes(input.channel)) return { ok: false, error: 'invalid channel' }
+  const channel = checkAnnotationChannel(input.channel)
+  if (!channel.ok) return channel
   if (typeof input.chart !== 'string' || !CHARTS.has(input.chart)) return { ok: false, error: 'invalid chart' }
-  if (typeof input.day !== 'string' || !isRealDay(input.day)) return { ok: false, error: 'invalid day' }
-  return { ok: true }
+  return checkAnnotationDay(input.day)
 }
 
 /** Pure validation for the server-action payload. Kept out of the action file so it is

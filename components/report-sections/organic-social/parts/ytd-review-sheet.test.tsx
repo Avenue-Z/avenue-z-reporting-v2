@@ -12,6 +12,9 @@ vi.mock('@/lib/organic-social/ytd-sheet', async () => ({
   ...(await vi.importActual<typeof import('@/lib/organic-social/ytd-sheet')>('@/lib/organic-social/ytd-sheet')),
   readYtdTab,
 }))
+// Notes are on for every client on locked months, so version 2 reads the YTD notes: none unless a test says so.
+const { getChartNotes } = vi.hoisted(() => ({ getChartNotes: vi.fn(async (): Promise<unknown[]> => []) }))
+vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes }))
 
 import { YtdSheetReviewSection } from './ytd-review-sheet'
 import { YtdReviewSection } from './ytd-review'
@@ -160,4 +163,74 @@ test('a timeout shows the YTD timeout copy, never "shorter date range"', async (
   const text = render(<>{await YtdSheetReviewSection({ ctx: SEPT })}</>).container.textContent
   expect(text).toBe('Taking longer than usual. Try again in a minute.')
   expect(text).not.toContain('shorter date range')
+})
+
+// Notes on the YTD graphs (spec 2026-10-06-os-ytd-notes-design.md). Invented note text.
+const ytdNote = (over: Record<string, unknown>) => ({
+  id: 'n1', clientId: 'c1', channel: 'INSTAGRAM', chart: 'ytd-followers', day: '2026-08-01', body: 'August note', postIds: [],
+  status: 'approved', createdBy: 'a@avenuez.com', updatedBy: 'a@avenuez.com', approvedBy: 'b@avenuez.com',
+  createdAt: new Date('2026-09-01T00:00:00Z'), updatedAt: new Date('2026-09-01T00:00:00Z'),
+  approvedAt: new Date('2026-09-01T00:00:00Z'), deletedAt: null, deletedBy: null, ...over,
+})
+type Panel = { notes: { panel: unknown[]; controls?: unknown }; title: string }
+function panels(node: unknown, found: Panel[] = []): Panel[] {
+  const el = node as ReactElement<Record<string, unknown>> | null
+  if (!el || typeof el !== 'object') return found
+  const type = (el as { type?: { name?: string } }).type
+  if (typeof type === 'function' && type.name === 'YtdNotesPanel') found.push(el.props as unknown as Panel)
+  const kids = (el.props as { children?: unknown } | undefined)?.children
+  for (const k of Array.isArray(kids) ? kids : [kids]) panels(k, found)
+  return found
+}
+const SHEET = () => sheet((i) => (i < 8 ? String(100 + i) : ''), (i) => (i < 8 ? String(10 + i) : ''))
+
+test('version 2 hands a line graph its approved note as hover text with a dot on that month', async () => {
+  readYtdTab.mockResolvedValue(SHEET())
+  getOutlineKpis.mockResolvedValue(kpis(900, 90))
+  getChartNotes.mockResolvedValueOnce([ytdNote({})])
+  const c = charts(await YtdSheetReviewSection({ ctx: SEPT }))
+  expect(getChartNotes).toHaveBeenCalledWith('c1', 'INSTAGRAM')
+  expect((c[0] as unknown as { notes?: unknown }).notes).toEqual({ Aug: 'August note' })
+  expect((c[0] as unknown as { marks?: unknown }).marks).toEqual([{ x: 'Aug' }])
+  expect(c[1]).not.toHaveProperty('notes')
+  expect(c[1]).not.toHaveProperty('marks')
+})
+
+test('with no notes, version 2\'s line graphs get neither prop, exactly as before', async () => {
+  readYtdTab.mockResolvedValue(SHEET())
+  getOutlineKpis.mockResolvedValue(kpis(900, 90))
+  const el = await YtdSheetReviewSection({ ctx: SEPT })
+  for (const x of charts(el)) { expect(x).not.toHaveProperty('notes'); expect(x).not.toHaveProperty('marks') }
+  expect(panels(el).map((p) => [p.title, p.notes.panel])).toEqual([['Follower Growth, Year to Date', []], ['Views, Year to Date', []]])
+  const { container } = render(<>{el}</>)
+  expect(container.textContent).not.toContain('Add annotation')
+})
+
+test('an editor gets a panel under each graph with the controls for that graph', async () => {
+  readYtdTab.mockResolvedValue(SHEET())
+  getOutlineKpis.mockResolvedValue(kpis(900, 90))
+  const el = await YtdSheetReviewSection({ ctx: { ...SEPT, role: 'INTERNAL_ANALYST', email: 'writer@avenuez.com' } })
+  const ps = panels(el)
+  expect(ps.map((p) => (p.notes.controls as { chart: string }).chart)).toEqual(['ytd-followers', 'ytd-views'])
+  expect((ps[0].notes.controls as { months: { key: string }[] }).months.map((m) => m.key)).toEqual(
+    ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'])
+})
+
+test('a failed notes read draws the graphs as before and logs one line', async () => {
+  readYtdTab.mockResolvedValue(SHEET())
+  getOutlineKpis.mockResolvedValue(kpis(900, 90))
+  getChartNotes.mockRejectedValueOnce(new Error('db down'))
+  const el = await YtdSheetReviewSection({ ctx: SEPT })
+  expect(charts(el)).toHaveLength(2)
+  for (const x of charts(el)) expect(x).not.toHaveProperty('notes')
+  expect(panels(el)).toEqual([])
+  expect(logs()).toContain('[organic-social] ytd notes unreadable slug=c channel=INSTAGRAM; showing none')
+})
+
+test('version 1 (the fallback with no valid sheet) shows no notes and no panel', async () => {
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockResolvedValue(kpis(900, 90))
+  const el = await YtdSheetReviewSection({ ctx: SEPT })
+  expect(getChartNotes).not.toHaveBeenCalled()
+  expect(panels(el)).toEqual([])
 })

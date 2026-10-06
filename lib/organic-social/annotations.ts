@@ -46,6 +46,13 @@ export type AnnotationChart = 'followers' | 'engagements'
 /** Every annotated chart, the one allowlist hides and notes both check (Paul's review of #273, C12). */
 export const ANNOTATION_CHARTS: readonly AnnotationChart[] = ['followers', 'engagements']
 
+/** The YTD Review graphs' note charts (spec 2026-10-06-os-ytd-notes-design.md): written notes only, never hides or
+ *  peaks, so they are not in ANNOTATION_CHARTS. A month's note is stored on that month's 1st. */
+export type YtdNoteChart = 'ytd-followers' | 'ytd-views'
+export const YTD_NOTE_CHARTS: readonly YtdNoteChart[] = ['ytd-followers', 'ytd-views']
+/** Every chart a written note may go on. */
+export type NoteChart = AnnotationChart | YtdNoteChart
+
 /** A peak ready to render: its value, its label, and the post that likely caused it. */
 export interface Annotation extends Peak {
   label: string
