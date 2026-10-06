@@ -15,7 +15,6 @@ export function localDay(now: Date, tz: string): string {
 
 /** `Renaissance – Organic Social – 2026-10-06.pdf`, without characters a filesystem rejects. */
 export function exportFilename(clientName: string, pageTitle: string, now: Date, tz: string): string {
-  // eslint-disable-next-line no-control-regex
   const clean = (s: string) => s.replace(/[/\\:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim()
   return `${clean(clientName)} – ${clean(pageTitle)} – ${localDay(now, tz)}.pdf`
 }

@@ -17,7 +17,8 @@
     "db:enable-commentary-renaissance": "tsx --env-file=.env.local scripts/enable-commentary-renaissance.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e:export": "tsx --env-file-if-exists=.env.local e2e/export/acceptance.mts"
   },
   "dependencies": {
     "@auth/core": "0.41.3",
