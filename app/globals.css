@@ -353,21 +353,6 @@
     display: none !important;
   }
 
-  /* Charts fit the page. Recharts fixes the chart at its on-screen pixel width, and a real print
-     lays out at paper width without re-measuring, so a wide chart was sliced at the right edge.
-     The svg has a viewBox, so capping the width scales it; max-width (not width) leaves charts
-     that already fit at their size. Recharts 3 nests the chart in a width:0 div, widened here. */
-  .recharts-responsive-container { height: auto !important; }
-  .recharts-responsive-container > div { width: 100% !important; }
-  .recharts-wrapper { max-width: 100% !important; height: auto !important; }
-  .recharts-wrapper > svg { height: auto !important; }
-  .recharts-legend-wrapper { max-width: 100% !important; }
-
-  /* Keep a section label on the same page as what it labels (a label row holding an h4 too). */
-  h1, h2, h3, h4, div:has(> h4) {
-    break-after: avoid !important;
-  }
-
   /* Charts — preserve colors */
   svg, canvas {
     -webkit-print-color-adjust: exact !important;
