@@ -63,18 +63,17 @@ test('ytd-review@3 is registered unpublished; 1 and 2 are the same objects as be
   expect(ORGANIC_SOCIAL_PARTS['ytd-review'][2]).toBe(ytdReviewV2)
 })
 
-test('picker range is ignored: January to October (live); the sheet wins; blank months come from live Dash with no comparison', async () => {
+test('picker range is ignored: January to the last finished month (September); the sheet wins; a blank finished month comes from live Dash with no comparison', async () => {
   readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? String(100 + i) : ''), (i) => (i < 8 ? String(10 + i) : '')))
   getOutlineKpis.mockImplementation(async (_s: string, range: string) => (range.startsWith('custom:2026-09') ? kpis(900, 90) : kpis(1000, 100)))
   const el = await YtdLiveReviewSection({ ctx: CTX })
   expect(readYtdTab).toHaveBeenCalledWith(ID, 'Live Co')
   expect(getOutlineKpis.mock.calls).toEqual([
     ['live-co', 'custom:2026-09-01,2026-09-30', null, 'INSTAGRAM'],
-    ['live-co', 'custom:2026-10-01,2026-10-14', null, 'INSTAGRAM'],
   ])
   const c = charts(el)
-  expect(c[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct (live)'])
-  expect(c[0].data.slice(-2)).toEqual([{ month: 'Sep', followers: 900 }, { month: 'Oct (live)', followers: 1000 }])
+  expect(c[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'])
+  expect(c[0].data.slice(-2)).toEqual([{ month: 'Aug', followers: 107 }, { month: 'Sep', followers: 900 }])
   expect(c[1].data[0]).toEqual({ month: 'Jan', views: 10 })
   const { container } = render(<>{el}</>)
   expect(container.textContent).toContain('YTD Review')
@@ -85,8 +84,8 @@ test('no sheet for the year: every month from live Dash, and no column warnings'
   getOutlineKpis.mockResolvedValue(kpis(5, 6))
   const el = await YtdLiveReviewSection({ ctx: CTX })
   expect(readYtdTab).not.toHaveBeenCalled()
-  expect(getOutlineKpis).toHaveBeenCalledTimes(10)
-  expect(charts(el)[0].data).toHaveLength(10)
+  expect(getOutlineKpis).toHaveBeenCalledTimes(9)
+  expect(charts(el)[0].data).toHaveLength(9)
   expect(logs()).toEqual([])
 })
 
@@ -94,7 +93,7 @@ test('an invalid entry: one warning, then every month from live Dash', async () 
   getClientBySlug.mockResolvedValue(client({ ytdSheets: { 2026: { sheetId: 'bad', tab: 'x' } } }))
   getOutlineKpis.mockResolvedValue(kpis(5, 6))
   await YtdLiveReviewSection({ ctx: CTX })
-  expect(getOutlineKpis).toHaveBeenCalledTimes(10)
+  expect(getOutlineKpis).toHaveBeenCalledTimes(9)
   expect(logs()).toEqual(['[organic-social] ytd sheet config invalid slug=live-co year=2026; using live Dash'])
 })
 
@@ -128,18 +127,18 @@ test('Overview renders nothing and reads nothing', async () => {
 
 // A live client's sheet tracks X like any other channel, so the X tab draws the block too. Before this, @3 copied
 // the outline clients' rule (only channels with outline Data rows, which X has none of) and showed nothing on X.
-test('the X tab draws the block from the sheet\'s X column; only the live month asks Dash, for X', async () => {
+test('the X tab draws the block from the sheet\'s X column; with every finished month filled, Dash is asked nothing', async () => {
   const withX = sheet((i) => (i < 9 ? String(500 + i) : ''), (i) => (i < 9 ? String(50 + i) : ''))
     .map((row) => (row[1] === 'Instagram' ? ['', 'X'] : row))
   readYtdTab.mockResolvedValue(withX)
   getOutlineKpis.mockResolvedValue(kpis(600, 7))
   const el = await YtdLiveReviewSection({ ctx: { ...CTX, channel: 'TWITTER' as const } })
-  expect(getOutlineKpis.mock.calls).toEqual([['live-co', 'custom:2026-10-01,2026-10-14', null, 'TWITTER']])
+  expect(getOutlineKpis).not.toHaveBeenCalled()
   const c = charts(el)
-  expect(c[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct (live)'])
+  expect(c[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'])
   expect(c[0].data[0]).toEqual({ month: 'Jan', followers: 500 })
-  expect(c[0].data.slice(-2)).toEqual([{ month: 'Sep', followers: 508 }, { month: 'Oct (live)', followers: 600 }])
-  expect(c[1].data.slice(-2)).toEqual([{ month: 'Sep', views: 58 }, { month: 'Oct (live)', views: 7 }])
+  expect(c[0].data.slice(-2)).toEqual([{ month: 'Aug', followers: 507 }, { month: 'Sep', followers: 508 }])
+  expect(c[1].data.slice(-2)).toEqual([{ month: 'Aug', views: 57 }, { month: 'Sep', views: 58 }])
   expect(logs()).toEqual([])
 })
 
@@ -155,9 +154,9 @@ test('the X tab without an X column in the sheet: one warning per graph, every m
   readYtdTab.mockResolvedValue(sheet((i) => String(i), (i) => String(i)))
   getOutlineKpis.mockResolvedValue(kpis(5, 6))
   const el = await YtdLiveReviewSection({ ctx: { ...CTX, channel: 'TWITTER' as const } })
-  expect(getOutlineKpis).toHaveBeenCalledTimes(10)
+  expect(getOutlineKpis).toHaveBeenCalledTimes(9)
   expect(getOutlineKpis.mock.calls.every((call) => call[3] === 'TWITTER')).toBe(true)
-  expect(charts(el)[0].data).toHaveLength(10)
+  expect(charts(el)[0].data).toHaveLength(9)
   expect(logs()).toEqual([
     '[organic-social] ytd sheet column missing slug=live-co channel=TWITTER graph=followers',
     '[organic-social] ytd sheet column missing slug=live-co channel=TWITTER graph=views',
@@ -213,12 +212,12 @@ test('Facebook and LinkedIn tabs draw the block too', async () => {
     [], ['VIEWS'], ['', 'Facebook', 'LinkedIn'], ...MONTHS.map((m, i) => [m, String(i + 3), String(i + 4)])])
   for (const channel of ['FACEBOOK', 'LINKEDIN'] as const) {
     const el = await YtdLiveReviewSection({ ctx: { ...CTX, channel } })
-    expect(charts(el)[0].data.map((d) => d.month)).toHaveLength(10)
+    expect(charts(el)[0].data.map((d) => d.month)).toHaveLength(9)
   }
-  expect(getOutlineKpis).not.toHaveBeenCalled() // every month Jan to Oct filled in both columns
+  expect(getOutlineKpis).not.toHaveBeenCalled() // every month Jan to Sep filled in both columns
 })
 
-test('three Dash requests really run at once with no sheet (ten months)', async () => {
+test('three Dash requests really run at once with no sheet (nine months)', async () => {
   getClientBySlug.mockResolvedValue(client())
   let inFlight = 0, peak = 0
   getOutlineKpis.mockImplementation(async () => { inFlight++; peak = Math.max(peak, inFlight); await Promise.resolve(); await Promise.resolve(); inFlight--; return kpis(1, 1) })
@@ -230,15 +229,15 @@ test('a Dash failure is logged with slug, channel, month, kind and status, never
   const { DashApiError, DashTimeoutError } = await import('@/lib/dash-social/client')
   getClientBySlug.mockResolvedValue(client())
   getOutlineKpis.mockImplementation(async (_s: string, range: string) => {
-    if (range.startsWith('custom:2026-09')) throw new DashApiError('500 persistent at https://api.example/brands/123456/reports')
-    if (range.startsWith('custom:2026-10')) throw new DashTimeoutError()
+    if (range.startsWith('custom:2026-08')) throw new DashApiError('500 persistent at https://api.example/brands/123456/reports')
+    if (range.startsWith('custom:2026-09')) throw new DashTimeoutError()
     return kpis(1, 1)
   })
   const r = render(<>{await YtdLiveReviewSection({ ctx: CTX })}</>)
   expect(r.container.textContent).toContain("Couldn't load this section.")
   const l = logs().filter((x) => x.includes('ytd-review@3 Dash request failed'))
-  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-09 kind=api status=500')
-  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-10 kind=timeout status=none')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-08 kind=api status=500')
+  expect(l).toContain('[organic-social] ytd-review@3 Dash request failed slug=live-co channel=INSTAGRAM month=2026-09 kind=timeout status=none')
   expect(logs().join('\n')).not.toContain('123456')
   expect(logs().join('\n')).not.toContain('https://')
 })
@@ -313,4 +312,52 @@ test('a missing client row logs one line naming it, shows the error card, and as
   expect(logs()).toEqual(['[organic-social] ytd-review@3 client row missing slug=live-co'])
   expect(getOutlineKpis).not.toHaveBeenCalled()
   expect(readYtdTab).not.toHaveBeenCalled()
+})
+
+// Spec 2026-10-06 (finished months only): no month in progress is ever drawn or requested.
+test('no label in the block says "(live)", and no range in progress is requested', async () => {
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockResolvedValue(kpis(5, 6))
+  const el = await YtdLiveReviewSection({ ctx: CTX })
+  for (const c of charts(el)) expect(c.data.map((d) => String(d.month)).filter((m) => m.includes('(live)'))).toEqual([])
+  expect(render(<>{el}</>).container.textContent).not.toContain('(live)')
+  for (const call of getOutlineKpis.mock.calls) expect(call[1]).toMatch(/^custom:2026-(0[1-9])-01,2026-\1-(28|29|30|31)$/)
+})
+
+// The stakeholder's case, 2026-10-06: the block ends at September and asks Dash nothing for October.
+test('on 2026-10-06 both graphs end at September and no October range is requested', async () => {
+  vi.setSystemTime(new Date('2026-10-06T12:00:00Z'))
+  getClientBySlug.mockResolvedValue(client())
+  getOutlineKpis.mockResolvedValue(kpis(5, 6))
+  const el = await YtdLiveReviewSection({ ctx: CTX })
+  const c = charts(el)
+  expect(c).toHaveLength(2)
+  for (const chart of c) expect(chart.data.at(-1)!.month).toBe('Sep')
+  expect(getOutlineKpis.mock.calls.filter((call) => String(call[1]).startsWith('custom:2026-10'))).toEqual([])
+  expect(getOutlineKpis).toHaveBeenCalledTimes(9)
+})
+
+// Spec section 3, signed off 2026-10-06: in January the block shows the whole previous year from that year's entry;
+// in February only January is finished, so each graph is one point, drawn as a bar.
+const BOTH_YEARS = { ytdSheets: { 2026: { sheetId: ID, tab: 'Live Co' }, 2027: { sheetId: ID, tab: 'Live Co 2027' } } }
+test('in January the block shows the previous year, January to December, read from the previous year\'s entry', async () => {
+  vi.setSystemTime(new Date('2027-01-15T12:00:00Z'))
+  getClientBySlug.mockResolvedValue(client(BOTH_YEARS))
+  readYtdTab.mockResolvedValue(sheet((i) => String(i + 1), (i) => String(i + 1)))
+  const el = await YtdLiveReviewSection({ ctx: CTX })
+  expect(readYtdTab.mock.calls).toEqual([[ID, 'Live Co']])
+  expect(getOutlineKpis).not.toHaveBeenCalled()
+  expect(charts(el)[0].data.map((d) => d.month)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+})
+test('in February each graph is a single bar for January, read from the new year\'s entry, with no Dash request', async () => {
+  vi.setSystemTime(new Date('2027-02-15T12:00:00Z'))
+  getClientBySlug.mockResolvedValue(client(BOTH_YEARS))
+  readYtdTab.mockResolvedValue(sheet((i) => (i === 0 ? '40' : ''), (i) => (i === 0 ? '400' : '')))
+  const el = await YtdLiveReviewSection({ ctx: CTX })
+  expect(readYtdTab.mock.calls).toEqual([[ID, 'Live Co 2027']])
+  expect(getOutlineKpis).not.toHaveBeenCalled()
+  const c = charts(el)
+  expect(c.map((x) => x.name)).toEqual(['BarChart', 'BarChart'])
+  expect(c[0].data).toEqual([{ month: 'Jan', followers: 40 }])
+  expect(c[1].data).toEqual([{ month: 'Jan', views: 400 }])
 })
