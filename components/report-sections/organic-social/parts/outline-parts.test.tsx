@@ -190,13 +190,29 @@ test("Facebook has no Profile Views tile: Jasmine removed the row, so the block 
 })
 
 test("the Data block draws a tab with no flagged row exactly as the shared tiles do, under the heading \"Data\"", async () => {
+  // Facebook: no outline override, so every tile carries the same badge on both. (Instagram's one difference is below.)
+  getOutlineKpis.mockResolvedValueOnce(builtFor('FACEBOOK', 10))
+  const outline = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
+  const h = selectOutlineRows('FACEBOOK', builtFor('FACEBOOK', 10), OUTLINE_DATA_ROWS.standard.FACEBOOK!)
+  expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
+  // Identical markup except the heading text: the shared tiles drawn under the outline's heading.
+  const shared = render(<PlatformHeadlines headlines={[{ ...h, label: 'Data' } as PlatformHeadline]} />).container
+  expect(outline.innerHTML).toBe(shared.innerHTML)
+})
+
+test('on Instagram the Data block differs from the shared tiles by one thing only: the Engagement Rate badge', async () => {
+  // The outline tab reads the views-basis rate, which the appendix text describes; the shared tile reads the
+  // follower-basis rate and draws no badge for it (sharedTileDefinition). Everything else is the same markup.
   getOutlineKpis.mockResolvedValueOnce(builtFor('INSTAGRAM', 10))
   const outline = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
   const b = builtFor('INSTAGRAM', 10)
   const h = selectOutlineRows('INSTAGRAM', { ...b, kpis: { ...b.kpis, ...REELS } }, OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
-  expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
-  // Identical markup except the heading text: the shared tiles drawn under the outline's heading.
   const shared = render(<PlatformHeadlines headlines={[{ ...h, label: 'Data' } as PlatformHeadline]} />).container
+  const badges = (c: HTMLElement) => c.querySelectorAll('[data-export-hide]')
+  expect(badges(outline).length).toBe(badges(shared).length + 1)
+  expect(card(outline, 'Engagement Rate')?.querySelector('[data-export-hide]')).not.toBeNull()
+  expect(card(shared, 'Engagement Rate')?.querySelector('[data-export-hide]')).toBeNull()
+  for (const c of [outline, shared]) badges(c).forEach((e) => e.remove())
   expect(outline.innerHTML).toBe(shared.innerHTML)
 })
 
