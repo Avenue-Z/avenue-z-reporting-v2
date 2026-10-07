@@ -13,6 +13,9 @@ const VIDEO_VIEWS = 'The number of times your videos were viewed.'
 const LIKES = 'The number of likes your posts received.'
 const COMMENTS = 'The number of comments your posts received.'
 const SHARES = 'The number of times your posts were shared.'
+// The appendix writes this line for X; Kenect's Instagram Data block draws the same row, with no Instagram line in the
+// appendix, so it is reused there (Thomas, 2026-10-07).
+const PROFILE_CLICKS = 'The number of times your profile has been clicked from your posts.'
 const engagements = (formula: string) => `The total number of engagements your posts received. ${formula}`
 
 export const ORGANIC_SOCIAL_DEFINITIONS: Record<DashChannel, Record<string, string>> = {
@@ -23,6 +26,7 @@ export const ORGANIC_SOCIAL_DEFINITIONS: Record<DashChannel, Record<string, stri
     likes: LIKES, comments: COMMENTS, shares: SHARES,
     saves: 'The number of times your posts were saved.',
     reposts: 'The number of times your posts have been reposted.',
+    profileClicks: PROFILE_CLICKS,
   },
   FACEBOOK: {
     followers: FOLLOWERS, netNewFollowers: NET_NEW, exposure: VIEWS,
@@ -51,7 +55,7 @@ export const ORGANIC_SOCIAL_DEFINITIONS: Record<DashChannel, Record<string, stri
     followers: FOLLOWERS, netNewFollowers: NET_NEW, exposure: VIEWS,
     engagements: engagements('Organic Reposts + Replies + Likes + Link Clicks.'),
     engagementRate: ENGAGEMENT_RATE,
-    profileClicks: 'The number of times your profile has been clicked from your posts.',
+    profileClicks: PROFILE_CLICKS,
     likes: LIKES,
     replies: 'The number of replies your posts received.',
     reposts: 'The number of times your posts were reposted.',
