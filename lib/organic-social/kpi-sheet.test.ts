@@ -57,7 +57,16 @@ test.each([
   try { parseKpiGrid(grid as unknown[][], '2026') } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe(missing) }
 })
 
-// The first half of a year has an H1 target; the ring says "Target" only, so H1 and H2 are both accepted.
-test('an H1 target row of the sheet year is accepted', () => {
-  expect(parseKpiGrid(GRID.map((r, i) => (i === 4 ? ['', 'H1 2026 Target', '2,000', '50,500', '1,250'] : r)), '2026').platforms[0].channel).toBe('INSTAGRAM')
+// Paul, #334 round 3: nothing paired the half with the row's month, and this test used to pin "End of September" with
+// an H1 target as valid. A year-to-date figure over a half-year goal overstates progress, so H1 pairs only with a
+// January to June row; H2 is accepted with any month.
+test('an H1 target is accepted with a January to June row', () => {
+  const march = GRID.map((r, i) => (i === 3 ? ['Instagram', 'End of March', '1,100', '20,000', '300'] : i === 4 ? ['', 'H1 2026 Target', '2,000', '50,500', '1,250'] : r))
+  expect(parseKpiGrid(march, '2026').platforms[0].monthLabel).toBe('March')
+})
+
+test('an H1 target next to a July to December row is a layout error', () => {
+  const september = GRID.map((r, i) => (i === 4 ? ['', 'H1 2026 Target', '2,000', '50,500', '1,250'] : r))
+  expect(() => parseKpiGrid(september, '2026')).toThrow(KpiSheetLayoutError)
+  try { parseKpiGrid(september, '2026') } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe('Instagram target half') }
 })
