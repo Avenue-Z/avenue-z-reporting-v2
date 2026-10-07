@@ -38,7 +38,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The total number of followers you have on this channel.
                 <span
@@ -84,7 +84,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The net new number of people who have followed your account.
                 <span
@@ -121,7 +121,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The number of times your posts were viewed or displayed.
                 <span
@@ -164,7 +164,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The total number of engagements your posts received. Organic Likes + Saves + Comments + Shares + Reposts.
                 <span
@@ -247,7 +247,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The total number of followers you have on this channel.
                 <span
@@ -290,7 +290,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The net new number of people who have followed your account.
                 <span
@@ -327,7 +327,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The number of times your posts were viewed or displayed.
                 <span
@@ -370,7 +370,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The total number of engagements your posts received. Organic Reactions + Comments + Shares + Post Clicks
                 <span
@@ -413,7 +413,7 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
                 ?
               </span>
               <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
               >
                 The percentage of people who engaged with your posts after seeing them.
                 <span

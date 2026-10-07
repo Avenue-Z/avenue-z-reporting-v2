@@ -8,7 +8,7 @@ test('a question mark badge with the text, no provider needed', () => {
   const { getByText, container } = render(<HoverHint text={TEXT} />)
   expect(getByText('?')).toBeTruthy()
   expect(getByText(TEXT)).toBeTruthy()
-  expect(container.querySelector('.group-hover\\:opacity-100')).not.toBeNull()
+  expect(container.querySelector('.group-hover\\:block')).not.toBeNull()
 })
 
 // Tailwind 4 compiles `hover:` inside `@media (hover: hover)`, so on a phone or iPad a tap shows nothing and a badge
@@ -17,11 +17,21 @@ test('a question mark badge with the text, no provider needed', () => {
 test('the badge takes focus and focus reveals the text (touch and keyboard)', () => {
   const { getByText, container } = render(<HoverHint text={TEXT} />)
   expect(getByText('?').getAttribute('tabindex')).toBe('0')
-  expect(container.querySelector('.group-focus-within\\:opacity-100')?.textContent).toContain(TEXT)
+  expect(container.querySelector('.group-focus-within\\:block')?.textContent).toContain(TEXT)
 })
 
 test('the badge is marked for the PDF export to hide, and is all spans so it is valid inside a heading', () => {
   const { container } = render(<HoverHint text={TEXT} />)
   expect(container.firstElementChild?.getAttribute('data-export-hide')).toBe('')
   expect(container.querySelectorAll('div').length).toBe(0)
+})
+
+// Paul, #335 round 2: an opacity-0 box is still laid out, so one centred on a badge near the right edge pushed the page
+// wider than a phone. The box is not laid out until it opens, and is never wider than the screen.
+test('the box takes no layout space until it opens, and is capped to the screen width', () => {
+  const { container } = render(<HoverHint text={TEXT} />)
+  const box = container.querySelector('.hidden')
+  expect(box?.textContent).toContain(TEXT)
+  expect(box?.className).toContain('max-w-[calc(100vw-2rem)]')
+  expect(container.querySelector('.opacity-0')).toBeNull()
 })

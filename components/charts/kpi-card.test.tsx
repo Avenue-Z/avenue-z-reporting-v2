@@ -56,7 +56,7 @@ describe('KpiCard tooltip badge', () => {
   test('is the shared HoverHint: focusable, focus reveals it, hidden in the PDF export', () => {
     const { container, getByText } = render(<KpiCard title="Views" value="10" tooltip="The number of times your posts were viewed." />)
     expect(getByText('?').getAttribute('tabindex')).toBe('0')
-    expect(container.querySelector('.group-focus-within\\:opacity-100')?.textContent).toContain('The number of times your posts were viewed.')
+    expect(container.querySelector('.group-focus-within\\:block')?.textContent).toContain('The number of times your posts were viewed.')
     expect(container.querySelector('[data-export-hide]')).not.toBeNull()
   })
 })
