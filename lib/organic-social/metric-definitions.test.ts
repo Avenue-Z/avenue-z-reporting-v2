@@ -15,7 +15,7 @@ test('every row an outline tab draws has a definition; Instagram Profile Clicks 
 })
 
 test('every shared platform tile has a definition on every channel (the live client draws these)', () => {
-  for (const ch of CHANNELS) for (const k of PLATFORM_KPIS[ch].map((s) => s.key)) expect(metricDefinition(ch, k), ` `).toBeTruthy()
+  for (const ch of CHANNELS) for (const k of PLATFORM_KPIS[ch].map((s) => s.key)) expect(metricDefinition(ch, k), `${ch} ${k}`).toBeTruthy()
 })
 
 test('a channel the appendix does not cover yields no text, never a throw', () => {
