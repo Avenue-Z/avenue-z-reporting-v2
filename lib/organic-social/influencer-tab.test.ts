@@ -1,0 +1,27 @@
+import { expect, test } from 'vitest'
+import { hasInfluencerTab, influencerRulesFor } from './influencer-tab'
+import { ORGANIC_SOCIAL_PLATFORM_TEMPLATE } from '@/components/report-sections/organic-social/template'
+
+const c = (channels: string[] | undefined, hidden: string[] = [], influencerSection?: unknown) =>
+  ({ dashSocialConfig: { channels, ...(influencerSection === undefined ? {} : { influencerSection }) }, hiddenReports: hidden })
+
+test('the tab exists when the Instagram tab is shown and the Instagram influencer section is not hidden', () => {
+  expect(hasInfluencerTab(c(['instagram', 'facebook', 'linkedin']))).toBe(true)
+  expect(hasInfluencerTab(c(undefined))).toBe(true) // no allowlist: the four defaults include Instagram
+  expect(hasInfluencerTab(c(['instagram'], [], { INSTAGRAM: { label: 'Partnership Posts' } }))).toBe(true)
+})
+
+test('no tab without Instagram, with the Instagram tab hidden, or with the section hidden', () => {
+  expect(hasInfluencerTab(c(['linkedin']))).toBe(false)
+  expect(hasInfluencerTab(c(['instagram'], ['organic-instagram']))).toBe(false)
+  expect(hasInfluencerTab(c(['instagram'], [], { INSTAGRAM: { hidden: true } }))).toBe(false)
+  expect(hasInfluencerTab(c(['instagram'], [], { FACEBOOK: { hidden: true } }))).toBe(true)
+  expect(hasInfluencerTab(c(['instagram'], [], 'nonsense'))).toBe(true) // invalid setting: today's section shows, so the tab does too
+  expect(hasInfluencerTab({ dashSocialConfig: null, hiddenReports: [] })).toBe(true)
+})
+
+test('the split rule follows the pinned Top Content version of the platform composition', () => {
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, undefined)).toBe('designations') // @2 from the template
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, { versions: { 'top-content': 3 } })).toBe('outline')
+  expect(influencerRulesFor({ order: [], labels: {}, thresholds: {} }, undefined)).toBe('designations') // no Top Content at all
+})
