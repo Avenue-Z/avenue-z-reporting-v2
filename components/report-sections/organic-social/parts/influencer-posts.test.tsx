@@ -64,3 +64,13 @@ test('a failed fetch is the error card', async () => {
 test('the part renders only on the Influencer view', () => {
   expect(influencerPostsV1.render({ ...CTX, view: null }, { id: 'influencer-posts', version: 1, label: 'x' })).toBeNull()
 })
+
+// Paul, #334 review item 3: a client whose Instagram influencer section carries a label keeps the tab, and the label
+// then applied nowhere. The tab's heading now takes it; the tab name itself stays "Influencer".
+test("the heading takes the client's Instagram label when one is set; otherwise Influencer Posts", async () => {
+  getClientBySlug.mockResolvedValue({ ...v2Client, dashSocialConfig: { brandId: 1, influencerSection: { INSTAGRAM: { label: 'Partnership Posts' } } } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { caption: 'yay #ad' })])
+  expect(render(await InfluencerPostsSection({ ctx: CTX })).getByText('Partnership Posts')).toBeTruthy()
+  getClientBySlug.mockResolvedValue(v2Client)
+  expect(render(await InfluencerPostsSection({ ctx: CTX })).getByText('Influencer Posts')).toBeTruthy()
+})

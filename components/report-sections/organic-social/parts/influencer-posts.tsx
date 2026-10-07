@@ -4,6 +4,7 @@ import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { fetchTopContent } from '@/lib/organic-social/top-content'
 import { influencerRulesFor } from '@/lib/organic-social/influencer-tab'
+import { influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
 import { OUTLINE_SORT_KEYS, ownHandlesFor, partitionByAuthor, withViewsBasisRate } from '@/lib/organic-social/outline-top-content'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
@@ -34,9 +35,13 @@ export async function InfluencerPostsSection({ ctx }: { ctx: OrganicSocialCtx })
   const influencer = rules === 'outline'
     ? partitionByAuthor(withViewsBasisRate(r.data), stored, ownHandlesFor(r.data, client?.dashSocialConfig, clientSlug, CHANNEL)).influencer
     : partitionPosts(r.data, stored).influencer
+  // A client's Instagram label (influencerSection, "Partnership Posts" say) names this heading; the tab itself stays
+  // "Influencer". Absent or invalid: the default heading, as the Instagram tab's section would show.
+  const parsed = parseInfluencerSection(client?.dashSocialConfig?.influencerSection)
+  const heading = (parsed.kind === 'ok' ? influencerLabel(parsed.section, CHANNEL) : undefined) ?? 'Influencer Posts'
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Influencer Posts</h2>
+      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{heading}</h2>
       <InfluencerGrid posts={influencer} clientSlug={clientSlug} canEdit={canSetDesignation(role)} sortKeys={OUTLINE_SORT_KEYS} />
     </section>
   )
