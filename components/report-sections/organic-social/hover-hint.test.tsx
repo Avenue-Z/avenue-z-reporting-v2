@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { render } from '@testing-library/react'
-import { HoverHint } from './hover-hint'
+import { HoverHint } from '@/components/charts/hover-hint'
 
 const TEXT = 'Top Performers by metric (Views/Engagements)'
 
