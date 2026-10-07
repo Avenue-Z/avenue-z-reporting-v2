@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { resolveCommentaryView, COMMENTARY_VIEWS, isCommentaryViewKey, orgSocialChannelViewKey } from './views'
-import { CHANNELS } from '@/lib/organic-social/metrics'
+import { resolveCommentaryView, COMMENTARY_VIEWS, isCommentaryViewKey, orgSocialChannelViewKey, recommendationsViewKeyFor } from './views'
+import { CHANNELS, CHANNEL_LABEL } from '@/lib/organic-social/metrics'
 
 describe('isCommentaryViewKey', () => {
   test('accepts the 7 canonical keys', () => {
@@ -67,5 +67,26 @@ describe('organic social per-channel commentary keys', () => {
   test('channel labels use the Dash display name (X for Twitter)', () => {
     expect(COMMENTARY_VIEWS[orgSocialChannelViewKey('INSTAGRAM')].label).toBe('Organic Social — Instagram')
     expect(COMMENTARY_VIEWS[orgSocialChannelViewKey('TWITTER')].label).toBe('Organic Social — X')
+  })
+})
+
+describe('recommendations keys', () => {
+  test('Overview and every channel get a recommendations key the guard accepts', () => {
+    expect(isCommentaryViewKey('organic-social:recommendations')).toBe(true)
+    for (const c of CHANNELS) {
+      const k = `${orgSocialChannelViewKey(c)}:recommendations`
+      expect(isCommentaryViewKey(k)).toBe(true)
+      expect(COMMENTARY_VIEWS[k as keyof typeof COMMENTARY_VIEWS].label).toBe(`Organic Social — ${CHANNEL_LABEL[c]} — Recommendations`)
+    }
+    expect(COMMENTARY_VIEWS['organic-social:recommendations'].label).toBe('Organic Social — Recommendations')
+  })
+  test('the recommendations key is derived from the box key, Organic Social only', () => {
+    expect(recommendationsViewKeyFor('organic-social')).toBe('organic-social:recommendations')
+    expect(recommendationsViewKeyFor('organic-social:instagram')).toBe('organic-social:instagram:recommendations')
+    expect(recommendationsViewKeyFor('peec-ai')).toBeNull()
+    expect(recommendationsViewKeyFor('paid-search')).toBeNull()
+  })
+  test('a recommendations key is never derived twice', () => {
+    expect(recommendationsViewKeyFor('organic-social:recommendations' as never)).toBeNull()
   })
 })
