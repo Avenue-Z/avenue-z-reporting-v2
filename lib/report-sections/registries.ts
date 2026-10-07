@@ -8,4 +8,5 @@ export const REGISTRIES: Record<string, PartRegistry<unknown>> = {
   'peec-ai': mergeRegistries(PEEC_PARTS, BESPOKE_PARTS) as unknown as PartRegistry<unknown>,
   'organic-social': ORGANIC_SOCIAL_PARTS as unknown as PartRegistry<unknown>,
   'organic-social:platform': ORGANIC_SOCIAL_PARTS as unknown as PartRegistry<unknown>,
+  'organic-social:influencer': ORGANIC_SOCIAL_PARTS as unknown as PartRegistry<unknown>,
 }

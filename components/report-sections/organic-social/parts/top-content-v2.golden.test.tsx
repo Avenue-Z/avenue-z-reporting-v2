@@ -26,7 +26,7 @@ test('top-content is registered at version 2 and published', () => {
 test('top-content@2 renders the card gallery: Influencer section + placeholder on purged creative', async () => {
   const ctx = {
     clientSlug: 'renaissance', dateRange: 'june', compareRange: 'previous_period',
-    channel: null, role: 'INTERNAL_ADMIN',
+    channel: null, view: null, role: 'INTERNAL_ADMIN',
   }
   const el = await TopContentV2Section(ctx)
   const { findByText } = render(<TooltipProvider>{el}</TooltipProvider>)

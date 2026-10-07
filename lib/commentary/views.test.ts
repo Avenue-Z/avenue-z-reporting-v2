@@ -90,3 +90,10 @@ describe('recommendations keys', () => {
     expect(recommendationsViewKeyFor('organic-social:recommendations' as never)).toBeNull()
   })
 })
+
+test('the Influencer tab has its own Insights and Recommendations keys', () => {
+  expect(isCommentaryViewKey('organic-social:influencer')).toBe(true)
+  expect(recommendationsViewKeyFor('organic-social:influencer')).toBe('organic-social:influencer:recommendations')
+  expect(isCommentaryViewKey('organic-social:influencer:recommendations')).toBe(true)
+  expect(COMMENTARY_VIEWS['organic-social:influencer'].label).toBe('Organic Social — Influencer')
+})

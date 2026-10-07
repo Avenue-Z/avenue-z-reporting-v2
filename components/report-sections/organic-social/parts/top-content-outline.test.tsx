@@ -20,7 +20,7 @@ import { TopContentOutlineSection, topContentV3 } from './top-content-outline'
 import { TopContentV2Section, topContentV1, topContentV2 } from './top-content'
 import { ORGANIC_SOCIAL_PARTS } from './registry'
 
-const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, role: 'INTERNAL_ADMIN' }
+const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, view: null, role: 'INTERNAL_ADMIN' }
 const post = (id: number, over: Record<string, unknown> = {}) => ({
   id, channel: 'INSTAGRAM', platform: 'Instagram', publishedAt: '2026-08-02', caption: `cap-${id}`, url: null, mediaType: 'IMAGE',
   mediaGroup: null, creative: null, sourceType: 'organic', metrics: { effectiveness: null, engagementRate: 0.5, engagements: 4, impressions: 40 }, ...over,
