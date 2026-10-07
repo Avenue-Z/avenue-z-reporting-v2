@@ -24,9 +24,10 @@ export function OrganicSocialReport({
   channel?: DashChannel | null
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel })
-  // Commentary is per platform subpage: each channel carries its own content key, while opt-in
-  // stays gated on the base 'organic-social' config (configKey) so a per-channel key never needs
-  // its own opt-in entry. Overview (channel === null) keeps the bare 'organic-social' key.
+  // Both boxes (Insights on top, Recommendations at the bottom) are per platform subpage: each channel
+  // carries its own content key, while opt-in stays gated on the base 'organic-social' config (configKey)
+  // so a per-channel key never needs its own opt-in entry. Overview (channel === null) keeps the bare
+  // 'organic-social' key. The bottom box derives its own key from this one (recommendationsViewKeyFor).
   const commentaryViewKey = channel ? orgSocialChannelViewKey(channel) : 'organic-social'
   // The outer component is SYNCHRONOUS so the section's own skeletons paint on first render.
   // Both async dependencies — the viewer-role read (`await auth()`) and the template/config lookup
@@ -39,6 +40,8 @@ export function OrganicSocialReport({
       <Suspense fallback={<OverviewSkeleton />}>
         <OrganicSocialBody ctx={ctx} />
       </Suspense>
+      {/* Recommendations: the same opt-in, rendered after every part (10/6 calls: "put them at the bottom"). */}
+      <SharedPartsHeader placement="bottom" viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
     </div>
   )
 }

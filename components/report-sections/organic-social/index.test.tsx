@@ -231,3 +231,23 @@ test("Renaissance's planned config: Overview asks for today's parts; a platform 
   expect(asked).toEqual(['ytd-review@3', 'platform-headlines@1', 'follower-graph@2', 'engagement-trend@2', 'top-content@2'])
   spy.mockRestore()
 })
+
+function findAllByName(node: unknown, name: string, out: { props: Record<string, unknown> }[] = []) {
+  if (!node || typeof node !== 'object') return out
+  const el = node as { type?: { name?: string }; props?: { children?: unknown } }
+  if (typeof el.type === 'function' && el.type.name === name) out.push(el as never)
+  const kids = el.props?.children
+  for (const k of Array.isArray(kids) ? kids : kids != null ? [kids] : []) findAllByName(k, name, out)
+  return out
+}
+
+test('the section renders the top box before the body and the bottom box after it, both on the same keys', () => {
+  const el = OrganicSocialReport({ clientSlug: 'renaissance', channel: 'INSTAGRAM', dateRange: 'custom:2026-09-01,2026-09-30' })
+  const headers = findAllByName(el, 'SharedPartsHeader')
+  expect(headers.map((h) => [h.props.placement ?? 'top', h.props.viewKey, h.props.configKey, h.props.requestedRange])).toEqual([
+    ['top', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],
+    ['bottom', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],
+  ])
+  const kids = (el as { props: { children: unknown[] } }).props.children
+  expect(kids.map((k) => (k as { type?: { name?: string } | symbol }).type)).toHaveLength(3)
+})
