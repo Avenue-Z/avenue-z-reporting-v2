@@ -33,7 +33,7 @@ export async function InfluencerPostsSection({ ctx }: { ctx: OrganicSocialCtx })
   if (!r.data) return <Fallback kind={r.error!} />
   const stored = await loadDesignations(clientSlug, r.data.map((p) => p.id))
   const influencer = rules === 'outline'
-    ? partitionByAuthor(withViewsBasisRate(r.data), stored, ownHandlesFor(r.data, client?.dashSocialConfig, clientSlug, CHANNEL)).influencer
+    ? partitionByAuthor(withViewsBasisRate(r.data), stored, ownHandlesFor(r.data, client?.dashSocialConfig, clientSlug, CHANNEL, 'influencer')).influencer
     : partitionPosts(r.data, stored).influencer
   // A client's Instagram label (influencerSection, "Partnership Posts" say) names this heading; the tab itself stays
   // "Influencer". Absent or invalid: the default heading, as the Instagram tab's section would show.

@@ -74,3 +74,14 @@ test("the heading takes the client's Instagram label when one is set; otherwise 
   getClientBySlug.mockResolvedValue(v2Client)
   expect(render(await InfluencerPostsSection({ ctx: CTX })).getByText('Influencer Posts')).toBeTruthy()
 })
+
+// Paul, #334 round 2 (non-blocker 4): the tab logged the Instagram tab's two handle warnings word for word, so nothing
+// said which tab wrote them. The tab's lines carry view=influencer; the Instagram tab's lines are unchanged.
+test("a stale handle warns with the tab named, so the line is not mistaken for the Instagram tab's", async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  getClientBySlug.mockResolvedValue({ ...outlineClient, dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'old_handle' } } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' })])
+  render(await InfluencerPostsSection({ ctx: CTX }))
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('slug=client-a channel=INSTAGRAM view=influencer;'))
+  warn.mockRestore()
+})
