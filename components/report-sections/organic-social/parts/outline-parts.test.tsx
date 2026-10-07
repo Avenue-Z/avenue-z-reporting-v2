@@ -34,6 +34,8 @@ const built = (value: number | null) => buildOutlineKpis('INSTAGRAM',
   Object.fromEntries(outlineSpecsFor('INSTAGRAM').map((s) => [metricFor(s), { value, context: null, context_change: null }])),
   outlineSpecsFor('INSTAGRAM'))
 const text = async (node: Promise<ReactNode>) => render(<>{await node}</>).container
+/** React's useId values (\"_r_0_\") differ per render; markup comparisons treat them as one placeholder. */
+const sameIds = (html: string) => html.replace(/_r_[0-9a-z]+_/g, '<id>')
 const builtFor = (ch: 'FACEBOOK' | 'INSTAGRAM', value: number) => buildOutlineKpis(ch,
   Object.fromEntries(outlineSpecsFor(ch).map((s) => [metricFor(s), { value, context: null, context_change: null }])),
   outlineSpecsFor(ch))
@@ -195,9 +197,10 @@ test("the Data block draws a tab with no flagged row exactly as the shared tiles
   const outline = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
   const h = selectOutlineRows('FACEBOOK', builtFor('FACEBOOK', 10), OUTLINE_DATA_ROWS.standard.FACEBOOK!)
   expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
-  // Identical markup except the heading text: the shared tiles drawn under the outline's heading.
+  // Identical markup except the heading text: the shared tiles drawn under the outline's heading. Each badge carries an
+  // id from useId (it links the badge to its definition), and every render mints its own, so ids are compared as a shape.
   const shared = render(<PlatformHeadlines headlines={[{ ...h, label: 'Data' } as PlatformHeadline]} />).container
-  expect(outline.innerHTML).toBe(shared.innerHTML)
+  expect(sameIds(outline.innerHTML)).toBe(sameIds(shared.innerHTML))
 })
 
 test('on Instagram the Data block differs from the shared tiles by one thing only: the Engagement Rate badge', async () => {
