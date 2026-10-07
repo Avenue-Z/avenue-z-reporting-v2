@@ -38,3 +38,12 @@ test('the period label runs from January 1 to the last day of the row month', ()
   expect(kpiPeriodLabel('February', '2028')).toBe('1/1/28 to 2/29/28')
   expect(() => kpiPeriodLabel('Sometime', '2026')).toThrow(KpiSheetLayoutError)
 })
+
+// Paul, #334 review item 7: parsing stopped at the first blank name and silently dropped every platform after it.
+test('a blank separator row followed by more rows is a layout error; rows that are entirely empty after the last block are fine', () => {
+  const withSeparator = [...GRID.slice(0, 5), [], ...GRID.slice(5)]
+  expect(() => parseKpiGrid(withSeparator)).toThrow(KpiSheetLayoutError)
+  try { parseKpiGrid(withSeparator) } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe('trailing rows') }
+  const sheetsPadding = [...GRID, [], ['', ''], []]
+  expect(parseKpiGrid(sheetsPadding).platforms.length).toBe(3)
+})

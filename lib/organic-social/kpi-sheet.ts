@@ -35,7 +35,8 @@ function figures(row: unknown[] | undefined, name: string): KpiFigures {
 export function parseKpiGrid(grid: unknown[][]): KpiTracker {
   if (HEADER.some((h, i) => cell(grid[2], 2 + i).toLowerCase() !== h)) throw new KpiSheetLayoutError('header')
   const platforms: KpiPlatform[] = []
-  for (let i = 3; i < grid.length; i += 2) {
+  let i = 3
+  for (; i < grid.length; i += 2) {
     const name = cell(grid[i], 0)
     if (name === '' && i > 3) break
     const channel = PLATFORMS[name.toLowerCase()]
@@ -47,13 +48,22 @@ export function parseKpiGrid(grid: unknown[][]): KpiTracker {
     platforms.push({ channel, monthLabel, actual: figures(grid[i], name), target: figures(grid[i + 1], name) })
   }
   if (platforms.length === 0) throw new KpiSheetLayoutError('platform name')
+  // Nothing may follow the last block except empty rows: a blank separator with platforms after it used to end the
+  // parse silently and drop them (the header promises a layout error for any deviation).
+  for (; i < grid.length; i++) if ((grid[i] ?? []).some((c) => String(c ?? '').trim() !== '')) throw new KpiSheetLayoutError('trailing rows')
   return { platforms }
+}
+
+/** The month a row names, 0 to 11; a name the parser would not have produced is a layout error. */
+export function monthIndex(monthLabel: string): number {
+  const m = MONTHS.findIndex((x) => x.toLowerCase() === monthLabel.toLowerCase())
+  if (m < 0) throw new KpiSheetLayoutError('month')
+  return m
 }
 
 /** "1/1/26 to 9/30/26": January 1 of the year to the last day of the row's month (the slide's badge, S6c). */
 export function kpiPeriodLabel(monthLabel: string, year: string): string {
-  const m = MONTHS.findIndex((x) => x.toLowerCase() === monthLabel.toLowerCase())
-  if (m < 0) throw new KpiSheetLayoutError('month')
+  const m = monthIndex(monthLabel)
   const last = new Date(Date.UTC(Number(year), m + 1, 0)).getUTCDate()
   const yy = year.slice(2)
   return `1/1/${yy} to ${m + 1}/${last}/${yy}`
