@@ -64,3 +64,16 @@ test("Renaissance's Overview override (Commentary sharedParts only) resolves exa
   const renaissance = { 'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] }, 'organic-social:platform': RENAISSANCE_PLATFORM } as Record<string, SectionOverride>
   expect(ov(renaissance['organic-social'])).toEqual(ov(undefined))
 })
+
+// The KPI Overview (10/6 calls, spec section 5): the data write the runbook sets for the one client with targets.
+// Pins that only the KPI part runs (none of the all-channel parts) and that the config validator accepts it.
+test('the KPI Overview override: only the KPI part runs, none of the all-channel parts, and it validates', async () => {
+  const { SHARED_PARTS } = await import('@/components/report-sections/shared/parts/registry')
+  const override = {
+    hidden: ['platform-headlines', 'engagement-trend', 'top-content'],
+    extraParts: [{ id: 'kpi-check-in', version: 1 }],
+    sharedParts: [{ id: 'commentary', version: 1 }, { id: 'recommendations', version: 1 }],
+  }
+  expect(resolveSection(ORGANIC_SOCIAL_TEMPLATE, override).map((p) => `${p.id}@${p.version}`)).toEqual(['kpi-check-in@1'])
+  expect(() => validateSectionOverride('organic-social', override, REGISTRIES, ORGANIC_SOCIAL_TEMPLATE.order.map((p) => p.id), SHARED_PARTS as never)).not.toThrow()
+})
