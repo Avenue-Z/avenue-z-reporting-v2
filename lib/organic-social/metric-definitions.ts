@@ -1,6 +1,7 @@
 // Jasmine's appendix ("Appendix for all Metrics and all Accounts", 2026-10-06), quoted verbatim, keyed by the
 // tile key each tab draws (outline-layout.ts, metrics.ts). Edit a text only by re-quoting the appendix; the test
-// pins a hash so a drift is deliberate. Source: 'Avenue Z' (the team's own definitions, not Dash's).
+// pins a file snapshot of the texts so a drift is deliberate and the diff shows which words moved. Source: 'Avenue Z'
+// (the team's own definitions, not Dash's).
 import type { DashChannel } from './metrics'
 import { OUTLINE_KPI_OVERRIDES } from './outline-layout'
 
