@@ -41,6 +41,8 @@ test("a client's Organic Social tabs are the same from the trimmed record as fro
     { ...FULL, dashSocialConfig: { brandId: 1 } },
     { ...FULL, hiddenReports: [] },
     { ...FULL, dashSocialConfig: null },
+    { ...FULL, dashSocialConfig: { brandId: 1, channels: ['instagram'], influencerSection: { INSTAGRAM: { hidden: true } } } },
+    { ...FULL, hiddenReports: ['organic-instagram'] },
   ] as unknown as Client[]
   for (const c of shapes) expect(organicSocialSubsections(toPortalSidebarClient(c))).toEqual(organicSocialSubsections(c))
 })
