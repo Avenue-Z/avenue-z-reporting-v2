@@ -2,6 +2,7 @@
 // tile key each tab draws (outline-layout.ts, metrics.ts). Edit a text only by re-quoting the appendix; the test
 // pins a hash so a drift is deliberate. Source: 'Avenue Z' (the team's own definitions, not Dash's).
 import type { DashChannel } from './metrics'
+import { OUTLINE_KPI_OVERRIDES } from './outline-layout'
 
 const FOLLOWERS = 'The total number of followers you have on this channel.'
 const NET_NEW = 'The net new number of people who have followed your account.'
@@ -65,4 +66,12 @@ export const TOP_POSTS_DEFINITION = 'Top Performers by metric (Views/Engagements
  *  channel is a string because the shared headline type carries it as one (lib/organic-social/types.ts). */
 export function metricDefinition(channel: string, key: string): string | undefined {
   return (ORGANIC_SOCIAL_DEFINITIONS as Record<string, Record<string, string>>)[channel]?.[key]
+}
+
+/** The text for a SHARED tile (PlatformHeadlines: Renaissance, an X tab, an outline client's Overview). A key the
+ *  outline overrides on that channel (OUTLINE_KPI_OVERRIDES: Instagram and LinkedIn Engagement Rate) reads a different
+ *  metric on the shared tile than on the outline tab, and the appendix text describes the tab's number, so such a tile
+ *  draws no badge. */
+export function sharedTileDefinition(channel: string, key: string): string | undefined {
+  return OUTLINE_KPI_OVERRIDES[channel]?.[key] ? undefined : metricDefinition(channel, key)
 }

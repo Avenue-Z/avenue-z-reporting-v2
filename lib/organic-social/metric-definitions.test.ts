@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { expect, test } from 'vitest'
-import { ORGANIC_SOCIAL_DEFINITIONS, TOP_POSTS_DEFINITION, metricDefinition } from './metric-definitions'
+import { ORGANIC_SOCIAL_DEFINITIONS, TOP_POSTS_DEFINITION, metricDefinition, sharedTileDefinition } from './metric-definitions'
 import { OUTLINE_BREAKDOWN_ROWS, OUTLINE_DATA_ROWS } from './outline-layout'
 import { CHANNELS, PLATFORM_KPIS, type DashChannel } from './metrics'
 
@@ -40,4 +40,16 @@ test('the texts are the appendix, verbatim (change the hash only after re-quotin
 
 test('the Facebook views text is the appendix text (paid is not mentioned; spec C2)', () => {
   expect(metricDefinition('FACEBOOK', 'exposure')).toBe('The number of times your posts were viewed or displayed.')
+})
+
+// The shared tiles (PlatformHeadlines: Renaissance, Piper's X tab, an outline client's Overview) read the shared
+// metric, which for a key OUTLINE_KPI_OVERRIDES replaces is a different number from the outline tab's (Instagram and
+// LinkedIn Engagement Rate: follower basis there, views basis on the tab). The appendix text describes the tab's number,
+// so a shared tile for such a key draws no badge (Paul, #335 review, item 1).
+test('a shared tile draws no text for a key the outline overrides on that channel; every other key keeps its text', () => {
+  expect(sharedTileDefinition('INSTAGRAM', 'engagementRate')).toBeUndefined()
+  expect(sharedTileDefinition('LINKEDIN', 'engagementRate')).toBeUndefined()
+  expect(sharedTileDefinition('FACEBOOK', 'engagementRate')).toBe(metricDefinition('FACEBOOK', 'engagementRate'))
+  expect(sharedTileDefinition('INSTAGRAM', 'followers')).toBe(metricDefinition('INSTAGRAM', 'followers'))
+  expect(sharedTileDefinition('NOPE', 'followers')).toBeUndefined()
 })

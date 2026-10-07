@@ -196,25 +196,6 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagement Rate
             </p>
-            <span
-              class="group relative inline-flex flex-shrink-0 align-middle"
-              data-export-hide=""
-            >
-              <span
-                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
-                tabindex="0"
-              >
-                ?
-              </span>
-              <span
-                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-              >
-                The percentage of people who engaged with your posts after seeing them.
-                <span
-                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
-                />
-              </span>
-            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"

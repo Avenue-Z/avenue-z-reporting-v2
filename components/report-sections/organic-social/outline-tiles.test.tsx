@@ -18,3 +18,10 @@ test('the shared platform tiles show the definition for their channel', () => {
   const { getByText } = render(<PlatformHeadlines headlines={[headline]} />)
   expect(getByText('The number of replies your posts received.')).toBeTruthy()
 })
+
+test('a shared Instagram Engagement Rate tile (follower basis) draws no badge; its Facebook twin does', () => {
+  const ig = { channel: 'INSTAGRAM' as const, label: 'Instagram', noData: false, kpis: [kpi('engagementRate', 'Engagement Rate')] }
+  const fb = { channel: 'FACEBOOK' as const, label: 'Facebook', noData: false, kpis: [kpi('engagementRate', 'Engagement Rate')] }
+  expect(render(<PlatformHeadlines headlines={[ig]} />).queryAllByText('?')).toHaveLength(0)
+  expect(render(<PlatformHeadlines headlines={[fb]} />).queryAllByText('?')).toHaveLength(1)
+})
