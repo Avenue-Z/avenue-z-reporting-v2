@@ -105,7 +105,7 @@ export function CommentaryPanel({
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
           {editing === 'new' && (
-            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} />
+            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} outline={labels.outline} />
           )}
 
           {editing !== 'new' && entries.length > 1 && (
@@ -167,7 +167,7 @@ export function CommentaryPanel({
           )}
 
           {editing !== 'new' && selected && editing === selected.id && (
-            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} />
+            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} outline={labels.outline} />
           )}
 
           {capabilities.canApprove && history.length > 0 && (

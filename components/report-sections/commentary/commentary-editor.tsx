@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { INSIGHTS_OUTLINE, untouchedOutline } from '@/lib/commentary/labels'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -13,21 +14,6 @@ import { initialPeriod } from '@/lib/commentary/initial-period'
 const CONTENT_CLASS =
   'min-h-[8rem] p-3 text-sm text-white focus:outline-none [&_a]:underline [&_a]:text-blue-400 ' +
   '[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1'
-
-// Suggested commentary structure (PRD "Commentary Guidance"). Pre-filled as an
-// editable scaffold when adding a NEW entry; authors replace each line. Editing
-// an existing entry shows its own content instead.
-const SUGGESTED_TEMPLATE =
-  '<ul>' +
-  '<li>Headline with business framing</li>' +
-  '<li>Prior-period change</li>' +
-  '<li>Why it changed</li>' +
-  '<li>Operational caveats</li>' +
-  '<li>Bigger-picture trend context</li>' +
-  '<li>Cross-channel notes</li>' +
-  '<li>Risks or watchouts, if relevant</li>' +
-  '<li>Next steps</li>' +
-  '</ul>'
 
 function ToolbarButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
@@ -48,12 +34,16 @@ export function CommentaryEditor({
   entry,
   onDone,
   defaultPeriod,
+  outline = INSIGHTS_OUTLINE,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
   entry?: CommentaryEntry
   onDone: () => void
   defaultPeriod?: { start: string; end: string }
+  /** The box's outline for a NEW entry (lib/commentary/labels.ts): absent means the Insights outline, as before this
+   *  prop existed; null means the editor opens empty (the Recommendations box). */
+  outline?: string | null
 }) {
   const start = initialPeriod(entry, defaultPeriod)
   const [periodStart, setPeriodStart] = useState(start.start)
@@ -70,7 +60,7 @@ export function CommentaryEditor({
       StarterKit.configure({ heading: { levels: [3] }, link: false }),
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
     ],
-    content: entry?.bodyHtml || SUGGESTED_TEMPLATE,
+    content: entry?.bodyHtml || outline || '',
     immediatelyRender: false, // avoid SSR hydration mismatch in Next
     editorProps: { attributes: { class: CONTENT_CLASS } },
   })
@@ -87,9 +77,8 @@ export function CommentaryEditor({
   function handleSave() {
     if (!editor) return
     setError('')
-    // Don't let the untouched suggested outline get saved/approved as a real entry (Insights or Recommendations).
-    const strip = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-    if (strip(editor.getHTML()) === strip(SUGGESTED_TEMPLATE)) {
+    // Don't let the box's untouched outline get saved/approved as a real entry (a box with no outline skips this).
+    if (untouchedOutline(editor.getHTML(), outline)) {
       setError('Replace the suggested outline before saving.')
       return
     }

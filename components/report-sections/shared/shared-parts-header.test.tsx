@@ -89,7 +89,7 @@ test('the top placement renders Insights only, the bottom placement Recommendati
   const bottomSection = findByName(bottom, 'CommentarySection')
   expect(bottomSection?.props).toEqual({
     clientSlug: 'c', viewKey: 'organic-social:instagram:recommendations', requestedRange: 'custom:2026-09-01,2026-09-30',
-    labels: { title: 'Recommendations', noun: 'recommendations' },
+    labels: { title: 'Recommendations', noun: 'recommendations', outline: null },
   })
 })
 

@@ -120,6 +120,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "linkedin-ads",
@@ -242,6 +243,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "linkedin-ads",
@@ -286,6 +288,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "linkedin-ads",
@@ -330,6 +333,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "linkedin-ads",
@@ -388,6 +392,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "linkedin-ads",
@@ -446,6 +451,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "linkedin-ads",
@@ -568,6 +574,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "meta-ads",
@@ -690,6 +697,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "meta-ads",
@@ -734,6 +742,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "meta-ads",
@@ -778,6 +787,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "meta-ads",
@@ -836,6 +846,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "meta-ads",
@@ -894,6 +905,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "meta-ads",
@@ -1016,6 +1028,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social",
@@ -1138,6 +1151,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social",
@@ -1182,6 +1196,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social",
@@ -1226,6 +1241,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social",
@@ -1284,6 +1300,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social",
@@ -1342,6 +1359,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social",
@@ -1464,6 +1482,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social:instagram",
@@ -1586,6 +1605,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social:instagram",
@@ -1630,6 +1650,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social:instagram",
@@ -1674,6 +1695,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social:instagram",
@@ -1732,6 +1754,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social:instagram",
@@ -1790,6 +1813,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "organic-social:instagram",
@@ -1912,6 +1936,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "paid-search",
@@ -2034,6 +2059,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "paid-search",
@@ -2078,6 +2104,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "paid-search",
@@ -2122,6 +2149,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "paid-search",
@@ -2180,6 +2208,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "paid-search",
@@ -2238,6 +2267,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "paid-search",
@@ -2360,6 +2390,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai",
@@ -2482,6 +2513,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai",
@@ -2526,6 +2558,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai",
@@ -2570,6 +2603,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai",
@@ -2628,6 +2662,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai",
@@ -2686,6 +2721,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai",
@@ -2808,6 +2844,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:content-impact",
@@ -2930,6 +2967,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:content-impact",
@@ -2974,6 +3012,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:content-impact",
@@ -3018,6 +3057,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:content-impact",
@@ -3076,6 +3116,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:content-impact",
@@ -3134,6 +3175,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:content-impact",
@@ -3256,6 +3298,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:pr-influence",
@@ -3378,6 +3421,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:pr-influence",
@@ -3422,6 +3466,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:pr-influence",
@@ -3466,6 +3511,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:pr-influence",
@@ -3524,6 +3570,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:pr-influence",
@@ -3582,6 +3629,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     "initialId": "sep-draft",
     "labels": {
       "noun": "insights",
+      "outline": "<ul><li>Headline with business framing</li><li>Prior-period change</li><li>Why it changed</li><li>Operational caveats</li><li>Bigger-picture trend context</li><li>Cross-channel notes</li><li>Risks or watchouts, if relevant</li><li>Next steps</li></ul>",
       "title": "Insights",
     },
     "viewKey": "peec-ai:pr-influence",

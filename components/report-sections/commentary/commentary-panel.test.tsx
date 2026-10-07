@@ -239,7 +239,7 @@ test('the box title, button and empty line follow the labels prop; the default i
   expect(a.getByText('Add insights')).toBeTruthy()
   expect(a.getByText('No insights yet.')).toBeTruthy()
   a.unmount()
-  const b = render(<CommentaryPanel {...base} viewKey="organic-social:recommendations" labels={{ title: 'Recommendations', noun: 'recommendations' }} />)
+  const b = render(<CommentaryPanel {...base} viewKey="organic-social:recommendations" labels={{ title: 'Recommendations', noun: 'recommendations', outline: null }} />)
   expect(b.getByText('Recommendations')).toBeTruthy()
   expect(b.getByText('Add recommendations')).toBeTruthy()
   expect(b.getByText('No recommendations yet.')).toBeTruthy()

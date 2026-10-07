@@ -1,6 +1,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { render } from '@testing-library/react'
 import type { CommentaryEntry } from '@/lib/commentary/types'
+import { INSIGHTS_OUTLINE } from '@/lib/commentary/labels'
 
 // Capture the props that actually cross the RSC → client boundary.
 // This is the point of the test: NOT what renders, but what ships.
@@ -122,16 +123,16 @@ describe('CommentarySection: labels and the Recommendations key', () => {
     mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
     const { CommentarySection } = await import('./index')
     render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai' }))
-    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Insights', noun: 'insights' })
+    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Insights', noun: 'insights', outline: INSIGHTS_OUTLINE })
     captured = null
-    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai', labels: { title: 'Recommendations', noun: 'recommendations' } }))
-    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Recommendations', noun: 'recommendations' })
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai', labels: { title: 'Recommendations', noun: 'recommendations', outline: null } }))
+    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Recommendations', noun: 'recommendations', outline: null })
   })
 
   test('a client viewer of a Recommendations key gets the same redaction as Insights', async () => {
     mockAuth.mockResolvedValue({ user: { email: 'viewer@client.example' } })
     const { CommentarySection } = await import('./index')
-    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:recommendations', labels: { title: 'Recommendations', noun: 'recommendations' } }))
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:recommendations', labels: { title: 'Recommendations', noun: 'recommendations', outline: null } }))
     const payload = JSON.stringify(captured)
     expect(payload).not.toContain('SUPERSEDED SECRET')
     expect(payload).not.toContain('DELETED SECRET')
@@ -150,7 +151,7 @@ describe('CommentarySection: labels and the Recommendations key', () => {
       render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram' }))
       const insights = (captured as unknown as { entries: { id: string }[] }).entries.map((e) => e.id)
       captured = null
-      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram:recommendations', labels: { title: 'Recommendations', noun: 'recommendations' } }))
+      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram:recommendations', labels: { title: 'Recommendations', noun: 'recommendations', outline: null } }))
       const recommendations = (captured as unknown as { entries: { id: string }[] }).entries.map((e) => e.id)
       expect([insights, recommendations]).toEqual([['insight-row'], ['recommendation-row']])
     } finally {
