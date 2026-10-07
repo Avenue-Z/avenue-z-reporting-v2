@@ -242,7 +242,7 @@ function findAllByName(node: unknown, name: string, out: { props: Record<string,
 }
 
 test('the section renders the top box before the body and the bottom box after it, both on the same keys', () => {
-  const el = OrganicSocialReport({ clientSlug: 'renaissance', channel: 'INSTAGRAM', dateRange: 'custom:2026-09-01,2026-09-30' })
+  const el = OrganicSocialReport({ clientSlug: 'client-a', channel: 'INSTAGRAM', dateRange: 'custom:2026-09-01,2026-09-30' })
   const headers = findAllByName(el, 'SharedPartsHeader')
   expect(headers.map((h) => [h.props.placement ?? 'top', h.props.viewKey, h.props.configKey, h.props.requestedRange])).toEqual([
     ['top', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],

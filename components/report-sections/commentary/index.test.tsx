@@ -39,9 +39,11 @@ const ENTRIES: CommentaryEntry[] = [
   },
 ]
 
+// Rows per view key, when a test sets them; otherwise every key gets ENTRIES (the boundary tests above).
+const rows = vi.hoisted(() => ({ byKey: null as Record<string, unknown[]> | null }))
 vi.mock('@/lib/db/queries', () => ({
   getClientBySlug: async () => ({ id: 'client-1', slug: 'acme' }),
-  getCommentaryForView: async () => ENTRIES,
+  getCommentaryForView: async (_clientId: string, viewKey: string) => (rows.byKey ? rows.byKey[viewKey] ?? [] : ENTRIES),
 }))
 
 // Render the async RSC and hand its element to the DOM so the mocked panel runs.
@@ -113,7 +115,7 @@ describe('CommentarySection — RSC boundary', () => {
   })
 })
 
-describe('CommentarySection — labels and the Recommendations key', () => {
+describe('CommentarySection: labels and the Recommendations key', () => {
   beforeEach(() => { captured = null })
 
   test('labels reach the panel and default to Insights', async () => {
@@ -134,5 +136,25 @@ describe('CommentarySection — labels and the Recommendations key', () => {
     expect(payload).not.toContain('SUPERSEDED SECRET')
     expect(payload).not.toContain('DELETED SECRET')
     expect(payload).not.toContain('@avenuez.com')
+  })
+
+  test('each box reads only the rows of its own key: one client, one tab, two keys, two rows', async () => {
+    const row = (id: string, viewKey: string) => ({ ...ENTRIES[0], id, viewKey })
+    rows.byKey = {
+      'organic-social:instagram': [row('insight-row', 'organic-social:instagram')],
+      'organic-social:instagram:recommendations': [row('recommendation-row', 'organic-social:instagram:recommendations')],
+    }
+    try {
+      mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
+      const { CommentarySection } = await import('./index')
+      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram' }))
+      const insights = (captured as { entries: { id: string }[] }).entries.map((e) => e.id)
+      captured = null
+      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram:recommendations', labels: { title: 'Recommendations', noun: 'recommendations' } }))
+      const recommendations = (captured as { entries: { id: string }[] }).entries.map((e) => e.id)
+      expect([insights, recommendations]).toEqual([['insight-row'], ['recommendation-row']])
+    } finally {
+      rows.byKey = null
+    }
   })
 })
