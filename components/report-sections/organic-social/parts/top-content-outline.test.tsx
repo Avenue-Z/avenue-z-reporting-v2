@@ -130,10 +130,10 @@ test('T6 outline tabs pass only the Engagements and Views sort buttons', async (
   expect(props().sortKeys).toEqual(['engagements', 'impressions'])
 })
 
-// The v2 part (Renaissance) offers the same two sort buttons as the outline tabs (Thomas, 2026-10-07, on Paul's #335
+// The v2 part offers the same two sort buttons as the outline tabs (Thomas, 2026-10-07, on Paul's #335
 // review: the heading hint names Views and Engagements, so the toolbar offers exactly those). Sorting is in the browser
 // only: no request, lock key or frozen row changes.
-test('T7 the v2 part (Renaissance) passes the same two sort buttons as the outline tabs', async () => {
+test('T7 the v2 part passes the same two sort buttons as the outline tabs', async () => {
   fetchTopContentFrozen.mockResolvedValue([post(1)])
   render(<>{await TopContentV2Section(IG)}</>)
   expect(SortableTopContent).toHaveBeenCalledTimes(1)

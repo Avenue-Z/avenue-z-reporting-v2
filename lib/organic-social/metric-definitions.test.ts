@@ -15,7 +15,7 @@ test('every row an outline tab draws, on every outline variant, has a definition
   for (const ch of OUTLINE) for (const k of drawnRows(ch)) expect(metricDefinition(ch, k), `${ch} ${k}`).toBeTruthy()
 })
 
-// Kenect's Instagram Data block draws Profile Clicks (the profileClicks variant), which the appendix defines for X only.
+// The profileClicks variant's Instagram Data block draws Profile Clicks, which the appendix defines for X only.
 // The X sentence names no platform, so it is reused (Thomas, 2026-10-07, on Paul's #335 review, item 9).
 test('Instagram Profile Clicks reuses the appendix line written for X', () => {
   expect(metricDefinition('INSTAGRAM', 'profileClicks')).toBe(metricDefinition('TWITTER', 'profileClicks'))
@@ -46,7 +46,7 @@ test('the Facebook views text is the appendix text (paid is not mentioned; spec 
   expect(metricDefinition('FACEBOOK', 'exposure')).toBe('The number of times your posts were viewed or displayed.')
 })
 
-// The shared tiles (PlatformHeadlines: Renaissance, Piper's X tab, an outline client's Overview) read the shared
+// The shared tiles (PlatformHeadlines: a top-content@2 client's tabs, an outline client's X tab and Overview) read the shared
 // metric, which for a key OUTLINE_KPI_OVERRIDES replaces is a different number from the outline tab's (Instagram and
 // LinkedIn Engagement Rate: follower basis there, views basis on the tab). The appendix text describes the tab's number,
 // so a shared tile for such a key draws no badge (Paul, #335 review, item 1).

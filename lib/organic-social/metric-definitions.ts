@@ -14,7 +14,7 @@ const VIDEO_VIEWS = 'The number of times your videos were viewed.'
 const LIKES = 'The number of likes your posts received.'
 const COMMENTS = 'The number of comments your posts received.'
 const SHARES = 'The number of times your posts were shared.'
-// The appendix writes this line for X; Kenect's Instagram Data block draws the same row, with no Instagram line in the
+// The appendix writes this line for X; the profileClicks variant's Instagram Data block draws the same row, with no Instagram line in the
 // appendix, so it is reused there (Thomas, 2026-10-07).
 const PROFILE_CLICKS = 'The number of times your profile has been clicked from your posts.'
 const engagements = (formula: string) => `The total number of engagements your posts received. ${formula}`
@@ -73,7 +73,7 @@ export function metricDefinition(channel: string, key: string): string | undefin
   return (ORGANIC_SOCIAL_DEFINITIONS as Record<string, Record<string, string>>)[channel]?.[key]
 }
 
-/** The text for a SHARED tile (PlatformHeadlines: Renaissance, an X tab, an outline client's Overview). A key the
+/** The text for a SHARED tile (PlatformHeadlines: a top-content@2 client's tabs, an X tab, an outline client's Overview). A key the
  *  outline overrides on that channel (OUTLINE_KPI_OVERRIDES: Instagram and LinkedIn Engagement Rate) reads a different
  *  metric on the shared tile than on the outline tab, and the appendix text describes the tab's number, so such a tile
  *  draws no badge. */

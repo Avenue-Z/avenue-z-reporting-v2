@@ -13,7 +13,7 @@ test('an outline tile shows its channel definition; a row with no text shows no 
   expect(queryAllByText('?')).toHaveLength(1)
 })
 
-test("Kenect's Instagram Profile Clicks tile has a badge too (the appendix's Profile Clicks line)", () => {
+test("the profileClicks variant's Instagram Profile Clicks tile has a badge too (the appendix's Profile Clicks line)", () => {
   const { getByText } = render(<OutlineTiles channel="INSTAGRAM" kpis={[kpi('profileClicks', 'Profile Clicks')]} />)
   expect(getByText('The number of times your profile has been clicked from your posts.')).toBeTruthy()
 })
