@@ -66,7 +66,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const hiddenRows = canEdit ? influencerRows.filter((g) => hidden.has(g.platform)) : []
   return (
     <section className="space-y-6">
-      <h2 className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content<HoverHint text={TOP_POSTS_DEFINITION} /></h2>
+      <div className="flex items-center gap-1.5"><h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2><HoverHint text={TOP_POSTS_DEFINITION} /></div>
       <SortableTopContent owned={groupPostsByPlatform(owned, channel)}
         influencer={influencerRows.filter((g) => !hidden.has(g.platform))}
         clientSlug={clientSlug} canEdit={canEdit} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}

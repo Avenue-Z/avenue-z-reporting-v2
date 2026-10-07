@@ -32,3 +32,12 @@ test('the Top Content heading (top-content@2) carries the appendix hint', async 
   const { getByText } = render(<>{await TopContentV2Section(IG)}</>)
   expect(getByText(TOP_POSTS_DEFINITION)).toBeTruthy()
 })
+
+// The hint sits beside the heading, not inside it, so a screen reader's heading list says the title and nothing else
+// (Paul, #335 review): the heading's whole text is the title.
+test('the hint is not part of either heading', async () => {
+  const v3 = render(<>{await TopContentOutlineSection({ ctx: IG, ownedLimit: 5 })}</>).container
+  expect([...v3.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Performing Content'])
+  const v2 = render(<>{await TopContentV2Section(IG)}</>).container
+  expect([...v2.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Content'])
+})

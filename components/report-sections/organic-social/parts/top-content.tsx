@@ -75,7 +75,7 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
 
   return (
     <section className="space-y-6">
-      <h2 className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content<HoverHint text={TOP_POSTS_DEFINITION} /></h2>
+      <div className="flex items-center gap-1.5"><h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2><HoverHint text={TOP_POSTS_DEFINITION} /></div>
       <SortableTopContent
         owned={groupPostsByPlatform(owned, channel)}
         influencer={groupPostsByPlatform(influencer, channel)}

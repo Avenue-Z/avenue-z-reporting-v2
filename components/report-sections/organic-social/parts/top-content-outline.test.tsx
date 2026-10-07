@@ -119,10 +119,9 @@ test('a UGC post is never an owned post on outline tabs', async () => {
 test('top-content@3 is headed "Top Performing Content"; @2 keeps "Top Content"', async () => {
   fetchTopContentFrozen.mockResolvedValue([post(1)])
   const c = (await show()).container
-  // The title text node: the heading also carries the appendix hint badge now.
-  expect([...c.querySelectorAll('h2')].map((h) => h.firstChild?.textContent)).toEqual(['Top Performing Content'])
+  expect([...c.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Performing Content'])
   const v2 = render(<>{await TopContentV2Section(IG)}</>).container
-  expect([...v2.querySelectorAll('h2')].map((h) => h.firstChild?.textContent)).toEqual(['Top Content'])
+  expect([...v2.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Content'])
 })
 
 test('T6 outline tabs pass only the Engagements and Views sort buttons', async () => {
