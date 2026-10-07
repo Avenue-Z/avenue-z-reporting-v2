@@ -19,8 +19,11 @@ export function ProgressRing({ label, value, target, color = '#60FDFF' }: { labe
           <g transform="rotate(135 60 60)">
             <circle cx="60" cy="60" r={R} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10" strokeLinecap="round"
               strokeDasharray={`${ARC} ${2 * Math.PI * R}`} />
-            <circle cx="60" cy="60" r={R} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
-              strokeDasharray={`${ARC * ratio} ${2 * Math.PI * R}`} data-ratio={ratio.toFixed(3)} />
+            {/* No value arc at zero: a zero-length dash with round caps renders as a dot, which reads as progress. */}
+            {ratio > 0 && (
+              <circle cx="60" cy="60" r={R} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={`${ARC * ratio} ${2 * Math.PI * R}`} data-ratio={ratio.toFixed(3)} />
+            )}
           </g>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">

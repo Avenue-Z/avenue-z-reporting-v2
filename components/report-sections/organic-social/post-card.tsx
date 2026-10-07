@@ -42,6 +42,9 @@ function Media({ post }: { post: TopContentPost }) {
     <img
       className="aspect-square w-full object-cover"
       src={c.thumb}
+      // Lazy: the Influencer tab draws every post of the period with no pager, so an eager image per card fired every
+      // request on tab open, most of them below the fold.
+      loading="lazy"
       alt={post.caption.slice(0, 80)}
       // onError catches failures AFTER hydration; the ref catches an <img> that already errored
       // BEFORE React hydrated (SSR sends the tag, the browser can fail the load before the

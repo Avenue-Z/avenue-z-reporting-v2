@@ -20,3 +20,11 @@ test('over target: full arc, the real value still shown', () => {
   expect(getByText('13,000')).toBeTruthy()
   expect((container.querySelector('[data-ratio]') as SVGElement).getAttribute('data-ratio')).toBe('1.000')
 })
+
+// Paul, #334 review item 14: a zero-length dash with round caps renders as a dot, which read as a sliver of progress.
+test('at zero there is no value arc at all, only the track', () => {
+  const { container, getByText } = render(<ProgressRing label="Engagements" value={0} target={500} />)
+  expect(getByText('0')).toBeTruthy()
+  expect(container.querySelectorAll('circle').length).toBe(1)
+  expect(container.querySelector('[data-ratio]')).toBeNull()
+})
