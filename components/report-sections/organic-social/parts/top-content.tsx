@@ -14,6 +14,8 @@ import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
+import { HoverHint } from '../hover-hint'
+import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
 
 async function TopContentSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getTopContent(clientSlug, dateRange, channel))
@@ -73,7 +75,7 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
 
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
+      <h2 className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content<HoverHint text={TOP_POSTS_DEFINITION} /></h2>
       <SortableTopContent
         owned={groupPostsByPlatform(owned, channel)}
         influencer={groupPostsByPlatform(influencer, channel)}

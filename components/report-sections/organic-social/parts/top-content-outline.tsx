@@ -10,6 +10,8 @@ import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
+import { HoverHint } from '../hover-hint'
+import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
 import { groupPostsByPlatform, loadDesignations } from './top-content'
 
 /** top-content@3: @2 plus the outline's rules (5 owned posts per platform row, collab by author,
@@ -64,7 +66,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const hiddenRows = canEdit ? influencerRows.filter((g) => hidden.has(g.platform)) : []
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2>
+      <h2 className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content<HoverHint text={TOP_POSTS_DEFINITION} /></h2>
       <SortableTopContent owned={groupPostsByPlatform(owned, channel)}
         influencer={influencerRows.filter((g) => !hidden.has(g.platform))}
         clientSlug={clientSlug} canEdit={canEdit} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}

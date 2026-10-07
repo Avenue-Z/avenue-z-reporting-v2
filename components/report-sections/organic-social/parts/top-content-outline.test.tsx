@@ -119,9 +119,10 @@ test('a UGC post is never an owned post on outline tabs', async () => {
 test('top-content@3 is headed "Top Performing Content"; @2 keeps "Top Content"', async () => {
   fetchTopContentFrozen.mockResolvedValue([post(1)])
   const c = (await show()).container
-  expect([...c.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Performing Content'])
+  // The title text node: the heading also carries the appendix hint badge now.
+  expect([...c.querySelectorAll('h2')].map((h) => h.firstChild?.textContent)).toEqual(['Top Performing Content'])
   const v2 = render(<>{await TopContentV2Section(IG)}</>).container
-  expect([...v2.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Top Content'])
+  expect([...v2.querySelectorAll('h2')].map((h) => h.firstChild?.textContent)).toEqual(['Top Content'])
 })
 
 test('T6 outline tabs pass only the Engagements and Views sort buttons', async () => {
@@ -281,4 +282,10 @@ test('Overview with Instagram and Facebook hidden: both rows go to hiddenInfluen
   render(<>{await TopContentOutlineSection({ ctx: { ...IG, channel: null }, ownedLimit: 5 })}</>)
   expect(props().influencer.map((g) => g.platform)).toEqual(['LinkedIn'])
   expect(hiddenProp()!.map((g) => [g.platform, g.posts.map((p) => p.id).sort()]).sort()).toEqual([['Facebook', [2, 3]], ['Instagram', [1]]])
+})
+
+test('the Top Performing Content heading carries the appendix hint', async () => {
+  fetchTopContentFrozen.mockResolvedValue([])
+  const { getByText } = await show()
+  expect(getByText('Top Performers by metric (Views/Engagements)')).toBeTruthy()
 })
