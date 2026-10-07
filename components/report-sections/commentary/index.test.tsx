@@ -112,3 +112,27 @@ describe('CommentarySection — RSC boundary', () => {
     expect(entries.map((x) => x.id)).toEqual(['live'])
   })
 })
+
+describe('CommentarySection — labels and the Recommendations key', () => {
+  beforeEach(() => { captured = null })
+
+  test('labels reach the panel and default to Insights', async () => {
+    mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
+    const { CommentarySection } = await import('./index')
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai' }))
+    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Insights', noun: 'insights' })
+    captured = null
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai', labels: { title: 'Recommendations', noun: 'recommendations' } }))
+    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Recommendations', noun: 'recommendations' })
+  })
+
+  test('a client viewer of a Recommendations key gets the same redaction as Insights', async () => {
+    mockAuth.mockResolvedValue({ user: { email: 'viewer@client.example' } })
+    const { CommentarySection } = await import('./index')
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:recommendations', labels: { title: 'Recommendations', noun: 'recommendations' } }))
+    const payload = JSON.stringify(captured)
+    expect(payload).not.toContain('SUPERSEDED SECRET')
+    expect(payload).not.toContain('DELETED SECRET')
+    expect(payload).not.toContain('@avenuez.com')
+  })
+})

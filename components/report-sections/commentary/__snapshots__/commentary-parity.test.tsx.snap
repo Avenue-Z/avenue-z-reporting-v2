@@ -118,6 +118,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "linkedin-ads",
   },
   "linkedin-ads approver@avenuez.com INTERNAL_ADMIN": {
@@ -236,6 +240,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "linkedin-ads",
   },
   "linkedin-ads client@example.com CLIENT_VIEWER": {
@@ -276,6 +284,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "linkedin-ads",
   },
   "linkedin-ads client@example.com INTERNAL_ADMIN": {
@@ -316,6 +328,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "linkedin-ads",
   },
   "linkedin-ads writer@avenuez.com CLIENT_VIEWER": {
@@ -370,6 +386,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "linkedin-ads",
   },
   "linkedin-ads writer@avenuez.com INTERNAL_ADMIN": {
@@ -424,6 +444,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "linkedin-ads",
   },
   "meta-ads approver@avenuez.com CLIENT_VIEWER": {
@@ -542,6 +566,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "meta-ads",
   },
   "meta-ads approver@avenuez.com INTERNAL_ADMIN": {
@@ -660,6 +688,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "meta-ads",
   },
   "meta-ads client@example.com CLIENT_VIEWER": {
@@ -700,6 +732,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "meta-ads",
   },
   "meta-ads client@example.com INTERNAL_ADMIN": {
@@ -740,6 +776,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "meta-ads",
   },
   "meta-ads writer@avenuez.com CLIENT_VIEWER": {
@@ -794,6 +834,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "meta-ads",
   },
   "meta-ads writer@avenuez.com INTERNAL_ADMIN": {
@@ -848,6 +892,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "meta-ads",
   },
   "organic-social approver@avenuez.com CLIENT_VIEWER": {
@@ -966,6 +1014,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social",
   },
   "organic-social approver@avenuez.com INTERNAL_ADMIN": {
@@ -1084,6 +1136,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social",
   },
   "organic-social client@example.com CLIENT_VIEWER": {
@@ -1124,6 +1180,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social",
   },
   "organic-social client@example.com INTERNAL_ADMIN": {
@@ -1164,6 +1224,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social",
   },
   "organic-social writer@avenuez.com CLIENT_VIEWER": {
@@ -1218,6 +1282,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social",
   },
   "organic-social writer@avenuez.com INTERNAL_ADMIN": {
@@ -1272,6 +1340,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social",
   },
   "organic-social:instagram approver@avenuez.com CLIENT_VIEWER": {
@@ -1390,6 +1462,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social:instagram",
   },
   "organic-social:instagram approver@avenuez.com INTERNAL_ADMIN": {
@@ -1508,6 +1584,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social:instagram",
   },
   "organic-social:instagram client@example.com CLIENT_VIEWER": {
@@ -1548,6 +1628,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social:instagram",
   },
   "organic-social:instagram client@example.com INTERNAL_ADMIN": {
@@ -1588,6 +1672,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social:instagram",
   },
   "organic-social:instagram writer@avenuez.com CLIENT_VIEWER": {
@@ -1642,6 +1730,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social:instagram",
   },
   "organic-social:instagram writer@avenuez.com INTERNAL_ADMIN": {
@@ -1696,6 +1788,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "organic-social:instagram",
   },
   "paid-search approver@avenuez.com CLIENT_VIEWER": {
@@ -1814,6 +1910,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "paid-search",
   },
   "paid-search approver@avenuez.com INTERNAL_ADMIN": {
@@ -1932,6 +2032,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "paid-search",
   },
   "paid-search client@example.com CLIENT_VIEWER": {
@@ -1972,6 +2076,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "paid-search",
   },
   "paid-search client@example.com INTERNAL_ADMIN": {
@@ -2012,6 +2120,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "paid-search",
   },
   "paid-search writer@avenuez.com CLIENT_VIEWER": {
@@ -2066,6 +2178,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "paid-search",
   },
   "paid-search writer@avenuez.com INTERNAL_ADMIN": {
@@ -2120,6 +2236,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "paid-search",
   },
   "peec-ai approver@avenuez.com CLIENT_VIEWER": {
@@ -2238,6 +2358,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai",
   },
   "peec-ai approver@avenuez.com INTERNAL_ADMIN": {
@@ -2356,6 +2480,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai",
   },
   "peec-ai client@example.com CLIENT_VIEWER": {
@@ -2396,6 +2524,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai",
   },
   "peec-ai client@example.com INTERNAL_ADMIN": {
@@ -2436,6 +2568,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai",
   },
   "peec-ai writer@avenuez.com CLIENT_VIEWER": {
@@ -2490,6 +2626,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai",
   },
   "peec-ai writer@avenuez.com INTERNAL_ADMIN": {
@@ -2544,6 +2684,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai",
   },
   "peec-ai:content-impact approver@avenuez.com CLIENT_VIEWER": {
@@ -2662,6 +2806,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:content-impact",
   },
   "peec-ai:content-impact approver@avenuez.com INTERNAL_ADMIN": {
@@ -2780,6 +2928,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:content-impact",
   },
   "peec-ai:content-impact client@example.com CLIENT_VIEWER": {
@@ -2820,6 +2972,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:content-impact",
   },
   "peec-ai:content-impact client@example.com INTERNAL_ADMIN": {
@@ -2860,6 +3016,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:content-impact",
   },
   "peec-ai:content-impact writer@avenuez.com CLIENT_VIEWER": {
@@ -2914,6 +3074,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:content-impact",
   },
   "peec-ai:content-impact writer@avenuez.com INTERNAL_ADMIN": {
@@ -2968,6 +3132,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:content-impact",
   },
   "peec-ai:pr-influence approver@avenuez.com CLIENT_VIEWER": {
@@ -3086,6 +3254,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:pr-influence",
   },
   "peec-ai:pr-influence approver@avenuez.com INTERNAL_ADMIN": {
@@ -3204,6 +3376,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       },
     ],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:pr-influence",
   },
   "peec-ai:pr-influence client@example.com CLIENT_VIEWER": {
@@ -3244,6 +3420,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:pr-influence",
   },
   "peec-ai:pr-influence client@example.com INTERNAL_ADMIN": {
@@ -3284,6 +3464,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:pr-influence",
   },
   "peec-ai:pr-influence writer@avenuez.com CLIENT_VIEWER": {
@@ -3338,6 +3522,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:pr-influence",
   },
   "peec-ai:pr-influence writer@avenuez.com INTERNAL_ADMIN": {
@@ -3392,6 +3580,10 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
     ],
     "history": [],
     "initialId": "sep-draft",
+    "labels": {
+      "noun": "insights",
+      "title": "Insights",
+    },
     "viewKey": "peec-ai:pr-influence",
   },
 }
