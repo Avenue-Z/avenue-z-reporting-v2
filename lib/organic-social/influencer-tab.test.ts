@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { hasInfluencerTab, influencerRulesFor } from './influencer-tab'
+import { hasInfluencerTab, influencerRulesFor, withoutTabbedInfluencer } from './influencer-tab'
 import { ORGANIC_SOCIAL_PLATFORM_TEMPLATE } from '@/components/report-sections/organic-social/template'
 
 const c = (channels: string[] | undefined, hidden: string[] = [], influencerSection?: unknown) =>
@@ -24,4 +24,18 @@ test('the split rule follows the pinned Top Content version of the platform comp
   expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, undefined)).toBe('designations') // @2 from the template
   expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, { versions: { 'top-content': 3 } })).toBe('outline')
   expect(influencerRulesFor({ order: [], labels: {}, thresholds: {} }, undefined)).toBe('designations') // no Top Content at all
+})
+
+// Paul, #334 review item 1: hiding the tab the usual way (hidden_reports) removed the tab while both galleries still
+// dropped the Instagram influencer row, so those posts appeared nowhere.
+test('hiding the Influencer tab through hidden_reports turns the tab rule off', () => {
+  expect(hasInfluencerTab(c(['instagram'], ['organic-influencer']))).toBe(false)
+})
+
+// Item 12: one helper for the two galleries, keyed on the channel label, so the rule cannot drift between them.
+test('withoutTabbedInfluencer drops the Instagram group only for a client with the tab', () => {
+  const groups = [{ platform: 'Instagram', posts: [] }, { platform: 'Facebook', posts: [] }]
+  expect(withoutTabbedInfluencer(groups, c(['instagram', 'facebook'])).map((g) => g.platform)).toEqual(['Facebook'])
+  expect(withoutTabbedInfluencer(groups, c(['instagram', 'facebook'], ['organic-influencer'])).map((g) => g.platform)).toEqual(['Instagram', 'Facebook'])
+  expect(withoutTabbedInfluencer(groups, null).map((g) => g.platform)).toEqual(['Instagram', 'Facebook'])
 })

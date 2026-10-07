@@ -6,7 +6,7 @@ import { canSetDesignation } from '@/lib/organic-social/designations/permissions
 import { getClientBySlug } from '@/lib/db/queries'
 import { hiddenInfluencerPlatforms, ignoredInfluencerKeys, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
 import { OUTLINE_SORT_KEYS, ownHandlesFor, ownedPostLimit, partitionByAuthor, withViewsBasisRate } from '@/lib/organic-social/outline-top-content'
-import { hasInfluencerTab } from '@/lib/organic-social/influencer-tab'
+import { withoutTabbedInfluencer } from '@/lib/organic-social/influencer-tab'
 import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
@@ -45,8 +45,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const influencerRows = groupPostsByPlatform(influencer, channel)
   // The Influencer tab shows Instagram's influencer posts; a client that has it does not also see them here
   // (spec B1: moved, not shown twice). The posts stay out of the owned five either way.
-  const tabOn = client ? hasInfluencerTab(client) : false
-  const shownRows = influencerRows.filter((g) => !(tabOn && g.platform === 'Instagram'))
+  const shownRows = withoutTabbedInfluencer(influencerRows, client)
   // A hidden platform's influencer row is never shown as a section, and its posts
   // stay influencer: they are not moved into the owned top 5. Staff get the row behind a closed control so a designation
   // can be undone; for anyone else it is filtered out here, on the server, so it never reaches a browser.

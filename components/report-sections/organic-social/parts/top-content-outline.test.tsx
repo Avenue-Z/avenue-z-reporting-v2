@@ -15,14 +15,13 @@ vi.mock('@/lib/db/queries', () => ({ getClientBySlug }))
 vi.mock('@/lib/organic-social/frozen', () => ({ fetchTopContentFrozen }))
 vi.mock('@/lib/organic-social/top-content', () => ({ fetchTopContent, getTopContent: vi.fn() }))
 vi.mock('../sortable-top-content', () => ({ SortableTopContent }))
-// The tab rule is mocked off: these tests pin the Instagram tab's own rules (handles, labels, hidden rows). The
-// two tests at the end turn it on; the rule itself is tested in lib/organic-social/influencer-tab.test.ts.
-vi.mock('@/lib/organic-social/influencer-tab', async (orig) => ({ ...(await orig<object>()), hasInfluencerTab: vi.fn(() => false) }))
+// The real tab rule runs. The fixtures hide the Influencer tab through hidden_reports, so these tests pin the
+// Instagram tab's own rules (handles, labels, hidden rows) with the Instagram influencer row in place; the two tests
+// at the end use clients that have the tab.
 
 import { TopContentOutlineSection, topContentV3 } from './top-content-outline'
 import { TopContentV2Section, topContentV1, topContentV2 } from './top-content'
 import { ORGANIC_SOCIAL_PARTS } from './registry'
-import { hasInfluencerTab } from '@/lib/organic-social/influencer-tab'
 
 const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, view: null, role: 'INTERNAL_ADMIN' }
 const post = (id: number, over: Record<string, unknown> = {}) => ({
@@ -38,7 +37,7 @@ const show = async (ownedLimit = 5) => render(<>{await TopContentOutlineSection(
 
 beforeEach(() => {
   for (const f of [getDesignations, getClientBySlug, fetchTopContentFrozen, fetchTopContent, SortableTopContent]) f.mockClear()
-  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' } } })
+  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' } } , hiddenReports: ['organic-influencer'] })
 })
 
 test('top-content@3 is registered unpublished; @1 and @2 are the same objects as before', () => {
@@ -99,7 +98,7 @@ test('a failed config read means no own handles: the #ad rule, no warning', asyn
 // (Paul, PR 255). lib/organic-social/outline-top-content.test.ts proves they are identical here.
 test('a handle no post author matches is not trusted: #ad rule, one warning naming both causes', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'old_handle' } } })
+  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'old_handle' } } , hiddenReports: ['organic-influencer'] })
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator_one' }), post(3, { caption: 'yay #ad' })])
   await show()
   expect(props().owned[0].posts.map((x) => x.id)).toEqual([1, 2])
@@ -143,7 +142,7 @@ test('T7 the v2 part (Renaissance) passes no sortKeys', async () => {
 })
 
 const withSection = (influencerSection: unknown) =>
-  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' }, influencerSection } })
+  getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' }, influencerSection } , hiddenReports: ['organic-influencer'] })
 const heading = () => (SortableTopContent.mock.calls.at(-1) as unknown as [{ influencerHeading?: string }])[0].influencerHeading
 
 test('no influencerSection: the influencer row and the default heading, exactly as today', async () => {
@@ -288,7 +287,6 @@ test('Overview with Instagram and Facebook hidden: both rows go to hiddenInfluen
 })
 
 test('with the Influencer tab, the Instagram influencer group leaves the Instagram tab; the posts stay out of the owned five', async () => {
-  vi.mocked(hasInfluencerTab).mockReturnValueOnce(true)
   getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, channels: ['instagram'], ownHandles: { instagram: 'brand_handle' } }, hiddenReports: [] })
   fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator' })])
   await show()
@@ -298,7 +296,6 @@ test('with the Influencer tab, the Instagram influencer group leaves the Instagr
 
 // Last in the file on purpose: it changes getDesignations' resolved value and restores it at the end.
 test('a Facebook post marked Influencer stays in its own section even with the Influencer tab', async () => {
-  vi.mocked(hasInfluencerTab).mockReturnValueOnce(true)
   getClientBySlug.mockResolvedValue({ id: 'c1', dashSocialConfig: { brandId: 1, channels: ['instagram', 'facebook'] }, hiddenReports: [] })
   getDesignations.mockResolvedValue(new Map([[9, 'influencer']]))
   try {

@@ -6,7 +6,7 @@ import { getDesignations } from '@/lib/organic-social/designations/select'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
-import { hasInfluencerTab } from '@/lib/organic-social/influencer-tab'
+import { withoutTabbedInfluencer } from '@/lib/organic-social/influencer-tab'
 import { CHANNELS, CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/metrics'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 import type { SourceType } from '@/lib/organic-social/types'
@@ -74,14 +74,13 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
   // The Influencer tab shows Instagram's influencer posts; a client that has it does not also see them here, on
   // Overview or the Instagram tab (spec B1). A failed client read keeps today's gallery.
   const client = await getClientBySlug(clientSlug).catch(() => null)
-  const tabOn = client ? hasInfluencerTab(client) : false
 
   return (
     <section className="space-y-6">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
       <SortableTopContent
         owned={groupPostsByPlatform(owned, channel)}
-        influencer={groupPostsByPlatform(influencer, channel).filter((g) => !(tabOn && g.platform === 'Instagram'))}
+        influencer={withoutTabbedInfluencer(groupPostsByPlatform(influencer, channel), client)}
         clientSlug={clientSlug}
         canEdit={canEdit}
       />
