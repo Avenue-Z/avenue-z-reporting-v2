@@ -15,7 +15,7 @@ const GRID: unknown[][] = [
 ]
 
 test('the tracker layout parses, cells trimmed, thousands separators accepted', () => {
-  const t = parseKpiGrid(GRID)
+  const t = parseKpiGrid(GRID, '2026')
   expect(t.platforms.map((p) => [p.channel, p.monthLabel])).toEqual([['INSTAGRAM', 'September'], ['FACEBOOK', 'September'], ['LINKEDIN', 'September']])
   expect(t.platforms[0].actual).toEqual({ followers: 1100, impressions: 20000, engagements: 300 })
   expect(t.platforms[0].target).toEqual({ followers: 2000, impressions: 50500, engagements: 1250 })
@@ -29,8 +29,8 @@ test.each([
   ['an unknown platform', GRID.map((r, i) => (i === 7 ? ['Threads', 'End of September', '1', '1', '1'] : r)), 'platform name'],
   ['no platforms at all', GRID.slice(0, 3), 'platform name'],
 ])('%s is a layout error for the whole block', (_, grid, missing) => {
-  expect(() => parseKpiGrid(grid as unknown[][])).toThrow(KpiSheetLayoutError)
-  try { parseKpiGrid(grid as unknown[][]) } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe(missing) }
+  expect(() => parseKpiGrid(grid as unknown[][], '2026')).toThrow(KpiSheetLayoutError)
+  try { parseKpiGrid(grid as unknown[][], '2026') } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe(missing) }
 })
 
 test('the period label runs from January 1 to the last day of the row month', () => {
@@ -42,8 +42,22 @@ test('the period label runs from January 1 to the last day of the row month', ()
 // Paul, #334 review item 7: parsing stopped at the first blank name and silently dropped every platform after it.
 test('a blank separator row followed by more rows is a layout error; rows that are entirely empty after the last block are fine', () => {
   const withSeparator = [...GRID.slice(0, 5), [], ...GRID.slice(5)]
-  expect(() => parseKpiGrid(withSeparator)).toThrow(KpiSheetLayoutError)
-  try { parseKpiGrid(withSeparator) } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe('trailing rows') }
+  expect(() => parseKpiGrid(withSeparator, '2026')).toThrow(KpiSheetLayoutError)
+  try { parseKpiGrid(withSeparator, '2026') } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe('trailing rows') }
   const sheetsPadding = [...GRID, [], ['', ''], []]
-  expect(parseKpiGrid(sheetsPadding).platforms.length).toBe(3)
+  expect(parseKpiGrid(sheetsPadding, '2026').platforms.length).toBe(3)
+})
+
+// Paul, #334 round 2 (non-blocker 3): the parser let a target row for another year and a platform listed twice through.
+test.each([
+  ['a target row for another year', GRID.map((r, i) => (i === 4 ? ['', 'H2 2025 Target', '2,000', '50,500', '1,250'] : r)), 'Instagram target year'],
+  ['a platform listed twice', [...GRID, GRID[3], GRID[4]], 'Instagram duplicate'],
+])('%s is a layout error', (_, grid, missing) => {
+  expect(() => parseKpiGrid(grid as unknown[][], '2026')).toThrow(KpiSheetLayoutError)
+  try { parseKpiGrid(grid as unknown[][], '2026') } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe(missing) }
+})
+
+// The first half of a year has an H1 target; the ring says "Target" only, so H1 and H2 are both accepted.
+test('an H1 target row of the sheet year is accepted', () => {
+  expect(parseKpiGrid(GRID.map((r, i) => (i === 4 ? ['', 'H1 2026 Target', '2,000', '50,500', '1,250'] : r)), '2026').platforms[0].channel).toBe('INSTAGRAM')
 })

@@ -50,7 +50,7 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
   const served = servedMonth(dateRange)
   let rows: KpiPlatform[]
   try {
-    const tracker = parseKpiGrid(await readYtdTab(sheet.entry.sheetId, sheet.entry.tab))
+    const tracker = parseKpiGrid(await readYtdTab(sheet.entry.sheetId, sheet.entry.tab), year)
     rows = shown.map((channel) => {
       const row = tracker.platforms.find((p) => p.channel === channel)
       if (!row) throw new KpiSheetLayoutError(CHANNEL_LABEL[channel])

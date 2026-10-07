@@ -3,7 +3,8 @@
 // the tab and every value stay out of log lines and thrown messages, as ytd-sheet.ts requires.
 //   row 1: a title (any text)         row 2: blank
 //   row 3: header, columns C to E: Total Followers | Impressions | Engagements
-//   then per platform: [name, "End of <Month>", a, b, c] and ["", "H<1|2> <year> Target", a, b, c]
+//   then per platform: [name, "End of <Month>", a, b, c] and ["", "H<1|2> <year> Target", a, b, c], the sheet's year,
+//   each platform once; nothing but empty rows after the last block.
 import type { DashChannel } from './metrics'
 import { classifyCell } from './ytd-sheet'
 
@@ -19,7 +20,7 @@ const PLATFORMS: Record<string, DashChannel> = { instagram: 'INSTAGRAM', faceboo
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const HEADER = ['total followers', 'impressions', 'engagements']
 const ACTUAL = /^end of ([a-z]+)$/i
-const TARGET = /^h[12] \d{4} target$/i
+const TARGET = /^h[12] (\d{4}) target$/i
 
 const cell = (row: unknown[] | undefined, i: number) => String((row ?? [])[i] ?? '').trim()
 
@@ -32,7 +33,7 @@ function figures(row: unknown[] | undefined, name: string): KpiFigures {
   return { followers: read(2, 'followers'), impressions: read(3, 'impressions'), engagements: read(4, 'engagements') }
 }
 
-export function parseKpiGrid(grid: unknown[][]): KpiTracker {
+export function parseKpiGrid(grid: unknown[][], year: string): KpiTracker {
   if (HEADER.some((h, i) => cell(grid[2], 2 + i).toLowerCase() !== h)) throw new KpiSheetLayoutError('header')
   const platforms: KpiPlatform[] = []
   let i = 3
@@ -42,9 +43,14 @@ export function parseKpiGrid(grid: unknown[][]): KpiTracker {
     const channel = PLATFORMS[name.toLowerCase()]
     const month = ACTUAL.exec(cell(grid[i], 1))
     if (!channel || !month) throw new KpiSheetLayoutError('platform name')
-    if (cell(grid[i + 1], 0) !== '' || !TARGET.test(cell(grid[i + 1], 1))) throw new KpiSheetLayoutError(`${name} target`)
+    const target = TARGET.exec(cell(grid[i + 1], 1))
+    if (cell(grid[i + 1], 0) !== '' || !target) throw new KpiSheetLayoutError(`${name} target`)
+    // The target is the sheet's year's (H1 or H2: the first half of a year has an H1 target); another year is a mix-up.
+    if (target[1] !== year) throw new KpiSheetLayoutError(`${name} target year`)
     const monthLabel = MONTHS.find((m) => m.toLowerCase() === month[1].toLowerCase())
     if (!monthLabel) throw new KpiSheetLayoutError(`${name} month`)
+    // One block per platform: the part would silently take the first of two.
+    if (platforms.some((p) => p.channel === channel)) throw new KpiSheetLayoutError(`${name} duplicate`)
     platforms.push({ channel, monthLabel, actual: figures(grid[i], name), target: figures(grid[i + 1], name) })
   }
   if (platforms.length === 0) throw new KpiSheetLayoutError('platform name')
