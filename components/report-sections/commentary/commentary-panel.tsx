@@ -8,6 +8,7 @@ import { CommentaryEditor } from './commentary-editor'
 import { approveCommentary, revokeCommentary, deleteCommentaryDraft } from '@/app/actions/commentary'
 import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory, CommentaryVersionTag } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
+import { INSIGHTS_LABELS, addText, emptyText as emptyDefault, type CommentaryLabels } from '@/lib/commentary/labels'
 
 function fmt(d: string): string {
   // 'YYYY-MM-DD' → 'Mon D, YYYY' without timezone drift.
@@ -39,6 +40,7 @@ export function CommentaryPanel({
   defaultPeriod,
   emptyText,
   entryNotes,
+  labels = INSIGHTS_LABELS,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
@@ -49,6 +51,8 @@ export function CommentaryPanel({
   defaultPeriod?: { start: string; end: string }
   emptyText?: string
   entryNotes?: Record<string, string>
+  /** The box's words (title, button, empty line). Absent: Insights, the box formerly titled Commentary. */
+  labels?: CommentaryLabels
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
@@ -91,10 +95,10 @@ export function CommentaryPanel({
     <section className="mb-8 rounded-lg border border-white/[0.08] bg-bg-surface">
       <div className="flex items-center justify-between p-4">
         <button type="button" onClick={() => setCollapsed((c) => !c)} className="flex items-center gap-2 text-sm font-extrabold text-white">
-          <span>{collapsed ? '▸' : '▾'}</span> Commentary
+          <span>{collapsed ? '▸' : '▾'}</span> {labels.title}
         </button>
         {capabilities.canEdit && editing === null && (
-          <Button onClick={() => setEditing('new')}>Add commentary</Button>
+          <Button onClick={() => setEditing('new')}>{addText(labels)}</Button>
         )}
       </div>
 
@@ -118,7 +122,7 @@ export function CommentaryPanel({
             </select>
           )}
 
-          {editing !== 'new' && !selected && <p className="text-sm text-text-muted">{emptyText ?? 'No commentary yet.'}</p>}
+          {editing !== 'new' && !selected && <p className="text-sm text-text-muted">{emptyText ?? emptyDefault(labels)}</p>}
 
           {editing !== 'new' && selected && editing !== selected.id && (
             <article className="space-y-3">
