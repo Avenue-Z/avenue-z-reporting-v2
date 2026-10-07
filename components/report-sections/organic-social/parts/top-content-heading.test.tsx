@@ -21,7 +21,7 @@ import { TopContentOutlineSection } from './top-content-outline'
 import { TopContentV2Section } from './top-content'
 import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
 
-const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, role: 'INTERNAL_ADMIN' }
+const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, view: null, role: 'INTERNAL_ADMIN' }
 
 test('the Top Performing Content heading (top-content@3) carries the appendix hint', async () => {
   const { getByText } = render(<>{await TopContentOutlineSection({ ctx: IG, ownedLimit: 5 })}</>)
