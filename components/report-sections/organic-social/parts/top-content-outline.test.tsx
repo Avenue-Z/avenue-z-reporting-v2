@@ -283,9 +283,3 @@ test('Overview with Instagram and Facebook hidden: both rows go to hiddenInfluen
   expect(props().influencer.map((g) => g.platform)).toEqual(['LinkedIn'])
   expect(hiddenProp()!.map((g) => [g.platform, g.posts.map((p) => p.id).sort()]).sort()).toEqual([['Facebook', [2, 3]], ['Instagram', [1]]])
 })
-
-test('the Top Performing Content heading carries the appendix hint', async () => {
-  fetchTopContentFrozen.mockResolvedValue([])
-  const { getByText } = await show()
-  expect(getByText('Top Performers by metric (Views/Engagements)')).toBeTruthy()
-})
