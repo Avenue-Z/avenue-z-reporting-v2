@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { expect, test } from 'vitest'
 import { ORGANIC_SOCIAL_DEFINITIONS, TOP_POSTS_DEFINITION, metricDefinition } from './metric-definitions'
 import { OUTLINE_BREAKDOWN_ROWS, OUTLINE_DATA_ROWS } from './outline-layout'
-import { PLATFORM_KPIS, type DashChannel } from './metrics'
+import { CHANNELS, PLATFORM_KPIS, type DashChannel } from './metrics'
 
 const OUTLINE: DashChannel[] = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'TIKTOK']
 
@@ -14,8 +14,12 @@ test('every row an outline tab draws has a definition; Instagram Profile Clicks 
   expect(metricDefinition('INSTAGRAM', 'profileClicks')).toBeUndefined() // no appendix text (G1)
 })
 
-test('every X tile has a definition', () => {
-  for (const k of PLATFORM_KPIS.TWITTER.map((s) => s.key)) expect(metricDefinition('TWITTER', k), k).toBeTruthy()
+test('every shared platform tile has a definition on every channel (the live client draws these)', () => {
+  for (const ch of CHANNELS) for (const k of PLATFORM_KPIS[ch].map((s) => s.key)) expect(metricDefinition(ch, k), ` `).toBeTruthy()
+})
+
+test('a channel the appendix does not cover yields no text, never a throw', () => {
+  expect(metricDefinition('NOPE', 'followers')).toBeUndefined()
 })
 
 test('no definition exists for a key no tab draws', () => {
