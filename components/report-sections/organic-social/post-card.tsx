@@ -52,11 +52,13 @@ function Media({ post }: { post: TopContentPost }) {
   )
 }
 
-export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }: {
+export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements', fluid = false }: {
   post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string
+  /** Fill the grid cell (the Influencer tab's grid). Absent: the fixed card width of the scrolling rows. */
+  fluid?: boolean
 }) {
   return (
-    <div className="w-56 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
+    <div className={`${fluid ? 'w-full' : 'w-56 shrink-0'} overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]`}>
       <div className="relative">
         <Media post={post} />
         {post.mediaType === 'CAROUSEL' && (
