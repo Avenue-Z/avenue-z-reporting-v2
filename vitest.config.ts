@@ -67,6 +67,7 @@ export default defineConfig({
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
       'components/charts/line-chart.test.tsx',
       'components/charts/kpi-card.test.tsx',
+      'components/charts/hover-hint.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
     exclude: ['node_modules', '.next', 'scripts/**', '.claude/**'],

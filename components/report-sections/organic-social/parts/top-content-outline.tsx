@@ -10,7 +10,7 @@ import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
-import { HoverHint } from '../hover-hint'
+import { HoverHint } from '@/components/charts/hover-hint'
 import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
 import { groupPostsByPlatform, loadDesignations } from './top-content'
 
