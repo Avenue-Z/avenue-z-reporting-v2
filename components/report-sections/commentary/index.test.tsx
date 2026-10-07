@@ -148,10 +148,10 @@ describe('CommentarySection: labels and the Recommendations key', () => {
       mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
       const { CommentarySection } = await import('./index')
       render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram' }))
-      const insights = (captured as { entries: { id: string }[] }).entries.map((e) => e.id)
+      const insights = (captured as unknown as { entries: { id: string }[] }).entries.map((e) => e.id)
       captured = null
       render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram:recommendations', labels: { title: 'Recommendations', noun: 'recommendations' } }))
-      const recommendations = (captured as { entries: { id: string }[] }).entries.map((e) => e.id)
+      const recommendations = (captured as unknown as { entries: { id: string }[] }).entries.map((e) => e.id)
       expect([insights, recommendations]).toEqual([['insight-row'], ['recommendation-row']])
     } finally {
       rows.byKey = null
