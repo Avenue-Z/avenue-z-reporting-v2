@@ -10,7 +10,7 @@ const FULL = {
   hubspotTokenEnvVar: 'SECRET_HUBSPOT_ENV', smApiKeyEnvVar: 'SECRET_SM_ENV',
   paidSearchConfig: { googleAdsAccountId: 'SECRET-ADS' }, metaConfig: { metaAdAccountId: 'SECRET-META' },
   linkedinConfig: { linkedinAdAccountId: 'SECRET-LI' }, salesforceConfig: { salesforceAccountId: 'SECRET-SF' },
-  dashSocialConfig: { brandId: 987654321, channels: ['instagram', 'facebook'] },
+  dashSocialConfig: { brandId: 987654321, channels: ['instagram', 'facebook'], influencerSection: { INSTAGRAM: { label: 'Partnership Posts' }, note: 'SECRET-NOTE' } },
   enabledReports: ['organic-social'], hiddenReports: ['organic-x'], hiddenJourneyStages: [],
   sharedPasswordHash: 'SECRET-HASH', users: [{ email: 'secret-user@example.com' }],
   reportSectionConfig: { note: 'SECRET-CONFIG' },
@@ -20,7 +20,7 @@ test('only the six fields the sidebar reads', () => {
   expect(toPortalSidebarClient(FULL)).toEqual({
     slug: 'a-client', name: 'A Client', logoUrl: 'https://example.com/a.png',
     enabledReports: ['organic-social'], hiddenReports: ['organic-x'],
-    dashSocialConfig: { channels: ['instagram', 'facebook'] },
+    dashSocialConfig: { channels: ['instagram', 'facebook'], influencerSection: { INSTAGRAM: { label: 'Partnership Posts' } } },
   })
 })
 
