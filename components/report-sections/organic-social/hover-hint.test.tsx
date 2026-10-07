@@ -35,3 +35,25 @@ test('the box takes no layout space until it opens, and is capped to the screen 
   expect(box?.className).toContain('max-w-[calc(100vw-2rem)]')
   expect(container.querySelector('.opacity-0')).toBeNull()
 })
+
+// Paul, #335 round 3: once the box is display:none at rest, its text left the accessibility tree and a screen reader
+// focusing the badge heard only "?". The badge now points at the box (aria-describedby; the box is role="tooltip").
+// Accessible-name rules include a directly referenced node even while it is hidden, so the definition is announced.
+test('the badge is described by its box, so a screen reader reads the definition', () => {
+  const { getByText } = render(<HoverHint text={TEXT} />)
+  const badge = getByText('?')
+  const id = badge.getAttribute('aria-describedby')
+  expect(id).toBeTruthy()
+  const box = document.getElementById(id!)
+  expect(box?.getAttribute('role')).toBe('tooltip')
+  expect(box?.textContent).toContain(TEXT)
+  expect(badge).toHaveAccessibleDescription(TEXT)
+})
+
+test('two badges on one page point at their own boxes', () => {
+  const { getAllByText } = render(<><HoverHint text="First text" /><HoverHint text="Second text" /></>)
+  const [a, b] = getAllByText('?')
+  expect(a.getAttribute('aria-describedby')).not.toBe(b.getAttribute('aria-describedby'))
+  expect(a).toHaveAccessibleDescription('First text')
+  expect(b).toHaveAccessibleDescription('Second text')
+})
