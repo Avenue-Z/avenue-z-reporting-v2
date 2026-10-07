@@ -16,6 +16,7 @@ import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 import { HoverHint } from '@/components/charts/hover-hint'
 import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
+import { OUTLINE_SORT_KEYS } from '@/lib/organic-social/outline-top-content'
 
 async function TopContentSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getTopContent(clientSlug, dateRange, channel))
@@ -63,7 +64,8 @@ export async function loadDesignations(clientSlug: string, postIds: number[]): P
 }
 
 /** top-content@2: the card gallery (owned + a separate Influencer section), backed by the
- *  snapshot-aware frozen fetch, split live by post_designations. Exported for the golden test,
+ *  snapshot-aware frozen fetch, split live by post_designations. Its toolbar offers the two outline sorts, Engagements
+ *  and Views, which the heading hint names (Thomas, 2026-10-07); sorting is in the browser only. Exported for the golden test,
  *  which awaits its resolved output directly (RTL does not render an async child's output). */
 export async function TopContentV2Section({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
   const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel))
@@ -81,6 +83,7 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
         influencer={groupPostsByPlatform(influencer, channel)}
         clientSlug={clientSlug}
         canEdit={canEdit}
+        sortKeys={OUTLINE_SORT_KEYS}
       />
     </section>
   )
