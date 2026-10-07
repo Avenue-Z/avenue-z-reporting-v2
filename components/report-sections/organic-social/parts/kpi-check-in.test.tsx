@@ -54,9 +54,15 @@ test('a client channel missing from the sheet is the error card, not a partial v
   err.mockRestore()
 })
 
-test('no sheet for the year renders nothing; an invalid entry warns and renders nothing', async () => {
+// Paul, #334 review item 6: no sheet for the year (every January, until the new entry is added) blanked the Overview
+// with nothing in the logs. It now warns, and staff see a note; clients still see nothing.
+test('no sheet for the year: a warning, a staff-only note, nothing for a client; an invalid entry warns and renders nothing', async () => {
   getClientBySlug.mockResolvedValue(client())
+  const warn0 = vi.spyOn(console, 'warn').mockImplementation(() => {})
   expect(await KpiCheckInSection({ ctx: CTX })).toBeNull()
+  expect(warn0).toHaveBeenCalledWith('[organic-social] kpi sheet not configured slug=c year=2026')
+  expect(render(await KpiCheckInSection({ ctx: { ...CTX, role: 'INTERNAL_ADMIN' } })).getByText('No KPI sheet configured for 2026.')).toBeTruthy()
+  warn0.mockRestore()
   getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: 'short', tab: 'x' } }))
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   expect(await KpiCheckInSection({ ctx: CTX })).toBeNull()
@@ -72,4 +78,39 @@ test('a read failure is the error card with the status, never the id', async () 
   expect(getByText("Couldn't load this section.")).toBeTruthy()
   expect(err).toHaveBeenCalledWith('[organic-social] kpi sheet read failed slug=c year=2026 status=timeout')
   err.mockRestore()
+})
+
+// Item 8: a channel whose tab is hidden is not a KPI row (and a sheet without it is not an error).
+test('rows follow the tabs the client shows, not the raw allowlist', async () => {
+  getClientBySlug.mockResolvedValue({ ...client({ 2026: { sheetId: ID, tab: 'KPIs' } }, ['instagram', 'linkedin', 'facebook']), hiddenReports: ['organic-facebook'] })
+  readYtdTab.mockResolvedValue(GRID)
+  const { getAllByRole, queryByText } = render(await KpiCheckInSection({ ctx: CTX }))
+  expect(getAllByRole('img').length).toBe(6)
+  expect(queryByText('Facebook')).toBeNull()
+})
+
+// Item 2 (Thomas, 2026-10-07): the sheet row can be ahead of the month clients are served (the team fills "End of
+// October" before the October report is released). A client viewer then gets a note instead of that row's rings; staff
+// keep the rings and get the note. A row at or before the served month is unchanged.
+test('a sheet month ahead of the served month: a note for clients, rings plus the note for staff', async () => {
+  getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID)
+  const august = { ...CTX, dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31' }
+  const c = render(await KpiCheckInSection({ ctx: august }))
+  expect(c.getByText('KPI Check-In updates with the September report.')).toBeTruthy()
+  expect(c.getAllByRole('img').map((e) => e.getAttribute('aria-label'))).toEqual([
+    'Total Followers: 9,000 of 9,400', 'Impressions: 47,000 of 80,000', 'Total Engagements: 6,300 of 10,000',
+  ])
+  expect(c.queryByText('1/1/26 to 9/30/26')).toBeNull()
+  c.unmount()
+  const staff = render(await KpiCheckInSection({ ctx: { ...august, role: 'INTERNAL_ANALYST' } }))
+  expect(staff.getByText('KPI Check-In updates with the September report.')).toBeTruthy()
+  expect(staff.getAllByRole('img').length).toBe(6)
+})
+
+test('a preset range has no served month, so every row shows its rings', async () => {
+  getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID)
+  const c = render(await KpiCheckInSection({ ctx: { ...CTX, dateRange: 'last_30_days', compareRange: 'previous_period' } }))
+  expect(c.getAllByRole('img').length).toBe(6)
 })
