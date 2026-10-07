@@ -38,7 +38,7 @@ test('top-content@2 renders the card gallery: Influencer section + placeholder o
   expect(getDesignations).toHaveBeenCalled()
 })
 
-// A client WITH the Influencer tab (the Renaissance shape: no allowlist, no setting): the Instagram influencer group
+// A client WITH the Influencer tab (no allowlist, no setting): the Instagram influencer group
 // leaves the gallery on Overview and the Instagram tab alike; other platforms' groups stay (spec B1, F15.1).
 test('with the Influencer tab, the gallery drops the Instagram influencer group and keeps the others', async () => {
   const { getClientBySlug } = await import('@/lib/db/queries')
