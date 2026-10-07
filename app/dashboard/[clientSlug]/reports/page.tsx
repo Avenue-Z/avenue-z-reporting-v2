@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection, type OrganicView } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { GA4Report } from '@/components/report-sections/ga4'
@@ -48,6 +48,7 @@ function getReportComponent(
   submittedBy?: string,
   models?: import('@/lib/peec/models').AEOModel[] | null,
   channel: DashChannel | null = null,
+  view: OrganicView = null,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -85,7 +86,7 @@ function getReportComponent(
       if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} />
     default:
       return null
   }
@@ -188,7 +189,7 @@ export default async function ReportPage({
   // SUBSECTION_NAMES map, which would reintroduce the title/body divergence (Spec 1 §5).
   const pageTitle =
     (activeSection === 'organic-social' && organicEntry)
-      ? (organicEntry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : organicEntry.label)
+      ? (organicEntry.view === 'influencer' ? organicEntry.label : organicEntry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : organicEntry.label)
     : (activeSection === 'ga4' && subsection && GA4_SUBSECTION_NAMES[subsection])
       ? GA4_SUBSECTION_NAMES[subsection]
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
@@ -203,7 +204,7 @@ export default async function ReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)
+    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null)
     return (
       <HealthProbe
         surface="dashboard"
@@ -274,7 +275,7 @@ export default async function ReportPage({
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null)}
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>

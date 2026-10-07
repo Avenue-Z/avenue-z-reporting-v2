@@ -251,3 +251,18 @@ test('the section renders the top box before the body and the bottom box after i
   const kids = (el as { props: { children: unknown[] } }).props.children
   expect(kids.map((k) => (k as { type?: { name?: string } | symbol }).type)).toHaveLength(3)
 })
+
+test('the Influencer view keys both boxes to the influencer keys and composes the influencer template', async () => {
+  const el = OrganicSocialReport({ clientSlug: 'client-a', channel: null, view: 'influencer' })
+  const headers = findAllByName(el, 'SharedPartsHeader')
+  expect(headers.map((h) => h.props.viewKey)).toEqual(['organic-social:influencer', 'organic-social:influencer'])
+  const registry = await import('@/lib/report-sections/registry')
+  const asked: string[] = []
+  const spy = vi.spyOn(registry, 'lookup').mockImplementation((_reg, id, version) => { asked.push(`${id}@${version}`); return { render: () => null } as never })
+  getSectionTemplate.mockResolvedValue(null)
+  getClientBySlug.mockResolvedValue({ slug: 'client-a', dashSocialConfig: { brandId: 1 }, reportSectionConfig: {} })
+  await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'client-a', channel: null, view: 'influencer' }) })
+  expect(asked).toEqual(['influencer-posts@1'])
+  expect(getSectionTemplate).toHaveBeenCalledWith('organic-social:influencer')
+  spy.mockRestore()
+})
