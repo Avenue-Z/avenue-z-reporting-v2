@@ -12,6 +12,7 @@ import { followerGraphV1, followerGraphV2 } from './follower-graph'
 import { topContentV1, topContentV2 } from './top-content'
 import { topContentV3 } from './top-content-outline'
 import { influencerPostsV1 } from './influencer-posts'
+import { kpiCheckInV1 } from './kpi-check-in'
 
 const BASE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'platform-headlines': { 1: platformHeadlinesV1 },
@@ -30,6 +31,8 @@ const OUTLINE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'top-content': { 3: topContentV3 },
   // The Influencer tab's part (10/6 calls), composed by the 'organic-social:influencer' template.
   'influencer-posts': { 1: influencerPostsV1 },
+  // The KPI Check-In (10/6 calls), pinned on one client's Overview through extraParts.
+  'kpi-check-in': { 1: kpiCheckInV1 },
 }
 
 export const ORGANIC_SOCIAL_PARTS: PartRegistry<OrganicSocialCtx> = mergeRegistries(BASE_PARTS, OUTLINE_PARTS)
