@@ -11,7 +11,7 @@ export async function BreakdownSection({ ctx, channel, rows }: { ctx: OrganicSoc
   const r = await safe(getOutlineKpis(ctx.clientSlug, ctx.dateRange, ctx.compareRange, channel).then((b) => selectOutlineRows(channel, b, rows)))
   if (!r.data) return <Fallback kind={r.error!} />
   // No data: the Data block above already says so, once.
-  return r.data.noData ? null : <OutlineTiles kpis={r.data.kpis} />
+  return r.data.noData ? null : <OutlineTiles kpis={r.data.kpis} channel={channel} />
 }
 
 function BreakdownSkeleton() {

@@ -27,6 +27,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Total Followers
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The total number of followers you have on this channel.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -54,6 +71,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Net New Followers
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The net new number of people who have followed your account.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -72,6 +106,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Views
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The number of times your posts were viewed or displayed.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -96,6 +147,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagements
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The total number of engagements your posts received. Organic Likes + Saves + Comments + Shares + Reposts.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -120,6 +188,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagement Rate
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The percentage of people who engaged with your posts after seeing them.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -160,6 +245,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Total Followers
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The total number of followers you have on this channel.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -184,6 +286,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Net New Followers
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The net new number of people who have followed your account.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -202,6 +321,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Views
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The number of times your posts were viewed or displayed.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -226,6 +362,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagements
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The total number of engagements your posts received. Organic Reactions + Comments + Shares + Post Clicks
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -250,6 +403,23 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagement Rate
             </p>
+            <div
+              class="group relative flex-shrink-0"
+            >
+              <span
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted"
+              >
+                ?
+              </span>
+              <div
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100"
+              >
+                The percentage of people who engaged with your posts after seeing them.
+                <div
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </div>
+            </div>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"

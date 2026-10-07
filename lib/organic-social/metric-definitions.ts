@@ -61,6 +61,8 @@ export const ORGANIC_SOCIAL_DEFINITIONS: Record<DashChannel, Record<string, stri
 /** The "Top Performing Posts" line of the appendix, for the section heading. */
 export const TOP_POSTS_DEFINITION = 'Top Performers by metric (Views/Engagements)'
 
-export function metricDefinition(channel: DashChannel, key: string): string | undefined {
-  return ORGANIC_SOCIAL_DEFINITIONS[channel]?.[key]
+/** The text for a tile, or undefined (a row with no appendix text, or a channel name the appendix does not cover). The
+ *  channel is a string because the shared headline type carries it as one (lib/organic-social/types.ts). */
+export function metricDefinition(channel: string, key: string): string | undefined {
+  return (ORGANIC_SOCIAL_DEFINITIONS as Record<string, Record<string, string>>)[channel]?.[key]
 }

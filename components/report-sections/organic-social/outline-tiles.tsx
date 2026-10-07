@@ -2,6 +2,7 @@ import { KpiCard } from '@/components/charts/kpi-card'
 import { num } from '@/lib/organic-social/base'
 import { pctCompact } from '@/lib/organic-social/format'
 import { expectsComparison } from '@/lib/organic-social/metrics'
+import { metricDefinition } from '@/lib/organic-social/metric-definitions'
 import type { OutlineHeadline, OutlineKpi } from '@/lib/organic-social/outline-headlines'
 import { NoData } from './no-data'
 import { gridColsBase, gridColsMd } from './platform-headlines'
@@ -12,17 +13,19 @@ const BLANK = '\u00A0'
 /** Tiles in a grid with no heading, for the metrics directly under the engagement graph. The
  *  cards are drawn as the shared tiles draw them, except that a change shows as a whole number
  *  (Jasmine, 2026-09-29). A flagged row (a metric Dash does not offer) is a blank card with its
- *  flag and no change arrow. */
-export function OutlineTiles({ kpis }: { kpis: OutlineKpi[] }) {
+ *  flag and no change arrow. Every tile carries its appendix definition as a hover badge (metric-definitions.ts);
+ *  a row with no text gets no badge. */
+export function OutlineTiles({ kpis, channel }: { kpis: OutlineKpi[]; channel: string }) {
   const n = kpis.length
   return (
     <div className={`grid ${gridColsBase(n)} gap-3 ${gridColsMd(n)}`}>
       {kpis.map((k) => k.value === null ? (
-        <KpiCard key={k.key} title={k.label} value={BLANK} subValue={k.unavailable} />
+        <KpiCard key={k.key} title={k.label} value={BLANK} subValue={k.unavailable} tooltip={metricDefinition(channel, k.key)} />
       ) : (
         <KpiCard
           key={k.key}
           title={k.label}
+          tooltip={metricDefinition(channel, k.key)}
           value={k.format === 'percent' ? pctCompact(k.value) : num(k.value)}
           delta={k.delta}
           wholeDelta
@@ -43,7 +46,7 @@ export function OutlineHeadlines({ headline }: { headline: OutlineHeadline }) {
     <div className="space-y-6">
       <section className="space-y-3">
         <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Data</h3>
-        {headline.noData ? <NoData /> : <OutlineTiles kpis={headline.kpis} />}
+        {headline.noData ? <NoData /> : <OutlineTiles kpis={headline.kpis} channel={headline.channel} />}
       </section>
     </div>
   )

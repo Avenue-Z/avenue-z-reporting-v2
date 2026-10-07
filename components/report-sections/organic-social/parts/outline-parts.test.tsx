@@ -64,7 +64,8 @@ test('the Data part shows the outline rows, Video Views from Views on Reels, and
   expect(c.textContent).toContain('Profile Views')
   expect(card(c, 'Video Views')!.textContent).toContain('1,234')
   expect(getOutlineMediaKpis).toHaveBeenCalledWith(IG.clientSlug, IG.dateRange, IG.compareRange, 'INSTAGRAM')
-  for (const gone of ['Likes', 'Saves', 'Reposts']) expect(c.textContent).not.toContain(gone)
+  // Tiles by title, not substrings: the engagements definition text legitimately contains "Likes".
+  for (const gone of ['Likes', 'Saves', 'Reposts']) expect(card(c, gone)).toBeFalsy()
 })
 
 test('a failed Views on Reels request flags only its row, and says so once in the log', async () => {
@@ -212,7 +213,7 @@ test('with no data, a tab with a flagged row shows only the no-data card, as the
 })
 
 test('a flagged row under the graph is a blank tile with the flag too', () => {
-  const c = render(<OutlineTiles kpis={[
+  const c = render(<OutlineTiles channel="INSTAGRAM" kpis={[
     { key: 'likes', label: 'Likes', format: 'number', value: 7 },
     { key: 'reposts', label: 'Reposts', format: 'number', value: null, unavailable: NOT_IN_DASH },
   ]} />).container
@@ -221,7 +222,7 @@ test('a flagged row under the graph is a blank tile with the flag too', () => {
 })
 
 test('outline tiles show percent changes as whole numbers, the arrow following the rounded value', () => {
-  const c = render(<OutlineTiles kpis={[
+  const c = render(<OutlineTiles channel="INSTAGRAM" kpis={[
     { key: 'views', label: 'Views', format: 'number', value: 100, delta: 6.34 },
     { key: 'likes', label: 'Likes', format: 'number', value: 100, delta: 0.04 },
   ]} />).container
