@@ -11,7 +11,8 @@ test('a well-formed body parses', () => {
 
 // A page loaded before the export took a section posts none; its button was Organic Social's.
 test('a body with no section is Organic Social', () => {
-  const { section: _, ...old } = ok
+  const old: Partial<ExportRequest> = { ...ok }
+  delete old.section
   expect(parseExportRequest(old)).toEqual(ok)
 })
 
