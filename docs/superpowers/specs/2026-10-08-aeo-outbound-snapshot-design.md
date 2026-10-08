@@ -96,7 +96,7 @@ and with the `TEAMS` entry it reads "New Business" (`:924-925`).
 ## 5. The report page (AIVx design)
 
 One HTML document. `<head>` follows `aivx:renderer.py:2530-2541` exactly, except: title `AI Visibility Snapshot: {brand} | Avenue Z`;
-no canonical link; no `report-editor.css` or `report-editor.js`; `<meta name="robots" content="noindex,nofollow">`; the `<meta name="description">` at `aivx:renderer.py:2538` reads `AI Visibility Snapshot for {brand}. Powered by Avenue Z AEO Intelligence.` The body is
+no canonical link; no `report-editor.css` or `report-editor.js`; the Plotly tag gains `integrity="sha384-DPvk2KODrsA0CfBr4HTwAwhdDROPqqK2PvSSswJMQMpnUkwSTg4gLBxXc3wv2e5L"` (Subresource Integrity, measured 2026-10-08), invisible on the page; `<meta name="robots" content="noindex,nofollow">`; the `<meta name="description">` at `aivx:renderer.py:2538` reads `AI Visibility Snapshot for {brand}. Powered by Avenue Z AEO Intelligence.` The body is
 `.sidebar` plus `.main`, as at `aivx:renderer.py:2542-2554`. Sections in order, each mapped to an existing AIVx block:
 
 | # | Ryan's section | AIVx block (builder) | Content |
@@ -266,7 +266,7 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
 - **What the recipient can reach:** only that document. The links in it are `#section` anchors, `avenuez.com`, and the
   share button, which copies the current URL (`aivx:renderer.py:2557-2614`, toast element plus script, minus the canonical tag). It has no
   link into the app, no data request, and no script from our origin.
-- **Writes from the browser** (`POST /generate`, `PATCH /slots`, server actions) are refused with 403 when an `Origin` header is present and isn't the app's own origin (`APP_URL` / `NEXT_PUBLIC_APP_URL`, `.env.example:27-28`).
+- **Writes from the browser** (`POST /generate`, `PATCH /slots`, server actions) are refused with 403 when an `Origin` header is present and its host isn't the request's own `Host`. Comparing to the request's host, not `APP_URL`, keeps Vercel preview deployments working; an attacker's page can't make a victim's browser send a matching Origin.
 - **Draft view `/api/aeo-outbound/reports/{id}/view`:** staff plus allowlist, `no-store`, and the response header
   `Content-Security-Policy: sandbox allow-scripts`. That way **Open full size**, which opens the URL directly in a tab,
   also runs with an opaque origin. T2 checks that this renders. The editor fetches it with its
