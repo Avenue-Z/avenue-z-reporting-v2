@@ -124,8 +124,12 @@ others are not linked), with "View post ↗" styled as a link.
 - **Independent review (executed):** a separate reviewer agent read the full diff for correctness and security
   and probed its findings. 2 confirmed correctness defects, 3 plausible, 5 cleanups; security clean. All are
   in §3 (R-series) with what was done.
-- **Not verified (flagged, not asserted):** Chromium actually launching inside a Vercel function (needs a signed-in
-  session on a deployment; not forged), cold-start time, and Safari/Firefox. The render runs on the server, but the download runs in the user's browser:
+- **Real export on Vercel (executed):** Paul, signed in on the `565c45b` preview, exported Renaissance's Overview.
+  The function logged `[export] client=renaissance view=overview outcome=ok ms=9183` (9.2 s including the cold
+  start). The PDF: 11 Letter-landscape pages, 2.47 MB, 69 JPEG images, 68 links, producer `Skia/PDF m153`
+  (`@sparticuz/chromium`'s Chromium 153, so it launched inside the function).
+- **Not verified (flagged, not asserted):** the function's memory under that export (the Observability tab only),
+  and Safari/Firefox. The render runs on the server, but the download runs in the user's browser:
   the link is now attached to the page for the click (`565c45b`), which older Firefox needed. Neither current
   Firefox nor Safari has been run.
 
@@ -158,7 +162,7 @@ R = raised by the independent reviewer agent; T = raised by Thomas on #332; othe
 | 1 | ● | CONFIRMED | `post-card.tsx` (export) | Square images made a card row 387 px, so every row took a page (16 pages). | **Fixed** `bd10390`: 4:3, 11 pages |
 | 2 | ● | CONFIRMED | route, local runs | The local self-load followed `.env.local`'s `APP_URL=:3000` to the wrong port. | Operator note |
 | 3 | ● | CONFIRMED | merge with `dev` | `dev`'s month/day graph dates were not in the export path. | **Fixed** in merge `750065e` |
-| 4 | ● | PLAUSIBLE | `launchChromium` on Vercel | Chromium has not been launched inside a Vercel function yet. | **Open**: check on deploy |
+| 4 | ● | CONFIRMED | `launchChromium` on Vercel | Chromium had not been launched inside a Vercel function. | **Verified** on the `565c45b` preview: `outcome=ok ms=9183`, producer `Skia/PDF m153` |
 | 5 | ○ | CONFIRMED | outline parts | `ytd-review*`, `engagement-breakdown`, outline `platform-headlines` have no block structure. | Follow-up |
 | 6 | ○ | CONFIRMED | `sortable-top-content.tsx` | The export prints each platform's first carousel page in the default sort. | By design (spec) |
 | 7 | ○ | CONFIRMED | Renaissance config | Renaissance shows no annotations until `engagement-trend@2` / `follower-graph@2` are pinned. | Config follow-up |
@@ -210,17 +214,19 @@ Vercel; local runs set `APP_URL` to the port they serve on.
 kept ISO ticks and `Sep 10`. *Fixed in the merge commit;* the export annotation test pins both.
 
 **#4 — Chromium on Vercel.** The preview build traced `@sparticuz/chromium`'s binary into the route and kept both
-packages external, and the deployed route runs (its own 403 to an unauthenticated POST). Launching Chromium there
-needs a signed-in session on a deployment; none was forged. *Check:* one Export PDF on the preview or staging
-deploy; if it fails, the log line names the step.
+packages external. *Verified (2026-10-07):* a signed-in export on the `565c45b` preview logged `outcome=ok ms=9183`,
+and the PDF's producer is `Skia/PDF m153`, the serverless Chromium. Still to read: the function's memory on the
+Observability tab (Thomas: Fluid compute can put two concurrent exports, two Chromiums, on one 2 GB instance).
 
 ---
 
 ## §5 Follow-ups
 
-**Needs a live check first (blocks the ship)**
-- **#4:** one Export PDF on the preview or staging deploy as a signed-in user, confirming Chromium launches inside the
-  function, the PDF downloads, and the log line reads `outcome=ok`. Highest value: it is the only path not yet run.
+**Done**
+- **#4:** a signed-in Export PDF on the `565c45b` preview: `outcome=ok` in 9.2 s, the named PDF downloaded.
+
+**Needs a look (does not block)**
+- The export function's memory on Vercel's Observability tab, for the concurrent-exports question.
 
 **Decide together**
 - **#7:** pin `engagement-trend@2` / `follower-graph@2` for Renaissance if its exports should carry annotations
