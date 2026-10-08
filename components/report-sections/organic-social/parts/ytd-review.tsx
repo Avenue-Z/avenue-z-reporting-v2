@@ -48,10 +48,10 @@ export async function YtdReviewSection({ ctx }: { ctx: OrganicSocialCtx }) {
     : <LineChart data={data} xKey="month" yKeys={yKeys} />
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
+      <h2 data-export-keep-with-next="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
       <div className="grid gap-5 lg:grid-cols-2">
-        <ChartCard title="Follower Growth, Year to Date">{chart(followerKeys)}</ChartCard>
-        <ChartCard title="Views, Year to Date">{chart(viewKeys)}</ChartCard>
+        <div data-export-block=""><ChartCard title="Follower Growth, Year to Date">{chart(followerKeys)}</ChartCard></div>
+        <div data-export-block=""><ChartCard title="Views, Year to Date">{chart(viewKeys)}</ChartCard></div>
       </div>
       {r.data.noData.length > 0 && <p className="text-xs text-text-muted">No data for {r.data.noData.join(', ')}</p>}
     </section>

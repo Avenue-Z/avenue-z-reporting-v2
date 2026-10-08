@@ -28,7 +28,8 @@ export async function SharedPartsHeader({
         if (!impl) return null // defensive; resolveSharedParts already guarantees presence
         return (
           <ReportErrorBoundary key={`${r.id}@${r.version}`} sectionName={`Commentary (${r.id})`}>
-            <Suspense fallback={null}>{impl.render(ctx, r)}</Suspense>
+            {/* Invisible, but marks the part as still loading for the PDF export (lib/export/readiness.ts). */}
+            <Suspense fallback={<span data-export-pending="" hidden />}>{impl.render(ctx, r)}</Suspense>
           </ReportErrorBoundary>
         )
       })}

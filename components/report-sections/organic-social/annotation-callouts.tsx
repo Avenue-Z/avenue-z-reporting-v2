@@ -3,7 +3,9 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { setAnnotationHiddenAction } from '@/app/actions/organic-social'
-import { cardThumbs, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
+import { useExportMode } from '@/components/export/export-mode'
+import { printImageUrl } from '@/lib/export/print-image'
+import { cardThumbs, isClientVisible, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
 import { NoteActions } from './note-actions'
 import { CARD_PILL } from './pill'
@@ -12,7 +14,7 @@ const TILE = 'h-16 w-16 shrink-0 rounded-md'
 
 /** Only http(s) links are rendered. The URL comes from Dash, so a javascript: URL must never
  *  become an href. */
-const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : null)
+export const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : null)
 
 /** Same fallback as the Top Content card (post-card.tsx, Media): a missing or purged image
  *  shows the placeholder, never a broken image. onError catches a load that fails after
@@ -20,7 +22,9 @@ const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url
  *  with no poster keeps a muted video tile, as the card keeps a live video. */
 export function Picture({ creative, alt, tile = TILE }: { creative: Creative | null; alt: string; tile?: string }) {
   const [broken, setBroken] = useState(false)
-  if (broken || !creative) {
+  // In the PDF export a video cannot print a frame, and the image is fetched as a small JPEG (lib/export/print-image.ts).
+  const exportMode = useExportMode()
+  if (broken || !creative || (exportMode && creative.kind === 'video' && !creative.poster)) {
     return (
       <div className={`${tile} flex items-center justify-center bg-white/[0.04] p-1 text-center text-[9px] leading-tight text-text-muted`}>
         creative no longer available
@@ -36,7 +40,7 @@ export function Picture({ creative, alt, tile = TILE }: { creative: Creative | n
   const src = creative.kind === 'image' ? creative.thumb : creative.poster!
   return (
     <img
-      src={src}
+      src={exportMode ? printImageUrl(src, 160, 160) : src}
       alt={alt}
       className={`${tile} object-cover`}
       ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setBroken(true) }}
@@ -47,7 +51,7 @@ export function Picture({ creative, alt, tile = TILE }: { creative: Creative | n
 
 /** The annotation's own label describes the picture: no caption crosses the server to client
  *  boundary (only the day, the value and the thumbnail do). */
-function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
+export function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
   const picture = <Picture creative={thumb.creative} alt={alt} />
   const href = safeHref(thumb.url)
   return href ? <a href={href} target="_blank" rel="noopener noreferrer">{picture}</a> : picture
@@ -159,7 +163,7 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   // Hiding every card is not enough: the list is a non-last child of the chart's section, so
   // Tailwind still gives it a margin and the printed page keeps a gap where the row was. A
   // draft-only day prints nothing either.
-  const nothingPrintable = items.every((a) => a.hidden || (a.noteOnly && !a.note))
+  const nothingPrintable = !items.some(isClientVisible)
   return (
     <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
       {items.map((a) => (

@@ -234,3 +234,17 @@ test('version 1 (the fallback with no valid sheet) shows no notes and no panel',
   expect(getChartNotes).not.toHaveBeenCalled()
   expect(panels(el)).toEqual([])
 })
+
+// PDF export paging (spec 2026-10-06-organic-social-pdf-export-v2 §6; Thomas, #332 round 2, item 2): the section is taller
+// than a page, so it is not one block. Each card is, and the title is kept with the first card.
+test('export paging: the title is kept with the next block and each card is one block, in both versions', async () => {
+  readYtdTab.mockResolvedValue(sheet((i) => (i < 8 ? String(100 + i) : ''), (i) => (i < 8 ? String(10 + i) : '')))
+  getOutlineKpis.mockResolvedValue(kpis(900, 90))
+  const v2 = render(<>{await YtdSheetReviewSection({ ctx: SEPT })}</>).container
+  getClientBySlug.mockResolvedValue(client()) // no sheet entry: version 1
+  const v1 = render(<>{await YtdReviewSection({ ctx: SEPT })}</>).container
+  for (const c of [v2, v1]) {
+    expect(c.querySelector('h2')?.hasAttribute('data-export-keep-with-next')).toBe(true)
+    expect([...c.querySelectorAll('[data-export-block]')].map((b) => b.textContent?.match(/^[^,]+, Year to Date/)?.[0])).toEqual(['Follower Growth, Year to Date', 'Views, Year to Date'])
+  }
+})

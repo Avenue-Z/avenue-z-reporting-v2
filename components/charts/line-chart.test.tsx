@@ -3,23 +3,28 @@ import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
 import { CHART_COLORS } from '@/lib/constants'
 import type { ReactElement } from 'react'
+import { ExportModeProvider } from '@/components/export/export-mode'
 
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts')
   const { cloneElement } = await import('react')
   // Records the props the chart hands Recharts' Tooltip, then renders the real one.
   const Tooltip = (props: Record<string, unknown>) => { tooltipProps.push(props); return <actual.Tooltip {...props} /> }
+  // Records each Line's props too (the export turns animation off), then renders the real one. Recharts
+  // finds its children by type, so the recorder carries the real component's displayName.
+  const Line = Object.assign((props: Record<string, unknown>) => { lineProps.push(props); return <actual.Line {...props} /> }, { displayName: actual.Line.displayName })
   // Records the props the chart hands Recharts' XAxis, then renders the real one.
   const XAxis = (props: Record<string, unknown>) => { xAxisProps.push(props); return <actual.XAxis {...props} /> }
   return {
     ...actual,
     Tooltip,
+    Line,
     XAxis,
     ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
       cloneElement(children, { width: 800, height: 300 }),
   }
 })
-const { tooltipProps, xAxisProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[], xAxisProps: [] as Record<string, unknown>[] }))
+const { tooltipProps, lineProps, xAxisProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[], lineProps: [] as Record<string, unknown>[], xAxisProps: [] as Record<string, unknown>[] }))
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
@@ -513,6 +518,49 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(container.querySelector('[data-callout-hit]')).toBeNull()
     expect(container.querySelector('[data-callout-card]')).toBeNull()
     expect(container.querySelector('.relative')).toBeNull()
+  })
+})
+
+describe('in the PDF export', () => {
+  const DAYS = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04']
+  const DATA = DAYS.map((date, i) => ({ date, v: [3, 9, 4, 7][i] }))
+  const exportRender = (ui: ReactElement) => render(<ExportModeProvider>{ui}</ExportModeProvider>)
+
+  test('lines draw complete on first paint, and the panel keeps its dark theme', () => {
+    lineProps.length = 0
+    const { container } = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect(lineProps.length).toBeGreaterThan(0)
+    expect(lineProps.every((p) => p.isAnimationActive === false)).toBe(true)
+    expect(container.querySelector('[data-export-chart]')).not.toBeNull()
+  })
+
+  test("a mark's label is drawn at its point", () => {
+    const { container } = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1], label: '1' }, { x: DAYS[3], label: '2' }]} />)
+    // Recharts 3 draws a reference dot's label in its own label layer, not inside the dot's group.
+    const labels = [...container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)
+    expect(labels).toEqual(['1', '2'])
+  })
+
+  // A YTD graph hands its approved notes' dots without labels; in the export they are numbered in the order given, which
+  // is the order the notes panel numbers them in (ytd-notes-panel.tsx). Labels given explicitly are kept.
+  test('unlabelled marks are numbered in the order given; given labels are kept', () => {
+    const numbered = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1] }, { x: DAYS[3] }]} />)
+    expect([...numbered.container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)).toEqual(['1', '2'])
+    numbered.unmount()
+    const given = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1], label: '4' }]} />)
+    expect([...given.container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)).toEqual(['4'])
+  })
+
+  test('outside the export a mark has no number', () => {
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1] }]} />)
+    expect(container.querySelectorAll('text.recharts-label')).toHaveLength(0)
+  })
+
+  test('outside the export nothing changes: animation stays on and no panel marker', () => {
+    lineProps.length = 0
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect(lineProps.every((p) => p.isAnimationActive !== false)).toBe(true)
+    expect(container.querySelector('[data-export-chart]')).toBeNull()
   })
 })
 
