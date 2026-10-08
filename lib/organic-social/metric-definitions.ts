@@ -15,7 +15,7 @@ const LIKES = 'The number of likes your posts received.'
 const COMMENTS = 'The number of comments your posts received.'
 const SHARES = 'The number of times your posts were shared.'
 // The appendix writes this line for X; the profileClicks variant's Instagram Data block draws the same row, with no Instagram line in the
-// appendix, so it is reused there (Thomas, 2026-10-07).
+// appendix, so it is reused there (my call, 2026-10-07).
 const PROFILE_CLICKS = 'The number of times your profile has been clicked from your posts.'
 const engagements = (formula: string) => `The total number of engagements your posts received. ${formula}`
 

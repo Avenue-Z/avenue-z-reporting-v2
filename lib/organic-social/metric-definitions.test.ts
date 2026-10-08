@@ -16,7 +16,7 @@ test('every row an outline tab draws, on every outline variant, has a definition
 })
 
 // The profileClicks variant's Instagram Data block draws Profile Clicks, which the appendix defines for X only.
-// The X sentence names no platform, so it is reused (Thomas, 2026-10-07, on Paul's #335 review, item 9).
+// The X sentence names no platform, so it is reused (my call, 2026-10-07, on Paul's #335 review, item 9).
 test('Instagram Profile Clicks reuses the appendix line written for X', () => {
   expect(metricDefinition('INSTAGRAM', 'profileClicks')).toBe(metricDefinition('TWITTER', 'profileClicks'))
 })

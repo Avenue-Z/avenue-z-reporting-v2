@@ -65,7 +65,7 @@ export async function loadDesignations(clientSlug: string, postIds: number[]): P
 
 /** top-content@2: the card gallery (owned + a separate Influencer section), backed by the
  *  snapshot-aware frozen fetch, split live by post_designations. Its toolbar offers the two outline sorts, Engagements
- *  and Views, which the heading hint names (Thomas, 2026-10-07); sorting is in the browser only. Exported for the golden test,
+ *  and Views, which the heading hint names (my call, 2026-10-07); sorting is in the browser only. Exported for the golden test,
  *  which awaits its resolved output directly (RTL does not render an async child's output). */
 export async function TopContentV2Section({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
   const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel))
