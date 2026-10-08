@@ -1,8 +1,9 @@
 # Code Review Record — `feat/organic-social-pdf-export-v2` (PR #332)
 
 **Feature under review:** PR #332 — `feat(export): server-rendered Organic Social PDF export (v2)`
-**Diff range reviewed:** `0b5a0a9..565c45b`: #320's three commits (`9139d53`, `4cf432b`, `4a62416`), the v2 commits
-(`bc146d3`..`5f0a882`, `b2f00d2`, `e4f4729`, and `565c45b` for Thomas's review), and the merge of `dev` (`750065e`) that cleared a conflict. The merge
+**Diff range reviewed:** `0b5a0a9..5e84ac4`: #320's three commits (`9139d53`, `4cf432b`, `4a62416`), the v2 commits
+(`bc146d3`..`5f0a882`, `b2f00d2`, `e4f4729`, `565c45b` for Thomas's first review, and `2a9bbe8`..`5e84ac4` for his
+second), and the merge of `dev` (`750065e`) that cleared a conflict. The merge
 brings in other merged work from `dev`, which is out of scope here except where it touched this feature (§3 #3).
 **Supersedes:** PR #320 and its record PR #321 (`docs/qa/organic-social-pdf-export-code-review.md`), whose findings
 carry forward where still relevant.
@@ -15,14 +16,16 @@ Files in scope (v2; #320's are listed in #321):
 |---|---|
 | `app/api/export/pdf/route.ts` | new — POST: validate, authorise (portal rule), render, respond, log |
 | `app/export/[clientSlug]/organic-social/page.tsx` | new — the export page |
-| `app/export/export-theme.css` | new — scoped light theme + `[data-export-block]` / `[data-export-hide]` |
+| `app/export/export-theme.css` | new — scoped light theme + `[data-export-block]` / `[data-export-hide]` / `[data-export-keep-with-next]`, `.no-print` backstop |
 | `lib/export/{readiness,request,filename,organic-social-view,render-pdf}.ts` | new — readiness, request validation, filename/stamp, view, Chromium rendering |
 | `components/export/export-mode.tsx` | new — `ExportModeProvider`, `useExportMode`, `ExportReadyReporter` |
 | `components/charts/line-chart.tsx` | `ChartMark.label`; export: no animation, dark-panel marker |
 | `components/report-sections/organic-social/{trends,export-annotations,annotation-callouts}.tsx` | export rendering of charts + annotations; `safeHref`/`Thumb` exported |
 | `components/report-sections/organic-social/{sortable-top-content,post-card}.tsx`, `parts/top-content.tsx` | export rendering of Top Content |
 | `components/report-sections/organic-social/{skeletons,platform-headlines,outline-tiles}.tsx`, `shared/shared-parts-header.tsx` | pending + block markers |
-| `components/report-sections/commentary/commentary-panel.tsx` | export: approved entry for the page's period |
+| `components/report-sections/commentary/{commentary-panel,index,monthly}.tsx`, `lib/commentary/month.ts` | export: the client's entry, chosen server-side (`clientEntryId`, `clientMonthEntry`) |
+| `components/report-sections/organic-social/ytd-notes-panel.tsx` | export form: approved notes only, numbered like their marks |
+| `components/report-sections/organic-social/{index.tsx,parts/export-layout.ts}`, `parts/ytd-review{,-sheet}.tsx` | how each part pages: own blocks, or wrapped whole; YTD cards as blocks, title kept with the first |
 | `components/export-pdf-button.tsx`, `app/{portal,dashboard}/[clientSlug]/reports/page.tsx` | server export on Organic Social |
 | `lib/organic-social/annotations.ts` | `isClientVisible` |
 | `lib/auth/route-access.ts`, `proxy.ts` | `/export/<slug>` under the portal rule |
@@ -105,9 +108,12 @@ others are not linked), with "View post ↗" styled as a link.
   - the approved-only commentary rule;
   - the chart's animation-off flag;
   - the `break-inside` rule (in the acceptance script, below).
-- **Parity:** `locked-months-parity` snapshots change only by `serverExport` on Organic Social. Other sections'
-  route trees are unchanged (the prop is spread only there). Organic Social skeleton goldens change only by the
-  new attributes (checked line by line).
+- **Parity (T16, probed):** every `locked-months-parity` hash changed, because each hashes a whole route tree and
+  the Export PDF button is in every tree (#320's `periodLabel`/`pageTitle`, #320 adding it to the staff dashboard
+  SPA, then `serverExport`). A throwaway probe hashed every case with the `ExportPdfButton` element removed, on this
+  branch and on `dev`'s merge-base (`4a46956`), with the same pinned clock. All 232 cases, both representative trees,
+  and the other-section case were identical. Organic Social skeleton goldens change only by the new attributes
+  (checked line by line). `commentary-parity` gained 48 lines, all `"clientEntryId": "sep"`, and nothing else.
 - **Acceptance, real Chromium** (`npm run e2e:export`, local):
   - Fixture through the real `renderPdf` and theme: every block on one page, every title with its first block,
     nothing outside the content box (2 pt glyph tolerance, measured), an oversized block split, never-ready →
@@ -115,6 +121,16 @@ others are not linked), with "View post ↗" styled as a link.
   - Live route on a local production build as a Renaissance client: 200 in ~3.5 s,
     `Renaissance – Organic Social – <date>.pdf`, stamped, inside the box, **66/66 posts linked**, 11 pages,
     **2.50 MB** (gated under Vercel's 4.5 MB; all 67 images embedded as JPEG).
+- **Round 2, executed at `5e84ac4`:** `npx vitest run` 2327/2327, `tsc` clean, no lint errors in changed files.
+  - `npm run e2e:export` adds a keep-with-next fixture with a control. Without the attribute, the title ends page 1
+    alone (1 / 2); with it, the title moves with its card (2 / 2).
+  - The live run adds A Place for Mom's Instagram tab (locked months, YTD v1, breakdown, annotations; August,
+    which both roles can see) as a staff editor and as a client. Both returned 200 in ~1.9 s, 8 pages, 1.16 MB,
+    inside the box, with no editor, draft or button text (`Draft|Approve|Revoke|Add annotation|Add commentary|Edit|Hidden`).
+  - The two print the same glyphs in order, with every page starting at the same y. Extracted word splits differ
+    only by sub-pixel placement (max 0.07 pt).
+  - Component tests as staff with every control: trend chart (list and marks equal the client's), YTD notes,
+    commentary, Top Content.
 - **Real click** (Chrome, client session, `/portal/renaissance/reports?section=organic-social`): "Preparing PDF…",
   then the named PDF downloaded in 5.5 s. Staff export of the LinkedIn tab checked visually (KPIs 5 across,
   follower graph in its dark panel).
@@ -149,7 +165,7 @@ R = raised by the independent reviewer agent; T = raised by Thomas on #332; othe
 | R4 | ● | PLAUSIBLE | `post-card.tsx` (export) | An image that failed before hydration printed as a broken icon, not the placeholder. | **Fixed** `b2f00d2` |
 | R5 | ○ | PLAUSIBLE | `parts/engagement-breakdown.tsx` | Its skeleton had no pending marker. | **Fixed** `e4f4729` |
 | R6 | ○ | CONFIRMED | `parts/top-content-outline.tsx` | `top-content@3`'s title could end a page alone. | **Fixed** `e4f4729` |
-| R7 | ○ | CONFIRMED | `trends.tsx` (export) | An annotation on a day with no point on the series is numbered in the list but has no mark on the chart. | Kept, documented (§4) |
+| R7 | ○ | CONFIRMED | `trends.tsx` (export) | An annotation on a day with no point on the series is numbered in the list but has no mark on the chart. | **Fixed** `2a9bbe8` (T10): listed, unnumbered |
 | R8 | ○ | PLAUSIBLE | `export-pdf-button.tsx` | The blob URL was revoked right after `click()`. | **Fixed** `e4f4729` |
 | R9 | ○ | PLAUSIBLE | `render-pdf.ts` `launchChromium` | Launch options differed from `@sparticuz/chromium`'s README (`headless: true`). | **Fixed** `e4f4729` (README form) |
 | R10 | ○ | PLAUSIBLE | route `baseUrl` | Off Vercel without `APP_URL`, the self-load trusted the request's Host header. | **Fixed** `e4f4729`: not in production |
@@ -159,11 +175,22 @@ R = raised by the independent reviewer agent; T = raised by Thomas on #332; othe
 | T4 | ○ | PLAUSIBLE | `export-pdf-button.tsx:95` | A malformed `filename*` made `decodeURIComponent` throw, reporting a finished PDF as a failure. | **Fixed** `565c45b`: falls back to the ASCII name |
 | T5 | ○ | PLAUSIBLE | `export-pdf-button.tsx:94` | The download link was clicked detached from the page, which older Firefox does not download. | **Fixed** `565c45b`; current Firefox not run |
 | T6 | ○ | CONFIRMED | `app/export/…/page.tsx:41` | The export page resolved the tab twice (correctness-neutral). | **Fixed** `565c45b`: one lookup returns the channel |
+| T7 | ● | CONFIRMED | `ytd-notes-panel.tsx:30`, `export-theme.css:31` | **Blocker.** A staff export printed the YTD notes editor: `Draft: <text>` and Approve/Delete. Its wrapper is `no-print`, which applies only under `@media print`, and the export renders in screen media. | **Fixed** `2a9bbe8`: export form + `.no-print` backstop |
+| T8 | ● | CONFIRMED | `organic-social/index.tsx:103` | Parts with no export form were not unbreakable blocks: a YTD title could end a page alone, and a card or tile row could split. | **Fixed** `e08da91`: `parts/export-layout.ts` (supersedes #5) |
+| T9 | ● | CONFIRMED | `commentary-panel.tsx:227` | The export re-picked the newest approved entry. A locked-months client opens on `pickMonthDefault` (a whole-month entry wins), so Sep 15–30 printed where the client sees Sep 1–30. | **Fixed** `b5c8b3d`: chosen server-side |
+| T10 | ○ | CONFIRMED | `trends.tsx:258` | Marker numbers could skip on the chart while the list ran 1 to n. | **Fixed** `2a9bbe8` |
+| T11 | ● | CONFIRMED | `ytd-notes.ts` | An approved YTD note on a data point went only to the chart's hover, so it printed as a bare dot. | **Fixed** `2a9bbe8`: numbered marks + list |
+| T12 | ● | CONFIRMED | `e2e/export/acceptance.mts:1` | The tests missed the paths above: live run on Overview only, no staff export, no platform tab, YTD or locked month. | **Fixed** `782a8a7` (§2) |
+| T13 | ○ | PLAUSIBLE | `render-pdf.ts:17`, `:109` | The budgets started after auth and the DB read, and `browser.close()` had no bound. | **Fixed** `5e84ac4`: `startedAt`; close raced 3 s, then SIGKILL |
+| T14 | ○ | CONFIRMED | `route.ts:89` | Setup calls logged `step=unknown`; a not-ready export logged no step. | **Fixed** `5e84ac4`: `step=setup`; `step=navigate`/`ready` |
+| T15 | ○ | PLAUSIBLE | `route.ts:40` | No per-user concurrency or rate limit; each request holds a Chromium for up to ~58 s. | Follow-up (§5) |
+| T16 | ○ | CONFIRMED | `locked-months-parity.test.tsx.snap` | Every hash was re-baselined, which could hide another change. | **Verified safe** (§2): identical to `dev` with the button removed |
+| 10 | ● | CONFIRMED | `export-annotations.tsx:24` | Found by T12's live run: the export list printed each annotation's day twice (`8/25 · 8/25 \| +42 Followers`), because a label already starts with its day. Unit fixtures used invented labels. | **Fixed** `782a8a7` |
 | 1 | ● | CONFIRMED | `post-card.tsx` (export) | Square images made a card row 387 px, so every row took a page (16 pages). | **Fixed** `bd10390`: 4:3, 11 pages |
 | 2 | ● | CONFIRMED | route, local runs | The local self-load followed `.env.local`'s `APP_URL=:3000` to the wrong port. | Operator note |
 | 3 | ● | CONFIRMED | merge with `dev` | `dev`'s month/day graph dates were not in the export path. | **Fixed** in merge `750065e` |
 | 4 | ● | CONFIRMED | `launchChromium` on Vercel | Chromium had not been launched inside a Vercel function. | **Verified** on the `565c45b` preview: `outcome=ok ms=9183`, producer `Skia/PDF m153` |
-| 5 | ○ | CONFIRMED | outline parts | `ytd-review*`, `engagement-breakdown`, outline `platform-headlines` have no block structure. | Follow-up |
+| 5 | ○ | CONFIRMED | outline parts | `ytd-review*`, `engagement-breakdown`, outline `platform-headlines` have no block structure. | **Fixed** `e08da91` (T8) |
 | 6 | ○ | CONFIRMED | `sortable-top-content.tsx` | The export prints each platform's first carousel page in the default sort. | By design (spec) |
 | 7 | ○ | CONFIRMED | Renaissance config | Renaissance shows no annotations until `engagement-trend@2` / `follower-graph@2` are pinned. | Config follow-up |
 | 8 | ○ | CONFIRMED | `e2e/export/acceptance.mts` | The acceptance run is local only (no Chromium in CI). | Recorded in §2 |
@@ -198,8 +225,23 @@ ready at 38 s still gets 17 s to print (tested). The render stays inside `maxDur
 
 **R7 — Off-chart annotations.** A client-visible annotation on a day with no point on the series (e.g. just before
 the month) is still listed and numbered, but has no mark. Dropping it would hide what the client sees on the live
-page (the live chart shows it in the row above the chart). *Kept;* the export annotation test pins marks for
-on-series days only. (The live acceptance run cannot check marks: Renaissance has no annotations, §3 #7.)
+page (the live chart shows it in the row above the chart). *Kept* in the list. Since `2a9bbe8` (T10), only marked annotations are numbered and an off-chart one is listed
+without a number, so the chart's numbers never skip.
+
+**T7 / T11 — YTD notes in the export.** `YtdNotesPanel` returns an export form whenever export mode is on, whatever
+the role. It lists the approved notes on points, numbered in mark order (the chart numbers its unlabelled marks the
+same way), then approved notes that aren't on a point, unnumbered. Each note is a block. `.export-theme .no-print`
+hides anything else marked live-only.
+
+**T8 — Paging every part.** `parts/export-layout.ts` classifies every registered part as `own` (it marks its own
+blocks) or `block` (wrapped whole; an unknown part is wrapped, fail-safe). A test holds the map to the registry, so a
+part can't be registered without a decision. YTD Review's cards are blocks and its title carries
+`data-export-keep-with-next` (`break-after: avoid`), verified in Chromium 153 against a control.
+
+**T9 — Commentary.** The server passes `clientEntryId`. Without locked months it is `pickDefaultEntry` over what a
+client gets. With them it is `clientMonthEntry`: none unless the served month is in the client's own list
+(`lockedRangeFor` with a client role), else `pickMonthDefault` with the client cutoff. For a client viewer it equals
+`initialId`. A month clients can't see yet prints no commentary.
 
 **#1 — One card row per page.** Measured at 979 px: card rows 387 px; two rows plus the gap (794 px) exceed the
 739 px page. *Fixed (`bd10390`):* 4:3 export images (rows 341 px); the same export went from 16 to 11 pages.
@@ -225,6 +267,13 @@ Observability tab (Thomas: Fluid compute can put two concurrent exports, two Chr
 **Done**
 - **#4:** a signed-in Export PDF on the `565c45b` preview: `outcome=ok` in 9.2 s, the named PDF downloaded.
 
+**Needs a live call first**
+- One signed-in Export PDF on the preview of `5e84ac4`: the round-2 commits have only run locally.
+
+**Follow-up (filed, not in #332)**
+- **T15:** one export at a time per user. This needs state shared across function instances (an in-memory lock holds
+  per instance only). Until then the cost is capped by `maxDuration` and the auth gate.
+
 **Needs a look (does not block)**
 - The export function's memory on Vercel's Observability tab, for the concurrent-exports question.
 
@@ -234,7 +283,6 @@ Observability tab (Thomas: Fluid compute can put two concurrent exports, two Chr
 - **#6:** whether the export should follow the on-screen carousel sort and page (would need the button to send them).
 
 **Cleanup**
-- **#5:** block structure for the outline parts when a client pinned to them starts exporting.
 - **#9:** add any new dark utility an Organic Social component gains to `export-theme.css`.
 - **#2:** note on `.env.example`'s `APP_URL` line that the PDF export's server browser loads from it, so a local
   server on another port needs it set to that port.
