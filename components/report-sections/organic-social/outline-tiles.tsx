@@ -44,7 +44,7 @@ export function OutlineTiles({ kpis, channel }: { kpis: OutlineKpi[]; channel: s
 export function OutlineHeadlines({ headline }: { headline: OutlineHeadline }) {
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
+      <section data-export-block="" className="space-y-3">
         <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Data</h3>
         {headline.noData ? <NoData /> : <OutlineTiles kpis={headline.kpis} channel={headline.channel} />}
       </section>

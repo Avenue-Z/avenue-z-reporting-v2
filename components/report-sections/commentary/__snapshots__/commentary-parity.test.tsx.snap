@@ -7,6 +7,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -125,6 +126,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -243,6 +245,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -283,6 +286,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -323,6 +327,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -377,6 +382,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -431,6 +437,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -549,6 +556,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -667,6 +675,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -707,6 +716,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -747,6 +757,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -801,6 +812,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -855,6 +867,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -973,6 +986,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1091,6 +1105,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1131,6 +1146,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1171,6 +1187,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1225,6 +1242,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1279,6 +1297,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1397,6 +1416,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1515,6 +1535,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1555,6 +1576,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1595,6 +1617,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1649,6 +1672,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1703,6 +1727,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1821,6 +1846,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1939,6 +1965,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -1979,6 +2006,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2019,6 +2047,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2073,6 +2102,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2127,6 +2157,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2245,6 +2276,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2363,6 +2395,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2403,6 +2436,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2443,6 +2477,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2497,6 +2532,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2551,6 +2587,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2669,6 +2706,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2787,6 +2825,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2827,6 +2866,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2867,6 +2907,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2921,6 +2962,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -2975,6 +3017,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -3093,6 +3136,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": true,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -3211,6 +3255,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -3251,6 +3296,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": false,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -3291,6 +3337,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {
@@ -3345,6 +3392,7 @@ exports[`what a client without reportingMonths hands the panel, per view key, em
       "canApprove": false,
       "canEdit": true,
     },
+    "clientEntryId": "sep",
     "clientSlug": "c",
     "entries": [
       {

@@ -68,7 +68,7 @@ export async function YtdSheetReviewSection({ ctx }: { ctx: OrganicSocialCtx }) 
 export function ytdReviewBlock(followers: YtdGraph, views: YtdGraph, notes?: YtdNotes) {
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
+      <h2 data-export-keep-with-next="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">YTD Review</h2>
       <div className="grid gap-5 lg:grid-cols-2">
         {graph('Follower Growth, Year to Date', 'followers', 'Total Followers', 'follower', followers, notes?.followers)}
         {graph('Views, Year to Date', 'views', 'Views', 'views', views, notes?.views)}
@@ -80,17 +80,20 @@ export function ytdReviewBlock(followers: YtdGraph, views: YtdGraph, notes?: Ytd
 /** One card. Lines through the months, as version 1; one point is drawn as bars, judged on this graph's own count.
  *  A plain function, not a component, so the returned tree holds the chart elements (as version 1's does). A line gets
  *  the approved notes as hover text and a dot (LineChart's `notes` and `marks`, only when there are any); the panel
- *  under the card holds the rest and, for editors, the controls (spec 2026-10-06-os-ytd-notes-design.md). */
+ *  under the card holds the rest and, for editors, the controls (spec 2026-10-06-os-ytd-notes-design.md). In the PDF export
+ *  the card is one unbreakable block and the notes under it page item by item (spec 2026-10-06-organic-social-pdf-export-v2 §6). */
 function graph(title: string, yKey: 'followers' | 'views', label: string, gapWord: string, g: YtdGraph, gn?: YtdGraphNotes) {
   const data = g.points.map((p) => ({ month: p.label, [yKey]: p.value }))
   const yKeys = [{ key: yKey, label }]
   return (
     <div key={yKey} className="space-y-2">
-      <ChartCard title={title}>
-        {data.length === 0 ? <NoData /> : data.length < 2
-          ? <BarChart data={data} xKey="month" yKeys={yKeys} />
-          : <LineChart data={data} xKey="month" yKeys={yKeys} {...(gn?.notes ? { notes: gn.notes } : {})} {...(gn?.marks ? { marks: gn.marks } : {})} />}
-      </ChartCard>
+      <div data-export-block="">
+        <ChartCard title={title}>
+          {data.length === 0 ? <NoData /> : data.length < 2
+            ? <BarChart data={data} xKey="month" yKeys={yKeys} />
+            : <LineChart data={data} xKey="month" yKeys={yKeys} {...(gn?.notes ? { notes: gn.notes } : {})} {...(gn?.marks ? { marks: gn.marks } : {})} />}
+        </ChartCard>
+      </div>
       {g.gaps.length > 0 && <p className="text-xs text-text-muted">No {gapWord} data for {g.gaps.join(', ')}</p>}
       {gn && <YtdNotesPanel notes={gn} title={title} />}
     </div>

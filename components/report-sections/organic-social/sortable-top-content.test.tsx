@@ -142,3 +142,15 @@ test('without hiddenInfluencer, or with no hidden posts, there is no control and
   const b = view({ hiddenInfluencer: [] })
   expect(b.container.querySelector('details')).toBeNull()
 })
+
+// Export PDF prints the page: a scrolling card row would be sliced at the page edge, so in print the
+// row wraps and each card takes a quarter of the row (less its share of the three 12px gaps), so four
+// fit across whatever width the print layout gives the row (every card on the page prints).
+test('in print a card row wraps instead of scrolling, with cards sized to fit four across', () => {
+  view({ owned: group(Array.from({ length: 6 }, (_, i) => mk(i + 1, 6 - i))) })
+  const card = screen.getByText('cap-1').closest('.rounded-xl') as HTMLElement
+  const row = card.parentElement!
+  expect(row.className).toMatch(/\bprint:flex-wrap\b/)
+  expect(row.className).toMatch(/\bprint:overflow-visible\b/)
+  expect(card.className).toContain('print:w-[calc(25%-9px)]')
+})

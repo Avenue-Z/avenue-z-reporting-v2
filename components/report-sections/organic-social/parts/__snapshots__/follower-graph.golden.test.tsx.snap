@@ -6,25 +6,31 @@ exports[`follower-graph@1 golden (Suspense skeleton) 1`] = `
 >
   <div
     class="animate-pulse rounded bg-white/[0.06] h-4 w-40"
+    data-export-pending=""
   />
   <div
     class="flex flex-wrap gap-2"
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+      data-export-pending=""
     />
   </div>
   <div
     class="animate-pulse rounded bg-white/[0.06] h-64 w-full !rounded-lg"
+    data-export-pending=""
   />
 </section>
 `;

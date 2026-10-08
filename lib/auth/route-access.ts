@@ -17,7 +17,7 @@ export function canOpenPortal(slug: string, who: Who): boolean {
   return isClientRole(who.role ?? '') && slug !== '' && slug === who.clientSlug
 }
 
-/** Who may open a path under /dashboard, /tools or /portal (the proxy's matcher). The same rule the
+/** Who may open a path under /dashboard, /tools, /portal or /export (the proxy's matcher). The same rule the
  *  layouts apply (they call isStaff and canOpenPortal), enforced where every request passes: staff reach everything, a client reaches only
  *  /portal/<its own slug>. A layout alone cannot guard a page, because a navigation request tells the
  *  server which layouts the browser already holds and Next skips rendering those. Each page also
@@ -26,5 +26,7 @@ export function routeAccess(pathname: string, session: Who | null): RouteAccess 
   if (!session) return 'login'
   if (isStaff(session)) return 'allow'
   const [, area, slug] = pathname.split('/')
-  return area === 'portal' && canOpenPortal(slug ?? '', session) ? 'allow' : 'unauthorized'
+  // /export/<slug> is the PDF export page (app/export), opened by the server's browser with the
+  // requester's own session: it follows the portal's rule exactly.
+  return (area === 'portal' || area === 'export') && canOpenPortal(slug ?? '', session) ? 'allow' : 'unauthorized'
 }
