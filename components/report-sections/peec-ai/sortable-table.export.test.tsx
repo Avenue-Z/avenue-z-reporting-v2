@@ -1,3 +1,6 @@
+'use client'
+// Renders SortableTable directly, as client code (scripts/check-rsc-props.ts reads a file without this directive as a
+// Server Component, and function props like rowKey cannot cross that boundary).
 import { expect, test } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
