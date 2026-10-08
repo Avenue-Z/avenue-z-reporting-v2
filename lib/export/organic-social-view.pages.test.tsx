@@ -43,9 +43,10 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
 }
 
 test('a platform tab resolves to its id; Overview and an unknown tab to none', () => {
-  expect(organicSocialExportView(TABS, 'organic-linkedin')).toEqual({ subsectionId: 'organic-linkedin', pageTitle: 'LinkedIn' })
-  expect(organicSocialExportView(TABS, null)).toEqual({ subsectionId: null, pageTitle: 'Organic Social' })
-  expect(organicSocialExportView(TABS, 'not-a-tab')).toEqual({ subsectionId: null, pageTitle: 'Organic Social' })
+  // One lookup gives the export page everything: the tab, its channel and its title (Thomas, #332 page.tsx:41).
+  expect(organicSocialExportView(TABS, 'organic-linkedin')).toEqual({ subsectionId: 'organic-linkedin', channel: 'LINKEDIN', pageTitle: 'LinkedIn' })
+  expect(organicSocialExportView(TABS, null)).toEqual({ subsectionId: null, channel: null, pageTitle: 'Organic Social' })
+  expect(organicSocialExportView(TABS, 'not-a-tab')).toEqual({ subsectionId: null, channel: null, pageTitle: 'Organic Social' })
 })
 
 // Organic Social exports on the server (app/api/export/pdf); every other section still prints in the browser.

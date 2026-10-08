@@ -27,13 +27,17 @@ interface ExportPdfButtonProps {
 const ERRORS: Record<string, string> = {
   'still-loading': 'This report is still loading. Try again in a moment.',
   forbidden: "You don't have access to export this page.",
+  'too-large': 'This page is too large to export as one PDF.',
 }
 const FAILED = "The PDF couldn't be created. Try again."
+/** Just past the route's own 60 s ceiling: a slow render still wins, a connection that died silently gives up. */
+const REQUEST_TIMEOUT_MS = 70_000
 
 /** The name the server gave the file: the UTF-8 `filename*`, else the ASCII `filename`. */
 function filenameFrom(disposition: string | null): string {
   const star = disposition?.match(/filename\*=UTF-8''([^;]+)/i)
-  if (star) return decodeURIComponent(star[1])
+  // A malformed escape must not turn a finished PDF into a reported failure: fall back to the ASCII name.
+  if (star) { try { return decodeURIComponent(star[1]) } catch { /* the ASCII name below */ } }
   return disposition?.match(/filename="([^"]+)"/i)?.[1] ?? 'export.pdf'
 }
 
@@ -78,11 +82,14 @@ export function ExportPdfButton({ clientName, pageTitle, periodLabel, serverExpo
   async function exportOnServer(view: ServerExport) {
     setPending(true)
     setError(null)
+    const abort = new AbortController()
+    const giveUp = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
     try {
       const res = await fetch('/api/export/pdf', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ...view, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        signal: abort.signal,
       })
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: string } | null
@@ -93,12 +100,16 @@ export function ExportPdfButton({ clientName, pageTitle, periodLabel, serverExpo
       const a = document.createElement('a')
       a.href = url
       a.download = filenameFrom(res.headers.get('content-disposition'))
+      // Attached for the click: some browsers (older Firefox) do not download from a detached link.
+      document.body.appendChild(a)
       a.click()
+      a.remove()
       // Revoked later, not at once: some browsers start the download after click() returns.
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch {
       setError(FAILED)
     } finally {
+      clearTimeout(giveUp)
       setPending(false)
     }
   }

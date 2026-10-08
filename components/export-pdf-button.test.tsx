@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ExportPdfButton } from './export-pdf-button'
 
 const props = { clientName: 'Renaissance', pageTitle: 'Organic Social', periodLabel: 'Sep 1 – Sep 30, 2026' }
@@ -102,6 +102,7 @@ describe('server export (Organic Social)', () => {
     [504, 'still-loading', 'This report is still loading. Try again in a moment.'],
     [403, 'forbidden', "You don't have access to export this page."],
     [500, 'render-failed', "The PDF couldn't be created. Try again."],
+    [413, 'too-large', 'This page is too large to export as one PDF.'],
   ])('a %s says why, inline, and nothing downloads', async (status, error, message) => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error }), { status })))
     render(<ExportPdfButton {...props} serverExport={serverExport} />)
@@ -132,5 +133,51 @@ describe('the downloaded file', () => {
     expect(revoke).not.toHaveBeenCalled()
     vi.advanceTimersByTime(60_000)
     expect(revoke).toHaveBeenCalledWith('blob:pdf')
+  })
+})
+
+describe("the button's own failure paths (Thomas, #332)", () => {
+  const serverExport = { clientSlug: 'c', subsection: null, dateRange: 'last_30_days', compareRange: null }
+  let anchors: { download: string; attached: boolean }[]
+  beforeEach(() => {
+    vi.useRealTimers()
+    anchors = []
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:pdf'), revokeObjectURL: vi.fn() }))
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      anchors.push({ download: this.download, attached: document.body.contains(this) })
+    })
+  })
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+  test('a request that never answers gives up after 70 s instead of spinning forever', async () => {
+    vi.stubGlobal('fetch', vi.fn((_: string, init: RequestInit) => new Promise((_r, reject) => {
+      init.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+    })))
+    vi.useFakeTimers()
+    render(<ExportPdfButton {...props} serverExport={serverExport} />)
+    fireEvent.click(screen.getByRole('button', { name: /Export PDF/ }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(69_000) })
+    expect(screen.queryByRole('alert')).toBeNull()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(screen.getByRole('alert').textContent).toBe("The PDF couldn't be created. Try again.")
+    expect(screen.getByRole('button', { name: /Export PDF/ })).toBeTruthy()
+  })
+
+  test('a filename that will not decode falls back to the ASCII name; the PDF still downloads', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['%PDF-']), { status: 200,
+      headers: { 'content-disposition': `attachment; filename="Renaissance - Organic Social - 2026-10-07.pdf"; filename*=UTF-8''bad%E2%8` } })))
+    render(<ExportPdfButton {...props} serverExport={serverExport} />)
+    fireEvent.click(screen.getByRole('button', { name: /Export PDF/ }))
+    await vi.waitFor(() => expect(anchors.map((a) => a.download)).toEqual(['Renaissance - Organic Social - 2026-10-07.pdf']))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  test('the download link is in the page when clicked (Firefox), and removed after', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['%PDF-']), { status: 200, headers: { 'content-disposition': 'attachment; filename="a.pdf"' } })))
+    render(<ExportPdfButton {...props} serverExport={serverExport} />)
+    fireEvent.click(screen.getByRole('button', { name: /Export PDF/ }))
+    await vi.waitFor(() => expect(anchors).toHaveLength(1))
+    expect(anchors[0].attached).toBe(true)
+    expect(document.querySelectorAll('a[download]')).toHaveLength(0)
   })
 })

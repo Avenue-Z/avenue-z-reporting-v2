@@ -14,6 +14,9 @@ import { ExportNotReadyError, ExportRenderError, renderPdf } from '@/lib/export/
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
+/** Vercel rejects a function response over 4.5 MB itself, after the route has run (and logged). Refuse well below it. */
+const MAX_PDF_BYTES = 4_000_000
+
 /** Auth.js's session cookie, plain or __Secure-, whole or chunked (.0, .1, …). Nothing else is forwarded. */
 const SESSION_COOKIE = /^(__Secure-)?authjs\.session-token(\.\d+)?$/
 
@@ -65,6 +68,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const pdf = await renderPdf({ url: new URL(exportPagePath(r), base).toString(), cookies })
+    if (pdf.byteLength > MAX_PDF_BYTES) {
+      log(r, 'too-large')
+      return NextResponse.json({ error: 'too-large' }, { status: 413 })
+    }
     log(r, 'ok')
     return new NextResponse(Buffer.from(pdf), {
       status: 200,

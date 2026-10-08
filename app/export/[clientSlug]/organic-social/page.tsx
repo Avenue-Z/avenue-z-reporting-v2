@@ -7,7 +7,6 @@ import '../../export-theme.css'
 import { notFound } from 'next/navigation'
 import { requirePortalAccess } from '@/lib/auth/page-access'
 import { getClientBySlug } from '@/lib/db/queries'
-import { resolveOrganicSubsection } from '@/lib/constants'
 import { lockedRangeFor, requestClock } from '@/lib/organic-social/locked-range'
 import { exportPeriodLabel } from '@/lib/export-period'
 import { exportStamp } from '@/lib/export/filename'
@@ -38,7 +37,6 @@ export default async function OrganicSocialExportPage({
   const dateRange = str(sp.dateRange) ?? 'last_30_days'
   const compareRange = str(sp.compareRange)
   const tz = safeTimeZone(sp.tz)
-  const entry = resolveOrganicSubsection(client, str(sp.subsection))
   const view = organicSocialExportView(client, str(sp.subsection))
   // The period stamped is the range the report serves: the locked month for an opted-in client (the
   // same lookup OrganicSocialBody makes), else the requested range. No month to serve, no period.
@@ -63,7 +61,7 @@ export default async function OrganicSocialExportPage({
       </header>
       <TooltipProvider delayDuration={150} skipDelayDuration={50}>
         <ExportModeProvider>
-          <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={entry.channel} />
+          <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} />
         </ExportModeProvider>
       </TooltipProvider>
       <ExportReadyReporter />

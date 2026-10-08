@@ -122,3 +122,16 @@ test('in production with no deployment URL configured, nothing is rendered', asy
   expect(renderPdf).not.toHaveBeenCalled()
   expect(vi.mocked(console.info).mock.calls.map((c) => String(c[0])).some((l) => /outcome=render-failed step=config/.test(l))).toBe(true)
 })
+
+// Vercel rejects a function response over 4.5 MB on its own, after the route has logged success. The route refuses a
+// PDF that big itself, says why, and logs it as such (Thomas, #332 route.ts:69).
+test('a PDF too big for the platform is a 413 too-large, never logged as ok', async () => {
+  as('CLIENT_VIEWER', 'renaissance')
+  renderPdf.mockResolvedValueOnce(new Uint8Array(4_000_001))
+  const res = await post(body)
+  expect(res.status).toBe(413)
+  expect(await res.json()).toEqual({ error: 'too-large' })
+  const lines = vi.mocked(console.info).mock.calls.map((c) => String(c[0]))
+  expect(lines.some((l) => /outcome=too-large/.test(l))).toBe(true)
+  expect(lines.some((l) => /outcome=ok/.test(l))).toBe(false)
+})

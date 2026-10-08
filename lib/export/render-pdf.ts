@@ -10,6 +10,11 @@ const MARGIN = '0.4in'
 /** One budget for launch + navigation + the ready wait. The route's maxDuration is 60 s; 40 s here leaves room
  *  for auth before and page.pdf() after, so a slow but successful render is never cut off by the platform. */
 const READY_TIMEOUT_MS = 40_000
+/** page.pdf()'s own deadline, measured from the start like the budget above but against the function's 60 s
+ *  (less headroom for the response). Not what is left of the ready budget: a page ready at 38 s still gets 17 s to
+ *  print. Without it puppeteer's default 30 s applied, a worst case of 70 s, and a platform kill skips the log
+ *  line and the browser's close. */
+const PDF_DEADLINE_MS = 55_000
 
 export type ExportStep = 'launch' | 'navigate' | 'auth' | 'pdf'
 
@@ -34,7 +39,7 @@ export interface PageLike {
   url(): string
   waitForFunction(fn: string, o: { timeout: number; polling: number }): Promise<unknown>
   emulateMediaType(type: 'screen'): Promise<void>
-  pdf(o: { width: string; height: string; margin: Record<'top' | 'right' | 'bottom' | 'left', string>; printBackground: boolean }): Promise<Uint8Array>
+  pdf(o: { width: string; height: string; margin: Record<'top' | 'right' | 'bottom' | 'left', string>; printBackground: boolean; timeout: number }): Promise<Uint8Array>
 }
 export interface BrowserLike {
   setCookie(...c: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean }[]): Promise<void>
@@ -95,6 +100,7 @@ export async function renderPdf(
     try {
       return await page.pdf({
         width: '11in', height: '8.5in', margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN }, printBackground: true,
+        timeout: Math.max(1_000, PDF_DEADLINE_MS - (Date.now() - started)),
       })
     } catch (e) {
       throw new ExportRenderError('pdf', e)

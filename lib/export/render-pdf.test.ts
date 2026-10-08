@@ -27,7 +27,7 @@ test('renders the export page at the content width, once ready, with screen medi
   expect(page.setViewport).toHaveBeenCalledWith({ width: 979, height: 739 })
   expect(page.waitForFunction).toHaveBeenCalledWith('window.__exportReady === true', expect.objectContaining({ timeout: expect.any(Number) }))
   expect(page.emulateMediaType).toHaveBeenCalledWith('screen')
-  expect(page.pdf).toHaveBeenCalledWith({ width: '11in', height: '8.5in', margin: { top: '0.4in', right: '0.4in', bottom: '0.4in', left: '0.4in' }, printBackground: true })
+  expect(page.pdf).toHaveBeenCalledWith({ width: '11in', height: '8.5in', margin: { top: '0.4in', right: '0.4in', bottom: '0.4in', left: '0.4in' }, printBackground: true, timeout: expect.any(Number) })
   expect(browser.close).toHaveBeenCalled()
 })
 
@@ -92,4 +92,16 @@ test('the server browser asks for any type, so print images arrive as JPEG', asy
   await renderPdf(opts, { launch })
   expect(page.setExtraHTTPHeaders).toHaveBeenCalledWith({ accept: '*/*' })
   expect(vi.mocked(page.setExtraHTTPHeaders).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(page.goto).mock.invocationCallOrder[0])
+})
+
+// page.pdf() defaults to puppeteer's own 30 s timeout. After a 40 s budget that is 70 s against maxDuration 60, and
+// a platform kill skips the log line and the finally that closes Chromium (Thomas, #332 render-pdf.ts:96). It gets
+// its own deadline against the function's limit, not what is left of the ready budget, so a page ready late still prints.
+test('printing gets its own deadline inside the 60 s function limit, even when the page was ready late', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-07T12:00:00Z'))
+  const { page, launch } = fakes({ waitForFunction: vi.fn(async () => { vi.setSystemTime(new Date('2026-10-07T12:00:38Z')); return true }) })
+  await renderPdf(opts, { launch })
+  vi.useRealTimers()
+  expect(vi.mocked(page.pdf).mock.calls[0][0].timeout).toBe(17_000) // 55 s deadline − 38 s already spent
 })
