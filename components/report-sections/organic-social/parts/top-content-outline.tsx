@@ -5,7 +5,8 @@ import { fetchTopContent } from '@/lib/organic-social/top-content'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
 import { hiddenInfluencerPlatforms, ignoredInfluencerKeys, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
-import { OUTLINE_SORT_KEYS, handleMatchesNoAuthor, missingAuthors, ownedPostLimit, parseOwnHandles, partitionByAuthor, withViewsBasisRate, type OwnHandles } from '@/lib/organic-social/outline-top-content'
+import { OUTLINE_SORT_KEYS, ownHandlesFor, ownedPostLimit, partitionByAuthor, withViewsBasisRate } from '@/lib/organic-social/outline-top-content'
+import { withoutTabbedInfluencer } from '@/lib/organic-social/influencer-tab'
 import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
@@ -22,13 +23,9 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
     fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true, markUgc: true }),
   }))
   if (!r.data) return <Fallback kind={r.error!} />
-  // One client read for both settings. A failed read keeps today's rules: no own handles, the default section.
-  let dsc: unknown
-  let own: OwnHandles = {}
-  try {
-    dsc = (await getClientBySlug(clientSlug))?.dashSocialConfig
-    own = parseOwnHandles(dsc)
-  } catch { own = {} }
+  // One client read for every setting. A failed read keeps today's rules: no own handles, the default section, no tab.
+  const client = await getClientBySlug(clientSlug).catch(() => null)
+  const dsc: unknown = client?.dashSocialConfig
   const rawSection = (dsc as { influencerSection?: unknown } | null | undefined)?.influencerSection
   const parsed = parseInfluencerSection(rawSection)
   if (parsed.kind === 'invalid') console.warn(`[organic-social] influencerSection invalid slug=${clientSlug}; showing the default Influencer section`)
@@ -40,19 +37,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
     }
   }
   const section = parsed.kind === 'ok' ? parsed.section : {}
-  if (missingAuthors(r.data, own)) {
-    console.warn(`[organic-social] top content has no post authors slug=${clientSlug} channel=${channel ?? 'ALL'}; collab rule fell back to #ad`)
-  }
-  if (handleMatchesNoAuthor(r.data, own)) {
-    // Two different situations reach this line and the author names cannot tell them apart: the
-    // stored handle is stale, or it is fine and nobody from the client posted in this window.
-    // The log used to name only the first, which sends whoever reads it after the wrong thing.
-    // Narrowing the rule cannot fix that (outline-top-content.test.ts proves it); validating the
-    // handle when it is saved can, and is tracked in CLAUDE.md.
-    console.warn(`[organic-social] own handle matches no post author slug=${clientSlug} channel=${channel ?? 'ALL'}; ` +
-      `it is either stale or nobody from the client posted in this window; collab rule fell back to #ad`)
-    own = {}
-  }
+  const own = ownHandlesFor(r.data, dsc, clientSlug, channel)
   const posts = withViewsBasisRate(r.data)
   const stored = await loadDesignations(clientSlug, posts.map((p) => p.id))
   const { owned, influencer } = partitionByAuthor(posts, stored, own)
@@ -60,6 +45,9 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
   const label = influencerLabel(section, channel)
   const canEdit = canSetDesignation(role)
   const influencerRows = groupPostsByPlatform(influencer, channel)
+  // The Influencer tab shows Instagram's influencer posts; a client that has it does not also see them here
+  // (spec B1: moved, not shown twice). The posts stay out of the owned five either way.
+  const shownRows = withoutTabbedInfluencer(influencerRows, client)
   // A hidden platform's influencer row is never shown as a section, and its posts
   // stay influencer: they are not moved into the owned top 5. Staff get the row behind a closed control so a designation
   // can be undone; for anyone else it is filtered out here, on the server, so it never reaches a browser.
@@ -69,7 +57,7 @@ export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: Organ
       {/* In the PDF export this title moves into the first row's block (SortableTopContent's heading). */}
       <div data-export-hide="" className="flex items-center gap-1.5"><h2 data-export-hide="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Performing Content</h2><HoverHint text={TOP_POSTS_DEFINITION} /></div>
       <SortableTopContent heading="Top Performing Content" owned={groupPostsByPlatform(owned, channel)}
-        influencer={influencerRows.filter((g) => !hidden.has(g.platform))}
+        influencer={shownRows.filter((g) => !hidden.has(g.platform))}
         clientSlug={clientSlug} canEdit={canEdit} ownedLimit={ownedLimit} sortKeys={OUTLINE_SORT_KEYS}
         {...(label ? { influencerHeading: label } : {})}
         {...(hiddenRows.length > 0 ? { hiddenInfluencer: hiddenRows } : {})} />

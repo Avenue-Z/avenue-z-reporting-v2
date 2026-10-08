@@ -4,6 +4,12 @@ import { CHANNELS, CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/
  *  (all channels) keeps the bare 'organic-social' key; each platform subpage gets its own. */
 export type OrgSocialChannelViewKey = `organic-social:${Lowercase<DashChannel>}`
 
+/** The Recommendations box of an Organic Social view: the view's own key plus ':recommendations',
+ *  so its rows share the table with Insights and never mix (separate view_key). */
+export type OrgSocialRecommendationsViewKey =
+  | 'organic-social:recommendations'
+  | `organic-social:${Lowercase<DashChannel>}:recommendations`
+
 /** Canonical identity for an in-scope commentary view. Stable across the four
  *  report route files, which address the same report under inconsistent
  *  (slug, subsection) coordinates. */
@@ -16,10 +22,22 @@ export type CommentaryViewKey =
   | 'linkedin-ads'
   | 'organic-social'
   | OrgSocialChannelViewKey
+  | OrgSocialRecommendationsViewKey
+  | 'organic-social:influencer'
+  | 'organic-social:influencer:recommendations'
 
 /** The commentary key for a single Organic Social platform subpage. */
 export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelViewKey {
   return `organic-social:${channel.toLowerCase() as Lowercase<DashChannel>}`
+}
+
+const RECOMMENDATIONS_SUFFIX = ':recommendations'
+/** The Recommendations key for an Organic Social box key, or null for any other section's key
+ *  (and for a key that already is a Recommendations key). */
+export function recommendationsViewKeyFor(key: CommentaryViewKey): CommentaryViewKey | null {
+  if (key !== 'organic-social' && !key.startsWith('organic-social:')) return null
+  if (key.endsWith(RECOMMENDATIONS_SUFFIX)) return null
+  return `${key}${RECOMMENDATIONS_SUFFIX}` as CommentaryViewKey
 }
 
 /**
@@ -69,6 +87,15 @@ const ORG_SOCIAL_CHANNEL_VIEWS = Object.fromEntries(
   ]),
 ) as Record<OrgSocialChannelViewKey, { label: string; owner: string }>
 
+/** The Recommendations entries: Overview's and one per channel, same owner. */
+const ORG_SOCIAL_RECOMMENDATION_VIEWS = Object.fromEntries([
+  ['organic-social:recommendations', { label: 'Organic Social — Recommendations', owner: 'Jasmine / Kyleah' }],
+  ...CHANNELS.map((c) => [
+    `${orgSocialChannelViewKey(c)}:recommendations`,
+    { label: `Organic Social — ${CHANNEL_LABEL[c]} — Recommendations`, owner: 'Jasmine / Kyleah' },
+  ]),
+]) as Record<OrgSocialRecommendationsViewKey, { label: string; owner: string }>
+
 /** Display label + service owner per view (owners per the PRD). */
 export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner: string }> = {
   'peec-ai': { label: 'AEO Overview', owner: 'Melena' },
@@ -79,6 +106,10 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'linkedin-ads': { label: 'LinkedIn Advertising', owner: 'Greg' },
   'organic-social': { label: 'Organic Social', owner: 'Jasmine / Kyleah' },
   ...ORG_SOCIAL_CHANNEL_VIEWS,
+  ...ORG_SOCIAL_RECOMMENDATION_VIEWS,
+  // The Influencer tab (10/6 calls): its own Insights and Recommendations streams.
+  'organic-social:influencer': { label: 'Organic Social — Influencer', owner: 'Jasmine / Kyleah' },
+  'organic-social:influencer:recommendations': { label: 'Organic Social — Influencer — Recommendations', owner: 'Jasmine / Kyleah' },
 }
 
 /** Runtime guard: is this string one of the canonical view keys? Used to reject

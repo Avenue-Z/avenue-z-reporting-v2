@@ -59,3 +59,26 @@ export function handleMatchesNoAuthor(posts: TopContentPost[], own: OwnHandles):
   const authors = posts.filter((p) => p.channel === 'INSTAGRAM' && p.author).map((p) => p.author)
   return authors.length > 0 && !authors.includes(own.INSTAGRAM)
 }
+
+/** The own handles the author rule may use, with the two warnings top-content@3 logs; `{}` when the rule cannot run.
+ *  Shared by the Instagram tab (top-content@3) and the Influencer tab, so both split the same posts the same way.
+ *  `view` names the caller in the warnings when it is not the platform tab (the Influencer tab passes 'influencer'),
+ *  so the two pages' lines can be told apart; the platform tab's lines are unchanged. */
+export function ownHandlesFor(posts: TopContentPost[], dsc: unknown, slug: string, channel: string | null, view?: string): OwnHandles {
+  let own: OwnHandles = {}
+  try { own = parseOwnHandles(dsc) } catch { own = {} }
+  const where = `slug=${slug} channel=${channel ?? 'ALL'}${view ? ` view=${view}` : ''}`
+  if (missingAuthors(posts, own)) {
+    console.warn(`[organic-social] top content has no post authors ${where}; collab rule fell back to #ad`)
+  }
+  if (handleMatchesNoAuthor(posts, own)) {
+    // Two different situations reach this line and the author names cannot tell them apart: the
+    // stored handle is stale, or it is fine and nobody from the client posted in this window.
+    // Narrowing the rule cannot fix that (outline-top-content.test.ts proves it); validating the
+    // handle when it is saved can, and is tracked in CLAUDE.md.
+    console.warn(`[organic-social] own handle matches no post author ${where}; ` +
+      `it is either stale or nobody from the client posted in this window; collab rule fell back to #ad`)
+    own = {}
+  }
+  return own
+}

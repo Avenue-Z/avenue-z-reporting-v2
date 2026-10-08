@@ -51,5 +51,18 @@ test('no editor controls, selector or status badges, and the panel is one block'
   expect(screen.queryByRole('combobox')).toBeNull()
   expect(screen.queryByText('Approved')).toBeNull()
   expect(container.querySelector('section[data-export-block]')).not.toBeNull()
-  expect(screen.getByRole('heading', { name: 'Commentary' })).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Insights' })).toBeTruthy()
+})
+
+// #334 (task A7): the PDF prints the title of the box it was given, so the Recommendations box is not printed as
+// "Insights" (or as #332's original "Commentary").
+test('the export heading is the box title: Insights by default, Recommendations for that box', () => {
+  render(
+    <ExportModeProvider>
+      <CommentaryPanel clientSlug="c" viewKey="organic-social:recommendations" entries={[SEP_APPROVED]} initialId="a" clientEntryId="a"
+        capabilities={staff} history={[]} labels={{ title: 'Recommendations', noun: 'recommendations', outline: null }} />
+    </ExportModeProvider>,
+  )
+  expect(screen.getByRole('heading', { name: 'Recommendations' })).toBeTruthy()
+  expect(screen.queryByRole('heading', { name: 'Insights' })).toBeNull()
 })

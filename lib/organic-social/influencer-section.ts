@@ -1,5 +1,8 @@
-// dash_social_config.influencerSection (PR #306): per channel, hide top-content@3's Influencer Posts section or rename it. Read only by top-content@3, which
-// Renaissance never renders. Absent: today's section. Invalid: today's section, and the part warns with the slug.
+// dash_social_config.influencerSection (PR #306): per channel, hide the Influencer Posts section or rename it. Read by
+// top-content@3 (the section on a platform tab), by the Influencer tab rule for every client, top-content@2 clients included
+// (hasInfluencerTab: a hidden Instagram setting means no tab), by the tab's part (the Instagram label names its
+// heading), and the parsed value reaches the portal browser through toPortalSidebarClient. Absent: today's section.
+// Invalid: today's section, and the part warns with the slug.
 import { CHANNELS, CHANNEL_LABEL, type DashChannel } from './metrics'
 
 export type InfluencerSetting = { hidden: true } | { label: string }

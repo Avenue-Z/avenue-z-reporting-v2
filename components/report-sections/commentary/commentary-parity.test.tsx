@@ -97,7 +97,7 @@ describe('Commentary follows the month (locked-months clients)', () => {
   test('the team gets the month with drafts, a prefilled period, the empty text, and a panel keyed by the month (edge 21)', async () => {
     const { props, key } = await run('INTERNAL_ADMIN', 'writer@avenuez.com', 'custom:2026-09-01,2026-09-30')
     expect((props!.entries as CommentaryEntry[]).map((e) => e.id)).toEqual(['sep', 'sep-draft'])
-    expect([props!.defaultPeriod, props!.emptyText, key]).toEqual([{ start: '2026-09-01', end: '2026-09-30' }, 'No commentary for September 2026 yet', '2026-09'])
+    expect([props!.defaultPeriod, props!.emptyText, key]).toEqual([{ start: '2026-09-01', end: '2026-09-30' }, 'No insights for September 2026 yet', '2026-09'])
     const aug = await run('INTERNAL_ADMIN', 'writer@avenuez.com', 'custom:2026-08-01,2026-08-31')
     expect([aug.key, (aug.props!.entries as CommentaryEntry[]).map((e) => e.id)]).toEqual(['2026-08', ['aug']])
   })
@@ -107,7 +107,7 @@ describe('Commentary follows the month (locked-months clients)', () => {
   })
   test('the team sees the live month empty, with Add, and the whole live month as the prefill', async () => {
     const { props } = await run('INTERNAL_ADMIN', 'writer@avenuez.com', 'custom:2026-10-01,2026-10-19')
-    expect([props!.entries, props!.emptyText, props!.defaultPeriod]).toEqual([[], 'No commentary for October 2026 yet', { start: '2026-10-01', end: '2026-10-31' }])
+    expect([props!.entries, props!.emptyText, props!.defaultPeriod]).toEqual([[], 'No insights for October 2026 yet', { start: '2026-10-01', end: '2026-10-31' }])
   })
   test('no served month: nothing for a client, the empty panel for the team', async () => {
     const later = { ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2027-01' } } }

@@ -10,7 +10,7 @@ const tabs = (c: Client) => organicSocialSubsections(c).map((s) => s.id)
 
 test("Joy of Life's outline: Instagram, Facebook, TikTok, in that order", () => {
   expect(tabs(client(['instagram', 'facebook', 'tiktok'])))
-    .toEqual([null, 'organic-instagram', 'organic-facebook', 'organic-tiktok'])
+    .toEqual([null, 'organic-instagram', 'organic-influencer', 'organic-facebook', 'organic-tiktok'])
 })
 
 test('the TikTok tab shows the TikTok channel under the label TikTok', () => {
@@ -20,8 +20,8 @@ test('the TikTok tab shows the TikTok channel under the label TikTok', () => {
 
 test("A Place For Mom's and Kenect's outlines get exactly their tabs, no TikTok", () => {
   expect(tabs(client(['instagram', 'facebook', 'linkedin'])))
-    .toEqual([null, 'organic-instagram', 'organic-facebook', 'organic-linkedin'])
-  expect(tabs(client(['instagram']))).toEqual([null, 'organic-instagram'])
+    .toEqual([null, 'organic-instagram', 'organic-influencer', 'organic-facebook', 'organic-linkedin'])
+  expect(tabs(client(['instagram']))).toEqual([null, 'organic-instagram', 'organic-influencer'])
 })
 
 // THE RENAISSANCE GUARD FOR THE TAB. No allowlist resolves to the four original channels, so

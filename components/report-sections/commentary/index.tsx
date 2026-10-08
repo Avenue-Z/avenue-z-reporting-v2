@@ -8,13 +8,18 @@ import { CommentaryPanel } from './commentary-panel'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { isOrganicSocialViewKey } from '@/lib/commentary/month'
 import { monthlyCommentary } from './monthly'
+import { INSIGHTS_LABELS, type CommentaryLabels } from '@/lib/commentary/labels'
 
-export async function CommentarySection({ clientSlug, viewKey, requestedRange }: { clientSlug: string; viewKey: CommentaryViewKey; requestedRange?: string }) {
+/** One commentary box. `labels` names it (Insights by default; Recommendations for the bottom box, which is the
+ *  same section under its own view key). */
+export async function CommentarySection({ clientSlug, viewKey, requestedRange, labels = INSIGHTS_LABELS }: {
+  clientSlug: string; viewKey: CommentaryViewKey; requestedRange?: string; labels?: CommentaryLabels
+}) {
   const [session, client] = await Promise.all([auth(), getClientBySlug(clientSlug)])
   if (!client) return null
-  // Locked months: Commentary follows the month on screen (spec 3.9). Everyone else runs the code below unchanged.
+  // Locked months: the box follows the month on screen (spec 3.9). Everyone else runs the code below unchanged.
   if (hasReportingMonths(client) && isOrganicSocialViewKey(viewKey)) {
-    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange })
+    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange, labels })
   }
 
   const email = session?.user?.email ?? null
@@ -52,6 +57,7 @@ export async function CommentarySection({ clientSlug, viewKey, requestedRange }:
       clientEntryId={clientEntry?.id ?? null}
       capabilities={capabilities}
       history={history}
+      labels={labels}
     />
   )
 }
