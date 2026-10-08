@@ -40,3 +40,9 @@ export function outsideBox(pdf: PdfText, margin = 28.8, tolerance = 2): Word[] {
 export function countLinks(bytes: Buffer): number {
   return (bytes.toString('latin1').match(/\/URI\s*\(/g) ?? []).length
 }
+
+/** The font families embedded in a PDF (poppler's `pdffonts`), without the subset prefix ("ABCDEF+"). */
+export function fontsOf(file: string): string[] {
+  const out = execFileSync('pdffonts', [file], { encoding: 'utf8' })
+  return [...new Set(out.split('\n').slice(2).map((l) => l.split(/\s+/)[0]?.replace(/^[A-Z]{6}\+/, '')).filter(Boolean))]
+}
