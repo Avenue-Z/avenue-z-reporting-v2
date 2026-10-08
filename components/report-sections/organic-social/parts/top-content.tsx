@@ -73,8 +73,10 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
 
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
+      {/* In the PDF export this title moves into the first row's block (SortableTopContent's heading). */}
+      <h2 data-export-hide="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
       <SortableTopContent
+        heading="Top Content"
         owned={groupPostsByPlatform(owned, channel)}
         influencer={groupPostsByPlatform(influencer, channel)}
         clientSlug={clientSlug}

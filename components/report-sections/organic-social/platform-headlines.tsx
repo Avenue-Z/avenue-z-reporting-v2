@@ -36,7 +36,8 @@ export function gridColsMd(n: number): string {
 function PlatformSection({ h, wholeDelta }: { h: PlatformHeadline; wholeDelta?: boolean }) {
   const n = h.kpis.length
   return (
-    <section className="space-y-3">
+    // One platform's label and KPI row never split across pages in the PDF export (app/export/export-theme.css).
+    <section data-export-block="" className="space-y-3">
       <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{h.label}</h3>
       {h.noData ? (
         <NoData />

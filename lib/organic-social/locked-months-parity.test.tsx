@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { elementTree, runRoute, type RouteResult } from '@/lib/test-utils/element-tree'
 
@@ -65,6 +65,10 @@ const ROUTES: Record<string, (q: Record<string, unknown>) => Promise<unknown>> =
 }
 
 beforeEach(() => vi.mocked(auth).mockReset())
+// The pages resolve relative ranges (last_30_days) for the Export PDF stamp, so the tree carries
+// dates: pin the clock (Date only, the routes still run on real timers) or the record drifts daily.
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-05T12:00:00Z')) })
+afterEach(() => vi.useRealTimers())
 
 for (const [fixtureName, fixture] of Object.entries(FIXTURES)) {
   for (const [routeName, route] of Object.entries(ROUTES)) {

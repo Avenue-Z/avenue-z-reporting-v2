@@ -63,10 +63,18 @@ export default defineConfig({
       'lib/auth/service-cookie.test.ts',
       'app/global-error.test.tsx',
       'app/actions/**/*.test.{ts,tsx}',
+      'app/api/export/**/*.test.{ts,tsx}',
+      'app/export/**/*.test.{ts,tsx}',
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
       'components/charts/line-chart.test.tsx',
       'components/charts/kpi-card.test.tsx',
+      'components/export-pdf-button.test.tsx',
+      'lib/export-period.test.ts',
+      'lib/export-period.pages.test.tsx',
+      'lib/export/**/*.test.{ts,tsx}',
+      'components/export/**/*.test.{ts,tsx}',
+      'components/layout/sticky-report-header.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
     exclude: ['node_modules', '.next', 'scripts/**', '.claude/**'],
