@@ -204,7 +204,7 @@ T3 confirmed that leaving out the filter returns every model: the unfiltered bra
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
 | 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
-| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities (how many of the three come from Peec is question 5, §13; Ryan's example "Peec recommends" items are `SEO_ISSUE` actions). Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
+| 8 | `POST /actions/list`, one unpaged call, `limit 50`, default `order_by` `impact` desc (list-actions page); also one unpaged `GET /model-channels` for model names, as AIVx does (`aivx:agent/agent.py:1125-1138`) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `type`, `status`; channel `description` | Only `status = PENDING`, first 10. Both calls are non-fatal: a failure leaves no actions (with a note) or falls back to channel ids. Feeds the opportunities (how many of the three come from Peec is question 5, §13; Ryan's example "Peec recommends" items are `SEO_ISSUE` actions). `/actions/list` takes no date window, so the Data block labels them as current Peec actions. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
@@ -251,7 +251,8 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
 ## 8. Access and links
 
 - **Who:** staff (`requireStaff`) **and** an email in `AEO_OUTBOUND_USERS`. Unset means nobody (fail closed). Pages show
-  "This tool is limited to the New Business team" to other staff. API routes return 403. Actions throw.
+  "This tool is limited to the New Business team" to other staff. API routes return 403. Actions return
+  `{ ok: false, error: 'forbidden' }` (the repo's precedent, `app/actions/chart-notes.test.ts`) and write nothing.
 - **Token:** `randomBytes(18).toString('base64url')` (144 bits), minted at Approve, unique, never reused.
 - **Public route `/snapshot/{token}`:** looks up the token in a status `approved` row with `share_revoked_at IS NULL` and
   `deleted_at IS NULL`. It returns the stored HTML byte for byte with these headers:
@@ -485,7 +486,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 | Only the own brand is tracked (seen live in T3) | Generates, with a notes-panel flag "No competitors tracked in this Peec project". Per Ryan's rules ("Omit unsupported comparisons"; a rank only when the competitive set is complete), the Competitive rank card and the competitive context callout are left out, and the copy is told there are no competitors. Ryan decides whether to send. |
 | No gap domains, no actions | The Data block says none. The prompt forbids inventing them. |
 | Peec 429 | Retry per `X-RateLimit-Reset` clamped to 0-20s, max 3 attempts, then Failed. The 270s deadline caps it all (§7a). |
-| Missing SOV or position for the brand | KPI shows `n/a`, with a note (§7). |
+| Missing SOV or position for the brand | That card is left out, leaving three (Ryan's rule), with a note (§7). |
 | Stale *Generating* row | Shows as Failed (timed out). Discard and Rerun work (§9). |
 | Peec 5xx, timeout, non-JSON | Failed, with a scrubbed reason. |
 | Glean down, or bad JSON twice | Failed: "Copy generation failed. Rerun." |
@@ -524,7 +525,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 - **Routes:**
   - the public route returns the exact stored bytes and headers (including the CSP sandbox), and a byte-identical 404 for unknown, revoked and discarded tokens
   - projects, generate, view and slots routes return 403 without staff plus the allowlist
-  - each server action (approve, revoke, discard) throws for non-allowlisted staff
+  - each server action (approve, revoke, discard) returns `forbidden` for non-allowlisted staff and writes nothing
   - a cross-origin `Origin` header gets 403 on generate, slots and actions
   - the view route sends `no-store` and `Content-Security-Policy: sandbox allow-scripts`, and 404 for unknown and discarded ids
   - the slots route covers the full §9a table: each path form, bad path 400, empty or too-long value 400, stale 409, not-draft 409
@@ -541,7 +542,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
   - a Peec name containing `</script>` or `<b>` renders inert in the text, cannot close the figure `<script>`, and reaches Plotly labels with `<` and `>` removed
   - `?mode=preview` returns the HTML without editing hooks
   - roster brand names in `context` are bolded after escaping; the nav ids and `section[id]` markup match §5
-  - null SOV and position render `n/a`
+  - a missing SOV or position leaves three KPI cards in a three-column strip
 - **Prompt:**
   - the Data block holds exactly the §7 values
   - the prompt contains the writing rules and the "use only the Data block" rule

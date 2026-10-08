@@ -15,7 +15,7 @@
 - Every PR targets `aeo-outbound-audit` (the deliverable branch, cut from `dev` at `15b778de`), merges in order PR1 → PR2 → PR3 → PR4, and each one is cut from the deliverable branch **after** the previous PR merged (no stacked PRs).
 - Shared files may only receive the six append-only edits listed in spec §4: `lib/db/schema.ts`, `drizzle/0026_*` (+ meta), `MIGRATIONS-PENDING.md`, `.env.example`, `lib/constants.ts` `TEAMS`, `vitest.config.ts` include list. Nothing else outside new folders.
 - Never edit `proxy.ts`, `auth.ts`, `lib/auth/*`, `lib/peec/*`, `lib/glean.ts`, `app/share/**`, `app/globals.css`, `components/layout/sidebar.tsx`, `package.json`.
-- AIVx source of truth: `~/code/aivx-reports` at `ff18697` (read-only). CSS SHA-256 `2925c9bd76410aaa8e6ea832a7fd9e20d981efcb65fa68958545cf3b251c833e`; JS SHA-256 `a9533d2fccdafa961a3a2ceddb1545b3e2560477fd115f04affe427906a24773`.
+- AIVx source of truth: `~/code/aivx-reports` at `ff18697` (read-only). CSS SHA-256 `2925c9bd76410aaa8e6ea832a7fd9e20d981efcb65fa68958545cf3b251c833e`; JS SHA-256 `6453e61c22b1b171d3c5f951f901e356087e0dd507e9951808332255183a9bb6` (both hashes are of the evaluated Python string literals, which is what AIVx ships; the evaluated JS appears verbatim in the reference report).
 - Env names: `PEEC_AI_CUSTOMER_TOKEN`, `GLEAN_INSTANCE`, `GLEAN_API_TOKEN`, `AEO_OUTBOUND_USERS` (new, comma-separated `@avenuez.com` emails; unset = nobody).
 - Peec base `https://api.peec.ai/customer/v1`, header `x-api-key`; every report call sends `project_id`, `start_date`, `end_date`; no model filter.
 - The Plotly CDN tag carries `integrity="sha384-DPvk2KODrsA0CfBr4HTwAwhdDROPqqK2PvSSswJMQMpnUkwSTg4gLBxXc3wv2e5L"` (sha384 of `https://cdn.plot.ly/plotly-3.5.0.min.js`, measured 2026-10-08). Verify it in the browser check of Task 2.3 Step 9 (the charts must draw).
@@ -247,7 +247,7 @@ test('retries a 429 up to 3 attempts, waiting the clamped reset', async () => {
     .mockResolvedValueOnce(json({}, 429, { 'X-RateLimit-Reset': '999' }))
     .mockResolvedValueOnce(json({}, 429, { 'X-RateLimit-Reset': 'soon' }))
     .mockResolvedValueOnce(json({ data: [1] }))
-  const sleep = vi.fn(async () => {})
+  const sleep = vi.fn(async (_ms: number) => {})
   await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).resolves.toEqual({ data: [1] })
   expect(sleep.mock.calls.map((c) => c[0])).toEqual([20_000, 20_000])
 })
@@ -260,7 +260,7 @@ test('a third 429 fails', async () => {
 
 test('a wait that would pass the deadline fails instead of sleeping', async () => {
   const fetch = vi.fn(async () => json({}, 429, { 'X-RateLimit-Reset': '20' }))
-  const sleep = vi.fn(async () => {})
+  const sleep = vi.fn(async (_ms: number) => {})
   const c = new PeecClient(KEY, { fetch, sleep, now: () => 0, deadline: 10_000 })
   await expect(c.call('GET', '/x')).rejects.toThrow('waiting would pass the deadline')
   expect(sleep).not.toHaveBeenCalled()
@@ -310,6 +310,17 @@ test('helpers', () => {
   expect(rowsOf({ nope: 1 })).toEqual([])
 })
 
+test('a call that hits its timeout is a named error', async () => {
+  const fetch = vi.fn(async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }) })
+  await expect(new PeecClient(KEY, { fetch }).call('GET', '/x')).rejects.toThrow('timed out after 45000ms')
+})
+
+test('paging past the row cap aborts', async () => {
+  let n = 0
+  const fetch = vi.fn(async () => json({ data: [{ id: `r${n++}` }, { id: `r${n++}` }] }))
+  await expect(new PeecClient(KEY, { fetch, maxRows: 3 }).all<{ id: string }>('GET', '/x', {}, (r) => r.id, 2)).rejects.toThrow('more than 3 rows')
+})
+
 test('an empty key is refused up front', () => {
   expect(() => new PeecClient('')).toThrow('PEEC_AI_CUSTOMER_TOKEN is not set')
 })
@@ -345,6 +356,8 @@ export interface PeecClientOptions {
   now?: () => number
   /** Epoch ms after which no call may start and no retry may wait. */
   deadline?: number
+  /** Row cap per endpoint; tests lower it. */
+  maxRows?: number
 }
 type Params = Record<string, string | number>
 
@@ -365,6 +378,7 @@ export class PeecClient {
   private readonly sleep: (ms: number) => Promise<void>
   private readonly now: () => number
   private readonly deadline: number
+  private readonly maxRows: number
 
   constructor(private readonly key: string, opts: PeecClientOptions = {}) {
     if (!key) throw new PeecError('PEEC_AI_CUSTOMER_TOKEN is not set')
@@ -372,6 +386,7 @@ export class PeecClient {
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
     this.now = opts.now ?? Date.now
     this.deadline = opts.deadline ?? Number.POSITIVE_INFINITY
+    this.maxRows = opts.maxRows ?? MAX_ENDPOINT_ROWS
   }
 
   /** split/join so every occurrence goes (aivx lib/peec-client.ts:91-93). */
@@ -441,7 +456,7 @@ export class PeecClient {
       }
       keys.forEach((k) => seen.add(k))
       rows.push(...page)
-      if (rows.length > MAX_ENDPOINT_ROWS) throw new PeecError(`[PEEC API] ${path}: more than ${MAX_ENDPOINT_ROWS} rows, stopping`)
+      if (rows.length > this.maxRows) throw new PeecError(`[PEEC API] ${path}: more than ${this.maxRows} rows, stopping`)
     }
   }
 }
@@ -454,7 +469,7 @@ export function peecFromEnv(opts: PeecClientOptions = {}): PeecClient {
 - [ ] **Step 4: Run to see it pass**
 
 Run: `npx vitest run lib/aeo-outbound/peec.test.ts`
-Expected: PASS (11 tests).
+Expected: PASS (13 tests).
 
 - [ ] **Step 5: Commit and push**
 
@@ -573,7 +588,7 @@ Expected: FAIL, module not found.
 // Spec §7 steps 1-8 over one window. Every report call sends project_id, start_date and end_date and no
 // model filter (all models; T3 confirmed). Guards fail with a reason Ryan can act on.
 import { DECISIONS, PITCH_STATUSES } from './config'
-import { PeecClient, PeecError } from './peec'
+import { PeecClient, PeecError, rowsOf } from './peec'
 
 export interface PeecProject { id: string; name: string; status: string }
 export interface RosterBrand { id: string; name: string; is_own: boolean; domains?: string[] | null }
@@ -603,6 +618,8 @@ export interface PeecPull {
   actions: ActionRow[]
   promptCount: number | null
   models: string[]
+  /** Non-fatal problems for the notes panel. */
+  warnings: string[]
 }
 
 const DISCOVERY_DAYS = 400
@@ -653,22 +670,31 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const byModel = await client.all<{ brand: { id: string }; model_channel?: { id?: string } | null; visibility_total?: number | null }>(
     'POST', '/reports/brands', { ...W, dimensions: ['model_channel_id'] }, (r) => `${r.brand.id}|${r.model_channel?.id}`, 10_000)
   const channelIds = [...new Set(byModel.filter((r) => (r.visibility_total ?? 0) > 0).map((r) => r.model_channel?.id).filter((x): x is string => !!x))].sort()
-  const channels = await client.all<{ id: string; description?: string | null }>('GET', '/model-channels', { project_id: projectId }, (r) => r.id, 1000)
-  const models = channelIds.map((id) => channels.find((c) => c.id === id)?.description || id)
+  const warnings: string[] = []
+  // One unpaged, non-fatal call, as AIVx does (aivx agent/agent.py:1125-1138); names fall back to the ids.
+  const channels = rowsOf<{ id: string; description?: string | null; current_model?: { id?: string } | null }>(
+    await client.call('GET', '/model-channels', { params: { project_id: projectId, limit: 100 } }).catch(() => null))
+  const models = channelIds.map((id) => { const c = channels.find((x) => x.id === id); return c?.description || c?.current_model?.id || id })
 
   onStep?.(6)
   const domains = await client.all<DomainRow>('POST', '/reports/domains', W, (r) => r.domain, 10_000)
   if (domains.reduce((s, r) => s + (r.retrieved_chat_count ?? 0), 0) <= 0) throw new PeecError('Peec returned zero retrievals across every domain for this window')
 
   onStep?.(8)
-  const acts = await client.all<ActionRow>('POST', '/actions/list', { project_id: projectId }, (r) => r.id, 1000)
-  const actions = acts.filter((a) => a.status === 'PENDING')
+  // One unpaged call (spec §7 step 8), default order impact desc; non-fatal, since actions are optional.
+  let actions: ActionRow[] = []
+  try {
+    actions = rowsOf<ActionRow>(await client.call('POST', '/actions/list', { body: { project_id: projectId, limit: 50 } })).filter((a) => a.status === 'PENDING').slice(0, 10)
+  } catch {
+    warnings.push('Peec actions could not be loaded, so opportunities come from the data only.')
+  }
   const prompts = (await client.call('GET', '/prompts', { params: { project_id: projectId, limit: 1 } })) as { total_count?: number } | null
 
   return {
     project, roster, ownBrand: owned[0], profile, window, brands, domains, actions,
     promptCount: typeof prompts?.total_count === 'number' ? prompts.total_count : null,
     models,
+    warnings,
   }
 }
 ```
@@ -694,14 +720,14 @@ git push
 
 **Interfaces:**
 - Consumes: `PeecPull` (Task 1.3).
-- Produces: `pyRound(x, dp)`, `fmtDay(iso)`, `titleClassification(c)`, types `BrandMetric`, `Kpi`, `SourceSlice`, `SnapshotData`, `buildSnapshotData(pull, generatedAtIso) → SnapshotData`.
+- Produces: `pyRound(x, dp)`, `fmtDay(iso)`, `fmtEasternDay(date)`, `titleClassification(c)`, types `BrandMetric`, `Kpi`, `SourceSlice`, `SnapshotData`, `buildSnapshotData(pull, generatedAtIso) → SnapshotData`.
 
 - [ ] **Step 1: Generate Python rounding vectors** (Python's `round` is the AIVx rule, `aivx:agent/agent.py:1312-1314`):
 
 ```bash
 python3 -I - > lib/aeo-outbound/round.vectors.json <<'PY'
 import json
-xs=[0.125,0.375,2.5,3.5,15.45,15.55,15.65,22.4659,0.151*100,0.159*100,0.0,99.95,1.005,12.345]
+xs=[0.125,0.375,2.5,3.5,15.45,15.55,15.65,22.4659,0.151*100,0.159*100,0.0,99.95,1.005,12.345,-0.125,-2.5,-15.65,-6.6000000000000014]
 print(json.dumps([{"x":x,"dp":dp,"py":round(x,dp)} for x in xs for dp in (0,1,2)]))
 PY
 ```
@@ -711,7 +737,7 @@ PY
 ```ts
 import { expect, test } from 'vitest'
 import vectors from './round.vectors.json'
-import { buildSnapshotData, fmtDay, pyRound, titleClassification } from './metrics'
+import { buildSnapshotData, fmtDay, fmtEasternDay, pyRound, titleClassification } from './metrics'
 import type { PeecPull } from './pull'
 
 test('pyRound matches Python round on every vector', () => {
@@ -719,6 +745,8 @@ test('pyRound matches Python round on every vector', () => {
 })
 test('day and classification formatting', () => {
   expect(fmtDay('2026-10-01')).toBe('Oct 1, 2026')
+  expect(fmtEasternDay(new Date('2026-10-09T02:30:00Z'))).toBe('Oct 8, 2026')
+  expect(fmtEasternDay(new Date('2026-10-09T05:30:00Z'))).toBe('Oct 9, 2026')
   expect(titleClassification('OWN')).toBe('You')
   expect(titleClassification('UGC')).toBe('UGC')
   expect(titleClassification('Retailers')).toBe('Retailers')
@@ -749,6 +777,7 @@ const PULL: PeecPull = {
   actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100,
   models: ['ChatGPT UI', 'Google AI Overview'],
+  warnings: [],
 }
 
 test('ranks by visibility then id, and builds the KPIs his way', () => {
@@ -845,8 +874,9 @@ export interface SnapshotData {
   notes: string[]
 }
 
-/** Python's round(x, dp): correctly rounded from the exact binary value, ties to even. x >= 0. */
+/** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
 export function pyRound(x: number, dp: number): number {
+  if (x < 0) return -pyRound(-x, dp)
   const exact = x.toFixed(100)
   const [int, frac = ''] = exact.split('.')
   const tail = frac.slice(dp)
@@ -866,6 +896,11 @@ export function fmtDay(iso: string): string {
   return `${MONTHS[m - 1]} ${d}, ${y}`
 }
 
+/** The US Eastern calendar day of an instant, formatted like fmtDay (spec §5 row 10). */
+export function fmtEasternDay(d: Date): string {
+  return fmtDay(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d))
+}
+
 const TITLE: Record<string, string> = {
   CORPORATE: 'Corporate', EDITORIAL: 'Editorial', INSTITUTIONAL: 'Institutional', OTHER: 'Other',
   REFERENCE: 'Reference', UGC: 'UGC', COMPETITOR: 'Competitor', OWN: 'You', RELATED: 'Related',
@@ -878,7 +913,6 @@ const bare = (d: string) => d.trim().toLowerCase().replace(/^www\./, '')
 
 export function buildSnapshotData(pull: PeecPull, generatedAt: string): SnapshotData {
   const notes: string[] = []
-  const rosterById = new Map(pull.roster.map((b) => [b.id, b]))
   const sorted = [...pull.brands].sort((a, b) => (b.visibility - a.visibility) || (a.brand.id < b.brand.id ? -1 : a.brand.id > b.brand.id ? 1 : 0))
   const brands: BrandMetric[] = sorted.map((r, i) => ({
     id: r.brand.id,
@@ -940,8 +974,8 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string): Snapshot
     .map((r) => ({ domain: r.domain, retrievedChats: r.retrieved_chat_count ?? 0 }))
 
   if (!pull.profile) notes.push('Peec has no project profile, so category and market need validation.')
+  notes.push(...pull.warnings)
   notes.push(`Peec project ${pull.project.id} (${pull.project.status}). Window ${pull.window.start} to ${pull.window.end}, all models: ${pull.models.join(', ') || 'none reported'}.`)
-  void rosterById
 
   return {
     projectId: pull.project.id,
@@ -969,8 +1003,6 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string): Snapshot
   }
 }
 ```
-
-Remove the unused `rosterById` line and its `void` if the linter or `tsc` flags it; it is not needed.
 
 - [ ] **Step 5: Run to see it pass**
 
@@ -1179,7 +1211,7 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
 - [ ] **Step 4: Run to see it pass**
 
 Run: `npx vitest run lib/aeo-outbound/slots.test.ts`
-Expected: PASS (7 tests).
+Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit and push**
 
@@ -1200,9 +1232,9 @@ git push
 
 **Interfaces:**
 - Consumes: `SnapshotData` (Task 1.4), `Slots` (Task 1.5), `STALE_GENERATING_MS` (Task 1.1).
-- Produces: `aeoOutboundReports`, `aeoOutboundStatusEnum`, type `AeoOutboundRow`; `markStaleGeneratingQuery(projectId, now)`, `insertGeneratingQuery(v)`, `finishDraftQuery(id, v)`, `finishFailedQuery(id, error, brandName)`, `saveSlotsQuery(id, shownRevision, slots, notes)`, `approveQuery(id, shownRevision, v)`, `revokeQuery(id, by, now)`, `discardQuery(id, by, now)`, `getReport(id)`, `listReports()`, `getLiveByToken(token)`, `findGeneratingFor(projectId)`, `isUniqueViolation(e)`, `displayStatus(row, nowMs) → 'generating' | 'draft' | 'live' | 'revoked' | 'failed'`.
+- Produces: `aeoOutboundReports`, `aeoOutboundStatusEnum`, type `AeoOutboundRow`; in `store.ts` type `ReportRow` (JSON columns typed) and `isReportId(id)`; `markStaleGeneratingQuery(projectId, now)`, `insertGeneratingQuery(v)`, `finishDraftQuery(id, v)`, `finishFailedQuery(id, error, brandName)`, `saveSlotsQuery(id, shownRevision, slots, notes)`, `approveQuery(id, shownRevision, v)`, `revokeQuery(id, by, now)`, `discardQuery(id, by, now)`, `getReport(id)`, `listReports()`, `getLiveByToken(token)`, `findGeneratingFor(projectId)`, `isUniqueViolation(e)`, `displayStatus(row, nowMs) → 'generating' | 'draft' | 'live' | 'revoked' | 'failed'`.
 
-- [ ] **Step 1: Append the table** to `lib/db/schema.ts` (and add `import type { SnapshotData } from '@/lib/aeo-outbound/metrics'` and `import type { Slots } from '@/lib/aeo-outbound/slots'` next to the existing type imports at the top; `pgEnum`, `pgTable`, `uuid`, `text`, `jsonb`, `integer`, `timestamp`, `check`, `index`, `uniqueIndex` and `sql` are already imported, `lib/db/schema.ts:1-3`):
+- [ ] **Step 1: Append the table** to the end of `lib/db/schema.ts`. Append-only: no new imports (`pgEnum`, `pgTable`, `uuid`, `text`, `jsonb`, `integer`, `timestamp`, `check`, `index`, `uniqueIndex` and `sql` are already imported, `lib/db/schema.ts:1-3`), and the schema never imports from `lib/aeo-outbound` (spec §4: nothing else imports it). `store.ts` gives the JSON columns their types.
 
 ```ts
 // AEO Outbound Snapshot (spec docs/superpowers/specs/2026-10-08-aeo-outbound-snapshot-design.md §9). Read and written
@@ -1215,8 +1247,8 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
   peecProjectName: text('peec_project_name').notNull(),
   brandName: text('brand_name'),
   status: aeoOutboundStatusEnum('status').notNull().default('generating'),
-  data: jsonb('data').$type<SnapshotData>(),
-  slots: jsonb('slots').$type<Slots>(),
+  data: jsonb('data').$type<Record<string, unknown>>(),
+  slots: jsonb('slots').$type<Record<string, unknown>>(),
   notes: jsonb('notes').$type<string[]>(),
   revision: integer('revision').notNull().default(0),
   error: text('error'),
@@ -1334,6 +1366,10 @@ import type { Slots } from './slots'
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_GENERATING_MS)
 
+/** A row with its JSON columns typed. The schema keeps them untyped so it never imports this folder. */
+export type ReportRow = Omit<AeoOutboundRow, 'data' | 'slots'> & { data: SnapshotData | null; slots: Slots | null }
+const typed = (r: AeoOutboundRow): ReportRow => r as unknown as ReportRow
+
 export function markStaleGeneratingQuery(projectId: string, now: Date) {
   return db.update(t)
     .set({ status: 'failed', error: 'Timed out', updatedAt: now })
@@ -1348,7 +1384,7 @@ export function insertGeneratingQuery(v: { projectId: string; projectName: strin
 
 export function finishDraftQuery(id: string, v: { brandName: string; data: SnapshotData; slots: Slots; notes: string[]; now: Date }) {
   return db.update(t)
-    .set({ status: 'draft', brandName: v.brandName, data: v.data, slots: v.slots, notes: v.notes, updatedAt: v.now })
+    .set({ status: 'draft', brandName: v.brandName, data: v.data as unknown as Record<string, unknown>, slots: v.slots as unknown as Record<string, unknown>, notes: v.notes, updatedAt: v.now })
     .where(and(eq(t.id, id), eq(t.status, 'generating')))
     .returning({ id: t.id })
 }
@@ -1362,7 +1398,7 @@ export function finishFailedQuery(id: string, error: string, brandName: string |
 
 export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: string[]) {
   return db.update(t)
-    .set({ slots, notes, revision: sql`${t.revision} + 1`, updatedAt: new Date() })
+    .set({ slots: slots as unknown as Record<string, unknown>, notes, revision: sql`${t.revision} + 1`, updatedAt: new Date() })
     .where(and(eq(t.id, id), eq(t.status, 'draft'), eq(t.revision, shownRevision), isNull(t.deletedAt)))
     .returning({ revision: t.revision })
 }
@@ -1398,12 +1434,18 @@ export function discardQuery(id: string, by: string, now: Date) {
     .returning({ id: t.id })
 }
 
-export async function getReport(id: string): Promise<AeoOutboundRow | undefined> {
-  return (await db.select().from(t).where(and(eq(t.id, id), isNull(t.deletedAt))).limit(1))[0]
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+export const isReportId = (id: unknown): id is string => typeof id === 'string' && UUID.test(id)
+
+/** undefined for a malformed id, an unknown id or a discarded row (a malformed id never reaches Postgres). */
+export async function getReport(id: string): Promise<ReportRow | undefined> {
+  if (!isReportId(id)) return undefined
+  const r = (await db.select().from(t).where(and(eq(t.id, id), isNull(t.deletedAt))).limit(1))[0]
+  return r ? typed(r) : undefined
 }
 
-export async function listReports(): Promise<AeoOutboundRow[]> {
-  return db.select().from(t).where(isNull(t.deletedAt)).orderBy(desc(t.createdAt)).limit(200)
+export async function listReports(): Promise<ReportRow[]> {
+  return (await db.select().from(t).where(isNull(t.deletedAt)).orderBy(desc(t.createdAt)).limit(200)).map(typed)
 }
 
 export async function findGeneratingFor(projectId: string): Promise<string | undefined> {
@@ -1484,16 +1526,20 @@ Cut from `aeo-outbound-audit` after PR1 merges: `git checkout -b feat/aeo-outbou
 - [ ] **Step 1: Generate the files from AIVx at `ff18697`** (read-only):
 
 ```bash
+mkdir -p lib/aeo-outbound/aivx
 test "$(git -C ~/code/aivx-reports rev-parse HEAD)" = "$(git -C ~/code/aivx-reports rev-parse ff18697)" || { echo "AIVx clone is not at ff18697"; exit 1; }
 python3 -I - ~/code/aivx-reports/agent/renderer.py lib/aeo-outbound/aivx <<'PY'
-import json, re, sys
+import ast, json, re, sys
 src = open(sys.argv[1], encoding="utf-8").read(); out = sys.argv[2]
 head = "// Copied verbatim from Avenue-Z/aivx-reports@ff18697 agent/renderer.py. Do not edit; a test pins the hash.\n"
-css = re.search(r'^CSS = """(.*?)"""', src, re.S | re.M).group(1)
-js = re.search(r'^JS = """(.*?)"""', src, re.S | re.M).group(1)
+lit = {n.targets[0].id: ast.literal_eval(n.value) for n in ast.parse(src).body if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and n.targets[0].id in ("CSS", "JS")}
+css, js = lit["CSS"], lit["JS"]  # evaluated strings: what AIVx actually ships
 fav = re.search(r'(<link rel="icon" type="image/png" href="data:image/png;base64,[^"]+">)', src).group(1)
 i = src.index('  <div class="share-toast"'); j = src.index('</body>', i)
 share = src[i:j].replace("{{", "{").replace("}}", "}")
+bad = "Copy failed " + chr(0x2014) + " please copy: "
+assert share.count(bad) == 1
+share = share.replace(bad, "Copy failed. Please copy: ")  # my no-dash rule; the only change to AIVx's block
 for name, const, val in [("css.ts","AIVX_CSS",css),("js.ts","AIVX_JS",js),("favicon.ts","AIVX_FAVICON_TAG",fav),("share.ts","AIVX_SHARE_BLOCK",share)]:
     open(f"{out}/{name}", "w", encoding="utf-8").write(head + f"export const {const}: string = " + json.dumps(val, ensure_ascii=False) + "\n")
 print("ok")
@@ -1513,13 +1559,15 @@ import { AIVX_SHARE_BLOCK } from './share'
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
 test('the AIVx stylesheet and page script are byte-identical to ff18697', () => {
   expect(sha(AIVX_CSS)).toBe('2925c9bd76410aaa8e6ea832a7fd9e20d981efcb65fa68958545cf3b251c833e')
-  expect(sha(AIVX_JS)).toBe('a9533d2fccdafa961a3a2ceddb1545b3e2560477fd115f04affe427906a24773')
+  expect(sha(AIVX_JS)).toBe('6453e61c22b1b171d3c5f951f901e356087e0dd507e9951808332255183a9bb6')
 })
 test('favicon and share block have the expected shape', () => {
   expect(AIVX_FAVICON_TAG.startsWith('<link rel="icon" type="image/png" href="data:image/png;base64,')).toBe(true)
   expect(AIVX_SHARE_BLOCK).toContain('class="share-toast"')
   expect(AIVX_SHARE_BLOCK).toContain("document.querySelector('.share-btn')")
   expect(AIVX_SHARE_BLOCK).not.toContain('{{')
+  expect(AIVX_SHARE_BLOCK).toContain('Copy failed. Please copy: ')
+  expect(AIVX_SHARE_BLOCK).not.toMatch(new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`))
 })
 ```
 
@@ -1547,6 +1595,7 @@ git push -u origin feat/aeo-outbound-render
 - [ ] **Step 1: Generate** with plotly 6.9.0 in a throwaway venv (scratchpad), running AIVx's own functions extracted verbatim (the T2 method, `aeo-outbound-audit-notes/findings/t2-goldens/gen_goldens.py`):
 
 ```bash
+mkdir -p lib/aeo-outbound/__fixtures__
 V=/private/tmp/aeo-goldens-venv
 python3 -m venv $V && perl -e 'alarm 240; exec @ARGV' -- $V/bin/pip install -q "plotly==6.9.0"
 $V/bin/python -I - ~/code/aivx-reports/agent/agent.py lib/aeo-outbound/__fixtures__/aivx-goldens.json <<'PY'
@@ -1839,7 +1888,8 @@ test('draft: every slot editable, editor script present, share hidden', () => {
   for (const p of ['headline', 'summary', 'context', 'category', 'market', 'why', 'methodology', 'next_step', 'competitive_bullets.0.lead', 'sources_bullets.1.text', 'opportunities.2.workstream']) {
     expect(h).toContain(`data-slot="${p}" contenteditable="plaintext-only"`)
   }
-  expect(h).toContain("parent.postMessage({type:'dirty'}")
+  expect(h).toContain("parent.postMessage({type:'dirty',path:p}")
+  expect(h).toContain("e.data.type==='flush'")
   expect(h).not.toContain('class="share-btn"')
 })
 
@@ -1863,6 +1913,12 @@ test('sections, nav ids and roster bolding', () => {
   expect(h).toContain('<section id="competitive-visibility" class="section">')
   expect(h).toContain('<strong>Alpha</strong> leads <strong>Example &lt;Co&gt; &amp; &quot;Sons&quot;</strong>.')
   expect(h).toContain('These are opportunity hypotheses for discussion, not a full roadmap.')
+})
+
+test('a short brand name is bolded only as a whole word', () => {
+  const brands = [...BRANDS, { id: 's', name: 'amp', isOwn: false, visibilityPct: 1, sovPct: 1, position: 5, rank: 3 }]
+  const h = renderSnapshotHtml({ ...DATA, brands }, { ...SLOTS, context: 'Tom & Jerry vs amp and camping.' }, 'final', 'x')
+  expect(h).toContain('Tom &amp; Jerry vs <strong>amp</strong> and camping.')
 })
 
 test('a long brand name gets the AIVx 72px hero rule', () => {
@@ -1891,7 +1947,7 @@ export type RenderMode = 'draft' | 'preview' | 'final'
 const UL = '<ul style="margin-top:10px;padding-left:20px;display:flex;flex-direction:column;gap:4px">' // renderer.py:2313
 
 const EDITOR_STYLE = '<style>[data-slot]{outline:1px dashed transparent;outline-offset:2px;cursor:text}[data-slot]:hover,[data-slot]:focus{outline-color:rgba(255,255,255,0.35)}</style>'
-const EDITOR_SCRIPT = "<script>(function(){var t={};document.querySelectorAll('[data-slot]').forEach(function(el){var p=el.getAttribute('data-slot');el.addEventListener('input',function(){parent.postMessage({type:'dirty'},'*');clearTimeout(t[p]);t[p]=setTimeout(function(){parent.postMessage({type:'edit',path:p,value:el.textContent||''},'*')},800)});el.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();el.blur()}});el.addEventListener('paste',function(e){e.preventDefault();var s=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,s)})})})();</script>"
+const EDITOR_SCRIPT = "<script>(function(){var t={},els={};function send(p){clearTimeout(t[p]);delete t[p];parent.postMessage({type:'edit',path:p,value:els[p].textContent||''},'*')}window.addEventListener('message',function(e){if(e.source===parent&&e.data&&e.data.type==='flush'){Object.keys(t).forEach(send)}});document.querySelectorAll('[data-slot]').forEach(function(el){var p=el.getAttribute('data-slot');els[p]=el;el.addEventListener('input',function(){parent.postMessage({type:'dirty',path:p},'*');clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});el.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();el.blur()}});el.addEventListener('paste',function(e){e.preventDefault();var s=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,s)})})})();</script>"
 
 export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: RenderMode, preparedOn: string): string {
   const draft = mode === 'draft'
@@ -1901,13 +1957,19 @@ export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: Rende
   const bullets = (key: 'competitive_bullets' | 'sources_bullets') =>
     UL + slots[key].map((b, i) => `<li><strong>${slot('span', `${key}.${i}.lead`, b.lead)}</strong> ${slot('span', `${key}.${i}.text`, b.text)}</li>`).join('') + '</ul>'
 
-  const names = data.brands.map((b) => b.name).filter(Boolean).sort((a, b) => b.length - a.length).map(esc)
+  const names = data.brands.map((b) => b.name).filter(Boolean).sort((a, b) => b.length - a.length)
+  /** Bold exact roster names in the raw text (whole words only), escaping every piece. */
   const bolded = (text: string) => {
-    let out = esc(text)
-    if (!names.length) return out
-    const re = new RegExp(names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
-    out = out.replace(re, (m) => `<strong>${m}</strong>`)
-    return out
+    if (!names.length) return esc(text)
+    const alt = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+    const re = new RegExp(`(?<![A-Za-z0-9])(?:${alt})(?![A-Za-z0-9])`, 'g')
+    let out = ''
+    let last = 0
+    for (const m of text.matchAll(re)) {
+      out += esc(text.slice(last, m.index)) + `<strong>${esc(m[0])}</strong>`
+      last = m.index! + m[0].length
+    }
+    return out + esc(text.slice(last))
   }
 
   const isLong = data.brand.length > 24 // renderer.py:1439-1458
@@ -2221,6 +2283,10 @@ test('a number not in the data is flagged with its field', () => {
   const s = { ...base, why: 'Visibility rose 12.5% this month' }
   expect(groundingFlags(s, D, allowed)).toEqual(['why: "12.5%" is not in the Peec data'])
 })
+test('a long dash is flagged', () => {
+  const s = { ...base, why: `Strong ${String.fromCharCode(0x2014)} for now` }
+  expect(groundingFlags(s, D, allowed)).toEqual(['why: contains a long dash; use a period or comma'])
+})
 test('an unknown domain is flagged', () => {
   const s = { ...base, why: 'See competitor.io for more' }
   expect(groundingFlags(s, D, allowed)).toEqual(['why: "competitor.io" is not a domain in the Peec data'])
@@ -2311,6 +2377,7 @@ import { slotEntries, type Slots } from './slots'
 const NUM = /#?\d[\d,]*(?:\.\d+)?%?/g
 const DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi
 const norm = (t: string) => t.replace(/[#%,]/g, '')
+const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`)
 
 export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string): string[] {
   const allowedNums = new Set((dataText.match(NUM) ?? []).map(norm))
@@ -2323,6 +2390,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     for (const name of exemptNames) text = text.split(name).join(' ')
     for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) flags.push(`${path.split('.')[0]}: "${m}" is not a domain in the Peec data`)
     for (const m of text.match(NUM) ?? []) if (!allowedNums.has(norm(m))) flags.push(`${path.split('.')[0]}: "${m}" is not in the Peec data`)
+    if (DASHES.test(value)) flags.push(`${path.split('.')[0]}: contains a long dash; use a period or comma`)
   }
   return [...new Set(flags)]
 }
@@ -2346,7 +2414,7 @@ git push
 - Consumes: everything above.
 - Produces: `generateSnapshot(projectId, deps: { peec: PeecClient; glean: (prompt, signal) => Promise<GleanReply>; deadline: number; now: () => number }) → Promise<{ ok: true; brandName; data; slots; notes } | { ok: false; error; brandName: string | null }>`; route `POST /api/aeo-outbound/generate` per spec §7a; route `GET /api/aeo-outbound/projects`.
 
-- [ ] **Step 1: Write the failing pipeline test** `lib/aeo-outbound/generate.test.ts`, covering: success → draft with notes; a searched reply retried once then a second searched reply fails with `Copy generation used outside sources. Rerun.`; two shape failures fail with `Copy generation failed. Rerun.`; grounding-only violations save as draft with the violations in `notes`; a second Glean attempt is skipped with under 60 s left; a `PeecError` fails with its message and `brandName` null. Use a fake `PeecClient` built from the Task 1.3 `fakePeec` helper (copy it into this file) and a fake `glean` returning scripted `GleanReply` values.
+- [ ] **Step 1: Write the failing pipeline test** `lib/aeo-outbound/generate.test.ts`, covering: success → draft with notes; a searched reply retried once then a second searched reply fails with `Copy generation used outside sources. Rerun.`; two shape failures fail with `Copy generation failed. Rerun.`; grounding-only violations save as draft with the violations in `notes`; a grounding-only first answer survives a broken second; a Glean HTTP error is retried then reported as a copy failure; a passed deadline is `Timed out at step N`; a missing profile gives `Needs validation` slots; a second Glean attempt is skipped with under 60 s left; a `PeecError` fails with its message and `brandName` null. Use a fake `PeecClient` built from the Task 1.3 `fakePeec` helper (copy it into this file) and a fake `glean` returning scripted `GleanReply` values.
 
 ```ts
 import { expect, test, vi } from 'vitest'
@@ -2415,6 +2483,27 @@ test('no second Glean attempt with under 60s left', async () => {
   expect(glean).toHaveBeenCalledTimes(1)
   expect(r.ok).toBe(false)
 })
+test('a grounding-only first answer survives a broken second answer', async () => {
+  const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
+  const glean = vi.fn().mockResolvedValueOnce(reply(JSON.stringify(bad))).mockResolvedValueOnce(reply('not json'))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(r.ok && r.slots.why).toBe('Visibility rose 42.0% last year.')
+})
+test('a Glean HTTP error is retried, then reported as a copy failure', async () => {
+  const glean = vi.fn(async () => { throw new Error('Glean chat error 500') })
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(glean).toHaveBeenCalledTimes(2)
+  expect(r).toMatchObject({ ok: false, error: 'Copy generation failed. Rerun.' })
+})
+test('a deadline already passed fails as a timeout at the step it reached', async () => {
+  const r = await generateSnapshot('or_a', { peec: new PeecClient('skc-x', { now: () => 10, deadline: 5 }), glean: vi.fn(), deadline: 5, now: () => 10 })
+  expect(r).toMatchObject({ ok: false, error: 'Timed out at step 1' })
+})
+test('no profile: category and market slots say Needs validation', async () => {
+  const peec = fakePeec({ ...base, '/project-profile': () => ({ profile: null }) })
+  const r = await generateSnapshot('or_a', { peec, glean: vi.fn(async () => reply(GOOD)), deadline: 270_000, now: () => 0 })
+  expect(r.ok && [r.slots.category, r.slots.market]).toEqual(['Needs validation', 'Needs validation'])
+})
 test('a Peec failure fails with its reason', async () => {
   const r = await generateSnapshot('or_zzz', deps(vi.fn()))
   expect(r).toMatchObject({ ok: false, brandName: null })
@@ -2457,7 +2546,9 @@ export async function generateSnapshot(
     }
     const block = dataBlock(data)
     let problems: string[] = []
-    let searchedTwice = 0
+    let searched = 0
+    /** A shape-valid reply whose only problem was grounding: kept so a worse second attempt can't lose it. */
+    let groundedFallback: { slots: Slots; flags: string[] } | null = null
     for (let attempt = 1; attempt <= 2; attempt++) {
       const left = deps.deadline - deps.now()
       if (attempt === 2 && left < 60_000) break
@@ -2466,30 +2557,39 @@ export async function generateSnapshot(
       let replyText: string
       try {
         const r = await deps.glean(buildPrompt(data, problems), controller.signal)
-        if (r.searched) { searchedTwice++; problems = ['the answer used sources outside the Data section']; continue }
+        if (r.searched) { searched++; problems = ['the answer used sources outside the Data section']; continue }
         replyText = r.text
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') throw e
+        problems = [`the previous answer could not be read (${String((e as Error)?.message ?? e).slice(0, 80)})`]
+        continue
       } finally {
         clearTimeout(timer)
       }
       const parsed = parseModelJson(replyText) as Record<string, unknown> | null
-      if (parsed && DECISIONS.writeSpecificCategory && typeof parsed.category === 'string') fixed.category = parsed.category
-      const checked = validateGeneratedSlots(parsed, fixed)
+      const fixedNow = { ...fixed }
+      if (parsed && DECISIONS.writeSpecificCategory && typeof parsed.category === 'string') fixedNow.category = parsed.category
+      const checked = validateGeneratedSlots(parsed, fixedNow)
       if (!checked.ok) { problems = checked.errors; continue }
       const flags = groundingFlags(checked.slots, data, block)
-      if (flags.length && attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = flags; continue }
-      return { ok: true, brandName, data, slots: checked.slots, notes: [...data.notes, ...flags] }
+      if (!flags.length) return { ok: true, brandName, data, slots: checked.slots, notes: data.notes }
+      groundedFallback = { slots: checked.slots, flags }
+      if (attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = flags; continue }
+      break
     }
-    if (searchedTwice === 2) return { ok: false, error: 'Copy generation used outside sources. Rerun.', brandName }
+    if (groundedFallback) return { ok: true, brandName, data, slots: groundedFallback.slots, notes: [...data.notes, ...groundedFallback.flags] }
+    if (searched === 2) return { ok: false, error: 'Copy generation used outside sources. Rerun.', brandName }
     return { ok: false, error: 'Copy generation failed. Rerun.', brandName }
   } catch (e) {
+    const timedOut = (e as Error)?.name === 'AbortError' || /timed out|deadline reached/.test(String((e as Error)?.message))
+    if (timedOut) return { ok: false, error: `Timed out at step ${step}`, brandName }
     if (e instanceof PeecError) return { ok: false, error: e.message, brandName }
-    const msg = (e as Error)?.name === 'AbortError' ? `Timed out at step ${step}` : `Generation failed at step ${step}: ${(e as Error)?.message ?? String(e)}`
-    return { ok: false, error: msg.slice(0, 300), brandName }
+    return { ok: false, error: `Generation failed at step ${step}: ${(e as Error)?.message ?? String(e)}`.slice(0, 300), brandName }
   }
 }
 ```
 
-Note on the grounding-only case: if attempt 1 has only grounding flags and time allows, it retries with those flags quoted back (spec §6). If attempt 2 still has grounding flags, the loop's attempt-2 path returns the draft with flags, because the `attempt === 1` condition is false. A grounding-only result therefore never fails.
+Note on the grounding-only case: a shape-valid reply with only grounding flags is kept as `groundedFallback`. If time allows, attempt 2 retries with the flags quoted back. If attempt 2 is clean it wins; anything else (flags again, a searched or unreadable reply, no time) returns the kept draft with its flags. A grounding-only result therefore never fails, as spec §6 says.
 
 - [ ] **Step 3: Run the pipeline test** → PASS. Commit.
 
@@ -2501,14 +2601,14 @@ import { NextRequest } from 'next/server'
 
 const m = vi.hoisted(() => ({
   listProjects: vi.fn(), generateSnapshot: vi.fn(),
-  insert: vi.fn(), stale: vi.fn(), draft: vi.fn(), failed: vi.fn(), findGenerating: vi.fn(),
+  insert: vi.fn(), insertArgs: vi.fn(), stale: vi.fn(), draft: vi.fn(), failed: vi.fn(), findGenerating: vi.fn(),
 }))
 vi.mock('@/lib/aeo-outbound/pull', async (o) => ({ ...(await o<object>()), listProjects: m.listProjects }))
 vi.mock('@/lib/aeo-outbound/generate', () => ({ generateSnapshot: m.generateSnapshot }))
 vi.mock('@/lib/aeo-outbound/store', async (o) => ({
   ...(await o<object>()),
   markStaleGeneratingQuery: () => ({ then: (r: (v: unknown) => void) => r(m.stale()) }),
-  insertGeneratingQuery: () => ({ then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.insert()) } catch (e) { j(e) } } }),
+  insertGeneratingQuery: (v: unknown) => { m.insertArgs(v); return { then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.insert()) } catch (e) { j(e) } } } },
   finishDraftQuery: () => ({ then: (r: (v: unknown) => void) => r(m.draft()) }),
   finishFailedQuery: () => ({ then: (r: (v: unknown) => void) => r(m.failed()) }),
   findGeneratingFor: m.findGenerating,
@@ -2561,6 +2661,14 @@ test('200 draft and 200 failed', async () => {
   expect(await (await post({ projectId: 'or_a' })).json()).toEqual({ id: 'row-1', status: 'draft' })
   m.generateSnapshot.mockResolvedValueOnce({ ok: false, error: 'Copy generation failed. Rerun.', brandName: 'Example Co' })
   expect(await (await post({ projectId: 'or_a', rerunOf: 'c7d8e0a1-1111-4111-8111-111111111111' })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Copy generation failed. Rerun.' })
+  expect(m.insertArgs).toHaveBeenLastCalledWith({ projectId: 'or_a', projectName: 'Alpha', createdBy: 'ryan@avenuez.com', rerunOf: 'c7d8e0a1-1111-4111-8111-111111111111' })
+})
+test('a throw while finishing still fails the row and answers', async () => {
+  as('ryan@avenuez.com')
+  m.draft.mockImplementationOnce(() => { throw new Error('db down') })
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  expect(await (await post({ projectId: 'or_a' })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Generation failed. Rerun.' })
+  expect(m.failed).toHaveBeenCalled()
 })
 ```
 
@@ -2664,19 +2772,26 @@ export async function POST(req: NextRequest) {
   try {
     id = (await insertGeneratingQuery({ projectId, projectName: project.name, createdBy: email, rerunOf: rerunOf as string | null }))[0].id
   } catch (e) {
-    if (isUniqueViolation(e)) return NextResponse.json({ error: 'already-generating', id: await findGeneratingFor(projectId) }, { status: 409 })
+    if (isUniqueViolation(e)) return NextResponse.json({ error: 'already-generating', id: (await findGeneratingFor(projectId)) ?? null }, { status: 409 })
     throw e
   }
 
-  const result = await generateSnapshot(projectId, { peec, glean: gleanOnce, deadline, now: Date.now })
-  if (result.ok) {
-    await finishDraftQuery(id, { brandName: result.brandName, data: result.data, slots: result.slots, notes: result.notes, now: new Date() })
-    console.info(`[aeo-outbound] generate id=${id} outcome=draft ms=${Date.now() - started}`)
-    return NextResponse.json({ id, status: 'draft' })
+  try {
+    const result = await generateSnapshot(projectId, { peec, glean: gleanOnce, deadline, now: Date.now })
+    if (result.ok) {
+      await finishDraftQuery(id, { brandName: result.brandName, data: result.data, slots: result.slots, notes: result.notes, now: new Date() })
+      console.info(`[aeo-outbound] generate id=${id} outcome=draft ms=${Date.now() - started}`)
+      return NextResponse.json({ id, status: 'draft' })
+    }
+    await finishFailedQuery(id, result.error, result.brandName, new Date())
+    console.info(`[aeo-outbound] generate id=${id} outcome=failed ms=${Date.now() - started}`)
+    return NextResponse.json({ id, status: 'failed', error: result.error })
+  } catch (e) {
+    // Never leave the row generating: a failed write or an unexpected throw still fails it.
+    console.error(`[aeo-outbound] generate id=${id} outcome=error step=finish ms=${Date.now() - started}`, (e as Error)?.message)
+    await finishFailedQuery(id, 'Generation failed. Rerun.', null, new Date()).catch(() => {})
+    return NextResponse.json({ id, status: 'failed', error: 'Generation failed. Rerun.' })
   }
-  await finishFailedQuery(id, result.error, result.brandName, new Date())
-  console.info(`[aeo-outbound] generate id=${id} outcome=failed ms=${Date.now() - started}`)
-  return NextResponse.json({ id, status: 'failed', error: result.error })
 }
 ```
 
@@ -2706,9 +2821,9 @@ Cut from `aeo-outbound-audit` after PR3 merges: `git checkout -b feat/aeo-outbou
 
 **Interfaces:**
 - Consumes: `getReport`, `saveSlotsQuery` (1.6), `applySlotPatch` (1.5), `renderSnapshotHtml` (2.3), `groundingFlags`, `dataBlock` (3.2).
-- Produces: `GET .../view?mode=preview` → HTML (draft hooks unless `mode=preview`; frozen HTML when approved), headers `Content-Type: text/html; charset=utf-8`, `Cache-Control: no-store`, `Content-Security-Policy: sandbox allow-scripts`; `PATCH .../slots` per spec §9a.
+- Produces: `GET .../view?mode=preview` → HTML (draft hooks unless `mode=preview`; frozen HTML when approved, or the preview render of an approved row when `mode=preview`), headers `Content-Type: text/html; charset=utf-8`, `Cache-Control: no-store`, `Content-Security-Policy: sandbox allow-scripts`; `PATCH .../slots` per spec §9a.
 
-- [ ] **Step 1: Write the failing tests.** View: 403 without the allowlist; 404 unknown or discarded; 404 for generating or failed; draft HTML contains `data-slot` and the three headers; `?mode=preview` has no `data-slot`; approved returns `row.html` byte for byte. Slots: 403; 404; 409 `not-draft` for an approved row; 400 for a bad path, an empty value and an 81-character lead; 409 `stale` with the current revision when `saveSlotsQuery` returns no rows; 200 `{revision}` on success, and the saved `notes` equal `data.notes` plus fresh grounding flags. Mock `@/lib/aeo-outbound/store` the same way as Task 3.3 Step 4.
+- [ ] **Step 1: Write the failing tests.** View: 403 without the allowlist; 404 for a malformed, unknown or discarded id; 404 for generating or failed; draft HTML contains `data-slot` and the three headers; `?mode=preview` has no `data-slot` and no share button; approved returns `row.html` byte for byte, and approved with `?mode=preview` returns the preview without the share button. Slots: 403 without the allowlist and for an `Origin` of `https://evil.example`; 404; 409 `not-draft` for an approved row; 400 for a bad path, an empty value and an 81-character lead; 409 `stale` with the current revision when `saveSlotsQuery` returns no rows; 200 `{revision, notes, needsValidation}` on success, where `notes` equal `data.notes` plus fresh grounding flags. Mock `@/lib/aeo-outbound/store` the same way as Task 3.3 Step 4.
 
 - [ ] **Step 2: Implement.** The route handler signature for a dynamic segment in this Next version is `(req: NextRequest, ctx: { params: Promise<{ id: string }> })`. Confirm it against `node_modules/next/dist/server/route-modules/app-route/module.d.ts` after `npm ci`, before writing, and use what that file declares.
 
@@ -2719,7 +2834,7 @@ import { auth } from '@/auth'
 import { outboundEmail } from '@/lib/aeo-outbound/permissions'
 import { getReport } from '@/lib/aeo-outbound/store'
 import { renderSnapshotHtml } from '@/lib/aeo-outbound/render'
-import { fmtDay } from '@/lib/aeo-outbound/metrics'
+import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -2732,10 +2847,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params
   const row = await getReport(id).catch(() => undefined)
   if (!row) return notFound()
-  if (row.status === 'approved' && row.html) return new Response(row.html, { headers: HEADERS })
+  const preview = req.nextUrl.searchParams.get('mode') === 'preview'
+  if (row.status === 'approved' && row.html) {
+    // The editor shows approved rows as a preview: the frozen page's share button would copy the srcdoc
+    // placeholder address there (T2). The public link serves row.html itself.
+    if (preview && row.data && row.slots && row.approvedAt) return new Response(renderSnapshotHtml(row.data, row.slots, 'preview', fmtEasternDay(row.approvedAt)), { headers: HEADERS })
+    return new Response(row.html, { headers: HEADERS })
+  }
   if (row.status !== 'draft' || !row.data || !row.slots) return notFound()
-  const mode = req.nextUrl.searchParams.get('mode') === 'preview' ? 'preview' : 'draft'
-  return new Response(renderSnapshotHtml(row.data, row.slots, mode, fmtDay(row.data.generatedAt)), { headers: HEADERS })
+  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', fmtEasternDay(new Date(row.data.generatedAt))), { headers: HEADERS })
 }
 ```
 
@@ -2745,7 +2865,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
 import { getReport, saveSlotsQuery } from '@/lib/aeo-outbound/store'
-import { applySlotPatch } from '@/lib/aeo-outbound/slots'
+import { applySlotPatch, needsValidationPaths } from '@/lib/aeo-outbound/slots'
 import { groundingFlags } from '@/lib/aeo-outbound/grounding'
 import { dataBlock } from '@/lib/aeo-outbound/prompt'
 
@@ -2767,7 +2887,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const notes = [...row.data.notes, ...groundingFlags(patched.slots, row.data, dataBlock(row.data))]
   const saved = await saveSlotsQuery(id, body.revision as number, patched.slots, notes)
   if (!saved.length) return NextResponse.json({ error: 'stale', revision: (await getReport(id))?.revision ?? null }, { status: 409 })
-  return NextResponse.json({ revision: saved[0].revision, notes })
+  return NextResponse.json({ revision: saved[0].revision, notes, needsValidation: needsValidationPaths(patched.slots) })
 }
 ```
 
@@ -2782,7 +2902,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 **Interfaces:**
 - Produces: `approveSnapshotAction(id, revision) → { ok: true; token } | { ok: false; error }`, `revokeSnapshotAction(id) → { ok } | { ok: false; error }`, `discardSnapshotAction(id) → same`; `GET /snapshot/{token}`.
 
-- [ ] **Step 1: Write the failing tests.** Actions (pattern `app/actions/chart-notes.test.ts:1-40`): each action returns `{ ok: false, error: 'forbidden' }` for no session, a client role, and non-allowlisted staff, with no write called; approve refuses `Needs validation` (`{ ok: false, error: 'Fill in every "Needs validation" first.' }`) when `DECISIONS.needsValidationBlocksApprove`; approve with a stale revision (query returns no rows) gives `{ ok: false, error: 'stale' }`; approve success renders `'final'` HTML (contains `class="share-btn"`, no `data-slot`) and returns a 24-character token; revoke and discard call their queries and return `{ ok: true }`; `updateTag('db')` is called after each successful write. Public route: unknown, malformed, revoked and discarded tokens return the identical 404 body; a live token returns the stored HTML byte for byte with `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: sandbox allow-scripts`.
+- [ ] **Step 1: Write the failing tests.** Actions (pattern `app/actions/chart-notes.test.ts:1-40`, plus `vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers({ host: 'app.example' })) }))` because `caller()` reads the Origin; `vi.mock('next/cache', () => ({ updateTag: vi.fn() }))` as there). Actions return `{ ok: false, error: 'forbidden' }` instead of throwing, the repo's precedent (`app/actions/chart-notes.test.ts` `FORBIDDEN`); spec §8 and §15 are amended to match. Each action returns `forbidden` for no session, a client role, non-allowlisted staff and an `Origin` of `https://evil.example`, with no write called; a malformed id or a non-integer revision returns `not found` with no query; approve refuses `Needs validation` (`{ ok: false, error: 'Fill in every "Needs validation" first.' }`) when `DECISIONS.needsValidationBlocksApprove`; approve with a stale revision (query returns no rows) gives `{ ok: false, error: 'stale' }`; approve success renders `'final'` HTML (contains `class="share-btn"`, no `data-slot`) and returns a 24-character token; revoke and discard call their queries and return `{ ok: true }`; `updateTag('db')` is called after each successful write. Public route: unknown, malformed, revoked and discarded tokens return the identical 404 body; a live token returns the stored HTML byte for byte with `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: sandbox allow-scripts`.
 
 - [ ] **Step 2: Implement.**
 
@@ -2794,11 +2914,11 @@ import { headers } from 'next/headers'
 import { updateTag } from 'next/cache'
 import { auth } from '@/auth'
 import { DECISIONS } from '@/lib/aeo-outbound/config'
-import { fmtDay } from '@/lib/aeo-outbound/metrics'
+import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
 import { renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
-import { approveQuery, discardQuery, getReport, revokeQuery } from '@/lib/aeo-outbound/store'
+import { approveQuery, discardQuery, getReport, isReportId, revokeQuery } from '@/lib/aeo-outbound/store'
 import { newShareToken } from '@/lib/aeo-outbound/token'
 
 type Fail = { ok: false; error: string }
@@ -2814,11 +2934,12 @@ async function caller(): Promise<string | null> {
 export async function approveSnapshotAction(id: string, revision: number): Promise<{ ok: true; token: string } | Fail> {
   const email = await caller()
   if (!email) return { ok: false, error: 'forbidden' }
+  if (!isReportId(id) || !Number.isInteger(revision)) return { ok: false, error: 'not found' }
   const row = await getReport(id)
   if (!row || row.status !== 'draft' || !row.data || !row.slots) return { ok: false, error: 'not found' }
   if (DECISIONS.needsValidationBlocksApprove && needsValidationPaths(row.slots).length) return { ok: false, error: 'Fill in every "Needs validation" first.' }
   const now = new Date()
-  const html = renderSnapshotHtml(row.data, row.slots, 'final', fmtDay(now.toISOString()))
+  const html = renderSnapshotHtml(row.data, row.slots, 'final', fmtEasternDay(now))
   const done = await approveQuery(id, revision, { html, token: newShareToken(), by: email, now })
   if (!done.length || !done[0].shareToken) return { ok: false, error: 'stale' }
   updateTag('db')
@@ -2828,6 +2949,7 @@ export async function approveSnapshotAction(id: string, revision: number): Promi
 export async function revokeSnapshotAction(id: string): Promise<{ ok: true } | Fail> {
   const email = await caller()
   if (!email) return { ok: false, error: 'forbidden' }
+  if (!isReportId(id)) return { ok: false, error: 'not found' }
   const done = await revokeQuery(id, email, new Date())
   if (!done.length) return { ok: false, error: 'not found' }
   updateTag('db')
@@ -2837,14 +2959,13 @@ export async function revokeSnapshotAction(id: string): Promise<{ ok: true } | F
 export async function discardSnapshotAction(id: string): Promise<{ ok: true } | Fail> {
   const email = await caller()
   if (!email) return { ok: false, error: 'forbidden' }
+  if (!isReportId(id)) return { ok: false, error: 'not found' }
   const done = await discardQuery(id, email, new Date())
   if (!done.length) return { ok: false, error: 'not found' }
   updateTag('db')
   return { ok: true }
 }
 ```
-
-Note: `fmtDay(now.toISOString())` formats the UTC day. Spec §5 row 10 says US Eastern for the "Prepared" date. Use `new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(now)` (gives `YYYY-MM-DD`) and pass that to `fmtDay`, and test it with a time just after midnight UTC.
 
 `app/snapshot/[token]/route.ts`:
 ```ts
@@ -2875,7 +2996,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 - Test: `components/aeo-outbound/save-queue.test.ts`
 
 **Interfaces:**
-- Produces: `class SaveQueue(send: (path, value, revision) => Promise<SendResult>, revision: number, onState: (s: SaveState) => void, sleep?)`, with `markDirty()`, `edit(path, value)`, `state`. `SendResult = { kind: 'ok'; revision } | { kind: 'bad'; error } | { kind: 'stop' } | { kind: 'retry' }`. `SaveState = { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean }`.
+- Produces: `class SaveQueue(send: (path, value, revision) => Promise<SendResult>, revision: number, onState: (s: SaveState) => void, sleep?)`, with `markDirty(path)`, `edit(path, value)`, `stop(message)`, `state`. `SendResult = { kind: 'ok'; revision } | { kind: 'bad'; error } | { kind: 'stop' } | { kind: 'retry' }`. `SaveState = { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean }`. A path stays dirty from its first keystroke until an edit sent after its last keystroke is saved, so a save of field A never clears field B.
 
 - [ ] **Step 1: Write the failing test** (spec §9a and §15):
 
@@ -2883,37 +3004,54 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 import { expect, test, vi } from 'vitest'
 import { SaveQueue, type SendResult } from './save-queue'
 
-const flush = () => new Promise((r) => setTimeout(r, 0))
+const flush = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0)) }
 test('one PATCH at a time, the latest value per path, revision carried forward', async () => {
   const calls: [string, string, number][] = []
   let rev = 3
   const send = vi.fn(async (p: string, v: string, r: number): Promise<SendResult> => { calls.push([p, v, r]); return { kind: 'ok', revision: ++rev } })
   const q = new SaveQueue(send, 3, () => {})
-  q.markDirty(); q.edit('headline', 'a'); q.edit('headline', 'b'); q.edit('why', 'c')
-  await flush(); await flush(); await flush()
-  expect(calls).toEqual([['headline', 'a', 3], ['headline', 'b', 4], ['why', 'c', 5]].slice(0, calls.length))
+  q.markDirty('headline'); q.edit('headline', 'a'); q.edit('headline', 'b'); q.markDirty('why'); q.edit('why', 'c')
+  await flush()
+  expect(calls.map(([, , r]) => r)).toEqual(calls.map((_, i) => 3 + i))
+  expect(calls.at(-1)).toEqual(['why', 'c', 3 + calls.length - 1])
+  expect(calls.filter(([p]) => p === 'headline').at(-1)?.[1]).toBe('b')
   expect(q.state).toMatchObject({ dirty: false, saving: false, revision: rev })
 })
-test('dirty is set by the first keystroke, before any edit message', () => {
+test('a keystroke marks its field dirty before any edit message', () => {
   const q = new SaveQueue(vi.fn(), 0, () => {})
-  q.markDirty()
+  q.markDirty('why')
+  expect(q.state.dirty).toBe(true)
+})
+test("saving field A never clears field B that is still being typed", async () => {
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'ok', revision: 1 })), 0, () => {})
+  q.markDirty('headline'); q.edit('headline', 'a')
+  q.markDirty('why')
+  await flush()
+  expect(q.state.dirty).toBe(true)
+  q.edit('why', 'w'); await flush()
+  expect(q.state.dirty).toBe(false)
+})
+test('a keystroke after an edit was sent keeps the field dirty', async () => {
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'ok', revision: 1 })), 0, () => {})
+  q.markDirty('why'); q.edit('why', 'a'); q.markDirty('why')
+  await flush()
   expect(q.state.dirty).toBe(true)
 })
 test('5xx and network errors retry with backoff; 400 shows the reason and keeps the edit dirty', async () => {
-  const sleep = vi.fn(async () => {})
-  const send = vi.fn<(...a: unknown[]) => Promise<SendResult>>()
+  const sleep = vi.fn(async (_ms: number) => {})
+  const send = vi.fn<(p: string, v: string, r: number) => Promise<SendResult>>()
     .mockResolvedValueOnce({ kind: 'retry' }).mockResolvedValueOnce({ kind: 'ok', revision: 1 })
-  const q = new SaveQueue(send as never, 0, () => {}, sleep)
-  q.edit('why', 'x'); await flush(); await flush(); await flush()
+  const q = new SaveQueue(send, 0, () => {}, sleep)
+  q.markDirty('why'); q.edit('why', 'x'); await flush()
   expect(sleep).toHaveBeenCalledWith(1000)
   expect(q.state.revision).toBe(1)
-  const bad = new SaveQueue(vi.fn(async () => ({ kind: 'bad', error: 'Keep this under 80 characters.' }) as SendResult), 0, () => {})
-  bad.edit('competitive_bullets.0.lead', 'x'.repeat(81)); await flush(); await flush()
+  const bad = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: 'Keep this under 80 characters.' })), 0, () => {})
+  bad.markDirty('competitive_bullets.0.lead'); bad.edit('competitive_bullets.0.lead', 'x'.repeat(81)); await flush()
   expect(bad.state).toMatchObject({ dirty: true, error: 'Keep this under 80 characters.', stopped: false })
 })
 test('403, 404 and 409 stop the queue for good', async () => {
-  const q = new SaveQueue(vi.fn(async () => ({ kind: 'stop' }) as SendResult), 0, () => {})
-  q.edit('why', 'x'); await flush(); await flush()
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'stop' })), 0, () => {})
+  q.markDirty('why'); q.edit('why', 'x'); await flush()
   expect(q.state.stopped).toBe(true)
   q.edit('why', 'y'); await flush()
   expect(q.state.stopped).toBe(true)
@@ -2923,14 +3061,17 @@ test('403, 404 and 409 stop the queue for good', async () => {
 - [ ] **Step 2: Implement** `components/aeo-outbound/save-queue.ts`:
 
 ```ts
-// The editor's single save queue (spec §9a): one PATCH at a time, newest value per path, the revision
-// from each 200 carried into the next request. Approve reads `state` and is disabled while dirty or saving.
+// The editor's single save queue (spec §9a): one PATCH at a time, newest value per path, the revision from each
+// 200 carried into the next request. A field is dirty from its first keystroke until an edit sent after its last
+// keystroke is saved, so Approve (disabled while dirty or saving) can never approve text Ryan is still typing.
 export type SendResult = { kind: 'ok'; revision: number } | { kind: 'bad'; error: string } | { kind: 'stop' } | { kind: 'retry' }
 export interface SaveState { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean }
 const BACKOFF = [1000, 2000, 4000]
 
 export class SaveQueue {
-  private pending = new Map<string, string>()
+  private pending = new Map<string, { value: string; stamp: number }>()
+  private typed = new Map<string, number>()
+  private dirtyPaths = new Set<string>()
   private running = false
   private attempt = 0
   state: SaveState
@@ -2944,36 +3085,47 @@ export class SaveQueue {
     this.state = { dirty: false, saving: false, revision, error: null, stopped: false }
   }
 
-  private set(p: Partial<SaveState>) { this.state = { ...this.state, ...p }; this.onState(this.state) }
+  private set(p: Partial<SaveState>) {
+    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 }
+    this.onState(this.state)
+  }
 
-  markDirty() { if (!this.state.stopped) this.set({ dirty: true }) }
+  markDirty(path: string) {
+    if (this.state.stopped) return
+    this.typed.set(path, (this.typed.get(path) ?? 0) + 1)
+    this.dirtyPaths.add(path)
+    this.set({})
+  }
 
   edit(path: string, value: string) {
     if (this.state.stopped) return
     this.pending.delete(path)
-    this.pending.set(path, value)
-    this.set({ dirty: true, error: null })
+    this.pending.set(path, { value, stamp: this.typed.get(path) ?? 0 })
+    this.set({ error: null })
     void this.run()
   }
+
+  stop(message: string) { this.set({ stopped: true, saving: false, error: message }) }
 
   private async run() {
     if (this.running) return
     this.running = true
     try {
       while (this.pending.size && !this.state.stopped) {
-        const [path, value] = this.pending.entries().next().value as [string, string]
+        const [path, item] = this.pending.entries().next().value as [string, { value: string; stamp: number }]
         this.set({ saving: true })
-        const r = await this.send(path, value, this.state.revision).catch((): SendResult => ({ kind: 'retry' }))
+        const r = await this.send(path, item.value, this.state.revision).catch((): SendResult => ({ kind: 'retry' }))
         if (r.kind === 'ok') {
-          if (this.pending.get(path) === value) this.pending.delete(path)
+          if (this.pending.get(path) === item) this.pending.delete(path)
+          if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)
           this.attempt = 0
-          this.set({ revision: r.revision, saving: false, dirty: this.pending.size > 0, error: null })
+          this.set({ revision: r.revision, saving: false, error: null })
         } else if (r.kind === 'bad') {
-          if (this.pending.get(path) === value) this.pending.delete(path)
-          this.set({ saving: false, dirty: true, error: r.error })
+          if (this.pending.get(path) === item) this.pending.delete(path)
+          this.set({ saving: false, error: r.error })
           return
         } else if (r.kind === 'stop') {
-          this.set({ saving: false, stopped: true, error: 'This snapshot changed. Reload.' })
+          this.stop('This snapshot changed. Reload.')
           return
         } else {
           this.set({ saving: false, error: "Couldn't save, retrying" })
@@ -3001,10 +3153,13 @@ export class SaveQueue {
 - Consumes: `displayStatus`, `listReports`, `getReport` (1.6); actions (4.2); `SaveQueue` (4.3).
 - Produces: `STATUS_UI: Record<DisplayStatus, { label: string; className: string }>`, `actionsFor(status) → ('open' | 'copy' | 'revoke' | 'rerun' | 'discard')[]`; `type HubRow = { id; brand; projectId; projectName; status: DisplayStatus; createdAt: string; approvedAt: string | null; error: string | null; token: string | null }`.
 
-- [ ] **Step 1: Write the failing tests.** `status.test.ts`: `actionsFor` returns exactly the spec §10 table (Draft: open, rerun, discard; Live: open, copy, revoke, rerun; Revoked: open, rerun; Failed: rerun, discard; Generating: none). `editor.test.tsx` (React Testing Library): render `<OutboundEditor>` with a draft, then
+- [ ] **Step 1: Write the failing tests.** (Both component tests mock `next/navigation` with `vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push }) }))`, mock `fetch`, and mock `@/app/actions/aeo-outbound`.) `hub.test.tsx`: `router.refresh()` is called on mount, after each action, and on a 5 s interval only while a row is `generating` (fake timers); each §7a response shows its message (`200 draft` pushes `/tools/new-business/{id}`; `400` "This Peec project can't be used"; `403` the access message; `409` pushes the existing id, or refreshes when `id` is null; `502` "Peec is unavailable. Try again"; network error "Lost connection. Refreshing" then `refresh`); a non-200 from the projects route shows "Peec is unavailable. Retry" while the table still renders; Rerun posts `{ projectId, rerunOf }` and opens the new draft; a stale generating row shows "Failed" with "Timed out" as its reason. `status.test.ts`: `actionsFor` returns exactly the spec §10 table (Draft: open, rerun, discard; Live: open, copy, revoke, rerun; Revoked: open, rerun; Failed: rerun, discard; Generating: none). `editor.test.tsx` (React Testing Library): render `<OutboundEditor>` with a draft, then
   - a `message` event whose `source` is not the iframe's `contentWindow` is ignored (no PATCH);
   - a `{type:'dirty'}` from the iframe disables Approve;
-  - Approve is disabled while `notes` include a `Needs validation` slot;
+  - Approve is disabled while the `needsValidation` prop is non-empty, and enables after a save whose response returns `needsValidation: []`;
+  - a save's response replaces the notes in the drawer;
+  - Approve posts `{type:'flush'}` to the iframe first, and shows "Saving. Try again in a moment." if a field is still dirty;
+  - approve results `stale` and `not found` show "This snapshot changed. Reload." and "This snapshot no longer exists.";
   - Rerun calls `fetch('/api/aeo-outbound/generate', { method: 'POST', body: JSON.stringify({ projectId, rerunOf: id }) })`.
 
   Mock `fetch` and the actions module.
@@ -3044,7 +3199,8 @@ export default async function NewBusinessHubPage() {
   const rows: HubRow[] = (await listReports()).map((r) => ({
     id: r.id, brand: r.brandName ?? r.peecProjectName, projectId: r.peecProjectId, projectName: r.peecProjectName,
     status: displayStatus(r, now), createdAt: r.createdAt.toISOString(), approvedAt: r.approvedAt?.toISOString() ?? null,
-    error: r.error, token: r.status === 'approved' && !r.shareRevokedAt ? r.shareToken : null,
+    error: r.error ?? (r.status === 'generating' && displayStatus(r, now) === 'failed' ? 'Timed out' : null),
+    token: r.status === 'approved' && !r.shareRevokedAt ? r.shareToken : null,
   }))
   return <OutboundHub rows={rows} />
 }
@@ -3098,7 +3254,9 @@ export default async function NewBusinessEditorPage({
   - `<iframe sandbox="allow-scripts" srcDoc={html} className="w-full" style={{ height: 'calc(100vh - 140px)' }} />`, with `html` fetched from the view route on mount.
   - A `message` listener that ignores events whose `source !== iframeRef.current?.contentWindow`, and routes `{type:'dirty'}` to `queue.markDirty()` and `{type:'edit'}` to `queue.edit(path, value)`.
   - A `SaveQueue` whose `send` PATCHes the slots route and maps `200 → ok`, `400 → bad`, `403/404/409 → stop`, everything else and network errors `→ retry`.
-  - Approve disabled while `state.dirty || state.saving || needsValidation.length > 0`; on click, `window.confirm(...)` re-checks, then calls `approveSnapshotAction(id, state.revision)` and then `router.refresh()`.
+  - `notes` and `needsValidation` live in component state, seeded from props and replaced by each 200 from the slots route (`{ revision, notes, needsValidation }`).
+  - Approve disabled while `state.dirty || state.saving || needsValidation.length > 0`. On click: post `{type:'flush'}` to the iframe, wait up to 2 s for the queue to be clean, and if still dirty show "Saving. Try again in a moment." Otherwise `window.confirm` (text from spec §2), then `approveSnapshotAction(id, state.revision)`. On `ok`: stop the queue, refetch the iframe as `?mode=preview`, `router.refresh()`. On `stale`: "This snapshot changed. Reload." On `not found`: "This snapshot no longer exists." On the Needs-validation error: show it.
+  - Rows that aren't drafts: Live and Revoked load the iframe from `?mode=preview` (no share button inside `srcdoc`) and never attach the save queue; Generating shows "Generating. This takes about a minute." and calls `router.refresh()` every 5 s; Failed shows the error with Rerun and Discard, no iframe.
   - The notes drawer lists `notes`.
 
   Use the card classes of `app/tools/reporting/page.tsx:7-8` and `lucide-react` icons as the existing tools pages do.
