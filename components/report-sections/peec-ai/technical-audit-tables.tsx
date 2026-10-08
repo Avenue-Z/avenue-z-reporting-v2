@@ -69,7 +69,8 @@ function SectionCard({
 }) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-      <div>
+      {/* In the PDF export the title stays on the page of what follows it (app/export/export-theme.css). */}
+      <div data-export-keep-with-next="">
         <div className="flex items-center gap-1.5">
           <h3 className="text-sm font-bold text-white">{title}</h3>
           {tooltip && (
@@ -735,7 +736,7 @@ export function LogAnomaliesTable({ agentData }: LogAnomaliesTableProps) {
       description="Unusual AI bot behavior: hits on error pages, redirect chains, and crawl budget distribution between high-value and low-value pages."
       tooltip={AVZ_LOW_VALUE_ENDPOINT}
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-export-block="">
         {[
           { label: 'Error Page Hits',        value: agentData.errorPageHits,         color: '#FF4444' },
           { label: 'Redirect Hits',          value: agentData.redirectHits,          color: '#FFFC60' },
@@ -857,7 +858,7 @@ export function FixListTable({ rows, hasDelta, errorPageHits }: FixListTableProp
 
   return (
     <div className="rounded-xl border border-[#60FDFF]/20 bg-[#60FDFF]/[0.03] p-6">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2" data-export-keep-with-next="">
         <Sparkles className="h-4 w-4 text-[#60FDFF]" />
         <span className="text-sm font-bold text-white">What should SEO and dev fix next?</span>
         <InfoTooltip text={AVZ_RECOMMENDED_ACTION} />
