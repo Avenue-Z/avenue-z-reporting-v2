@@ -5,7 +5,7 @@ const p = (engagements: number, impressions: number) => ({ metrics: { engagement
 
 test('posts, total engagements, engagements per post rounded, and total views', () => {
   expect(influencerTotals([p(10, 100), p(5, 0), p(6, 50)])).toEqual({ posts: 3, engagements: 21, perPost: 7, views: 150 })
-  expect(influencerTotals([p(1, 0), p(2, 0)]).perPost).toBe(2) // 1.5 rounds up, as num() does
+  expect(influencerTotals([p(1, 0), p(2, 0)])?.perPost).toBe(2) // 1.5 rounds up, as num() does
 })
 
 test('views are null, not 0, when no post reports any (influencer and UGC posts usually carry no reach)', () => {

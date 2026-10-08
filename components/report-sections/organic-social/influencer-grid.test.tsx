@@ -2,11 +2,12 @@ import { expect, test, vi } from 'vitest'
 import { fireEvent, render } from '@testing-library/react'
 vi.mock('@/app/actions/organic-social', () => ({ setDesignationAction: vi.fn(async () => ({ ok: true })) }))
 import { InfluencerGrid } from './influencer-grid'
+import { influencerCardMetrics } from './influencer-card'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
-const post = (id: number, engagements: number, impressions: number): TopContentPost => ({
+const post = (id: number, engagements: number, impressions: number, rates: { effectiveness: number | null; engagementRate: number | null } = { effectiveness: null, engagementRate: 0.1 }): TopContentPost => ({
   id, channel: 'INSTAGRAM', platform: 'Instagram', publishedAt: '2026-09-02', caption: `cap-${id}`, url: null, mediaType: 'IMAGE',
-  mediaGroup: null, creative: null, sourceType: 'influencer', metrics: { effectiveness: null, engagementRate: 0.1, engagements, impressions },
+  mediaGroup: null, creative: null, sourceType: 'influencer', metrics: { ...rates, engagements, impressions },
 })
 
 test('cards sort by engagements first, then by views when chosen, in a wrapping grid, no pager', () => {
@@ -34,4 +35,23 @@ test('no posts: one line, no toolbar', () => {
   const { getByText, queryByText } = render(<InfluencerGrid posts={[]} clientSlug="c" canEdit={false} sortKeys={['engagements', 'impressions']} />)
   expect(getByText('No influencer posts for this period.')).toBeTruthy()
   expect(queryByText('Sort by')).toBeNull()
+})
+
+test('deck cards, two across on a wide screen: the post on the left, its numbers beside it', () => {
+  const { container } = render(<InfluencerGrid posts={[post(1, 5, 900)]} clientSlug="c" canEdit={false} sortKeys={['engagements', 'impressions']} />)
+  expect(container.querySelector('.grid')!.className).toContain('xl:grid-cols-2')
+  const card = container.querySelector('[data-influencer-card]')!
+  expect(card.className).toContain('flex')
+  expect(card.children[0].textContent).toContain('creative no longer available') // the media column comes first
+  expect(card.children[1].textContent).toContain('cap-1')
+})
+
+test('a card hides the rows with nothing in them: no rate, and no views reported', () => {
+  const rows = (p: TopContentPost) => influencerCardMetrics(p, 'engagements').map((m) => m.label)
+  expect(rows(post(1, 31002, 0, { effectiveness: null, engagementRate: null }))).toEqual(['Engagements'])
+  expect(rows(post(2, 40, 900, { effectiveness: 0.02, engagementRate: 0.05 }))).toEqual(['Effectiveness', 'Engagement Rate', 'Engagements', 'Views / Impr.'])
+  expect(rows(post(3, 0, 0, { effectiveness: null, engagementRate: null }))).toEqual(['Engagements']) // engagements always shows, even 0
+  const { container } = render(<InfluencerGrid posts={[post(1, 31002, 0, { effectiveness: null, engagementRate: null })]} clientSlug="c" canEdit={false} sortKeys={['engagements', 'impressions']} />)
+  const list = container.querySelector('[data-influencer-card] ul')!
+  expect(list.textContent).toBe('Engagements31,002')
 })

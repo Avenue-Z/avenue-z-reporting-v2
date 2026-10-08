@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { PostCard } from './post-card'
+import { InfluencerCard } from './influencer-card'
 import { SORT_METRICS, sortPosts, type SortDir, type SortKey } from '@/lib/organic-social/sort-content'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
-/** The Influencer tab's cards: every influencer post of the period in a grid that wraps (three across on a wide
- *  screen, one column on a phone), sorted by the toolbar, no pager (Whitney, 10/6: "stack them down"). The toolbar
+/** The Influencer tab's cards: every influencer post of the period in a grid that wraps (two deck-style cards across
+ *  on a wide screen, one column below that), sorted by the toolbar, no pager (Whitney, 10/6: "stack them down"). The toolbar
  *  is the one SortableTopContent draws, so the two tabs read the same. */
 export function InfluencerGrid({ posts, clientSlug, canEdit, sortKeys }: {
   posts: TopContentPost[]; clientSlug: string; canEdit: boolean; sortKeys: readonly [SortKey, ...SortKey[]]
@@ -35,9 +35,9 @@ export function InfluencerGrid({ posts, clientSlug, canEdit, sortKeys }: {
           )
         })}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {sortPosts(posts, sortKey, dir).map((p) => (
-          <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} fluid />
+          <InfluencerCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} />
         ))}
       </div>
     </div>

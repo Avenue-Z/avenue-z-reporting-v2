@@ -6,9 +6,9 @@ import { pctCompact } from '@/lib/organic-social/format'
 import { DesignationToggle } from './designation-toggle'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
-interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
+export interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
 
-function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
+export function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
   const m = post.metrics
   return [
     // effectiveness + engagementRate are both fractions (×100 for %).
@@ -21,7 +21,7 @@ function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
 
 /** Creative area with an onError placeholder — a purged/deleted asset shows a placeholder,
  *  the card is never hidden (snapshot §5). No video autoplay (play only on press). */
-function Media({ post }: { post: TopContentPost }) {
+export function Media({ post }: { post: TopContentPost }) {
   const [broken, setBroken] = useState(false)
   const c = post.creative
   if (broken || !c) {
@@ -55,13 +55,11 @@ function Media({ post }: { post: TopContentPost }) {
   )
 }
 
-export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements', fluid = false }: {
+export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }: {
   post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string
-  /** Fill the grid cell (the Influencer tab's grid). Absent: the fixed card width of the scrolling rows. */
-  fluid?: boolean
 }) {
   return (
-    <div className={`${fluid ? 'w-full' : 'w-56 shrink-0'} overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]`}>
+    <div className="w-56 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
       <div className="relative">
         <Media post={post} />
         {post.mediaType === 'CAROUSEL' && (
