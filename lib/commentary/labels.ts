@@ -22,7 +22,7 @@ export const INSIGHTS_OUTLINE =
   '</ul>'
 
 export const INSIGHTS_LABELS: CommentaryLabels = { title: 'Insights', noun: 'insights', outline: INSIGHTS_OUTLINE }
-// No outline yet: the box opens empty until the team writes one (Paul, #334 round 2; Thomas, 2026-10-07).
+// No outline yet: the box opens empty until the team writes one (Paul, #334 round 2; my call, 2026-10-07).
 export const RECOMMENDATIONS_LABELS: CommentaryLabels = { title: 'Recommendations', noun: 'recommendations', outline: null }
 
 const strip = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
