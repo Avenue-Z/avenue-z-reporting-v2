@@ -23,6 +23,8 @@ export async function CommentarySection({ clientSlug, viewKey, requestedRange }:
   const all = await getCommentaryForView(client.id, viewKey)
   const visible = visibleEntries(all, capabilities)
   const initial = pickDefaultEntry(visible)
+  // What a client opens on, for the PDF export (it prints the client's view, whoever exports): `initial` for a client.
+  const clientEntry = capabilities.canEdit ? pickDefaultEntry(visibleEntries(all, { canEdit: false, canApprove: false })) : initial
 
   // #148 is a server-side gate, not a render-only one. The panel hides attribution
   // behind capabilities.canEdit, but props cross the RSC→client boundary regardless
@@ -47,6 +49,7 @@ export async function CommentarySection({ clientSlug, viewKey, requestedRange }:
       viewKey={viewKey}
       entries={entries}
       initialId={initial?.id ?? null}
+      clientEntryId={clientEntry?.id ?? null}
       capabilities={capabilities}
       history={history}
     />

@@ -24,6 +24,8 @@ describe('PaidMediaTrendChart', () => {
     // A line per channel (not a stacked area), plotted daily by date — the x-axis label
     // density then tracks the range, matching Organic Social.
     expect(lastProps.xKey).toBe('date')
+    // Paid Media keeps its raw dates: only Organic Social's daily graphs pass xFormat (spec 2026-10-06-os-graph-day-labels-design.md).
+    expect(lastProps).not.toHaveProperty('xFormat')
     expect(lastProps.valueFormat).toBe('currency-cents')
     expect(lastProps.yKeys?.map((k) => k.key)).toEqual(['Paid Search', 'Meta'])
     // Spend value plotted for Paid Search.

@@ -1028,12 +1028,12 @@ findings that were not fixed in the PR are filed as issues and linked from it.
   which has no outline Data rows. Where a month comes from Dash, the views graph plots the tab's exposure tile
   (`IMPRESSIONS_BY_POST` on X and LinkedIn, a views metric elsewhere) under the block's fixed "Views, Year to Date"
   title. On X that by-post figure need not match how the sheet's X column was counted; only months the sheet has
-  not filled (in practice the live month) use it.
+  not filled use it.
 - On an outline client's finished month, Total Followers and Views follow the sheet and every other tile
   stays Dash, so the sheet's Total Followers change need not equal Dash's Net New Followers.
-- `ytd-review@3`'s "(live)" month can be up to an hour old (Dash answers are cached an hour). It runs to the
-  last day whose Dash window has closed (every window ends at a fixed `T04:00:00Z`), so from 00:00 to 04:00
-  UTC it stops at the day before, and the previous month turns whole at 04:00 UTC on the 1st. Its past
+- `ytd-review@3` shows finished months only, never a month in progress (2026-10-06): a month appears once its
+  last day's Dash window has closed (every window ends at a fixed `T04:00:00Z`), at 04:00 UTC on the 1st of the
+  next month. In January it shows the whole previous year, and in February January alone (one bar). Its past
   months taken from Dash can move if Dash revises them, because Renaissance is not locked.
 - A live client's note can be on any past day the page offers: the Day list holds only days inside the
   range on screen (`parts/chart-notes.ts:92-103`), so a note always shows on the range it was made on.

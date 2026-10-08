@@ -3,20 +3,28 @@ import { LineChart, niceYDomain, MIN_SPAN_FRACTION } from './line-chart'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
 import { CHART_COLORS } from '@/lib/constants'
 import type { ReactElement } from 'react'
+import { ExportModeProvider } from '@/components/export/export-mode'
 
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts')
   const { cloneElement } = await import('react')
   // Records the props the chart hands Recharts' Tooltip, then renders the real one.
   const Tooltip = (props: Record<string, unknown>) => { tooltipProps.push(props); return <actual.Tooltip {...props} /> }
+  // Records each Line's props too (the export turns animation off), then renders the real one. Recharts
+  // finds its children by type, so the recorder carries the real component's displayName.
+  const Line = Object.assign((props: Record<string, unknown>) => { lineProps.push(props); return <actual.Line {...props} /> }, { displayName: actual.Line.displayName })
+  // Records the props the chart hands Recharts' XAxis, then renders the real one.
+  const XAxis = (props: Record<string, unknown>) => { xAxisProps.push(props); return <actual.XAxis {...props} /> }
   return {
     ...actual,
     Tooltip,
+    Line,
+    XAxis,
     ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
       cloneElement(children, { width: 800, height: 300 }),
   }
 })
-const { tooltipProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[] }))
+const { tooltipProps, lineProps, xAxisProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[], lineProps: [] as Record<string, unknown>[], xAxisProps: [] as Record<string, unknown>[] }))
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
@@ -512,3 +520,127 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     expect(container.querySelector('.relative')).toBeNull()
   })
 })
+
+describe('in the PDF export', () => {
+  const DAYS = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04']
+  const DATA = DAYS.map((date, i) => ({ date, v: [3, 9, 4, 7][i] }))
+  const exportRender = (ui: ReactElement) => render(<ExportModeProvider>{ui}</ExportModeProvider>)
+
+  test('lines draw complete on first paint, and the panel keeps its dark theme', () => {
+    lineProps.length = 0
+    const { container } = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect(lineProps.length).toBeGreaterThan(0)
+    expect(lineProps.every((p) => p.isAnimationActive === false)).toBe(true)
+    expect(container.querySelector('[data-export-chart]')).not.toBeNull()
+  })
+
+  test("a mark's label is drawn at its point", () => {
+    const { container } = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1], label: '1' }, { x: DAYS[3], label: '2' }]} />)
+    // Recharts 3 draws a reference dot's label in its own label layer, not inside the dot's group.
+    const labels = [...container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)
+    expect(labels).toEqual(['1', '2'])
+  })
+
+  // A YTD graph hands its approved notes' dots without labels; in the export they are numbered in the order given, which
+  // is the order the notes panel numbers them in (ytd-notes-panel.tsx). Labels given explicitly are kept.
+  test('unlabelled marks are numbered in the order given; given labels are kept', () => {
+    const numbered = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1] }, { x: DAYS[3] }]} />)
+    expect([...numbered.container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)).toEqual(['1', '2'])
+    numbered.unmount()
+    const given = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1], label: '4' }]} />)
+    expect([...given.container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)).toEqual(['4'])
+  })
+
+  test('outside the export a mark has no number', () => {
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1] }]} />)
+    expect(container.querySelectorAll('text.recharts-label')).toHaveLength(0)
+  })
+
+  test('outside the export nothing changes: animation stays on and no panel marker', () => {
+    lineProps.length = 0
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect(lineProps.every((p) => p.isAnimationActive !== false)).toBe(true)
+    expect(container.querySelector('[data-export-chart]')).toBeNull()
+  })
+})
+
+import { formatMonthDay } from './line-chart'
+import { dayLabel } from '@/lib/organic-social/annotations'
+
+// Organic Social's daily graphs print their dates as month/day ("9/16"), the stakeholder's format (spec
+// 2026-10-06-os-graph-day-labels-design.md). Opt-in: a chart without xFormat is unchanged (Paid Media, the YTD graphs).
+describe('dates as month/day (xFormat="month-day")', () => {
+  test.each([
+    ['2026-09-16', '9/16'], ['2026-10-20', '10/20'], ['2026-08-02', '8/2'],
+    ['2026-01-01', '1/1'], ['2026-12-31', '12/31'], ['2028-02-29', '2/29'],
+    // Impossible dates print the way dayLabel prints them, pinned on purpose: Dash never sends one.
+    ['2026-13-45', '13/45'], ['2026-00-00', '0/0'],
+    // Anything that is not exactly yyyy-mm-dd comes back unchanged, never NaN/NaN.
+    ['Sep', 'Sep'], ['Oct (live)', 'Oct (live)'], ['', ''], ['2026-9-16', '2026-9-16'], ['2026-09-16T00:00:00Z', '2026-09-16T00:00:00Z'],
+  ])('formatMonthDay(%j) is %j', (value, out) => {
+    expect(formatMonthDay(value)).toBe(out)
+  })
+
+  test('a number prints unchanged', () => {
+    expect(formatMonthDay(20260916)).toBe('20260916')
+  })
+
+  test('every day of 2026 and of 2028 reads exactly as the callouts write it (dayLabel)', () => {
+    for (const year of [2026, 2028]) {
+      for (const d = new Date(Date.UTC(year, 0, 1)); d.getUTCFullYear() === year; d.setUTCDate(d.getUTCDate() + 1)) {
+        const day = d.toISOString().slice(0, 10)
+        expect(formatMonthDay(day), day).toBe(dayLabel(day))
+      }
+    }
+  })
+
+  const DAYS = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`)
+  const DATA = DAYS.map((date, i) => ({ date, v: 3 + ((i * 7) % 11) }))
+  // Recharts 3 draws the x-axis tick labels in their own layer, not inside the .recharts-xAxis group.
+  const xTicks = (c: HTMLElement) => [...c.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((t) => t.textContent ?? '')
+
+  test('with xFormat the x-axis ticks read month/day; without it they read the raw keys', () => {
+    const on = xTicks(render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" />).container)
+    expect(on.length).toBeGreaterThan(0)
+    for (const t of on) expect(DAYS.map(dayLabel)).toContain(t)
+    const off = xTicks(render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />).container)
+    expect(off.length).toBeGreaterThan(0)
+    for (const t of off) expect(DAYS).toContain(t)
+  })
+
+  test('with xFormat, LineChart hands the Tooltip a labelFormatter that reads month/day', () => {
+    tooltipProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" />)
+    const last = tooltipProps.at(-1)!
+    expect(typeof last.labelFormatter).toBe('function')
+    expect((last.labelFormatter as (label: unknown) => unknown)('2026-09-21')).toBe('9/21')
+  })
+
+  test('with xFormat and notes, the hover box shows 9/21 and still finds the note by the raw date', () => {
+    tooltipProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" notes={{ '2026-09-21': 'Influencer post went live' }} />)
+    const last = tooltipProps.at(-1)!
+    const content = last.content as (p: Record<string, unknown>) => ReactElement
+    // A non-empty payload: the default box formats the label only when a payload is present.
+    const box = content({ ...last, active: true, label: '2026-09-21', payload: [{ name: 'v', value: 9, dataKey: 'v', color: '#ffffff' }] })
+    const text = render(box).container.textContent ?? ''
+    expect(text).toContain('9/21')
+    expect(text).not.toContain('2026-09-21')
+    expect(text).toContain('Influencer post went live')
+  })
+
+  test('without xFormat the Tooltip gets no labelFormatter and the XAxis no tickFormatter, so their props are what they were before', () => {
+    tooltipProps.length = 0
+    xAxisProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
+    expect(tooltipProps.at(-1)).not.toHaveProperty('labelFormatter')
+    expect(xAxisProps.at(-1)).not.toHaveProperty('tickFormatter')
+  })
+
+  test('with xFormat the XAxis gets a tickFormatter that reads month/day', () => {
+    xAxisProps.length = 0
+    render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} xFormat="month-day" />)
+    expect((xAxisProps.at(-1)!.tickFormatter as (v: string) => string)('2026-08-02')).toBe('8/2')
+  })
+})
+

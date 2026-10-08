@@ -18,12 +18,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Keyboar
 import { CHART_COLORS } from '@/lib/constants'
 import { money } from '@/lib/paid-media/format'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
+import { useExportMode } from '@/components/export/export-mode'
 
 /** A day to flag on the x axis. Optional everywhere: a chart given no marks renders
  *  exactly as it did before this prop existed. */
 export interface ChartMark {
   /** Must equal an x value present in `data`, else Recharts drops the dot silently. */
   x: string
+  /** Drawn above the dot, e.g. the annotation's number in the PDF export. Absent: a plain dot. */
+  label?: string
 }
 
 /** A day whose card shows when its dot is hovered, focused or tapped (Phase 2b: dots only on the
@@ -56,6 +59,21 @@ interface LineChartProps {
   height?: number
   /** 'currency-cents' formats the Y axis + tooltip via money(); default = raw number. */
   valueFormat?: 'currency-cents'
+  /** 'month-day' prints x values that are yyyy-mm-dd days as month/day ("9/16") on the x axis and in the hover box.
+   *  The data, marks, callouts and notes keep the raw key. A string, like valueFormat, so a Server Component can pass
+   *  it. Absent: no formatter is passed to Recharts, and the chart renders exactly as before this prop existed. */
+  xFormat?: 'month-day'
+}
+
+const DAY_KEY = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** A yyyy-mm-dd day as month/day with no leading zeros and no year ("2026-09-16" is "9/16"), the way the callouts write
+ *  it (dayLabel, lib/organic-social/annotations.ts). Splits the string and builds no Date, so no time zone can move
+ *  the day. Anything else, a month label like "Sep" included, comes back unchanged. */
+export function formatMonthDay(value: string | number): string {
+  const s = String(value)
+  const m = DAY_KEY.exec(s)
+  return m ? `${Number(m[2])}/${Number(m[3])}` : s
 }
 
 // Auto-scale the Y axis to the data instead of pinning the baseline to 0.
@@ -237,11 +255,20 @@ function areaTop(el: HTMLElement): number {
   return 0
 }
 
-export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 300, valueFormat }: LineChartProps) {
+export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 300, valueFormat, xFormat }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
+  // Spread only when asked for, so a chart without xFormat hands Recharts exactly the props it did before.
+  const xTicks = xFormat === 'month-day' ? { tickFormatter: (v: string | number) => formatMonthDay(v) } : {}
+  const xLabel = xFormat === 'month-day'
+    ? { labelFormatter: (label: ReactNode) => (typeof label === 'string' || typeof label === 'number' ? formatMonthDay(label) : label) }
+    : {}
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
+  // In the PDF export the lines must be complete on first paint (no draw-in animation to catch half way),
+  // and the panel keeps the dark theme its colours were chosen for (app/export/export-theme.css).
+  const exportMode = useExportMode()
+  const panel = exportMode ? { 'data-export-chart': '' } : {}
   const [layout, setLayout] = useState<CalloutLayout | null>(null)
   const [open, setOpen] = useState<{ x: string; by: 'pointer' | 'key' } | null>(null)
   // A refresh can remove the open card's callout (a deleted draft, a top day that moved). That card
@@ -349,6 +376,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           tick={{ fill: '#8A8A8A', fontSize: 12 }}
           axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
           tickLine={false}
+          {...xTicks}
         />
         <YAxis
           domain={yDomain ?? [0, 'auto']}
@@ -369,6 +397,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           }}
           content={notes ? (p) => <NotedTooltip {...p} note={notes[String(p.label)]} /> : undefined}
           {...(callouts ? { active: openLive ? false : undefined } : {})}
+          {...xLabel}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {yKeys.map((series) => (
@@ -380,6 +409,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             stroke={series.color ?? CHART_COLORS.primary}
             strokeWidth={2}
             dot={false}
+            {...(exportMode ? { isAnimationActive: false } : {})}
           />
         ))}
         {/* Marks ride the FIRST series, so a multi-series chart gets one dot per day
@@ -387,6 +417,9 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             rather than handed to Recharts, which would drop it without saying so. */}
         {(marks ?? [])
           .filter((m) => data.some((d) => d[xKey] === m.x))
+          // In the PDF export an unlabelled mark is numbered in the order given, as the notes listed under the chart
+          // are (ytd-notes-panel.tsx); a label given explicitly (the daily graphs' annotations) is kept.
+          .map((m, i) => (exportMode && !m.label ? { ...m, label: String(i + 1) } : m))
           .map((m) => (
             <ReferenceDot
               key={`mark-${m.x}`}
@@ -396,6 +429,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
               fill={CHART_COLORS.primary}
               stroke="#0B0B0B"
               strokeWidth={2}
+              {...(m.label ? { label: { value: m.label, position: 'top' as const, offset: 10, fill: '#FFFFFF', fontSize: 12, fontWeight: 800 } } : {})}
             />
           ))}
         {hasCallouts && (
@@ -405,7 +439,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
       </RechartsLineChart>
     </ResponsiveContainer>
   )
-  if (!hasCallouts) return <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
+  if (!hasCallouts) return <div {...panel} className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
   const callout = openLive ? callouts!.find((c) => c.x === openLive.x) : undefined
   const spot = openLive ? layout?.spots.find((s) => s.x === openLive.x) : undefined
   let card = null
@@ -447,7 +481,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     ]
   })
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
+    <div {...panel} className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       {/* Focus moving to anything outside this chart closes its card, as a tap outside does (C8): with the
           keyboard, Tab to the other graph's dot then Enter left both cards open (Paul's second review,
           R5). Focus lost to nothing (the window, a removed element) leaves the card as it is. */}

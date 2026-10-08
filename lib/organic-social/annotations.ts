@@ -46,6 +46,13 @@ export type AnnotationChart = 'followers' | 'engagements'
 /** Every annotated chart, the one allowlist hides and notes both check (Paul's review of #273, C12). */
 export const ANNOTATION_CHARTS: readonly AnnotationChart[] = ['followers', 'engagements']
 
+/** The YTD Review graphs' note charts (spec 2026-10-06-os-ytd-notes-design.md): written notes only, never hides or
+ *  peaks, so they are not in ANNOTATION_CHARTS. A month's note is stored on that month's 1st. */
+export type YtdNoteChart = 'ytd-followers' | 'ytd-views'
+export const YTD_NOTE_CHARTS: readonly YtdNoteChart[] = ['ytd-followers', 'ytd-views']
+/** Every chart a written note may go on. */
+export type NoteChart = AnnotationChart | YtdNoteChart
+
 /** A peak ready to render: its value, its label, and the post that likely caused it. */
 export interface Annotation extends Peak {
   label: string
@@ -181,6 +188,12 @@ export interface ChartAnnotation {
   /** Client only, set by the chart (trends.tsx): a note saved on this page whose refreshed answer has not
    *  arrived, so this card still shows the previous answer and its Approve, Revoke and Delete wait. */
   noteSaving?: true
+}
+
+/** Whether a client sees this day: not hidden by the team, and not a day shown only for a note that is still a
+ *  draft. The chart's dots, the callout row's print rule and the PDF export's annotations all use this one rule. */
+export function isClientVisible(a: Pick<ChartAnnotation, 'hidden' | 'noteOnly' | 'note'>): boolean {
+  return !a.hidden && (!a.noteOnly || !!a.note)
 }
 
 /** The pictures a callout's card shows: the note's picked posts, else the day's top post, else none. The

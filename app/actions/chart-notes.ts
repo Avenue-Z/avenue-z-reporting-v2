@@ -5,14 +5,14 @@ import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { authorizeRowForClient, canDeleteDraft, guardNotDeleted } from '@/lib/commentary/mutations'
 import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
-import { isNoteId, isSeenNote, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
+import { isNoteId, isSeenNote, isYtdNoteChart, todayUtc, validateNoteInput } from '@/lib/organic-social/chart-notes/validate'
 import { firstOf, hasReportingMonths, parseReportingMonths } from '@/lib/organic-social/reporting-months'
 import { notesOn } from '@/lib/organic-social/chart-notes/enabled'
 import {
   approveNote, findChartNote, findOpenDraft, insertDraft, isOpenDraftConflict,
   revokeNote, softDeleteDraft, updateDraft, type NoteKey,
 } from '@/lib/organic-social/chart-notes/mutations'
-import type { AnnotationChart } from '@/lib/organic-social/annotations'
+import type { NoteChart } from '@/lib/organic-social/annotations'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -52,14 +52,17 @@ export async function saveChartNoteAction(input: {
   // On locked months, a day before the client's first reporting month is in no month the team can open, so a note there
   // would be an orphan draft no view reaches (Paul's review of #292). A firstMonth too broken to read means no months at
   // all. A live client (chartNotes) has no first month: any day up to today is fine, and validateNoteInput refuses the
-  // future.
+  // future. A YTD graph draws January onward from the sheet, never an earlier year (ytd.ts ytdSheetMonths), so a YTD
+  // note's bound is January 1 of the first reporting month's year (spec 2026-10-06-os-ytd-notes-design.md).
   if (hasReportingMonths(client)) {
     const months = parseReportingMonths(client.dashSocialConfig?.reportingMonths)
     if (!months.ok) return NOT_ON
-    if (input.day < firstOf(months.cfg.firstMonth)) return { ok: false, error: "That day is before this client's first reporting month." }
+    if (isYtdNoteChart(input.chart)) {
+      if (input.day < `${months.cfg.firstMonth.slice(0, 4)}-01-01`) return { ok: false, error: "That month is before this client's first reporting year." }
+    } else if (input.day < firstOf(months.cfg.firstMonth)) return { ok: false, error: "That day is before this client's first reporting month." }
   }
 
-  const key: NoteKey = { clientId: client.id, channel: input.channel as DashChannel, chart: input.chart as AnnotationChart, day: input.day }
+  const key: NoteKey = { clientId: client.id, channel: input.channel as DashChannel, chart: input.chart as NoteChart, day: input.day }
   const body = input.body.trim()
   try {
     const open = await findOpenDraft(key)
@@ -113,7 +116,7 @@ export async function revokeChartNoteAction(clientSlug: string, id: string): Pro
   const mine = authorizeRowForClient(row, client.id)
   if (!mine.ok) return { ok: false, error: mine.error! }
   const busy = { ok: false as const, error: 'A draft is already open on this day. Delete or approve it first.' }
-  const open = await findOpenDraft({ clientId: client.id, channel: row!.channel as DashChannel, chart: row!.chart as AnnotationChart, day: row!.day })
+  const open = await findOpenDraft({ clientId: client.id, channel: row!.channel as DashChannel, chart: row!.chart as NoteChart, day: row!.day })
   if (open && open.id !== id) return busy
   try {
     if (!(await revokeNote(id))) return CHANGED
