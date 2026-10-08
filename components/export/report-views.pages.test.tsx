@@ -72,7 +72,10 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       expect(element.props).toEqual(drift ? { ...report.props, compareRange: Q.compareRange } : report.props)
       expect(view.pageTitle).toBe(button.props.pageTitle)
       // Every resolved tab of these sections uses the page range, so the export always stamps a period.
-      if (subsection !== 'not-a-tab') expect(button.props.periodLabel).not.toBeNull()
+      // Named drift (PR 1 review record #3): on AEO an unknown tab shows no period on the page (its date-picker rule), while
+      // the export resolves it to Overview and stamps the period the Overview uses. Every other resolved tab stamps a period.
+      if (section === 'peec-ai' && subsection === 'not-a-tab') expect(button.props.periodLabel).toBeNull()
+      else if (subsection !== 'not-a-tab') expect(button.props.periodLabel).not.toBeNull()
     })
   }
 
@@ -114,8 +117,14 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       dateRange: Q.dateRange, compareRange: Q.compareRange, models: null })
   })
 
-  test.each(['peec-ai', 'paid-media'])(`${routeName}: %s keeps the browser print until its section is switched on`, async (section) => {
+  test.each(['paid-media'])(`${routeName}: %s keeps the browser print until its section is switched on`, async (section) => {
     const { button } = await onPage(Route, CLIENT, section)
     expect(button.props.serverExport).toBeUndefined()
+  })
+
+  test(`${routeName}: AEO's button exports on the server, with the resolved tab and the model filter`, async () => {
+    const { button } = await onPage(Route, CLIENT, 'peec-ai', 'pr-influence')
+    expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'peec-ai', subsection: 'pr-influence',
+      dateRange: Q.dateRange, compareRange: Q.compareRange, models: 'ChatGPT,Claude' })
   })
 }

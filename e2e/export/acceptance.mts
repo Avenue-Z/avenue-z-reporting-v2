@@ -63,7 +63,15 @@ const tablePage = () => `<!doctype html><html><head><meta charset="utf-8"><style
 ${Array.from({ length: 60 }, (_, i) => `<tr data-export-row><td style="height:30px">ROW${i + 1}</td></tr>`).join('')}
 </tbody></table></div></div>
 </div><script>window.__exportReady = true</script></body></html>`
-const html = (url = '') => url === '/table' ? tablePage() : url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
+// The same title-then-block case inside a flex column card (AEO's SectionCard and SectionWrapper are \`flex flex-col gap-4\`).
+const keepFlexPage = () => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
+<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:670px"></div>
+<div class="flex flex-col gap-4" style="display:flex;flex-direction:column;gap:16px"><div data-export-keep-with-next><h3 style="font-size:14px;margin:0">FLEXTITLE</h3>
+<p style="font-size:11px;margin:4px 0 0">FLEXDESC a description long enough to wrap onto several lines under the title, as AEO's card descriptions do. It explains what the card measures and where the data comes from, so a reader can trust the numbers below it. ${'More words to make it wrap. '.repeat(6)}</p></div>
+<div data-export-block><p style="font-size:11px">FLEXSTART</p><div style="height:300px;background:#f4f4f5"></div></div></div>
+</div><script>window.__exportReady = true</script></body></html>`
+const html = (url = '') => url === '/keep-flex' ? keepFlexPage() : url === '/table' ? tablePage() : url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
 const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(html(req.url)) })
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
 const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
@@ -83,6 +91,9 @@ const [ctlTitle, ctlCard] = await keepOf('/keep-control')
 check(ctlTitle === 1 && ctlCard === 2, `control: without keep-with-next the title ends page 1 alone (${ctlTitle} / ${ctlCard})`)
 const [keepTitle, keepCard] = await keepOf('/keep')
 check(keepTitle === keepCard, `a kept title moves with its first card (${keepTitle} / ${keepCard})`)
+const flexFile = join(out, 'keep-flex.pdf'); writeFileSync(flexFile, await renderPdf({ url: `${origin}/keep-flex`, cookies: [] }))
+const flx = readPdf(flexFile)
+check(new Set([pagesOf(flx, 'FLEXTITLE')[0], pagesOf(flx, 'FLEXDESC')[0], pagesOf(flx, 'FLEXSTART')[0]]).size === 1, `a kept title block (title + description) never splits and moves with its first block (${pagesOf(flx, 'FLEXTITLE')} / ${pagesOf(flx, 'FLEXDESC')} / ${pagesOf(flx, 'FLEXSTART')})`)
 const tableFile = join(out, 'table.pdf'); writeFileSync(tableFile, await renderPdf({ url: `${origin}/table`, cookies: [] }))
 const tbl = readPdf(tableFile)
 const rowPages = Array.from({ length: 60 }, (_, i) => pagesOf(tbl, `ROW${i + 1}`))
@@ -125,7 +136,7 @@ if (!process.env.AUTH_SECRET) {
     check(bytes.length < 4_500_000, `${name}: under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
     // Every glyph comes from a web font the page loads, never from a system font: the server's Chromium has almost none
     // (only Open Sans), so a character borrowed from a Mac font here prints as an empty box there (↑ ↓ ↗, emoji).
-    const system = fontsOf(file).filter((f) => !/^(NunitoSans|NotoSansMath|NotoColorEmoji)/.test(f))
+    const system = fontsOf(file).filter((f) => !/^(NunitoSans|NotoSansMath|NotoColorEmoji|NotoSansMono)/.test(f))
     check(system.length === 0, `${name}: every glyph from the page's web fonts, none from a system font (${system.join(', ') || 'none'})`)
     console.log(`  ${name} PDF: ${file}`)
     return { res, bytes, pdf }
@@ -165,6 +176,28 @@ if (!process.env.AUTH_SECRET) {
     check(!/(\d{1,2}\/\d{1,2}) · \1\b/.test(text), `${name}: each annotation's day prints once`)
   }
   if (staff && client) check(body(staff.pdf) === body(client.pdf), 'apfm: the staff export prints exactly what the client export does')
+
+  // AEO (PDF export PR 2): every tab of a client with all four (Peec and Profound) and Renaissance's two, each as a staff
+  // editor and as a client. No table or chart controls print, the two exports print the same, and each tab's time to
+  // ready is logged by exportAs (spec 2026-10-08 §11: a tab over 30 s is a finding).
+  const AEO_RUNS: [string, (string | null)[]][] = process.env.AEO_CLIENT
+    ? [[process.env.AEO_CLIENT, [null, 'pr-influence', 'content-impact', 'technical-audit']]]
+    : [['avenue-z', [null, 'pr-influence', 'content-impact', 'technical-audit']], ['renaissance', [null, 'pr-influence']]]
+  for (const [aeoClient, tabs] of AEO_RUNS) {
+    for (const tab of tabs) {
+      const aeoBody = { clientSlug: aeoClient, section: 'peec-ai', subsection: tab, dateRange: 'last_30_days' }
+      const name = `aeo-${aeoClient}-${tab ?? 'overview'}`
+      const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, aeoBody, `${name}-staff`)
+      const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: aeoClient }, aeoBody, `${name}-client`)
+      for (const [who, r] of [['staff', s], ['client', c]] as const) {
+        if (!r) continue
+        const text = r.pdf.words.map((w) => w.text).join(' ')
+        const controls = text.match(/See all \d+ rows|Show less|Clear all filters|Sort by|Daily Weekly Monthly Quarterly/g) ?? []
+        check(controls.length === 0, `${name}-${who}: no table or chart controls (${[...new Set(controls)].join(', ') || 'none'})`)
+      }
+      if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
+    }
+  }
 }
 
 console.log(`\nfixture PDF: ${fixturePdf}`)

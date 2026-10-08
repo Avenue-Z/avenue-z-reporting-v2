@@ -4,7 +4,7 @@
 
 export type ServerExportSection = 'organic-social' | 'peec-ai' | 'paid-media'
 
-export const SERVER_EXPORT_SECTIONS: readonly ServerExportSection[] = ['organic-social']
+export const SERVER_EXPORT_SECTIONS: readonly ServerExportSection[] = ['organic-social', 'peec-ai']
 
 export function isServerExportSection(s: unknown): s is ServerExportSection {
   return typeof s === 'string' && (SERVER_EXPORT_SECTIONS as readonly string[]).includes(s)
