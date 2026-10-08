@@ -9,6 +9,7 @@ import { KpiCheckInSection, kpiCheckInV1 } from './kpi-check-in'
 import { ORGANIC_SOCIAL_PARTS } from './registry'
 import { YtdSheetReadError } from '@/lib/organic-social/ytd-sheet'
 import { clockFor } from '@/lib/organic-social/reporting-months'
+import { ExportModeProvider } from '@/components/export/export-mode'
 
 // A made-up sheet id and numbers only.
 const ID = 'TESTSHEETID_abcdefghij0123'
@@ -170,4 +171,35 @@ test('each metric keeps its own brand colour on every platform: followers green,
   const strokes = [...container.querySelectorAll('[data-ratio]')].map((c) => c.getAttribute('stroke'))
   const row = ['var(--color-brand-green)', 'var(--color-brand-cyan)', 'var(--color-brand-blue)']
   expect(strokes).toEqual([...row, ...row])
+})
+
+// #334 (#332's paging rule): KPI Check-In lays out its own blocks in the PDF. Each platform card is one unbreakable
+// block, and the section heading rides in the first so it never ends a page alone.
+const inPdf = async (ctx: typeof CTX) => render(<ExportModeProvider>{await KpiCheckInSection({ ctx })}</ExportModeProvider>)
+
+test('in the PDF each platform card is one block, the heading inside the first', async () => {
+  getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID)
+  const { container } = await inPdf(CTX)
+  const blocks = [...container.querySelectorAll('[data-export-block]')]
+  expect(blocks.map((b) => b.querySelector('h3')?.textContent)).toEqual(['Instagram', 'LinkedIn'])
+  expect(blocks[0].querySelector('h2')?.textContent).toBe('KPI Check-In')
+  expect(container.querySelectorAll('h2')).toHaveLength(1)
+})
+
+// #332's rule: a PDF prints what a client sees, whoever exports it.
+test('a staff PDF prints the client view: a row ahead of the released month is the note alone, and no sheet prints nothing', async () => {
+  getClientBySlug.mockResolvedValue(onMonths({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID_OCT)
+  const august = { ...CTX, dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', role: 'INTERNAL_ADMIN' }
+  const pdf = await inPdf(august)
+  expect(pdf.getByText('KPI Check-In updates with the October report.')).toBeTruthy()
+  expect(pdf.getAllByRole('img')).toHaveLength(3)
+  expect(pdf.queryByText('1/1/26 to 10/31/26')).toBeNull()
+  pdf.unmount()
+  expect(render(await KpiCheckInSection({ ctx: august })).getAllByRole('img')).toHaveLength(6) // the live page keeps the staff view
+  getClientBySlug.mockResolvedValue(client())
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  expect((await inPdf({ ...CTX, role: 'INTERNAL_ADMIN' })).container.textContent).toBe('')
+  warn.mockRestore()
 })

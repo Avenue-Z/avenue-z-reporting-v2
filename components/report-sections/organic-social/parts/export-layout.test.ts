@@ -17,7 +17,7 @@ test('parts with no export form of their own are wrapped whole', () => {
 })
 
 test('parts that lay out their own blocks are not wrapped (they are taller than a page)', () => {
-  for (const key of ['platform-headlines@1', 'engagement-trend@2', 'follower-graph@2', 'top-content@2', 'top-content@3', 'ytd-review@1', 'ytd-review@2', 'ytd-review@3', 'influencer-posts@1']) {
+  for (const key of ['platform-headlines@1', 'engagement-trend@2', 'follower-graph@2', 'top-content@2', 'top-content@3', 'ytd-review@1', 'ytd-review@2', 'ytd-review@3', 'influencer-posts@1', 'kpi-check-in@1']) {
     const [id, v] = key.split('@')
     expect(wrapsAsBlock(id, Number(v)), key).toBe(false)
   }

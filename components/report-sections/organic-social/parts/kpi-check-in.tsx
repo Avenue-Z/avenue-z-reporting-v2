@@ -11,6 +11,7 @@ import { ProgressRing } from '@/components/charts/progress-ring'
 import { HeadlinesSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { Fallback } from './shared'
+import { PrintAsClient } from './print-as-client'
 
 /** The slide's labels (S6c): Impressions/Views on Instagram and Facebook, Impressions elsewhere. */
 export const impressionsLabel = (channel: DashChannel) => (channel === 'INSTAGRAM' || channel === 'FACEBOOK' ? 'Impressions/Views' : 'Impressions')
@@ -45,7 +46,7 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
   if (sheet.kind === 'none') {
     // The part is pinned only where a sheet is expected (every January, until the year's entry is added).
     console.warn(`[organic-social] kpi sheet not configured slug=${clientSlug} year=${year}`)
-    return staff ? <p className={MONTH_NOTE}>No KPI sheet configured for {year}.</p> : null
+    return staff ? <PrintAsClient live={<p className={MONTH_NOTE}>No KPI sheet configured for {year}.</p>} client={null} /> : null
   }
   if (sheet.kind === 'invalid') { console.warn(`[organic-social] kpi sheet config invalid slug=${clientSlug} year=${year}`); return null }
   const shown = organicSocialSubsections(client ?? {}).flatMap((s) => (s.channel ? [s.channel] : []))
@@ -64,37 +65,42 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
     else console.error(`[organic-social] kpi sheet read failed slug=${clientSlug} year=${year} status=${e instanceof YtdSheetReadError ? e.status : 'error'}`)
     return <Fallback kind="error" />
   }
-  return (
+  // In the PDF export each platform card is one unbreakable block, with the heading in the first (export-layout.ts);
+  // a staff export prints the client's view (PrintAsClient).
+  const view = (asStaff: boolean) => (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">KPI Check-In</h2>
-      {rows.map((row) => {
+      {rows.map((row, i) => {
         const rowKey = `${year}-${String(monthIndex(row.monthLabel) + 1).padStart(2, '0')}`
         const ahead = released !== null && rowKey > released
         const note = ahead ? <p className={MONTH_NOTE}>KPI Check-In updates with the {row.monthLabel} report.</p> : null
         return (
-          <div key={row.channel} className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">{CHANNEL_LABEL[row.channel]}</h3>
-              {(!ahead || staff) && <span className="rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted">{kpiPeriodLabel(row.monthLabel, year)}</span>}
-            </div>
-            {ahead && !staff ? <div className="mt-4">{note}</div> : (
-              <>
-                {note && <div className="mt-2">{note}</div>}
-                {/* Three across only when the CARD is wide enough for three readable rings (32rem), whatever the window. */}
-                <div className="@container mt-4">
-                  <div className="grid grid-cols-1 gap-4 @lg:grid-cols-3">
-                    <ProgressRing label="Total Followers" color={RING_COLOR.followers} value={row.actual.followers} target={row.target.followers} />
-                    <ProgressRing label={impressionsLabel(row.channel)} color={RING_COLOR.impressions} value={row.actual.impressions} target={row.target.impressions} />
-                    <ProgressRing label="Total Engagements" color={RING_COLOR.engagements} value={row.actual.engagements} target={row.target.engagements} />
+          <div key={row.channel} data-export-block="" className="space-y-6">
+            {i === 0 && <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">KPI Check-In</h2>}
+            <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">{CHANNEL_LABEL[row.channel]}</h3>
+                {(!ahead || asStaff) && <span className="rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted">{kpiPeriodLabel(row.monthLabel, year)}</span>}
+              </div>
+              {ahead && !asStaff ? <div className="mt-4">{note}</div> : (
+                <>
+                  {note && <div className="mt-2">{note}</div>}
+                  {/* Three across only when the CARD is wide enough for three readable rings (32rem), whatever the window. */}
+                  <div className="@container mt-4">
+                    <div className="grid grid-cols-1 gap-4 @lg:grid-cols-3">
+                      <ProgressRing label="Total Followers" color={RING_COLOR.followers} value={row.actual.followers} target={row.target.followers} />
+                      <ProgressRing label={impressionsLabel(row.channel)} color={RING_COLOR.impressions} value={row.actual.impressions} target={row.target.impressions} />
+                      <ProgressRing label="Total Engagements" color={RING_COLOR.engagements} value={row.actual.engagements} target={row.target.engagements} />
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         )
       })}
     </section>
   )
+  return staff ? <PrintAsClient live={view(true)} client={view(false)} /> : view(false)
 }
 
 export const kpiCheckInV1: PartImpl<OrganicSocialCtx> = {
