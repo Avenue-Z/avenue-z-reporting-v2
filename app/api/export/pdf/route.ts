@@ -1,13 +1,13 @@
-// POST /api/export/pdf — the Organic Social PDF export (spec docs/superpowers/specs/2026-10-06-organic-social-pdf-export-v2-design.md §8).
-// Authorises the requester exactly as the portal page does, then has headless Chromium open the export
-// page (app/export/[clientSlug]/organic-social) with the requester's own session and print it.
-// Role and client always come from the session; the body only says which view, range and timezone.
+// POST /api/export/pdf — the server-rendered PDF export (specs docs/superpowers/specs/2026-10-06-organic-social-pdf-export-v2-design.md §8,
+// 2026-10-08-pdf-export-all-reports-design.md §4). Authorises the requester exactly as the portal page does, then has
+// headless Chromium open the export page (app/export/[clientSlug]/[section]) with the requester's own session and print it.
+// Role and client always come from the session; the body only says which section, view, range and timezone.
 import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { canOpenPortal } from '@/lib/auth/route-access'
 import { exportPagePath, parseExportRequest, type ExportRequest } from '@/lib/export/request'
-import { organicSocialExportView } from '@/lib/export/organic-social-view'
+import { resolveExportView } from '@/lib/export/report-view'
 import { contentDisposition, exportFilename } from '@/lib/export/filename'
 import { ExportNotReadyError, ExportRenderError, renderPdf } from '@/lib/export/render-pdf'
 
@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
   const started = Date.now()
   // One line per export: who, which view, what happened, how long, and the failed step. Never the
   // cookie or the page URL.
-  const log = (r: Pick<ExportRequest, 'clientSlug' | 'subsection'> | null, outcome: string, step?: string) =>
-    console.info(`[export] client=${r?.clientSlug ?? '-'} view=${r?.subsection ?? 'overview'} outcome=${outcome}${step ? ` step=${step}` : ''} ms=${Date.now() - started}`)
+  const log = (r: Pick<ExportRequest, 'clientSlug' | 'section' | 'subsection'> | null, outcome: string, step?: string) =>
+    console.info(`[export] client=${r?.clientSlug ?? '-'} section=${r?.section ?? '-'} view=${r?.subsection ?? 'overview'} outcome=${outcome}${step ? ` step=${step}` : ''} ms=${Date.now() - started}`)
 
   let body: unknown = null
   try { body = await req.json() } catch { /* not JSON: a bad request below */ }
@@ -51,13 +51,13 @@ export async function POST(req: NextRequest) {
   }
 
   const client = await getClientBySlug(parsed.clientSlug)
-  if (!client || !client.enabledReports.includes('organic-social')) {
+  if (!client || !client.enabledReports.includes(parsed.section)) {
     log(parsed, 'not-found')
     return NextResponse.json({ error: 'not-found' }, { status: 404 })
   }
 
-  // The tab as the page resolves it: an unknown or hidden tab is Overview.
-  const view = organicSocialExportView(client, parsed.subsection)
+  // The tab as the page resolves it: an unknown or hidden tab is the section's Overview.
+  const view = resolveExportView(client, parsed.section, parsed.subsection)
   const r: ExportRequest = { ...parsed, subsection: view.subsectionId }
   const cookies = req.cookies.getAll().filter((c) => SESSION_COOKIE.test(c.name)).map(({ name, value }) => ({ name, value }))
   const base = baseUrl(req)
