@@ -15,8 +15,9 @@ function fakes(over: Partial<PageLike> = {}, landed = 'https://app.example/expor
     pdf: vi.fn(async () => PDF),
     ...over,
   }
-  const browser: BrowserLike = { setCookie: vi.fn(async () => {}), newPage: vi.fn(async () => page), close: vi.fn(async () => {}) }
-  return { page, browser, launch: vi.fn(async () => browser) }
+  const kill = vi.fn(() => true)
+  const browser: BrowserLike = { setCookie: vi.fn(async () => {}), newPage: vi.fn(async () => page), close: vi.fn(async () => {}), process: vi.fn(() => ({ kill })) }
+  return { page, browser, kill, launch: vi.fn(async () => browser) }
 }
 const opts = { url: 'https://app.example/export/renaissance/organic-social?dateRange=x', cookies: [{ name: '__Secure-authjs.session-token', value: 'v' }] }
 
@@ -31,16 +32,20 @@ test('renders the export page at the content width, once ready, with screen medi
   expect(browser.close).toHaveBeenCalled()
 })
 
-test('a page never ready is a not-ready error, with no PDF taken and the browser closed', async () => {
+test('a page never ready is a not-ready error at the ready step, with no PDF taken and the browser closed', async () => {
   const { page, browser, launch } = fakes({ waitForFunction: vi.fn(async () => { throw timeout() }) })
-  await expect(renderPdf(opts, { launch })).rejects.toBeInstanceOf(ExportNotReadyError)
+  const err = await renderPdf(opts, { launch }).catch((e) => e)
+  expect(err).toBeInstanceOf(ExportNotReadyError)
+  expect(err.step).toBe('ready')
   expect(page.pdf).not.toHaveBeenCalled()
   expect(browser.close).toHaveBeenCalled()
 })
 
 test('a page still streaming when the budget runs out is also not ready', async () => {
   const { launch } = fakes({ goto: vi.fn(async () => { throw timeout() }) })
-  await expect(renderPdf(opts, { launch })).rejects.toBeInstanceOf(ExportNotReadyError)
+  const err = await renderPdf(opts, { launch }).catch((e) => e)
+  expect(err).toBeInstanceOf(ExportNotReadyError)
+  expect(err.step).toBe('navigate')
 })
 
 test.each(['/login', '/unauthorized'])('landing on %s is an auth failure', async (path) => {
@@ -104,4 +109,39 @@ test('printing gets its own deadline inside the 60 s function limit, even when t
   await renderPdf(opts, { launch })
   vi.useRealTimers()
   expect(vi.mocked(page.pdf).mock.calls[0][0].timeout).toBe(17_000) // 55 s deadline − 38 s already spent
+})
+
+// Thomas, #332 round 2 (render-pdf.ts:17, :109, route.ts:40).
+test('time the route spent before rendering comes out of the budgets', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-08T12:00:05Z'))
+  const { page, launch } = fakes()
+  await renderPdf({ ...opts, startedAt: new Date('2026-10-08T12:00:00Z').getTime() }, { launch })
+  vi.useRealTimers()
+  expect(vi.mocked(page.goto).mock.calls[0][1].timeout).toBe(35_000) // 40 s budget − 5 s already spent by the route
+  expect(vi.mocked(page.pdf).mock.calls[0][0].timeout).toBe(50_000) // 55 s deadline − 5 s
+})
+
+test('a setup step that fails is named, and the browser is still closed', async () => {
+  const { browser, launch } = fakes({ setViewport: vi.fn(async () => { throw new Error('Target closed') }) })
+  const err = await renderPdf(opts, { launch }).catch((e) => e)
+  expect([err instanceof ExportRenderError, err.step]).toEqual([true, 'setup'])
+  expect(browser.close).toHaveBeenCalled()
+})
+
+test('a browser that will not close is killed, and the PDF still returns', async () => {
+  vi.useFakeTimers()
+  const { browser, kill, launch } = fakes()
+  vi.mocked(browser.close).mockImplementation(() => new Promise(() => {}))
+  const done = renderPdf(opts, { launch })
+  await vi.advanceTimersByTimeAsync(3_000)
+  expect(await done).toBe(PDF)
+  vi.useRealTimers()
+  expect(kill).toHaveBeenCalledWith('SIGKILL')
+})
+
+test('a browser that closes is not killed', async () => {
+  const { kill, launch } = fakes()
+  await renderPdf(opts, { launch })
+  expect(kill).not.toHaveBeenCalled()
 })

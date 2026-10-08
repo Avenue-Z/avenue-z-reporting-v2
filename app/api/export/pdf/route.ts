@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const pdf = await renderPdf({ url: new URL(exportPagePath(r), base).toString(), cookies })
+    const pdf = await renderPdf({ url: new URL(exportPagePath(r), base).toString(), cookies, startedAt: started })
     if (pdf.byteLength > MAX_PDF_BYTES) {
       log(r, 'too-large')
       return NextResponse.json({ error: 'too-large' }, { status: 413 })
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (e) {
     if (e instanceof ExportNotReadyError) {
-      log(r, 'still-loading')
+      log(r, 'still-loading', e.step)
       return NextResponse.json({ error: 'still-loading' }, { status: 504 })
     }
     log(r, 'render-failed', e instanceof ExportRenderError ? e.step : 'unknown')

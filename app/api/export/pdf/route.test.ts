@@ -58,6 +58,8 @@ test('the server browser opens the export page as the requester, with only the s
   expect(renderPdf).toHaveBeenCalledWith({
     url: 'https://app.example/export/renaissance/organic-social?dateRange=custom%3A2026-09-01%2C2026-09-30&subsection=organic-linkedin&tz=America%2FNew_York',
     cookies: [{ name: '__Secure-authjs.session-token', value: 'SESSION' }],
+    // The route's own start, so time spent on auth and the client lookup comes out of the render budgets (Thomas, #332 round 2).
+    startedAt: expect.any(Number),
   })
 })
 
@@ -98,7 +100,7 @@ test('a client without Organic Social has nothing to export', async () => {
 test('a page still loading is 504 still-loading, a render failure 500 render-failed, and each is logged by step', async () => {
   as('CLIENT_VIEWER', 'renaissance')
   const info = vi.mocked(console.info)
-  renderPdf.mockRejectedValueOnce(new ExportNotReadyError())
+  renderPdf.mockRejectedValueOnce(new ExportNotReadyError('ready'))
   let res = await post(body)
   expect(res.status).toBe(504)
   expect(await res.json()).toEqual({ error: 'still-loading' })
@@ -107,7 +109,7 @@ test('a page still loading is 504 still-loading, a render failure 500 render-fai
   expect(res.status).toBe(500)
   expect(await res.json()).toEqual({ error: 'render-failed' })
   const lines = info.mock.calls.map((c) => String(c[0]))
-  expect(lines.some((l) => /\[export\] client=renaissance view=overview outcome=still-loading ms=\d+/.test(l))).toBe(true)
+  expect(lines.some((l) => /\[export\] client=renaissance view=overview outcome=still-loading step=ready ms=\d+/.test(l))).toBe(true)
   expect(lines.some((l) => /outcome=render-failed step=launch/.test(l))).toBe(true)
   expect(lines.join('\n')).not.toContain('SESSION')
 })
