@@ -25,3 +25,16 @@ test('a chart that has not drawn yet means not ready', () => {
   document.querySelector('.recharts-responsive-container')!.innerHTML = '<svg class="recharts-surface"></svg>'
   expect(isDocumentReady(document)).toBe(true)
 })
+
+test('a web font still loading means not ready', () => {
+  document.body.innerHTML = '<p>↑ 12% vs prior period</p>'
+  const fonts = { status: 'loading' }
+  Object.defineProperty(document, 'fonts', { value: fonts, configurable: true })
+  try {
+    expect(isDocumentReady(document)).toBe(false)
+    fonts.status = 'loaded'
+    expect(isDocumentReady(document)).toBe(true)
+  } finally {
+    delete (document as { fonts?: unknown }).fonts
+  }
+})

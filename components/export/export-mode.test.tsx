@@ -4,7 +4,7 @@ import { ExportModeProvider, ExportReadyReporter, useExportMode } from './export
 
 beforeEach(() => {
   delete window.__exportReady
-  Object.defineProperty(document, 'fonts', { configurable: true, value: { ready: Promise.resolve() } })
+  Object.defineProperty(document, 'fonts', { configurable: true, value: { ready: Promise.resolve(), status: 'loaded' } })
   vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
 })
 afterEach(() => { vi.useRealTimers(); document.body.innerHTML = '' })

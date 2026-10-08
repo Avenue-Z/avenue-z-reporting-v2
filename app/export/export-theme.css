@@ -13,6 +13,10 @@
 
 .export-theme {
   --color-white: #111111; /* text-white reads this variable */
+  /* Nunito Sans has no arrows (↑ ↓ ↗), no ◫ and no emoji. A browser borrows them from system fonts, but the server's
+     Chromium has none that cover them (only Open Sans), so they printed as empty boxes. These web fonts cover them,
+     loaded by the export page; each downloads only the characters the page uses. */
+  --font-sans: 'Nunito Sans', 'Noto Sans Math', 'Noto Color Emoji', sans-serif;
   color: #111111;
   background: #ffffff;
   font-family: var(--font-sans);

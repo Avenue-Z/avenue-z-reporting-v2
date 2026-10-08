@@ -3,9 +3,12 @@
  *  - a loading placeholder (any Suspense fallback carries `data-export-pending`) means a part is
  *    still waiting on its data;
  *  - an unfinished `<img>` would print blank;
- *  - a Recharts container with no surface has not measured its width and drawn yet. */
+ *  - a Recharts container with no surface has not measured its width and drawn yet;
+ *  - a web font still loading would print its text in a fallback, or as empty boxes where the server has no fallback
+ *    (the arrows and emoji, export-theme.css). */
 export function isDocumentReady(doc: Document): boolean {
   if (doc.querySelector('[data-export-pending]')) return false
+  if (doc.fonts && doc.fonts.status !== 'loaded') return false
   for (const img of Array.from(doc.images)) if (!img.complete) return false
   for (const rc of Array.from(doc.querySelectorAll('.recharts-responsive-container'))) {
     if (!rc.querySelector('.recharts-surface')) return false

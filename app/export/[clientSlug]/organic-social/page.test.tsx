@@ -64,3 +64,12 @@ test('without a range the page uses the live default, last 30 days', async () =>
   const [report] = findElements(r.element, (e) => nameOf(e.type) === 'OrganicSocialReport')
   expect(report.props.dateRange).toBe('last_30_days')
 })
+
+// Nunito Sans has no arrows or emoji, and the server's Chromium has no system font with them, so they printed as
+// empty boxes (the KPI deltas' ↑ ↓, "View post ↗", caption emoji). The export page loads web fonts that cover them.
+test('the page loads the fallback fonts for arrows, symbols and emoji', async () => {
+  const r = await open({})
+  if ('redirect' in r) throw new Error('unexpected redirect')
+  const links = findElements(r.element, (e) => e.type === 'link').map((e) => e.props as { rel: string; href: string })
+  expect(links).toEqual([expect.objectContaining({ rel: 'stylesheet', href: expect.stringMatching(/family=Noto\+Sans\+Math&family=Noto\+Color\+Emoji/) })])
+})
