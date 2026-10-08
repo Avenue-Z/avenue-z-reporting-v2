@@ -4,8 +4,9 @@ import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { resolveSection } from '@/lib/report-sections/resolve'
 import { lookup } from '@/lib/report-sections/registry'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
-import { orgSocialChannelViewKey } from '@/lib/commentary/views'
+import { orgSocialChannelViewKey, type CommentaryViewKey } from '@/lib/commentary/views'
 import type { DashChannel } from '@/lib/organic-social/metrics'
+import type { OrganicView } from '@/lib/constants'
 import type { SectionOverride } from '@/lib/report-sections/types'
 import { ORGANIC_SOCIAL_PARTS } from './parts/registry'
 import { wrapsAsBlock } from './parts/export-layout'
@@ -17,18 +18,23 @@ import { noMonthsText, viewerForRole } from '@/lib/organic-social/reporting-mont
 import { NoMonths } from './no-months'
 
 export function OrganicSocialReport({
-  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null,
+  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null,
 }: {
   clientSlug: string
   dateRange?: string
   compareRange?: string | null
   channel?: DashChannel | null
+  /** 'influencer' on the Influencer tab (channel stays null there); null for Overview and the platform tabs. */
+  view?: OrganicView
 }) {
-  const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel })
-  // Commentary is per platform subpage: each channel carries its own content key, while opt-in
-  // stays gated on the base 'organic-social' config (configKey) so a per-channel key never needs
-  // its own opt-in entry. Overview (channel === null) keeps the bare 'organic-social' key.
-  const commentaryViewKey = channel ? orgSocialChannelViewKey(channel) : 'organic-social'
+  const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
+  // Both boxes (Insights on top, Recommendations at the bottom) are per platform subpage: each channel
+  // carries its own content key, while opt-in stays gated on the base 'organic-social' config (configKey)
+  // so a per-channel key never needs its own opt-in entry. Overview (channel === null) keeps the bare
+  // 'organic-social' key; the Influencer tab has its own. The bottom box derives its own key from this one
+  // (recommendationsViewKeyFor).
+  const commentaryViewKey: CommentaryViewKey = view === 'influencer' ? 'organic-social:influencer'
+    : channel ? orgSocialChannelViewKey(channel) : 'organic-social'
   // The outer component is SYNCHRONOUS so the section's own skeletons paint on first render.
   // Both async dependencies — the viewer-role read (`await auth()`) and the template/config lookup
   // (`getSectionTemplate` is a new critical-path dependency the data sections don't otherwise need)
@@ -40,6 +46,8 @@ export function OrganicSocialReport({
       <Suspense fallback={<OverviewSkeleton />}>
         <OrganicSocialBody ctx={ctx} />
       </Suspense>
+      {/* Recommendations: the same opt-in, rendered after every part (10/6 calls: "put them at the bottom"). */}
+      <SharedPartsHeader placement="bottom" viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
     </div>
   )
 }
@@ -59,7 +67,7 @@ export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
     email = user?.email ?? undefined
   } catch { role = undefined; email = undefined }
   const rctx: OrganicSocialCtx = { ...ctx, ...(role ? { role } : {}), ...(email ? { email } : {}) }
-  const key = rctx.channel ? 'organic-social:platform' : 'organic-social'
+  const key = rctx.view === 'influencer' ? 'organic-social:influencer' : rctx.channel ? 'organic-social:platform' : 'organic-social'
   // Resolve the composition defensively. A DB hiccup here must NOT blank the whole section: on
   // failure, fall back to the in-code template with no per-client override so each part still
   // renders behind its own Suspense/safe() boundary (per-section isolation).

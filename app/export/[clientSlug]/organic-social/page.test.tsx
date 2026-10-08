@@ -41,7 +41,8 @@ test('renders the report as the live page does, in export mode, with the ready r
   const r = await open({ dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'previous_period', subsection: 'organic-linkedin', tz: 'America/New_York' })
   if ('redirect' in r) throw new Error('unexpected redirect')
   const [report] = findElements(r.element, (e) => nameOf(e.type) === 'OrganicSocialReport')
-  expect(report.props).toEqual({ clientSlug: 'renaissance', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'previous_period', channel: 'LINKEDIN' })
+  // view as the live pages pass it (null on a platform tab; 'influencer' on that tab, organic-social-view.pages.test.tsx).
+  expect(report.props).toEqual({ clientSlug: 'renaissance', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'previous_period', channel: 'LINKEDIN', view: null })
   expect(findElements(r.element, (e) => nameOf(e.type) === 'ExportModeProvider')).toHaveLength(1)
   expect(findElements(r.element, (e) => nameOf(e.type) === 'ExportReadyReporter')).toHaveLength(1)
 })

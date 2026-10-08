@@ -75,6 +75,8 @@
 .export-theme [data-export-chart] .bg-bg-surface { background-color: #272727; }
 .export-theme [data-export-chart] .text-text-muted { color: #8a8a8a; }
 .export-theme [data-export-chart].border-white\/\[0\.06\] { border-color: rgb(255 255 255 / 0.06); }
+/* An outline inside the panel (KPI Check-In's date pill) keeps its live colour, not the white-paper remap above. */
+.export-theme [data-export-chart] .border-white\/\[0\.08\] { border-color: rgb(255 255 255 / 0.08); }
 
 /* A whole card is a link: it keeps its own colours (its "View post ↗" line is styled as the link). */
 .export-theme a[data-export-link] {

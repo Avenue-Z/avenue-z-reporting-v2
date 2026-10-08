@@ -28,6 +28,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Total Followers
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_0_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_0_"
+                role="tooltip"
+              >
+                The total number of followers you have on this channel.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -55,6 +77,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Net New Followers
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_1_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_1_"
+                role="tooltip"
+              >
+                The net new number of people who have followed your account.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -73,6 +117,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Views
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_2_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_2_"
+                role="tooltip"
+              >
+                The number of times your posts were viewed or displayed.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -97,6 +163,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagements
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_3_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_3_"
+                role="tooltip"
+              >
+                The total number of engagements your posts received. Organic Likes + Saves + Comments + Shares + Reposts.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -162,6 +250,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Total Followers
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_4_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_4_"
+                role="tooltip"
+              >
+                The total number of followers you have on this channel.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -186,6 +296,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Net New Followers
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_5_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_5_"
+                role="tooltip"
+              >
+                The net new number of people who have followed your account.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -204,6 +336,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Views
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_6_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_6_"
+                role="tooltip"
+              >
+                The number of times your posts were viewed or displayed.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -228,6 +382,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagements
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_7_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_7_"
+                role="tooltip"
+              >
+                The total number of engagements your posts received. Organic Reactions + Comments + Shares + Post Clicks
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"
@@ -252,6 +428,28 @@ exports[`Overview headlines render the actual metric values, not a skeleton 1`] 
             >
               Engagement Rate
             </p>
+            <span
+              class="group relative inline-flex flex-shrink-0 align-middle"
+              data-export-hide=""
+            >
+              <span
+                aria-describedby="_r_8_"
+                class="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold normal-case leading-none tracking-normal text-text-muted outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                tabindex="0"
+              >
+                ?
+              </span>
+              <span
+                class="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-text-muted hidden max-w-[calc(100vw-2rem)] shadow-xl group-hover:block group-focus-within:block"
+                id="_r_8_"
+                role="tooltip"
+              >
+                The percentage of people who engaged with your posts after seeing them.
+                <span
+                  class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]"
+                />
+              </span>
+            </span>
           </div>
           <p
             class="mt-2 text-3xl font-extrabold text-white"

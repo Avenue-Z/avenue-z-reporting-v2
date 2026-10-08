@@ -9,9 +9,9 @@ import { useExportMode } from '@/components/export/export-mode'
 import { printImageUrl } from '@/lib/export/print-image'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 
-interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
+export interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
 
-function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
+export function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
   const m = post.metrics
   return [
     // effectiveness + engagementRate are both fractions (×100 for %).
@@ -24,7 +24,7 @@ function cardMetrics(post: TopContentPost, sortKey: string): CardMetric[] {
 
 /** Creative area with an onError placeholder — a purged/deleted asset shows a placeholder,
  *  the card is never hidden (snapshot §5). No video autoplay (play only on press). */
-function Media({ post }: { post: TopContentPost }) {
+export function Media({ post }: { post: TopContentPost }) {
   const [broken, setBroken] = useState(false)
   const c = post.creative
   if (broken || !c) {
@@ -45,6 +45,9 @@ function Media({ post }: { post: TopContentPost }) {
     <img
       className="aspect-square w-full object-cover"
       src={c.thumb}
+      // Lazy: the Influencer tab draws every post of the period with no pager, so an eager image per card fired every
+      // request on tab open, most of them below the fold.
+      loading="lazy"
       alt={post.caption.slice(0, 80)}
       // onError catches failures AFTER hydration; the ref catches an <img> that already errored
       // BEFORE React hydrated (SSR sends the tag, the browser can fail the load before the
@@ -57,7 +60,7 @@ function Media({ post }: { post: TopContentPost }) {
 
 /** The creative as the PDF export prints it: a video's poster frame (a player cannot print), else a
  *  placeholder; an image as it is. */
-function ExportMedia({ post }: { post: TopContentPost }) {
+export function ExportMedia({ post }: { post: TopContentPost }) {
   const [broken, setBroken] = useState(false)
   const c = post.creative
   const src = c?.kind === 'video' ? c.poster : c?.thumb

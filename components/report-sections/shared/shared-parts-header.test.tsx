@@ -75,3 +75,39 @@ test('requestedRange reaches Commentary only when passed', async () => {
   const withRange = await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c', requestedRange: 'custom:2026-09-01,2026-09-30' })
   expect(findByName(withRange, 'CommentarySection')?.props).toEqual({ clientSlug: 'c', viewKey: 'organic-social', requestedRange: 'custom:2026-09-01,2026-09-30' })
 })
+
+const optedInBoth = {
+  reportSectionConfig: { 'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }, { id: 'recommendations', version: 1 }] } },
+}
+
+test('the top placement renders Insights only, the bottom placement Recommendations only', async () => {
+  getClientBySlug.mockResolvedValue(optedInBoth)
+  const top = await SharedPartsHeader({ viewKey: 'organic-social:instagram', configKey: 'organic-social', clientSlug: 'c' })
+  const topSection = findByName(top, 'CommentarySection')
+  expect(topSection?.props).toEqual({ clientSlug: 'c', viewKey: 'organic-social:instagram' })
+  const bottom = await SharedPartsHeader({ viewKey: 'organic-social:instagram', configKey: 'organic-social', clientSlug: 'c', placement: 'bottom', requestedRange: 'custom:2026-09-01,2026-09-30' })
+  const bottomSection = findByName(bottom, 'CommentarySection')
+  expect(bottomSection?.props).toEqual({
+    clientSlug: 'c', viewKey: 'organic-social:instagram:recommendations', requestedRange: 'custom:2026-09-01,2026-09-30',
+    labels: { title: 'Recommendations', noun: 'recommendations', outline: null },
+  })
+})
+
+test('a client opted into Insights only renders nothing at the bottom', async () => {
+  getClientBySlug.mockResolvedValue(clientOptedInOnOverview)
+  expect(await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c', placement: 'bottom' })).toBeNull()
+})
+
+test('the recommendations part renders nothing for a non Organic Social key', async () => {
+  getClientBySlug.mockResolvedValue({ reportSectionConfig: { 'peec-ai': { sharedParts: [{ id: 'recommendations', version: 1 }] } } })
+  const el = await SharedPartsHeader({ viewKey: 'peec-ai', clientSlug: 'c', placement: 'bottom' })
+  expect(findByName(el, 'CommentarySection')).toBeNull()
+})
+
+test('the error boundary names the part by its label', async () => {
+  getClientBySlug.mockResolvedValue(optedInBoth)
+  const top = await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c' })
+  expect(findByName(top, 'ReportErrorBoundary')?.props.sectionName).toBe('Insights (commentary)')
+  const bottom = await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c', placement: 'bottom' })
+  expect(findByName(bottom, 'ReportErrorBoundary')?.props.sectionName).toBe('Recommendations (recommendations)')
+})

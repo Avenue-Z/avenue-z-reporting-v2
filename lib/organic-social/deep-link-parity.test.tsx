@@ -165,3 +165,29 @@ test('other deep links keep their own report name for a client that hides Overvi
   expect(only(portal, (e) => e.type === 'h1', 'h1').props.children).toBe(expected)
   expect(only(portal, (e) => e.type === ReportErrorBoundary, 'ReportErrorBoundary').props.sectionName).toBe(expected)
 })
+
+// The Influencer tab (10/6 calls): a tab with no channel and its own view. Both SPA routes render it with
+// view 'influencer' and title it "Influencer"; the deep links (no subsection) still land on the first tab with
+// view null, so nothing above changes.
+const spaArgsFor = (subsection: string) =>
+  ({ params: Promise.resolve({ clientSlug: SLUG }), searchParams: Promise.resolve({ section: 'organic-social', subsection }) })
+const sectionOf = (tree: ReactNode) => only(tree, (e) => e.type === OrganicSocialReport, 'OrganicSocialReport').props
+
+test('the Influencer tab: both SPA routes pass the view and title the tab; the deep links pass view null', async () => {
+  useClient(FIXTURES['instagram only; hides Overview'])
+  for (const [page, titleFrom] of [[DashboardSpa, 'StickyReportHeader'], [PortalSpa, 'StickyReportHeader']] as const) {
+    const tree = await page(spaArgsFor('organic-influencer') as never)
+    expect([sectionOf(tree).channel, sectionOf(tree).view]).toEqual([null, 'influencer'])
+    expect(viewOf(tree, titleFrom)).toEqual({ channel: null, title: 'Influencer', boundary: 'Influencer' })
+  }
+  expect(sectionOf(await DashboardDeepLink(deepArgs() as never)).view).toBeNull()
+  expect(sectionOf(await PortalDeepLink(deepArgs() as never)).view).toBeNull()
+})
+
+test('a client without the tab asked for it by URL lands on its first tab, on both SPA routes', async () => {
+  useClient({ channels: ['linkedin'], hidden: ['organic-overview'] })
+  for (const page of [DashboardSpa, PortalSpa]) {
+    const tree = await page(spaArgsFor('organic-influencer') as never)
+    expect([sectionOf(tree).channel, sectionOf(tree).view ?? null]).toEqual(['LINKEDIN', null])
+  }
+})
