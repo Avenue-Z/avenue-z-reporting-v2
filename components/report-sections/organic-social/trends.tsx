@@ -255,7 +255,10 @@ export function ChannelTrendChart({
 function ExportChannelTrendChart({ title, series, annotations }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] }) {
   const printable = (annotations ?? []).filter(isClientVisible).sort((a, b) => a.date.localeCompare(b.date))
   const onSeries = new Set(series.points.map((p) => String(p.date)))
-  const marks = printable.flatMap((a, i) => (onSeries.has(a.date) ? [{ x: a.date, label: String(i + 1) }] : []))
+  // Only a day with a point gets a mark, so only those are numbered: the chart's numbers never skip, and the list shows
+  // the same number beside each (an annotation off the chart is listed unnumbered).
+  const numbers = new Map(printable.filter((a) => onSeries.has(a.date)).map((a, i) => [a.date, i + 1] as const))
+  const marks = [...numbers].map(([x, n]) => ({ x, label: String(n) }))
   const yKeys = series.channels.map((c) => ({ key: c, label: c, color: colorFor(c) }))
   return (
     <section className="space-y-3">
@@ -275,7 +278,7 @@ function ExportChannelTrendChart({ title, series, annotations }: { title: string
           </>
         )}
       </div>
-      {printable.length > 0 && !isEmptyTrend(series) && <ExportAnnotationList items={printable} />}
+      {printable.length > 0 && !isEmptyTrend(series) && <ExportAnnotationList items={printable} numbers={numbers} />}
     </section>
   )
 }

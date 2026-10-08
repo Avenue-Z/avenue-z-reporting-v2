@@ -417,6 +417,9 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             rather than handed to Recharts, which would drop it without saying so. */}
         {(marks ?? [])
           .filter((m) => data.some((d) => d[xKey] === m.x))
+          // In the PDF export an unlabelled mark is numbered in the order given, as the notes listed under the chart
+          // are (ytd-notes-panel.tsx); a label given explicitly (the daily graphs' annotations) is kept.
+          .map((m, i) => (exportMode && !m.label ? { ...m, label: String(i + 1) } : m))
           .map((m) => (
             <ReferenceDot
               key={`mark-${m.x}`}

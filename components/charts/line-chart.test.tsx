@@ -541,6 +541,21 @@ describe('in the PDF export', () => {
     expect(labels).toEqual(['1', '2'])
   })
 
+  // A YTD graph hands its approved notes' dots without labels; in the export they are numbered in the order given, which
+  // is the order the notes panel numbers them in (ytd-notes-panel.tsx). Labels given explicitly are kept.
+  test('unlabelled marks are numbered in the order given; given labels are kept', () => {
+    const numbered = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1] }, { x: DAYS[3] }]} />)
+    expect([...numbered.container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)).toEqual(['1', '2'])
+    numbered.unmount()
+    const given = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1], label: '4' }]} />)
+    expect([...given.container.querySelectorAll('text.recharts-label')].map((t) => t.textContent)).toEqual(['4'])
+  })
+
+  test('outside the export a mark has no number', () => {
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={[{ x: DAYS[1] }]} />)
+    expect(container.querySelectorAll('text.recharts-label')).toHaveLength(0)
+  })
+
   test('outside the export nothing changes: animation stays on and no panel marker', () => {
     lineProps.length = 0
     const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)

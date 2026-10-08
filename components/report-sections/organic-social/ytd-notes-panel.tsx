@@ -8,6 +8,7 @@ import type { ChartAnnotation } from '@/lib/organic-social/annotations'
 import type { YtdGraphNotes, YtdNoteControls, YtdNoteRow } from './parts/ytd-notes'
 import { NoteActions } from './note-actions'
 import { PILL as BUTTON } from './pill'
+import { useExportMode } from '@/components/export/export-mode'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
 /** How long the line after a save stays, as on the daily graphs (trends.tsx, SAVED_LINE_MS). */
@@ -27,11 +28,40 @@ export function ytdSavedLine(label: string, had: Had, canApprove: boolean): stri
  *  note the chart cannot show on a point as a line, and nothing when there is none; this part uses no hooks, so it
  *  renders anywhere. An editor gets the Add annotation form and every noted month with the daily graphs' buttons. */
 export function YtdNotesPanel({ notes, title }: { notes: YtdGraphNotes; title: string }) {
+  // In the PDF export it prints what a client sees, whoever exports: the editor's wrapper is no-print, which does
+  // nothing there (the export renders in screen media).
+  if (useExportMode()) return <ExportYtdNotes notes={notes} title={title} />
   if (notes.controls) return <EditorPanel notes={notes} controls={notes.controls} title={title} />
   if (notes.panel.length === 0) return null
   return (
     <ul aria-label={`Notes on ${title}`} className="space-y-1 text-xs text-text-muted">
       {notes.panel.map((r) => <li key={r.key}>{`${r.label}: ${r.text}`}</li>)}
+    </ul>
+  )
+}
+
+/** The notes as the PDF export prints them: approved text only, never a draft or a control. A note on a point is numbered
+ *  as its dot is (LineChart numbers unlabelled marks in the order given, `marks`); a note the chart cannot show on a
+ *  point follows, unnumbered. Each is one unbreakable block. */
+function ExportYtdNotes({ notes, title }: { notes: YtdGraphNotes; title: string }) {
+  const onPoint = (notes.marks ?? []).flatMap((m) => {
+    const text = notes.notes?.[m.x]
+    return text ? [{ label: m.x, text }] : []
+  })
+  const shown = new Set(onPoint.map((n) => n.label))
+  const offPoint = notes.panel.filter((r) => r.text !== null && !shown.has(r.label)).map((r) => ({ label: r.label, text: r.text! }))
+  if (onPoint.length + offPoint.length === 0) return null
+  return (
+    <ul aria-label={`Notes on ${title}`} className="space-y-1 text-xs">
+      {onPoint.map((n, i) => (
+        <li key={`p-${n.label}`} data-export-block="" className="flex items-start gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold" style={{ background: '#272727', color: '#ffffff' }}>{i + 1}</span>
+          <span className="text-white">{`${n.label}: ${n.text}`}</span>
+        </li>
+      ))}
+      {offPoint.map((n) => (
+        <li key={`o-${n.label}`} data-export-block="" className="text-white">{`${n.label}: ${n.text}`}</li>
+      ))}
     </ul>
   )
 }

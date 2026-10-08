@@ -39,7 +39,7 @@ const body = SECTIONS.map((s, si) => s.heights.map((h, bi) => {
 }).join('')).join('')
 const page = (ready: boolean) => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
 <style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
-<body><div class="export-theme" style="width:${CONTENT_WIDTH}px">${body}</div>${ready ? '<script>window.__exportReady = true</script>' : ''}</body></html>`
+<body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><p class="no-print">NOPRINTMARKER</p>${body}</div>${ready ? '<script>window.__exportReady = true</script>' : ''}</body></html>`
 
 const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(page(!req.url?.startsWith('/never'))) })
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
@@ -56,6 +56,7 @@ for (const b of blocks) {
   if (b.title) check(pagesOf(fx, b.title)[0] === start[0], `${b.title} on the same page as its first block`)
 }
 check(outsideBox(fx).length === 0, `nothing outside the content box (${outsideBox(fx).length} words)`)
+check(pagesOf(fx, 'NOPRINTMARKER').length === 0, 'a no-print element stays out of the PDF (the export renders in screen media)')
 check(fx.pages.every((p) => p.width === 792 && p.height === 612), 'every page is US Letter landscape')
 
 const started = Date.now()

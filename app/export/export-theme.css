@@ -25,6 +25,11 @@
 .export-theme [data-export-hide] {
   display: none !important;
 }
+/* Backstop. The export renders in screen media, so the app's @media print rule for .no-print does not apply here;
+   anything live-only (editors, staff controls, drafts) that is marked no-print stays out of the PDF regardless. */
+.export-theme .no-print {
+  display: none !important;
+}
 
 /* Surfaces */
 .export-theme .bg-bg-surface { background-color: #f4f4f5; }
