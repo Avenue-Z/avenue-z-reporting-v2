@@ -31,7 +31,7 @@ const post = (id: number, over: Record<string, unknown> = {}) => ({
 const props = () => (SortableTopContent.mock.calls.at(-1) as unknown as [Record<string, unknown>])[0] as {
   owned: { platform: string; posts: { id: number; metrics: { engagementRate: number | null } }[] }[]
   influencer: { platform: string; posts: { id: number }[] }[]
-  ownedLimit?: number; pageSize?: number; sortKeys?: string[]
+  ownedLimit?: number; pageSize?: number; sortKeys?: string[]; heading?: string
 }
 const show = async (ownedLimit = 5) => render(<>{await TopContentOutlineSection({ ctx: IG, ownedLimit })}</>)
 
@@ -292,6 +292,14 @@ test('with the Influencer tab, the Instagram influencer group leaves the Instagr
   await show()
   expect(props().owned[0].posts.map((x) => x.id)).toEqual([1])
   expect(props().influencer).toEqual([])
+})
+
+// In the PDF export the section's title must ride in its first row's block, as top-content@2's does: the
+// part's own title hides there and SortableTopContent draws it (review of #332).
+test("top-content@3's title is handed to the card rows and hidden as a standalone line in the export", async () => {
+  const { container } = await show()
+  expect(props().heading).toBe('Top Performing Content')
+  expect(container.querySelector('h2')?.getAttribute('data-export-hide')).toBe('')
 })
 
 // Last in the file on purpose: it changes getDesignations' resolved value and restores it at the end.

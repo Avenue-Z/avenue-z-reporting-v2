@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT } from './annotations'
+import { pickPeaks, annotationLabel, topPostByDate, buildAnnotations, toChartAnnotations, ANNOTATION_LIMIT, isClientVisible } from './annotations'
 import type { TopContentPost } from './content-types'
 import type { TrendSeries } from './types'
 
@@ -184,4 +184,17 @@ test('a day with only a draft sends no note text to anyone', () => {
   const [a] = toChartAnnotations([{ date: '2026-08-14', value: 0, label: '8/14', post: null, noteOnly: true, note: { text: null, posts: [], editor } }])
   expect(a.note).toBeUndefined()
   expect(a.noteEditor).toEqual(editor)
+})
+
+// What a client sees of a day, and so what a PDF prints (Paul's export v2 spec §7): a hidden day never; a day shown only
+// for its note, only once that note is approved; any other day, yes.
+test.each([
+  [{}, true],
+  [{ hidden: true }, false],
+  [{ noteOnly: true }, false],
+  [{ noteOnly: true, note: 'Launch day' }, true],
+  [{ hidden: true, noteOnly: true, note: 'Launch day' }, false],
+  [{ note: 'Launch day' }, true],
+] as const)('isClientVisible(%o) is %s', (extra, visible) => {
+  expect(isClientVisible(extra)).toBe(visible)
 })

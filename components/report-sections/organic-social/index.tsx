@@ -9,6 +9,7 @@ import type { DashChannel } from '@/lib/organic-social/metrics'
 import type { OrganicView } from '@/lib/constants'
 import type { SectionOverride } from '@/lib/report-sections/types'
 import { ORGANIC_SOCIAL_PARTS } from './parts/registry'
+import { wrapsAsBlock } from './parts/export-layout'
 import { CODE_TEMPLATES } from './template'
 import { buildOrganicSocialCtx, type OrganicSocialCtx } from './ctx'
 import { OverviewSkeleton } from './skeletons'
@@ -108,7 +109,9 @@ export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
       {resolved.map((r) => {
         const impl = lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)
         const node = impl?.render(pctx, r) ?? null
-        return node == null ? null : <div key={`${r.id}@${r.version}`}>{node}</div>
+        // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts);
+        // the attribute only matters under the export page's theme, and a part that lays out its own blocks is untouched.
+        return node == null ? null : <div key={`${r.id}@${r.version}`} {...(wrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{node}</div>
       })}
     </>
   )

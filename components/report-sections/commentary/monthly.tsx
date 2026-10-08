@@ -1,7 +1,7 @@
 import { getCommentaryForView } from '@/lib/db/queries'
 import { canApproveCommentary, canEditCommentary } from '@/lib/commentary/permissions'
 import { historyEntries, toClientSafeEntry, visibleEntries } from '@/lib/commentary/select'
-import { clientOpensNote, eligibleEntries, pickMonthDefault } from '@/lib/commentary/month'
+import { clientMonthEntry, clientOpensNote, eligibleEntries, pickMonthDefault } from '@/lib/commentary/month'
 import { lockedRangeFor, requestClock } from '@/lib/organic-social/locked-range'
 import { firstOf, lastOf, monthTitle, viewerForRole } from '@/lib/organic-social/reporting-months'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
@@ -28,7 +28,7 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
   if (!month) {
     if (!capabilities.canEdit) return null
     return (
-      <CommentaryPanel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null}
+      <CommentaryPanel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null} clientEntryId={null}
         capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} />
     )
   }
@@ -38,6 +38,10 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
   const eligible = eligibleEntries(visible, month.key, cutoff)
   // Picked on the un-redacted entries: toClientSafeEntry blanks updatedAt (see select.ts).
   const initial = pickMonthDefault(eligible, month.key)
+  // What a client opens on for this month, for the PDF export (it prints the client's view, whoever exports). For a
+  // client viewer it is `initial`; for the team it is worked out from the client's own month list.
+  const clientMonths = viewer === 'client' ? locked!.months : (lockedRangeFor(client, 'CLIENT_VIEWER', requestedRange, clock)?.months ?? [])
+  const clientEntry = clientMonthEntry(all, month.key, clientMonths)
   if (!capabilities.canEdit && !initial) return null
   const entries = capabilities.canEdit ? eligible : eligible.map(toClientSafeEntry)
   const history = viewer === 'team' ? historyEntries(all, capabilities) : []
@@ -52,6 +56,7 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
       viewKey={viewKey}
       entries={entries}
       initialId={initial?.id ?? null}
+      clientEntryId={clientEntry?.id ?? null}
       capabilities={capabilities}
       history={history}
       defaultPeriod={{ start: firstOf(month.key), end: lastOf(month.key) }}

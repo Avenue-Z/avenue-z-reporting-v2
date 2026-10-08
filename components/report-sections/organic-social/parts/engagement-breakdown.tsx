@@ -18,7 +18,7 @@ function BreakdownSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
       {[0, 1, 2, 3, 4].map((c) => (
-        <div key={c} className="h-[76px] animate-pulse rounded-lg border border-white/[0.06] bg-bg-surface" />
+        <div key={c} data-export-pending="" className="h-[76px] animate-pulse rounded-lg border border-white/[0.06] bg-bg-surface" />
       ))}
     </div>
   )

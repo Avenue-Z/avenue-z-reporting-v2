@@ -112,6 +112,7 @@ describe('the matcher: which requests reach the proxy at all', () => {
       '/portal/acme', '/portal/acme/reports', '/portal/acme/reports?_rsc=1', '/portal/acme/reports.rsc',
       '/portal/acme/reports.prefetch.rsc', '/portal/acme/reports.segments/_tree.segment.rsc',
       '/dashboard', '/dashboard/acme/access', '/tools', '/tools/reporting',
+      '/export/acme/organic-social', '/export/acme/organic-social?dateRange=last_30_days',
     ]) expect(await matches(url), url).toBe(true)
   })
 

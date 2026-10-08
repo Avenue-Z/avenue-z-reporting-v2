@@ -45,6 +45,21 @@ describe('routeAccess', () => {
     }
   })
 
+  // The PDF export page (/export/<slug>/organic-social) is opened by the server's own browser with the
+  // requester's session: the same rule as the portal, so an export never shows more than its page.
+  test("the export page follows the portal's rule: staff any client, a client only its own", () => {
+    for (const s of [admin, analyst]) {
+      for (const p of ['/export/acme/organic-social', '/export/other/organic-social']) expect(routeAccess(p, s)).toBe('allow')
+    }
+    for (const s of [clientAdmin, viewer]) {
+      expect(routeAccess('/export/acme/organic-social', s)).toBe('allow')
+      for (const p of ['/export/other/organic-social', '/export', '/export/', '/export/ACME/organic-social', '/export/acme-evil/organic-social']) {
+        expect(routeAccess(p, s)).toBe('unauthorized')
+      }
+    }
+    expect(routeAccess('/export/acme/organic-social', null)).toBe('login')
+  })
+
   test('near-miss slugs fail closed', () => {
     for (const p of ['/portal', '/portal/', '/portal//reports', '/portal/acme-evil/reports', '/portal/acm/reports', '/portal/ACME/reports', '/portal/%61cme/reports']) {
       expect(routeAccess(p, viewer)).toBe('unauthorized')

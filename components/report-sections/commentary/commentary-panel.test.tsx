@@ -34,7 +34,7 @@ function renderPanel(canEdit: boolean) {
       clientSlug="acme"
       viewKey="peec-ai"
       entries={[ENTRY]}
-      initialId={ENTRY.id}
+      initialId={ENTRY.id} clientEntryId={null}
       capabilities={{ canEdit, canApprove: false }}
       history={[]}
     />,
@@ -85,7 +85,7 @@ function renderWith(opts: {
       clientSlug="acme"
       viewKey="peec-ai"
       entries={[entry]}
-      initialId={entry.id}
+      initialId={entry.id} clientEntryId={null}
       capabilities={{ canEdit: opts.canEdit ?? false, canApprove: opts.canApprove ?? false }}
       history={opts.history ?? []}
     />,
@@ -137,7 +137,7 @@ describe('deleting the dropdown-selected draft', () => {
     }
 
     const { rerender } = render(
-      <CommentaryPanel {...props} entries={[juneApproved, mayDraft]} initialId={juneApproved.id} />,
+      <CommentaryPanel {...props} entries={[juneApproved, mayDraft]} initialId={juneApproved.id} clientEntryId={null} />,
     )
 
     // Editor explicitly picks the May draft from the dropdown (not the default June entry).
@@ -151,7 +151,7 @@ describe('deleting the dropdown-selected draft', () => {
     expect(deleteCommentaryDraft).toHaveBeenCalledWith('acme', mayDraft.id)
 
     // Simulate the RSC's post-refresh render: the deleted draft is gone from `entries`.
-    rerender(<CommentaryPanel {...props} entries={[juneApproved]} initialId={juneApproved.id} />)
+    rerender(<CommentaryPanel {...props} entries={[juneApproved]} initialId={juneApproved.id} clientEntryId={null} />)
 
     expect(screen.queryByText('No insights yet.')).toBeNull()
     expect(screen.getByText('Visibility climbed this month.')).toBeTruthy()
@@ -201,7 +201,7 @@ const html = (el: ReactElement) => render(el).container.innerHTML.replace(localT
 test('panel and editor HTML without the new optional props', () => {
   const SECOND: CommentaryEntry = { ...ENTRY, id: 'e2', periodStart: '2026-05-01', periodEnd: '2026-05-31', status: 'draft' }
   const panel = (canEdit: boolean, entries: CommentaryEntry[]) => html(
-    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={entries} initialId={entries[0]?.id ?? null}
+    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={entries} initialId={entries[0]?.id ?? null} clientEntryId={null}
       capabilities={{ canEdit, canApprove: false }} history={[]} />,
   )
   expect({
@@ -217,7 +217,7 @@ test('panel and editor HTML without the new optional props', () => {
 
 test('the new optional props: empty text, the team note, and the month as a new entry\'s period', () => {
   const empty = render(
-    <CommentaryPanel clientSlug="acme" viewKey="organic-social:instagram" entries={[]} initialId={null}
+    <CommentaryPanel clientSlug="acme" viewKey="organic-social:instagram" entries={[]} initialId={null} clientEntryId={null}
       capabilities={{ canEdit: true, canApprove: false }} history={[]} emptyText="No insights for September 2026 yet"
       defaultPeriod={{ start: '2026-09-01', end: '2026-09-30' }} />,
   )
@@ -226,14 +226,14 @@ test('the new optional props: empty text, the team note, and the month as a new 
   expect([...empty.container.querySelectorAll('input[type="date"]')].map((i) => (i as HTMLInputElement).value)).toEqual(['2026-09-01', '2026-09-30'])
   empty.unmount()
   const noted = render(
-    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={[ENTRY]} initialId={ENTRY.id}
+    <CommentaryPanel clientSlug="acme" viewKey="peec-ai" entries={[ENTRY]} initialId={ENTRY.id} clientEntryId={null}
       capabilities={{ canEdit: true, canApprove: false }} history={[]} entryNotes={{ [ENTRY.id]: 'Clients see this from Nov 12' }} />,
   )
   expect(noted.container.textContent).toContain('Clients see this from Nov 12')
 })
 
 test('the box title, button and empty line follow the labels prop; the default is Insights', () => {
-  const base = { clientSlug: 'c', viewKey: 'organic-social' as const, entries: [], initialId: null, capabilities: { canEdit: true, canApprove: false }, history: [] }
+  const base = { clientSlug: 'c', viewKey: 'organic-social' as const, entries: [], initialId: null, clientEntryId: null, capabilities: { canEdit: true, canApprove: false }, history: [] }
   const a = render(<CommentaryPanel {...base} />)
   expect(a.getByText('Insights')).toBeTruthy()
   expect(a.getByText('Add insights')).toBeTruthy()

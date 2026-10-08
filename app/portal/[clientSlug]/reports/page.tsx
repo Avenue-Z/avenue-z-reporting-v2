@@ -38,6 +38,7 @@ import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import { parseModelsParam, type AEOModel } from '@/lib/peec/models'
 import { ExportPdfButton } from '@/components/export-pdf-button'
+import { exportPeriodLabel } from '@/lib/export-period'
 import { DataChat } from '@/components/data-chat'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
@@ -244,6 +245,15 @@ export default async function PortalReportPage({
       ? AEO_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
 
+  // The Export PDF stamp states a period only where the page range applies, which is exactly where
+  // the header below shows a date picker: Executive Overview, Pacing etc. keep their own window, so a
+  // ?dateRange carried over in the URL must not be stamped on them. Mirrors the picker conditions;
+  // lib/export-period.pages.test.tsx holds stamp ⇔ picker.
+  const usesPageRange =
+    ((activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing') ||
+    activeSection === 'paid-media' || activeSection === 'organic-social' ||
+    (activeSection === 'peec-ai' && (!subsection || !!AEO_SUBSECTION_NAMES[subsection]))
+
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={50}>
       <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
@@ -276,7 +286,10 @@ export default async function PortalReportPage({
             <ModelFilter selected={models} />
           </Suspense>
         )}
-        <ExportPdfButton />
+        <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={usesPageRange ? exportPeriodLabel(servedDateRange) : null}
+          {...(activeSection === 'organic-social'
+            ? { serverExport: { clientSlug, subsection: organicEntry?.id ?? null, dateRange: servedDateRange, compareRange: servedCompareRange } }
+            : {})} />
       </StickyReportHeader>
 
       <div className="h-8" />

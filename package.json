@@ -17,7 +17,8 @@
     "db:enable-commentary-renaissance": "tsx --env-file=.env.local scripts/enable-commentary-renaissance.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e:export": "tsx --env-file-if-exists=.env.local e2e/export/acceptance.mts"
   },
   "dependencies": {
     "@auth/core": "0.41.3",
@@ -30,6 +31,7 @@
     "@google/genai": "^1.46.0",
     "@hubspot/api-client": "^12.0.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@sparticuz/chromium": "^153.0.0",
     "@tiptap/extension-link": "^3.31.4",
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
@@ -40,8 +42,9 @@
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^0.577.0",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "next-auth": "5.0.0-beta.32",
+    "puppeteer-core": "^25.12.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-day-picker": "^9.14.0",
@@ -69,7 +72,7 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.3.8",
     "jsdom": "^25.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",

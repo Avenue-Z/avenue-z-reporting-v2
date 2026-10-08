@@ -266,3 +266,15 @@ test('the Influencer view keys both boxes to the influencer keys and composes th
   expect(getSectionTemplate).toHaveBeenCalledWith('organic-social:influencer')
   spy.mockRestore()
 })
+
+// In the PDF export a part with no export form of its own pages as one unbreakable block (parts/export-layout.ts);
+// a part that lays out its own blocks is left untouched (Thomas, #332 round 2, item 2).
+test('a part with no export form is wrapped as one export block; the others are not', async () => {
+  const order = [{ id: 'platform-headlines', version: 1 }, { id: 'engagement-breakdown', version: 1 }, { id: 'top-content', version: 2 }]
+  getSectionTemplate.mockResolvedValue({ order, labels: {}, thresholds: {} })
+  getClientBySlug.mockResolvedValue({ slug: 'c', dashSocialConfig: { brandId: 1 }, reportSectionConfig: {} })
+  const platform = buildOrganicSocialCtx({ clientSlug: 'c', channel: 'INSTAGRAM' }) // the breakdown renders on a platform tab only
+  const el = (await OrganicSocialBody({ ctx: platform })) as { props: { children: ({ key: string; props: Record<string, unknown> } | null)[] } }
+  const wrapped = Object.fromEntries(el.props.children.filter((c) => c != null).map((c) => [c.key, 'data-export-block' in c.props]))
+  expect(wrapped).toEqual({ 'platform-headlines@1': false, 'engagement-breakdown@1': true, 'top-content@2': false })
+})
