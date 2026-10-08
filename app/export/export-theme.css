@@ -30,6 +30,17 @@
 .export-theme [data-export-keep-with-next] {
   break-after: avoid;
 }
+/* Tables (spec 2026-10-08-pdf-export-all-reports-design §5). A table splits between pages only between rows, and
+   Chromium repeats the header row on each page it continues on. Cells wrap at the page width instead of the live
+   page's horizontal scroll, which a PDF would cut. */
+.export-theme [data-export-table] { overflow: visible; }
+.export-theme [data-export-table] table { table-layout: auto; }
+.export-theme [data-export-table] th,
+.export-theme [data-export-table] td { white-space: normal; overflow-wrap: anywhere; }
+.export-theme [data-export-row] { break-inside: avoid; }
+/* Chromium repeats a header row on each page only when the header itself may not break (found in the acceptance fixture). */
+.export-theme [data-export-table] thead { break-inside: avoid; }
+.export-theme [data-export-table-more] { break-before: avoid; }
 .export-theme [data-export-hide] {
   display: none !important;
 }

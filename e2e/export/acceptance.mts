@@ -53,7 +53,17 @@ const keepPage = (keep: boolean) => `<!doctype html><html><head><meta charset="u
 <section><h2 ${keep ? 'data-export-keep-with-next ' : ''}style="font-size:14px;font-weight:800;margin:0 0 16px">KEEPTITLE</h2>
 <div><div data-export-block><p style="font-size:11px">KEEPSTART</p><div style="height:341px;background:#f4f4f5"></div></div></div></section>
 </div><script>window.__exportReady = true</script></body></html>`
-const html = (url = '') => url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
+// A table longer than a page (AEO's PR placements prints up to 100 rows), starting low on the first page: it may split only
+// between rows, its header row repeats on each page it continues on, and its title stays with its first rows.
+const tablePage = () => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
+<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:600px"></div>
+<div><h3 data-export-keep-with-next style="font-size:14px;margin:0 0 8px">TABLETITLE</h3>
+<div data-export-table><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;height:24px">TABLEHEAD</th></tr></thead><tbody>
+${Array.from({ length: 60 }, (_, i) => `<tr data-export-row><td style="height:30px">ROW${i + 1}</td></tr>`).join('')}
+</tbody></table></div></div>
+</div><script>window.__exportReady = true</script></body></html>`
+const html = (url = '') => url === '/table' ? tablePage() : url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
 const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(html(req.url)) })
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
 const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
@@ -73,6 +83,13 @@ const [ctlTitle, ctlCard] = await keepOf('/keep-control')
 check(ctlTitle === 1 && ctlCard === 2, `control: without keep-with-next the title ends page 1 alone (${ctlTitle} / ${ctlCard})`)
 const [keepTitle, keepCard] = await keepOf('/keep')
 check(keepTitle === keepCard, `a kept title moves with its first card (${keepTitle} / ${keepCard})`)
+const tableFile = join(out, 'table.pdf'); writeFileSync(tableFile, await renderPdf({ url: `${origin}/table`, cookies: [] }))
+const tbl = readPdf(tableFile)
+const rowPages = Array.from({ length: 60 }, (_, i) => pagesOf(tbl, `ROW${i + 1}`))
+check(rowPages.every((p) => p.length === 1), 'every table row prints whole, on one page')
+check(pagesOf(tbl, 'TABLETITLE')[0] === rowPages[0][0], `a table's title stays with its first rows (${pagesOf(tbl, 'TABLETITLE')} / ${rowPages[0]})`)
+const lastPage = rowPages[59][0]
+check(lastPage > rowPages[0][0] && pagesOf(tbl, 'TABLEHEAD').length === lastPage - rowPages[0][0] + 1, `the header row repeats on every page the table continues on (${pagesOf(tbl, 'TABLEHEAD')})`)
 check(outsideBox(fx).length === 0, `nothing outside the content box (${outsideBox(fx).length} words)`)
 check(pagesOf(fx, 'NOPRINTMARKER').length === 0, 'a no-print element stays out of the PDF (the export renders in screen media)')
 check(fx.pages.every((p) => p.width === 792 && p.height === 612), 'every page is US Letter landscape')

@@ -5,6 +5,7 @@ import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, FilterIcon, XIcon } from '
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { useExportMode } from '@/components/export/export-mode'
 
 export interface SortableColumn<T> {
   key: string
@@ -64,6 +65,10 @@ export function SortableTable<T>({
   const [sortDir, setSortDir]   = useState<SortDir>(defaultSortDir ?? null)
   const [filters, setFilters]   = useState<Record<string, string>>({})
   const [showAll, setShowAll]   = useState(false)
+  // The PDF export prints the default view (spec 2026-10-08-pdf-export-all-reports-design §5): the default sort and the
+  // first page of rows, no sort, filter or "See all" controls, and a line saying how many rows there are. Rows are the
+  // only places a long table may break between pages (app/export/export-theme.css).
+  const exportMode = useExportMode()
 
   const sortedRows = useMemo(() => {
     let result = rows
@@ -129,6 +134,61 @@ export function SortableTable<T>({
 
   function clearAllFilters() {
     setFilters({})
+  }
+
+  if (exportMode) {
+    return (
+      <div data-export-table="">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/[0.04]">
+              {columns.map((col) => {
+                const align = col.align ?? 'left'
+                return (
+                  <th
+                    key={col.key}
+                    style={col.width ? { width: col.width } : undefined}
+                    className={cn(
+                      'px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted',
+                      align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left',
+                      col.headerClassName,
+                    )}
+                  >
+                    {col.label}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.length === 0 ? (
+              <tr data-export-row="">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-xs text-text-muted">{emptyMessage}</td>
+              </tr>
+            ) : visibleRows.map((row, idx) => (
+              <tr key={rowKey(row, idx)} data-export-row="" className={cn('border-b border-white/[0.03]', rowClassName ? rowClassName(row) : '')}>
+                {columns.map((col) => {
+                  const align = col.align ?? 'left'
+                  const cellContent = col.render
+                    ? col.render(row, idx)
+                    : col.accessor
+                      ? String(col.accessor(row) ?? '')
+                      : String((row as Record<string, unknown>)[col.key] ?? '')
+                  return (
+                    <td key={col.key} className={cn('px-4 py-3', align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left', col.cellClassName)}>
+                      {cellContent}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {initialPageSize && totalAfterFilter > initialPageSize && (
+          <p data-export-table-more="" className="px-5 py-3 text-xs text-text-muted">Showing {initialPageSize} of {totalAfterFilter}</p>
+        )}
+      </div>
+    )
   }
 
   return (
