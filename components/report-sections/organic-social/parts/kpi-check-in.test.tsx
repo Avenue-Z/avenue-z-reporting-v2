@@ -160,3 +160,14 @@ test('the rings go three across by the width of the card, not of the window', as
   expect(grid.className).not.toMatch(/(^|\s)sm:grid-cols-3/)
   expect(grid.parentElement!.className).toMatch(/@container/)
 })
+
+// Thomas, 2026-10-08: one brand colour per metric (S6b gives each ring its own colour), the same on every platform, so
+// a colour always means the same KPI. Colours are the brand tokens in app/globals.css.
+test('each metric keeps its own brand colour on every platform: followers green, impressions cyan, engagements blue', async () => {
+  getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID)
+  const { container } = render(await KpiCheckInSection({ ctx: CTX }))
+  const strokes = [...container.querySelectorAll('[data-ratio]')].map((c) => c.getAttribute('stroke'))
+  const row = ['var(--color-brand-green)', 'var(--color-brand-cyan)', 'var(--color-brand-blue)']
+  expect(strokes).toEqual([...row, ...row])
+})

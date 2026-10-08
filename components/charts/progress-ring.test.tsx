@@ -36,10 +36,10 @@ test('the ring scales to its column up to a cap, and its text is sized from the 
   const ring = container.querySelector('svg')!.parentElement!
   expect(ring.className).toMatch(/@container/)
   expect(ring.className).toMatch(/aspect-square/)
-  expect(ring.className).toMatch(/max-w-44/)
+  expect(ring.className).toMatch(/max-w-56/) // up to 224 px on a wide card
   expect(ring.className).toMatch(/min-w-32/) // never smaller than the old 128 px ring, on a page squeezed by a sidebar
   expect(ring.className.split(' ')).not.toContain('h-32') // the old fixed size
   expect(ring.className.split(' ')).not.toContain('w-32')
-  expect(getByText('858,907').className).toMatch(/cqw/)
-  expect(getByText('Target: 1,000,000').className).toMatch(/cqw/)
+  expect(getByText('858,907').className).toMatch(/min\(1\.75rem,10cqw\)/)
+  expect(getByText('Target: 1,000,000').className).toMatch(/min\(14px,7cqw\)/)
 })

@@ -20,6 +20,14 @@ const YEAR_OF_END = /,(\d{4})-\d{2}-\d{2}$/
 
 const MONTH_NOTE = 'text-sm text-text-muted'
 
+/** One brand colour per metric, the same on every platform, so a colour always means the same KPI (S6b gives each ring
+ *  its own colour). The brand tokens in app/globals.css (--color-brand-green, -cyan, -blue). */
+const RING_COLOR = {
+  followers: 'var(--color-brand-green)',
+  impressions: 'var(--color-brand-cyan)',
+  engagements: 'var(--color-brand-blue)',
+} as const
+
 /** KPI Check-In (10/6 calls; spec section 5): one row per shown client channel, three rings each, year to date
  *  against the half's target, read from the team's KPI tracker sheet (dash_social_config.kpiSheets). Pinned per client;
  *  nothing here asks Dash, so the lock sweep stores nothing new. Log lines carry the slug and year, never the sheet id.
@@ -75,9 +83,9 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
                 {/* Three across only when the CARD is wide enough for three readable rings (32rem), whatever the window. */}
                 <div className="@container mt-4">
                   <div className="grid grid-cols-1 gap-4 @lg:grid-cols-3">
-                    <ProgressRing label="Total Followers" value={row.actual.followers} target={row.target.followers} />
-                    <ProgressRing label={impressionsLabel(row.channel)} value={row.actual.impressions} target={row.target.impressions} />
-                    <ProgressRing label="Total Engagements" value={row.actual.engagements} target={row.target.engagements} />
+                    <ProgressRing label="Total Followers" color={RING_COLOR.followers} value={row.actual.followers} target={row.target.followers} />
+                    <ProgressRing label={impressionsLabel(row.channel)} color={RING_COLOR.impressions} value={row.actual.impressions} target={row.target.impressions} />
+                    <ProgressRing label="Total Engagements" color={RING_COLOR.engagements} value={row.actual.engagements} target={row.target.engagements} />
                   </div>
                 </div>
               </>
