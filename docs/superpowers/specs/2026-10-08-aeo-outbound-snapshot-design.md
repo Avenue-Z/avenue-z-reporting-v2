@@ -333,7 +333,7 @@ Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save 
   | `404` | | Unknown or discarded id. |
   | `409` | `{ error: 'stale' \| 'not-draft', revision }` | The revision doesn't match, or the report isn't a draft. |
 - **The parent page owns saving** (the iframe can't, §8):
-  - The iframe posts `{type:'dirty'}` on the first keystroke and `{type:'edit', path, value}` after the 800ms debounce, so the parent knows about an edit before it is saved. The parent checks that `event.source` is its own iframe's `contentWindow`. It can't check the origin, because a sandboxed iframe's origin is `null`.
+  - The iframe posts `{type:'dirty', path}` on the first keystroke in a field and `{type:'edit', path, value}` after the 800ms debounce, and it answers a `{type:'flush'}` from the parent by sending every pending edit at once. A field stays dirty until an edit sent after its last keystroke is saved. The parent checks that `event.source` is its own iframe's `contentWindow`. It can't check the origin, because a sandboxed iframe's origin is `null`.
   - The parent keeps one queue. It holds the latest value per path, sends one PATCH at a time, and carries the revision each 200 returned into the next request. So two quick edits in one tab never conflict with each other.
   - The parent tracks `dirty` (an edit not yet saved) and `saving`. **Approve is disabled while either is true**, the confirm dialog re-checks both before sending, and it always sends the last saved revision. What gets approved is exactly what Ryan sees.
   - **Errors:** a network error or `5xx` retries with backoff (1s, 2s, 4s, then every 10s), showing "Couldn't save, retrying". A `400` shows its reason next to the toolbar, keeps the edit dirty, and waits for Ryan to change the text. A `403`, `404` or `409` stops the queue and shows "This snapshot changed. Reload" with a Reload button. Nothing loops forever.
@@ -486,7 +486,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 | Only the own brand is tracked (seen live in T3) | Generates, with a notes-panel flag "No competitors tracked in this Peec project". Per Ryan's rules ("Omit unsupported comparisons"; a rank only when the competitive set is complete), the Competitive rank card and the competitive context callout are left out, and the copy is told there are no competitors. Ryan decides whether to send. |
 | No gap domains, no actions | The Data block says none. The prompt forbids inventing them. |
 | Peec 429 | Retry per `X-RateLimit-Reset` clamped to 0-20s, max 3 attempts, then Failed. The 270s deadline caps it all (§7a). |
-| Missing SOV or position for the brand | That card is left out, leaving three (Ryan's rule), with a note (§7). |
+| Missing SOV or position for the brand | Each missing metric's card is left out (Ryan's rule), with a note (§7). Fewer than four cards switch the strip to that many columns inline. |
 | Stale *Generating* row | Shows as Failed (timed out). Discard and Rerun work (§9). |
 | Peec 5xx, timeout, non-JSON | Failed, with a scrubbed reason. |
 | Glean down, or bad JSON twice | Failed: "Copy generation failed. Rerun." |
@@ -494,7 +494,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 | Approve double-click | The second UPDATE matches 0 rows, so it's a no-op. |
 | Revoke while recipient has the page open | Their open page stays. The next load is 404 (`no-store`). |
 | Function killed mid-generate | Shows as Failed (timed out) after 6 minutes. Rerun works. |
-| Non-allowlisted staff | Access message, 403 or throw. No data returned. |
+| Non-allowlisted staff | Access message, 403, or `{ ok: false, error: 'forbidden' }` from actions. No data returned. |
 | Brand name over 24 characters | 72px hero rule (`aivx:renderer.py:1439-1458`). |
 | HTML in copy | Every slot is escaped on render (same as `aivx:renderer.py:15` `esc`). |
 
@@ -542,7 +542,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
   - a Peec name containing `</script>` or `<b>` renders inert in the text, cannot close the figure `<script>`, and reaches Plotly labels with `<` and `>` removed
   - `?mode=preview` returns the HTML without editing hooks
   - roster brand names in `context` are bolded after escaping; the nav ids and `section[id]` markup match §5
-  - a missing SOV or position leaves three KPI cards in a three-column strip
+  - each missing metric drops its KPI card, and the strip's inline column count matches the card count
 - **Prompt:**
   - the Data block holds exactly the §7 values
   - the prompt contains the writing rules and the "use only the Data block" rule

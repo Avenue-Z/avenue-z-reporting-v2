@@ -1232,7 +1232,7 @@ git push
 
 **Interfaces:**
 - Consumes: `SnapshotData` (Task 1.4), `Slots` (Task 1.5), `STALE_GENERATING_MS` (Task 1.1).
-- Produces: `aeoOutboundReports`, `aeoOutboundStatusEnum`, type `AeoOutboundRow`; in `store.ts` type `ReportRow` (JSON columns typed) and `isReportId(id)`; `markStaleGeneratingQuery(projectId, now)`, `insertGeneratingQuery(v)`, `finishDraftQuery(id, v)`, `finishFailedQuery(id, error, brandName)`, `saveSlotsQuery(id, shownRevision, slots, notes)`, `approveQuery(id, shownRevision, v)`, `revokeQuery(id, by, now)`, `discardQuery(id, by, now)`, `getReport(id)`, `listReports()`, `getLiveByToken(token)`, `findGeneratingFor(projectId)`, `isUniqueViolation(e)`, `displayStatus(row, nowMs) → 'generating' | 'draft' | 'live' | 'revoked' | 'failed'`.
+- Produces: `aeoOutboundReports`, `aeoOutboundStatusEnum`, type `AeoOutboundRow`; in `store.ts` type `ReportRow` (JSON columns typed) and `isReportId(id)`; `markStaleGeneratingQuery(projectId, now)`, `insertGeneratingQuery(v)`, `finishDraftQuery(id, v)`, `finishFailedQuery(id, error, brandName)`, `saveSlotsQuery(id, shownRevision, slots, notes)`, `approveQuery(id, shownRevision, v)`, `revokeQuery(id, by, now)`, `discardQuery(id, by, now)`, `getReport(id)`, `listReports()`, `getLiveByToken(token)`, `findGeneratingFor(projectId)`, `isUniqueViolation(e)`, `failureReason(row, nowMs)`, `displayStatus(row, nowMs) → 'generating' | 'draft' | 'live' | 'revoked' | 'failed'`.
 
 - [ ] **Step 1: Append the table** to the end of `lib/db/schema.ts`. Append-only: no new imports (`pgEnum`, `pgTable`, `uuid`, `text`, `jsonb`, `integer`, `timestamp`, `check`, `index`, `uniqueIndex` and `sql` are already imported, `lib/db/schema.ts:1-3`), and the schema never imports from `lib/aeo-outbound` (spec §4: nothing else imports it). `store.ts` gives the JSON columns their types.
 
@@ -1285,7 +1285,7 @@ Expected: creates `drizzle/0026_aeo_outbound_reports.sql`, `drizzle/meta/0026_sn
 
 ```ts
 import { expect, test } from 'vitest'
-import { approveQuery, discardQuery, displayStatus, isUniqueViolation, markStaleGeneratingQuery, revokeQuery, saveSlotsQuery } from './store'
+import { approveQuery, discardQuery, displayStatus, failureReason, isReportId, isUniqueViolation, markStaleGeneratingQuery, revokeQuery, saveSlotsQuery } from './store'
 import type { AeoOutboundRow } from '@/lib/db/schema'
 import type { Slots } from './slots'
 
@@ -1329,7 +1329,14 @@ test('stale generating rows for a project are failed before a new insert', () =>
   expect(q.params).toEqual(expect.arrayContaining(['failed', 'or_a', 'generating']))
 })
 
-const row = (p: Partial<AeoOutboundRow>) => ({ status: 'draft', createdAt: NOW, shareRevokedAt: null, deletedAt: null, ...p }) as AeoOutboundRow
+const row = (p: Partial<AeoOutboundRow>) => ({ status: 'draft', createdAt: NOW, shareRevokedAt: null, deletedAt: null, error: null, ...p }) as AeoOutboundRow
+test('failure reason: stored error, else Timed out for a stale generating row', () => {
+  const t = NOW.getTime()
+  expect(failureReason(row({ status: 'failed', error: 'Copy generation failed. Rerun.' }), t)).toBe('Copy generation failed. Rerun.')
+  expect(failureReason(row({ status: 'generating', error: null }), t + 6 * 60_000 + 1)).toBe('Timed out')
+  expect(failureReason(row({ status: 'generating', error: null }), t + 60_000)).toBeNull()
+})
+
 test('display status', () => {
   const t = NOW.getTime()
   expect(displayStatus(row({ status: 'generating' }), t + 60_000)).toBe('generating')
@@ -1338,6 +1345,11 @@ test('display status', () => {
   expect(displayStatus(row({ status: 'approved' }), t)).toBe('live')
   expect(displayStatus(row({ status: 'approved', shareRevokedAt: NOW }), t)).toBe('revoked')
   expect(displayStatus(row({ status: 'failed' }), t)).toBe('failed')
+})
+
+test('report ids must be UUIDs before anything reaches Postgres', () => {
+  expect(isReportId('c7d8e0a1-1111-4111-8111-111111111111')).toBe(true)
+  for (const bad of ['', 'abc', "1' or '1'='1", 'c7d8e0a1-1111-4111-8111-11111111111Z', 5]) expect(isReportId(bad)).toBe(false)
 })
 
 test('unique violation detection', () => {
@@ -1462,6 +1474,12 @@ export async function getLiveByToken(token: string): Promise<string | undefined>
 export function isUniqueViolation(e: unknown): boolean {
   const code = (x: unknown) => (x as { code?: string } | null)?.code
   return code(e) === '23505' || code((e as { cause?: unknown } | null)?.cause) === '23505'
+}
+
+/** The reason shown for a failed row; a generating row past the stale limit reads "Timed out" (spec §9). */
+export function failureReason(row: Pick<AeoOutboundRow, 'status' | 'createdAt' | 'error'>, nowMs: number): string | null {
+  if (row.error) return row.error
+  return row.status === 'generating' && nowMs - new Date(row.createdAt).getTime() > STALE_GENERATING_MS ? 'Timed out' : null
 }
 
 export type DisplayStatus = 'generating' | 'draft' | 'live' | 'revoked' | 'failed'
@@ -2122,7 +2140,7 @@ Expected: PASS.
 
 - [ ] **Step 9: Visual check against AIVx (my eyes, not a test)**
 
-Write the final, draft and preview HTML for the synthetic `DATA` to the scratchpad and open them in the built-in browser at 1440px, next to `~/code/aivx-reports/reports/aivx-digital-banks-2026-05.html`. Check fonts load, both charts draw, the sidebar shows, the KPI strip, insight box, tables and footer look like AIVx. Screenshot for the PR.
+Write the final, draft and preview HTML for the synthetic `DATA` to the scratchpad and open them in the built-in browser at 1440px three ways: directly, inside `<iframe sandbox="allow-scripts" srcdoc>` and served with `Content-Security-Policy: sandbox allow-scripts` (the T2 harness). In both sandboxed modes the origin is opaque, so the SRI-checked Plotly fetch is a CORS request with `Origin: null`; cdn.plot.ly answered that with `Access-Control-Allow-Origin: *` on 2026-10-08, and the charts must draw in all three modes, next to `~/code/aivx-reports/reports/aivx-digital-banks-2026-05.html`. Check fonts load, both charts draw, the sidebar shows, the KPI strip, insight box, tables and footer look like AIVx. Screenshot for the PR.
 
 - [ ] **Step 10: Full check, commit, push, open PR2**
 
@@ -2287,6 +2305,12 @@ test('a long dash is flagged', () => {
   const s = { ...base, why: `Strong ${String.fromCharCode(0x2014)} for now` }
   expect(groundingFlags(s, D, allowed)).toEqual(['why: contains a long dash; use a period or comma'])
 })
+test('a dash in a code-set field or a roster brand name is not flagged', () => {
+  const dash = String.fromCharCode(0x2013)
+  const d = { ...D, brands: [{ name: `Alpha${dash}Beta` }] } as unknown as SnapshotData
+  const s = { ...base, category: `Fin${dash}tech`, context: `Alpha${dash}Beta leads.` }
+  expect(groundingFlags(s, d, allowed)).toEqual([])
+})
 test('an unknown domain is flagged', () => {
   const s = { ...base, why: 'See competitor.io for more' }
   expect(groundingFlags(s, D, allowed)).toEqual(['why: "competitor.io" is not a domain in the Peec data'])
@@ -2371,6 +2395,7 @@ export function parseModelJson(raw: string): unknown | null {
 ```ts
 // Post-generation checks (spec §6): numbers must appear in the Data block, domains must be Peec's.
 // Modeled on lib/peec/content-impact-synopsis.ts:58-100. Runs on every save too, so notes stay current.
+import { DECISIONS } from './config'
 import type { SnapshotData } from './metrics'
 import { slotEntries, type Slots } from './slots'
 
@@ -2378,6 +2403,8 @@ const NUM = /#?\d[\d,]*(?:\.\d+)?%?/g
 const DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi
 const norm = (t: string) => t.replace(/[#%,]/g, '')
 const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`)
+/** Paths set by code, not by Glean: a dash there comes from Peec or a fixed sentence and Glean can't fix it. */
+const CODE_SET = new Set(['category', 'market', ...(DECISIONS.fixedNextStep !== null ? ['next_step'] : [])])
 
 export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string): string[] {
   const allowedNums = new Set((dataText.match(NUM) ?? []).map(norm))
@@ -2390,7 +2417,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     for (const name of exemptNames) text = text.split(name).join(' ')
     for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) flags.push(`${path.split('.')[0]}: "${m}" is not a domain in the Peec data`)
     for (const m of text.match(NUM) ?? []) if (!allowedNums.has(norm(m))) flags.push(`${path.split('.')[0]}: "${m}" is not in the Peec data`)
-    if (DASHES.test(value)) flags.push(`${path.split('.')[0]}: contains a long dash; use a period or comma`)
+    if (!CODE_SET.has(path) && DASHES.test(text)) flags.push(`${path.split('.')[0]}: contains a long dash; use a period or comma`)
   }
   return [...new Set(flags)]
 }
@@ -2489,6 +2516,14 @@ test('a grounding-only first answer survives a broken second answer', async () =
   const r = await generateSnapshot('or_a', deps(glean))
   expect(r.ok && r.slots.why).toBe('Visibility rose 42.0% last year.')
 })
+test('a grounding-only first answer survives a second answer that times out', async () => {
+  const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
+  const glean = vi.fn()
+    .mockResolvedValueOnce(reply(JSON.stringify(bad)))
+    .mockRejectedValueOnce(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(r.ok && r.slots.why).toBe('Visibility rose 42.0% last year.')
+})
 test('a Glean HTTP error is retried, then reported as a copy failure', async () => {
   const glean = vi.fn(async () => { throw new Error('Glean chat error 500') })
   const r = await generateSnapshot('or_a', deps(glean))
@@ -2503,6 +2538,11 @@ test('no profile: category and market slots say Needs validation', async () => {
   const peec = fakePeec({ ...base, '/project-profile': () => ({ profile: null }) })
   const r = await generateSnapshot('or_a', { peec, glean: vi.fn(async () => reply(GOOD)), deadline: 270_000, now: () => 0 })
   expect(r.ok && [r.slots.category, r.slots.market]).toEqual(['Needs validation', 'Needs validation'])
+})
+test("an upstream 5xx body that says 'timed out' keeps its scrubbed reason", async () => {
+  const peec = new PeecClient('skc-x', { fetch: (async () => new Response('upstream request timed out', { status: 504 })) as typeof globalThis.fetch })
+  const r = await generateSnapshot('or_a', { peec, glean: vi.fn(), deadline: 270_000, now: () => 0 })
+  expect(!r.ok && r.error).toContain('HTTP 504')
 })
 test('a Peec failure fails with its reason', async () => {
   const r = await generateSnapshot('or_zzz', deps(vi.fn()))
@@ -2560,7 +2600,7 @@ export async function generateSnapshot(
         if (r.searched) { searched++; problems = ['the answer used sources outside the Data section']; continue }
         replyText = r.text
       } catch (e) {
-        if ((e as Error)?.name === 'AbortError') throw e
+        if ((e as Error)?.name === 'AbortError') { if (groundedFallback) break; throw e }
         problems = [`the previous answer could not be read (${String((e as Error)?.message ?? e).slice(0, 80)})`]
         continue
       } finally {
@@ -2581,7 +2621,8 @@ export async function generateSnapshot(
     if (searched === 2) return { ok: false, error: 'Copy generation used outside sources. Rerun.', brandName }
     return { ok: false, error: 'Copy generation failed. Rerun.', brandName }
   } catch (e) {
-    const timedOut = (e as Error)?.name === 'AbortError' || /timed out|deadline reached/.test(String((e as Error)?.message))
+    // Only this client's own timeout messages (peec.ts), never an upstream body that happens to say "timed out".
+    const timedOut = (e as Error)?.name === 'AbortError' || (e instanceof PeecError && /: (timed out after \d+ms|deadline reached)$/.test(e.message))
     if (timedOut) return { ok: false, error: `Timed out at step ${step}`, brandName }
     if (e instanceof PeecError) return { ok: false, error: e.message, brandName }
     return { ok: false, error: `Generation failed at step ${step}: ${(e as Error)?.message ?? String(e)}`.slice(0, 300), brandName }
@@ -2789,7 +2830,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     // Never leave the row generating: a failed write or an unexpected throw still fails it.
     console.error(`[aeo-outbound] generate id=${id} outcome=error step=finish ms=${Date.now() - started}`, (e as Error)?.message)
-    await finishFailedQuery(id, 'Generation failed. Rerun.', null, new Date()).catch(() => {})
+    try { await finishFailedQuery(id, 'Generation failed. Rerun.', null, new Date()) } catch { /* logged above; the stale rule still frees the row */ }
     return NextResponse.json({ id, status: 'failed', error: 'Generation failed. Rerun.' })
   }
 }
@@ -2832,7 +2873,7 @@ Cut from `aeo-outbound-audit` after PR3 merges: `git checkout -b feat/aeo-outbou
 import { type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { outboundEmail } from '@/lib/aeo-outbound/permissions'
-import { getReport } from '@/lib/aeo-outbound/store'
+import { getReport, isReportId } from '@/lib/aeo-outbound/store'
 import { renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 
@@ -2845,6 +2886,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const session = await auth()
   if (!outboundEmail(session?.user)) return new Response('Forbidden', { status: 403 })
   const { id } = await ctx.params
+  if (!isReportId(id)) return notFound()
   const row = await getReport(id).catch(() => undefined)
   if (!row) return notFound()
   const preview = req.nextUrl.searchParams.get('mode') === 'preview'
@@ -2864,7 +2906,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
-import { getReport, saveSlotsQuery } from '@/lib/aeo-outbound/store'
+import { getReport, isReportId, saveSlotsQuery } from '@/lib/aeo-outbound/store'
 import { applySlotPatch, needsValidationPaths } from '@/lib/aeo-outbound/slots'
 import { groundingFlags } from '@/lib/aeo-outbound/grounding'
 import { dataBlock } from '@/lib/aeo-outbound/prompt'
@@ -2879,6 +2921,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   let body: { path?: unknown; value?: unknown; revision?: unknown } | null = null
   try { body = await req.json() } catch { /* below */ }
   if (!body || typeof body.path !== 'string' || !Number.isInteger(body.revision)) return NextResponse.json({ error: 'bad-request' }, { status: 400 })
+  if (!isReportId(id)) return NextResponse.json({ error: 'not-found' }, { status: 404 })
   const row = await getReport(id).catch(() => undefined)
   if (!row) return NextResponse.json({ error: 'not-found' }, { status: 404 })
   if (row.status !== 'draft' || !row.slots || !row.data) return NextResponse.json({ error: 'not-draft', revision: row.revision }, { status: 409 })
@@ -3153,9 +3196,9 @@ export class SaveQueue {
 - Consumes: `displayStatus`, `listReports`, `getReport` (1.6); actions (4.2); `SaveQueue` (4.3).
 - Produces: `STATUS_UI: Record<DisplayStatus, { label: string; className: string }>`, `actionsFor(status) → ('open' | 'copy' | 'revoke' | 'rerun' | 'discard')[]`; `type HubRow = { id; brand; projectId; projectName; status: DisplayStatus; createdAt: string; approvedAt: string | null; error: string | null; token: string | null }`.
 
-- [ ] **Step 1: Write the failing tests.** (Both component tests mock `next/navigation` with `vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push }) }))`, mock `fetch`, and mock `@/app/actions/aeo-outbound`.) `hub.test.tsx`: `router.refresh()` is called on mount, after each action, and on a 5 s interval only while a row is `generating` (fake timers); each §7a response shows its message (`200 draft` pushes `/tools/new-business/{id}`; `400` "This Peec project can't be used"; `403` the access message; `409` pushes the existing id, or refreshes when `id` is null; `502` "Peec is unavailable. Try again"; network error "Lost connection. Refreshing" then `refresh`); a non-200 from the projects route shows "Peec is unavailable. Retry" while the table still renders; Rerun posts `{ projectId, rerunOf }` and opens the new draft; a stale generating row shows "Failed" with "Timed out" as its reason. `status.test.ts`: `actionsFor` returns exactly the spec §10 table (Draft: open, rerun, discard; Live: open, copy, revoke, rerun; Revoked: open, rerun; Failed: rerun, discard; Generating: none). `editor.test.tsx` (React Testing Library): render `<OutboundEditor>` with a draft, then
+- [ ] **Step 1: Write the failing tests.** (Both component tests mock `next/navigation` with `vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push }) }))`, mock `fetch`, and mock `@/app/actions/aeo-outbound`.) `hub.test.tsx`: `router.refresh()` is called on mount, after each action, and on a 5 s interval only while a row is `generating` (fake timers); each §7a response shows its message (`200 draft` pushes `/tools/new-business/{id}`; `400` "This Peec project can't be used"; `403` the access message; `409` pushes the existing id, or refreshes when `id` is null; `502` "Peec is unavailable. Try again"; network error "Lost connection. Refreshing" then `refresh`); a non-200 from the projects route shows "Peec is unavailable. Retry" while the table still renders; Rerun posts `{ projectId, rerunOf }` and opens the new draft. `status.test.ts`: `actionsFor` returns exactly the spec §10 table (Draft: open, rerun, discard; Live: open, copy, revoke, rerun; Revoked: open, rerun; Failed: rerun, discard; Generating: none). `editor.test.tsx` (React Testing Library): render `<OutboundEditor>` with a draft, then
   - a `message` event whose `source` is not the iframe's `contentWindow` is ignored (no PATCH);
-  - a `{type:'dirty'}` from the iframe disables Approve;
+  - a `{type:'dirty', path}` from the iframe disables Approve;
   - Approve is disabled while the `needsValidation` prop is non-empty, and enables after a save whose response returns `needsValidation: []`;
   - a save's response replaces the notes in the drawer;
   - Approve posts `{type:'flush'}` to the iframe first, and shows "Saving. Try again in a moment." if a field is still dirty;
@@ -3188,7 +3231,7 @@ export const snapshotUrl = (origin: string, token: string) => `${origin}/snapsho
 ```tsx
 import { requireStaff } from '@/lib/auth/page-access'
 import { outboundEmail } from '@/lib/aeo-outbound/permissions'
-import { displayStatus, listReports } from '@/lib/aeo-outbound/store'
+import { displayStatus, failureReason, listReports } from '@/lib/aeo-outbound/store'
 import { OutboundHub, type HubRow } from '@/components/aeo-outbound/hub'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
 
@@ -3199,7 +3242,7 @@ export default async function NewBusinessHubPage() {
   const rows: HubRow[] = (await listReports()).map((r) => ({
     id: r.id, brand: r.brandName ?? r.peecProjectName, projectId: r.peecProjectId, projectName: r.peecProjectName,
     status: displayStatus(r, now), createdAt: r.createdAt.toISOString(), approvedAt: r.approvedAt?.toISOString() ?? null,
-    error: r.error ?? (r.status === 'generating' && displayStatus(r, now) === 'failed' ? 'Timed out' : null),
+    error: failureReason(r, now),
     token: r.status === 'approved' && !r.shareRevokedAt ? r.shareToken : null,
   }))
   return <OutboundHub rows={rows} />
@@ -3211,7 +3254,7 @@ export default async function NewBusinessHubPage() {
 import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/auth/page-access'
 import { outboundEmail } from '@/lib/aeo-outbound/permissions'
-import { displayStatus, getReport } from '@/lib/aeo-outbound/store'
+import { displayStatus, failureReason, getReport } from '@/lib/aeo-outbound/store'
 import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
 import { OutboundEditor } from '@/components/aeo-outbound/editor'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
@@ -3236,7 +3279,7 @@ export default async function NewBusinessEditorPage({
       notes={row.notes ?? []}
       needsValidation={row.slots ? needsValidationPaths(row.slots) : []}
       token={row.status === 'approved' && !row.shareRevokedAt ? row.shareToken : null}
-      error={row.error}
+      error={failureReason(row, Date.now())}
     />
   )
 }
@@ -3252,7 +3295,7 @@ export default async function NewBusinessEditorPage({
   `editor.tsx` (`'use client'`):
   - A sticky toolbar (Back link to `/tools/new-business`, brand, status pill, save state text, **Approve** for drafts, **Copy link** and **Revoke** for Live, **Rerun**, **Notes** toggle, **Open full size** linking to `/api/aeo-outbound/reports/${id}/view?mode=preview` in a new tab).
   - `<iframe sandbox="allow-scripts" srcDoc={html} className="w-full" style={{ height: 'calc(100vh - 140px)' }} />`, with `html` fetched from the view route on mount.
-  - A `message` listener that ignores events whose `source !== iframeRef.current?.contentWindow`, and routes `{type:'dirty'}` to `queue.markDirty()` and `{type:'edit'}` to `queue.edit(path, value)`.
+  - A `message` listener that ignores events whose `source !== iframeRef.current?.contentWindow`, and routes `{type:'dirty', path}` to `queue.markDirty(path)` and `{type:'edit'}` to `queue.edit(path, value)`.
   - A `SaveQueue` whose `send` PATCHes the slots route and maps `200 → ok`, `400 → bad`, `403/404/409 → stop`, everything else and network errors `→ retry`.
   - `notes` and `needsValidation` live in component state, seeded from props and replaced by each 200 from the slots route (`{ revision, notes, needsValidation }`).
   - Approve disabled while `state.dirty || state.saving || needsValidation.length > 0`. On click: post `{type:'flush'}` to the iframe, wait up to 2 s for the queue to be clean, and if still dirty show "Saving. Try again in a moment." Otherwise `window.confirm` (text from spec §2), then `approveSnapshotAction(id, state.revision)`. On `ok`: stop the queue, refetch the iframe as `?mode=preview`, `router.refresh()`. On `stale`: "This snapshot changed. Reload." On `not found`: "This snapshot no longer exists." On the Needs-validation error: show it.
