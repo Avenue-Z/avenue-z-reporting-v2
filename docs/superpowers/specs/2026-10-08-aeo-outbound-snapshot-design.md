@@ -157,7 +157,7 @@ The **domain check** flags any domain-like token (`word.tld`) in the copy that i
 
 Env: `PEEC_AI_CUSTOMER_TOKEN` (`.env.example:48`), sent as `x-api-key` (docs: authentication page). Every report call
 carries `project_id`, `start_date` and `end_date` from step 4. The model filter is set by R2 (§13). The default is no
-filter. That this means all models is **UNVERIFIED**, and T3 checks it. If R2 is ChatGPT only, the filter is AIVx's exact one, `{field:"model_id", operator:"in", values:["chatgpt-scraper"]}` (`aivx:lib/peec-client.ts:26,218`), for number parity with AIVx, even though the docs mark `model_id` deprecated.
+filter. T3 confirmed that no filter returns every model: the unfiltered brands report held `openai-0`, `google-0` and `google-2` rows. If R2 is ChatGPT only, the filter is AIVx's exact one, `{field:"model_id", operator:"in", values:["chatgpt-scraper"]}` (`aivx:lib/peec-client.ts:26,218`), for number parity with AIVx, even though the docs mark `model_id` deprecated.
 
 | Step | Call | Fields used | Rule |
 |---|---|---|---|
@@ -167,8 +167,8 @@ filter. That this means all models is **UNVERIFIED**, and T3 checks it. If R2 is
 | 4 | `POST /reports/domains`, `dimensions:["date"]`, 400-day discovery | `date`, `retrieved_chat_count` | Window = min/max date with retrievals > 0 (`aivx:lib/peec-client.ts:195-248`). No such day → fail. |
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
-| 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. What `mentioned_brands` means on a domain row is **UNVERIFIED**, and T3 checks it on real rows. |
-| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities, pending R7. Actions with a finished status are dropped; the exact status values are checked in T3. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
+| 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
+| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities, pending R7. Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that 28 of the 55 pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
@@ -386,6 +386,13 @@ iframe, which is pure AIVx.
   - what `mentioned_brands` on a domain row means: own-brand-absent rows checked against `/reports/urls` for the same domain
   - whether Glean chat pulls in company documents, using a probe prompt answerable only from internal docs
   - whether the generate function finishes after the browser tab closes
+
+**T3 results (Peec half, 2026-10-08, read-only):**
+- 24 calls, all HTTP 200, 16.1s end to end, against the 270s deadline.
+- Field names in §7 confirmed on real responses.
+- A pitch project's data window was a single day, matching Ryan's "instant snapshot" note.
+- The Glean half (retrieval probe, timing) waits on `GLEAN_INSTANCE` and `GLEAN_API_TOKEN` in `.env.local`.
+- T1 and T2 haven't run yet.
 
 ## 13. Open questions (Ryan answers close-ended; the spec uses the default in brackets)
 
