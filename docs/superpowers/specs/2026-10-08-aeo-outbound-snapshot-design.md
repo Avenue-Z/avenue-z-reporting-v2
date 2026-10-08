@@ -1,6 +1,6 @@
 # AEO Outbound Snapshot: design spec
 
-**Status:** draft, review round 1 fixes applied. **Branch:** `docs/aeo-outbound-audit-spec` → `aeo-outbound-audit` (deliverable) → `dev`.
+**Status:** draft, review rounds 1 and 2 complete, every finding fixed (log: `2026-10-08-aeo-outbound-snapshot-review-log.md`). **Branch:** `docs/aeo-outbound-audit-spec` → `aeo-outbound-audit` (deliverable) → `dev`.
 **Base read:** this repo at `dev` `15b778de`; AIVx at `Avenue-Z/aivx-reports` `main` `ff18697`; Peec docs read 2026-10-08.
 **User:** Ryan Cadigan (New Business). **Reviewers:** Paul and me.
 
@@ -68,9 +68,10 @@ All new code lives in new folders. Nothing else in the app imports it.
 | `app/tools/new-business/[reportId]/page.tsx` | page (staff + allowlist) | Editor: toolbar, report iframe, notes panel. |
 | `app/api/aeo-outbound/projects/route.ts` | GET (staff + allowlist) | Peec project list for the hub dropdown: `200 [{id,name,status}]`, or `502 {error}` when Peec fails. Loaded client-side, so a Peec outage never blocks the hub table, Revoke or Copy link. |
 | `app/api/aeo-outbound/generate/route.ts` | POST, `maxDuration = 300` (precedent `app/api/cache-warm/route.ts:39`) | Contract in §7a. |
-| `app/api/aeo-outbound/reports/[id]/view/route.ts` | GET (staff + allowlist) | Returns the report HTML as `text/html`, `Cache-Control: no-store`: the draft with editing hooks, or the frozen HTML. 404 for unknown or discarded ids. Only the editor's own `fetch` calls it (§10). |
+| `app/api/aeo-outbound/reports/[id]/view/route.ts` | GET (staff + allowlist) | Returns the report HTML as `text/html`, `Cache-Control: no-store`: the draft with editing hooks, or the frozen HTML. 404 for unknown or discarded ids. Two callers only: the editor's own `fetch` (draft with editing hooks), and **Open full size**, which requests `?mode=preview` (the same HTML without editing hooks, so nothing typed there can be lost). |
 | `app/api/aeo-outbound/reports/[id]/slots/route.ts` | PATCH (staff + allowlist) | Autosave of one text slot. Contract in §9a. |
-| `app/actions/aeo-outbound.ts` | server actions | `approve`, `revoke`, `rerun`, `discard`. Each re-checks session and allowlist. |
+| `app/actions/aeo-outbound.ts` | server actions | `approve`, `revoke`, `discard`. Each re-checks session and allowlist. Rerun is not an action: it calls `POST /generate` (§7a), because only that route has the 300s budget. |
+| `components/aeo-outbound/*` | client components | Hub table, project picker, editor toolbar, iframe host with the save queue (§9a), notes drawer. |
 | `app/snapshot/[token]/route.ts` | GET, **public** | Serves the frozen HTML. Outside the proxy matcher (`proxy.ts:24-26`). |
 | `lib/aeo-outbound/*` | lib | `peec.ts`, `pull.ts`, `metrics.ts`, `charts.ts`, `render.ts`, `aivx/css.ts`, `aivx/js.ts`, `prompt.ts`, `generate.ts`, `grounding.ts`, `store.ts`, `permissions.ts`, `token.ts`. |
 
@@ -79,11 +80,11 @@ Route handlers sit outside `app/tools`, because `protected-pages.test.ts:54,60` 
 
 **Shared files touched (append-only):**
 1. `lib/db/schema.ts`: the new table (§9).
-2. `drizzle/0026_*.sql`, `drizzle/meta/0026_snapshot.json`, `drizzle/meta/_journal.json`: the generated migration (latest today is `0025`).
+2. `drizzle/0026_*.sql`, `drizzle/meta/0026_snapshot.json`, `drizzle/meta/_journal.json`: the generated migration (latest today is `0025`; the number is regenerated against the then-current `dev` at merge time, since other branches may add migrations first).
 3. `MIGRATIONS-PENDING.md`: an entry.
 4. `.env.example`: `AEO_OUTBOUND_USERS`.
 5. `lib/constants.ts` `TEAMS` (`:269-318`): one new team `{ slug: 'new-business', name: 'New Business', tools: [{ slug: 'aeo-outbound-snapshot', name: 'AEO Outbound Snapshot', url: '/tools/new-business' }] }`.
-6. `vitest.config.ts` include list (`:13-79`): `'lib/aeo-outbound/**/*.test.{ts,tsx}'`, `'app/api/aeo-outbound/**/*.test.{ts,tsx}'`, `'app/snapshot/**/*.test.{ts,tsx}'`.
+6. `vitest.config.ts` include list (`:13-79`): `'lib/aeo-outbound/**/*.test.{ts,tsx}'`, `'app/api/aeo-outbound/**/*.test.{ts,tsx}'`, `'app/snapshot/**/*.test.{ts,tsx}'`, `'components/aeo-outbound/**/*.test.{ts,tsx}'`.
 
 No change to `proxy.ts`, `auth.ts`, `lib/auth/*`, `lib/peec/*`, `lib/glean.ts`, `app/share/**`, `app/globals.css`,
 `components/layout/sidebar.tsx`, `package.json` or the `clients` table.
@@ -95,22 +96,22 @@ and with the `TEAMS` entry it reads "New Business" (`:924-925`).
 ## 5. The report page (AIVx design)
 
 One HTML document. `<head>` follows `aivx:renderer.py:2530-2541` exactly, except: title `AI Visibility Snapshot: {brand} | Avenue Z`;
-no canonical link; no `report-editor.css` or `report-editor.js`; `<meta name="robots" content="noindex,nofollow">`. The body is
+no canonical link; no `report-editor.css` or `report-editor.js`; `<meta name="robots" content="noindex,nofollow">`; the `<meta name="description">` at `aivx:renderer.py:2538` reads `AI Visibility Snapshot for {brand}. Powered by Avenue Z AEO Intelligence.` The body is
 `.sidebar` plus `.main`, as at `aivx:renderer.py:2542-2554`. Sections in order, each mapped to an existing AIVx block:
 
 | # | Ryan's section | AIVx block (builder) | Content |
 |---|---|---|---|
-| 0 | (navigation) | `.sidebar` (`:1379-1411`) | `.aivx-brand` "AIVx", `.powered` "Powered by Avenue Z", `.sidebar-industry` "AI Visibility Snapshot" with `<span>{brand}</span>`, nav 01-05 to the sections below, the share button and the `avenuez.com` link, as-is. |
-| 1 | Brand header | `.hero` (`:1414-1467`) | `.hero-series` "AI Visibility Snapshot"; `h1.hero-industry` = `<span class="grad-text">{brand}</span>`, with the 72px rule for names over 24 characters (`:1439-1458`); `.hero-subtitle` = `Category: {category} · Market: {market} · Data window: {start} to {end}`. |
+| 0 | (navigation) | `.sidebar` (`:1379-1411`) | `.aivx-brand` "AIVx", `.powered` "Powered by Avenue Z", `.sidebar-industry` "AI Visibility Snapshot" with `<span>{brand}</span>`, nav `01 Headline signal` (#headline), `02 Competitive visibility` (#competitive), `03 Sources` (#sources), `04 Opportunities` (#opportunities), `05 Methodology` (#methodology), the share button and the `avenuez.com` link, as-is. Rows 2 and 5-9 carry those ids; rows 5, 6, 8 and 9 are `section.section[id]`, which the scroll-spy selects (`aivx:renderer.py:1320`). |
+| 1 | Brand header | `.hero` (`:1414-1467`) | `.hero-series` "AI Visibility Snapshot"; `h1.hero-industry` = `<span class="grad-text">{brand}</span>`, with the 72px rule for names over 24 characters (`:1439-1458`); `.hero-subtitle` = `Category: {category} · Market: {market} · Data window: {start} to {end}`, dates as `Oct 1, 2026` from the UTC calendar days Peec returns (`aivx:lib/peec-client.ts:249-250`). |
 | 2 | Headline signal | `.exec-summary` (`:1470-1518`) | `.exec-label` "Headline signal"; `.exec-headline` = **headline** slot; `.exec-subheadline` = **summary** slot (one sentence). |
 | 3 | Metric strip | `.kpi-strip` with 4 `.kpi-card` (`:1593-1610` markup, CSS `:485-539`) | AI visibility · AI share of voice · Average answer position · Competitive rank (§7). |
-| 4 | Competitive context | `.insight-box` (CSS `:862-877`, usage `:2215-2219`) | **context** slot. Brand names in `<strong>`. |
+| 4 | Competitive context | `.insight-box` (CSS `:862-877`, usage `:2215-2219`) | **context** slot. After escaping, the renderer wraps exact matches of roster brand names (step 2) in `<strong>`, longest name first. Ryan types plain text; bolding is automatic. |
 | 5 | Competitive visibility | `section.section` + `.section-label` / `h2.section-title` (`:1582-1584`), `.two-col` (`:2241`) | Left: `.insight-box` with a `<ul>` styled exactly as `:2313`, holding **competitive_bullets** (2-3). Right: `.chart-wrap` + `.chart-title` "Share of Voice: Top 5 Brands" + SOV donut (§7). |
 | 6 | Sources | same layout | Left: **sources_bullets** (2-3). Right: `.chart-wrap` "Where Do AI Answers Get Their Sources?" + source-type donut (§7). |
 | 7 | Why it matters | `.rec-global-bottom-line` (`:2382-2392`, same inline styles) | Title "Why it matters"; **why** slot. |
 | 8 | Three opportunities to explore | `.leaderboard` table inside `.leaderboard-wrap` (`:2223-2240`) | Headers `Signal` · `Opportunity to explore` · `Likely workstream`; 3 rows of **opportunities**; then `.chart-takeaway` with the fixed line "These are opportunity hypotheses for discussion, not a full roadmap." |
 | 9 | Methodology and next step | `.method-note` (CSS `:1176-1187`, usage `:2322`) | `<strong>Methodology:</strong>` **methodology** slot, then `<strong>Next step:</strong>` **next_step** slot. |
-| 10 | Footer | `.footer` (`:2464-2498`) | Same markup. Series label "AI VISIBILITY SNAPSHOT"; `{brand}<br>{generated date}`; the disclaimer says the data is a Peec snapshot for the stated window and is directional. |
+| 10 | Footer | `.footer` (`:2464-2498`) | Same markup. Series label "AI VISIBILITY SNAPSHOT"; `{brand}<br>Prepared {date}`, where date is the approval date in the frozen HTML and the generation date in a draft (US Eastern, `Oct 1, 2026`); the disclaimer says the data is a Peec snapshot for the stated window and is directional. |
 
 Each bullet is `<li><strong>{lead}</strong> {text}</li>`. Headings in rows 5 and 6 are fixed text, pending R3 (§13).
 
@@ -118,7 +119,7 @@ Each bullet is `<li><strong>{lead}</strong> {text}</li>`. Headings in rows 5 and
 covers slots and also every Peec-sourced string: brand, competitor and domain names, classification labels, action titles
 and the project name. Plotly figures are embedded as `JSON.stringify(figure)` with every `<` written as `\u003c`. Python's
 Plotly output does the same, which you can see in the reference report's figure JSON (`\u003cb\u003e` in the SOV
-`hovertemplate`). So no Peec or model text can close a `<script>` or inject markup.
+`hovertemplate`). That stops any text from closing the `<script>`. Plotly also reads its own tags (`<b>`, `<br>`) inside labels, so every Peec string placed in figure text (labels, the centre annotation) has `<` and `>` removed first. Together, no Peec or model text can inject markup.
 
 ## 6. Copy generation (Glean)
 
@@ -132,10 +133,10 @@ One `gleanChat(prompt, { saveChat: false })` call (`lib/glean.ts:39-42`). The pr
 The output is strict JSON of these slots: `headline`, `summary`, `context`, `competitive_bullets[2..3]{lead,text}`,
 `sources_bullets[2..3]{lead,text}`, `why`, `opportunities[3]{signal,opportunity,workstream}`, `methodology`, `next_step`.
 It is parsed with the fenced, direct and brace-span strategy (`lib/peec/synopsis.ts:63` pattern) and then validated:
-every key present, every value a non-empty string, counts in range.
+every key present, every value a non-empty string within the §9a length limits (1,000 characters, 80 for a `lead`), counts in range. So every generated value can also be saved by the editor.
 
 **Grounding check** (`lib/aeo-outbound/grounding.ts`, modeled on `content-impact-synopsis.ts:58-100`): every number in the
-copy must equal a number in the Data block after formatting. On a parse, shape or grounding failure it retries once with
+copy must equal a number in the Data block after formatting. A number is a match of `\d[\d,]*(\.\d+)?%?` (with an optional leading `#`). Exempt: digits inside a roster brand name or a Data-block domain, and the years of the data window. Spelled-out numbers are not checked. The check reruns on every save, so the notes panel always describes the current copy. On a parse, shape or grounding failure it retries once with
 the violations quoted back (`:216-218`). It stops at 2 attempts (`:203`).
 - If **shape** still fails, the snapshot is marked *Failed*.
 - If only **grounding** still fails, it saves as *Draft* with each violation listed in the notes panel. Ryan fixes or keeps the number.
@@ -156,47 +157,50 @@ The **domain check** flags any domain-like token (`word.tld`) in the copy that i
 
 Env: `PEEC_AI_CUSTOMER_TOKEN` (`.env.example:48`), sent as `x-api-key` (docs: authentication page). Every report call
 carries `project_id`, `start_date` and `end_date` from step 4. The model filter is set by R2 (§13). The default is no
-filter. That this means all models is **UNVERIFIED**, and T3 checks it.
+filter. That this means all models is **UNVERIFIED**, and T3 checks it. If R2 is ChatGPT only, the filter is AIVx's exact one, `{field:"model_id", operator:"in", values:["chatgpt-scraper"]}` (`aivx:lib/peec-client.ts:26,218`), for number parity with AIVx, even though the docs mark `model_id` deprecated.
 
 | Step | Call | Fields used | Rule |
 |---|---|---|---|
-| 1 | `GET /projects`, paged | `id`, `name`, `status` (enum includes `PITCH`, `PITCH_ENDED`; list-projects page) | Dropdown shows `status = PITCH` first. A toggle shows all. Resolved by **id** from the dropdown, so there is no name guessing. |
+| 1 | `GET /projects`, paged | `id`, `name`, `status` (enum includes `PITCH`, `PITCH_ENDED`; list-projects page) | Only `PITCH` and `PITCH_ENDED` projects are listed and accepted, so a customer project can never go out on a public link. Resolved by **id** from the dropdown, so there is no name guessing. |
 | 2 | `GET /brands?project_id`, paged | `id`, `name`, `is_own`, `domains[]` (list-brands page) | Exactly one `is_own`, or fail (`aivx:lib/peec-client.ts:169-176`). Every other brand is a competitor. |
 | 3 | `GET /project-profile?project_id` | `profile.industry` → category; `profile.target_markets[].location` joined → market (get-project-profile page) | `profile: null` → both `Needs validation`. |
 | 4 | `POST /reports/domains`, `dimensions:["date"]`, 400-day discovery | `date`, `retrieved_chat_count` | Window = min/max date with retrievals > 0 (`aivx:lib/peec-client.ts:195-248`). No such day → fail. |
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
 | 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. What `mentioned_brands` means on a domain row is **UNVERIFIED**, and T3 checks it on real rows. |
-| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact`, `group`, `target` | Feeds the opportunities, pending R7. An empty list is fine. |
+| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities, pending R7. Actions with a finished status are dropped; the exact status values are checked in T3. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
 - **Average answer position** = `#` + `position` to 1 decimal.
-- **Nulls:** Peec requires only `brand`, `mention_count`, `visibility`, `visibility_count` and `visibility_total` on a brands-report row; `share_of_voice` and `position` may be absent (OpenAPI `/reports/brands`). AIVx keeps those as None (`aivx:agent/agent.py:1312-1316`). Here a missing SOV or position displays `n/a` in its KPI card, gets a note in the notes panel, and is left out of the Data block. A brand with a missing SOV counts as 0 for the donut.
+- **Nulls:** Peec requires only `brand`, `mention_count`, `visibility`, `visibility_count` and `visibility_total` on a brands-report row; `share_of_voice` and `position` may be absent (per the round-1 reviewer's read of `https://api.peec.ai/customer/v1/openapi/json`, 2026-10-08; **UNVERIFIED** by me, and the dashboard's own row type treats both as required, `lib/peec/client.ts:81,85`, so T3 checks it). AIVx keeps those as None (`aivx:agent/agent.py:1312-1316`). Here a missing SOV or position displays `n/a` in its KPI card, gets a note in the notes panel, and is left out of the Data block. A brand with a missing SOV counts as 0 for the donut.
 - **Competitive rank** = `#{i} of {n} brands`, where rows are sorted by `(-visibility, brand.id)` (`aivx:peec_api_transform.py:98-109`) and `n` = rows returned in step 5.
-- **SOV donut** = `build_sov_donut` logic (`aivx:agent.py:2572-2631`): top 5 by SOV %, an "All Other Brands ({n-5})" slice when the remainder is over 0.5, and a centre label of the rank-1 brand and its SOV %.
-- **Source-type donut** = `build_earned_breakdown_chart` (`aivx:agent.py:2721-2763`) over step-6 rows grouped by `title_classification` (`aivx:peec_api_transform.py:15-32`, `OWN`→`You`) and weighted by `retrieved_chat_count`. Slice set pending R6; the default is all classifications, per Ryan's "use classifications exactly as returned".
+- **Rounding:** Python's `round` is half-to-even (the AIVx rule above). The TS port uses the same half-to-even rule, with a test on a `.x5` value.
+- **SOV donut** = `build_sov_donut` logic (`aivx:agent.py:2572-2631`): the first 15 rows by rank, then top 5 of those by SOV % (`:2576-2580`), an "All Other Brands ({n-5})" slice when the remainder is over 0.5, and a centre label of the rank-1 brand and its SOV %.
+- **Source-type donut** = `build_earned_breakdown_chart` (`aivx:agent.py:2721-2763`) over step-6 rows grouped by `title_classification` (`aivx:peec_api_transform.py:15-32`, `OWN`→`You`) and weighted by `retrieved_chat_count`, slices in descending order of retrievals then label. Slice set pending R6; the default is all classifications, per Ryan's "use classifications exactly as returned".
 - **Data block for Glean:** the 4 KPIs; the top 5 brands with visibility and SOV; the own domain's `retrieved_chat_count`; source-type percentages; competitor gap domains; Peec action titles with impact; window; category; market.
 
 **Guards** (fail the generation with a named reason, ported from `aivx:peec_api_export.py:326-389`):
 - empty brands report
 - not exactly one own brand
 - zero total retrievals
-- an UPPERCASE classification outside the documented enum (`aivx:peec_api_transform.py:15-19`)
 - a repeated row across pages
-- past the row cap
+- past the row cap of 250,000 rows per endpoint (`aivx:peec_api_export.py:81`)
+
+AIVx's UPPERCASE classification guard is not ported. It protects AIVx's donut exclusion policy, which doesn't apply when every type is shown (R6). Custom classification names display verbatim.
 - HTTP errors after retries
 
 Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
 
 ### 7a. Generate request and time budget
 
-- **Request:** `POST /api/aeo-outbound/generate`, JSON `{ projectId: string }`. The server:
+- **Request:** `POST /api/aeo-outbound/generate`, JSON `{ projectId: string, rerunOf?: uuid }`. Generate and Rerun both use it; Rerun sends the original row's project and id. The server:
   1. checks staff plus the allowlist, else 403
-  2. re-checks that `projectId` is in `GET /projects` for this key, else 400 (AIVx does the same, `aivx:lib/peec-client.ts:162-165`)
-  3. refuses with 409 if a row for that project is `generating` and younger than 6 minutes
+  2. re-checks that `projectId` is in `GET /projects` for this key with status `PITCH` or `PITCH_ENDED`, else 400 (AIVx does the same check, `aivx:lib/peec-client.ts:162-165`). If Peec itself fails here: `502 { error }`, no row created
+  3. refuses with `409 { error: 'already-generating', id }` if a row for that project is `generating` and younger than 6 minutes. A partial unique index on `(peec_project_id) WHERE status = 'generating'` makes a double-click race impossible: the second insert fails and returns the same 409
   4. inserts the row, then runs steps 1-8 and §6 **inside the request**
   5. responds `200 { id, status: 'draft' | 'failed', error? }`
+- **What the hub and editor do with each response:** `200 draft` opens the new draft. `200 failed` shows the reason on the row. `400` shows "This Peec project can't be used". `403` shows the access message. `409` opens the snapshot that is already generating. `502` shows "Peec is unavailable. Try again". A dropped connection or `5xx` shows "Lost connection. Refreshing" and refreshes, so the row's real status shows.
 
   No background API is used: `after()` can't be verified here, because `node_modules` isn't installed in this checkout.
 - **Deadline:** one `AbortSignal` for the whole run, firing at **270s**, which leaves 30s under `maxDuration = 300`. It is
@@ -220,11 +224,13 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
   - `X-Robots-Tag: noindex, nofollow`
   - `Referrer-Policy: no-referrer`
   - `X-Frame-Options: DENY`
+  - `Content-Security-Policy: sandbox allow-scripts`, so even Ryan opening his own live link while signed in runs it with no access to his session
 
   Unknown, revoked and discarded tokens all get the same 404 page (one static line, no app chrome), so a probe learns nothing.
 - **What the recipient can reach:** only that document. The links in it are `#section` anchors, `avenuez.com`, and the
   share button, which copies the current URL (`aivx:renderer.py:2557-2614`, toast element plus script, minus the canonical tag). It has no
   link into the app, no data request, and no script from our origin.
+- **Writes from the browser** (`POST /generate`, `PATCH /slots`, server actions) are refused with 403 when an `Origin` header is present and isn't the app's own origin (`APP_URL` / `NEXT_PUBLIC_APP_URL`, `.env.example:27-28`).
 - **Draft view `/api/aeo-outbound/reports/{id}/view`:** staff plus allowlist, `no-store`, and the response header
   `Content-Security-Policy: sandbox allow-scripts`. That way **Open full size**, which opens the URL directly in a tab,
   also runs with an opaque origin. T2 checks that this renders. The editor fetches it with its
@@ -259,6 +265,7 @@ Checks:
 - `status='approved'` ⇔ `html IS NOT NULL AND share_token IS NOT NULL AND approved_at IS NOT NULL`
 - `share_revoked_at IS NULL OR status='approved'`
 - `deleted_at IS NULL OR status IN ('draft','failed')`
+- Partial unique index `aeo_outbound_one_generating` on `(peec_project_id) WHERE status = 'generating'` (§7a).
 
 **Transitions (all single conditional UPDATEs with `.returning()`, as at `app/actions/commentary.ts:17-37`):**
 - generate: insert `generating`, then update to `draft` with data, slots and notes, or to `failed` with an error.
@@ -268,7 +275,7 @@ Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save 
 - approve: `WHERE id AND status='draft' AND revision=$shown AND no slot contains 'Needs validation'` → sets html (rendered from the stored data and slots), token and approved fields. One-way: no transition leaves `approved`.
 - revoke: `WHERE id AND status='approved' AND share_revoked_at IS NULL`. One-way.
 - discard: `WHERE id AND (status IN ('draft','failed') OR (status='generating' AND created_at < now() - interval '6 minutes'))`. Sets `status='failed'` where it was `generating`, plus `deleted_at` and `deleted_by`.
-- rerun: insert a new row with `rerun_of`, under the same 409 rule as generate (§7a).
+- rerun: the same `POST /generate` with `rerunOf` set (§7a). The new row stores `rerun_of`; the original is untouched. The editor's and hub's Rerun buttons open the new draft when it's ready.
 - **Stale:** a `generating` row older than 6 minutes (300s `maxDuration` plus margin) displays as *Failed (timed out)*. It allows Rerun and Discard, like a failed row. No cron.
 
 ### 9a. Autosave contract
@@ -289,9 +296,10 @@ Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save 
   | `404` | | Unknown or discarded id. |
   | `409` | `{ error: 'stale' \| 'not-draft', revision }` | The revision doesn't match, or the report isn't a draft. |
 - **The parent page owns saving** (the iframe can't, §8):
-  - The iframe posts `{type:'edit', path, value}` on input. The parent checks that `event.source` is its own iframe's `contentWindow`. It can't check the origin, because a sandboxed iframe's origin is `null`.
+  - The iframe posts `{type:'dirty'}` on the first keystroke and `{type:'edit', path, value}` after the 800ms debounce, so the parent knows about an edit before it is saved. The parent checks that `event.source` is its own iframe's `contentWindow`. It can't check the origin, because a sandboxed iframe's origin is `null`.
   - The parent keeps one queue. It holds the latest value per path, sends one PATCH at a time, and carries the revision each 200 returned into the next request. So two quick edits in one tab never conflict with each other.
-  - The parent tracks `dirty` (an edit not yet saved) and `saving`. **Approve is disabled while either is true** and always sends the last saved revision. What gets approved is exactly what Ryan sees.
+  - The parent tracks `dirty` (an edit not yet saved) and `saving`. **Approve is disabled while either is true**, the confirm dialog re-checks both before sending, and it always sends the last saved revision. What gets approved is exactly what Ryan sees.
+  - **Errors:** a network error or `5xx` retries with backoff (1s, 2s, 4s, then every 10s), showing "Couldn't save, retrying". A `400` shows its reason next to the toolbar, keeps the edit dirty, and waits for Ryan to change the text. A `403`, `404` or `409` stops the queue and shows "This snapshot changed. Reload" with a Reload button. Nothing loops forever.
 
 The migration is a new table only, so no existing query selects it. The `clients` 42703 risk described in
 `MIGRATIONS-PENDING.md` doesn't apply. Apply it with the hash-checked `scripts/migrate-http.ts` and record it in
@@ -346,7 +354,7 @@ iframe, which is pure AIVx.
   - `max-w-7xl` minus `px-8`, which is 1216px
   - the viewport minus the 256px expanded sidebar (`w-64`, `components/layout/sidebar.tsx:931`) and the 64px padding
 
-  For any viewport 1,221px or wider that is above AIVx's 900px breakpoint (`aivx:renderer.py:1297-1300`), so the desktop
+  For any viewport about 1,236px or wider (allowing 15px for a visible scrollbar on `overflow-y-auto`, `app/tools/layout.tsx:22`) that is above AIVx's 900px breakpoint (`aivx:renderer.py:1297-1300`), so the desktop
   layout shows, with sidebar and two columns. On a narrower window, **Open full size** shows the desktop layout. The **Notes** panel (missing inputs, grounding and domain
   flags, window used, model scope, rank basis, Peec project id) is a drawer over the iframe and never narrows it.
 - **Editing inside the iframe:** in draft view only, each slot element carries `data-slot="{path}"` and
@@ -367,12 +375,14 @@ iframe, which is pure AIVx.
 
 ## 12. Scratch trials (before the plan; each ≤ 30 min, throwaway, my nod first)
 
-- **T1 Fonts:** does Avenir load from `avenuez.com` (`aivx:renderer.py:171-175`) when the page is served from the dashboard domain? (**UNVERIFIED**: cross-origin font headers.) If not, the fallback is to self-host the same woff2 files under `public/`, which needs a licence check.
-- **T2 Chart parity:** run `build_sov_donut` and `build_earned_breakdown_chart` at `ff18697` on synthetic inputs, save their figure JSON as golden fixtures, and show a side-by-side screenshot of our page next to the reference report. Also confirm the page renders, charts included, in `<iframe sandbox="allow-scripts" srcdoc>` and under the `Content-Security-Policy: sandbox allow-scripts` header (§8).
+- **T1 Fonts:** does Avenir load from `avenuez.com` (`aivx:renderer.py:171-175`) when the page is served from the dashboard domain, and also inside the sandboxed `srcdoc` iframe and under the `sandbox` CSP header (both have an opaque origin)? (**UNVERIFIED**: cross-origin font headers.) If not, the fallback is to self-host the same woff2 files under `public/`, which needs a licence check.
+- **T2 Chart parity:** run `build_sov_donut` and `build_earned_breakdown_chart` at `ff18697` on synthetic inputs, save their figure JSON as golden fixtures, and show a side-by-side screenshot of our page next to the reference report. Also confirm the page renders, charts included, in `<iframe sandbox="allow-scripts" srcdoc>` and under the `Content-Security-Policy: sandbox allow-scripts` header (§8), and that the share button's copy works there (the AIVx script falls back to `execCommand`, `aivx:renderer.py:2557-2614`).
 - **T3 Live checks:** a read-only pull of one PITCH project (steps 1-8) plus one Glean call. No writes. It confirms:
   - the total time against the 270s deadline
   - the §7 field names on real responses
   - that no model filter returns every model's chats
+  - that `share_of_voice` and `position` can be missing on a brands-report row
+  - the `/actions/list` status values that mean finished
   - what `mentioned_brands` on a domain row means: own-brand-absent rows checked against `/reports/urls` for the same domain
   - whether Glean chat pulls in company documents, using a probe prompt answerable only from internal docs
   - whether the generate function finishes after the browser tab closes
@@ -386,7 +396,7 @@ iframe, which is pure AIVx.
 - **R5:** Two charts: share-of-voice donut beside the competitive bullets, source-type donut beside the sources bullets? [Yes]
 - **R6:** Source-type donut shows every source type, including your own site, Institutional and Other (AIVx hides those three)? [Yes]
 - **R7:** The "Peec recommends" row uses Peec's action list ranked by impact (the API has no opportunity score)? [Yes]
-- **R8:** The project list shows pitch projects only, with a toggle for all? [Yes]
+- **R8:** Only Peec pitch projects can be used, so a customer project can never go out on a link? [Yes]
 - **R9:** A revoked link is gone for good, and you rerun to share again? [Yes]
 - **R10:** Keep the AIVx left sidebar and "AIVx" wordmark on the snapshot? [Yes] (Thomas Stern to confirm)
 
@@ -436,17 +446,24 @@ iframe, which is pure AIVx.
   - rerun refused while generating
   - stale generating
 - **Routes:**
-  - the public route returns the exact stored bytes and headers, and a byte-identical 404 for unknown, revoked and discarded tokens
+  - the public route returns the exact stored bytes and headers (including the CSP sandbox), and a byte-identical 404 for unknown, revoked and discarded tokens
   - projects, generate, view and slots routes return 403 without staff plus the allowlist
-  - each server action (approve, revoke, rerun, discard) throws for non-allowlisted staff
+  - each server action (approve, revoke, discard) throws for non-allowlisted staff
+  - a cross-origin `Origin` header gets 403 on generate, slots and actions
   - the view route sends `no-store` and `Content-Security-Policy: sandbox allow-scripts`, and 404 for unknown and discarded ids
   - the slots route covers the full §9a table: each path form, bad path 400, empty or too-long value 400, stale 409, not-draft 409
-  - generate: unknown `projectId` 400, a second generate for the same project 409, deadline → `failed` with the step named, shape failure → failed, grounding-only failure → draft with notes
+  - generate: unknown or non-pitch `projectId` 400, Peec failure at the re-check 502, a second generate for the same project 409 (also under a simulated race via the unique index), `rerunOf` stored and the original untouched, deadline → `failed` with the step named, shape failure → failed, grounding-only failure → draft with notes
+  - projects route: Peec failure → 502
+  - Peec client: at most 3 attempts on a 429, delay clamped to 0-20s; Glean second attempt only with 60s or more left
+  - computed competitor gaps from `mentioned_brands`; a missing SOV counts as 0 in the donut; half-to-even rounding on a `.x5` value; SOV donut pre-slices 15 rows
+  - grounding: number regex, the exemptions, and recompute after a save
   - `profile: null` → `Needs validation` in category and market
 - **Render:**
   - frozen HTML has no `data-slot`, no `contenteditable` and no editor script
   - `<head>` has noindex, no canonical link, the title format, and no `report-editor.*`
-  - a Peec name containing `</script>` or `<b>` renders inert in the text and in the figure JSON
+  - a Peec name containing `</script>` or `<b>` renders inert in the text, cannot close the figure `<script>`, and reaches Plotly labels with `<` and `>` removed
+  - `?mode=preview` returns the HTML without editing hooks
+  - roster brand names in `context` are bolded after escaping; the nav ids and `section[id]` markup match §5
   - null SOV and position render `n/a`
 - **Prompt:**
   - the Data block holds exactly the §7 values
@@ -454,8 +471,10 @@ iframe, which is pure AIVx.
   - the domain check flags an unknown domain
 - **Editor and hub** (component tests):
   - messages from anything other than the iframe's `contentWindow` are ignored
-  - the save queue sends one PATCH at a time and carries the returned revision forward
-  - Approve is disabled while dirty, saving or any `Needs validation` remains
+  - the save queue sends one PATCH at a time and carries the returned revision forward; `dirty` is set on the first keystroke; 5xx retries with backoff; 400 shows the reason and keeps the edit; 403, 404 and 409 stop with the reload message
+  - Approve is disabled while dirty, saving or any `Needs validation` remains, and the confirm re-checks
+  - Rerun calls generate with `rerunOf` and opens the new draft; every §7a response maps to its message
+  - the hub calls `router.refresh()` on mount, after actions, and every 5s while a row is generating
   - the status pill and actions per status match §10, including a stale generating row
   - a Peec failure in the project list shows the inline retry and the table still renders
 - **Existing guards stay green:** `lib/auth/protected-pages.test.ts` (it walks the new pages), `proxy.test.ts`, `make check`.

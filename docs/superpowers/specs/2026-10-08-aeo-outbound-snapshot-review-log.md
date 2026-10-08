@@ -65,3 +65,7 @@ Per my process, a MAJOR in round 2 stops the review. Both go to me as decisions,
 - R2-11. Tests for: computed gap, 3-attempt/20s clamp, Glean 60s rule, projects 502, null SOV as 0 in the donut, refresh poll.
 - R2-12. Nulls citation: give the docs URL and date, or mark it UNVERIFIED and add it to T3. Note `lib/peec/client.ts:81,85` types them as required.
 - R2-13. Width threshold needs a scrollbar allowance (`app/tools/layout.tsx:22`, `overflow-y-auto`).
+
+## Resolution (2026-10-08)
+
+I reviewed both round-2 MAJORs and told Claude to fix everything. All findings are now fixed in the spec with targeted edits: the 2 round-2 MAJORs, the 11 round-2 MINORs and the 13 round-1 MINORs (16-27, 29). Per the process there is no round 3. Items that can't be proven by reading are marked UNVERIFIED and go to scratch trials T1-T3.
