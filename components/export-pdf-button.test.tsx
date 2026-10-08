@@ -59,7 +59,7 @@ test('after unmount, printing leaves the title alone', () => {
 })
 
 describe('server export (Organic Social)', () => {
-  const serverExport = { clientSlug: 'renaissance', subsection: null, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null }
+  const serverExport = { clientSlug: 'renaissance', section: 'organic-social' as const, subsection: null, models: null, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null }
   const pdfResponse = () => new Response(new Blob(['%PDF-']), { status: 200, headers: {
     'content-type': 'application/pdf',
     'content-disposition': `attachment; filename="Renaissance - Organic Social - 2026-10-05.pdf"; filename*=UTF-8''Renaissance%20%E2%80%93%20Organic%20Social%20%E2%80%93%202026-10-05.pdf`,
@@ -126,7 +126,7 @@ describe('the downloaded file', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:pdf'), revokeObjectURL: revoke }))
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['%PDF-']), { status: 200, headers: { 'content-disposition': 'attachment; filename="a.pdf"' } })))
-    render(<ExportPdfButton {...props} serverExport={{ clientSlug: 'c', subsection: null, dateRange: 'last_30_days', compareRange: null }} />)
+    render(<ExportPdfButton {...props} serverExport={{ clientSlug: 'c', section: 'organic-social', subsection: null, models: null, dateRange: 'last_30_days', compareRange: null }} />)
     vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: /Export PDF/ }))
     await vi.waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled())
@@ -137,7 +137,7 @@ describe('the downloaded file', () => {
 })
 
 describe("the button's own failure paths (Thomas, #332)", () => {
-  const serverExport = { clientSlug: 'c', subsection: null, dateRange: 'last_30_days', compareRange: null }
+  const serverExport = { clientSlug: 'c', section: 'organic-social' as const, subsection: null, models: null, dateRange: 'last_30_days', compareRange: null }
   let anchors: { download: string; attached: boolean }[]
   beforeEach(() => {
     vi.useRealTimers()

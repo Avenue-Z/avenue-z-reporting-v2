@@ -104,3 +104,18 @@ test('the Influencer tab resolves to its id, no channel, the influencer view and
   expect(resolveExportView(CLIENT as ExportViewClient, 'organic-social', 'organic-influencer'))
     .toEqual({ section: 'organic-social', subsectionId: 'organic-influencer', channel: null, view: 'influencer', pageTitle: 'Influencer' })
 })
+
+// The button exports on the server only for sections switched on (lib/export/sections.ts); every other section
+// keeps the browser print until its own PR switches it on.
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  test(`${routeName}: Organic Social's button exports the served view on the server, naming its section`, async () => {
+    const { button } = await onPage(Route, CLIENT, 'organic-social', 'organic-linkedin')
+    expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'organic-social', subsection: 'organic-linkedin',
+      dateRange: Q.dateRange, compareRange: Q.compareRange, models: null })
+  })
+
+  test.each(['peec-ai', 'paid-media'])(`${routeName}: %s keeps the browser print until its section is switched on`, async (section) => {
+    const { button } = await onPage(Route, CLIENT, section)
+    expect(button.props.serverExport).toBeUndefined()
+  })
+}

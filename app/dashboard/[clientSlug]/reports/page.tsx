@@ -32,7 +32,8 @@ import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import type { ReportSlug } from '@/lib/db/schema'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { parseModelsParam } from '@/lib/peec/models'
+import { parseModelsParam, serializeModelsParam } from '@/lib/peec/models'
+import { isServerExportSection } from '@/lib/export/sections'
 import { SectionSkeleton } from './section-skeleton'
 import { HealthProbe } from '@/lib/health/probe'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
@@ -272,8 +273,15 @@ export default async function ReportPage({
           </Suspense>
         )}
         <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={usesPageRange ? exportPeriodLabel(servedDateRange) : null}
-          {...(activeSection === 'organic-social'
-            ? { serverExport: { clientSlug, subsection: organicEntry?.id ?? null, dateRange: servedDateRange, compareRange: servedCompareRange } }
+          {...(isServerExportSection(activeSection)
+            ? { serverExport: {
+                clientSlug,
+                section: activeSection,
+                subsection: activeSection === 'organic-social' ? (organicEntry?.id ?? null) : (subsection ?? null),
+                dateRange: servedDateRange,
+                compareRange: servedCompareRange,
+                models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
+              } }
             : {})} />
       </StickyReportHeader>
 
