@@ -116,8 +116,8 @@ Each bullet is `<li><strong>{lead}</strong> {text}</li>`. Headings in rows 5 and
 
 **Escaping:** every string that reaches the HTML is escaped on render (`& < > " '`, as in `aivx:renderer.py:15` `esc`). That
 covers slots and also every Peec-sourced string: brand, competitor and domain names, classification labels, action titles
-and the project name. Plotly figures are embedded as `JSON.stringify(figure)` with every `<` written as `<`. Python's
-Plotly output does the same, which you can see in the reference report's figure JSON (`<b>` in the SOV
+and the project name. Plotly figures are embedded as `JSON.stringify(figure)` with every `<` written as `\u003c`. Python's
+Plotly output does the same, which you can see in the reference report's figure JSON (`\u003cb\u003e` in the SOV
 `hovertemplate`). So no Peec or model text can close a `<script>` or inject markup.
 
 ## 6. Copy generation (Glean)

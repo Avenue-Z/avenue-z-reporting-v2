@@ -54,7 +54,7 @@ Per my process, a MAJOR in round 2 stops the review. Both go to me as decisions,
 - R2-2. The save queue has no error rule, so a 400 (for example a model-written lead over 80 characters) can lock Approve forever. Proposed: retry only network errors and 5xx, with backoff. On 400, show the reason and keep the edit. On 403, 404 or 409, stop and show the reload message. §6's shape check enforces the §9a length limits. Add component tests.
 
 **MINOR (deferred to the plan):**
-- R2-3. §5 escaping text is garbled: `<` was written to the file as a bare `<` (my transcription error). Fix with the decision edits.
+- R2-3. §5 escaping text is garbled: `\u003c` was written to the file as a bare `<`. Restored before the decision edits, since it was my transcription error rather than a design change (my transcription error). Fix with the decision edits.
 - R2-4. Narrow the §5 claim. JSON escaping protects the `<script>` block, but Plotly still reads its own pseudo-HTML in labels (UNVERIFIED). Strip `<` and `>` from Peec strings used in figure text.
 - R2-5. The debounce lives inside the iframe, so the parent isn't dirty for 800ms. Post `{type:'dirty'}` right away; the Approve confirm re-checks.
 - R2-6. T1 must also load the fonts inside the sandboxed srcdoc iframe and the CSP-sandboxed tab (opaque origin).
