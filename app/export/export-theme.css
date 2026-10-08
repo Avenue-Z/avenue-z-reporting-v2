@@ -22,6 +22,10 @@
 .export-theme [data-export-block] {
   break-inside: avoid;
 }
+/* A title over blocks it cannot share a page with (a section taller than a page) never ends a page alone. */
+.export-theme [data-export-keep-with-next] {
+  break-after: avoid;
+}
 .export-theme [data-export-hide] {
   display: none !important;
 }

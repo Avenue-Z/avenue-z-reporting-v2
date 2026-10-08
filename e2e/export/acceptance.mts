@@ -41,7 +41,16 @@ const page = (ready: boolean) => `<!doctype html><html><head><meta charset="utf-
 <style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
 <body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><p class="no-print">NOPRINTMARKER</p>${body}</div>${ready ? '<script>window.__exportReady = true</script>' : ''}</body></html>`
 
-const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(page(!req.url?.startsWith('/never'))) })
+// A section taller than a page (YTD Review): its title is not inside a block but is kept with the next one. The spacer
+// leaves room for the title and not the card, so without keep-with-next the title ends page 1 alone (the control proves it).
+const keepPage = (keep: boolean) => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
+<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:660px"></div>
+<section><h2 ${keep ? 'data-export-keep-with-next ' : ''}style="font-size:14px;font-weight:800;margin:0 0 16px">KEEPTITLE</h2>
+<div><div data-export-block><p style="font-size:11px">KEEPSTART</p><div style="height:341px;background:#f4f4f5"></div></div></div></section>
+</div><script>window.__exportReady = true</script></body></html>`
+const html = (url = '') => url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
+const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(html(req.url)) })
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
 const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
 
@@ -55,6 +64,11 @@ for (const b of blocks) {
   else check(start.length === 1 && start[0] === end[0], `${b.id} on one page (${start} / ${end})`)
   if (b.title) check(pagesOf(fx, b.title)[0] === start[0], `${b.title} on the same page as its first block`)
 }
+const keepOf = async (path: string) => { const f = join(out, `${path.slice(1)}.pdf`); writeFileSync(f, await renderPdf({ url: `${origin}${path}`, cookies: [] })); const d = readPdf(f); return [pagesOf(d, 'KEEPTITLE')[0], pagesOf(d, 'KEEPSTART')[0]] }
+const [ctlTitle, ctlCard] = await keepOf('/keep-control')
+check(ctlTitle === 1 && ctlCard === 2, `control: without keep-with-next the title ends page 1 alone (${ctlTitle} / ${ctlCard})`)
+const [keepTitle, keepCard] = await keepOf('/keep')
+check(keepTitle === keepCard, `a kept title moves with its first card (${keepTitle} / ${keepCard})`)
 check(outsideBox(fx).length === 0, `nothing outside the content box (${outsideBox(fx).length} words)`)
 check(pagesOf(fx, 'NOPRINTMARKER').length === 0, 'a no-print element stays out of the PDF (the export renders in screen media)')
 check(fx.pages.every((p) => p.width === 792 && p.height === 612), 'every page is US Letter landscape')
