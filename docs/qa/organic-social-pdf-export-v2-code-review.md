@@ -1,8 +1,8 @@
 # Code Review Record — `feat/organic-social-pdf-export-v2` (PR #332)
 
 **Feature under review:** PR #332 — `feat(export): server-rendered Organic Social PDF export (v2)`
-**Diff range reviewed:** `0b5a0a9..e4f4729`: #320's three commits (`9139d53`, `4cf432b`, `4a62416`), the v2 commits
-(`bc146d3`..`5f0a882`, `b2f00d2`, `e4f4729`), and the merge of `dev` (`750065e`) that cleared a conflict. The merge
+**Diff range reviewed:** `0b5a0a9..565c45b`: #320's three commits (`9139d53`, `4cf432b`, `4a62416`), the v2 commits
+(`bc146d3`..`5f0a882`, `b2f00d2`, `e4f4729`, and `565c45b` for Thomas's review), and the merge of `dev` (`750065e`) that cleared a conflict. The merge
 brings in other merged work from `dev`, which is out of scope here except where it touched this feature (§3 #3).
 **Supersedes:** PR #320 and its record PR #321 (`docs/qa/organic-social-pdf-export-code-review.md`), whose findings
 carry forward where still relevant.
@@ -50,8 +50,11 @@ cookie is minted, so the export can never see more than its requester), opens
 `/export/<slug>/organic-social?…` on this deployment (`VERCEL_URL` → `APP_URL` → request origin, cache-warm's
 rule) at a **979 × 739** viewport, the content box of an 11 × 8.5 in page with 0.4 in margins, waits for
 `window.__exportReady`, switches to **screen** media (the app's global `@media print` rules are for printing the
-live page and must not apply), and prints Letter landscape. Navigation and the ready wait share one **45 s**
-budget; out of time → `ExportNotReadyError` → **504**, and nothing is printed. The browser closes in `finally`.
+live page and must not apply), and prints Letter landscape. Launch, navigation and the ready wait share one **40 s**
+budget that starts before launch; out of time → `ExportNotReadyError` → **504**, and nothing is printed. `page.pdf()`
+has its own deadline, 55 s from the same start, so the whole render stays inside the route's `maxDuration = 60` with
+room for the response. The browser closes in `finally`. A PDF over 4 MB is refused (413 `too-large`) before Vercel's
+4.5 MB response limit would reject it.
 
 **The export page** (`app/export/[clientSlug]/organic-social/page.tsx`) renders the **same `OrganicSocialReport`**
 as the live page with the URL's raw range. `OrganicSocialBody` resolves the locked month from that range itself,
@@ -122,8 +125,9 @@ others are not linked), with "View post ↗" styled as a link.
   and probed its findings. 2 confirmed correctness defects, 3 plausible, 5 cleanups; security clean. All are
   in §3 (R-series) with what was done.
 - **Not verified (flagged, not asserted):** Chromium actually launching inside a Vercel function (needs a signed-in
-  session on a deployment; not forged), cold-start time, and Safari/Firefox (the export renders on the server, so
-  the user's browser only downloads a file).
+  session on a deployment; not forged), cold-start time, and Safari/Firefox. The render runs on the server, but the download runs in the user's browser:
+  the link is now attached to the page for the click (`565c45b`), which older Firefox needed. Neither current
+  Firefox nor Safari has been run.
 
 ---
 
@@ -131,13 +135,13 @@ others are not linked), with "View post ↗" styled as a link.
 
 Sev: **●** correctness · **○** cleanup/convention.
 Status: CONFIRMED (proven in-tree) · PLAUSIBLE (code confirmed, external trigger unverified).
-R = raised by the independent reviewer; others found while building or verifying.
+R = raised by the independent reviewer agent; T = raised by Thomas on #332; others found while building or verifying.
 
 | # | Sev | Status | Location | Finding | Outcome |
 |---|-----|--------|----------|---------|---------|
 | R1 | ● | CONFIRMED | `app/api/export/pdf/route.ts`; post images | The PDF was **31 MB**, over Vercel's 4.5 MB function response limit: a deploy blocker. Dash serves 640 px WebP and Chromium stores WebP losslessly. | **Fixed** `b2f00d2` + `e4f4729`: 2.50 MB |
 | R2 | ● | CONFIRMED | `commentary-panel.tsx` (export) | A staff export printed no commentary when staff had a newer draft for another period, though the client sees an approved one. | **Fixed** `e4f4729` |
-| R3 | ● | PLAUSIBLE | `lib/export/render-pdf.ts` | Navigation got the full 45 s after launch, so launch + navigation + `pdf()` could exceed `maxDuration = 60`. | **Fixed** `e4f4729`: one 40 s budget |
+| R3 | ● | PLAUSIBLE | `lib/export/render-pdf.ts` | Navigation got the full 45 s after launch, so launch + navigation + `pdf()` could exceed `maxDuration = 60`. | **Fixed** `e4f4729` (one 40 s budget) + `565c45b` (`pdf()` deadline, T1) |
 | R4 | ● | PLAUSIBLE | `post-card.tsx` (export) | An image that failed before hydration printed as a broken icon, not the placeholder. | **Fixed** `b2f00d2` |
 | R5 | ○ | PLAUSIBLE | `parts/engagement-breakdown.tsx` | Its skeleton had no pending marker. | **Fixed** `e4f4729` |
 | R6 | ○ | CONFIRMED | `parts/top-content-outline.tsx` | `top-content@3`'s title could end a page alone. | **Fixed** `e4f4729` |
@@ -145,6 +149,12 @@ R = raised by the independent reviewer; others found while building or verifying
 | R8 | ○ | PLAUSIBLE | `export-pdf-button.tsx` | The blob URL was revoked right after `click()`. | **Fixed** `e4f4729` |
 | R9 | ○ | PLAUSIBLE | `render-pdf.ts` `launchChromium` | Launch options differed from `@sparticuz/chromium`'s README (`headless: true`). | **Fixed** `e4f4729` (README form) |
 | R10 | ○ | PLAUSIBLE | route `baseUrl` | Off Vercel without `APP_URL`, the self-load trusted the request's Host header. | **Fixed** `e4f4729`: not in production |
+| T1 | ● | CONFIRMED | `render-pdf.ts:96` | `page.pdf()` ran on puppeteer's default 30 s timeout after the 40 s budget: a worst case of 70 s against `maxDuration = 60`, where a platform kill skips the log line and Chromium's close. R3 was only partly fixed without it. | **Fixed** `565c45b` |
+| T2 | ○ | PLAUSIBLE | `route.ts:69` | No runtime guard on the 4.5 MB response limit, and `outcome=ok` was logged before the platform rejected the response. | **Fixed** `565c45b`: 413 `too-large` over 4 MB |
+| T3 | ○ | CONFIRMED | `export-pdf-button.tsx:82` | No request timeout: a silently dropped connection left the button on "Preparing PDF…". | **Fixed** `565c45b`: gives up at 70 s |
+| T4 | ○ | PLAUSIBLE | `export-pdf-button.tsx:95` | A malformed `filename*` made `decodeURIComponent` throw, reporting a finished PDF as a failure. | **Fixed** `565c45b`: falls back to the ASCII name |
+| T5 | ○ | PLAUSIBLE | `export-pdf-button.tsx:94` | The download link was clicked detached from the page, which older Firefox does not download. | **Fixed** `565c45b`; current Firefox not run |
+| T6 | ○ | CONFIRMED | `app/export/…/page.tsx:41` | The export page resolved the tab twice (correctness-neutral). | **Fixed** `565c45b`: one lookup returns the channel |
 | 1 | ● | CONFIRMED | `post-card.tsx` (export) | Square images made a card row 387 px, so every row took a page (16 pages). | **Fixed** `bd10390`: 4:3, 11 pages |
 | 2 | ● | CONFIRMED | route, local runs | The local self-load followed `.env.local`'s `APP_URL=:3000` to the wrong port. | Operator note |
 | 3 | ● | CONFIRMED | merge with `dev` | `dev`'s month/day graph dates were not in the export path. | **Fixed** in merge `750065e` |
@@ -176,9 +186,11 @@ approved entry with that draft's exact period, so an October draft hid September
 *Fixed:* the export picks what a client sees, `pickDefaultEntry` over approved entries only. On a locked month the
 entries are already that month's (`monthly.tsx`). Tested with the reviewer's scenario.
 
-**R3 — Time budget.** `renderPdf` now gives navigation and the ready wait whatever is left of one 40 s budget that
-started before launch, leaving 20 s of `maxDuration` for auth and `page.pdf()`. Tested with a 10 s launch: navigation
-gets 30 s.
+**R3 / T1 — Time budget.** `renderPdf` gives navigation and the ready wait whatever is left of one 40 s budget that
+starts before launch (tested with a 10 s launch: navigation gets 30 s). That alone did not bound the render: Thomas
+found `page.pdf()` still ran on puppeteer's default 30 s timeout (worst case 70 s). It now has its own deadline, 55 s
+from the same start, measured against the function's limit rather than what is left of the ready budget, so a page
+ready at 38 s still gets 17 s to print (tested). The render stays inside `maxDuration = 60` with room for the response.
 
 **R7 — Off-chart annotations.** A client-visible annotation on a day with no point on the series (e.g. just before
 the month) is still listed and numbered, but has no mark. Dropping it would hide what the client sees on the live
