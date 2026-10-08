@@ -2,6 +2,7 @@ import { KpiCard } from '@/components/charts/kpi-card'
 import { num } from '@/lib/organic-social/base'
 import { pctCompact } from '@/lib/organic-social/format'
 import { expectsComparison } from '@/lib/organic-social/metrics'
+import { sharedTileDefinition } from '@/lib/organic-social/metric-definitions'
 import type { PlatformHeadline } from '@/lib/organic-social/types'
 import { NoData } from './no-data'
 
@@ -47,6 +48,7 @@ function PlatformSection({ h, wholeDelta }: { h: PlatformHeadline; wholeDelta?: 
             <KpiCard
               key={k.key}
               title={k.label}
+              tooltip={sharedTileDefinition(h.channel, k.key)}
               value={k.format === 'percent' ? pctCompact(k.value) : num(k.value)}
               delta={k.delta}
               comparisonExpected={expectsComparison(k.key)}

@@ -14,6 +14,9 @@ import { SortableTopContent } from '../sortable-top-content'
 import { TopContentSkeleton } from '../skeletons'
 import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
+import { HoverHint } from '@/components/charts/hover-hint'
+import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
+import { OUTLINE_SORT_KEYS } from '@/lib/organic-social/outline-top-content'
 
 async function TopContentSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getTopContent(clientSlug, dateRange, channel))
@@ -61,7 +64,8 @@ export async function loadDesignations(clientSlug: string, postIds: number[]): P
 }
 
 /** top-content@2: the card gallery (owned + a separate Influencer section), backed by the
- *  snapshot-aware frozen fetch, split live by post_designations. Exported for the golden test,
+ *  snapshot-aware frozen fetch, split live by post_designations. Its toolbar offers the two outline sorts, Engagements
+ *  and Views, which the heading hint names (my call, 2026-10-07); sorting is in the browser only. Exported for the golden test,
  *  which awaits its resolved output directly (RTL does not render an async child's output). */
 export async function TopContentV2Section({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
   const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel))
@@ -74,13 +78,14 @@ export async function TopContentV2Section({ clientSlug, dateRange, channel, role
   return (
     <section className="space-y-6">
       {/* In the PDF export this title moves into the first row's block (SortableTopContent's heading). */}
-      <h2 data-export-hide="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2>
+      <div data-export-hide="" className="flex items-center gap-1.5"><h2 data-export-hide="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">Top Content</h2><HoverHint text={TOP_POSTS_DEFINITION} /></div>
       <SortableTopContent
         heading="Top Content"
         owned={groupPostsByPlatform(owned, channel)}
         influencer={groupPostsByPlatform(influencer, channel)}
         clientSlug={clientSlug}
         canEdit={canEdit}
+        sortKeys={OUTLINE_SORT_KEYS}
       />
     </section>
   )
