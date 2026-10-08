@@ -85,3 +85,23 @@ test("a stale handle warns with the tab named, so the line is not mistaken for t
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('slug=client-a channel=INSTAGRAM view=influencer;'))
   warn.mockRestore()
 })
+
+test('totals sit above the cards: posts, engagements, per post, and views shown as a dash when none are reported', async () => {
+  getClientBySlug.mockResolvedValue(v2Client)
+  fetchTopContentFrozen.mockResolvedValue([
+    post(1, { caption: 'a #ad', metrics: { effectiveness: null, engagementRate: null, engagements: 31002, impressions: 0 } }),
+    post(2, { caption: 'b #ad', metrics: { effectiveness: null, engagementRate: null, engagements: 5359, impressions: 0 } }),
+  ])
+  const { getByText } = render(await InfluencerPostsSection({ ctx: CTX }))
+  for (const [title, value] of [['Posts', '2'], ['Total Engagements', '36,361'], ['Avg. Engagements per Post', '18,181'], ['Total Views', '—']]) {
+    expect(getByText(title).closest('div.rounded-lg')!.textContent).toContain(value)
+  }
+  expect(getByText('Not reported for these posts')).toBeTruthy()
+})
+
+test('no influencer posts: no totals, only the empty line the cards show', async () => {
+  getClientBySlug.mockResolvedValue(v2Client)
+  fetchTopContentFrozen.mockResolvedValue([post(1)])
+  const { queryByText } = render(await InfluencerPostsSection({ ctx: CTX }))
+  expect(queryByText('Total Engagements')).toBeNull()
+})

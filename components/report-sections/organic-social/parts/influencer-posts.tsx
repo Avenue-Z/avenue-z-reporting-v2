@@ -8,6 +8,9 @@ import { influencerLabel, parseInfluencerSection } from '@/lib/organic-social/in
 import { OUTLINE_SORT_KEYS, ownHandlesFor, partitionByAuthor, withViewsBasisRate } from '@/lib/organic-social/outline-top-content'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
+import { influencerTotals } from '@/lib/organic-social/influencer-totals'
+import { num } from '@/lib/supermetrics/format'
+import { KpiCard } from '@/components/charts/kpi-card'
 import { CODE_TEMPLATES } from '../template'
 import { InfluencerGrid } from '../influencer-grid'
 import { TopContentSkeleton } from '../skeletons'
@@ -39,9 +42,18 @@ export async function InfluencerPostsSection({ ctx }: { ctx: OrganicSocialCtx })
   // "Influencer". Absent or invalid: the default heading, as the Instagram tab's section would show.
   const parsed = parseInfluencerSection(client?.dashSocialConfig?.influencerSection)
   const heading = (parsed.kind === 'ok' ? influencerLabel(parsed.section, CHANNEL) : undefined) ?? 'Influencer Posts'
+  const totals = influencerTotals(influencer)
   return (
     <section className="space-y-6">
       <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{heading}</h2>
+      {totals && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <KpiCard title="Posts" value={num(totals.posts)} />
+          <KpiCard title="Total Engagements" value={num(totals.engagements)} />
+          <KpiCard title="Avg. Engagements per Post" value={num(totals.perPost)} />
+          <KpiCard title="Total Views" value={totals.views == null ? '—' : num(totals.views)} subValue={totals.views == null ? 'Not reported for these posts' : undefined} />
+        </div>
+      )}
       <InfluencerGrid posts={influencer} clientSlug={clientSlug} canEdit={canSetDesignation(role)} sortKeys={OUTLINE_SORT_KEYS} />
     </section>
   )
