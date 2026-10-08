@@ -1,7 +1,7 @@
 # Code Review Record — `feat/pdf-export-aeo` (PR #350)
 
 **Feature under review:** PR #350 — `feat(export): AEO exports on the server (PDF export PR 2 of 3)`
-**Diff range reviewed:** `b9e9fd0..f1875f1`: ten commits on top of PR #348's head (`feat/pdf-export-shared-pipeline`), so
+**Diff range reviewed:** `b9e9fd0..ef1195b`: eleven commits on top of PR #348's head (`feat/pdf-export-shared-pipeline`), so
 this record covers AEO only. #348 has its own record (#349).
 **Spec / plan:** `docs/superpowers/specs/2026-10-08-pdf-export-all-reports-design.md`,
 `docs/superpowers/plans/2026-10-08-pdf-export-pr2-aeo.md` (branch `docs/pdf-export-all-reports-spec`).
@@ -62,7 +62,7 @@ markup are inert, and the AEO goldens gained 35 `data-export-*` attribute lines 
 ## §2 Verification method
 
 - **Unit, executed:**
-  - `npx vitest run` 2548/2548, `tsc` clean, `next build`.
+  - `npx vitest run` 2548/2548, `tsc` clean, `check:rsc` passes, `next build`.
   - Lint: no new errors; 10 `prefer-const` errors in `content-impact.tsx` / `technical-audit.tsx` are identical on `dev`.
   - Every new test was run failing first.
 - **Golden proof, executed:** after `-u`, a script compared the snapshot diff line by line. Every removed line had to
@@ -125,6 +125,7 @@ external trigger unverified).
 | 15 | ○ | PLAUSIBLE | `provider-tabs.tsx` | The "Peec AI" label has no keep-with-next. | Follow-up |
 | 16 | ○ | CONFIRMED | `visibility-chart.tsx` | The granularity is named only when `brandName` is set. | Follow-up |
 | 17 | ○ | CONFIRMED | `e2e/export/acceptance.mts` | Time to ready is logged, not enforced at 30 s. | Follow-up |
+| 19 | ○ | CONFIRMED | `sortable-table.export.test.tsx` | CI's RSC boundary check (`scripts/check-rsc-props.ts`) read the new test file as a Server Component passing `rowKey` to `SortableTable`; `check:rsc` was not in the local verification. | **Fixed** `ef1195b` (`'use client'`) |
 | 18 | ○ | CONFIRMED | plan | Review Focus 1 named "PR placements" as the 100-row table; it is Top Editorial Domains (#7). | Plan naming error |
 
 ---
