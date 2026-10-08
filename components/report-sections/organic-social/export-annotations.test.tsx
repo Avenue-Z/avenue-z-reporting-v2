@@ -19,11 +19,11 @@ const SERIES: TrendSeries = {
 }
 const thumb = { creative: { kind: 'image' as const, thumb: 'https://images.dashsocial.com/t?w=640', full: 'x' }, mediaType: 'IMAGE' as const, url: 'https://www.instagram.com/p/abc/' }
 const ANNOTATIONS: ChartAnnotation[] = [
-  { date: '2026-09-02', value: 9, label: 'Peak engagement', thumb },
-  { date: '2026-09-03', value: 4, label: 'Hidden by the team', thumb: null, hidden: true },
-  { date: '2026-09-04', value: 7, label: 'Draft only', thumb: null, noteOnly: true },
-  { date: '2026-09-01', value: 3, label: 'Launch', thumb: null, noteOnly: true, note: 'Benefits campaign went live.' },
-  { date: '2026-08-30', value: 0, label: 'Before the month', thumb: null, note: 'Teaser posted.' },
+  { date: '2026-09-02', value: 9, label: '9/2 | 9 Engagements', thumb },
+  { date: '2026-09-03', value: 4, label: '9/3 | 4 Engagements', thumb: null, hidden: true },
+  { date: '2026-09-04', value: 7, label: '9/4', thumb: null, noteOnly: true },
+  { date: '2026-09-01', value: 3, label: '9/1', thumb: null, noteOnly: true, note: 'Benefits campaign went live.' },
+  { date: '2026-08-30', value: 0, label: '8/30', thumb: null, note: 'Teaser posted.' },
 ]
 const exportChart = () => {
   chartProps.length = 0
@@ -36,9 +36,8 @@ test('only what a client sees prints, numbered in date order', () => {
   const entries = within(list).getAllByRole('listitem').map((li) => li.textContent)
   expect(entries).toHaveLength(3)
   // Only a day with a mark on the chart is numbered, so the chart's numbers never skip (Thomas, #332 trends.tsx:258).
-  expect(entries[0]).toMatch(/^Annotations8\/30 · Before the month.*Teaser posted\./) // off the chart: no number
-  expect(entries[1]).toMatch(/^19\/1 · Launch.*Benefits campaign went live\./)
-  expect(entries[2]).toMatch(/^29\/2 · Peak engagement/)
+  // Real labels (annotationLabel) start with the day, so the day prints once (it once printed "8/25 · 8/25 | …").
+  expect(entries).toEqual(['Annotations8/30Teaser posted.', '19/1Benefits campaign went live.', '29/2 | 9 Engagements']) // 8/30 is off the chart: no number
 })
 
 test('the chart marks each printed day that has a point with its number, dates as month/day like the live chart', () => {
@@ -84,4 +83,33 @@ test("an annotation's thumbnail is a print-sized JPEG", () => {
   exportChart()
   const entry = within(screen.getByRole('list', { name: 'Annotations' })).getAllByRole('listitem')[2]
   expect(within(entry).getByRole('img').getAttribute('src')).toBe('https://images.dashsocial.com/t?w=160&h=160&fit=cover&format=jpeg&quality=70')
+})
+
+// A staff export prints exactly what a client's does (spec 2026-10-06 §7; Thomas, #332 round 2, item 5): the export
+// renders in screen media, so nothing may rely on the live page's no-print rules to keep staff controls out.
+test("a staff export, with every editor control and a pending draft, prints the client's annotations and nothing else", () => {
+  const editor = (approvedId: string | null, draft: string | null) => ({
+    approvedId, approvedPostIds: [], draft: draft ? { id: `d-${draft}`, text: draft, postIds: [] } : null, draftThumbs: [],
+  })
+  const STAFF_VIEW: ChartAnnotation[] = ANNOTATIONS.map((a) =>
+    a.date === '2026-09-01' ? { ...a, noteEditor: editor('n1', 'Draft rewrite of the launch note') }
+    : a.date === '2026-09-04' ? { ...a, noteEditor: editor(null, 'A note not approved yet') }
+    : a)
+  const controls = { clientSlug: 'c', channel: 'INSTAGRAM' as const, chart: 'engagements' as const }
+  const client = exportChart()
+  const clientList = within(screen.getByRole('list', { name: 'Annotations' })).getAllByRole('listitem').map((li) => li.textContent)
+  const clientMarks = chartProps.at(-1)!.marks
+  client.unmount()
+  chartProps.length = 0
+  const { container } = render(
+    <ExportModeProvider>
+      <ChannelTrendChart title="Engagement Over Time" series={SERIES} annotations={STAFF_VIEW}
+        annotationControls={controls} noteControls={{ ...controls, canApprove: true, days: [] }} />
+    </ExportModeProvider>,
+  )
+  expect(within(screen.getByRole('list', { name: 'Annotations' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(clientList)
+  expect(chartProps.at(-1)!.marks).toEqual(clientMarks)
+  expect(screen.queryAllByRole('button')).toHaveLength(0)
+  expect(container.querySelector('form, input, textarea')).toBeNull()
+  expect(container.textContent).not.toMatch(/Draft|not approved yet|Add annotation|Approve|Revoke|Edit/)
 })

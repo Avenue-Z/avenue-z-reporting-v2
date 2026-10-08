@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
-import { countLinks, outsideBox, pagesOf, readPdf } from './pdf-check'
+import { countLinks, outsideBox, pagesOf, readPdf, type PdfText } from './pdf-check'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
 const failures: string[] = []
@@ -84,28 +84,57 @@ if (!process.env.AUTH_SECRET) {
   console.log('B. live: skipped (AUTH_SECRET not set)')
 } else {
   console.log(`B. live (${base})`)
-  const now = Math.floor(Date.now() / 1000)
-  const cookie = await encode({ secret: process.env.AUTH_SECRET, salt: 'authjs.session-token', maxAge: 600,
-    token: { sub: 'acceptance@localhost', email: 'acceptance@localhost', name: 'acceptance', role: 'CLIENT_VIEWER', clientSlug: 'renaissance', service: true, iat: now, exp: now + 600, jti: crypto.randomUUID() } })
-  const t = Date.now()
-  const res = await fetch(`${base}/api/export/pdf`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: `authjs.session-token=${cookie}` },
-    body: JSON.stringify({ clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days', compareRange: null, tz: 'America/New_York' }) })
-  check(res.status === 200, `route answers 200 (${res.status}, ${Date.now() - t}ms)`)
-  check(/filename\*=UTF-8''Renaissance%20%E2%80%93%20Organic%20Social%20%E2%80%93%20\d{4}-\d{2}-\d{2}\.pdf/.test(res.headers.get('content-disposition') ?? ''), 'named Renaissance – Organic Social – <date>.pdf')
-  if (res.ok) {
+  // A token minted for this local server only (never a deployed one): a client of the export's client, or a staff editor.
+  const exportAs = async (who: { role: string; email: string; clientSlug: string | null }, body: Record<string, unknown>, name: string) => {
+    const now = Math.floor(Date.now() / 1000)
+    const cookie = await encode({ secret: process.env.AUTH_SECRET!, salt: 'authjs.session-token', maxAge: 600,
+      token: { sub: who.email, email: who.email, name: 'acceptance', role: who.role, clientSlug: who.clientSlug, service: true, iat: now, exp: now + 600, jti: crypto.randomUUID() } })
+    const t = Date.now()
+    const res = await fetch(`${base}/api/export/pdf`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: `authjs.session-token=${cookie}` },
+      body: JSON.stringify({ compareRange: null, tz: 'America/New_York', ...body }) })
+    check(res.status === 200, `${name}: route answers 200 (${res.status}, ${Date.now() - t}ms)`)
+    if (!res.ok) return null
     const bytes = Buffer.from(await res.arrayBuffer())
-    const livePdf = join(out, 'live.pdf')
-    writeFileSync(livePdf, bytes)
-    const live = readPdf(livePdf)
-    check(pagesOf(live, 'Exported')[0] === 1 && pagesOf(live, 'Reporting').length > 0, 'stamped with export time and reporting period on page 1')
-    check(outsideBox(live).length === 0, `nothing outside the content box (${outsideBox(live).length} words)`)
-    const viewPost = live.words.filter((w, i) => w.text === 'View' && live.words[i + 1]?.text === 'post').length
-    check(viewPost > 0 && countLinks(bytes) >= viewPost, `every post is a link (${countLinks(bytes)} links, ${viewPost} posts)`)
-    check(live.pages.every((p) => p.width === 792 && p.height === 612), `${live.pages.length} pages, all Letter landscape`)
+    const file = join(out, `${name}.pdf`)
+    writeFileSync(file, bytes)
+    const pdf = readPdf(file)
+    check(outsideBox(pdf).length === 0, `${name}: nothing outside the content box (${outsideBox(pdf).length} words)`)
+    check(pdf.pages.every((p) => p.width === 792 && p.height === 612), `${name}: ${pdf.pages.length} pages, all Letter landscape`)
     // Vercel caps a function's response body at 4.5 MB; full-size WebP post images once made this export 31 MB.
-    check(bytes.length < 4_500_000, `under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
-    console.log(`  live PDF: ${livePdf}`)
+    check(bytes.length < 4_500_000, `${name}: under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
+    console.log(`  ${name} PDF: ${file}`)
+    return { res, bytes, pdf }
   }
+
+  const ren = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
+    { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-client')
+  if (ren) {
+    check(/filename\*=UTF-8''Renaissance%20%E2%80%93%20Organic%20Social%20%E2%80%93%20\d{4}-\d{2}-\d{2}\.pdf/.test(ren.res.headers.get('content-disposition') ?? ''), 'named Renaissance – Organic Social – <date>.pdf')
+    check(pagesOf(ren.pdf, 'Exported')[0] === 1 && pagesOf(ren.pdf, 'Reporting').length > 0, 'stamped with export time and reporting period on page 1')
+    const viewPost = ren.pdf.words.filter((w, i) => w.text === 'View' && ren.pdf.words[i + 1]?.text === 'post').length
+    check(viewPost > 0 && countLinks(ren.bytes) >= viewPost, `every post is a link (${countLinks(ren.bytes)} links, ${viewPost} posts)`)
+  }
+
+  // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
+  // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.
+  const APFM = { clientSlug: 'a-place-for-mom', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
+  const staff = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, 'apfm-staff')
+  const client = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, 'apfm-client')
+  // Every glyph in the same order, and every page starting at the same place. The stamp's minute can differ between the
+  // runs, so it is dropped. Spaces are too: sub-pixel glyph placement (0.07 pt seen) splits letter-spaced titles into
+  // words differently ("GROW T H" / "GROW TH") with the same glyphs in the same place.
+  const body = (pdf: PdfText) => pdf.words.map((w) => w.text).join('').replace(/^.*?Exported.*?(AM|PM)[A-Z]{2,4}/, '')
+    + pdf.pages.map((_, i) => pdf.words.find((w) => w.page === i + 1)?.yMin.toFixed(0)).join()
+  for (const [name, r] of [['apfm-staff', staff], ['apfm-client', client]] as const) {
+    if (!r) continue
+    const staffOnly = (r.pdf.words.map((w) => w.text).join(' ').match(/\b(Draft|Approve|Revoke|Add annotation|Add commentary|Edit|Hidden)\b/g) ?? [])
+    check(staffOnly.length === 0, `${name}: no editor, draft or button text (${[...new Set(staffOnly)].join(', ') || 'none'})`)
+    const text = r.pdf.words.map((w) => w.text).join(' ')
+    check(text.includes('Follower Growth, Year to Date'), `${name}: YTD Review printed`) // its title's tracking splits "YTD"
+    // An annotation's label starts with its day; the day printed again before it read "8/25 · 8/25 | …".
+    check(!/(\d{1,2}\/\d{1,2}) · \1\b/.test(text), `${name}: each annotation's day prints once`)
+  }
+  if (staff && client) check(body(staff.pdf) === body(client.pdf), 'apfm: the staff export prints exactly what the client export does')
 }
 
 console.log(`\nfixture PDF: ${fixturePdf}`)
