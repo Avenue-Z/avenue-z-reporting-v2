@@ -419,8 +419,8 @@ Ryan's own material already answers the earlier R1, R2, R4, R5, R6, R8 (his fall
 6. When Peec has recommendations, should exactly one of the three opportunities come from them, like your example?
 7. Should the project list show only pitch projects (current and ended), never customer or paused ones?
 8. Add a small line saying the report was prepared with AI assistance?
-9. For Thomas S: keep the "AIVx" name in the snapshot's left menu, as on AIVx reports?
-10. Should the methodology line say how many prompts were run and which AI models were covered? (A Yes adds `GET /prompts`, a call AIVx already makes at `aivx:agent/peec_api_export.py:188`.)
+9. Should the methodology line say how many prompts were run and which AI models were covered? (A Yes adds `GET /prompts`, a call AIVx already makes at `aivx:agent/peec_api_export.py:188`.)
+10. For Thomas S: keep the "AIVx" name in the snapshot's left menu, as on AIVx reports?
 
 ## 14. Edge cases
 
