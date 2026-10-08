@@ -35,6 +35,9 @@ export interface SortableTableProps<T> {
 
 type SortDir = 'asc' | 'desc' | null
 
+/** Printed rows up to which an exported table stays whole on one page (about 15 rows of 30 px plus its header). */
+const EXPORT_BLOCK_ROWS = 15
+
 function compareValues(a: unknown, b: unknown): number {
   if (a == null && b == null) return 0
   if (a == null) return 1
@@ -138,7 +141,8 @@ export function SortableTable<T>({
 
   if (exportMode) {
     return (
-      <div data-export-table="">
+      // A table short enough for a page is one unbreakable block (spec 2026-10-08 §5); a longer one splits between rows.
+      <div data-export-table="" {...(visibleRows.length <= EXPORT_BLOCK_ROWS ? { 'data-export-block': '' } : {})}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-white/[0.04]">

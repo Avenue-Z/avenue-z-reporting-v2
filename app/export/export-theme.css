@@ -49,6 +49,11 @@
 /* Chromium repeats a header row on each page only when the header itself may not break (found in the acceptance fixture). */
 .export-theme [data-export-table] thead { break-inside: avoid; }
 .export-theme [data-export-table-more] { break-before: avoid; }
+/* A live scroll box prints in full: its height cap would cut its last row at the edge and hide the rest. */
+.export-theme [data-export-scroll] { max-height: none; overflow: visible; }
+/* Cells and list rows wrap their full text instead of the live page's one-line ellipsis, whose title= hover is lost on paper. */
+.export-theme [data-export-table] .truncate { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }
+.export-theme [data-export-wrap] .truncate { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }
 .export-theme [data-export-hide] {
   display: none !important;
 }

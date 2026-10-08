@@ -52,10 +52,13 @@ function PromptDeltaCard({
               <InfoTooltip text={DELTA_TOOLTIP} />
             </span>
           </div>
-          <div className="max-h-[400px] overflow-y-auto">
+          {/* In the PDF export every prompt prints in full: the scroll cap is lifted (data-export-scroll), each row is
+              unbreakable and its ellipsis wraps (data-export-row, data-export-wrap; app/export/export-theme.css). */}
+          <div className="max-h-[400px] overflow-y-auto" data-export-scroll="" data-export-wrap="">
             {rows.map((r, i) => (
               <div
                 key={`${i}-${r.text}`}
+                data-export-row=""
                 className="grid grid-cols-[1fr_72px_72px] gap-3 border-b border-white/[0.04] px-4 py-2.5 text-sm last:border-b-0 hover:bg-white/[0.02]"
               >
                 <span className="truncate text-white" title={r.text}>{r.text}</span>

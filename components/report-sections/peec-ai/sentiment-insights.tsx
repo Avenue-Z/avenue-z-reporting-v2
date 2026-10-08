@@ -64,6 +64,17 @@ function ThemeAccordion({
   onToggle: () => void
   children: React.ReactNode
 }) {
+  // The PDF export prints each theme as a plain, unbreakable row, collapsed as on first load: no button to click on paper.
+  if (useExportMode()) {
+    return (
+      <div data-export-row="" className="flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <span className="flex-1 text-sm font-semibold text-white">{title}</span>
+        <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-text-muted">
+          <span className="tabular-nums">{count}</span> mentions
+        </span>
+      </div>
+    )
+  }
   return (
     <div className="rounded-md border border-white/[0.06] bg-white/[0.02]">
       <button
@@ -164,6 +175,8 @@ function ThemeColumn({
 }
 
 export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) {
+  // The PDF export drops the "Click a theme" hint: its themes print as plain rows (ThemeAccordion).
+  const exportMode = useExportMode()
   const noData = !data || data.occurrences === 0 || data.positivePct === null
 
   return (
@@ -200,13 +213,13 @@ export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) 
         <div className="grid gap-5 lg:grid-cols-2 items-stretch">
           <ThemeColumn
             heading="Positive Themes"
-            blurb={<>What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand. Click a theme to see the citing sources.</>}
+            blurb={<>What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand.{exportMode ? null : ' Click a theme to see the citing sources.'}</>}
             themes={data!.positiveThemes}
             accent="#60FF80"
           />
           <ThemeColumn
             heading="Negative Themes"
-            blurb={<>What AI-cited sources flag as <span className="font-bold text-white">gaps</span>. Click a theme to see the citing sources.</>}
+            blurb={<>What AI-cited sources flag as <span className="font-bold text-white">gaps</span>.{exportMode ? null : ' Click a theme to see the citing sources.'}</>}
             themes={data!.negativeThemes}
             accent="#FF4444"
           />

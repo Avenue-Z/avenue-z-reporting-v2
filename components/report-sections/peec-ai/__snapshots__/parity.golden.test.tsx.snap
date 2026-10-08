@@ -1027,9 +1027,12 @@ exports[`AEO parity: no override renders the full v1 composition incl. domains-r
           </div>
           <div
             class="max-h-[400px] overflow-y-auto"
+            data-export-scroll=""
+            data-export-wrap=""
           >
             <div
               class="grid grid-cols-[1fr_72px_72px] gap-3 border-b border-white/[0.04] px-4 py-2.5 text-sm last:border-b-0 hover:bg-white/[0.02]"
+              data-export-row=""
             >
               <span
                 class="truncate text-white"
@@ -1103,9 +1106,12 @@ exports[`AEO parity: no override renders the full v1 composition incl. domains-r
           </div>
           <div
             class="max-h-[400px] overflow-y-auto"
+            data-export-scroll=""
+            data-export-wrap=""
           >
             <div
               class="grid grid-cols-[1fr_72px_72px] gap-3 border-b border-white/[0.04] px-4 py-2.5 text-sm last:border-b-0 hover:bg-white/[0.02]"
+              data-export-row=""
             >
               <span
                 class="truncate text-white"

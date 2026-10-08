@@ -22,7 +22,8 @@ test('the export prints the default sort and first page of rows, with no buttons
   expect(screen.queryAllByRole('button')).toHaveLength(0)
   expect(container.querySelectorAll('tbody tr')).toHaveLength(10)
   const counts = [...container.querySelectorAll('tbody tr')].map((tr) => Number(tr.querySelectorAll('td')[1].textContent))
-  expect(counts).toEqual([...counts].sort((a, b) => b - a))
+  // Sorted before cutting to the page (final review: a sorted-among-themselves check passes even if sliced first).
+  expect(counts).toEqual([10, 9, 8, 7, 7, 6, 5, 4, 3, 3])
   expect(screen.getByText('Showing 10 of 14')).toBeTruthy()
   expect(within(container.querySelector('thead')!).getByText('Name')).toBeTruthy()
 })
@@ -49,4 +50,21 @@ test('outside the export the table is unchanged: sort buttons, the See all contr
   expect(screen.getByRole('button', { name: 'See all 14 rows' })).toBeTruthy()
   expect(container.querySelector('[data-export-table], [data-export-row]')).toBeNull()
   expect(names(container)).toHaveLength(10)
+})
+
+// Final review of PR 2: the export branch must keep what the live rows show, e.g. the client's own highlighted row and
+// cells that render links.
+test('the export keeps row classes and cell renderers', () => {
+  const cols: SortableColumn<Row>[] = [{ key: 'name', label: 'Name', render: (r) => <a href={`https://example.com/${r.name}`}>{r.name}</a> }]
+  const { container } = render(<ExportModeProvider><SortableTable columns={cols} rows={ROWS} rowKey={(r) => r.name} rowClassName={(r) => (r.name === 'row-3' ? 'is-you' : '')} /></ExportModeProvider>)
+  expect(container.querySelector('tr.is-you td')?.textContent).toBe('row-3')
+  expect(container.querySelectorAll('tbody a[href^="https://example.com/"]')).toHaveLength(14)
+})
+
+// Spec 2026-10-08 §5: a table short enough for a page is one block; a longer one splits between rows.
+test('a table of up to 15 printed rows is one unbreakable block; a longer one is not', () => {
+  expect(table({ initialPageSize: 10 }).container.querySelector('[data-export-table]')?.hasAttribute('data-export-block')).toBe(true)
+  const long = Array.from({ length: 20 }, (_, i) => ({ name: `r${i}`, n: i }))
+  const { container } = render(<ExportModeProvider><SortableTable columns={COLUMNS} rows={long} rowKey={(r) => r.name} /></ExportModeProvider>)
+  expect(container.querySelector('[data-export-table]')?.hasAttribute('data-export-block')).toBe(false)
 })

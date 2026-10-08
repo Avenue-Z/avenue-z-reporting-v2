@@ -40,3 +40,10 @@ test('bright brand text colours are darkened on paper, and only off the dark cha
   expect(css).toContain(':not([data-export-chart] *)[style*="color:#60FF80" i]:not([style*="background-color:#60FF80" i]) { color: #15803d !important; }')
   expect(css).toContain('.export-theme :not([data-export-chart] *).text-\\[\\#60FDFF\\] { color: #0e7490; }')
 })
+
+// Final review of PR 2: a live scroll box printed in the PDF cut its last row and hid the rest; one-line ellipses hid the
+// full text, whose title= hover is lost on paper.
+test('marked scroll boxes print in full and truncated text wraps in tables and marked lists', () => {
+  expect(css).toContain('.export-theme [data-export-scroll] { max-height: none; overflow: visible; }')
+  expect(css).toContain('.export-theme [data-export-wrap] .truncate { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }')
+})

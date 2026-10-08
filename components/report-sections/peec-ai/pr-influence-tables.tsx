@@ -138,7 +138,9 @@ export function TopEditorialDomainsTable({
         // internally instead of pushing the card open.
         // initialPageSize bumped 15 -> 100 so pagination does not truncate
         // inside the scroll viewport.
-        <div className="max-h-[320px] overflow-y-auto">
+        // In the PDF export the cap is lifted (data-export-scroll, app/export/export-theme.css): a printed scroll box would
+        // cut its last row and hide the rest.
+        <div className="max-h-[320px] overflow-y-auto" data-export-scroll="">
           <SortableTable
             columns={columns}
             rows={rows}
