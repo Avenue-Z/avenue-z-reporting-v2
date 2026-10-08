@@ -43,18 +43,23 @@ export async function InfluencerPostsSection({ ctx }: { ctx: OrganicSocialCtx })
   const parsed = parseInfluencerSection(client?.dashSocialConfig?.influencerSection)
   const heading = (parsed.kind === 'ok' ? influencerLabel(parsed.section, CHANNEL) : undefined) ?? 'Influencer Posts'
   const totals = influencerTotals(influencer)
+  const title = <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{heading}</h2>
+  const tiles = totals && (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <KpiCard title="Posts" value={num(totals.posts)} />
+      <KpiCard title="Total Engagements" value={num(totals.engagements)} />
+      <KpiCard title="Avg. Engagements per Post" value={num(totals.perPost)} />
+      <KpiCard title="Total Views" value={totals.views == null ? '—' : num(totals.views)} subValue={totals.views == null ? 'Not reported for these posts' : undefined} />
+    </div>
+  )
+  // In the PDF export the heading and totals ride in the grid's first block (`lead`), so they never end a page alone;
+  // their standalone copies hide there.
   return (
     <section className="space-y-6">
-      <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{heading}</h2>
-      {totals && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <KpiCard title="Posts" value={num(totals.posts)} />
-          <KpiCard title="Total Engagements" value={num(totals.engagements)} />
-          <KpiCard title="Avg. Engagements per Post" value={num(totals.perPost)} />
-          <KpiCard title="Total Views" value={totals.views == null ? '—' : num(totals.views)} subValue={totals.views == null ? 'Not reported for these posts' : undefined} />
-        </div>
-      )}
-      <InfluencerGrid posts={influencer} clientSlug={clientSlug} canEdit={canSetDesignation(role)} sortKeys={OUTLINE_SORT_KEYS} />
+      <h2 data-export-hide="" className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{heading}</h2>
+      {tiles && <div data-export-hide="">{tiles}</div>}
+      <InfluencerGrid posts={influencer} clientSlug={clientSlug} canEdit={canSetDesignation(role)} sortKeys={OUTLINE_SORT_KEYS}
+        lead={<>{title}{tiles}</>} />
     </section>
   )
 }

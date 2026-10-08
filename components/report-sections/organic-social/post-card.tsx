@@ -60,7 +60,7 @@ export function Media({ post }: { post: TopContentPost }) {
 
 /** The creative as the PDF export prints it: a video's poster frame (a player cannot print), else a
  *  placeholder; an image as it is. */
-function ExportMedia({ post }: { post: TopContentPost }) {
+export function ExportMedia({ post }: { post: TopContentPost }) {
   const [broken, setBroken] = useState(false)
   const c = post.creative
   const src = c?.kind === 'video' ? c.poster : c?.thumb

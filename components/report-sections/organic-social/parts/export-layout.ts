@@ -17,7 +17,7 @@ export const EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'ytd-review@2': 'own',
   'ytd-review@3': 'own',
   'engagement-breakdown@1': 'block', // one row of tiles
-  'influencer-posts@1': 'block',   // the Influencer tab (#334); its own blocks follow in a later commit
+  'influencer-posts@1': 'own',     // heading and totals with the first row, rows of two cards (influencer-grid.tsx)
   'kpi-check-in@1': 'block',       // KPI Check-In (#334); its own blocks follow in a later commit
 }
 

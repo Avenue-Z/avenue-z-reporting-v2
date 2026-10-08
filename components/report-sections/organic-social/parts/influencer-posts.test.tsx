@@ -105,3 +105,15 @@ test('no influencer posts: no totals, only the empty line the cards show', async
   const { queryByText } = render(await InfluencerPostsSection({ ctx: CTX }))
   expect(queryByText('Total Engagements')).toBeNull()
 })
+
+// #334 (task B7): the part lays out its own blocks in the PDF. Its heading and totals hide as standalone lines there
+// and are handed to the grid as `lead`, which draws them in its first block (as top-content@2's heading is).
+test('in the PDF the heading and totals are handed to the grid and hidden on their own', async () => {
+  getClientBySlug.mockResolvedValue(v2Client)
+  fetchTopContentFrozen.mockResolvedValue([post(1, { caption: 'a #ad' })])
+  const { container } = render(await InfluencerPostsSection({ ctx: CTX }))
+  expect(container.querySelector('h2')!.getAttribute('data-export-hide')).toBe('')
+  expect(container.querySelector('[data-export-hide] + [data-export-hide]')!.textContent).toContain('Total Engagements')
+  const lead = render(<>{(InfluencerGrid.mock.calls.at(-1) as unknown as [{ lead: React.ReactNode }])[0].lead}</>)
+  expect(lead.container.textContent).toMatch(/^Influencer Posts.*Posts1.*Total Engagements4/)
+})
