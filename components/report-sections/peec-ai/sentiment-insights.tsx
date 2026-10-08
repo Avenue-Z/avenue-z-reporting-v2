@@ -10,6 +10,8 @@
 import { useState } from 'react'
 import { Sparkles, ChevronRight } from 'lucide-react'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { useExportMode } from '@/components/export/export-mode'
+import { cn } from '@/lib/utils'
 import type { ProfoundSentiment, ProfoundSentimentTheme } from '@/lib/profound/sentiment'
 
 const HEADLINE_TOOLTIP =
@@ -128,6 +130,8 @@ function ThemeColumn({
   accent: string
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
+  // The PDF export prints every theme, collapsed as on first load, with no scroll area that would cut a row at its edge.
+  const exportMode = useExportMode()
   const toggle = (title: string) => {
     const next = new Set(open)
     if (next.has(title)) next.delete(title)
@@ -135,10 +139,10 @@ function ThemeColumn({
     setOpen(next)
   }
   return (
-    <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
+    <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4" data-export-block="">
       <h4 className="mb-1 text-base font-bold text-white">{heading}</h4>
       <p className="mb-3 text-xs text-text-muted">{blurb}</p>
-      <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
+      <div className={cn('flex-1 space-y-2 pr-1', !exportMode && 'overflow-y-auto max-h-[400px]')}>
         {themes.length === 0 ? (
           <p className="text-xs text-text-muted">No themes detected in this period.</p>
         ) : (
@@ -164,7 +168,7 @@ export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) 
 
   return (
     <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
-      <header className="mb-4 flex flex-wrap items-center gap-3">
+      <header className="mb-4 flex flex-wrap items-center gap-3" data-export-keep-with-next="">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#60FF80]/10">
           <Sparkles className="h-4 w-4 text-[#60FF80]" />
         </span>

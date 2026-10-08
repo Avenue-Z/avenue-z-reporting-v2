@@ -26,7 +26,8 @@ function fmtPct(n: number, decimals = 1) {
 // `<XTable rows={…} />`.
 function SectionHeading({ title, tooltip, subtitle }: { title: string; tooltip: string; subtitle?: string }) {
   return (
-    <div className="mb-5">
+    // In the PDF export the heading stays on the page of what follows it (app/export/export-theme.css).
+    <div className="mb-5" data-export-keep-with-next="">
       <div className="flex items-center gap-1.5">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <InfoTooltip text={tooltip} />
