@@ -17,6 +17,7 @@ import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'
 import { auth } from '@/auth'
 import { organicSocialExportView } from './organic-social-view'
+import OrganicSocialExportPage from '@/app/export/[clientSlug]/organic-social/page'
 import type { OrganicTabsClient } from '@/lib/constants'
 
 const CLIENT = {
@@ -33,7 +34,7 @@ beforeEach(() => {
 })
 
 for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
-  test.each([undefined, 'organic-linkedin', 'not-a-tab'])(`${routeName}: subsection %s is titled as the page titles it`, async (subsection) => {
+  test.each([undefined, 'organic-linkedin', 'organic-influencer', 'not-a-tab'])(`${routeName}: subsection %s is titled as the page titles it`, async (subsection) => {
     const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
       searchParams: Promise.resolve({ section: 'organic-social', dateRange: 'last_30_days', ...(subsection ? { subsection } : {}) }) } as never))
     if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
@@ -44,9 +45,26 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
 
 test('a platform tab resolves to its id; Overview and an unknown tab to none', () => {
   // One lookup gives the export page everything: the tab, its channel and its title (Thomas, #332 page.tsx:41).
-  expect(organicSocialExportView(TABS, 'organic-linkedin')).toEqual({ subsectionId: 'organic-linkedin', channel: 'LINKEDIN', pageTitle: 'LinkedIn' })
-  expect(organicSocialExportView(TABS, null)).toEqual({ subsectionId: null, channel: null, pageTitle: 'Organic Social' })
-  expect(organicSocialExportView(TABS, 'not-a-tab')).toEqual({ subsectionId: null, channel: null, pageTitle: 'Organic Social' })
+  expect(organicSocialExportView(TABS, 'organic-linkedin')).toEqual({ subsectionId: 'organic-linkedin', channel: 'LINKEDIN', view: null, pageTitle: 'LinkedIn' })
+  expect(organicSocialExportView(TABS, null)).toEqual({ subsectionId: null, channel: null, view: null, pageTitle: 'Organic Social' })
+  expect(organicSocialExportView(TABS, 'not-a-tab')).toEqual({ subsectionId: null, channel: null, view: null, pageTitle: 'Organic Social' })
+})
+
+// #334 (task B7): the Influencer tab has no channel but a view, so the export must carry the view, or it would print
+// Overview under the title "Organic Social".
+test('the Influencer tab resolves to its id, no channel, the influencer view and the title Influencer', () => {
+  expect(organicSocialExportView(TABS, 'organic-influencer')).toEqual({ subsectionId: 'organic-influencer', channel: null, view: 'influencer', pageTitle: 'Influencer' })
+})
+
+test('the export page hands the report the tab\'s view and channel', async () => {
+  const reportProps = async (subsection: string) => {
+    const r = await runRoute(OrganicSocialExportPage({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ subsection, dateRange: 'last_30_days' }) } as never))
+    if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+    return findElements(r.element, (e) => nameOf(e.type) === 'OrganicSocialReport')[0].props
+  }
+  expect(await reportProps('organic-influencer')).toMatchObject({ channel: null, view: 'influencer' })
+  expect(await reportProps('organic-linkedin')).toMatchObject({ channel: 'LINKEDIN', view: null })
 })
 
 // Organic Social exports on the server (app/api/export/pdf); every other section still prints in the browser.

@@ -61,7 +61,7 @@ export default async function OrganicSocialExportPage({
       </header>
       <TooltipProvider delayDuration={150} skipDelayDuration={50}>
         <ExportModeProvider>
-          <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} />
+          <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} view={view.view} />
         </ExportModeProvider>
       </TooltipProvider>
       <ExportReadyReporter />
