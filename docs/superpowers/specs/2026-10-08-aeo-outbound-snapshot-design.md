@@ -121,6 +121,40 @@ and the project name. Plotly figures are embedded as `JSON.stringify(figure)` wi
 Plotly output does the same, which you can see in the reference report's figure JSON (`\u003cb\u003e` in the SOV
 `hovertemplate`). That stops any text from closing the `<script>`. Plotly also reads its own tags (`<b>`, `<br>`) inside labels, so every Peec string placed in figure text (labels, the centre annotation) has `<` and `>` removed first. Together, no Peec or model text can inject markup.
 
+### 5a. Where every data point on the page comes from
+
+Every element of Ryan's example page, in page order, with its source. "Q" points to the §13 question that settles it.
+Peec calls are the §7 steps, run over one window.
+
+| # | Page element | Source | Field or rule | Matches his example? |
+|---|---|---|---|---|
+| 1 | Brand name | Peec `GET /brands` | `name` where `is_own` | Yes |
+| 2 | Report title | Fixed text | "AI Visibility Snapshot" | Yes |
+| 3 | Category | Peec `GET /project-profile` | `profile.industry` | No, Peec's is broad. Q4 |
+| 4 | Market | Peec `GET /project-profile` | `profile.target_markets[].location` | Yes |
+| 5 | Data window | Computed | first and last day with retrievals (§7 step 4) | Yes |
+| 6 | Headline and summary sentence | Glean, from the Data block | §6 | n/a (written) |
+| 7 | AI visibility | Peec `POST /reports/brands` | own `visibility` × 100, 1 decimal | Exact |
+| 8 | AI share of voice | same | own `share_of_voice` × 100, 1 decimal | Exact |
+| 9 | Average answer position | same | own `position`, 1 decimal | Exact |
+| 10 | Competitive rank | Computed from the same report | sort by visibility; denominator = every tracked brand | Rank yes; denominator no. Q3 |
+| 11 | Competitive context (leaders' visibility and share of voice, who ranks below) | Same report, written by Glean | top rows of the sorted report | Yes |
+| 12 | Brand chart | Same report | `visibility` for every tracked brand | Yes (his chart is visibility). Chart type Q2 |
+| 13 | Strength: category position | Same report | rank and own metrics | Yes |
+| 14 | Strength: own site's retrievals | Peec `POST /reports/domains` | `retrieved_chat_count` on the own brand's domains (`GET /brands` `domains[]`) | Exact |
+| 15 | Strength: "used as a source in N% of answers" | same | `retrieved_percentage` on the own domain | Within 1 point. Q5 |
+| 16 | Change over time ("up N points") | Needs a second, earlier window | not available for pitch projects (about a week of data) | No. Q6 |
+| 17 | Gap: leadership gap in points | Computed from the brands report | competitor minus own, exact values | Yes (his were from rounded figures) |
+| 18 | Gap: competitor domain gaps | Computed from the domains report | §7 step 7, ranked by `retrieved_chat_count` | No. His figures aren't in the feed. Q7 |
+| 19 | Gap: domain mix (Corporate, Institutional, Editorial, UGC %) | Peec `POST /reports/domains` | share of `retrieval_count` by `classification` | Within 1 point |
+| 20 | Source-type chart | same | same as row 19 | Within 1 point |
+| 21 | Why it matters | Glean, from the Data block | §6 | n/a (written) |
+| 22 | Opportunities: signal, opportunity, workstream | Glean; Peec-sourced rows from `POST /actions/list` (`SEO_ISSUE` and other types) | §7 step 8 | His "Peec recommends" items exist with matching titles. Q8, Q9 |
+| 23 | "These are opportunity hypotheses..." | Fixed text | | Yes |
+| 24 | Methodology | Glean, from window, brand count, prompt count (`GET /prompts` `total_count`) and models seen (`model_channel` ids) | §6 | His said these were "not visible"; the feed has them. Q10 |
+| 25 | Next step | Glean or fixed text | | Q11 |
+| 26 | Look: banner, fonts, colours, cards, charts, footer | AIVx, copied verbatim | §3, §5 | Design |
+
 ## 6. Copy generation (Glean)
 
 One `gleanChat(prompt, { saveChat: false })` call (`lib/glean.ts:39-42`). The prompt carries:
@@ -170,7 +204,7 @@ T3 confirmed that leaving out the filter returns every model: the unfiltered bra
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
 | 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
-| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities (how many of the three come from Peec is question 9, §13; Ryan's example "Peec recommends" items are `SEO_ISSUE` actions). Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
+| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities (how many of the three come from Peec is question 8, §13; Ryan's example "Peec recommends" items are `SEO_ISSUE` actions). Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
@@ -412,30 +446,33 @@ CUSTOMER project. A 30-day window reproduced his three headline metrics exactly 
 What maps and what doesn't:
 - **Pullable, exact or near-exact:** the KPIs; competitor visibility and share of voice; the rank order; his brand chart, which is **visibility** for every tracked brand; his own-domain "retrievals" (`retrieved_chat_count`); market; prompt count; models; and every "Peec recommends" item, which are `SEO_ISSUE` actions in `/actions/list` with matching titles.
 - **Source mix:** Peec's dashboard figures match a `retrieval_count` weighting (within 1 point), not AIVx's `retrieved_chat_count` weighting (`aivx:agent.py:664-789`). **Decision for me:** weight by `retrieval_count` so the chart matches what Ryan sees in Peec. The chart's look stays AIVx's.
-- **Not in the data feed:** his competitor "gap" figures. No field, window or filter reproduced their values or their order (question 5).
+- **Not in the data feed:** his competitor "gap" figures. No field, window or filter reproduced their values or their order (question 7).
 - **Not possible for pitch projects:** period-over-period change ("up 8.7 points"), since pitch projects hold about a week of data (question 6).
 - **Different from his page:** the rank denominator (his page showed 7 brands; the project tracks 12, question 3) and the category (Peec's `industry` is broad, question 4).
 - His leadership-gap points were computed from rounded figures. The tool uses exact values, so they can differ by a few tenths.
 
-## 13. Open questions (sent to Ryan 2026-10-08, reviewed against his skill, his example and the probe)
+## 13. Open questions (sent to Ryan 2026-10-08)
 
-Ryan's own material already answers the data window, model coverage, source types, the headline (his comment C3), the
-section order (strengths, then gaps) and the no-recommendations fallback, so the spec follows it and doesn't ask.
+Each question settles a row of the §5a map, or a rule his skill leaves open. His own material already answers the data
+window, model coverage, source types, the headline (his comment C3), the section order (strengths, then gaps) and the
+no-recommendations fallback, so those aren't asked.
 
-1. Title the two middle sections "Category data" and "Competitive visibility" (Thomas S's wording), instead of your skill's "Category data" and "Sources data"?
-2. Should the brand chart compare brands by AI visibility, like your example, rather than by share of voice? (A Yes means an AIVx-style bar chart, `aivx:agent.py:2634` `build_leaderboard_chart`, because visibility doesn't add up to 100%.)
-3. Rank the brand against every competitor tracked in the Peec project, not just the top 7 shown in your example? (The spec assumes Yes: `n` = every brands-report row, §7.)
-4. Peec stores a broad category. Should the tool write a more specific one, like your example's? (No means Peec's `industry` as-is, editable.)
-5. Peec's competitor "gap" figures aren't in its data feed. OK to rank those sites by how often AI used them instead? (That is the §7 step 7 computation.)
-6. Pitch projects hold about a week of data, so changes over time can't be shown. Is that fine?
-7. Is it fine if the page runs longer than one printed page, since it's a web link?
-8. Must every "Needs validation" be filled in before a report can be sent? (The spec assumes Yes, §9.)
-9. When Peec has recommendations, should exactly one of the three opportunities come from them, like your example?
-10. Limit "Likely workstream" to Content / AEO, PR / earned media, and Technical AEO / SEO?
-11. Should the methodology say how many prompts were run and which AI models were covered? (A Yes adds `GET /prompts`, which AIVx already calls at `aivx:agent/peec_api_export.py:188`.)
-12. Your example used a customer project in Peec. Should the tool allow only pitch projects, never customer ones? (The spec assumes Yes, §7 step 1.)
-13. Add a small line saying the report was prepared with AI assistance?
-14. For Thomas S: keep the "AIVx" name in the page's left menu, as on AIVx reports?
+1. (§5 rows 5-6) Title the two middle sections "Category data" and "Competitive visibility" (Thomas S's wording), instead of your skill's "Category data" and "Sources data"?
+2. (§5a row 12) Your brand chart is a pie of visibility, which adds up to over 100%. OK to show the same numbers as a bar chart instead? (`aivx:agent.py:2634` `build_leaderboard_chart`.)
+3. (§5a row 10) Rank the brand against every competitor tracked in the Peec project, not only the top 7 shown on the dashboard?
+4. (§5a row 3) Peec's category is broad. Should the tool write a more specific one from the data, like your example's?
+5. (§5a row 15) "Used as a source" will come from Peec's retrieved percentage, which can differ from the dashboard by about a point. Is that fine?
+6. (§5a row 16) Pitch projects hold about a week of data, so changes over time can't be shown. Is that fine?
+7. (§5a row 18) Peec's competitor "gap" figures aren't in its data feed. OK to rank those sites by how often AI used them instead?
+8. (§5a row 22) When Peec has recommendations, should exactly one of the three opportunities come from them, like your example?
+9. (§5a row 22) Limit "Likely workstream" to Content / AEO, PR / earned media, and Technical AEO / SEO?
+10. (§5a row 24) Should the methodology state the prompt count and the AI models covered (ChatGPT, Google AI Overviews, Perplexity)?
+11. (§5a row 25) Use the same next-step sentence on every report, rather than one written for each brand?
+12. (§9) Must every "Needs validation" be filled in before a report can be sent? (The spec assumes Yes.)
+13. (§7 step 1) Allow only pitch projects, never customer ones? (The spec assumes Yes; his example used a customer project.)
+14. (§5) Is it fine if the page runs longer than one printed page, since it's a web link?
+15. (§11) Add a small line saying the report was prepared with AI assistance?
+16. (§5 row 0) For Thomas S: keep the "AIVx" name in the page's left menu, as on AIVx reports?
 
 ## 14. Edge cases
 
