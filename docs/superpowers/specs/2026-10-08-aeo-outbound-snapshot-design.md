@@ -113,7 +113,7 @@ no canonical link; no `report-editor.css` or `report-editor.js`; `<meta name="ro
 | 9 | Methodology and next step | `.method-note` (CSS `:1176-1187`, usage `:2322`) | `<strong>Methodology:</strong>` **methodology** slot, then `<strong>Next step:</strong>` **next_step** slot. |
 | 10 | Footer | `.footer` (`:2464-2498`) | Same markup. Series label "AI VISIBILITY SNAPSHOT"; `{brand}<br>Prepared {date}`, where date is the approval date in the frozen HTML and the generation date in a draft (US Eastern, `Oct 1, 2026`); the disclaimer says the data is a Peec snapshot for the stated window and is directional. |
 
-Each bullet is `<li><strong>{lead}</strong> {text}</li>`. **Section contents follow Ryan's skill until he answers Q1-Q2 (§13):** row 5 holds 2-3 validated **strengths** and row 6 holds 2-3 **gaps** (visibility losses, domain gaps, source mix), with no strength repeated (his skill, Category data and Sources data). The slot names `competitive_bullets` and `sources_bullets` keep that order: first section, then second. The titles and the brand chart's metric are pending Q2 and Q3.
+Each bullet is `<li><strong>{lead}</strong> {text}</li>`. **Section contents follow Ryan's skill (§13 question 1 covers only the titles):** row 5 holds 2-3 validated **strengths** and row 6 holds 2-3 **gaps** (visibility losses, domain gaps, source mix), with no strength repeated (his skill, Category data and Sources data). The slot names `competitive_bullets` and `sources_bullets` keep that order: first section, then second. The titles and the brand chart's metric are pending §13 questions 1 and 2.
 
 **Escaping:** every string that reaches the HTML is escaped on render (`& < > " '`, as in `aivx:renderer.py:15` `esc`). That
 covers slots and also every Peec-sourced string: brand, competitor and domain names, classification labels, action titles
@@ -170,7 +170,7 @@ T3 confirmed that leaving out the filter returns every model: the unfiltered bra
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
 | 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
-| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities (how many of the three come from Peec is Q6, §13). Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
+| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities (how many of the three come from Peec is question 6, §13). Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
@@ -407,20 +407,22 @@ iframe, which is pure AIVx.
 - **Share button:** on the CSP-sandboxed page it copied the real URL ("Link copied to clipboard"). In the `srcdoc` iframe it would copy a placeholder address, hence it is hidden in the draft view (§10).
 - **Hero:** at the editor's 1216px iframe width the 96px brand name can wrap to two lines. AIVx behaves the same at that width.
 
-## 13. Open questions (sent to Ryan 2026-10-08; reviewed fresh-eyed against his skill and example)
+## 13. Open questions (sent to Ryan 2026-10-08, reviewed against his skill and example)
 
-Ryan's own material already answers the earlier R1, R2, R4, R5, R6, R8 (his fallback rule), R11 and R12, so those questions were dropped. The spec follows his material on them.
+Ryan's own material already answers the data window, model coverage, source types, the headline (his comment C3), the
+section order (strengths, then gaps) and the no-recommendations fallback, so the spec follows it and doesn't ask.
 
-1. Keep the two middle sections as strengths first, then gaps, like your skill and example? (No means competitors first, then sources.)
-2. If yes, title them "Category data" and "Competitive visibility", per your example and Thomas S's comment?
-3. Should the brand chart compare brands by AI visibility, like your example, rather than by share of voice? (Visibility doesn't add up to 100%, so a Yes means an AIVx-style bar chart instead of the donut. AIVx has one, `aivx:agent.py:2634` `build_leaderboard_chart`.)
-4. Must every "Needs validation" be replaced before you can approve and send a report? (The spec currently assumes Yes, §9.)
-5. Limit "Likely workstream" to Content / AEO, PR / earned media, and Technical AEO / SEO? (No means other labels are allowed.)
+1. Title the two middle sections "Category data" and "Competitive visibility" (Thomas S's wording), instead of your skill's "Category data" and "Sources data"?
+2. Should the brand chart compare brands by AI visibility, like your example, rather than by share of voice? (Visibility doesn't add up to 100%, so a Yes means an AIVx-style bar chart, `aivx:agent.py:2634` `build_leaderboard_chart`, instead of the donut.)
+3. Rank the brand against every competitor tracked in the Peec project (often 20 to 50 brands), not just the top few? (The spec assumes Yes: `n` = every brands-report row, §7. T3 saw projects with 50 and 52 brands; his example showed "#3 of 7".)
+4. Is it fine if the page runs longer than one printed page, since it's a web link? (His skill says one page; the AIVx type scale makes the page longer than one printed page, §12 sample.)
+5. Must every "Needs validation" be filled in before a report can be sent? (The spec assumes Yes, §9.)
 6. When Peec has recommendations, should exactly one of the three opportunities come from them, like your example?
-7. Should the project list show only pitch projects (current and ended), never customer or paused ones?
-8. Add a small line saying the report was prepared with AI assistance?
-9. Should the methodology line say how many prompts were run and which AI models were covered? (A Yes adds `GET /prompts`, a call AIVx already makes at `aivx:agent/peec_api_export.py:188`.)
-10. For Thomas S: keep the "AIVx" name in the snapshot's left menu, as on AIVx reports?
+7. Limit "Likely workstream" to Content / AEO, PR / earned media, and Technical AEO / SEO?
+8. Should the methodology say how many prompts were run and which AI models were covered? (A Yes adds `GET /prompts`, which AIVx already calls at `aivx:agent/peec_api_export.py:188`.)
+9. Only use pitch projects (current and ended), never customer or paused ones?
+10. Add a small line saying the report was prepared with AI assistance?
+11. For Thomas S: keep the "AIVx" name in the page's left menu, as on AIVx reports?
 
 ## 14. Edge cases
 
