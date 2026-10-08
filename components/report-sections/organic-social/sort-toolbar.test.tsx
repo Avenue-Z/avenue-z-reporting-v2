@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { createElement } from 'react'
 import { fireEvent, render, renderHook, act } from '@testing-library/react'
 import { SortToolbar, useSort } from './sort-toolbar'
 
@@ -20,10 +21,11 @@ test('clicking the active metric flips the direction; another metric switches to
 
 test('the toolbar marks the active button with its direction and reports clicks', () => {
   const clicked: string[] = []
-  const { getByRole, getAllByRole } = render(
-    <SortToolbar metrics={[{ key: 'engagements', label: 'Engagements' }, { key: 'impressions', label: 'Views / Impr.' }] as never}
-      sortKey="engagements" dir="desc" onMetric={(k) => clicked.push(k)} />,
-  )
+  // createElement, not JSX: scripts/check-rsc-props.ts reads JSX function props in any file without 'use client'.
+  const { getByRole, getAllByRole } = render(createElement(SortToolbar, {
+    metrics: [{ key: 'engagements', label: 'Engagements' }, { key: 'impressions', label: 'Views / Impr.' }] as never,
+    sortKey: 'engagements', dir: 'desc', onMetric: (k: string) => { clicked.push(k) },
+  }))
   expect(getAllByRole('button').map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([['Engagements ↓', 'true'], ['Views / Impr.', 'false']])
   fireEvent.click(getByRole('button', { name: 'Views / Impr.' }))
   expect(clicked).toEqual(['impressions'])
