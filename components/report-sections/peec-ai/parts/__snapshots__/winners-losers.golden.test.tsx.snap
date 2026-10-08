@@ -6,6 +6,7 @@ exports[`winners-losers@1 golden 1`] = `
 >
   <div
     class="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-5 h-full"
+    data-export-block=""
   >
     <h3
       class="text-lg font-bold text-white"
@@ -81,6 +82,7 @@ exports[`winners-losers@1 golden 1`] = `
   </div>
   <div
     class="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-5 h-full"
+    data-export-block=""
   >
     <h3
       class="text-lg font-bold text-white"

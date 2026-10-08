@@ -3,6 +3,7 @@
 exports[`spike: golden snapshot captures real rendered markup 1`] = `
 <div
   class="flex items-start gap-4"
+  data-export-keep-with-next=""
 >
   <span
     class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#60FF80]/10"

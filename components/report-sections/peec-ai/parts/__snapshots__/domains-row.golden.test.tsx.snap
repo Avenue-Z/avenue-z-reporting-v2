@@ -9,6 +9,7 @@ exports[`domains-row@1 golden 1`] = `
   >
     <div
       class="flex items-center justify-between border-b border-white/[0.06] px-5 py-4"
+      data-export-keep-with-next=""
     >
       <div
         class="flex items-center gap-1.5"
@@ -688,6 +689,8 @@ exports[`domains-row@1 golden 1`] = `
   >
     <div
       class="rounded-lg border border-white/[0.06] bg-bg-surface p-5"
+      data-export-block=""
+      data-export-chart=""
     >
       <div
         class="flex items-center gap-1.5 mb-4"
