@@ -113,7 +113,7 @@ no canonical link; no `report-editor.css` or `report-editor.js`; `<meta name="ro
 | 9 | Methodology and next step | `.method-note` (CSS `:1176-1187`, usage `:2322`) | `<strong>Methodology:</strong>` **methodology** slot, then `<strong>Next step:</strong>` **next_step** slot. |
 | 10 | Footer | `.footer` (`:2464-2498`) | Same markup. Series label "AI VISIBILITY SNAPSHOT"; `{brand}<br>Prepared {date}`, where date is the approval date in the frozen HTML and the generation date in a draft (US Eastern, `Oct 1, 2026`); the disclaimer says the data is a Peec snapshot for the stated window and is directional. |
 
-Each bullet is `<li><strong>{lead}</strong> {text}</li>`. Headings in rows 5 and 6 are fixed text, pending R3 (§13).
+Each bullet is `<li><strong>{lead}</strong> {text}</li>`. **Section contents follow Ryan's skill until he answers Q1-Q2 (§13):** row 5 holds 2-3 validated **strengths** and row 6 holds 2-3 **gaps** (visibility losses, domain gaps, source mix), with no strength repeated (his skill, Category data and Sources data). The slot names `competitive_bullets` and `sources_bullets` keep that order: first section, then second. The titles and the brand chart's metric are pending Q2 and Q3.
 
 **Escaping:** every string that reaches the HTML is escaped on render (`& < > " '`, as in `aivx:renderer.py:15` `esc`). That
 covers slots and also every Peec-sourced string: brand, competitor and domain names, classification labels, action titles
@@ -158,8 +158,8 @@ The **domain check** flags any domain-like token (`word.tld`) in the copy that i
 ## 7. Data: calls, fields and math
 
 Env: `PEEC_AI_CUSTOMER_TOKEN` (`.env.example:48`), sent as `x-api-key` (docs: authentication page). Every report call
-carries `project_id`, `start_date` and `end_date` from step 4. The model filter is set by R2 (§13). The default is no
-filter. T3 confirmed that no filter returns every model: the unfiltered brands report held `openai-0`, `google-0` and `google-2` rows. If R2 is ChatGPT only, the filter is AIVx's exact one, `{field:"model_id", operator:"in", values:["chatgpt-scraper"]}` (`aivx:lib/peec-client.ts:26,218`), for number parity with AIVx, even though the docs mark `model_id` deprecated.
+carries `project_id`, `start_date` and `end_date` from step 4. No model filter: all models, per Ryan's skill, whose QA gate treats incomplete model coverage as a problem.
+T3 confirmed that leaving out the filter returns every model: the unfiltered brands report held `openai-0`, `google-0` and `google-2` rows. If a ChatGPT-only view is ever wanted, the filter would be AIVx's exact one, `{field:"model_id", operator:"in", values:["chatgpt-scraper"]}` (`aivx:lib/peec-client.ts:26,218`), for number parity with AIVx, even though the docs mark `model_id` deprecated.
 
 | Step | Call | Fields used | Rule |
 |---|---|---|---|
@@ -170,16 +170,16 @@ filter. T3 confirmed that no filter returns every model: the unfiltered brands r
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
 | 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
-| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities, pending R7. Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
+| 8 | `POST /actions/list`, default `order_by` `impact` desc, `limit 10` (list-actions page) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `group`, `target`, `status` | Feeds the opportunities (how many of the three come from Peec is Q6, §13). Only `status = PENDING` actions are used (T3 found only `PENDING` and `COMPLETED`). T3 also found that only about half of pitch projects have any actions at all. When there are none, the opportunities come from the validated visibility and source evidence and are labeled as hypotheses, which is Ryan's own fallback rule. `/actions/list` takes no date window, so the Data block labels them as current Peec actions, not window-specific. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
 - **Average answer position** = `#` + `position` to 1 decimal.
-- **Nulls:** Peec requires only `brand`, `mention_count`, `visibility`, `visibility_count` and `visibility_total` on a brands-report row; `share_of_voice` and `position` may be absent (confirmed live in T3: across 12 pitch projects `position` was missing on up to 25 of 52 brands, always brands with zero visibility; `share_of_voice` was present on every row and summed to exactly 1.0 in every project, which is what the SOV donut's "All Other Brands" remainder relies on). The dashboard's own row type treats both as required (`lib/peec/client.ts:81,85`), another reason not to reuse it. AIVx keeps those as None (`aivx:agent/agent.py:1312-1316`). Here a missing SOV or position displays `n/a` in its KPI card, gets a note in the notes panel, and is left out of the Data block. A brand with a missing SOV counts as 0 for the donut.
+- **Nulls:** Peec requires only `brand`, `mention_count`, `visibility`, `visibility_count` and `visibility_total` on a brands-report row; `share_of_voice` and `position` may be absent (confirmed live in T3: across 12 pitch projects `position` was missing on up to 25 of 52 brands, always brands with zero visibility; `share_of_voice` was present on every row and summed to exactly 1.0 in every project, which is what the SOV donut's "All Other Brands" remainder relies on). The dashboard's own row type treats both as required (`lib/peec/client.ts:81,85`), another reason not to reuse it. AIVx keeps those as None (`aivx:agent/agent.py:1312-1316`). Ryan's rule applies: "Use exactly four metric labels when four are validated; otherwise use three and mark any missing metric internally" (his skill, Metric strip). A missing SOV or position drops that card, leaving three, with a notes-panel entry. Because AIVx's `.kpi-strip` is a fixed 4-column grid (`aivx:renderer.py:485-487`) and the stylesheet stays byte-identical, the 3-card strip carries an inline `style="grid-template-columns:repeat(3, 1fr)"`, the same inline-override pattern AIVx uses for its long hero names (`aivx:renderer.py:1458`). A missing value is left out of the Data block. A brand with a missing SOV counts as 0 for the donut.
 - **Competitive rank** = `#{i} of {n} brands`, where rows are sorted by `(-visibility, brand.id)` (`aivx:peec_api_transform.py:98-109`) and `n` = rows returned in step 5.
 - **Rounding:** Python's `round` is half-to-even (the AIVx rule above). The TS port uses the same half-to-even rule, with a test on a `.x5` value.
 - **SOV donut** = `build_sov_donut` logic (`aivx:agent.py:2572-2631`): the first 15 rows by rank, then top 5 of those by SOV % (`:2576-2580`), an "All Other Brands ({n-5})" slice when the remainder is over 0.5, and a centre label of the rank-1 brand and its SOV %.
-- **Source-type donut** = `build_earned_breakdown_chart` (`aivx:agent.py:2721-2763`) over step-6 rows grouped by `title_classification` (`aivx:peec_api_transform.py:15-32`, `OWN`→`You`) and weighted by `retrieved_chat_count`, slices in descending order of retrievals then label. Slice set pending R6; the default is all classifications, per Ryan's "use classifications exactly as returned".
+- **Source-type donut** = `build_earned_breakdown_chart` (`aivx:agent.py:2721-2763`) over step-6 rows grouped by `title_classification` (`aivx:peec_api_transform.py:15-32`, `OWN`→`You`) and weighted by `retrieved_chat_count`, slices in descending order of retrievals then label. All classifications, per Ryan's "use classifications exactly as returned".
 - **Data block for Glean:** the 4 KPIs; the top 5 brands with visibility and SOV; the own domain's `retrieved_chat_count`; source-type percentages; competitor gap domains; Peec action titles with impact; window; category; market.
 
 **Guards** (fail the generation with a named reason, ported from `aivx:peec_api_export.py:326-389`):
@@ -189,7 +189,7 @@ filter. T3 confirmed that no filter returns every model: the unfiltered brands r
 - a repeated row across pages
 - past the row cap of 250,000 rows per endpoint (`aivx:peec_api_export.py:81`)
 
-AIVx's UPPERCASE classification guard is not ported. It protects AIVx's donut exclusion policy, which doesn't apply when every type is shown (R6). Custom classification names display verbatim.
+AIVx's UPPERCASE classification guard is not ported. It protects AIVx's donut exclusion policy, which doesn't apply when every type is shown, as Ryan's rule requires. Custom classification names display verbatim.
 - HTTP errors after retries
 
 Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
@@ -407,18 +407,20 @@ iframe, which is pure AIVx.
 - **Share button:** on the CSP-sandboxed page it copied the real URL ("Link copied to clipboard"). In the `srcdoc` iframe it would copy a placeholder address, hence it is hidden in the draft view (§10).
 - **Hero:** at the editor's 1216px iframe width the 96px brand name can wrap to two lines. AIVx behaves the same at that width.
 
-## 13. Open questions (Ryan answers close-ended; the spec uses the default in brackets)
+## 13. Open questions (sent to Ryan 2026-10-08; reviewed fresh-eyed against his skill and example)
 
-- **R1:** Data window = the full date range the pitch project has data for, shown as dates? [Yes]
-- **R2:** All AI models, like your Glean pulls, or ChatGPT only, like AIVx? [All]
-- **R3:** Section titles "Competitive visibility" and "Sources", per Thomas Stern's comment? [Yes]
-- **R4:** A short AI-written headline above the one-sentence summary? [Yes]
-- **R5:** Two charts: share-of-voice donut beside the competitive bullets, source-type donut beside the sources bullets? [Yes]
-- **R6:** Source-type donut shows every source type, including your own site, Institutional and Other (AIVx hides those three)? [Yes]
-- **R7:** The "Peec recommends" row uses Peec's action list ranked by impact (the API has no opportunity score)? [Yes]
-- **R8:** Only Peec pitch projects can be used, so a customer project can never go out on a link? [Yes]
-- **R9:** A revoked link is gone for good, and you rerun to share again? [Yes]
-- **R10:** Keep the AIVx left sidebar and "AIVx" wordmark on the snapshot? [Yes] (Thomas Stern to confirm)
+Ryan's own material already answers the earlier R1, R2, R4, R5, R6, R8 (his fallback rule), R11 and R12, so those questions were dropped. The spec follows his material on them.
+
+1. Keep the two middle sections as strengths first, then gaps, like your skill and example? (No means competitors first, then sources.)
+2. If yes, title them "Category data" and "Competitive visibility", per your example and Thomas S's comment?
+3. Should the brand chart compare brands by AI visibility, like your example, rather than by share of voice? (Visibility doesn't add up to 100%, so a Yes means an AIVx-style bar chart instead of the donut. AIVx has one, `aivx:agent.py:2634` `build_leaderboard_chart`.)
+4. Must every "Needs validation" be replaced before you can approve and send a report? (The spec currently assumes Yes, §9.)
+5. Limit "Likely workstream" to Content / AEO, PR / earned media, and Technical AEO / SEO? (No means other labels are allowed.)
+6. When Peec has recommendations, should exactly one of the three opportunities come from them, like your example?
+7. Should the project list show only pitch projects (current and ended), never customer or paused ones?
+8. Add a small line saying the report was prepared with AI assistance?
+9. For Thomas S: keep the "AIVx" name in the snapshot's left menu, as on AIVx reports?
+10. Should the methodology line say how many prompts were run and which AI models were covered? (A Yes adds `GET /prompts`, a call AIVx already makes at `aivx:agent/peec_api_export.py:188`.)
 
 ## 14. Edge cases
 
@@ -427,7 +429,7 @@ iframe, which is pure AIVx.
 | Project has no `is_own` brand, or several | Failed: "Peec project needs exactly one own brand (found N)." |
 | No profile | Category and market show `Needs validation`. Approve is blocked until edited. |
 | Fewer than 6 brands | The donut has no "All Other" slice. Rank still reads `#i of n`. |
-| Only the own brand is tracked (seen live in T3) | Generates, with a notes-panel flag "No competitors tracked in this Peec project". The competitive copy is told there are no competitors. Ryan decides whether to send. |
+| Only the own brand is tracked (seen live in T3) | Generates, with a notes-panel flag "No competitors tracked in this Peec project". Per Ryan's rules ("Omit unsupported comparisons"; a rank only when the competitive set is complete), the Competitive rank card and the competitive context callout are left out, and the copy is told there are no competitors. Ryan decides whether to send. |
 | No gap domains, no actions | The Data block says none. The prompt forbids inventing them. |
 | Peec 429 | Retry per `X-RateLimit-Reset` clamped to 0-20s, max 3 attempts, then Failed. The 270s deadline caps it all (§7a). |
 | Missing SOV or position for the brand | KPI shows `n/a`, with a note (§7). |
