@@ -148,3 +148,41 @@ describe('Commentary follows the month (locked-months clients)', () => {
     await expect(CommentarySection({ clientSlug: 'c', viewKey: 'organic-social:instagram' })).rejects.toThrow('session down')
   })
 })
+
+// The PDF export prints what a client sees, whoever exports (spec 2026-10-06-organic-social-pdf-export-v2 §7). The panel
+// gets the client's entry worked out server-side with the client's own rules (Thomas, #332 round 2, item 3).
+describe("the client's entry, for the PDF export", () => {
+  const OPTED = { id: 'client-1', slug: 'c', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } } }
+  const VIEW = 'organic-social:instagram'
+  afterEach(() => vi.useRealTimers())
+  const props = async (...a: Parameters<typeof panelProps>) => (await panelProps(...a)) as unknown as Record<string, unknown>
+  const withEntries = async (extra: CommentaryEntry[], f: () => Promise<void>) => {
+    ENTRIES.push(...extra)
+    try { await f() } finally { ENTRIES.splice(ENTRIES.length - extra.length, extra.length) }
+  }
+
+  test('no locked months: staff open on the newer draft; the client entry is the approved one, as a client gets', async () => {
+    const team = await props(NON_OPTED, VIEW, 'writer@avenuez.com', 'INTERNAL_ADMIN')
+    const client = await props(NON_OPTED, VIEW, 'client@example.com', 'CLIENT_VIEWER')
+    expect([team.initialId, team.clientEntryId]).toEqual(['sep-draft', 'sep'])
+    expect([client.initialId, client.clientEntryId]).toEqual(['sep', 'sep'])
+  })
+
+  test('a locked month: a whole-month entry wins over a newer partial one, for the team export as for a client', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-20T14:00:00Z'))
+    const partial = E('sep-late', '2026-09-15', '2026-09-30', 'approved', '2026-10-07T10:00:00.000Z')
+    await withEntries([partial], async () => {
+      const team = await props(OPTED, VIEW, 'writer@avenuez.com', 'INTERNAL_ADMIN', { requestedRange: 'custom:2026-09-01,2026-09-30' })
+      const client = await props(OPTED, VIEW, 'client@example.com', 'CLIENT_VIEWER', { requestedRange: 'custom:2026-09-01,2026-09-30' })
+      expect(team.clientEntryId).toBe('sep')
+      expect([client.initialId, client.clientEntryId]).toEqual(['sep', 'sep'])
+    })
+  })
+
+  test('a finished month clients cannot see yet: the team still gets its entries, the client entry is none', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-05T14:00:00Z')) // September opens Oct 12
+    const team = await props(OPTED, VIEW, 'writer@avenuez.com', 'INTERNAL_ADMIN', { requestedRange: 'custom:2026-09-01,2026-09-30' })
+    expect((team.entries as CommentaryEntry[]).map((e) => e.id)).toEqual(['sep', 'sep-draft'])
+    expect(team.clientEntryId).toBeNull()
+  })
+})

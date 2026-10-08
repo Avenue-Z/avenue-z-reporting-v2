@@ -9,7 +9,6 @@ import { approveCommentary, revokeCommentary, deleteCommentaryDraft } from '@/ap
 import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory, CommentaryVersionTag } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { useExportMode } from '@/components/export/export-mode'
-import { pickDefaultEntry } from '@/lib/commentary/select'
 
 function fmt(d: string): string {
   // 'YYYY-MM-DD' → 'Mon D, YYYY' without timezone drift.
@@ -36,6 +35,7 @@ export function CommentaryPanel({
   viewKey,
   entries,
   initialId,
+  clientEntryId,
   capabilities,
   history,
   defaultPeriod,
@@ -46,6 +46,8 @@ export function CommentaryPanel({
   viewKey: CommentaryViewKey
   entries: CommentaryEntry[]
   initialId: string | null
+  /** The entry a client opens on (worked out server-side); the PDF export prints it, whoever exports. */
+  clientEntryId: string | null
   capabilities: CommentaryCapabilities
   history: CommentaryPeriodHistory[]
   defaultPeriod?: { start: string; end: string }
@@ -66,7 +68,7 @@ export function CommentaryPanel({
   const selected = entries.find((e) => e.id === selectedId) ?? null
   const exportMode = useExportMode()
 
-  if (exportMode) return <ExportCommentary entries={entries} />
+  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} />
 
   function refresh() {
     setEditing(null)
@@ -219,12 +221,10 @@ export function CommentaryPanel({
   )
 }
 
-/** Commentary as the PDF export prints it: what the client sees, whoever exports. A client's panel opens on the
- *  newest approved entry (lib/commentary/select.ts pickDefaultEntry over approved only); staff open on the newest
- *  entry including drafts, so the export picks the client's entry itself rather than following `initialId`. On a
- *  locked month the entries are already that month's (monthly.tsx). No approved entry, nothing. No controls; one block. */
-function ExportCommentary({ entries }: { entries: CommentaryEntry[] }) {
-  const shown = pickDefaultEntry(entries.filter((e) => e.status === 'approved'))
+/** Commentary as the PDF export prints it: what the client sees, whoever exports. The client's entry is worked out
+ *  server-side with the client's own rules (index.tsx; monthly.tsx for a locked month, where a whole-month entry wins),
+ *  not from `initialId`, which for staff is the newest entry including drafts. None, nothing. No controls; one block. */
+function ExportCommentary({ entry: shown }: { entry: CommentaryEntry | null }) {
   if (!shown) return null
   return (
     <section data-export-block="" className="mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4">
