@@ -407,8 +407,7 @@ iframe, which is pure AIVx.
 - **Reviewer:** Ryan Cadigan, as the only allowlisted user, approves every snapshot before a link exists. There is no
   path from generation to a public link without Approve.
 - **Checks he makes:** the notes panel (missing inputs, number mismatches), accuracy of claims against the KPIs and
-  charts on the page, tone. **Recommended:** decide whether to say on the page that the copy is AI-assisted. Today the
-  page doesn't say so.
+  charts on the page, tone. The page carries no AI-assistance line (my decision, §13).
 - **Record:** `approved_by`, `approved_at` and `revision` on the row. The frozen `html` is the exact approved version.
   `revoked_by` and `share_revoked_at` record withdrawal.
 
@@ -462,6 +461,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 - **Change over time** (§5a row 16): not shown, because pitch projects hold about a week of data.
 - **Workstream labels** (§5a row 22): free text, guided by his skill's examples ("such as").
 - **Page length:** a web page, so no one-page print limit.
+- **AI-assistance line:** none on the report (my decision).
 
 **Questions** (each settles a §5a row or an open rule):
 1. (§5 rows 5-6) Title the two middle sections "Category data" and "Competitive visibility" (Thomas S's wording), instead of your skill's "Category data" and "Sources data"?
@@ -473,8 +473,7 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 7. (§5a row 25) Use the same next-step sentence on every report, rather than one written for each brand?
 8. (§9) Must every "Needs validation" be filled in before a report can be sent? (The spec assumes Yes.)
 9. (§7 step 1) Allow only pitch projects, never customer ones? (The spec assumes Yes; his example used a customer project.)
-10. (§11) Add a small line saying the report was prepared with AI assistance?
-11. (§5 row 0) For Thomas S: keep the "AIVx" name in the page's left menu, as on AIVx reports?
+10. (§5 row 0) For Thomas S: keep the "AIVx" name in the page's left menu?
 
 ## 14. Edge cases
 
