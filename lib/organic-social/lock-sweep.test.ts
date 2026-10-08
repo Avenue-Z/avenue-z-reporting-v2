@@ -30,9 +30,9 @@ test('a month before firstMonth is dropped, and Overview is swept when it is not
   expect(urls).toEqual([
     `https://app/dashboard/client-a/reports?section=organic-social&dateRange=${AUG}`,
     `https://app/dashboard/client-a/reports?section=organic-social&subsection=organic-instagram&dateRange=${AUG}`,
-    `https://app/dashboard/client-a/reports?section=organic-social&subsection=organic-facebook&dateRange=${AUG}`,
     // The Influencer tab is swept too (its request is the Instagram tab's, so no new lock row).
     `https://app/dashboard/client-a/reports?section=organic-social&subsection=organic-influencer&dateRange=${AUG}`,
+    `https://app/dashboard/client-a/reports?section=organic-social&subsection=organic-facebook&dateRange=${AUG}`,
   ])
 })
 

@@ -7,8 +7,9 @@ const client = (channels: string[] | undefined, hidden: string[] = [], influence
   ({ dashSocialConfig: { brandId: 1, channels, ...(influencerSection === undefined ? {} : { influencerSection }) }, hiddenReports: hidden } as unknown as Client)
 const ids = (c: OrganicTabsClient) => organicSocialSubsections(c).map((s) => s.id)
 
-test('the Influencer tab is the last entry, with no channel and the influencer view', () => {
-  expect(ORGANIC_SOCIAL_SUBSECTIONS.at(-1)).toEqual({ id: 'organic-influencer', label: 'Influencer', channel: null, view: 'influencer' })
+test('the Influencer tab sits directly under Instagram, with no channel and the influencer view', () => {
+  const at = ORGANIC_SOCIAL_SUBSECTIONS.findIndex((s) => s.id === 'organic-instagram')
+  expect(ORGANIC_SOCIAL_SUBSECTIONS[at + 1]).toEqual({ id: 'organic-influencer', label: 'Influencer', channel: null, view: 'influencer' })
 })
 
 test.each([
@@ -29,6 +30,7 @@ test('a hand-typed influencer subsection resolves to the first tab when the clie
   expect(resolveOrganicSubsection(c, 'organic-influencer').id).toBe('organic-instagram')
 })
 
-test('with Overview hidden the Influencer tab is still offered, after the platform tabs', () => {
-  expect(ids(client(['instagram', 'facebook'], ['organic-overview']))).toEqual(['organic-instagram', 'organic-facebook', 'organic-influencer'])
+test('with Overview hidden the report still opens on Instagram, with the Influencer tab under it', () => {
+  expect(resolveOrganicSubsection(client(['instagram', 'facebook'], ['organic-overview'])).id).toBe('organic-instagram')
+  expect(ids(client(['instagram', 'facebook'], ['organic-overview']))).toEqual(['organic-instagram', 'organic-influencer', 'organic-facebook'])
 })

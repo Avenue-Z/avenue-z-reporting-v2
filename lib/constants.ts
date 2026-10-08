@@ -203,15 +203,16 @@ export type OrganicView = 'influencer' | null
 export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null; view?: 'influencer' }[] = [
   { id: null,                  label: 'Overview',  channel: null },
   { id: 'organic-instagram',   label: 'Instagram', channel: 'INSTAGRAM' },
+  // The Influencer tab (10/6 calls): Instagram's influencer posts on their own page, directly under Instagram
+  // (my call, 2026-10-07, after the page was seen on dev). Offered only by hasInfluencerTab (the Instagram tab shown,
+  // its influencer section not hidden). It has no channel, so a client that hides Overview still opens on Instagram.
+  { id: 'organic-influencer',  label: 'Influencer', channel: null, view: 'influencer' },
   { id: 'organic-facebook',    label: 'Facebook',  channel: 'FACEBOOK' },
   { id: 'organic-linkedin',    label: 'LinkedIn',  channel: 'LINKEDIN' },
   { id: 'organic-x',           label: 'X',         channel: 'TWITTER' },
   // Last, so every existing tab keeps its place. Offered only to a client whose allowlist names
   // TikTok: a client with no allowlist resolves to the four original channels (DEFAULT_CHANNELS).
   { id: 'organic-tiktok',      label: 'TikTok',    channel: 'TIKTOK' },
-  // The Influencer tab (10/6 calls): Instagram's influencer posts on their own page, last in the list. Offered
-  // only by hasInfluencerTab (the Instagram tab shown, its influencer section not hidden).
-  { id: 'organic-influencer',  label: 'Influencer', channel: null, view: 'influencer' },
 ]
 
 /** What choosing a client's Organic Social tabs reads: its channel allowlist, its per-channel influencer section
