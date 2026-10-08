@@ -148,3 +148,15 @@ test('a preset range takes the year from the clock and shows every row', async (
   expect(readYtdTab).toHaveBeenCalledWith(ID, 'KPIs')
   expect(c.getAllByRole('img').length).toBe(6)
 })
+
+// K1: three across is decided by the card's own width (a container query), so the team menu narrowing the page can no
+// longer squeeze three rings into a card that fits one.
+test('the rings go three across by the width of the card, not of the window', async () => {
+  getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID)
+  const { container } = render(await KpiCheckInSection({ ctx: CTX }))
+  const grid = container.querySelector('svg')!.closest('.grid')!
+  expect(grid.className).toMatch(/@lg:grid-cols-3/)
+  expect(grid.className).not.toMatch(/(^|\s)sm:grid-cols-3/)
+  expect(grid.parentElement!.className).toMatch(/@container/)
+})

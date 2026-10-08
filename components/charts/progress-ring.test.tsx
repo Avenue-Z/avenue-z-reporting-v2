@@ -28,3 +28,18 @@ test('at zero there is no value arc at all, only the track', () => {
   expect(container.querySelectorAll('circle').length).toBe(1)
   expect(container.querySelector('[data-ratio]')).toBeNull()
 })
+
+// K1 (dev scorecard, 2026-10-07): a fixed 128 px ring let six-digit values and "Target: 1,000,000" spill over the arc.
+// Layout cannot be measured in jsdom, so this pins the mechanism; the fit itself was measured in the browser.
+test('the ring scales to its column up to a cap, and its text is sized from the ring, not fixed', () => {
+  const { container, getByText } = render(<ProgressRing label="Impressions/Views" value={858907} target={1000000} />)
+  const ring = container.querySelector('svg')!.parentElement!
+  expect(ring.className).toMatch(/@container/)
+  expect(ring.className).toMatch(/aspect-square/)
+  expect(ring.className).toMatch(/max-w-44/)
+  expect(ring.className).toMatch(/min-w-32/) // never smaller than the old 128 px ring, on a page squeezed by a sidebar
+  expect(ring.className.split(' ')).not.toContain('h-32') // the old fixed size
+  expect(ring.className.split(' ')).not.toContain('w-32')
+  expect(getByText('858,907').className).toMatch(/cqw/)
+  expect(getByText('Target: 1,000,000').className).toMatch(/cqw/)
+})

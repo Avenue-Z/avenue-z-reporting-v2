@@ -72,10 +72,13 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
             {ahead && !staff ? <div className="mt-4">{note}</div> : (
               <>
                 {note && <div className="mt-2">{note}</div>}
-                <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-3">
-                  <ProgressRing label="Total Followers" value={row.actual.followers} target={row.target.followers} />
-                  <ProgressRing label={impressionsLabel(row.channel)} value={row.actual.impressions} target={row.target.impressions} />
-                  <ProgressRing label="Total Engagements" value={row.actual.engagements} target={row.target.engagements} />
+                {/* Three across only when the CARD is wide enough for three readable rings (32rem), whatever the window. */}
+                <div className="@container mt-4">
+                  <div className="grid grid-cols-1 gap-4 @lg:grid-cols-3">
+                    <ProgressRing label="Total Followers" value={row.actual.followers} target={row.target.followers} />
+                    <ProgressRing label={impressionsLabel(row.channel)} value={row.actual.impressions} target={row.target.impressions} />
+                    <ProgressRing label="Total Engagements" value={row.actual.engagements} target={row.target.engagements} />
+                  </div>
                 </div>
               </>
             )}
