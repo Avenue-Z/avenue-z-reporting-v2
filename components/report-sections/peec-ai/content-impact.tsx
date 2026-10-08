@@ -53,15 +53,19 @@ import { SharedPartsHeader } from '@/components/report-sections/shared/shared-pa
 function SectionCard({
   title,
   description,
+  chart = false,
   children,
 }: {
   title: string
   description: string
+  /** A card holding a chart: one unbreakable block on its dark panel in the PDF export (app/export/export-theme.css). */
+  chart?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-      <div>
+    <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6" {...(chart ? { 'data-export-block': '', 'data-export-chart': '' } : {})}>
+      {/* In the PDF export the title stays on the page of what follows it. */}
+      <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <p className="mt-1 text-xs text-text-muted">{description}</p>
       </div>
@@ -1029,7 +1033,7 @@ export async function ContentImpactReport({
       {SHOW_AI_NARRATIVE && (
         <Suspense
           fallback={
-            <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
+            <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6" data-export-pending="">
               <div className="mb-4 h-4 w-40 animate-pulse rounded bg-white/10" />
               <div className="space-y-2">
                 <div className="h-3 w-full animate-pulse rounded bg-white/10" />
@@ -1049,8 +1053,8 @@ export async function ContentImpactReport({
 
       {/* ── Section A: KPI Strip (FB-034, Tina's 4 new metrics) ─────────── */}
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">How is content performing at a glance?</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">How is content performing at a glance?</h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-export-block="">
           {/* KPI 1 · Citation Share */}
           <KpiCard
             label="Citation Share"
@@ -1213,7 +1217,7 @@ export async function ContentImpactReport({
         title="How quickly does new content earn traffic and AI citations?"
         description="For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range."
       >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-export-block="">
           {[
             { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
             { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
@@ -1253,6 +1257,7 @@ export async function ContentImpactReport({
 
       {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
+        chart
         title="AI Bot Traffic vs. Human Traffic"
         description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data. When your selected date range is within the last 30 days, this chart follows it. Otherwise it shows the last 30 days."
       >
@@ -1261,6 +1266,7 @@ export async function ContentImpactReport({
 
       {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}
       <SectionCard
+        chart
         title="Which pages are gaining momentum and which are losing it?"
         description="Track the biggest movers over time to see which URLs are compounding, which are decaying, and where content performance is strengthening or slipping."
       >
