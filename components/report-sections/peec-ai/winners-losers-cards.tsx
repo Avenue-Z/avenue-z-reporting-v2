@@ -32,7 +32,7 @@ function PromptDeltaCard({
   emptyMessage: string
 }) {
   return (
-    <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-5 h-full">
+    <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-5 h-full" data-export-block="">
       <h3 className="text-lg font-bold text-white">{title}</h3>
       <p className="mb-4 text-sm text-text-muted">
         Prompts where we <span className="font-bold text-white">{emphasis}</span> {rest}

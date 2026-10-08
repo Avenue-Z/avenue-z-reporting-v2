@@ -101,7 +101,7 @@ export function TopDomainsTable({
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4" data-export-keep-with-next="">
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which domains do AI engines cite most?</p>
           <InfoTooltip text={PEEC.sourceMetrics.text} />

@@ -16,6 +16,7 @@ import { lookup, mergeRegistries } from '@/lib/report-sections/registry'
 import { PEEC_PARTS } from './parts/registry'
 import { BESPOKE_PARTS } from './parts/bespoke/registry'
 import { PEEC_TEMPLATE } from './template'
+import { peecWrapsAsBlock } from './parts/export-layout'
 import type { SectionOverride } from '@/lib/report-sections/types'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
@@ -55,7 +56,8 @@ function ProviderSection({
       />
       {resolved.map((r) => {
         const impl = lookup(registry, r.id, r.version)
-        return impl ? <div key={`${r.id}@${r.version}`}>{impl.render(ctx, r)}</div> : null
+        // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts).
+        return impl ? <div key={`${r.id}@${r.version}`} {...(peecWrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{impl.render(ctx, r)}</div> : null
       })}
     </div>
   )
