@@ -44,3 +44,24 @@ Also fixed, since a wrong citation is worse than none: the auth citation `app/ap
 26. Origin check on cookie-auth POST/PATCH handlers; iframe clipboard permission for the share button.
 27. Date format and timezone for the window and the footer date; which timestamp "generated" means.
 29. Migration number: regenerate it against the then-current `dev` at merge time.
+
+## Round 2 (changed lines only, fresh-eyes subagent): 0 BLOCKER, 2 MAJOR, 11 MINOR
+
+Per my process, a MAJOR in round 2 stops the review. Both go to me as decisions, with no round 3.
+
+**MAJOR (open, awaiting my decision):**
+- R2-1. Rerun has no defined way to run the pipeline. The `rerun` server action can't run inside the generate route's 270s/300s budget. Proposed: Rerun calls `POST /generate` with `{ projectId, rerunOf }`, and the editor or hub opens the new draft. Add a test.
+- R2-2. The save queue has no error rule, so a 400 (for example a model-written lead over 80 characters) can lock Approve forever. Proposed: retry only network errors and 5xx, with backoff. On 400, show the reason and keep the edit. On 403, 404 or 409, stop and show the reload message. §6's shape check enforces the §9a length limits. Add component tests.
+
+**MINOR (deferred to the plan):**
+- R2-3. §5 escaping text is garbled: `<` was written to the file as a bare `<` (my transcription error). Fix with the decision edits.
+- R2-4. Narrow the §5 claim. JSON escaping protects the `<script>` block, but Plotly still reads its own pseudo-HTML in labels (UNVERIFIED). Strip `<` and `>` from Peec strings used in figure text.
+- R2-5. The debounce lives inside the iframe, so the parent isn't dirty for 800ms. Post `{type:'dirty'}` right away; the Approve confirm re-checks.
+- R2-6. T1 must also load the fonts inside the sandboxed srcdoc iframe and the CSP-sandboxed tab (opaque origin).
+- R2-7. Send `Content-Security-Policy: sandbox allow-scripts` on `/snapshot` too.
+- R2-8. Open full size uses a no-hooks preview mode; correct the §4 wording.
+- R2-9. Name the client component folder and add its vitest glob.
+- R2-10. §7a outcomes when Peec fails at the project re-check (502), the 409 body, and hub handling per status.
+- R2-11. Tests for: computed gap, 3-attempt/20s clamp, Glean 60s rule, projects 502, null SOV as 0 in the donut, refresh poll.
+- R2-12. Nulls citation: give the docs URL and date, or mark it UNVERIFIED and add it to T3. Note `lib/peec/client.ts:81,85` types them as required.
+- R2-13. Width threshold needs a scrollbar allowance (`app/tools/layout.tsx:22`, `overflow-y-auto`).
