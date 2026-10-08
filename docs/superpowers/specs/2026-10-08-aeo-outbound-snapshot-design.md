@@ -141,12 +141,14 @@ the violations quoted back (`:216-218`). It stops at 2 attempts (`:203`).
 - If **shape** still fails, the snapshot is marked *Failed*.
 - If only **grounding** still fails, it saves as *Draft* with each violation listed in the notes panel. Ryan fixes or keeps the number.
 
-**Retrieval (UNVERIFIED):** `gleanChat` sends only `messages` and `saveChat` (`lib/glean.ts:54-65`). Whether Glean chat also
-searches company documents by default is not provable by reading. If it does, internal material could leak into copy for an
-external prospect. Mitigations:
-- The prompt says to use only the Data block and no other source.
-- T3 (§12) tests it with a probe question whose answer exists only in internal docs.
-- If retrieval is on and can't be turned off from this tool's own call, I'll bring it back to you as a decision before planning.
+**Retrieval (measured in T3, 2026-10-08):** by default Glean chat **does** search company documents. Asked who Ryan is,
+it answered from internal sources, and its reply carried `querySuggestion`, `structuredResults` and `action` fragments.
+With the prompt rule "Use ONLY the Data section. Do not search company documents, Slack, email or any other source",
+neither probe showed any of those fragments, and the full generation call didn't either. A prompt rule is not a guarantee,
+so the tool enforces it:
+- This tool makes its own chat call in `lib/aeo-outbound/glean.ts`, built from the exported `GLEAN_BASE_URL` and `getGleanHeaders` (`lib/glean.ts:6-18`), with the same body as `gleanChat` (`:54-65`). It needs its own call because `gleanChat` returns only the text (`:39-100`), and the check below needs the raw messages. `lib/glean.ts` is not changed.
+- **Search guard:** if any message carries a `querySuggestion`, `structuredResults` or `action` fragment, or any citation, the attempt counts as a violation. It retries once with the rule restated. A second violation fails the snapshot with "Copy generation used outside sources. Rerun."
+- The answer is taken from the last `GLEAN_AI` message of `messageType: CONTENT`, not the longest one. In probe B, the longest-message rule `gleanChat` uses (`:86-94`) picked a heading ("Clarifying data constraints") instead of the short answer. For long JSON output it picked correctly. The JSON parse and shape check (above) still guard both cases.
 
 The **domain check** flags any domain-like token (`word.tld`) in the copy that isn't in the Data block.
 
@@ -391,7 +393,7 @@ iframe, which is pure AIVx.
 - 24 calls, all HTTP 200, 16.1s end to end, against the 270s deadline.
 - Field names in §7 confirmed on real responses.
 - A pitch project's data window was a single day, matching Ryan's "instant snapshot" note.
-- The Glean half (retrieval probe, timing) waits on `GLEAN_INSTANCE` and `GLEAN_API_TOKEN` in `.env.local`.
+- Glean half: the default probe searched company docs, the instructed probe and the generation did not; generation took 14.8s and returned valid JSON with every slot, 3 opportunities and no em dashes. End to end, Peec plus one Glean attempt is about 31s against the 270s deadline.
 - T1 and T2 haven't run yet.
 
 ## 13. Open questions (Ryan answers close-ended; the spec uses the default in brackets)
@@ -464,6 +466,7 @@ iframe, which is pure AIVx.
   - Peec client: at most 3 attempts on a 429, delay clamped to 0-20s; Glean second attempt only with 60s or more left
   - computed competitor gaps from `mentioned_brands`; a missing SOV counts as 0 in the donut; half-to-even rounding on a `.x5` value; SOV donut pre-slices 15 rows
   - grounding: number regex, the exemptions, and recompute after a save
+  - Glean search guard: a reply with `querySuggestion`, `structuredResults`, `action` or citations counts as a violation, retries once, then fails; the answer is the last `CONTENT` message
   - `profile: null` → `Needs validation` in category and market
 - **Render:**
   - frozen HTML has no `data-slot`, no `contenteditable` and no editor script
