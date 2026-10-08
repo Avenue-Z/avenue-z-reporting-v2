@@ -38,6 +38,7 @@ import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import { parseModelsParam, serializeModelsParam, type AEOModel } from '@/lib/peec/models'
 import { isServerExportSection } from '@/lib/export/sections'
+import { resolveExportView } from '@/lib/export/report-view'
 import { ExportPdfButton } from '@/components/export-pdf-button'
 import { exportPeriodLabel } from '@/lib/export-period'
 import { DataChat } from '@/components/data-chat'
@@ -292,7 +293,8 @@ export default async function PortalReportPage({
             ? { serverExport: {
                 clientSlug,
                 section: activeSection,
-                subsection: activeSection === 'organic-social' ? (organicEntry?.id ?? null) : (subsection ?? null),
+                // The tab the page resolved, never the raw param: the route accepts only a slug-shaped tab.
+                subsection: resolveExportView(client, activeSection, subsectionParam ?? null).subsectionId,
                 dateRange: servedDateRange,
                 compareRange: servedCompareRange,
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
