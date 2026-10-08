@@ -176,7 +176,7 @@ delivers a partial file. Other sections keep #320's browser-print button.
 | Chromium launch / navigation / PDF error | 500 `{ error: 'render-failed' }` |
 
 **Operator visibility.** One log line per export: client slug, section/tab, outcome, duration, and
-the failed step (`auth`, `launch`, `navigate`, `ready`, `pdf`). Never cookie values or URLs with
+the failed step (`auth`, `launch`, `setup`, `navigate`, `ready`, `pdf`; `setup` is the cookie, new page, viewport and headers, kept apart from `launch` so a hung page call is not read as a Chromium that never started). Never cookie values or URLs with
 tokens.
 
 **Load.** One browser per request, no fan-out, manual and infrequent. Expected 5–15 s of function

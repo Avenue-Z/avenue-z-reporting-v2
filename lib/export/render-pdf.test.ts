@@ -145,3 +145,29 @@ test('a browser that closes is not killed', async () => {
   await renderPdf(opts, { launch })
   expect(kill).not.toHaveBeenCalled()
 })
+
+// Thomas, #332 round 3 (render-pdf.ts:92): the setup calls and emulateMediaType take no timeout, so they fell back to
+// puppeteer's 180 s protocol timeout, past the 60 s function limit (no log line, no close).
+test('a setup call that never answers fails as setup within the ready budget, and the browser is still closed', async () => {
+  vi.useFakeTimers()
+  const { browser, launch } = fakes()
+  vi.mocked(browser.newPage).mockImplementation(() => new Promise(() => {}))
+  const done = renderPdf({ ...opts, readyTimeoutMs: 40_000 }, { launch }).catch((e) => e)
+  await vi.advanceTimersByTimeAsync(40_000)
+  const err = await done
+  vi.useRealTimers()
+  expect([err instanceof ExportRenderError, err.step]).toEqual([true, 'setup'])
+  expect(browser.close).toHaveBeenCalled()
+})
+
+test('a media switch that never answers fails as pdf by the print deadline, with no PDF taken', async () => {
+  vi.useFakeTimers()
+  const { page, browser, launch } = fakes({ emulateMediaType: vi.fn(() => new Promise<void>(() => {})) })
+  const done = renderPdf(opts, { launch }).catch((e) => e)
+  await vi.advanceTimersByTimeAsync(55_000)
+  const err = await done
+  vi.useRealTimers()
+  expect([err instanceof ExportRenderError, err.step]).toEqual([true, 'pdf'])
+  expect(page.pdf).not.toHaveBeenCalled()
+  expect(browser.close).toHaveBeenCalled()
+})

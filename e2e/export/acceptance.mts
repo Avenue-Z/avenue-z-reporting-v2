@@ -1,12 +1,16 @@
 // Acceptance checks for the Organic Social PDF export (spec docs/superpowers/specs/2026-10-06-organic-social-pdf-export-v2-design.md §10).
 // Local only (CI has no Chromium): `npm run e2e:export`. Needs CHROME_EXECUTABLE_PATH and poppler.
+// Node: verified on 26.7.0. On Node 20 (CI's) it fails before any check with "export failed at launch": tsx cannot
+// resolve render-pdf.ts's dynamic import('puppeteer-core') (ERR_UNSUPPORTED_RESOLVE_REQUEST). That is the script
+// runner, not Chromium or the product (Next bundles the route; Vercel runs Node 24). The cutoff between is unchecked.
 //
 //  A. Deterministic: a synthetic page styled by the real export theme, printed by the real renderPdf.
 //     Every block keeps its start and end marker on one page; a title shares a page with its first block;
 //     nothing leaves the content box; an oversized block may split; a page that never reports ready is
 //     ExportNotReadyError with nothing printed.
-//  B. Live (when AUTH_SECRET is set and BASE serves a build): the real route, as a Renaissance client,
-//     for the Overview: a named PDF, stamped, inside the box, every post linked.
+//  B. Live (when AUTH_SECRET is set and BASE serves a build): the real route, as a Renaissance client, for the
+//     Overview: a named PDF, stamped, inside the box, every post linked. Then A Place for Mom's Instagram tab (locked
+//     months, YTD, annotations) as a staff editor and as a client: no editor, draft or button text, and the same print.
 import { createServer } from 'node:http'
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'

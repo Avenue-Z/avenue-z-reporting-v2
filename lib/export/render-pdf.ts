@@ -55,6 +55,14 @@ export interface BrowserLike {
 
 const isTimeout = (e: unknown) => e instanceof Error && e.name === 'TimeoutError'
 
+/** `p`, or a rejection after `ms`. For the CDP calls that take no timeout of their own: without it they fall back to
+ *  puppeteer's 180 s protocol timeout, past the function's 60 s, which would skip the log line and the browser's close. */
+function within<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([p, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms) })])
+    .finally(() => clearTimeout(timer))
+}
+
 /** Close the browser, or kill its process if closing takes longer than CLOSE_TIMEOUT_MS. Never throws. */
 async function closeBrowser(browser: BrowserLike): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -82,26 +90,31 @@ export async function renderPdf(
   }
   try {
     const target = new URL(opts.url)
+    const left = () => Math.max(1_000, budget - (Date.now() - started))
+    const pdfLeft = () => Math.max(1_000, PDF_DEADLINE_MS - (Date.now() - started))
     let page: PageLike
     try {
-      if (opts.cookies.length > 0) {
-        await browser.setCookie(...opts.cookies.map((c) => ({
-          name: c.name, value: c.value, domain: target.hostname, path: '/', httpOnly: true, secure: target.protocol === 'https:',
-        })))
-      }
-      page = await browser.newPage()
-      await page.setViewport({ width: CONTENT_WIDTH, height: CONTENT_HEIGHT })
-      // Dash's image service negotiates on Accept: Chrome's own (it lists image/webp) gets WebP even for the
-      // format=jpeg print URLs (lib/export/print-image.ts), and Chromium stores WebP losslessly in a PDF. With */* it
-      // serves the JPEG, which the PDF embeds as is. Harmless for the page's other requests.
-      await page.setExtraHTTPHeaders({ accept: '*/*' })
+      // Setup shares the ready budget: these calls have no timeout of their own (within).
+      page = await within((async () => {
+        if (opts.cookies.length > 0) {
+          await browser.setCookie(...opts.cookies.map((c) => ({
+            name: c.name, value: c.value, domain: target.hostname, path: '/', httpOnly: true, secure: target.protocol === 'https:',
+          })))
+        }
+        const p = await browser.newPage()
+        await p.setViewport({ width: CONTENT_WIDTH, height: CONTENT_HEIGHT })
+        // Dash's image service negotiates on Accept: Chrome's own (it lists image/webp) gets WebP even for the
+        // format=jpeg print URLs (lib/export/print-image.ts), and Chromium stores WebP losslessly in a PDF. With */* it
+        // serves the JPEG, which the PDF embeds as is. Harmless for the page's other requests.
+        await p.setExtraHTTPHeaders({ accept: '*/*' })
+        return p
+      })(), left())
     } catch (e) {
       throw new ExportRenderError('setup', e)
     }
 
     // The export page streams: navigation completes only once every part has resolved on the server,
     // so running out of time here is the same "still loading" as the ready wait below.
-    const left = () => Math.max(1_000, budget - (Date.now() - started))
     let res: { status(): number } | null
     try {
       res = await page.goto(opts.url, { waitUntil: 'domcontentloaded', timeout: left() })
@@ -121,10 +134,10 @@ export async function renderPdf(
     // Print what the page lays out on screen at the content width: the export page owns its styling,
     // and the app's global @media print rules (made for printing the live page) must not apply.
     try {
-      await page.emulateMediaType('screen')
+      await within(page.emulateMediaType('screen'), pdfLeft())
       return await page.pdf({
         width: '11in', height: '8.5in', margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN }, printBackground: true,
-        timeout: Math.max(1_000, PDF_DEADLINE_MS - (Date.now() - started)),
+        timeout: pdfLeft(),
       })
     } catch (e) {
       throw new ExportRenderError('pdf', e)
