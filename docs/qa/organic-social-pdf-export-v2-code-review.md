@@ -1,12 +1,14 @@
 # Code Review Record — `feat/organic-social-pdf-export-v2` (PR #332)
 
 **Feature under review:** PR #332 — `feat(export): server-rendered Organic Social PDF export (v2)`
-**Diff range reviewed:** `0b5a0a9..5e84ac4`: #320's three commits (`9139d53`, `4cf432b`, `4a62416`), the v2 commits
-(`bc146d3`..`5f0a882`, `b2f00d2`, `e4f4729`, `565c45b` for Thomas's first review, and `2a9bbe8`..`5e84ac4` for his
-second), and the merge of `dev` (`750065e`) that cleared a conflict. The merge
+**Diff range reviewed:** `0b5a0a9..60dc6ee`: #320's three commits (`9139d53`, `4cf432b`, `4a62416`), the v2 commits
+(`bc146d3`..`5f0a882`, `b2f00d2`, `e4f4729`, `565c45b` for Thomas's first review, `2a9bbe8`..`5e84ac4` for his
+second, and `60dc6ee` for his third), and the merge of `dev` (`750065e`) that cleared a conflict. The merge
 brings in other merged work from `dev`, which is out of scope here except where it touched this feature (§3 #3).
 **Supersedes:** PR #320 and its record PR #321 (`docs/qa/organic-social-pdf-export-code-review.md`), whose findings
-carry forward where still relevant.
+carry forward where still relevant. **#321 merges alongside this record** (decided on #321, 2026-10-08), so that path
+resolves and the v1 record stays next to this one in `docs/qa/`. #320 itself closes unmerged: its commits arrive
+through #332.
 **Reviewers:** Paul, Thomas.
 **This document changes no code.**
 
@@ -55,8 +57,10 @@ rule) at a **979 × 739** viewport, the content box of an 11 × 8.5 in page with
 `window.__exportReady`, switches to **screen** media (the app's global `@media print` rules are for printing the
 live page and must not apply), and prints Letter landscape. Launch, navigation and the ready wait share one **40 s**
 budget that starts before launch; out of time → `ExportNotReadyError` → **504**, and nothing is printed. `page.pdf()`
-has its own deadline, 55 s from the same start, so the whole render stays inside the route's `maxDuration = 60` with
-room for the response. The browser closes in `finally`. A PDF over 4 MB is refused (413 `too-large`) before Vercel's
+has its own deadline, 55 s from the same start. The setup calls and the switch to screen media take no timeout of their
+own, so they are raced against the same budgets (`60dc6ee`). Every step is bounded, and the whole render stays inside
+the route's `maxDuration = 60` with room for the response. The browser closes in `finally`, killed if closing takes
+over 3 s. A PDF over 4 MB is refused (413 `too-large`) before Vercel's
 4.5 MB response limit would reject it.
 
 **The export page** (`app/export/[clientSlug]/organic-social/page.tsx`) renders the **same `OrganicSocialReport`**
@@ -122,6 +126,12 @@ others are not linked), with "View post ↗" styled as a link.
     `Renaissance – Organic Social – <date>.pdf`, stamped, inside the box, **66/66 posts linked**, 11 pages,
     **2.50 MB** (gated under Vercel's 4.5 MB; all 67 images embedded as JPEG).
 - **Round 2, executed at `5e84ac4`:** `npx vitest run` 2327/2327, `tsc` clean, no lint errors in changed files.
+  `npm run e2e:export` was run on **Node 26.7.0**. On Node 20 (CI's) the script fails at launch under `tsx`, which
+  is the script runner and not the product (now noted in the script). Thomas independently confirmed these numbers on
+  Node 20 in a clean worktree, plus `check:rsc` and `next build`, and the merge `dev` + #337 + #332.
+- **Round 3, executed at `60dc6ee`:** `npx vitest run` 2329/2329, `tsc` clean, `next build`, and `npm run e2e:export`
+  all green (Node 26.7.0), live run included. The two new tests (a setup call and a media switch that never answer)
+  fail on `5e84ac4` and pass on `60dc6ee`.
   - `npm run e2e:export` adds a keep-with-next fixture with a control. Without the attribute, the title ends page 1
     alone (1 / 2); with it, the title moves with its card (2 / 2).
   - The live run adds A Place for Mom's Instagram tab (locked months, YTD v1, breakdown, annotations; August,
@@ -184,6 +194,7 @@ R = raised by the independent reviewer agent; T = raised by Thomas on #332; othe
 | T13 | ○ | PLAUSIBLE | `render-pdf.ts:17`, `:109` | The budgets started after auth and the DB read, and `browser.close()` had no bound. | **Fixed** `5e84ac4`: `startedAt`; close raced 3 s, then SIGKILL |
 | T14 | ○ | CONFIRMED | `route.ts:89` | Setup calls logged `step=unknown`; a not-ready export logged no step. | **Fixed** `5e84ac4`: `step=setup`; `step=navigate`/`ready` |
 | T15 | ○ | PLAUSIBLE | `route.ts:40` | No per-user concurrency or rate limit; each request holds a Chromium for up to ~58 s. | Follow-up (§5) |
+| T17 | ○ | CONFIRMED | `render-pdf.ts:92` | The setup calls and `emulateMediaType` had no deadline: puppeteer's 180 s protocol default applied, past `maxDuration`. | **Fixed** `60dc6ee`: raced against the ready budget / print deadline |
 | T16 | ○ | CONFIRMED | `locked-months-parity.test.tsx.snap` | Every hash was re-baselined, which could hide another change. | **Verified safe** (§2): identical to `dev` with the button removed |
 | 10 | ● | CONFIRMED | `export-annotations.tsx:24` | Found by T12's live run: the export list printed each annotation's day twice (`8/25 · 8/25 \| +42 Followers`), because a label already starts with its day. Unit fixtures used invented labels. | **Fixed** `782a8a7` |
 | 1 | ● | CONFIRMED | `post-card.tsx` (export) | Square images made a card row 387 px, so every row took a page (16 pages). | **Fixed** `bd10390`: 4:3, 11 pages |
@@ -268,7 +279,8 @@ Observability tab (Thomas: Fluid compute can put two concurrent exports, two Chr
 - **#4:** a signed-in Export PDF on the `565c45b` preview: `outcome=ok` in 9.2 s, the named PDF downloaded.
 
 **Needs a live call first**
-- One signed-in Export PDF on the preview of `5e84ac4`: the round-2 commits have only run locally.
+- One signed-in Export PDF on the preview of `60dc6ee`, as a client and as staff on a tab with YTD notes. The round-2
+  and round-3 commits have only run locally.
 
 **Follow-up (filed, not in #332)**
 - **T15:** one export at a time per user. This needs state shared across function instances (an in-memory lock holds
