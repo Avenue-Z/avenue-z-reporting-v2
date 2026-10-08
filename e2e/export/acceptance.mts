@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
-import { countLinks, outsideBox, pagesOf, readPdf, type PdfText } from './pdf-check'
+import { countLinks, fontsOf, outsideBox, pagesOf, readPdf, type PdfText } from './pdf-check'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
 const failures: string[] = []
@@ -106,6 +106,10 @@ if (!process.env.AUTH_SECRET) {
     check(pdf.pages.every((p) => p.width === 792 && p.height === 612), `${name}: ${pdf.pages.length} pages, all Letter landscape`)
     // Vercel caps a function's response body at 4.5 MB; full-size WebP post images once made this export 31 MB.
     check(bytes.length < 4_500_000, `${name}: under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
+    // Every glyph comes from a web font the page loads, never from a system font: the server's Chromium has almost none
+    // (only Open Sans), so a character borrowed from a Mac font here prints as an empty box there (↑ ↓ ↗, emoji).
+    const system = fontsOf(file).filter((f) => !/^(NunitoSans|NotoSansMath|NotoColorEmoji)/.test(f))
+    check(system.length === 0, `${name}: every glyph from the page's web fonts, none from a system font (${system.join(', ') || 'none'})`)
     console.log(`  ${name} PDF: ${file}`)
     return { res, bytes, pdf }
   }
