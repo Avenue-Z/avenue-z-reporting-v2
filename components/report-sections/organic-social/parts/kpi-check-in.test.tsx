@@ -203,3 +203,21 @@ test('a staff PDF prints the client view: a row ahead of the released month is t
   expect((await inPdf({ ...CTX, role: 'INTERNAL_ADMIN' })).container.textContent).toBe('')
   warn.mockRestore()
 })
+
+// Paul, #334 round 4 blocker: the PDF theme paints a light card (export-theme.css:43) and the brand ring colours read at
+// 1.1 to 2.5:1 on it. Each platform card is a dark chart panel in the PDF, as the line chart's is (data-export-chart,
+// export-theme.css:69-77), whatever the view and whoever exports. The attribute is inert on the live page.
+test('every platform card is a dark chart panel in the PDF, in the rings view and the note-only view, for any viewer', async () => {
+  const cards = (c: HTMLElement) => [...c.querySelectorAll('h3')].map((h) => h.closest('.rounded-lg'))
+  getClientBySlug.mockResolvedValue(onMonths({ 2026: { sheetId: ID, tab: 'KPIs' } }))
+  readYtdTab.mockResolvedValue(GRID_OCT) // Instagram's row is ahead of release (note only), LinkedIn's has rings
+  for (const role of ['CLIENT_VIEWER', 'INTERNAL_ADMIN']) {
+    const ctx = { ...CTX, role }
+    for (const ui of [render(await KpiCheckInSection({ ctx })), await inPdf(ctx)]) {
+      const found = cards(ui.container)
+      expect(found).toHaveLength(2)
+      expect(found.map((c) => c?.hasAttribute('data-export-chart'))).toEqual([true, true])
+      ui.unmount()
+    }
+  }
+})

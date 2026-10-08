@@ -76,7 +76,9 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
         return (
           <div key={row.channel} data-export-block="" className="space-y-6">
             {i === 0 && <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">KPI Check-In</h2>}
-            <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
+            {/* A dark chart panel in the PDF (export-theme.css [data-export-chart]): the brand ring colours are unreadable on
+                the light card the theme paints otherwise. Inert on the live page. */}
+            <div data-export-chart="" className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">{CHANNEL_LABEL[row.channel]}</h3>
                 {(!ahead || asStaff) && <span className="rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted">{kpiPeriodLabel(row.monthLabel, year)}</span>}
