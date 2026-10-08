@@ -96,3 +96,27 @@ test('paging past the row cap aborts', async () => {
 test('an empty key is refused up front', () => {
   expect(() => new PeecClient('')).toThrow('PEEC_AI_CUSTOMER_TOKEN is not set')
 })
+
+test('a success body that stalls past the timeout is a named error', async () => {
+  const fetch = vi.fn(async () => new Response(new ReadableStream({ start() {} }), { status: 200 }))
+  const c = new PeecClient(KEY, { fetch, now: () => 0, deadline: 50 })
+  await expect(c.call('GET', '/x')).rejects.toThrow('timed out after 50ms')
+})
+
+test('an error body that stalls past the timeout is a named error', async () => {
+  const fetch = vi.fn(async () => new Response(new ReadableStream({ start() {} }), { status: 500 }))
+  const c = new PeecClient(KEY, { fetch, now: () => 0, deadline: 50 })
+  await expect(c.call('GET', '/x')).rejects.toThrow('timed out after 50ms')
+})
+
+test('the default fetch is not called as a method of the client', async () => {
+  vi.stubGlobal('fetch', function (this: unknown) {
+    if (this !== globalThis) throw new TypeError('Illegal invocation')
+    return Promise.resolve(json({ data: [] }))
+  })
+  try {
+    await expect(new PeecClient(KEY).call('GET', '/x')).resolves.toEqual({ data: [] })
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})

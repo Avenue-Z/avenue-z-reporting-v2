@@ -46,7 +46,8 @@ export class PeecClient {
 
   constructor(private readonly key: string, opts: PeecClientOptions = {}) {
     if (!key) throw new PeecError('PEEC_AI_CUSTOMER_TOKEN is not set')
-    this.fetchImpl = opts.fetch ?? globalThis.fetch
+    // Bound so a browser-style fetch never throws "Illegal invocation" when called as a method.
+    this.fetchImpl = opts.fetch ?? globalThis.fetch.bind(globalThis)
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
     this.now = opts.now ?? Date.now
     this.deadline = opts.deadline ?? Number.POSITIVE_INFINITY
@@ -66,39 +67,59 @@ export class PeecClient {
       if (left <= 0) throw new PeecError(`[PEEC API] ${path}: deadline reached`)
       const timeoutMs = Math.min(CALL_TIMEOUT_MS, left)
       const controller = new AbortController()
+      const timeoutErr = () => new PeecError(`[PEEC API] ${path}: timed out after ${timeoutMs}ms`)
+      // Rejects when the timeout fires. Racing every await against it means a stalled body fails
+      // even if the fetch implementation ignores the signal.
+      const aborted = new Promise<never>((_, reject) => {
+        controller.signal.addEventListener('abort', () => reject(timeoutErr()), { once: true })
+      })
+      const guard = <T>(p: Promise<T>): Promise<T> => Promise.race([p, aborted])
       const timer = setTimeout(() => controller.abort(), timeoutMs)
-      let res: Response
+      let retryWait: number | null = null
+      let value: unknown
       try {
-        res = await this.fetchImpl(url.toString(), {
-          method,
-          headers: { 'x-api-key': this.key, 'Content-Type': 'application/json' },
-          body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-          signal: controller.signal,
-          cache: 'no-store',
-        })
-      } catch (e) {
-        const err = e as Error
-        if (err?.name === 'AbortError') throw new PeecError(`[PEEC API] ${path}: timed out after ${timeoutMs}ms`)
-        throw new PeecError(`[PEEC API] ${path}: request failed (${this.scrub(err?.message ?? String(e)).slice(0, 200)})`)
+        let res: Response
+        try {
+          res = await guard(this.fetchImpl(url.toString(), {
+            method,
+            headers: { 'x-api-key': this.key, 'Content-Type': 'application/json' },
+            body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+            signal: controller.signal,
+            cache: 'no-store',
+          }))
+        } catch (e) {
+          if (e instanceof PeecError) throw e
+          const err = e as Error
+          if (err?.name === 'AbortError') throw timeoutErr()
+          throw new PeecError(`[PEEC API] ${path}: request failed (${this.scrub(err?.message ?? String(e)).slice(0, 200)})`)
+        }
+        if (res.status === 429) {
+          if (attempt >= MAX_ATTEMPTS) throw new PeecError(`[PEEC API] ${path}: rate limited after ${MAX_ATTEMPTS} attempts`)
+          const wait = retryDelayMs(res.headers.get('X-RateLimit-Reset'))
+          if (wait >= this.deadline - this.now()) throw new PeecError(`[PEEC API] ${path}: rate limited, and waiting would pass the deadline`)
+          retryWait = wait
+        } else if (res.status >= 400) {
+          const body = await guard(res.text()).catch((e: unknown) => {
+            if (e instanceof PeecError) throw e
+            if (controller.signal.aborted) throw timeoutErr()
+            return ''
+          })
+          throw new PeecError(`[PEEC API] ${path}: HTTP ${res.status} (${this.scrub(body).slice(0, 200)})`)
+        } else {
+          value = await guard(res.json()).catch((e: unknown) => {
+            if (e instanceof PeecError) throw e
+            if (controller.signal.aborted) throw timeoutErr()
+            throw new PeecError(`[PEEC API] ${path}: response was not JSON`)
+          })
+        }
       } finally {
         clearTimeout(timer)
       }
-      if (res.status === 429) {
-        if (attempt >= MAX_ATTEMPTS) throw new PeecError(`[PEEC API] ${path}: rate limited after ${MAX_ATTEMPTS} attempts`)
-        const wait = retryDelayMs(res.headers.get('X-RateLimit-Reset'))
-        if (wait >= this.deadline - this.now()) throw new PeecError(`[PEEC API] ${path}: rate limited, and waiting would pass the deadline`)
-        await this.sleep(wait)
+      if (retryWait !== null) {
+        await this.sleep(retryWait)
         continue
       }
-      if (res.status >= 400) {
-        const body = await res.text().catch(() => '')
-        throw new PeecError(`[PEEC API] ${path}: HTTP ${res.status} (${this.scrub(body).slice(0, 200)})`)
-      }
-      try {
-        return await res.json()
-      } catch {
-        throw new PeecError(`[PEEC API] ${path}: response was not JSON`)
-      }
+      return value
     }
   }
 
