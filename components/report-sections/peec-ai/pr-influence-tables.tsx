@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, GA4, PR_PROOF } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { useExportMode } from '@/components/export/export-mode'
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -277,6 +278,8 @@ export function PromptClusterOpportunityMatrix({
 }: {
   rows: PromptClusterOpportunityRow[]
 }) {
+  // In the PDF export the card is one dark block (app/export/export-theme.css) and its bars draw complete.
+  const exportMode = useExportMode()
   // FB-012 — simple horizontal bar chart: Topic × % citation share from editorial sources.
   // Sorted descending so the top opportunity is at the top.
   const chartData = [...rows]
@@ -303,7 +306,7 @@ export function PromptClusterOpportunityMatrix({
         : Math.ceil(maxValue / 10) * 10
 
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6" data-export-block="" data-export-chart="">
       <SectionHeading
         title="Which prompt clusters offer the biggest PR opportunity?"
         tooltip={PEEC.citations.text}
@@ -345,7 +348,7 @@ export function PromptClusterOpportunityMatrix({
               itemStyle={{ color: '#FFFFFF' }}
               formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)}%`, 'Citation Share']}
             />
-            <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]}>
+            <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]} {...(exportMode ? { isAnimationActive: false } : {})}>
               {chartData.map((d) => (
                 <Cell key={d.topic} fill="#39A0FF" />
               ))}

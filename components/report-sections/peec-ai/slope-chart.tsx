@@ -24,6 +24,7 @@ import {
 import { computeSlopeChart } from '@/lib/peec/slope-chart'
 import type { SlopeChartInput, SlopeMetric } from '@/lib/peec/slope-chart'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 
 interface Props {
   input: SlopeChartInput
@@ -45,6 +46,11 @@ const DIRECTION_COLOR: Record<string, string> = {
 export default function SlopeChart({ input, compareActive }: Props) {
   const [metric, setMetric] = useState<SlopeMetric>('ai-referral')
   const [hoveredUrl, setHoveredUrl] = useState<string | null>(null)
+  // The PDF export prints the default metric, named as a label rather than buttons, with lines drawn complete.
+  const exportMode = useExportMode()
+  const toggles = exportMode
+    ? <p data-export-toggle-label="" className="text-xs font-semibold text-white">{TOGGLES.find((t) => t.value === metric)!.label}</p>
+    : <ToggleRow active={metric} onChange={setMetric} />
 
   if (!compareActive) {
     return (
@@ -61,7 +67,7 @@ export default function SlopeChart({ input, compareActive }: Props) {
   if (result.points.length === 0) {
     return (
       <div className="space-y-3">
-        <ToggleRow active={metric} onChange={setMetric} />
+        {toggles}
         <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">No movers in this metric for the selected periods.</p>
         </div>
@@ -90,7 +96,7 @@ export default function SlopeChart({ input, compareActive }: Props) {
 
   return (
     <div className="space-y-3">
-      <ToggleRow active={metric} onChange={setMetric} />
+      {toggles}
       <div className="flex gap-4">
         <div className="flex-1">
           <ResponsiveContainer width="100%" height={420}>
@@ -121,12 +127,13 @@ export default function SlopeChart({ input, compareActive }: Props) {
                   strokeWidth={hoveredUrl === p.url ? 3 : 2}
                   dot={{ r: 3, fill: DIRECTION_COLOR[p.direction], fillOpacity: opacityFor(p.url) }}
                   activeDot={{ r: 5, onMouseEnter: () => setHoveredUrl(p.url), onMouseLeave: () => setHoveredUrl(null) }}
+                  {...(exportMode ? { isAnimationActive: false } : {})}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <ul className="flex w-56 shrink-0 flex-col gap-1 overflow-y-auto pr-1">
+        <ul className={cn('flex w-56 shrink-0 flex-col gap-1 pr-1', exportMode ? 'overflow-visible' : 'overflow-y-auto')}>
           {legendItems.map((p) => (
             <li
               key={p.url}
