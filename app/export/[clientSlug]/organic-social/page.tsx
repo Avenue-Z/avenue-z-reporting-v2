@@ -19,6 +19,9 @@ import { OrganicSocialReport } from '@/components/report-sections/organic-social
 
 export const dynamic = 'force-dynamic'
 
+/** Arrows and symbols (Noto Sans Math) and emoji in post captions (Noto Color Emoji), which Nunito Sans lacks. */
+const EXPORT_FONTS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Math&family=Noto+Color+Emoji&display=block'
+
 const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)
 
 export default async function OrganicSocialExportPage({
@@ -47,6 +50,8 @@ export default async function OrganicSocialExportPage({
     <div className="export-theme" style={{ width: CONTENT_WIDTH }}>
       {/* The root layout paints the dark app background; the PDF is white paper. */}
       <style>{'html, body { background: #fff !important; margin: 0; }'}</style>
+      {/* The fallback fonts in export-theme.css's --font-sans. React hoists this into <head>. */}
+      <link rel="stylesheet" href={EXPORT_FONTS_URL} precedence="default" />
       <header data-export-block="" className="mb-8 flex items-end gap-4 border-b border-white/[0.08] pb-4">
         {client.logoUrl && (
           // A plain <img>: the readiness check waits on it, and next/image's lazy loading would not load it.
