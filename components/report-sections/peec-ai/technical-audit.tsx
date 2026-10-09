@@ -379,7 +379,8 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
             ))}
           </div>
         ) : (
-          <DataUnavailable label="Screaming Frog CSV not configured for client" />
+          // Setup (staff): the client's Screaming Frog crawl CSV isn't configured.
+          <DataUnavailable label="Site crawl data isn't available yet." />
         )}
       </div>
 
@@ -391,7 +392,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="What changed since the last crawl?"
           description="Issue delta between the most recent crawl and the prior crawl. New issues need immediate attention; resolved issues confirm fixes deployed."
         >
-          <DataUnavailable label="Screaming Frog CSV data unavailable" />
+          <DataUnavailable label="Site crawl data isn't available yet." />
         </SectionCard>
       )}
 
@@ -404,13 +405,14 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           <>
             <TrendSection sfData={sfData} />
             {!sfData.prev && (
+              // Setup (staff): set the client's sfPrevCsvFileId (the prior crawl CSV) to trend between crawls.
               <p className="text-[11px] text-text-muted">
-                Only one crawl snapshot available — configure sfPrevCsvFileId in database for delta trending.
+                Only one crawl so far. Changes over time appear after the next crawl.
               </p>
             )}
           </>
         ) : (
-          <DataUnavailable label="Screaming Frog CSV data unavailable" />
+          <DataUnavailable label="Site crawl data isn't available yet." />
         )}
       </SectionCard>
 
@@ -439,7 +441,8 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="Which AI platforms and bots are visiting the site?"
           description="Which AI crawlers are actively visiting the site, at what frequency, and whether they are successfully accessing content or hitting blocks."
         >
-          <DataUnavailable label="Peec agent analytics unavailable — check PEEC_AI_CUSTOMER_TOKEN and PEEC_AI_CUSTOMER_PROJECT_ID_AVENUE_Z" />
+          {/* Setup (staff): Peec agent analytics needs PEEC_AI_CUSTOMER_TOKEN and the client's Peec project id. */}
+          <DataUnavailable label="AI bot activity isn't available for this site yet." />
         </SectionCard>
       )}
 
@@ -451,7 +454,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="Where do AI activity and technical issues overlap?"
           description="Pages where AI bots are actively crawling AND where technical issues exist. Issues on AI-targeted pages have the highest priority — they directly impede LLM retrieval."
         >
-          <DataUnavailable label="Requires both Screaming Frog CSV and Peec agent analytics to cross-reference" />
+          <DataUnavailable label="Needs both site crawl data and AI bot activity." />
         </SectionCard>
       )}
 
@@ -463,7 +466,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="Where are AI crawlers wasting requests?"
           description="Unusual AI bot behavior: hits on error pages, redirect chains, and crawl budget distribution between high-value and low-value pages."
         >
-          <DataUnavailable label="Peec agent analytics unavailable" />
+          <DataUnavailable label="AI bot activity isn't available for this site yet." />
         </SectionCard>
       )}
 
@@ -473,7 +476,8 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
       ) : (
         <div>
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Is the site meeting the AEO technical checklist?</h3>
-          <DataUnavailable label="Sitebulb Historical Hint Data unavailable for client" />
+          {/* Setup (staff): the client's Sitebulb Historical Hint Data sheet isn't configured. */}
+          <DataUnavailable label="The AEO checklist isn't available for this site yet." />
         </div>
       )}
 
