@@ -19,7 +19,7 @@ this record covers AEO only. #348 has its own record (#349).
 | Technical Audit | `technical-audit{,-tables}.tsx`, `section-header.tsx` |
 | Switch-on | `lib/export/sections.ts` (`'peec-ai'`), the PR 1 tests that named AEO as off |
 | Theme | `app/export/export-theme.css`, its test; `app/export/[clientSlug]/[section]/page.tsx` (Noto Sans Mono) |
-| Tests | five new export test files, two extended, the acceptance script, AEO goldens re-baselined (attributes only) |
+| Tests | 8 new test files and 7 modified (not counting snapshots), the acceptance script, AEO goldens re-baselined (attributes only) |
 
 ---
 
@@ -48,7 +48,8 @@ the page's. What changes is the view:
   table of up to 15 printed rows is one block.
 - **Overview parts:** each pages by `parts/export-layout.ts`, held to the registry by a test; an unknown part is wrapped.
 - **Scroll boxes:** live scroll boxes (`data-export-scroll`) print in full.
-- **Truncation:** truncated text wraps (`data-export-wrap`, `[data-export-table] .truncate`).
+- **Truncation:** truncated text wraps (`data-export-wrap`, `[data-export-table] .truncate`). Two spans still printed "…" at
+  `ef1195b` (the slope legend names, the Fastest/Slowest URLs); both wrap since `22c87aa` (§6 R1, R3).
 
 **On paper.** Wide tables wrap between words with 9/11 px cells. Bright brand text colours (`#60FF80`, `#FF4444`,
 `#FFFC60`, `#60FDFF`, `#39A0FF`, as classes and inline styles) are darkened outside chart panels. `font-mono` text uses
@@ -74,8 +75,9 @@ markup are inert, and the AEO goldens gained 35 `data-export-*` attribute lines 
   - A title block with a description in a flex card: never split (`1/2/2` → `2/2/2` after `break-inside: avoid` on kept
     titles). Two earlier hypotheses, flex layout and nested flex, were disproved with fixtures first.
 - **Live acceptance** (`npm run e2e:export`, local production build, live data, Node 26.7.0): **143 checks pass.**
-  - AEO for avenue-z (all four tabs, Peec and Profound) and Renaissance (Overview and PR Influence), each as a staff
-    editor and as a client.
+  - AEO for avenue-z (all four tabs; the Overview prints Peec, because Profound is never avenue-z's first provider) and
+    Renaissance (Overview and PR Influence), each as a staff editor and as a client. The Profound Overview tables were
+    not printed live; a unit test covers them since `22c87aa` (§6 R2).
   - Each checked for:
     - no table or chart controls;
     - staff = client (same glyphs, same page starts);
@@ -118,10 +120,10 @@ external trigger unverified).
 | 8 | ● | CONFIRMED | `winners-losers-cards.tsx` | Final review: the 400 px scroll box printed 10 of up to 20 rows, the 10th cut. | **Fixed** `f1875f1` |
 | 9 | ○ | CONFIRMED | `sortable-table.tsx` | Final review: "a table short enough for a page is one block" (spec §5) had been dropped. | **Fixed** `f1875f1` (≤ 15 rows) |
 | 10 | ● | CONFIRMED | truncated cells | Final review: `truncate` spans printed "…" and lost their text (`title=` is hover-only). | **Fixed** `f1875f1` |
-| 11 | ○ | PLAUSIBLE | `sentiment-insights.tsx` | Final review: theme rows printed as buttons with a "Click a theme" hint, and were breakable. | **Fixed** `f1875f1`; no live data to view |
+| 11 | ○ | PLAUSIBLE | `sentiment-insights.tsx` | Final review: theme rows printed as buttons with a "Click a theme" hint, and were breakable. | **Fixed** `f1875f1` (blurbs); the footer still said "Open a theme…" until `22c87aa` (§6 R5); no live data to view |
 | 12 | ○ | CONFIRMED | tests | Final review: the sort test could pass sliced-before-sorted; `rowClassName`/`render` untested in export. | **Fixed** `f1875f1` |
 | 13 | ○ | CONFIRMED | `export-theme.css` (`#FF4444`) | Organic Social's negative KPI deltas now print `#b91c1c` (the remap also hits `kpi-card` / `metric-delta`). | Accepted; stated in the PR |
-| 14 | ○ | PLAUSIBLE | `export-theme.css` (inline colours) | `[style*="color:#…"]` also matches `border-color`; `background-color:#60FF8033` defeats the exclusion. | Follow-up |
+| 14 | ○ | CONFIRMED | `export-theme.css` (inline colours) | `[style*="color:#…"]` also matches `border-color`, and the background exclusion is defeated today: the UGC type pill (`color:#60FF80;background-color:#60FF8022`) kept neon text on a near-white pill. | **Fixed** `22c87aa` (§6 R4) |
 | 15 | ○ | PLAUSIBLE | `provider-tabs.tsx` | The "Peec AI" label has no keep-with-next. | Follow-up |
 | 16 | ○ | CONFIRMED | `visibility-chart.tsx` | The granularity is named only when `brandName` is set. | Follow-up |
 | 17 | ○ | CONFIRMED | `e2e/export/acceptance.mts` | Time to ready is logged, not enforced at 30 s. | Follow-up |
@@ -161,3 +163,27 @@ component adds a tinted background with bright text.
 **Cleanup**
 - #14 inline-style selector precision; #15 provider label keep-with-next; #16 visibility granularity without a brand
   name; #17 enforce the 30 s time-to-ready in acceptance.
+
+---
+
+## §6 Review round 1 (Thomas): resolutions
+
+Thomas requested changes: two should-fix items, four minors, and five record corrections. Fixed on the branch in `22c87aa` (plus the #348 fixes merged up: `7920fc2`, `3347ad3`, `81ff587`):
+
+| # | Where | Finding | Resolution |
+|---|---|---|---|
+| R1 | `slope-chart.tsx:136` (should fix) | Legend names printed with "…": the legend sat in no wrap box. | **Fixed**: the legend is `data-export-wrap`, and a name that is a URL breaks anywhere (`wrap-anywhere`, inert live under `truncate`). Test: every truncated legend name sits in a wrap box. |
+| R2 | `brand-rankings-table.tsx:89` (should fix) | The three Profound twins lacked keep-with-next, so on a Profound-first export a title could end a page alone. | **Fixed**: `profound-ai/{brand-rankings,top-domains,llm-breakdown}-table.tsx`. A Profound-first Overview test renders the parts with Profound's tables. |
+| R3 | `content-impact.tsx:1220` | The Fastest/Slowest URLs still truncated. | **Fixed**: the four cards (moved, unchanged otherwise, into `TimeToFirstCards`) are a wrap box, and the URLs break anywhere inside the card, since a URL has no spaces. |
+| R4 | `export-theme.css:93` | The UGC pill kept neon text (#14). | **Fixed**: each inline remap matches a text `color:` only, at the start of the style or after `;`. A jsdom test runs the stylesheet's own selectors against elements as the server renders them: pills in either declaration order are remapped; background-only, border-only and chart-panel elements are not. It fails on the old rules. |
+| R5 | `sentiment-insights.tsx:222` | The footer still said "Open a theme…". | **Fixed**: in export the footer drops that sentence and the one about the page lists, which don't print. |
+| R6 | `technical-audit.tsx:377` | The bot summary grid wasn't a block. | **Fixed**: `BotActivityTable` wraps its `summary` slot in a block. |
+| R7 | record lines 22, 51, 77, 121, 124 | Test counts, truncation, Profound coverage, footer, pill colour. | Corrected above. |
+| R8 | `technical-audit.tsx:409`, `:443` (not anchored) | Internal config text (`sfPrevCsvFileId`, env var names) prints in client PDFs. | Filed separately, as asked (a live-page copy change). |
+
+**Verification:**
+- `npx vitest run`: 2557/2557 on the branch. Type-check and `check:rsc` are clean.
+- Lint: no new errors. The 18 errors in these folders match the base.
+- **Live acceptance**, at the top of the stack (`018c422`): every check passed, 246.
+- **Spot checks** of the AEO PDFs: no "…" and no "Open a theme" in any of them.
+
