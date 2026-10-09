@@ -83,19 +83,27 @@
 .export-theme .text-yellow-400 { color: #a16207; }
 /* AEO's bright brand text colours, darkened for white paper; a dark chart panel keeps them as designed. Tailwind's
    arbitrary-value classes first, then the few inline styles (as the server renders them, e.g. style="color:#60FF80"),
-   which beat any stylesheet rule that isn't !important. */
+   which beat any stylesheet rule that isn't !important. An inline remap matches a text color declaration only, at the
+   start of the style or after a ';', so a pill's background-color (or a border-color) never matches, and a pill whose
+   text is neon (style="color:#60FF80;background-color:#60FF8022") is darkened. */
 .export-theme :not([data-export-chart] *).text-\[\#60FF80\] { color: #15803d; }
 .export-theme :not([data-export-chart] *).text-\[\#FF4444\] { color: #b91c1c; }
 .export-theme :not([data-export-chart] *).text-\[\#FFFC60\],
 .export-theme :not([data-export-chart] *).text-\[\#FFD700\] { color: #a16207; }
 .export-theme :not([data-export-chart] *).text-\[\#60FDFF\] { color: #0e7490; }
 .export-theme :not([data-export-chart] *).text-\[\#39A0FF\] { color: #1d4ed8; }
-.export-theme :not([data-export-chart] *)[style*="color:#60FF80" i]:not([style*="background-color:#60FF80" i]) { color: #15803d !important; }
-.export-theme :not([data-export-chart] *)[style*="color:#FF4444" i]:not([style*="background-color:#FF4444" i]),
-.export-theme :not([data-export-chart] *)[style*="color:#FF6B6B" i]:not([style*="background-color:#FF6B6B" i]) { color: #b91c1c !important; }
-.export-theme :not([data-export-chart] *)[style*="color:#FFFC60" i]:not([style*="background-color:#FFFC60" i]) { color: #a16207 !important; }
-.export-theme :not([data-export-chart] *)[style*="color:#60FDFF" i]:not([style*="background-color:#60FDFF" i]) { color: #0e7490 !important; }
-.export-theme :not([data-export-chart] *)[style*="color:#39A0FF" i]:not([style*="background-color:#39A0FF" i]) { color: #1d4ed8 !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#60FF80" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#60FF80" i] { color: #15803d !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#FF4444" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#FF4444" i],
+.export-theme :not([data-export-chart] *)[style^="color:#FF6B6B" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#FF6B6B" i] { color: #b91c1c !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#FFFC60" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#FFFC60" i] { color: #a16207 !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#60FDFF" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#60FDFF" i] { color: #0e7490 !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#39A0FF" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#39A0FF" i] { color: #1d4ed8 !important; }
 
 /* Borders */
 .export-theme .border-white\/\[0\.06\],

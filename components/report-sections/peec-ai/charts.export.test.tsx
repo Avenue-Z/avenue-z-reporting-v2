@@ -53,6 +53,16 @@ test('the slope chart prints its default metric as a label, not buttons, and its
   expect(lines.every((s) => s.props.isAnimationActive === false)).toBe(true)
 })
 
+// Thomas, #350 slope-chart.tsx:136: the legend is the only key to the lines, and its names truncate with "…" on screen
+// (the full name is a hover title). The theme un-truncates only inside [data-export-wrap] or [data-export-table].
+test("the slope chart's legend names print in full: every truncated name sits in a wrap box", () => {
+  const { container } = inExport(<SlopeChart input={SLOPE} compareActive />)
+  const names = [...container.querySelectorAll('ul .truncate')]
+  expect(names.length).toBe(2)
+  // A name is often a URL, which has no spaces to wrap at.
+  expect(names.every((n) => n.closest('[data-export-wrap]') && n.classList.contains('wrap-anywhere'))).toBe(true)
+})
+
 test('the scatter and the prompt-cluster bars draw complete; the cluster card is one dark block', () => {
   seen.length = 0
   inExport(<BotVsHumanScatter data={SCATTER} clientDomain="example.com" />)
