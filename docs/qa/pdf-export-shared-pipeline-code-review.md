@@ -2,6 +2,7 @@
 
 **Feature under review:** PR #348 — `feat(export): one export pipeline for any section (PDF export PR 1 of 3)`
 **Diff range reviewed:** `e659cfb..b9e9fd0` (`origin/dev` → PR head; six commits, `f253156`..`b9e9fd0`). No unrelated code.
+**Review fixes:** `b9e9fd0..81ff587` (Thomas's round-1 nits, three commits; §6).
 **Spec / plan:** `docs/superpowers/specs/2026-10-08-pdf-export-all-reports-design.md`,
 `docs/superpowers/plans/2026-10-08-pdf-export-pr1-shared-pipeline.md` (branch `docs/pdf-export-all-reports-spec`).
 **Reviewers:** Paul, Thomas.
@@ -79,7 +80,8 @@ mid-animation. `BarChart` marks its own panel `data-export-chart` so it stays da
   other-section case were identical.
 - **Acceptance, real Chrome** (`npm run e2e:export`, production build, Node 26.7.0, live data), all green:
   - Renaissance as a client;
-  - a body with **no section** (deploy skew) → 200, Organic Social;
+  - a body with **no section** (deploy skew) → 200. Until `7920fc2` the check proved only the 200; it now also asserts the
+    filename names Organic Social, so a default that picked another enabled section fails (Thomas, §6 R1);
   - A Place for Mom Instagram as staff and as a client, printing the same.
 
   The log lines read `section=organic-social`.
@@ -96,7 +98,7 @@ external trigger unverified).
 | # | Sev | Status | Location | Finding | Outcome |
 |---|-----|--------|----------|---------|---------|
 | 1 | ● | CONFIRMED | `app/dashboard/[clientSlug]/reports/page.tsx:91` | Live-page drift: the dashboard renders Paid Media Overview without `compareRange`; the portal passes it. The export follows the portal. | Named in the parity test; live page not changed here (§5) |
-| 2 | ● | CONFIRMED | both `reports/page.tsx` (`serverExport`) | Final review, Important: for AEO and Paid Media the button sent the raw `?subsection=`, so a tab the page shows as Overview (`Technical-Audit`, `pr_influence`, unknown) would 400 once those sections are switched on. | **Fixed** `b9e9fd0` |
+| 2 | ● | CONFIRMED | both `reports/page.tsx` (`serverExport`) | Final review, Important: for AEO and Paid Media the button sent the raw `?subsection=`, so a tab the page shows as Overview would misbehave once those sections are switched on: a tab that isn't slug-shaped (`Technical-Audit`, `pr_influence`) would 400 (the route validates `^[a-z0-9-]{1,64}$`), and a slug-shaped unknown (`not-a-tab`) passed and quietly exported Overview. | **Fixed** `b9e9fd0` |
 | 3 | ○ | CONFIRMED | `components/export/report-views.pages.test.tsx:75` | AEO with an unknown tab: the page shows no period (its `usesPageRange` is false) but the export stamps one. The test skips the case instead of naming it. | Follow-up (§5) |
 | 4 | ○ | CONFIRMED | `components/charts/bar-chart.tsx:38` | A change to the Organic Social PDF: a single-month YTD Review graph (`ytd-review.tsx:47`, a `BarChart`) now prints in the dark chart panel, unanimated, as the multi-month line chart does. | Accepted; stated in the PR |
 | 5 | ○ | CONFIRMED | `app/export/[clientSlug]/[section]/page.test.tsx:44` | Stale comment citing the deleted `organic-social-view.pages.test.tsx`. | Follow-up |
@@ -143,3 +145,21 @@ panel because the brand colours are unreadable on white. *Accepted.*
 **Cleanup**
 - #5: update the stale comment.
 - #6: add a Paid Media hidden-tab parity case.
+
+---
+
+## §6 Review round 1 (Thomas): resolutions
+
+Thomas approved with three nits and two record corrections. All are resolved on the branch (`b9e9fd0..81ff587`):
+
+| # | Where | Finding | Resolution |
+|---|---|---|---|
+| R1 | `e2e/export/acceptance.mts:129` | The no-section run proved a 200, not that the PDF is Organic Social. | **Fixed** `7920fc2`: the check asserts the filename names Organic Social. |
+| R2 | `app/api/export/pdf/route.ts:36` | A refused body logged no section or client. | **Fixed** `7920fc2`: the 400 line logs the body's `section` and `clientSlug`, JSON-quoted, U+2028/9 escaped, capped at 64 chars. The test uses `ga4`, a section no PR switches on (`3347ad3`). |
+| R3 | `lib/export/sections.ts:7` | Nothing kept a dashboard-only section out of the list. | **Fixed** `7920fc2`: documented as portal-rendered only, and a parity test fails if a section the client portal doesn't render is added. It was mutation-checked with `ai-summaries`; its first form passed blind (the portal fell back to another report), so it now enables only that section and requires the export's component. |
+| R4 | record line 82 | "→ 200, Organic Social" overstated what was proven. | Corrected in §2. |
+| R5 | record line 99 | "Unknown would 400" holds only for tabs that aren't slug-shaped. | Corrected in #2. |
+| R6 | `e2e/export/pdf-check.ts` (found during the fixes) | The acceptance reader didn't decode pdftotext's `&apos;`, so every check for text with an apostrophe ("Couldn't load…") silently never matched. | **Fixed** `81ff587`. |
+
+**Verification:** `npx vitest run` 2518/2518 at `7920fc2`; type-check, `check:rsc` and lint are clean. A live acceptance run at the top of the stack (`018c422`, which contains these) passed every check, 246, including the no-section filename check.
+
