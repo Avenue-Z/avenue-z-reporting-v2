@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 import { NoData, LoadFailed } from './no-data'
 
 // ── Shared types ────────────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ const TABS: { id: Tab; label: string; tooltip: string }[] = [
 
 function Tooltip({ text }: { text: string }) {
   return (
-    <div className="group relative flex-shrink-0">
+    <div className="group relative flex-shrink-0" data-export-hide="">
       <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
         ?
       </span>
@@ -93,6 +94,7 @@ export function ChannelTabsChart({
   const [hovered, setHovered] = useState<string | null>(null)
   const [sortBy,  setSortBy]  = useState<'sessions' | 'cvr'>('sessions')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const exportMode = useExportMode()
 
   const activeTab  = TABS.find((t) => t.id === tab)!
   const hasCompare = Object.keys(compareMap).length > 0
@@ -143,7 +145,7 @@ export function ChannelTabsChart({
   const activeTabEmpty = tab === 'conversion' && convEmpty
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5" data-export-block="" data-export-chart="" data-export-wrap="">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -156,27 +158,32 @@ export function ChannelTabsChart({
           )}
         </div>
 
-        <div className="flex gap-1 rounded-lg bg-white/[0.04] p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setTab(t.id)
-                setSortBy(t.id === 'volume' ? 'sessions' : 'cvr')
-                setSortDir('desc')
-                setHovered(null)
-              }}
-              className={cn(
-                'rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150',
-                tab === t.id
-                  ? 'bg-white/10 text-white'
-                  : 'text-text-muted hover:text-white/60'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {exportMode ? (
+          // PDF export (spec 2026-10-09 E3): the default view, named.
+          <p className="text-xs font-semibold text-white" data-export-toggle-label="">By Volume</p>
+        ) : (
+          <div className="flex gap-1 rounded-lg bg-white/[0.04] p-1">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setTab(t.id)
+                  setSortBy(t.id === 'volume' ? 'sessions' : 'cvr')
+                  setSortDir('desc')
+                  setHovered(null)
+                }}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150',
+                  tab === t.id
+                    ? 'bg-white/10 text-white'
+                    : 'text-text-muted hover:text-white/60'
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Shared column headers ── */}
@@ -185,24 +192,33 @@ export function ChannelTabsChart({
         <div className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
         <div className="hidden flex-1 sm:block" />
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-          <button
-            onClick={() => handleSort('sessions')}
-            className={cn(
-              'w-14 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:w-20',
-              sortBy === 'sessions' ? 'font-bold text-white' : 'font-bold text-text-muted hover:text-white/60'
-            )}
-          >
-            {sortBy === 'sessions' ? (sortDir === 'desc' ? '↓ ' : '↑ ') : ''}Sessions
-          </button>
-          <button
-            onClick={() => handleSort('cvr')}
-            className={cn(
-              'hidden w-16 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:block',
-              sortBy === 'cvr' ? 'font-bold text-white' : 'font-bold text-text-muted hover:text-white/60'
-            )}
-          >
-            {sortBy === 'cvr' ? (sortDir === 'desc' ? '↓ ' : '↑ ') : ''}CVR
-          </button>
+          {exportMode ? (
+            <>
+              <span className="w-14 text-right text-[10px] font-bold uppercase tracking-wider text-white sm:w-20">Sessions</span>
+              <span className="hidden w-16 text-right text-[10px] font-bold uppercase tracking-wider text-text-muted sm:block">CVR</span>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => handleSort('sessions')}
+                className={cn(
+                  'w-14 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:w-20',
+                  sortBy === 'sessions' ? 'font-bold text-white' : 'font-bold text-text-muted hover:text-white/60'
+                )}
+              >
+                {sortBy === 'sessions' ? (sortDir === 'desc' ? '↓ ' : '↑ ') : ''}Sessions
+              </button>
+              <button
+                onClick={() => handleSort('cvr')}
+                className={cn(
+                  'hidden w-16 text-right text-[10px] uppercase tracking-wider transition-colors duration-150 sm:block',
+                  sortBy === 'cvr' ? 'font-bold text-white' : 'font-bold text-text-muted hover:text-white/60'
+                )}
+              >
+                {sortBy === 'cvr' ? (sortDir === 'desc' ? '↓ ' : '↑ ') : ''}CVR
+              </button>
+            </>
+          )}
         </div>
       </div>
       )}
@@ -233,8 +249,8 @@ export function ChannelTabsChart({
                   isDimmed ? 'opacity-25' : 'opacity-100',
                   isHovered ? 'bg-white/[0.03]' : ''
                 )}
-                onMouseEnter={() => setHovered(row.name)}
-                onMouseLeave={() => setHovered(null)}
+                onMouseEnter={exportMode ? undefined : () => setHovered(row.name)}
+                onMouseLeave={exportMode ? undefined : () => setHovered(null)}
               >
                 <div className="flex items-center gap-3 px-2 py-1.5">
                   {/* Channel name — flex-1 on mobile, fixed on sm+ */}
@@ -286,26 +302,29 @@ export function ChannelTabsChart({
                         {(row.convRate * 100).toFixed(1)}%
                       </span>
                     </div>
-                    <div
-                      className={cn(
-                        'absolute inset-0 flex items-center justify-end gap-2 transition-opacity duration-150 sm:gap-3',
-                        isHovered && hasCompare ? 'opacity-100' : 'pointer-events-none opacity-0'
-                      )}
-                    >
-                      <div className="text-right">
-                        <p className="text-[10px] text-text-muted">Prior period</p>
-                        <p className="tabular-nums text-xs font-medium text-white/50">
-                          {hasPrior ? priorSessions.toLocaleString() : '—'}
-                        </p>
+                    {/* The hover layer (prior period) is not rendered in the export: invisible text would reach the PDF. */}
+                    {!exportMode && (
+                      <div
+                        className={cn(
+                          'absolute inset-0 flex items-center justify-end gap-2 transition-opacity duration-150 sm:gap-3',
+                          isHovered && hasCompare ? 'opacity-100' : 'pointer-events-none opacity-0'
+                        )}
+                      >
+                        <div className="text-right">
+                          <p className="text-[10px] text-text-muted">Prior period</p>
+                          <p className="tabular-nums text-xs font-medium text-white/50">
+                            {hasPrior ? priorSessions.toLocaleString() : '—'}
+                          </p>
+                        </div>
+                        <div className="hidden h-6 w-px bg-white/10 sm:block" />
+                        <div className="text-right">
+                          {hasPrior && <Delta current={row.sessions} prior={priorSessions} />}
+                          <p className="tabular-nums text-sm font-semibold text-white">
+                            {row.sessions.toLocaleString()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="hidden h-6 w-px bg-white/10 sm:block" />
-                      <div className="text-right">
-                        {hasPrior && <Delta current={row.sessions} prior={priorSessions} />}
-                        <p className="tabular-nums text-sm font-semibold text-white">
-                          {row.sessions.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
