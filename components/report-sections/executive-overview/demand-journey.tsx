@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 
 export interface DemandStage {
   key:         string
@@ -52,9 +53,11 @@ function MiniTooltip({ active, payload }: { active?: boolean; payload?: { value?
 
 export function DemandJourney({ stages }: DemandJourneyProps) {
   const [hovered, setHovered] = useState<string | null>(null)
+  // PDF export (spec 2026-10-09 E2): every connected card prints expanded, both labels shown, with no hover styling.
+  const exportMode = useExportMode()
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-bg-surface p-6">
+    <div className="rounded-xl border border-white/[0.06] bg-bg-surface p-6" data-export-block="" data-export-chart="">
       {/* Flow row */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:items-start lg:gap-0">
         {stages.map((stage, i) => {
@@ -66,19 +69,23 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
           const isDimmed = stage.connected !== false && hovered !== null && !isHov
           const isLast   = i === stages.length - 1
           const up       = (stage.delta ?? 0) >= 0
+          // Expanded: on hover live; in the export, every connected card (an unconnected one has nothing to reveal).
+          const open     = exportMode ? stage.connected !== false : isHov
 
           return (
             <div key={stage.key} className="flex flex-1 items-start">
               {/* ── Node card ── */}
               <div
                 className={cn(
-                  'relative flex flex-1 cursor-default flex-col overflow-hidden rounded-xl border transition-all duration-300',
+                  'relative flex flex-1 flex-col overflow-hidden rounded-xl border transition-all duration-300',
+                  !exportMode && 'cursor-default',
                   isHov    ? 'border-white/20 shadow-lg'         : 'border-white/[0.06]',
                   isDimmed ? 'opacity-25'                        : 'opacity-100',
                 )}
                 style={{ backgroundColor: isHov ? `${stage.color}0d` : 'rgba(255,255,255,0.02)' }}
-                onMouseEnter={() => { if (stage.connected !== false) setHovered(stage.key) }}
-                onMouseLeave={() => { if (stage.connected !== false) setHovered(null) }}
+                onMouseEnter={exportMode ? undefined : () => { if (stage.connected !== false) setHovered(stage.key) }}
+                onMouseLeave={exportMode ? undefined : () => { if (stage.connected !== false) setHovered(null) }}
+                data-export-block=""
               >
                 {/* Top accent bar */}
                 <div
@@ -138,20 +145,22 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                     </p>
                   )}
 
-                  {/* Hero label (shown on hover) */}
-                  <div
-                    className="overflow-hidden transition-all duration-300"
-                    style={{ maxHeight: isHov ? '40px' : '0', opacity: isHov ? 1 : 0 }}
-                  >
-                    {stage.heroLabel && (
-                      <p className="mt-0.5 text-[11px] text-text-muted">{stage.heroLabel}</p>
-                    )}
-                  </div>
+                  {/* Hero label (shown on hover). The export renders it only when shown, so no hidden text reaches the PDF. */}
+                  {(!exportMode || open) && (
+                    <div
+                      className="overflow-hidden transition-all duration-300"
+                      style={{ maxHeight: open ? '40px' : '0', opacity: open ? 1 : 0 }}
+                    >
+                      {stage.heroLabel && (
+                        <p className="mt-0.5 text-[11px] text-text-muted">{stage.heroLabel}</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Sub-metric (shown when NOT hovered) */}
                   <div
                     className="overflow-hidden transition-all duration-300"
-                    style={{ maxHeight: !isHov ? '32px' : '0', opacity: !isHov ? 1 : 0 }}
+                    style={{ maxHeight: exportMode || !isHov ? '32px' : '0', opacity: exportMode || !isHov ? 1 : 0 }}
                   >
                     {stage.subMetric && (
                       <p className="mt-0.5 text-xs text-text-muted">{stage.subMetric}</p>
@@ -175,10 +184,11 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                   )}
                 </div>
 
-                {/* ── Expanded section (revealed on hover) ── */}
+                {/* ── Expanded section (revealed on hover; always open in the export, rendered only when open) ── */}
+                {(!exportMode || open) && (
                 <div
                   className="overflow-hidden transition-all duration-500"
-                  style={{ maxHeight: isHov ? '400px' : '0' }}
+                  style={{ maxHeight: open ? (exportMode ? 'none' : '400px') : '0' }}
                 >
                   <div className="relative px-5 pb-5">
                     {/* Sparkline */}
@@ -200,6 +210,7 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                               fill={`url(#grad-${stage.key})`}
                               dot={false}
                               activeDot={{ r: 3, fill: stage.color, strokeWidth: 0 }}
+                              isAnimationActive={!exportMode}
                             />
                             <Tooltip
                               content={<MiniTooltip />}
@@ -225,6 +236,7 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                     )}
                   </div>
                 </div>
+                )}
               </div>
 
               {/* ── Connector arrow (desktop flow row only: the grid stack below lg has no row to connect) ── */}
