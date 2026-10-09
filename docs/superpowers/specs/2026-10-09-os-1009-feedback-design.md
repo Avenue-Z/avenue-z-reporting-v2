@@ -96,7 +96,7 @@ Influencer (2,109 + 2,051 + 914 + 1,033). The other 9 count 0. For a post author
 
 **New.**
 - `normalizePost` adds an optional `publicViews` to an **Instagram** post (owned and UGC feeds alike; both go through
-  `normalizePost(p, 'INSTAGRAM')`, `top-content.ts:177, 194`) when Dash's `instagram.public_views` is a finite number ≥ 0;
+  `normalizePost(p, 'INSTAGRAM')`, `top-content.ts:169, 194`) when Dash's `instagram.public_views` is a finite number ≥ 0;
   otherwise the field is absent. `TopContentPost` gains `publicViews?: number` (`content-types.ts:15-29`). Only the
   Influencer tab reads it, but it travels further: `toPayload` spreads every field (`snapshot.ts:8-11`), so every
   Instagram window frozen after deploy stores it in `top_content_snapshots` (Renaissance's production rows included), and
