@@ -18,9 +18,6 @@ export interface Slots {
   next_step: string
 }
 export const MAX_VALUE = 1000
-const GENERATED_KEYS = ['headline', 'summary', 'context', 'competitive_bullets', 'sources_bullets', 'why', 'opportunities', 'methodology', 'next_step']
-const BULLET_KEYS = ['lead', 'text']
-const OPPORTUNITY_KEYS = ['signal', 'opportunity', 'workstream']
 export const MAX_LEAD = 80
 const SCALARS = ['category', 'market', 'headline', 'summary', 'context', 'why', 'methodology', 'next_step'] as const
 type Scalar = (typeof SCALARS)[number]
@@ -73,10 +70,6 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
   const errors: string[] = []
   const o = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null
   if (!o) return { ok: false, errors: ['reply is not a JSON object'] }
-  const onlyKeys = (key: string, v: unknown, allowed: string[]): void => {
-    if (v && typeof v === 'object') for (const k of Object.keys(v)) if (!allowed.includes(k)) errors.push(`${key}: unexpected key ${k}`)
-  }
-  onlyKeys('reply', o, GENERATED_KEYS)
   const text = (key: string, v: unknown, limit = MAX_VALUE): string => {
     const c = checkValue(v, limit)
     if (!c.ok) { errors.push(`${key}: ${c.error}`); return '' }
@@ -85,10 +78,10 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
   const bullets = (key: 'competitive_bullets' | 'sources_bullets'): Bullet[] => {
     const v = o[key]
     if (!Array.isArray(v) || v.length < 2 || v.length > 3) { errors.push(`${key}: needs 2 or 3 bullets`); return [] }
-    return v.map((b, i) => (onlyKeys(`${key}.${i}`, b, BULLET_KEYS), { lead: text(`${key}.${i}.lead`, (b as Bullet)?.lead, MAX_LEAD), text: text(`${key}.${i}.text`, (b as Bullet)?.text) }))
+    return v.map((b, i) => ({ lead: text(`${key}.${i}.lead`, (b as Bullet)?.lead, MAX_LEAD), text: text(`${key}.${i}.text`, (b as Bullet)?.text) }))
   }
   const opps = Array.isArray(o.opportunities) && o.opportunities.length === 3
-    ? o.opportunities.map((x, i) => (onlyKeys(`opportunities.${i}`, x, OPPORTUNITY_KEYS), {
+    ? o.opportunities.map((x, i) => ({
         signal: text(`opportunities.${i}.signal`, (x as Opportunity)?.signal),
         opportunity: text(`opportunities.${i}.opportunity`, (x as Opportunity)?.opportunity),
         workstream: text(`opportunities.${i}.workstream`, (x as Opportunity)?.workstream),

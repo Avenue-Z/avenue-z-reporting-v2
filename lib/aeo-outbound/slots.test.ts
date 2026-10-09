@@ -61,9 +61,3 @@ test('rejects wrong shapes', () => {
   ]
   for (const c of cases) expect(validateGeneratedSlots(c, { category: 'a', market: 'b' }).ok).toBe(false)
 })
-test('rejects extra keys at any level, not only wrong types', () => {
-  const fixed = { category: 'a', market: 'b' }
-  expect(validateGeneratedSlots({ ...MODEL, extra: 'x' }, fixed).ok).toBe(false)
-  expect(validateGeneratedSlots({ ...MODEL, competitive_bullets: [{ lead: 'l', text: 't', extra: 'x' }, { lead: 'l', text: 't' }] }, fixed).ok).toBe(false)
-  expect(validateGeneratedSlots({ ...MODEL, opportunities: MODEL.opportunities.map((o) => ({ ...o, extra: 'x' })) }, fixed).ok).toBe(false)
-})
