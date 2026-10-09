@@ -19,8 +19,8 @@ export function readGleanReply(payload: unknown): GleanReply {
     (m) => (Array.isArray(m.citations) && m.citations.length > 0) || fragmentsOf(m).some((f) => SEARCH_KEYS.some((k) => f[k] != null)),
   )
   const content = msgs.filter((m) => m.author === 'GLEAN_AI' && m.messageType === 'CONTENT')
-  const last = content[content.length - 1]
-  const text = (last ? fragmentsOf(last) : []).map((f) => (typeof f.text === 'string' ? f.text : '')).join('').trim()
+  const texts = content.map((m) => fragmentsOf(m).map((f) => (typeof f.text === 'string' ? f.text : '')).join('').trim())
+  const text = texts.filter(Boolean).pop() ?? ''
   if (!text) throw new Error('Glean chat returned no answer')
   return { text, searched }
 }
@@ -33,6 +33,15 @@ export async function gleanOnce(prompt: string, signal: AbortSignal, fetchImpl: 
     body: JSON.stringify({ messages: [{ author: 'USER', fragments: [{ text: prompt }] }], saveChat: false }),
     signal,
   })
-  if (!res.ok) throw new Error(`Glean chat error ${res.status}`)
-  return readGleanReply(await res.json())
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {})
+    throw new Error(`Glean chat error ${res.status}`)
+  }
+  let payload: unknown
+  try {
+    payload = await res.json()
+  } catch {
+    throw new Error('Glean chat returned unreadable JSON')
+  }
+  return readGleanReply(payload)
 }

@@ -13,6 +13,10 @@ test('any search fragment or citation marks the reply as searched (T3 probe A)',
   }
   expect(readGleanReply({ messages: [{ author: 'GLEAN_AI', messageType: 'CONTENT', fragments: [{ text: 'x' }], citations: [{}] }] }).searched).toBe(true)
 })
+test('takes the last CONTENT message that has text, not a trailing citation-only one', () => {
+  const r = readGleanReply({ messages: [ai('CONTENT', [{ text: 'the answer' }]), ai('CONTENT', [{ citation: {} }])] })
+  expect(r).toEqual({ text: 'the answer', searched: true })
+})
 test('no answer is an error', () => {
   expect(() => readGleanReply({ messages: [ai('UPDATE', [{ text: 'x' }])] })).toThrow('no answer')
   expect(() => readGleanReply({})).toThrow('no answer')
@@ -57,4 +61,28 @@ test('gleanOnce: returns the CONTENT reply and sends saveChat false with the sig
   expect(url).toBe(`${GLEAN_BASE_URL}/chat`)
   expect(init.signal).toBe(signal)
   expect(JSON.parse(init.body as string).saveChat).toBe(false)
+})
+test('gleanOnce: sends no X-Scio-Actas header', async () => {
+  const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ messages: [ai('CONTENT', [{ text: 'hi' }])] }), { status: 200 }))
+  await gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch)
+  const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+  const names = Object.keys(init.headers as Record<string, string>).map((k) => k.toLowerCase())
+  expect(names).not.toContain('x-scio-actas')
+})
+test('gleanOnce: not configured when GLEAN_INSTANCE is missing', async () => {
+  delete process.env.GLEAN_INSTANCE
+  const fetchImpl = vi.fn()
+  await expect(gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch)).rejects.toThrow('Glean is not configured')
+  expect(fetchImpl).not.toHaveBeenCalled()
+})
+test('gleanOnce: a 200 that is not JSON throws without any body text', async () => {
+  const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('Unexpected token < secret')) }))
+  const err = await gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch).catch((e: Error) => e)
+  expect((err as Error).message).toBe('Glean chat returned unreadable JSON')
+})
+test('gleanOnce: a non-ok response releases the body before throwing', async () => {
+  const cancel = vi.fn(async () => {})
+  const fetchImpl = vi.fn(async () => ({ ok: false, status: 502, body: { cancel } }))
+  await expect(gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch)).rejects.toThrow('Glean chat error 502')
+  expect(cancel).toHaveBeenCalledTimes(1)
 })

@@ -109,6 +109,20 @@ test('typing during a retry wait keeps the retry message, and the ok clears it',
   expect(q.state.error).toBeNull()
   expect(q.state.dirty).toBe(false)
 })
+test('typing while the resend is in flight keeps the retry message until the server answers', async () => {
+  const sleep = vi.fn(() => Promise.resolve())
+  let release: (r: SendResult) => void = () => {}
+  let calls = 0
+  const send = vi.fn((): Promise<SendResult> => (++calls === 1 ? Promise.resolve({ kind: 'retry' }) : new Promise((r) => { release = r })))
+  const q = new SaveQueue(send, 0, () => {}, sleep)
+  q.markDirty('why'); q.edit('why', 'w'); await flush()
+  expect(calls).toBe(2)
+  q.markDirty('headline'); q.edit('headline', 'h')
+  expect(q.state.error).toBe("Couldn't save, retrying")
+  release({ kind: 'ok', revision: 1 }); await flush()
+  release({ kind: 'ok', revision: 2 }); await flush()
+  expect(q.state.error).toBeNull()
+})
 test('an outstanding 400 makes the queue dirty even without a keystroke', async () => {
   const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: MSG })), 0, () => {})
   q.edit(LEAD, 'x'.repeat(81)); await flush()

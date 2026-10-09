@@ -50,7 +50,7 @@ export class SaveQueue {
     this.bad.delete(path)
     this.pending.delete(path)
     this.pending.set(path, { value, stamp: this.typed.get(path) ?? 0 })
-    this.set({ error: this.waiting ? RETRY_MESSAGE : this.outstandingBad() })
+    this.set({ error: this.waiting || this.attempt > 0 ? RETRY_MESSAGE : this.outstandingBad() })
     void this.run()
   }
 

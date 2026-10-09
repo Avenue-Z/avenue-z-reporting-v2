@@ -18,3 +18,7 @@ test('favicon and share block have the expected shape', () => {
   expect(AIVX_SHARE_BLOCK).toContain('Copy failed. Please copy: ')
   expect(AIVX_SHARE_BLOCK).not.toMatch(new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`))
 })
+test('the favicon tag and share block are byte-identical to ff18697', () => {
+  expect(sha(AIVX_FAVICON_TAG)).toBe('474e6209c92fe20a4cfd3da0fe6592ca2fa2c44b540ce8f17df649fc34535a58')
+  expect(sha(AIVX_SHARE_BLOCK)).toBe('91aec6f4fb95c42a4a7d82f4f87be13e24ab6188f21be1cd7853973d9f50f801')
+})
