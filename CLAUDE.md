@@ -1042,7 +1042,8 @@ findings that were not fixed in the PR are filed as issues and linked from it.
   last day's Dash window has closed (every window ends at a fixed `T04:00:00Z`), at 04:00 UTC on the 1st of the
   next month. In January it shows the whole previous year, and in February January alone (one bar). Its past
   months taken from Dash can move if Dash revises them, because Renaissance is not locked.
-- A live client's note can be on any past day the page offers: the Day list holds only days inside the
-  range on screen (`parts/chart-notes.ts:92-103`), so a note always shows on the range it was made on.
+- A live client's note can be on any day up to today that the page offers: the Day list holds only days
+  inside the range on screen, up to today (`parts/chart-notes.ts:92-103`), so a note always shows on the
+  range it was made on.
 - The tiles' prior-year sheet read counts toward health, so an unreadable prior-year entry flags the page.
   Deliberate: it signals a broken sheet. No client has a prior-year entry until 2027.
