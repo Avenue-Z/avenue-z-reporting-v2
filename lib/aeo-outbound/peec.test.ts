@@ -1,7 +1,12 @@
-import { expect, test, vi } from 'vitest'
-import { PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
+import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
+import { isPeecTimeout, PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
 
 const KEY = 'skc-test-key-123'
+
+// The client logs each retry; keep the whole file quiet and let the one test that cares read the spy.
+let warn: MockInstance<typeof console.warn>
+beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+afterEach(() => { warn.mockRestore() })
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
 
@@ -222,16 +227,11 @@ test('a 502 whose body cancel never settles still retries and returns the 200', 
 })
 
 test('the retry is logged once, without the key', async () => {
-  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  try {
-    const fetch = vi.fn().mockResolvedValueOnce(new Response(`oops ${KEY}`, { status: 502 })).mockResolvedValueOnce(json({ data: [] }))
-    await new PeecClient(KEY, { fetch, sleep: async () => {} }).call('GET', '/x')
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(String(warn.mock.calls[0][0])).toBe('[PEEC API] /x: retrying once after HTTP 502')
-    expect(String(warn.mock.calls[0][0])).not.toContain(KEY)
-  } finally {
-    warn.mockRestore()
-  }
+  const fetch = vi.fn().mockResolvedValueOnce(new Response(`oops ${KEY}`, { status: 502 })).mockResolvedValueOnce(json({ data: [] }))
+  await new PeecClient(KEY, { fetch, sleep: async () => {} }).call('GET', '/x')
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(String(warn.mock.calls[0][0])).toBe('[PEEC API] /x: retrying once after HTTP 502')
+  expect(String(warn.mock.calls[0][0])).not.toContain(KEY)
 })
 
 test('exactly 6000ms left does not retry, 6001ms does', async () => {
@@ -256,4 +256,24 @@ test('a network failure then a 502 throws HTTP 502: one retry is shared across k
   const fetch = vi.fn().mockRejectedValueOnce(new TypeError('fetch failed')).mockResolvedValueOnce(new Response('bad', { status: 502 }))
   await expect(new PeecClient(KEY, { fetch, sleep: async () => {} }).call('GET', '/x')).rejects.toThrow('HTTP 502')
   expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('isPeecTimeout is true for a deadline and a timeout from the client, false for an HTTP error or a repeated row', async () => {
+  const deadline = await new PeecClient(KEY, { fetch: vi.fn(), now: () => 5, deadline: 5 }).call('GET', '/x').catch((e: unknown) => e)
+  expect(isPeecTimeout(deadline)).toBe(true)
+  const hang = vi.fn((_u: string, init?: RequestInit) => new Promise<Response>((_r, rej) => {
+    init?.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+  }))
+  const timedOut = await new PeecClient(KEY, { fetch: hang as unknown as typeof globalThis.fetch, deadline: Date.now() + 50 }).call('GET', '/x').catch((e: unknown) => e)
+  expect((timedOut as Error).message).toContain('timed out after')
+  expect(isPeecTimeout(timedOut)).toBe(true)
+  const http = await new PeecClient(KEY, { fetch: vi.fn(async () => new Response('bad', { status: 500 })), sleep: async () => {}, now: () => 0, deadline: 1000 }).call('GET', '/x').catch((e: unknown) => e)
+  expect((http as Error).message).toContain('HTTP 500')
+  expect(isPeecTimeout(http)).toBe(false)
+  const page = vi.fn(async () => json({ data: [{ id: 'a' }, { id: 'a' }] }))
+  const repeat = await new PeecClient(KEY, { fetch: page }).all<{ id: string }>('GET', '/x', {}, (r) => r.id, 10).catch((e: unknown) => e)
+  expect((repeat as Error).message).toContain('repeats a row')
+  expect(isPeecTimeout(repeat)).toBe(false)
+  expect(isPeecTimeout(new Error('timed out after 5ms'))).toBe(false)
+  expect(new PeecError('x').timeout).toBe(false)
 })

@@ -116,7 +116,7 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
   } else {
     notes.push('No competitors tracked in this Peec project')
   }
-  if (pull.requested.start !== pull.window.start || pull.requested.end !== pull.window.end) {
+  if (pull.rangePicked && (pull.requested.start !== pull.window.start || pull.requested.end !== pull.window.end)) {
     notes.push(`Requested ${pull.requested.start} to ${pull.requested.end}; Peec data covers ${pull.window.start} to ${pull.window.end}.`)
   }
 

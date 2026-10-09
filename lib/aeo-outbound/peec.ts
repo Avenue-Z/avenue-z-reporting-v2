@@ -10,11 +10,17 @@ const TRANSIENT_RETRY_MIN_LEFT_MS = 6000
 export const MAX_ENDPOINT_ROWS = 250_000
 
 export class PeecError extends Error {
-  constructor(message: string) {
+  /** True only for an exhausted time budget: the deadline passed or a call timed out. */
+  readonly timeout: boolean
+  constructor(message: string, timeout = false) {
     super(message)
     this.name = 'PeecError'
+    this.timeout = timeout
   }
 }
+
+/** Optional calls rethrow these instead of turning them into a warning. */
+export const isPeecTimeout = (e: unknown): boolean => e instanceof PeecError && e.timeout
 
 export interface PeecClientOptions {
   fetch?: typeof globalThis.fetch
@@ -68,10 +74,10 @@ export class PeecClient {
     let rateAttempts = 0 // 429 attempts, counted apart from the transient retry
     for (;;) {
       const left = this.deadline - this.now()
-      if (left <= 0) throw new PeecError(`[PEEC API] ${path}: deadline reached`)
+      if (left <= 0) throw new PeecError(`[PEEC API] ${path}: deadline reached`, true)
       const timeoutMs = Math.min(CALL_TIMEOUT_MS, left)
       const controller = new AbortController()
-      const timeoutErr = () => new PeecError(`[PEEC API] ${path}: timed out after ${timeoutMs}ms`)
+      const timeoutErr = () => new PeecError(`[PEEC API] ${path}: timed out after ${timeoutMs}ms`, true)
       // Rejects when the timeout fires. Racing every await against it means a stalled body fails
       // even if the fetch implementation ignores the signal.
       const aborted = new Promise<never>((_, reject) => {

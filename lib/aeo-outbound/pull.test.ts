@@ -129,3 +129,36 @@ test('a deadline or timeout in an optional call propagates instead of becoming a
   const p = fakePeec({ ...base, '/prompts': () => { throw { abort: true } } })
   await expect(pullSnapshot(p.client, 'or_a', NOW)).rejects.toThrow(/\/prompts: timed out after \d+ms$/)
 })
+
+test('a deadline or timeout on the model names propagates; any other failure gives the ids and a warning', async () => {
+  const now = () => (seen.filter((s) => (s.body?.dimensions as string[] | undefined)?.includes('model_channel_id')).length >= 2 ? 100 : 0)
+  const { client, seen } = fakePeec(base, { deadline: 50, now })
+  await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: deadline reached$/)
+  const t = fakePeec({ ...base, '/model-channels': () => { throw { abort: true } } })
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: timed out after \d+ms$/)
+  const f = fakePeec({ ...base, '/model-channels': () => { throw { status: 500 } } })
+  const pull = await pullSnapshot(f.client, 'or_a', NOW)
+  expect(pull.models).toEqual(['openai-0'])
+  expect(pull.warnings).toContain("Peec's model names could not be loaded, so models are shown by id.")
+})
+
+test('a failing by-model breakdown is non-fatal: no models and a warning; a timeout there propagates', async () => {
+  const dimBrands = base['/reports/brands']
+  const fail: Route = (u, b) => { if (b?.dimensions) throw { status: 500 }; return dimBrands(u, b) }
+  const { client } = fakePeec({ ...base, '/reports/brands': fail })
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(pull.models).toEqual([])
+  expect(pull.warnings).toContain("Peec's model breakdown could not be loaded, so the models covered are not listed.")
+  const abort: Route = (u, b) => { if (b?.dimensions) throw { abort: true }; return dimBrands(u, b) }
+  const t = fakePeec({ ...base, '/reports/brands': abort })
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/reports\/brands: timed out after \d+ms$/)
+  const dup: Route = (u, b) => (b?.dimensions ? [{ brand: { id: 'kw_own' }, visibility_total: 1 }, { brand: { id: 'kw_own' }, visibility_total: 2 }] : dimBrands(u, b))
+  const d = fakePeec({ ...base, '/reports/brands': dup })
+  expect((await pullSnapshot(d.client, 'or_a', NOW)).models).toEqual([])
+})
+
+test('rangePicked is true only when a range argument was passed', async () => {
+  expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW)).rangePicked).toBe(false)
+  expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW, undefined, null)).rangePicked).toBe(false)
+  expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })).rangePicked).toBe(true)
+})

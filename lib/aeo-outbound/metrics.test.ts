@@ -26,6 +26,7 @@ const PULL: PeecPull = {
   ownBrand: { id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] },
   profile: { industry: 'Fintech', markets: ['United States'] },
   requested: { start: '2026-09-09', end: '2026-10-08' },
+  rangePicked: true,
   window: { start: '2026-10-01', end: '2026-10-08' },
   brands: [
     { brand: { id: 'kw_b', name: 'Beta' }, visibility: 0.185, share_of_voice: 0.169, position: 3.1 },
@@ -236,10 +237,12 @@ test('worked example: roster 8, rows 6, rankAmong 7 gives n 7 and the first no-d
   expect(d.notes).toContain('2 tracked brands have no Peec data in this window and count as zero visibility.')
 })
 
-test('a note says when the data covers fewer days than were requested, and not when it covers them all', () => {
+test('a note says when the data covers fewer days than the range Ryan picked, and not when it covers them all', () => {
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes).toContain('Requested 2026-09-09 to 2026-10-08; Peec data covers 2026-10-01 to 2026-10-08.')
   const same = buildSnapshotData({ ...PULL, requested: { ...PULL.window } }, '2026-10-08T15:00:00Z')
   expect(same.notes.join(' ')).not.toContain('Requested')
+  const dflt = buildSnapshotData({ ...PULL, rangePicked: false }, '2026-10-08T15:00:00Z')
+  expect(dflt.notes.join(' ')).not.toContain('Requested')
 })
 
 test('a higher displayed visibility whose exact gap rounds to 0.0 is not a leader gap', () => {
