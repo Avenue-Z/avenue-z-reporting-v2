@@ -338,7 +338,7 @@ Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save 
 - save slot: `WHERE id AND status='draft' AND revision=$shown` → `revision+1`. 0 rows → 409, and the editor shows "This snapshot changed elsewhere. Reload."
 - approve: `WHERE id AND status='draft' AND revision=$shown AND no slot contains 'Needs validation'` → sets html (rendered from the stored data and slots), token, recipient and approved fields. One-way: no transition leaves `approved`.
 - revoke: `WHERE id AND status='approved' AND share_revoked_at IS NULL`. One-way.
-- record open: `WHERE share_token=$token AND status='approved' AND share_revoked_at IS NULL AND deleted_at IS NULL` (§8).
+- record open: `WHERE id=$id AND status='approved' AND share_revoked_at IS NULL AND deleted_at IS NULL` (§8), the id coming from the live token lookup. Doesn't touch `updated_at`.
 - copy as draft: one `INSERT … SELECT` from the source row `WHERE id AND status='approved' AND deleted_at IS NULL` (live
   or revoked). The new row is `draft` with the source's project, brand, data, slots and notes, `revision 0`,
   `rerun_of` = the source id and `created_by` = the caller. No row matched → `not found`. The source is never written.
