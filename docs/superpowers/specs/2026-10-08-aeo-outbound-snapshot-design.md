@@ -23,7 +23,8 @@ existing dashboard share links, scheduled or automatic generation.
 ## 2. Ryan's workflow (the whole UX)
 
 1. Open **Tools → New Business** (`/tools/new-business`). The hub lists every snapshot with its status.
-2. Pick a Peec project from the dropdown (pitch projects by default) and click **Generate**. A row appears as
+2. Pick a Peec project from the dropdown (pitch projects by default), optionally pick a start and end date (left empty,
+   the report covers the last 30 days), and click **Generate**. A row appears as
    *Generating*. When it finishes (§12 T3 measures how long), it becomes *Draft* and opens.
 3. **Edit.** The editor shows the real report exactly as the prospect will see it. Click any sentence and type. Changes
    save on their own ("Saving…" then "Saved" in the toolbar). Numbers and charts are locked. There is no form and no
@@ -35,7 +36,7 @@ existing dashboard share links, scheduled or automatic generation.
    report is frozen for good and the link exists.
 6. **Copy link** and send it. The recipient opens it with no login and sees only that report.
 7. **Opens.** The hub shows who the link is for, how many times it was opened, and when it was first and last opened
-   (§8). Ryan's own checks while signed in don't count. Opens are a rough signal: a count can't tell a forward from a
+   (§8). Staff checks while signed in (Ryan's own) don't count; a signed-in client's open does. Opens are a rough signal: a count can't tell a forward from a
    re-open, a second device or an email security scanner (which often opens a link within seconds of delivery). A link
    with no login can always be forwarded; Revoke is how Ryan stops it.
 8. **Revoke** (optional, confirm dialog). The link stops working immediately and permanently.
@@ -210,17 +211,17 @@ T3 confirmed that leaving out the filter returns every model: the unfiltered bra
 | 1 | `GET /projects`, paged | `id`, `name`, `status` (enum includes `PITCH`, `PITCH_ENDED`; list-projects page) | Only `PITCH` and `PITCH_ENDED` projects are listed and accepted, so a customer project can never go out on a public link. Resolved by **id** from the dropdown, so there is no name guessing. |
 | 2 | `GET /brands?project_id`, paged | `id`, `name`, `is_own`, `domains[]` (list-brands page) | Exactly one `is_own`, or fail (`aivx:lib/peec-client.ts:169-176`). Every other brand is a competitor. |
 | 3 | `GET /project-profile?project_id` | `profile.industry` → category; `profile.target_markets[].location` joined → market (get-project-profile page) | `profile: null` → both `Needs validation`. |
-| 4 | `POST /reports/domains`, `dimensions:["date"]`, 400-day discovery | `date`, `retrieved_chat_count` | Window = min/max date with retrievals > 0 (`aivx:lib/peec-client.ts:195-248`). No such day → fail. |
+| 4 | `POST /reports/domains`, `dimensions:["date"]`, over the requested range | `date`, `retrieved_chat_count` | Requested range = Ryan's dates, or the last `DECISIONS.defaultWindowDays` (30) days ending today (UTC) when he picks none. Window = min/max date with retrievals > 0 inside that range (`aivx:lib/peec-client.ts:195-248`). No such day → fail. A picked range must be valid dates, start ≤ end, end not after today, start not before today − 400 days, and at most `DECISIONS.maxWindowDays` (90) days long; otherwise generate returns 400 before any Peec call. (Changed 2026-10-09 from a 400-day discovery after Paul's review: a long-tracked project made the window its whole history and could hit the row cap.) |
 | 5 | `POST /reports/brands`, no dimensions, paged | `brand.id`, `brand.name`, `visibility` (0-1), `share_of_voice` (0-1), `position` (lower is better) | Own row must exist, or fail. |
 | 6 | `POST /reports/domains`, no dimensions, paged | `domain`, `classification`, `retrieved_chat_count`, `mentioned_brands` | `sum(retrieved_chat_count) > 0`, or fail (`aivx:peec_api_export.py:356-360`). |
-| 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id. The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
+| 7 | No call. Computed from step-6 rows. | `domain`, `retrieved_chat_count`, `mentioned_brands[].id` | Competitor domain gap = a row whose `mentioned_brands` holds no own-brand id and at least one competitor id, and which is not itself a tracked brand's site: its `classification` is not `COMPETITOR` or `OWN`, and its domain (lowercase, without `www.`) is not in any roster brand's `domains`. A rival's own homepage isn't a place the prospect can earn coverage (Paul's review). The top 4 by `retrieved_chat_count` feed the Data block. The Peec docs list a `gap` filter but don't define it, so it isn't used. T3 confirmed that a domain row's `mentioned_brands` equals the union of its URL rows' `mentioned_brands` (3 of 3 checked), and the computed gap set was a strict subset of Peec's `gap` filter result (217 of 224 domains, none outside it). |
 | 8 | `POST /actions/list`, one unpaged call, `limit 50`, default `order_by` `impact` desc (list-actions page); also one unpaged `GET /model-channels` for model names, as AIVx does (`aivx:agent/agent.py:1125-1138`) | `title`, `impact` (enum string `VERY_LOW` to `VERY_HIGH`), `type`, `status`; channel `description` | Only `status = PENDING`, first 10. Both calls are non-fatal: a failure leaves no actions (with a note) or falls back to channel ids. Feeds the opportunities (how many of the three come from Peec is question 5, §13; Ryan's example "Peec recommends" items are `SEO_ISSUE` actions). `/actions/list` takes no date window, so the Data block labels them as current Peec actions. An empty list is fine. |
 
 **Formatting and metrics** (stated here as the rounding convention Ryan's skill requires):
 - **AI visibility** = `round(visibility × 100, 1)%`. **AI share of voice** = `round(share_of_voice × 100, 1)%`. Same rule as `aivx:agent/agent.py:1312-1314`.
 - **Average answer position** = `#` + `position` to 1 decimal.
 - **Nulls:** Peec requires only `brand`, `mention_count`, `visibility`, `visibility_count` and `visibility_total` on a brands-report row; `share_of_voice` and `position` may be absent (confirmed live in T3: across 12 pitch projects `position` was missing on up to 25 of 52 brands, always brands with zero visibility; `share_of_voice` was present on every row and summed to exactly 1.0 in every project, which is what the SOV donut's "All Other Brands" remainder relies on). The dashboard's own row type treats both as required (`lib/peec/client.ts:81,85`), another reason not to reuse it. AIVx keeps those as None (`aivx:agent/agent.py:1312-1316`). Ryan's rule applies: "Use exactly four metric labels when four are validated; otherwise use three and mark any missing metric internally" (his skill, Metric strip). A missing SOV or position drops that card, leaving three, with a notes-panel entry. Because AIVx's `.kpi-strip` is a fixed 4-column grid (`aivx:renderer.py:485-487`) and the stylesheet stays byte-identical, the 3-card strip carries an inline `style="grid-template-columns:repeat(3, 1fr)"`, the same inline-override pattern AIVx uses for its long hero names (`aivx:renderer.py:1458`). A missing value is left out of the Data block. 
-- **Competitive rank** = `#{i} of {n} brands`, where rows are sorted by `(-visibility, brand.id)` (`aivx:peec_api_transform.py:98-109`) and `n` = rows returned in step 5.
+- **Competitive rank** = `#{i} of {n} brands`. `i` is standard competition ranking on the displayed visibility (one decimal): 1 + the number of brands with a higher displayed visibility, so tied brands share a rank (1, 2, 2, 4). Rows are still listed in `(-visibility, brand.id)` order (`aivx:peec_api_transform.py:98-109`). `n` = the larger of the roster size (step 2) and the rows returned in step 5, since a tracked brand with no row has no visibility; when `rankAmong` cuts the set, `n` = `rankAmong`. Leadership gaps list only brands with a higher displayed visibility whose exact gap rounds above 0.0, so the copy never says the brand trails a brand it's tied with.
 - **Rounding:** Python's `round` is half-to-even (the AIVx rule above). The TS port uses the same half-to-even rule, with a test on a `.x5` value.
 - **Brand visibility bar chart** = `build_leaderboard_chart` styling (`aivx:agent.py:2634-2694`): horizontal bars, top 10 brands by visibility (first 20 rows, then sorted, as at `:2640-2644`), colours by bar position from `CITATION_BAR_COLORS` (`:39-44`), outside labels `#A6A6A6` size 11, `bargap` 0.38, height `max(420, n*38)`. Values are visibility %, so the hover reads `Visibility: %{x}%` and the bar labels carry `%`. These are the only differences from the AIVx builder, which plots citation counts. (Replaces the SOV donut: Ryan's chart is visibility, which doesn't sum to 100%, §13 decided.)
 - **Source-type donut** = `build_earned_breakdown_chart` (`aivx:agent.py:2721-2763`) over step-6 rows grouped by `title_classification` (`aivx:peec_api_transform.py:15-32`, `OWN`→`You`) and weighted by `retrieval_count`, which matches Peec's own dashboard per the example probe (§12), slices in descending order of that weight then label. The look stays AIVx's. All classifications, per Ryan's "use classifications exactly as returned".
@@ -230,7 +231,7 @@ T3 confirmed that leaving out the filter returns every model: the unfiltered bra
 - empty brands report
 - not exactly one own brand
 - zero total retrievals
-- a repeated row across pages
+- a repeated row, across pages or within one page
 - past the row cap of 250,000 rows per endpoint (`aivx:peec_api_export.py:81`)
 
 AIVx's UPPERCASE classification guard is not ported. It protects AIVx's donut exclusion policy, which doesn't apply when every type is shown, as Ryan's rule requires. Custom classification names display verbatim.
@@ -240,18 +241,19 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
 
 ### 7a. Generate request and time budget
 
-- **Request:** `POST /api/aeo-outbound/generate`, JSON `{ projectId: string, rerunOf?: uuid }`. Generate and Rerun both use it; Rerun sends the original row's project and id. The server:
+- **Request:** `POST /api/aeo-outbound/generate`, JSON `{ projectId: string, rerunOf?: uuid, start?: 'YYYY-MM-DD', end?: 'YYYY-MM-DD' }`. Generate and Rerun both use it; Rerun sends the original row's project, id, and its stored requested range (none if the original had none). `start` and `end` come together or not at all. The server:
   1. checks staff plus the allowlist, else 403
-  2. re-checks that `projectId` is in `GET /projects` for this key with status `PITCH` or `PITCH_ENDED`, else 400 (AIVx does the same check, `aivx:lib/peec-client.ts:162-165`). If Peec itself fails here: `502 { error }`, no row created
-  3. refuses with `409 { error: 'already-generating', id }` if a row for that project is `generating` and younger than 6 minutes. A partial unique index on `(peec_project_id) WHERE status = 'generating'` makes a double-click race impossible: the second insert fails and returns the same 409
-  4. inserts the row, then runs steps 1-8 and §6 **inside the request**
+  2. validates `start` and `end` (§7 step 4), else `400 { error }` naming the rule broken, before any Peec call
+  3. re-checks that `projectId` is in `GET /projects` for this key with status `PITCH` or `PITCH_ENDED`, else 400 (AIVx does the same check, `aivx:lib/peec-client.ts:162-165`). If Peec itself fails here: `502 { error }`, no row created
+  4. refuses with `409 { error: 'already-generating', id }` if a row for that project is `generating` and younger than 6 minutes. A partial unique index on `(peec_project_id) WHERE status = 'generating'` makes a double-click race impossible: the second insert fails on that index (recognized by its constraint name, `aeo_outbound_one_generating`, never by the error code alone) and returns the same 409
+  5. inserts the row, with the requested range, then runs steps 1-8 and §6 **inside the request**
   5. responds `200 { id, status: 'draft' | 'failed', error? }`
 - **What the hub and editor do with each response:** `200 draft` opens the new draft. `200 failed` shows the reason on the row. `400` shows "This Peec project can't be used". `403` shows the access message. `409` opens the snapshot that is already generating. `502` shows "Peec is unavailable. Try again". A dropped connection or `5xx` shows "Lost connection. Refreshing" and refreshes, so the row's real status shows.
 
   No background API is used: `after()` can't be verified here, because `node_modules` isn't installed in this checkout.
 - **Deadline:** one `AbortSignal` for the whole run, firing at **270s**, which leaves 30s under `maxDuration = 300`. It is
   passed to every Peec call and to `gleanChat`, which accepts `signal` (`lib/glean.ts:41,66`).
-  - The port changes AIVx's retry numbers to fit this budget: at most **3** attempts on a 429, `X-RateLimit-Reset` clamped to **0-20s**, and a per-call timeout of `min(45s, time left)`.
+  - The port changes AIVx's retry numbers to fit this budget: at most **3** attempts on a 429, `X-RateLimit-Reset` clamped to **0-20s**, and a per-call timeout of `min(45s, time left)`. A 5xx or a network failure (not a timeout, not a 4xx) is retried once after 1s, only if that fits before the deadline (Paul's review: one blip shouldn't fail a whole generation).
   - Glean gets a second attempt only if at least 60s are left.
   - When the deadline fires, the catch runs `UPDATE … status='failed', error='Timed out at step N'` before the response.
   - A hard kill that skips the catch is covered by the stale rule (§9).
@@ -277,9 +279,10 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
 - **Recording an open:** after a live lookup, a `GET` (not `HEAD`) runs one conditional UPDATE on that row:
   `open_count + 1`, `first_opened_at` set if null, `last_opened_at = now()`, matching the same live conditions. It is not
   counted when:
-  - the request carries an Auth.js session cookie (any cookie matching `/^(__Secure-)?authjs\.session-token(\.\d+)?$/`,
-    the pattern at `app/api/export/pdf/route.ts:21`), so Ryan checking his own link doesn't count. Only the cookie's
-    presence is checked, with no session lookup; a forged cookie can only suppress a count.
+  - the viewer is signed in as Avenue Z staff, so Ryan checking his own link doesn't count. Only when the request carries
+    an Auth.js session cookie (`/^(__Secure-)?authjs\.session-token(\.\d+)?$/`, `app/api/export/pdf/route.ts:21`) does
+    the route read the session, and it skips the count only if `isStaff(session.user)` (`lib/auth/route-access.ts:8`).
+    A signed-in client-portal user counts (Paul's review). An anonymous recipient costs no session lookup.
   - the `User-Agent` contains (case-insensitive) `slackbot`, `facebookexternalhit`, `twitterbot`, `linkedinbot`,
     `discordbot`, `whatsapp`, `telegrambot`, `skypeuripreview`, `googlebot` or `bingbot`, so a link preview in a chat
     app doesn't look like an open. Email security scanners can still register one, and the hub says so.
@@ -322,6 +325,7 @@ the style of `report_commentary` (`lib/db/schema.ts:331-366`). It doesn't refere
 | `open_count` | integer not null default 0 | Opens of the live link (§8). |
 | `first_opened_at`, `last_opened_at` | timestamptz | |
 | `rerun_of` | uuid | Lineage. |
+| `requested_start`, `requested_end` | date | The range Ryan picked, or both null for the default. A check keeps them both set or both null. Rerun reuses them. |
 | `created_by`, `approved_by`, `revoked_by`, `deleted_by` | text | Emails. |
 | `created_at`, `updated_at`, `approved_at`, `share_revoked_at`, `deleted_at` | timestamptz | |
 
@@ -329,14 +333,15 @@ Checks:
 - `status='approved'` ⇔ `html IS NOT NULL AND share_token IS NOT NULL AND approved_at IS NOT NULL AND share_recipient IS NOT NULL`
 - `share_revoked_at IS NULL OR status='approved'`
 - `deleted_at IS NULL OR status IN ('draft','failed')`
+- `(requested_start IS NULL) = (requested_end IS NULL)`
 - Partial unique index `aeo_outbound_one_generating` on `(peec_project_id) WHERE status = 'generating'` (§7a).
 
 **Transitions (all single conditional UPDATEs with `.returning()`, as at `app/actions/commentary.ts:17-37`):**
-- generate: insert `generating`, then update to `draft` with data, slots and notes, or to `failed` with an error.
+- generate: insert `generating` (with the requested range, if any), then update to `draft` with data, slots and notes, or to `failed` with an error.
 Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save into, approve or revoke a discarded row
 (the race documented at `app/actions/commentary.ts:23-27`).
 - save slot: `WHERE id AND status='draft' AND revision=$shown` → `revision+1`. 0 rows → 409, and the editor shows "This snapshot changed elsewhere. Reload."
-- approve: `WHERE id AND status='draft' AND revision=$shown AND no slot contains 'Needs validation'` → sets html (rendered from the stored data and slots), token, recipient and approved fields. One-way: no transition leaves `approved`.
+- approve: `WHERE id AND status='draft' AND revision=$shown AND no slot contains 'Needs validation' (any letter case)` → sets html (rendered from the stored data and slots), token, recipient and approved fields. One-way: no transition leaves `approved`.
 - revoke: `WHERE id AND status='approved' AND share_revoked_at IS NULL`. One-way.
 - record open: `WHERE id=$id AND status='approved' AND share_revoked_at IS NULL AND deleted_at IS NULL` (§8), the id coming from the live token lookup. Doesn't touch `updated_at`.
 - copy as draft: one `INSERT … SELECT` from the source row `WHERE id AND status='approved' AND deleted_at IS NULL` (live
@@ -345,7 +350,7 @@ Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save 
 - **Hub listing:** only the columns the hub shows (never `data`, `slots`, `notes` or `html`): every live row whatever its
   age, plus the newest 500 other rows not discarded. A live link therefore can't drop off the hub, so it can always be revoked.
 - discard: `WHERE id AND (status IN ('draft','failed') OR (status='generating' AND created_at < now() - interval '6 minutes'))`. Sets `status='failed'` where it was `generating`, plus `deleted_at` and `deleted_by`.
-- rerun: the same `POST /generate` with `rerunOf` set (§7a). The new row stores `rerun_of`; the original is untouched. The editor's and hub's Rerun buttons open the new draft when it's ready.
+- rerun: the same `POST /generate` with `rerunOf` and the original's requested range (§7a). The new row stores `rerun_of` and that range; the original is untouched. The editor's and hub's Rerun buttons open the new draft when it's ready.
 - **Stale:** a `generating` row older than 6 minutes (300s `maxDuration` plus margin) displays as *Failed (timed out)*. It allows Rerun and Discard, like a failed row. No cron.
 
 ### 9a. Autosave contract
@@ -380,7 +385,7 @@ The migration is one new table (open-tracking columns included), so no existing 
 Dashboard look (dark, `globals.css` tokens, the same card classes as `app/tools/reporting/page.tsx:7-8`), apart from the
 iframe, which is pure AIVx.
 
-- **Hub:** a header "AEO Outbound Snapshot", then a "New snapshot" bar (project dropdown + **Generate**), then a table:
+- **Hub:** a header "AEO Outbound Snapshot", then a "New snapshot" bar (project dropdown, optional start and end dates, **Generate**; with no dates the report covers the last 30 days, and an invalid range shows the route's 400 reason inline), then a table:
   Brand · Peec project · Status · Created · Approved · For · Opens · Actions. **Opens** shows the count, with first
   and last opened on hover and the line "Email security scanners can count as an open".
   - The table comes from the database only.
@@ -530,6 +535,14 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
 | Two tabs editing | Revision conflict 409, reload prompt. |
 | Approve double-click | The second UPDATE matches 0 rows, so it's a no-op. |
 | Revoke while recipient has the page open | Their open page stays. The next load is 404 (`no-store`). |
+| No dates picked | The last 30 days ending today (UTC); the window is the days with data inside it. |
+| Picked range invalid (bad date, start after end, end in the future, start over 400 days back, over 90 days long) | 400 with the rule broken, shown inline; no row, no Peec call. |
+| Picked range with no data | Failed: "No day between {start} and {end} has any Peec data for this project". |
+| Brand ties a competitor on displayed visibility | Shared rank; the tied competitor isn't listed as a leader gap. |
+| Tracked competitor with no row in the window | Counted in `n`; ranks below every row. |
+| Peec 5xx or a dropped connection | Retried once after 1s if it fits before the deadline; a second failure fails the generation. |
+| `/prompts` fails | Prompt count left empty, with a note; the generation continues. |
+| Signed-in client opens a cross-sell link | Counted as an open (only staff are skipped). |
 | Link pasted into Slack, iMessage, WhatsApp and similar | The preview bot's request is served but not counted (§8). |
 | Email security scanner opens the link | Counted. The hub's hover says scanners can count. |
 | Recording an open fails | Logged with the report id; the page is still served. |
@@ -564,13 +577,14 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
   - every UPDATE matches `deleted_at IS NULL`
   - rerun refused while generating
   - stale generating
+  - the insert stores the requested range; the both-or-neither check; a 23505 is matched to its constraint by name (`aeo_outbound_one_generating` vs `aeo_outbound_reports_share_token_unique`), walking the error's cause chain
   - approve sets the recipient; the approved check needs it
   - record open: the WHERE clause matches only a live row; first opened set once, last opened and the count every time
   - copy as draft: only from an approved row (live or revoked), copies data, slots and notes, `revision 0`, `rerun_of` set, source untouched
   - hub listing: no `data`, `slots`, `notes` or `html`; a live row older than the newest 500 is still listed
 - **Routes:**
   - the public route returns the exact stored bytes and headers (including the CSP sandbox), and a byte-identical 404 for unknown, revoked and discarded tokens
-  - the public route records an open for a live `GET`, not for `HEAD`, a listed preview bot, a request with a session cookie or a 404, and still serves the same bytes when recording throws or never resolves (the 1.5s cap)
+  - the public route records an open for a live `GET`, not for `HEAD`, a listed preview bot, a staff session or a 404 (a client-portal session is counted, and no session is read without a session cookie), and still serves the same bytes when recording throws or never resolves (the 1.5s cap)
   - approve refuses an empty or too-long recipient with its message and writes nothing; `copyAsDraft` returns `{ ok: true, id }` for an approved source, `forbidden` for non-allowlisted staff and `not found` for a draft, failed or discarded source, and writes nothing on a refusal
   - the regenerated `0026` contains the new columns and the four-condition approved check, and nothing outside the new table
   - projects, generate, view and slots routes return 403 without staff plus the allowlist
@@ -580,7 +594,11 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
   - the slots route covers the full §9a table: each path form, bad path 400, empty or too-long value 400, stale 409, not-draft 409
   - generate: unknown or non-pitch `projectId` 400, Peec failure at the re-check 502, a second generate for the same project 409 (also under a simulated race via the unique index), `rerunOf` stored and the original untouched, deadline → `failed` with the step named, shape failure → failed, grounding-only failure → draft with notes
   - projects route: Peec failure → 502
-  - Peec client: at most 3 attempts on a 429, delay clamped to 0-20s; Glean second attempt only with 60s or more left
+  - Peec client: at most 3 attempts on a 429, delay clamped to 0-20s; one retry after 1s on a 5xx or a network failure, none on a timeout or a 4xx, none past the deadline; a repeated key within one page is refused; Glean second attempt only with 60s or more left
+  - pull: default range is the last 30 days ending today; a picked range is used as given; each invalid range is refused with its rule; `/prompts` failing leaves the count null with a warning
+  - metrics: gap sites exclude `COMPETITOR` and `OWN` classifications and every roster brand's domains; shared ranks on displayed ties; `n` counts roster brands with no row; no zero leader gaps
+  - `needsValidationPaths` matches any letter case
+  - opens: a request with a staff session isn't counted; a client-portal session and an anonymous request are
   - computed competitor gaps from `mentioned_brands`; half-to-even rounding on a `.x5` value; SOV donut pre-slices 15 rows
   - grounding: number regex, the exemptions, and recompute after a save
   - Glean search guard: a reply with `querySuggestion`, `structuredResults`, `action` or citations counts as a violation, retries once, then fails; the answer is the last `CONTENT` message
