@@ -111,7 +111,8 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
     notes.push(cut
       ? `Rank is by visibility among ${rankN} of the ${totalBrands} brands tracked in Peec: the brand and the competitors with the highest visibility.`
       : `Rank is by visibility among the ${rankN} brands tracked in Peec.`)
-    if (noData > 0) notes.push(`${noData} tracked brands have no Peec data in this window and count as zero visibility.`)
+    if (noData === 1) notes.push('1 tracked brand has no Peec data in this window and counts as zero visibility.')
+    else if (noData > 1) notes.push(`${noData} tracked brands have no Peec data in this window and count as zero visibility.`)
   } else {
     notes.push('No competitors tracked in this Peec project')
   }

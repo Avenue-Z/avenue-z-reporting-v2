@@ -222,7 +222,7 @@ test('a roster brand with no row counts in n and the k note, and is not in brand
   expect(d.rankN).toBe(3)
   expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 3 brands' })
   expect(d.notes).toContain('Rank is by visibility among the 3 brands tracked in Peec.')
-  expect(d.notes).toContain('1 tracked brands have no Peec data in this window and count as zero visibility.')
+  expect(d.notes).toContain('1 tracked brand has no Peec data in this window and counts as zero visibility.')
 })
 
 test('worked example: roster 8, rows 6, rankAmong 7 gives n 7 and the first no-data competitor by id fills the last slot', () => {
@@ -240,4 +240,12 @@ test('a note says when the data covers fewer days than were requested, and not w
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes).toContain('Requested 2026-09-09 to 2026-10-08; Peec data covers 2026-10-01 to 2026-10-08.')
   const same = buildSnapshotData({ ...PULL, requested: { ...PULL.window } }, '2026-10-08T15:00:00Z')
   expect(same.notes.join(' ')).not.toContain('Requested')
+})
+
+test('a higher displayed visibility whose exact gap rounds to 0.0 is not a leader gap', () => {
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A')]
+  const brands = [ROW('kw_own', 'Own', 0.12349), ROW('kw_a', 'A', 0.12351)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+  expect(d.own.rank).toBe(2)
+  expect(d.leaderGaps).toEqual([])
 })
