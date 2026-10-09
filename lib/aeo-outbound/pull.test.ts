@@ -1,6 +1,10 @@
-import { expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { PeecClient } from './peec'
 import { listProjects, pullSnapshot } from './pull'
+
+// The client logs each retry; keep the file quiet.
+beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+afterEach(() => { vi.restoreAllMocks() })
 
 type Route = (url: URL, body: Record<string, unknown> | null) => unknown
 function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number } = {}) {
