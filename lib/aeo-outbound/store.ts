@@ -108,7 +108,7 @@ export async function getLiveByToken(token: string): Promise<{ id: string; html:
 /** Counts one open of a live link. Leaves updated_at alone: an open is not an edit. Returns no rows. */
 export function recordOpenQuery(id: string, now: Date) {
   return db.update(t)
-    .set({ openCount: sql`${t.openCount} + 1`, firstOpenedAt: sql`coalesce(${t.firstOpenedAt}, ${now.toISOString()})`, lastOpenedAt: now })
+    .set({ openCount: sql`${t.openCount} + 1`, firstOpenedAt: sql`coalesce(${t.firstOpenedAt}, ${now.toISOString()}::timestamptz)`, lastOpenedAt: now })
     .where(and(eq(t.id, id), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
 }
 
@@ -119,7 +119,7 @@ export function copyAsDraftQuery(sourceId: string, by: string, now: Date) {
   return sql`insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", 'draft', "data", "slots", "notes", "id", ${by}, ${at}::timestamptz, ${at}::timestamptz from "aeo_outbound_reports" where "id" = ${sourceId} and "status" = 'approved' and "deleted_at" is null returning "id"`
 }
 
-/** The new draft's id, or undefined when the source is not a live approved row (a lost race matches nothing). */
+/** The new draft's id, or undefined when the source is not an approved (live or revoked) row (a lost race matches nothing). */
 export async function copyAsDraft(sourceId: string, by: string, now: Date): Promise<string | undefined> {
   if (!isReportId(sourceId)) return undefined
   const res = await db.execute(copyAsDraftQuery(sourceId, by, now))
@@ -128,6 +128,7 @@ export async function copyAsDraft(sourceId: string, by: string, now: Date): Prom
 
 const hubColumns = {
   id: t.id,
+  peecProjectId: t.peecProjectId,
   peecProjectName: t.peecProjectName,
   brandName: t.brandName,
   status: t.status,

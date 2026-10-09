@@ -67,19 +67,19 @@ test('the token lookup requires approved and excludes revoked and deleted rows',
 test('recording an open bumps the count on a live link only and leaves updated_at alone', () => {
   const q = recordOpenQuery(ID, NOW).toSQL()
   expect(q.sql).toBe(
-    `update ${T} set "open_count" = ${T}."open_count" + 1, "first_opened_at" = coalesce(${T}."first_opened_at", $1), "last_opened_at" = $2 where (${T}."id" = $3 and ${T}."status" = $4 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null)`)
+    `update ${T} set "open_count" = ${T}."open_count" + 1, "first_opened_at" = coalesce(${T}."first_opened_at", $1::timestamptz), "last_opened_at" = $2 where (${T}."id" = $3 and ${T}."status" = $4 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null)`)
   expect(q.params).toEqual([NOW_ISO, NOW_ISO, ID, 'approved'])
   expect(q.sql).not.toContain('"updated_at"')
 })
 
-test('Edit a copy is one insert-select from a live approved row', () => {
+test('Edit a copy is one insert-select from an approved (live or revoked) row', () => {
   const q = new PgDialect().sqlToQuery(copyAsDraftQuery(ID, 'ryan@avenuez.com', NOW))
   expect(q.sql).toBe(
     'insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", \'draft\', "data", "slots", "notes", "id", $1, $2::timestamptz, $3::timestamptz from "aeo_outbound_reports" where "id" = $4 and "status" = \'approved\' and "deleted_at" is null returning "id"')
   expect(q.params).toEqual(['ryan@avenuez.com', NOW_ISO, NOW_ISO, ID])
 })
 
-const HUB_COLS = '"id", "peec_project_name", "brand_name", "status", "error", "share_token", "share_recipient", "open_count", "first_opened_at", "last_opened_at", "created_at", "approved_at", "share_revoked_at"'
+const HUB_COLS = '"id", "peec_project_id", "peec_project_name", "brand_name", "status", "error", "share_token", "share_recipient", "open_count", "first_opened_at", "last_opened_at", "created_at", "approved_at", "share_revoked_at"'
 test('hub summaries select exactly the hub columns and never the heavy ones', () => {
   const live = liveSummariesQuery().toSQL()
   expect(live.sql).toBe(

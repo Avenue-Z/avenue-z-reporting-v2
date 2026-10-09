@@ -19,3 +19,9 @@ test('exactly 200 characters passes', () => {
   expect(MAX_RECIPIENT).toBe(200)
   expect(cleanRecipient('a'.repeat(200))).toEqual({ ok: true, value: 'a'.repeat(200) })
 })
+
+test('the limit applies after cleaning, not to the raw input', () => {
+  const raw = `   ${'a'.repeat(200)}   \n`
+  expect(raw.length).toBeGreaterThan(200)
+  expect(cleanRecipient(raw)).toEqual({ ok: true, value: 'a'.repeat(200) })
+})
