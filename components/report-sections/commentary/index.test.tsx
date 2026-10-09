@@ -1,6 +1,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { render } from '@testing-library/react'
 import type { CommentaryEntry } from '@/lib/commentary/types'
+import { INSIGHTS_OUTLINE } from '@/lib/commentary/labels'
 
 // Capture the props that actually cross the RSC → client boundary.
 // This is the point of the test: NOT what renders, but what ships.
@@ -39,9 +40,11 @@ const ENTRIES: CommentaryEntry[] = [
   },
 ]
 
+// Rows per view key, when a test sets them; otherwise every key gets ENTRIES (the boundary tests above).
+const rows = vi.hoisted(() => ({ byKey: null as Record<string, unknown[]> | null }))
 vi.mock('@/lib/db/queries', () => ({
   getClientBySlug: async () => ({ id: 'client-1', slug: 'acme' }),
-  getCommentaryForView: async () => ENTRIES,
+  getCommentaryForView: async (_clientId: string, viewKey: string) => (rows.byKey ? rows.byKey[viewKey] ?? [] : ENTRIES),
 }))
 
 // Render the async RSC and hand its element to the DOM so the mocked panel runs.
@@ -110,5 +113,49 @@ describe('CommentarySection — RSC boundary', () => {
 
     const entries = props?.entries as CommentaryEntry[]
     expect(entries.map((x) => x.id)).toEqual(['live'])
+  })
+})
+
+describe('CommentarySection: labels and the Recommendations key', () => {
+  beforeEach(() => { captured = null })
+
+  test('labels reach the panel and default to Insights', async () => {
+    mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
+    const { CommentarySection } = await import('./index')
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai' }))
+    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Insights', noun: 'insights', outline: INSIGHTS_OUTLINE })
+    captured = null
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai', labels: { title: 'Recommendations', noun: 'recommendations', outline: null } }))
+    expect((captured as Record<string, unknown> | null)?.labels).toEqual({ title: 'Recommendations', noun: 'recommendations', outline: null })
+  })
+
+  test('a client viewer of a Recommendations key gets the same redaction as Insights', async () => {
+    mockAuth.mockResolvedValue({ user: { email: 'viewer@client.example' } })
+    const { CommentarySection } = await import('./index')
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:recommendations', labels: { title: 'Recommendations', noun: 'recommendations', outline: null } }))
+    const payload = JSON.stringify(captured)
+    expect(payload).not.toContain('SUPERSEDED SECRET')
+    expect(payload).not.toContain('DELETED SECRET')
+    expect(payload).not.toContain('@avenuez.com')
+  })
+
+  test('each box reads only the rows of its own key: one client, one tab, two keys, two rows', async () => {
+    const row = (id: string, viewKey: string) => ({ ...ENTRIES[0], id, viewKey })
+    rows.byKey = {
+      'organic-social:instagram': [row('insight-row', 'organic-social:instagram')],
+      'organic-social:instagram:recommendations': [row('recommendation-row', 'organic-social:instagram:recommendations')],
+    }
+    try {
+      mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
+      const { CommentarySection } = await import('./index')
+      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram' }))
+      const insights = (captured as unknown as { entries: { id: string }[] }).entries.map((e) => e.id)
+      captured = null
+      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'organic-social:instagram:recommendations', labels: { title: 'Recommendations', noun: 'recommendations', outline: null } }))
+      const recommendations = (captured as unknown as { entries: { id: string }[] }).entries.map((e) => e.id)
+      expect([insights, recommendations]).toEqual([['insight-row'], ['recommendation-row']])
+    } finally {
+      rows.byKey = null
+    }
   })
 })

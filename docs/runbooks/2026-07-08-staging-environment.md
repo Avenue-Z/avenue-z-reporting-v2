@@ -41,12 +41,13 @@ Vercel → project → **Settings → Environments → Create Environment** → 
 
 - **Git branch:** track `staging` (every push deploys here).
 - **Domain** (pick one):
-  - **Custom subdomain (recommended):** `staging.reports.avenuez.com`. In **Settings →
-    Domains**, add it and assign to the Staging env / `staging` branch. DNS: add the CNAME
-    Vercel shows (typically `cname.vercel-dns.com`) on `staging.reports`.
-  - **No-DNS option:** use the auto branch alias
-    `avenue-z-reporting-v2-git-staging-avenue-z-technology.vercel.app` (stable; always the
-    latest `staging` deploy).
+  - **Custom subdomain (recommended):** the domain assigned to the Staging environment. Read it
+    in **Settings → Environments → Staging** (not `staging.reports`, which an earlier version of
+    this runbook named and which does not resolve). DNS: add the CNAME Vercel shows (typically
+    `cname.vercel-dns.com`) for that host.
+  - **No-DNS option:** the environment's own alias, listed on the same page, which follows every
+    `staging` deploy. Not the `...-git-staging-...` branch alias: on 2026-09-24 it was still
+    serving the previous deploy several minutes after a new one.
 
 A Custom Environment gets its **own env vars and its own Deployment Protection**, separate
 from Production and from throwaway feature previews — which is exactly what staging needs.

@@ -3,6 +3,7 @@ import { dashClientFor, isoRange, displayChannel } from './base'
 import { CHANNEL_LABEL, resolveTargets, type DashChannel } from './metrics'
 import { CONTENT_METRIC, CONTENT_ENGAGEMENT_FIELD, CONTENT_IMPRESSIONS_FIELD, CONTENT_ENGAGEMENT_RATE_FIELD, CONTENT_EFFECTIVENESS_FIELD } from './content-types'
 import { resolveCreative } from './creative'
+import { authorOf } from './post-author'
 import type { DashContentPost, TopContentPost } from './content-types'
 import type { MediaV2Response, MediaV2Post } from '@/lib/dash-social/types'
 import type { TopContentRow, PlatformTopContent } from './types'
@@ -80,13 +81,18 @@ function subObject(post: DashContentPost, channel: DashChannel): Record<string, 
     case 'FACEBOOK':  return post.facebook ?? null
     case 'LINKEDIN':  return post.linkedin ?? null
     case 'TWITTER':   return post.twitter ?? null
+    case 'TIKTOK':    return post.tiktok ?? null
   }
 }
 
 function captionUrl(sub: Record<string, unknown> | null, channel: DashChannel): { caption: string; url: string | null } {
   if (!sub) return { caption: '', url: null }
   const capKey = channel === 'FACEBOOK' ? 'message' : channel === 'TWITTER' ? 'text' : 'caption'
-  const urlKey = channel === 'LINKEDIN' ? 'linkedin_link' : channel === 'TWITTER' ? 'permalink_url' : 'url'
+  // TikTok's permalink is `share_url`; it has no `url` key at all (probed 2026-09-15).
+  const urlKey = channel === 'LINKEDIN' ? 'linkedin_link'
+    : channel === 'TWITTER' ? 'permalink_url'
+    : channel === 'TIKTOK' ? 'share_url'
+    : 'url'
   return { caption: String(sub[capKey] ?? ''), url: str(sub[urlKey]) }
 }
 
@@ -101,9 +107,13 @@ const MEDIA_TYPES = new Set(['IMAGE', 'VIDEO', 'CAROUSEL'])
 export function normalizePost(post: DashContentPost, channel: DashChannel): TopContentPost {
   const sub = subObject(post, channel)
   const { caption, url } = captionUrl(sub, channel)
-  const effectivenessRaw = sub?.[CONTENT_EFFECTIVENESS_FIELD[channel]]
+  const effectivenessField = CONTENT_EFFECTIVENESS_FIELD[channel]
+  const effectivenessRaw = effectivenessField ? sub?.[effectivenessField] : undefined
   const rateRaw = sub?.[CONTENT_ENGAGEMENT_RATE_FIELD[channel]]
   const mediaType = MEDIA_TYPES.has(post.type) ? (post.type as TopContentPost['mediaType']) : 'IMAGE'
+  // Instagram's public view count, for the Influencer tab (spec 2026-10-09 section 5). Untrusted: only a finite
+  // number of zero or more is kept; anything else leaves the field absent.
+  const pv = channel === 'INSTAGRAM' ? sub?.public_views : undefined
   return {
     id: post.id,
     channel,
@@ -121,7 +131,13 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
       impressions: n(sub?.[CONTENT_IMPRESSIONS_FIELD[channel]]),
     },
     sourceType: 'organic',
+    ...(typeof pv === 'number' && Number.isFinite(pv) && pv >= 0 ? { publicViews: pv } : {}),
   }
+}
+
+const withAuthorIf = (post: TopContentPost, raw: DashContentPost, ch: DashChannel, on: boolean | undefined): TopContentPost => {
+  const a = on ? authorOf(raw, ch) : null
+  return a ? { ...post, author: a } : post
 }
 
 /** The seam behind which "where posts come from" lives (spec 2 §2). One getContent
@@ -132,6 +148,7 @@ export async function fetchTopContent(
   slug: string,
   dateRange: string,
   channel: DashChannel | null,
+  opts: { withAuthor?: boolean; markUgc?: boolean } = {}, // outline Top Content only: owned authors, and UGC marked as UGC
 ): Promise<TopContentPost[]> {
   const { client, brandId, channels } = await dashClientFor(slug)
   // resolveTargets (not a bare filter) so a scoped channel OUTSIDE the allowlist THROWS — the
@@ -153,7 +170,7 @@ export async function fetchTopContent(
           console.warn(`[organic-social] ${ch} top-content hit the ${CONTENT_FETCH_LIMIT}-post fetch cap; ` +
             `the set is truncated in fetch order and sort-then-cap may not reflect the true top posts — raise the cap or paginate.`)
         }
-        return content.map((p) => normalizePost(p, ch))
+        return content.map((p) => withAuthorIf(normalizePost(p, ch), p, ch, opts.withAuthor))
       } catch (e) {
         if (scoped) throw e // scoped view surfaces the error (spec 1 §4.3)
         return []           // Overview drops the bad channel
@@ -178,7 +195,7 @@ export async function fetchTopContent(
         console.warn(`[organic-social] Instagram UGC top-content hit the ${CONTENT_FETCH_LIMIT}-post fetch cap; ` +
           `the set is truncated in fetch order and sort-then-cap may not reflect the true top posts — raise the cap or paginate.`)
       }
-      ugc = content.map((p) => normalizePost(p, 'INSTAGRAM'))
+      ugc = content.map((p) => { const post = normalizePost(p, 'INSTAGRAM'); return opts.markUgc ? { ...post, ugc: true as const } : post })
     } catch (e) {
       if (scoped) throw e // scoped Instagram view surfaces the error
     }

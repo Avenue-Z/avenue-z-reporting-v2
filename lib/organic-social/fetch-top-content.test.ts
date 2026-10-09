@@ -155,3 +155,113 @@ test('toTopContentRows maps normalized posts to the interim table rows', () => {
   const rows = toTopContentRows(posts)
   expect(rows[0]).toMatchObject({ id: 1, platform: 'Instagram', engagements: 50, views: 1200, sourceType: 'organic', publishDate: '2026-06-01' })
 })
+
+// --- TikTok (added with the channel, 2026-09-15) -------------------------------
+//
+// The payload SHAPE (field names, which fields exist, how they relate) is copied from a live
+// CONTENT probe of a TikTok-reporting brand (August 2026). The VALUES are invented: this repo is
+// public and carries no client figures. They keep the probed relationships that matter:
+// total_engagements = likes + comments + shares, engagement_rate = engagements / reach,
+// views_based_engagement_rate = engagements / views, and effectiveness above 1. The decoy
+// fields are the ones a reasonable person would reach for and that would be WRONG, so each
+// assertion names what it is rejecting.
+const tiktokPost: DashContentPost = {
+  id: 900001,
+  source: 'TIKTOK',
+  type: 'IMAGE',            // TikTok posts arrive typed IMAGE, see the media-type test
+  source_created_at: '2026-08-14T16:31:00Z',
+  media_group: null,
+  tiktok: {
+    caption: 'Example TikTok caption for the fixture.',
+    share_url: 'https://www.tiktok.com/@example-brand/video/900001',
+    total_engagements: 12,
+    likes: 9, comments: 1, shares: 2,
+    // The probed account ran no paid, so views === organic_views there. Split here on
+    // purpose: equal values cannot distinguish the two fields, and an account with paid
+    // WOULD return views > organic_views.
+    views: 250,
+    organic_views: 240,
+    reach: 200,
+    engagement_rate: 0.06,                 // 12 / 200 engagements / reach  <- the one Dash averages
+    views_based_engagement_rate: 0.05,     // 12 / 240 engagements / views  <- decoy
+    followers_based_engagement_rate: 0.004, // decoy
+    effectiveness: 1.25,                   // ABOVE 1, not a fraction <- must be ignored
+    duration: 15.5,
+  },
+}
+
+test('TikTok engagements read total_engagements (= likes + comments + shares)', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.engagements).toBe(12)
+})
+
+test('TikTok views read organic_views, NOT bare views (organic-only, as Facebook does)', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.impressions).toBe(240)
+  expect(p.metrics.impressions).not.toBe(250)
+})
+
+// The tie-break that settled this: over a month of probed posts, the MEAN of per-post
+// engagement_rate matched Dash's profile AVG_ENGAGEMENT_RATE to 8 decimals, and the mean
+// of views_based_engagement_rate did not. Both reconcile arithmetically, so only this pins it.
+test('TikTok engagement rate reads engagement_rate, NOT views_based_engagement_rate', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.engagementRate).toBe(0.06)
+  expect(p.metrics.engagementRate).not.toBe(0.05)
+})
+
+// TikTok exposes an `effectiveness` field and it is NOT the 0..1 fraction every other
+// channel stores: every probed value sat above 1. Reading it would put "125%" on a
+// card. Dash has no TikTok effectiveness KPI either (EFFECTIVENESS / AVG_EFFECTIVENESS
+// both 400), so there is nothing to reconcile against. Null, like LinkedIn and X.
+test('TikTok effectiveness is null even though the payload carries an effectiveness field', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.metrics.effectiveness).toBeNull()
+  expect(tiktokPost.tiktok!.effectiveness).toBe(1.25) // the decoy is really there
+})
+
+test('TikTok permalink reads share_url (the channel has no url key)', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.url).toBe('https://www.tiktok.com/@example-brand/video/900001')
+})
+
+test('TikTok caption and platform label resolve', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.caption).toBe('Example TikTok caption for the fixture.')
+  expect(p.platform).toBe('TikTok')
+  expect(p.channel).toBe('TIKTOK')
+  expect(p.publishedAt).toBe('2026-08-14')
+})
+
+// Every TikTok post in the probed set came back type IMAGE with a post-level `image`
+// object and NO `video` object, despite being videos. This checks that such a payload
+// passes through as IMAGE, so a TikTok-specific override to VIDEO fails here. It does not
+// guard a mapping keyed on a field this fixture lacks.
+test('a TikTok payload typed IMAGE with no video object normalizes as IMAGE', () => {
+  const p = normalizePost(tiktokPost, 'TIKTOK')
+  expect(p.mediaType).toBe('IMAGE')
+})
+
+// Spec 2026-10-09 section 5: Dash leaves `views` empty on a post another account authored and fills `public_views`
+// (probe 2026-10-09: Good News Movement 704,013 in A Place For Mom's lock). Carried for the Influencer tab only.
+const igPost = (instagram: Record<string, unknown>): DashContentPost =>
+  ({ id: 900000001, source: 'INSTAGRAM', type: 'VIDEO', source_created_at: '2026-09-30T13:32:00Z', instagram }) as DashContentPost
+
+test('an Instagram post carries Dash public_views as publicViews', () => {
+  expect(normalizePost(igPost({ public_views: 704013, sum_total_engagement: 29718 }), 'INSTAGRAM').publicViews).toBe(704013)
+  expect(normalizePost(igPost({ views: 0, public_views: 27461 }), 'INSTAGRAM').publicViews).toBe(27461) // a UGC-feed shape
+})
+
+test.each([['absent', {}], ['null', { public_views: null }], ['a string', { public_views: '704013' }], ['negative', { public_views: -1 }],
+  ['NaN', { public_views: Number.NaN }], ['Infinity', { public_views: Number.POSITIVE_INFINITY }]])(
+  'public_views %s gives no publicViews and the same Views as today', (_, extra) => {
+    const p = normalizePost(igPost({ views: 20, ...extra }), 'INSTAGRAM')
+    expect('publicViews' in p).toBe(false)
+    expect(p.metrics.impressions).toBe(20)
+  })
+
+test('a Facebook post never carries publicViews', () => {
+  const fb = { id: 700000002, source: 'FACEBOOK', type: 'IMAGE', source_created_at: '2026-06-15T00:00:00Z',
+    facebook: { organic_views: 55, public_views: 99 } } as DashContentPost
+  expect('publicViews' in normalizePost(fb, 'FACEBOOK')).toBe(false)
+})

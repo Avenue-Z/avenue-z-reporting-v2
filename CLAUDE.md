@@ -99,8 +99,10 @@ combined with NextAuth's JWT callback. The conceptual model is the same:
 unauthenticated requests redirect to `/login`, internal routes (`/dashboard`)
 require `INTERNAL_ADMIN` or `INTERNAL_ANALYST` role, and client portal routes
 (`/portal/[clientSlug]`) are scoped to the session's `clientSlug`. Role and
-`clientSlug` are baked into the JWT at sign-in from the DB lookup — no DB hit
-on subsequent requests.
+`clientSlug` are set at sign-in and re-read from the database on every request
+(`getClientByEmail`, once per render, in `lib/auth/jwt-callback.ts`), so a
+removed or moved client user loses the old access on their next request; staff
+with no row keep the default `INTERNAL_ANALYST` view.
 
 ---
 
@@ -562,10 +564,30 @@ CLIENT_VIEWER     → Read-only: own client's enabled reports only
 ```
 
 Role is derived at sign-in from a DB lookup (`getClientByEmail` in `lib/db/queries.ts`)
-and baked into the JWT. Subsequent requests decode role from the token — no DB hit
-per request.
+and re-read from the database on every request (`lib/auth/jwt-callback.ts`), so a
+removed or moved client user loses the old access on their next request. The minted
+service cookie and the preview test admin have no user row and are left as they are.
 
 ---
+
+## Known Follow-ups: Organic Social annotations (from PR #252)
+
+- [ ] **The Net New Followers tile and the v2 Follower Growth Graph use different windows for the
+  same metric** (review of the annotations build, #252). The tiles send the Eastern window
+  (`isoRangeTz`, `lib/organic-social/headlines.ts:20`; the outline tiles on #255 the same way),
+  while the v2 graphs send the UTC month (`lib/organic-social/followers.ts:35`), which is the
+  window Top Content uses so a day on the chart and the post behind it agree. So adding up the
+  plotted daily gains does not always equal the tile above them. Measured on real August data for
+  the three clients: 0 to 4 followers per channel, which is nothing on a large account and up to a
+  third of the total on a small one. Fixing it means giving the tiles the same window, which
+  changes what Renaissance requests, so it needs its own PR with a Renaissance proof; a
+  client-scoped fix in the outline Data block alone would also work. Decide before the graphs go in
+  front of a client.
+
+- [x] **RESOLVED in #283: the trend charts follow the server per day.** Hides follow each new answer per day,
+  with an override held only until an answer agrees (never one hash over the whole answer), and both report
+  pages note the Suspense key the legend still relies on. `trends.identity.test.tsx` pins it. History: the
+  chart seeded its hidden days once per view, so a new answer under the same key was not picked up.
 
 ## Known Follow-ups — Configurable Dashboard (from PR #108 review)
 
@@ -603,6 +625,119 @@ Still open:
 - [ ] **`twSql` masks a malformed success payload as empty** — `{success:true, data:null}`
   returns `[]` → surfaces as "no-data" rather than an error worth alerting on.
   (`lib/triplewhale/client.ts`)
+
+## Known Follow-ups: Organic Social outline tabs (from PR #255)
+
+- [ ] **Validate the client's own Instagram handle when it is saved, instead of inferring trust
+  from that month's post authors.** `handleMatchesNoAuthor`
+  (`lib/organic-social/outline-top-content.ts:62`) distrusts a stored handle whenever the window's
+  Instagram posts carry authors and none is that handle, then falls back to the `#ad` rule. Paul
+  raised (PR #255, 2026-09-23) that this distrusts a CORRECT handle in any month whose only posts
+  are partner collabs, which puts collab posts without `#ad` into the client's owned Top 5. (Since
+  #358 this reaches Renaissance too once its handle is saved: top-content@2 then splits by author, so a
+  window in which Renaissance posted only collabs drops the handle and its co-authored posts without
+  `#ad` go back to Organic. Paul, #358 review.) He is
+  right, and his suggested narrowing (distrust only when there is exactly one distinct author)
+  **cannot be implemented**: a renamed account with one partner collab, and a correct handle in a
+  month of partner collabs, need opposite answers and the rule cannot tell them apart, because it
+  only ever compares an author name to the handle for equality, so renaming every name at once
+  cannot change its answer, and renaming is the only difference between the two cases. (An earlier
+  version of this entry said the two hand the function "identical input". They do not: what
+  matched was a summary the test itself computed. Paul's correction, 2026-09-23. His narrowed rule
+  did fix a collab month with several partners; it failed on a single partner, and on the rename
+  case above.) The test
+  `the own-handle rule cannot separate a rename from a month of partner collabs`
+  (`lib/organic-social/outline-top-content.test.ts`) proves it, and `:38` in the same file is the
+  existing case his rule would break. Validating at save time works because the handle can be
+  checked against Dash directly rather than inferred from whoever happened to post. Write-path
+  change in the switch-on script and the admin surface, so its own PR.
+
+  **Before building that check, see whether Dash gives us a stable account id** (Paul, 2026-09-23).
+  If `instagram_user` carries an id alongside the handle, store and match the id instead: a rename
+  can then never make the stored value stale, and `handleMatchesNoAuthor` can be deleted outright
+  rather than validated around. That removes this class of problem instead of managing it.
+
+  It is genuinely unknown today, and here is why, so nobody re-derives it. `authorOf`
+  (`lib/organic-social/post-author.ts`) reads only `instagram_user.handle` then `.username`,
+  through a narrow cast, so the shape is never typed. Every `instagram_user` in the repo is a
+  hand-written test fixture carrying `{ handle }` only (`fetch-top-content-author.test.ts:38`,
+  `fetch-top-content-parity.test.ts:26`), so the tests cannot answer it. The one live probe that
+  touched this object (`probes/collab-posts-authors.ts`, 2026-09-21) read the same two named fields
+  and printed the derived handle, never the object or its keys, so its saved output does not
+  contain the answer either.
+
+  **The probe that settles it:** one read-only CONTENT call for a single Instagram post, printing
+  `Object.keys(post.instagram_user)`. Do that before designing the save-time check, because the
+  answer decides whether it is "validate a handle" or "store an id and stop caring".
+
+- [ ] **The health sweep and cache warmer only reach the first platform tab for clients that hide
+  Overview** (Paul, #255). The per-client loops in `app/api/health/sweep/route.ts:65` and
+  `app/api/cache-warm/route.ts:114` build one Organic Social URL per client with no subsection, which
+  for a client that hides Overview lands on its first platform tab only. Add the tabs from
+  `organicSocialSubsections(client)` (`lib/constants.ts:207`) so every tab, and its outline Data
+  request, is probed and warmed. Lock every number (#256) also edits the warmer; land this after it.
+- [ ] **A single null metric still plots a zero on the YTD graphs** (review of the YTD build, #255).
+  `buildOutlineKpis` (`lib/organic-social/outline-headlines.ts`) marks a month `noData` only when
+  EVERY metric is null, and coerces each null to 0. So a month where Dash returns a null Total
+  Followers but other metrics have values is not `noData`: the tile reads 0 and the YTD line drops
+  to zero and back, which reads as a collapse rather than a gap. YTD cannot tell the difference (the
+  null is gone before it sees it); the fix belongs in the tiles' builder, which the YTD work must
+  not touch. Decide with the outline Data block, not here. Since the QA fixes (F3), a locked month
+  can no longer store a null Total Followers; a live month still shows it as 0
+  (`outline-headlines.ts:35`), and the YTD Views line reads a post-level metric
+  (`lib/organic-social/metrics.ts:110,123,160,184`), so a blank there can still lock as 0.
+- [x] **The YTD block fails all or nothing across up to 12 requests: RESOLVED** (PR #306). Every YTD
+  version now sends at most three months at a time with the same requests, and no new month starts once one has failed
+  (`lib/concurrency.ts`). A partial graph is still never drawn, by design.
+- [x] **The timeout card tells a YTD viewer to shorten the date range: RESOLVED** (PR
+  #306). `Fallback` takes an optional `timeoutText`; the YTD blocks pass "Taking longer than usual. Try
+  again in a minute." Every other part's card is unchanged.
+- [ ] **One Organic Social title rule instead of four copies** (from my own #255 work). The tab title
+  rule lives in the two SPA routes (`pageTitle`, `app/dashboard/[clientSlug]/reports/page.tsx:176`,
+  `app/portal/[clientSlug]/reports/page.tsx:212`) and the two deep-link routes (`reportName`,
+  `app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:107`,
+  `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:127`), in two spellings held together by
+  `lib/organic-social/deep-link-parity.test.tsx`. Hoist it into one helper next to
+  `resolveOrganicSubsection` (`lib/constants.ts:220`). It edits routes on Renaissance's live path: its
+  own PR, with the parity test as the guard.
+- [x] **UGC posts without #ad compete for the owned top 5 on outline tabs: RESOLVED** (F1 in
+  `docs/superpowers/plans/2026-09-24-qa-fixes.md`). The staging QA found a tagged post in an owned
+  slot on two clients, the trigger this entry named. `top-content@3` now asks `fetchTopContent` to mark
+  UGC (`markUgc`, `lib/organic-social/top-content.ts:194`), and `partitionByAuthor` sends a UGC post to
+  Influencer Posts unless a team member stored another choice
+  (`lib/organic-social/outline-top-content.ts:25`). UGC author fields stay unproven and unused.
+- [ ] **A `top-content@3` client without locked months would still show tagged posts as owned in
+  windows frozen earlier** (Paul, #267). The UGC fix above holds for every client on locked months,
+  which skip the older freeze table (`lib/organic-social/frozen.ts:60`), and every client pinned to
+  `top-content@3` today is one. A client pinned to it without `reportingMonths` is served the frozen
+  snapshot of a finished window (`frozen.ts:74-75`). A window frozen before `markUgc`, or by
+  `top-content@2` under the same key (`components/report-sections/organic-social/parts/top-content.tsx:67`),
+  carries no `ugc` mark, so a tagged post falls back to the `#ad` rule. Post authors already have the
+  same gap, which the part logs (`top-content-outline.tsx:24-26`). No `top-content@3` client is in
+  this state, and nothing stops the pin. Since #358 Renaissance meets the same gap on top-content@2:
+  once its handle is saved it splits by author with UGC marks, has no locked months, and its windows
+  frozen before that (production, 2026-10-09: Instagram Sep, Aug, Jul; Overview Sep, Aug, Jul, Jun and
+  two longer ranges) carry neither, so they keep the `#ad` split. Accepted for now: no data work on
+  Renaissance's frozen rows (my decision, 2026-10-09; Paul, #358 review). Either refuse the `top-content@3` pin without `reportingMonths`, or re-freeze a window
+  when the part version changes.
+- [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
+  `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was
+  a 401, a 500 or a malformed answer. Add the error's name and status.
+- [ ] **Renaissance's tiles still flip the change arrow on a negative prior; a decision for Thomas and Paul
+  together** (from the QA fixes, F2 in `docs/superpowers/plans/2026-09-24-qa-fixes.md`; the outline clients'
+  fallback tabs were fixed in #285 on 2026-10-01, so this is now Renaissance only). The outline tiles now use `outlineDelta`
+  (`lib/organic-social/outline-delta.ts`), which divides by the size of the prior value. The shared
+  `delta()` (`lib/organic-social/headline-build.ts:18-24`) still divides by the signed prior, so in a
+  month after a net follower loss Renaissance's Net New Followers tile shows a red "down" arrow for a rise
+  (an outline client's v1 fallback tab did too, until #285 gave it the size-based change, `basis: 'size'`). Fixing it changes what
+  Renaissance renders, so Paul and I decide it together under the golden rule; `outline-delta.test.ts` pins
+  today's behaviour so it cannot change by accident. Paul (#268) suggests choosing the signed or the
+  size-based change by client (for example `hasReportingMonths`,
+  `lib/organic-social/reporting-months.ts:75`, or the pinned part) instead of by builder, which would
+  also fix an outline client's Overview card and X tab while Renaissance keeps today's arrow. That same
+  change is the moment to keep the rule in one place (also Paul, #268): it has three copies today,
+  `computeDelta` (`lib/metrics.ts:7`), `delta()` and `outlineDelta`, and a size-based option on
+  `computeDelta` with the other two as thin wrappers would leave one.
 
 ## Known Follow-ups — GA4 / Web Analytics (from PR #210 review)
 
@@ -768,3 +903,146 @@ deliberately left out of its scope so it stayed reviewable.
 - shadcn/ui: https://ui.shadcn.com
 - Tremor: https://tremor.so
 - Next.js App Router: https://nextjs.org/docs/app
+## Known Follow-ups: Organic Social locked months (from PR #256)
+
+From the review of the lock every number build. None blocks the October set.
+
+- [ ] **There is no way to undo a bad lock, and three paths lead to one.** Raised by Paul
+  (PR #256, 2026-09-23) as the item to settle before the October clients' first real lock day. A
+  locked month is served from storage forever, so any of these ends in a month a client sees that
+  is permanently wrong:
+  1. **A briefly empty Top Content answer.** An empty `data.content` array counts as complete
+     (`lib/organic-social/locking-client.ts`, `completeContent`), so an empty panel locks.
+  2. **A briefly empty but well-formed headline or graph answer.** Since the QA fixes (F3 in
+     `docs/superpowers/plans/2026-09-24-qa-fixes.md`), a headline answer with a null account-level
+     metric (Total Followers, Net New Followers, Profile Views, LinkedIn page views) no longer counts
+     as complete: probes showed those are never null for a connected account, even on days with no
+     posts, and one had locked as 0 on staging (`ACCOUNT_METRICS` in
+     `lib/organic-social/locking-client.ts`). Still open: a null post-level metric (legitimately null
+     in a quiet period, so it can't be told apart), a null account-level prior value (blocking on it
+     would stop an account's first month locking), and a graph whose `ALL_CHANNELS` is `{}` or has
+     null days (the v2 Net New Followers graph fills a null day with 0,
+     `lib/organic-social/followers.ts:64`; `locking-client.test.ts:109` asserts the `{}` case).
+     The flip side: a month whose account-level metric is genuinely null (an X account, an
+     account's first days in Dash, an allowlisted channel with no account, or a metric Dash stops
+     reporting) never locks. Every view and the hourly sweep re-read Dash uncached, and the
+     `lock skipped (incomplete answer)` warning is the only signal.
+  3. **A malformed media answer captured on lock day.** The lock stores Dash's raw response before
+     any builder parses it, and the media branch of `completeReportsData` accepts a media answer on
+     the brand entry alone, so a malformed one is stored and PR #255's new throw then shows
+     "Could not load" for that month for good. Only reachable once #255 and #256 are both on the
+     deliverable branch.
+
+  **The manual way out, as far as reading the code gets us.** Delete that client's rows for the
+  month from `dash_response_locks` (`lib/db/schema.ts:421`: keyed by `client_id` + `request_key`,
+  with `period_end` the column to filter the month on), then let the next render or the next lock
+  sweep capture it again. Two things make that plausible rather than hopeful: `readLock`
+  (`lib/organic-social/response-lock-store.ts`) is a plain database select with no persistent cache
+  wrapper, so a deleted row is gone on the very next render; and the re-capture goes through the
+  uncached capture client (`lib/organic-social/base.ts`), so the replacement numbers come from Dash
+  now rather than from whatever Next's data cache still holds.
+
+  **Unverified, and it is Paul's open question:** none of that has been executed end to end against
+  a real deployment, so it is not known whether anything else in front of the page keeps serving
+  the old numbers after the rows are gone. Confirm that on staging before relying on it, and only
+  then decide whether a tool is needed or the SQL is enough.
+
+- [ ] **Changing any getter's request shape orphans every lock already stored under the old key.**
+  `requestKey` hashes the literal request (`lib/organic-social/lock-day.ts:83`), so a new date
+  format, an added KPI or a different `limit` produces new keys, every existing lock for those
+  months becomes unreachable, and the months silently recapture from live Dash. The only runtime
+  signal is a `late lock` warning. **The edge-27 fix (raised by Paul on PR #250, now merged) does
+  exactly this**, and so does adding a KPI to a tab. `lib/organic-social/lock-key-pin.test.ts`
+  pins the five keys a scoped Instagram month produces, so a shape change now fails CI instead of
+  passing silently. When it does fail, the decision is deliberate: recapture is fine for a month
+  no client has seen, otherwise map the old keys forward first. Update the pinned hashes only
+  after making that call.
+
+- [ ] **On Overview, a lock store outage silently drops a platform instead of showing an error
+  card.** The locking client throws (`lib/organic-social/locking-client.ts`), which is right, but
+  Overview's per-channel policy swallows it: `channelErrorPolicy` (`lib/organic-social/metrics.ts:58`)
+  returns the degrade value, and the graph getters drop the channel's series. So a locked month's
+  Overview can render with a platform missing and no error on screen. The throw is now logged
+  (`lock store read failed ...`), which is the signal until this is fixed. It needs a lock-specific
+  error the getters rethrow, and those getters are on Renaissance's path: its own PR, with a
+  Renaissance proof. The three October clients hide Overview, so they are not exposed today.
+- [ ] **`settledThrough` ignores `firstMonth`**, so a custom range that ends before a client's first
+  reporting month is lockable and writes a row nothing will ever read
+  (`lib/organic-social/lock-day.ts:31`). Stray rows only: no number is wrong, and the lock sweep
+  already filters by `firstMonth`. Clamp it, and change its unreachable final `return lastOf(key)`
+  to `null` in the same pass (a lock day is at most the 28th, so the month before last has always
+  locked). The plan's own test asserts today's behaviour, so changing it is a deliberate decision,
+  not a silent fix.
+- [ ] **The lock sweep runs on every hourly warmer run, not only on lock days**
+  (`app/api/cache-warm/route.ts:133`). It adds two months times the client's tabs of full report
+  renders per opted-in client to every run. Cheap once a month is captured (every read is a lock
+  hit), but worth a ceiling before the opted-in client count grows.
+- [ ] **The cache-warm `ok` count cannot show whether a month was captured.** A report page
+  returns 200 even when one part of it errored, so the count the cron reports says nothing about
+  whether the lock sweep actually stored anything (`app/api/lock-sweep/route.ts`, which reports
+  through the shared runner in `lib/cache-warm/run.ts`). Raised by Paul on PR #256 alongside the
+  scheduling fix, and not addressed by it: the capture-failure log
+  (`lock capture failed ...`, added in the same PR) is the signal until this is fixed.
+
+- [ ] **A transiently empty Top Content answer locks an empty panel** (`locking-client.ts`, `completeContent`, an
+  empty `data.content` array counts as complete). This matches the old freeze table's deliberate
+  frozen-empty behaviour, without that path's re-freeze escape. Revisit with the unlock tool.
+
+## Known Follow-ups: Organic Social chart notes (from PR #273)
+
+Found while building and QA'ing the notes on the annotated graphs. None blocks the October set.
+
+- [ ] **The notes actions log nothing when they refuse or fail.** `app/actions/chart-notes.ts` returns
+  a message and never logs, so nothing says at 3am which client or day a save or approve failed on.
+  Commentary's actions do the same (`app/actions/commentary.ts` has no logging either), so add both
+  together, with the client, the chart and the day, never the note text.
+- [x] **RESOLVED in #283 (issue #277): a note added on a day the team had already hidden now arrives faded**
+  with the save's refresh, since the chart follows the server per day (the entry above). Clients never received it.
+- [x] **RESOLVED in #283 (issue #276).** **Right after a save, the Add annotation panel can read the previous answer.** Reopened before
+  the refreshed chart arrives (about a second), it does not yet know about the note just saved: a
+  second save on that day still edits the draft on the server, as it should, but the line after it may
+  say "Saved a draft" where "Updated the draft" is true.
+- [x] **RESOLVED in #282 (issue #278): the Top Content freeze and the range share one clock.** `isPeriodOpen`
+  compares a range's end with `rollingRangeEnd()`, which is `resolveDateRange('last_1_days').endDate`
+  (`lib/organic-social/frozen.ts`), so a rolling preset can never read as closed in any time zone. History:
+  it compared against the UTC date and froze rolling windows on a machine behind UTC in the evening (seen
+  locally 2026-09-24). Vercel's functions run on UTC (verified on #282), where the boundary is unchanged.
+- [ ] **Dates from `resolveDateRange` are a day early east of UTC, and the GA4 picker labels them on another
+  clock** (Paul, #282). `toISO` (`lib/date-range.ts:7-9`) turns local midnight into a UTC date, so in Tokyo or
+  summer London `last_month` on 2026-09-15 is 2026-07-31..2026-08-30 (run 2026-10-01; UTC and New York give
+  August). The GA4 date picker is a client component that resolves its label in the browser
+  (`components/report-sections/ga4/date-picker.tsx:105`, `formatResolvedRange`), while the data is resolved
+  on the UTC server, so the label can name a different day than the data. Paul's fix: `toISO` as
+  `format(d, 'yyyy-MM-dd')` (date-fns is already imported; identical on a UTC server), and the server passes
+  the resolved start and end to the picker. Reaches GA4 and Renaissance: its own PR with a Renaissance proof,
+  before clients get logins, my call.
+
+## Known Follow-ups: Organic Social (from the 2026-10-02 walkthrough changes)
+
+Every open item from the reviews of #306 was fixed or closed in the PR. Resolved: the hidden influencer
+section is no longer a one-way door for staff, overlapping sheet reads share one request, the YTD blocks log
+why a month failed and a failed client read, a miscased `influencerSection` key warns, the YTD timeout copy
+and early stop, an empty heading falls back, the live month never shares the finished month's request, and
+the live YTD block names a missing client row. Renaissance's brand was probed read-only on 2026-10-02 and
+returns every metric the YTD request asks for on Instagram, Facebook and LinkedIn, and on X on 2026-10-05 (a
+finished month, the live month and January). Paul's non-blocking
+findings that were not fixed in the PR are filed as issues and linked from it.
+
+**Known behaviour, approved, not defects** (kept here so nobody files them as bugs):
+- Renaissance's YTD points will not match its tiles: `ytd-review@3` plots whole months (the sheet, or Dash
+  for that month), while its v1 tiles follow the rolling picker window.
+- `ytd-review@3` draws on every platform tab, X included; the outline clients' versions (@1, @2) still skip X,
+  which has no outline Data rows. Where a month comes from Dash, the views graph plots the tab's exposure tile
+  (`IMPRESSIONS_BY_POST` on X and LinkedIn, a views metric elsewhere) under the block's fixed "Views, Year to Date"
+  title. On X that by-post figure need not match how the sheet's X column was counted; only months the sheet has
+  not filled use it.
+- On an outline client's finished month, Total Followers and Views follow the sheet and every other tile
+  stays Dash, so the sheet's Total Followers change need not equal Dash's Net New Followers.
+- `ytd-review@3` shows finished months only, never a month in progress (2026-10-06): a month appears once its
+  last day's Dash window has closed (every window ends at a fixed `T04:00:00Z`), at 04:00 UTC on the 1st of the
+  next month. In January it shows the whole previous year, and in February January alone (one bar). Its past
+  months taken from Dash can move if Dash revises them, because Renaissance is not locked.
+- A live client's note can be on any past day the page offers: the Day list holds only days inside the
+  range on screen (`parts/chart-notes.ts:92-103`), so a note always shows on the range it was made on.
+- The tiles' prior-year sheet read counts toward health, so an unreadable prior-year entry flags the page.
+  Deliberate: it signals a broken sheet. No client has a prior-year entry until 2027.

@@ -9,6 +9,10 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+# Reads only the event payload, so the token needs nothing more (the template's convention).
+permissions:
+  contents: read
+
 jobs:
   require-self-review:
     runs-on: ubuntu-latest

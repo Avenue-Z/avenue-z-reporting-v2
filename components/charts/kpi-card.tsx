@@ -1,4 +1,6 @@
 import { cn } from '@/lib/utils'
+import { roundDelta } from '@/lib/delta-rounding'
+import { HoverHint } from './hover-hint'
 
 interface KpiCardProps {
   title: string
@@ -15,9 +17,11 @@ interface KpiCardProps {
    *  of nothing — signalling "comparison not possible" (distinct from a real 0.0% change). Opt-in
    *  so cards on sections without a comparison are unaffected. */
   comparisonExpected?: boolean
-  /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a caveat like the
-   *  Facebook influencer note. */
+  /** Secondary line shown below the delta, e.g. "2,483 in 2025" or a short caveat. */
   subValue?: string
+  /** Show the change as the outline clients' Organic Social tiles do (roundDelta): whole numbers from 1%, one
+   *  decimal under 1%. Absent: one decimal. */
+  wholeDelta?: boolean
 }
 
 export function KpiCard({
@@ -31,7 +35,10 @@ export function KpiCard({
   deltaLabel = 'vs prior period',
   comparisonExpected = false,
   subValue,
+  wholeDelta,
 }: KpiCardProps) {
+  // The value shown drives the arrow, the colour and the text, so they always agree.
+  const shown = delta === undefined ? undefined : wholeDelta ? roundDelta(delta) : delta
   return (
     <div className="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5">
 
@@ -39,17 +46,7 @@ export function KpiCard({
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">
           {title}
         </p>
-        {tooltip && (
-          <div className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
-              ?
-            </span>
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              {tooltip}
-              <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </div>
-          </div>
-        )}
+        {tooltip && <HoverHint text={tooltip} />}
       </div>
 
       <p className="mt-2 text-3xl font-extrabold text-white">
@@ -58,17 +55,17 @@ export function KpiCard({
         {suffix}
       </p>
 
-      {delta !== undefined ? (
+      {shown !== undefined ? (
         <p
           className={cn(
             'mt-1 text-sm font-bold',
             invertDelta
-              ? delta < 0 ? 'text-brand-green' : delta > 0 ? 'text-[#FF4444]' : 'text-text-muted'
-              : delta > 0 ? 'text-brand-green' : delta < 0 ? 'text-[#FF4444]' : 'text-text-muted'
+              ? shown < 0 ? 'text-brand-green' : shown > 0 ? 'text-[#FF4444]' : 'text-text-muted'
+              : shown > 0 ? 'text-brand-green' : shown < 0 ? 'text-[#FF4444]' : 'text-text-muted'
           )}
         >
-          {delta > 0 ? '↑' : delta < 0 ? '↓' : '—'}{' '}
-          {Math.abs(delta).toFixed(1)}% {deltaLabel}
+          {shown > 0 ? '↑' : shown < 0 ? '↓' : '—'}{' '}
+          {Math.abs(shown).toFixed(wholeDelta && (shown === 0 || Math.abs(shown) >= 1) ? 0 : 1)}% {deltaLabel}
         </p>
       ) : comparisonExpected ? (
         // No prior value to compare against — show a greyed placeholder (no % so it can't be

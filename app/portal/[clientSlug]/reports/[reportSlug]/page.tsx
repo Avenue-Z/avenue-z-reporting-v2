@@ -2,7 +2,8 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES } from '@/lib/constants'
+import { REPORT_NAMES, resolveOrganicSubsection, type OrganicView } from '@/lib/constants'
+import type { DashChannel } from '@/lib/organic-social/metrics'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
 import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
@@ -24,7 +25,10 @@ import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel
 import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { PortalReportDateRange } from './report-date-range'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { HealthProbe } from '@/lib/health/probe'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 function ReportSkeleton() {
   return (
@@ -48,6 +52,8 @@ function getReportSection(
   dateRange: string,
   compareRange: string | null,
   submittedBy: string | undefined,
+  organicChannel: DashChannel | null,
+  organicView: OrganicView = null,
 ) {
   switch (reportSlug) {
     case 'exec-summary':
@@ -87,9 +93,11 @@ function getReportSection(
     case 'request-a-report':
       return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     case 'organic-social':
-      // Deep-links (/reports/organic-social) are Overview only — platform subpages route via
-      // the SPA route's ?subsection= param (Spec 1 §5.2). channel={null} documents that.
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={null} />
+      // A deep-link renders this client's landing tab, the same one the SPA route's
+      // ?subsection= param resolves to when it is absent (Spec 1 §5.2). Hard-coding Overview
+      // here rendered a tab a client that hides Overview cannot navigate to, and the health
+      // sweep and cache warmer fetch exactly this URL (Paul's review of PR 255).
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} view={organicView} />
     default:
       return null
   }
@@ -103,6 +111,7 @@ export default async function PortalReportPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string; health?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
+  await requirePortalAccess(clientSlug)
   const { dateRange: dateRangeParam, compareRange: compareRangeParam, health: healthParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
@@ -114,7 +123,16 @@ export default async function PortalReportPage({
   const session = await auth()
   const submittedBy = session?.user?.email ?? undefined
 
-  const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
+  const organicEntry = resolveOrganicSubsection(client, null)
+  const organicChannel = organicEntry.channel
+  // Organic Social titles itself from the tab it lands on, the same rule as the SPA route's
+  // `pageTitle` (reports/page.tsx): Overview keeps the report name, a platform tab uses its label.
+  // The error boundary below reuses it, as the SPA's does. deep-link-parity.test.tsx holds the two
+  // routes together, so neither can drift from the other.
+  const reportName =
+    reportSlug === 'organic-social' && (organicChannel != null || organicEntry.view === 'influencer')
+      ? organicEntry.label
+      : (REPORT_NAMES[reportSlug] ?? reportSlug)
   const dateRange = dateRangeParam ?? 'last_30_days'
   const compareRange = compareRangeParam ?? null
 
@@ -122,7 +140,7 @@ export default async function PortalReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy)
+    const element = getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy, organicChannel, organicEntry.view ?? null)
     return (
       <HealthProbe
         surface="portal"
@@ -148,7 +166,9 @@ export default async function PortalReportPage({
             here would be a dead control for that slug only. */}
         {reportSlug !== 'executive-overview' && (
           <Suspense fallback={null}>
-            <PortalReportDateRange value={dateRange} />
+            {reportSlug === 'organic-social' && hasReportingMonths(client)
+              ? <OrganicRangeControl client={client} requested={dateRangeParam} role={session?.user?.role ?? null} />
+              : <PortalReportDateRange value={dateRange} />}
           </Suspense>
         )}
       </div>
@@ -157,7 +177,7 @@ export default async function PortalReportPage({
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy, organicChannel, organicEntry.view ?? null)}
         </Suspense>
       </ReportErrorBoundary>
     </div>

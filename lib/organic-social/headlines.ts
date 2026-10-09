@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { dashClientFor, isoRangeTz, resolveCompareIso } from './base'
 import { resolveTargets, channelErrorPolicy, OVERVIEW_KPI_KEYS, platformKpiKeys, type DashChannel } from './metrics'
-import { buildPlatformHeadline, metricNamesFor } from './headline-build'
+import { buildPlatformHeadline, metricNamesFor, type DeltaBasis } from './headline-build'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline } from './types'
 
@@ -13,6 +13,8 @@ export const getPlatformHeadlines = cache(async (
   dateRange: string,
   compareRange: string | null,
   channel: DashChannel | null = null,
+  /** How each change is measured (headline-build.ts). Not part of the Dash request, so lock keys are unchanged. */
+  basis: DeltaBasis = 'signed',
 ): Promise<PlatformHeadline[]> => {
   const { client, brandId, channels } = await dashClientFor(slug)
   const targets = resolveTargets(channels, channel)
@@ -40,7 +42,7 @@ export const getPlatformHeadlines = cache(async (
         })
         const metrics = res.data?.[key]?.metrics
         if (!metrics) return null
-        return buildPlatformHeadline(channel, metrics, keys, scoped)
+        return buildPlatformHeadline(channel, metrics, keys, scoped, basis)
       } catch (e) {
         return onChannelError(e, scoped)
       }

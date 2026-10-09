@@ -7,9 +7,15 @@
 import { kpiFor, metricFor, metricForKey, CHANNEL_LABEL, type DashChannel } from './metrics'
 import type { TotalMetric } from '@/lib/dash-social/types'
 import type { PlatformHeadline, HeadlineKpi } from './types'
+import { outlineDelta } from './outline-delta'
+
+/** How a tile's change is measured. 'signed' divides by the signed prior: the shared delta() below, which
+ *  Renaissance reads, so its arrow flips after a negative prior. 'size' divides by the size of the prior
+ *  (outlineDelta), as the outline clients' tiles do, so the arrow always shows the direction of change. */
+export type DeltaBasis = 'signed' | 'size'
 
 /** Prior-period percent change from a Dash metric's value vs. its context, or undefined. */
-function delta(m: TotalMetric | undefined): number | undefined {
+export function delta(m: TotalMetric | undefined): number | undefined {
   if (!m) return undefined
   const cur = m.value ?? 0
   const prev = m.context
@@ -36,6 +42,8 @@ export function buildPlatformHeadline(
   metrics: Record<string, TotalMetric>,
   keys: readonly string[],
   scoped: boolean,
+  /** 'size' only for an outline client's fallback tabs (Overview, an uncovered channel). Default: 'signed'. */
+  basis: DeltaBasis = 'signed',
 ): PlatformHeadline {
   const specs = keys.map((key) => {
     const spec = kpiFor(channel, key)
@@ -58,8 +66,8 @@ export function buildPlatformHeadline(
       label: spec.label,
       format: spec.format,
       value: spec.format === 'percent' ? raw * 100 : raw,
-      delta: delta(m),
-      // Footnotes (e.g. Facebook's influencer-inclusion caveat) are a platform-subpage-only
+      delta: basis === 'size' ? outlineDelta(m) : delta(m),
+      // Footnotes (none today: Facebook's influencer-inclusion caveat was removed after the 2026-10-02 walkthrough) are a platform-subpage-only
       // caveat — Overview must stay byte-identical (PR #174 review #2), so a footnote only
       // surfaces on the scoped (single-channel) build, never on the unscoped Overview one.
       footnote: scoped ? spec.footnote : undefined,

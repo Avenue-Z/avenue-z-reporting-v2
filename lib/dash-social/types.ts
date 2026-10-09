@@ -5,7 +5,7 @@ export interface ReportsDataParams {
   metrics: string[]           // UPPER_SNAKE ids from lib/organic-social/metrics.ts
   startDate: string           // ISO yyyy-mm-dd or TZ-aware (formatted by caller)
   endDate: string
-  reportType?: 'GRAPH' | 'TOTAL_METRIC' | 'TOTAL_GROUPED_METRIC' | 'CONTENT'
+  reportType?: 'GRAPH' | 'TOTAL_METRIC' | 'TOTAL_GROUPED_METRIC' | 'CONTENT' | 'MULTI_METRIC_MEDIA_TYPE'
   timeScale?: 'DAILY' | 'MONTHLY'
   contextStartDate?: string   // TOTAL_METRIC delta window
   contextEndDate?: string
@@ -67,6 +67,7 @@ export interface DashContentPost {
   facebook?: Record<string, unknown> | null
   linkedin?: Record<string, unknown> | null
   twitter?: Record<string, unknown> | null
+  tiktok?: Record<string, unknown> | null
 }
 export interface ContentResponse {
   data: { content: DashContentPost[] }

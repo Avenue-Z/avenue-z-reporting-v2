@@ -1,5 +1,6 @@
 'use server'
 
+import { updateTag } from 'next/cache'
 import { auth } from '@/auth'
 import { hashPassword } from '@/lib/auth/password'
 import { normalizeEmail, isValidEmail, loginUrl } from '@/lib/admin/access'
@@ -23,6 +24,7 @@ export async function setSharedPasswordAction(slug: string, password: string) {
   const client = await getClientAccessOverview(slug)
   if (!client) return { ok: false, error: 'Unknown client.' }
   await setClientSharedPassword(client.clientId, await hashPassword(password))
+  updateTag('db')
   return { ok: true }
 }
 
@@ -35,6 +37,7 @@ export async function setMaxSeatsAction(slug: string, maxSeats: number) {
   if (!client) return { ok: false, error: 'Unknown client.' }
   const res = await setClientMaxSeats(client.clientId, maxSeats)
   if (!res.ok) return { ok: false, error: 'Seat limit is below the current number of users.' }
+  updateTag('db')
   return { ok: true }
 }
 
@@ -48,5 +51,6 @@ export async function assignClientAdminAction(slug: string, rawEmail: string) {
   if (!res.ok) {
     return { ok: false, error: res.reason === 'duplicate' ? 'That email is already assigned to a client.' : 'Seat limit reached — raise it first.' }
   }
+  updateTag('db')
   return { ok: true, loginUrl: loginUrl() }
 }

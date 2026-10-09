@@ -16,6 +16,22 @@ export class DashTimeoutError extends DashApiError { constructor() { super('Dash
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/**
+ * Wraps a fetch so Next can never serve the response from its data cache. Pass it as
+ * `fetchImpl` to build a client whose answers are always what Dash says right now.
+ *
+ * `next: undefined` is load-bearing, not tidiness. `cache: 'no-store'` sent ALONGSIDE a live
+ * `next.revalidate` is treated as a conflict: Next warns and unsets BOTH, which silently
+ * restores the cached path, so the opt-out would look right and do nothing. Next reads the
+ * field with `typeof init?.next?.[field] !== 'undefined'`, so `undefined` reads as absent and
+ * the conflict check never fires.
+ *
+ * Only the lock capture needs this (see lib/organic-social/locking-client.ts). Ordinary reads
+ * stay cached, which is what keeps the report pages fast.
+ */
+export const uncached = (fetchImpl: typeof fetch = fetch): typeof fetch =>
+  (input, init) => fetchImpl(input, { ...init, cache: 'no-store', next: undefined } as RequestInit)
+
 export class DashSocialClient {
   private token: string
   private fetchImpl: typeof fetch

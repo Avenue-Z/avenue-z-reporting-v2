@@ -1,8 +1,10 @@
 import Link from 'next/link'
 import { TEAMS } from '@/lib/constants'
 import { ArrowRight } from 'lucide-react'
+import { requireStaff } from '@/lib/auth/page-access'
 
-export default function ToolsPage() {
+export default async function ToolsPage() {
+  await requireStaff()
   return (
     <>
       {/* Page header */}

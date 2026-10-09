@@ -60,4 +60,38 @@ describe('mapWithConcurrency', () => {
     const withIdx = await mapWithConcurrency(['a', 'b', 'c'], 2, async (s, i) => `${s}${i}`)
     expect(withIdx).toEqual(['a0', 'b1', 'c2'])
   })
+  // PR #306 review: a failed YTD month should not keep sending Dash requests whose answers are thrown away.
+  test('after a rejection no new item starts; items in flight finish; the call rejects with the first error', async () => {
+    const started: number[] = []
+    const finished: number[] = []
+    const run = mapWithConcurrency(Array.from({ length: 12 }, (_, i) => i), 3, async (i) => {
+      started.push(i)
+      if (i === 0) { await delay(1); throw new Error('first') }
+      await delay(10)
+      finished.push(i)
+      return i
+    })
+    await expect(run).rejects.toThrow('first')
+    await delay(30)
+    expect(started).toEqual([0, 1, 2])
+    expect(finished.sort()).toEqual([1, 2])
+  })
+
+  // A pin, not a fix: Promise.all already subscribes to every worker, so a later rejection is never unhandled.
+  test('a sibling that rejects after the first rejection raises no unhandledRejection', async () => {
+    const seen: unknown[] = []
+    const onUnhandled = (e: unknown) => { seen.push(e) }
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const run = mapWithConcurrency([0, 1], 2, async (i) => {
+        await delay(i === 0 ? 1 : 10)
+        throw new Error(i === 0 ? 'first' : 'second')
+      })
+      await expect(run).rejects.toThrow('first')
+      await delay(30)
+      expect(seen).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
+  })
 })

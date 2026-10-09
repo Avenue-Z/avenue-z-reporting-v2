@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { SnapshotPayload } from '@/lib/organic-social/content-types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
@@ -132,11 +132,28 @@ export interface SalesforceConfig {
 export interface DashSocialConfig {
   /** Dash Social brand id (digits), e.g. 24350. Selects the brand for the shared DASH_API_TOKEN. */
   brandId: number
-  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter'); defaults to all reportable channels.
+  /** Optional channel allowlist (lowercase 'instagram','facebook','twitter','linkedin','tiktok'). Absent resolves to
+   *  DEFAULT_CHANNELS, the original four; a newer channel such as TikTok appears only when named here.
    *  FOLLOW-UP (PR #168 review #2): a non-empty allowlist matching NO supported channel resolves to []
    *  and silently blanks the whole Organic Social section. When the config-write path lands (M3/M4),
    *  validate this at write time (reject / warn on a zero-match allowlist) — resolveChannels stays honest. */
   channels?: string[]
+  /** Locked months for Organic Social (docs/superpowers/specs/2026-09-21-locked-months-design.md).
+   *  Present with any value means opted in; validated at runtime, so typed unknown. */
+  reportingMonths?: unknown
+  /** The team's YTD sheet per year, read by ytd-review@2 (docs/superpowers/specs/2026-10-01-ytd-from-sheet-design.md):
+   *  { "<year>": { sheetId, tab } }. Validated at runtime (ytdSheetFor), so typed unknown. */
+  ytdSheets?: unknown
+  /** Per channel, hide or rename top-content@3's Influencer Posts section (PR #306):
+   *  { "INSTAGRAM": { "hidden": true } } or { "INSTAGRAM": { "label": "Partnership Posts" } }. Validated at runtime
+   *  (parseInfluencerSection), so typed unknown. */
+  influencerSection?: unknown
+  /** The team's KPI tracker sheet per year, read by kpi-check-in@1 (10/6 calls): { "<year>": { sheetId, tab } }, the
+   *  same shape as ytdSheets, validated at runtime (ytdSheetFor), so typed unknown. */
+  kpiSheets?: unknown
+  /** Written notes on the v2 graphs for a client without reportingMonths (PR #306). Only exactly
+   *  `true` turns them on (notesOn), so typed unknown. */
+  chartNotes?: unknown
 }
 
 /**
@@ -370,6 +387,59 @@ export const postDesignations = pgTable('post_designations', {
 }))
 
 export type PostDesignation = typeof postDesignations.$inferSelect
+
+// One row per (client, platform, chart, day) the team has hidden or unhidden on a v2
+// Organic Social graph. hidden=true keeps that annotation from the client; the team still
+// sees it, faded, with an Unhide button. No row means never touched, i.e. shown. Mirrors
+// post_designations. Purely additive: nothing Renaissance renders reads it.
+export const chartAnnotationHides = pgTable('chart_annotation_hides', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),   // DashChannel, e.g. 'INSTAGRAM'
+  chart: text('chart').notNull(),       // 'followers' | 'engagements'
+  day: date('day').notNull(),           // the annotation's day, yyyy-mm-dd, the UTC day Dash counts
+  hidden: boolean('hidden').notNull(),
+  setBy: text('set_by').notNull(),      // email
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientCalloutUnique: unique('chart_annotation_hides_client_callout_key').on(table.clientId, table.channel, table.chart, table.day),
+  clientIdx: index('chart_annotation_hides_client_idx').on(table.clientId),
+}))
+
+export type ChartAnnotationHide = typeof chartAnnotationHides.$inferSelect
+
+// One row per written note on a v2 Organic Social graph (annotations Phase 2), keyed like
+// chart_annotation_hides by client, platform, chart and day. Commentary's lifecycle: a note is
+// saved as a draft, approved before a client sees it, and only a draft is ever soft deleted. A day
+// can hold several approved rows (a client sees the most recently approved) but at most one open
+// draft, enforced by the partial unique index below. Purely additive: nothing Renaissance renders
+// reads it.
+export const chartNotes = pgTable('chart_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),   // DashChannel, e.g. 'INSTAGRAM'
+  chart: text('chart').notNull(),       // 'followers' | 'engagements', or 'ytd-followers' | 'ytd-views' (a month's note, on its 1st)
+  day: date('day').notNull(),           // yyyy-mm-dd, the UTC day Dash counts
+  body: text('body').notNull(),         // 1 to 80 characters of plain text, checked by the action
+  postIds: bigint('post_ids', { mode: 'number' }).array().notNull().default(sql`'{}'::bigint[]`), // Dash post ids, at most 2
+  status: commentaryStatusEnum('status').notNull().default('draft'),
+  createdBy: text('created_by').notNull(),
+  updatedBy: text('updated_by').notNull(),
+  approvedBy: text('approved_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  deletedBy: text('deleted_by'),
+}, (table) => ({
+  clientChannelIdx: index('chart_notes_client_channel_idx').on(table.clientId, table.channel),
+  oneOpenDraft: uniqueIndex('chart_notes_one_open_draft')
+    .on(table.clientId, table.channel, table.chart, table.day)
+    .where(sql`status = 'draft' AND deleted_at IS NULL`),
+  noDeletedApproved: check('chart_notes_no_deleted_approved', sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`),
+}))
+
+export type ChartNote = typeof chartNotes.$inferSelect
 export type NewPostDesignation = typeof postDesignations.$inferInsert
 
 // One row per (client, channel, resolved window, post). Freezes Dash-sourced facts for a
@@ -392,8 +462,23 @@ export const topContentSnapshots = pgTable('top_content_snapshots', {
   ),
 }))
 
+/** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
+ *  client. Written once (the first read after the lock day), then served forever. Only clients with
+ *  reportingMonths ever read or write it. */
+export const dashResponseLocks = pgTable('dash_response_locks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  requestKey: text('request_key').notNull(),
+  periodEnd: date('period_end').notNull(),
+  response: jsonb('response').notNull(),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientRequestUnique: unique('dash_response_locks_client_request_key').on(table.clientId, table.requestKey),
+}))
+
 export type TopContentSnapshot = typeof topContentSnapshots.$inferSelect
 export type NewTopContentSnapshot = typeof topContentSnapshots.$inferInsert
+export type DashResponseLock = typeof dashResponseLocks.$inferSelect
 
 export type Client = typeof clients.$inferSelect
 export type NewClient = typeof clients.$inferInsert

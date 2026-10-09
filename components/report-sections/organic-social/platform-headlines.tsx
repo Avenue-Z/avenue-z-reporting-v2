@@ -2,6 +2,7 @@ import { KpiCard } from '@/components/charts/kpi-card'
 import { num } from '@/lib/organic-social/base'
 import { pctCompact } from '@/lib/organic-social/format'
 import { expectsComparison } from '@/lib/organic-social/metrics'
+import { sharedTileDefinition } from '@/lib/organic-social/metric-definitions'
 import type { PlatformHeadline } from '@/lib/organic-social/types'
 import { NoData } from './no-data'
 
@@ -33,10 +34,11 @@ export function gridColsMd(n: number): string {
   return 'md:grid-cols-2'
 }
 
-function PlatformSection({ h }: { h: PlatformHeadline }) {
+function PlatformSection({ h, wholeDelta }: { h: PlatformHeadline; wholeDelta?: boolean }) {
   const n = h.kpis.length
   return (
-    <section className="space-y-3">
+    // One platform's label and KPI row never split across pages in the PDF export (app/export/export-theme.css).
+    <section data-export-block="" className="space-y-3">
       <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{h.label}</h3>
       {h.noData ? (
         <NoData />
@@ -46,10 +48,12 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
             <KpiCard
               key={k.key}
               title={k.label}
+              tooltip={sharedTileDefinition(h.channel, k.key)}
               value={k.format === 'percent' ? pctCompact(k.value) : num(k.value)}
               delta={k.delta}
               comparisonExpected={expectsComparison(k.key)}
               subValue={k.footnote}
+              wholeDelta={wholeDelta}
             />
           ))}
         </div>
@@ -58,11 +62,12 @@ function PlatformSection({ h }: { h: PlatformHeadline }) {
   )
 }
 
-export function PlatformHeadlines({ headlines }: { headlines: PlatformHeadline[] }) {
+/** `wholeDelta`: whole-number changes, set only by the outline Data part's fallback, never by the v1 part. */
+export function PlatformHeadlines({ headlines, wholeDelta }: { headlines: PlatformHeadline[]; wholeDelta?: boolean }) {
   return (
     <div className="space-y-6">
       {headlines.map((h) => (
-        <PlatformSection key={h.channel} h={h} />
+        <PlatformSection key={h.channel} h={h} wholeDelta={wholeDelta} />
       ))}
     </div>
   )

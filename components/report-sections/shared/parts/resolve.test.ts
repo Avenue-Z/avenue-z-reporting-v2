@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { resolveSharedParts } from './resolve'
 import type { PartRegistry } from '@/lib/report-sections/types'
+import { SHARED_PARTS } from './registry'
 
 const REG: PartRegistry<unknown> = {
   commentary: { 1: { id: 'commentary', version: 1, published: true, defaultLabel: 'Commentary', render: () => null } },
@@ -26,4 +27,9 @@ describe('resolveSharedParts', () => {
     expect(resolveSharedParts([{ id: 'commentary', version: 1 }, { id: 'a', version: 1 }], reg).map((r) => r.id))
       .toEqual(['commentary', 'a'])
   })
+})
+
+test('the recommendations pin resolves with its label', () => {
+  const [r] = resolveSharedParts([{ id: 'recommendations', version: 1 }], SHARED_PARTS as unknown as PartRegistry<unknown>)
+  expect(r).toEqual({ id: 'recommendations', version: 1, label: 'Recommendations' })
 })
