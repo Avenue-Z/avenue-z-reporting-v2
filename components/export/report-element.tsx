@@ -13,6 +13,7 @@ import { PaidMediaOverviewReport } from '@/components/report-sections/paid-media
 import { PaidSearchReport } from '@/components/report-sections/paid-search'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
+import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
 
 export interface ExportViewParams {
   clientSlug: string
@@ -37,5 +38,8 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
       if (view.subsectionId === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       // As the portal route; the dashboard route drops compareRange here (a live-page drift, PR 1 review record).
       return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'executive-overview':
+      // It resolves its own windows (last 30 days, year to date, as of today); the page passes it only the slug.
+      return <ExecutiveOverviewReport clientSlug={clientSlug} />
   }
 }

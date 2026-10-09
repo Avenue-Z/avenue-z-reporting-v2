@@ -46,9 +46,11 @@ export default async function ReportExportPage({
   const view = resolveExportView(client, section, str(sp.subsection))
   const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)) })
   // The period stamped is the range the report serves: Organic Social's locked month for an opted-in client (the
-  // same lookup OrganicSocialBody makes), else the requested range. No month to serve, no period.
+  // same lookup OrganicSocialBody makes), else the requested range. No month to serve, no period. The Executive
+  // Overview has no picker and mixes windows (30 days, year to date, as of today), so it stamps none, as its live
+  // button (spec 2026-10-09 §9.1).
   const locked = section === 'organic-social' ? lockedRangeFor(client, session.user?.role, dateRange, requestClock()) : null
-  const served = locked ? (locked.month?.dateRange ?? null) : dateRange
+  const served = section === 'executive-overview' ? null : locked ? (locked.month?.dateRange ?? null) : dateRange
 
   return (
     <div className="export-theme" style={{ width: CONTENT_WIDTH }}>

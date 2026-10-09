@@ -217,6 +217,25 @@ if (!process.env.AUTH_SECRET) {
       if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
     }
   }
+
+  // Executive Overview (PDF export PR 4): exported as a staff editor and as a client, posting a stale custom range the page
+  // ignores (spec 2026-10-09 §9.1). No toggle, tab, sort or hover-only text prints; no reporting period is stamped; the two
+  // exports print the same; exportAs logs the time to ready.
+  {
+    const eoClient = process.env.EO_CLIENT ?? 'renaissance'
+    const eoBody = { clientSlug: eoClient, section: 'executive-overview', subsection: null, dateRange: 'custom:2026-08-01,2026-08-31' }
+    const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, eoBody, `eo-${eoClient}-staff`)
+    const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: eoClient }, eoBody, `eo-${eoClient}-client`)
+    for (const [who, r] of [['staff', s], ['client', c]] as const) {
+      if (!r) continue
+      const text = r.pdf.words.map((w) => w.text).join(' ')
+      const controls = text.match(/By Conversion|7d avg|Prior period|rolling average|[↓↑] (Sessions|CVR)/g) ?? []
+      check(controls.length === 0, `eo-${eoClient}-${who}: no toggle, tab, sort or hover-only text (${[...new Set(controls)].join(', ') || 'none'})`)
+      check(!text.includes('Reporting period'), `eo-${eoClient}-${who}: no reporting period stamped`)
+      check(/last 30 days/i.test(text), `eo-${eoClient}-${who}: each section keeps its own window label`) // printed uppercase
+    }
+    if (s && c) check(body(s.pdf) === body(c.pdf), `eo-${eoClient}: the staff export prints exactly what the client export does`)
+  }
 }
 
 console.log(`\nfixture PDF: ${fixturePdf}`)

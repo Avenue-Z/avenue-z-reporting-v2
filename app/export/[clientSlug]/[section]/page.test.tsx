@@ -7,6 +7,9 @@ vi.mock('@/lib/auth/page-access', async (orig) => ({ ...(await orig<object>()), 
 vi.mock('@/components/report-sections/organic-social', () => ({
   OrganicSocialReport: function OrganicSocialReport() { return null },
 }))
+vi.mock('@/components/report-sections/executive-overview', () => ({
+  ExecutiveOverviewReport: function ExecutiveOverviewReport() { return null },
+}))
 
 import ExportPage from './page'
 
@@ -95,4 +98,19 @@ test("the export page hands the report the tab's view and channel", async () => 
   }
   expect(await reportProps('organic-influencer')).toMatchObject({ channel: null, view: 'influencer' })
   expect(await reportProps('organic-linkedin')).toMatchObject({ channel: 'LINKEDIN', view: null })
+})
+
+// Spec 2026-10-09 §9.1: the page mixes windows (30 days, year to date, as of today) and has no picker, so the export stamps
+// no reporting period, as the live button does; a stale ?dateRange= carried from another section must not stamp one.
+test('the Executive Overview stamps the export time and no reporting period, whatever range the request carries', async () => {
+  getClientBySlug.mockResolvedValue({ ...CLIENT, enabledReports: ['executive-overview'] })
+  const r = await open({ dateRange: 'custom:2026-08-01,2026-08-31', tz: 'America/New_York' }, 'executive-overview')
+  if ('redirect' in r) throw new Error('unexpected redirect')
+  const [header] = findElements(r.element, (e) => e.type === 'header')
+  const text = textOf(header)
+  expect(text).toContain('Executive Overview')
+  expect(text).toContain('Exported Oct 6, 2026, 10:17 AM EDT')
+  expect(text).not.toContain('Reporting period')
+  const [report] = findElements(r.element, (e) => nameOf(e.type) === 'ExecutiveOverviewReport')
+  expect(report.props).toEqual({ clientSlug: 'renaissance' })
 })
