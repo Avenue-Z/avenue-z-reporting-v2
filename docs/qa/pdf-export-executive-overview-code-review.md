@@ -31,7 +31,7 @@
 - **Salesforce through Supermetrics:** weekly contacts or, for a campaign-scoped client, leads; and the pipeline.
 
 The component resolves its own windows; the export page passes it only the slug. What changes is the view:
-- **Demand Journey.** Every connected card prints expanded: the hero metric, both labels, the delta, the sparkline and the stats list. This is the one deliberate exception to "default view", because paper has no hover and those numbers appear nowhere else.
+- **Demand Journey.** Every connected card prints expanded: the hero metric, both labels, the delta, the sparkline and the stats list. This is the one deliberate exception to "default view", because paper has no hover. (Most of the stats repeat the blocks below, such as the GA4 card's KPIs; only the AEO card's Tracked Brands, Tracked Prompts and week-over-week are unique to it.)
   - "Not connected" cards print as they are.
   - Stages the client hides (`hidden_journey_stages`) stay hidden. Renaissance hides Inbound and Pipeline.
 - **Trend.** All three series, unsmoothed. The toggles print as a static legend, with no "7d avg".
@@ -44,7 +44,7 @@ The component resolves its own windows; the export page passes it only the slug.
 - Year to date: the AEO stage, Contact Creation, Closed Won.
 - As of today: open pipeline.
 
-The live button stamps no period here (the tested rule "stamp ⇔ picker"), and the export does the same: `served = null` (`page.tsx:53`), whatever `dateRange` the request carries. Each section keeps its own window label.
+The live button stamps no period here (the tested rule "stamp ⇔ picker"), and the export does the same: `served = null` (`page.tsx:53`), whatever `dateRange` the request carries. Each section keeps its own window label. The acceptance run checks the 30-day label always, and the year-to-date and as-of-today labels whenever the CRM blocks loaded; locally they didn't (Salesforce 403), so those two are a staging check (§5).
 
 **Page breaks** use inert `data-export-*` attributes under `.export-theme` (unchanged):
 - **Kept with what follows:** section titles, "Last 30 days", the scoped note, and Pipeline's window line.
@@ -132,7 +132,7 @@ No stranded titles, nothing cut, and the Journey is legible on the dark panel.
   - Every page then scales by 979 / 1129 ≈ 0.87.
 - **Why existing checks missed it:** `outsideBox` measures words against the content box, and a uniformly shrunk page has every word inside it.
 - **The fix:** the new check compares the right-aligned stamp's end with the content box's right edge, which catches a shrink from any cause, in any section.
-- **Also learned:** the reviewer's probe shows Chromium leaves `opacity: 0` / `max-height: 0` text out of the PDF text layer. The real hazard of hidden hover layers is layout overflow, not hidden text.
+- **Also learned:** the reviewer's probe shows Chromium leaves `opacity: 0` / `max-height: 0` text out of the PDF text layer. The real hazard of hidden hover layers is layout overflow, not hidden text. The two code comments that said otherwise (`channel-tabs-chart.tsx`, `demand-journey.tsx`) were corrected in `96bb444`.
 
 **#7: Journey on page 1.**
 - **Measured (Renaissance PDF):** AEO card ~310 px; GA4 card ~408 px; two-stage panel ~462 px.
@@ -151,7 +151,11 @@ No stranded titles, nothing cut, and the Journey is legible on the dark panel.
 ## §5 Follow-ups
 
 **Needs a live call first**
-- One signed-in staging export of a client with the CRM connected and all four Journey stages. This covers #7 live, Contact Creation and Pipeline printed with data, and the full-width check with the pacing bars present.
+- One signed-in staging export of a client with the CRM connected and all four Journey stages. This covers:
+  - #7 live;
+  - Contact Creation and Pipeline printed with data, including their year-to-date and as-of-today labels;
+  - the darkened CRM bars (§6 R2);
+  - the full-width check with the pacing bars present.
 - One signed-in export on a Vercel deploy.
 
 **Cleanup**
@@ -160,3 +164,26 @@ No stranded titles, nothing cut, and the Journey is legible on the dark panel.
 - **#12:** make the staff = client comparison order-insensitive.
 
 Nothing here blocks the ship. The staging CRM export is the highest-value item.
+
+---
+
+## §6 Review round 1 (Thomas): resolutions
+
+Thomas approved with minor feedback, a timeout note and three record corrections. All are resolved on the branch in `30a6bd5` and `96bb444` (plus the #348, #350 and #352 fixes merged up):
+
+| # | Where | Finding | Resolution |
+|---|---|---|---|
+| R1 | `index.tsx:229` | `NeedsConnection` / `LoadFailed` / `NoData` weren't blocks, so "CRM not connected" could split from its hint. | **Fixed**: each prints whole (`data-export-block`, inert live). Tested. |
+| R2 | `contact-pacing.tsx:187` | The CRM bars printed neon green on white, about 1.4:1, with the in-progress week nearly invisible. | **Fixed**: theme rules scoped to an inert `data-export-bars` marker darken the bars to `#15803d`. This covers the contact bars, the in-progress week (25% alpha plus its dashed cap) and the pipeline owner bars. Tested on the server's own markup with the stylesheet's selectors. Not yet seen live (§5). |
+| R3 | `reports/page.tsx:298` | The button posted ranges this page ignores, so a bad stale `?compareRange` could 400. | **Fixed**: it posts `last_30_days` and no compare range (both routes), pinned in the parity test. |
+| R4 | `acceptance.mts:244` | The "own window label" check covered only the 30-day label. | **Fixed**: renamed, and the year-to-date and as-of-today labels are checked whenever the CRM loaded. A run whose CRM didn't load prints a note instead of passing quietly. |
+| R5 | Salesforce 60 s vs the 40 s ready budget (not anchored) | A slow CRM meant a 504. | **Fixed**: the export passes `crmDeadlineMs: 25_000`. Past it, the CRM block prints "Couldn't load", a warn line names the fetch, and the fetch carries on, warming the cache. The live page passes none. It is a named drift in the parity test, and a 20 ms deadline test pins it. |
+| R6 | record lines 34, 47, 135 | Overstated "appear nowhere else"; only the 30-day label checked; code comments contradicted §4. | Corrected above; comments fixed in `96bb444`. |
+
+**Verification:**
+- `npx vitest run`: 2614/2614 on the branch. Type-check and `check:rsc` are clean.
+- Lint: the 4 errors are the known ones in `channel-tabs-chart.tsx`.
+- **Live acceptance**, at the top of the stack (`018c422`): every check passed, 246. The CRM-label check printed its note, because the CRM returned 403 locally.
+
+**Found during the fixes:** the acceptance reader didn't decode `&apos;`, so the CRM-loaded test read the "Couldn't load" cards as absent. Fixed at the base of the stack in `81ff587`.
+
