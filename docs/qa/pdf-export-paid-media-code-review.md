@@ -21,7 +21,7 @@ The diff range is seven commits on top of PR #350's head (`feat/pdf-export-aeo`)
 | LinkedIn | `linkedin-ads/{creative-table-client,geo-section}.tsx` |
 | Switch-on | `lib/export/sections.ts` (`'paid-media'`), and the PR 1 tests that named Paid Media as off (now `'ga4'`) |
 | Acceptance | `e2e/export/acceptance.mts` (`PM_RUNS`), `e2e/export/pdf-check.ts` (`outsideBox`) |
-| Tests | five new export test files, three extended, `vitest.config.ts` pin, the `locked-months-parity` snapshot (2 lines) |
+| Tests | four new export test files (data-table, linkedin, meta, paid-search), three extended, `vitest.config.ts` pin, the `locked-months-parity` snapshot (2 lines) |
 
 ---
 
@@ -61,11 +61,12 @@ What changes is the view.
 - the hero toggle;
 - the keyword filter button;
 - the creative trees' sort clicks, arrows, chevrons and "?" hints;
-- the geo row chevrons.
+- the geo row chevrons. These are the exception to `useExportMode()`: `geo-section.tsx` never calls it. The chevron is
+  hidden by CSS (`data-export-hide`), and the row keeps its `onClick` and `cursor-pointer`, which is harmless on paper.
 
 KPI hover hints were already hidden (PR 2).
 
-**`DataTable`** is the shared chart table: Keywords, plus Organic Social v1 Top Content and the configurable dashboard. Its export branch prints:
+**`DataTable`** is the shared chart table: Paid Search's campaign table (`paid-search/campaign-table.tsx`, the Paid Media table most likely to pass 15 rows) and Keywords, plus Organic Social v1 Top Content and the configurable dashboard. Its export branch prints:
 - plain headers, with no sort arrow;
 - the plain text that `EditableText` would show;
 - `data-export-row` on every row.
@@ -139,7 +140,7 @@ It found one problem, a stranded Keywords title (#3), which was fixed and re-che
 | 8 | ○ | CONFIRMED | both creative tables (`indent(0)`) | Final review: in export the chevron indent (20 px inline) remained, so names sat right of the "Name" header. | **Fixed** `508d299` |
 | 9 | ● | PLAUSIBLE | `{paid-search,meta-ads,linkedin-ads}/geo-section.tsx` | Final review: the geo bar chart wasn't a block, so a break inside its panel padding could strand the title over an empty panel strip. Not seen on Renaissance. | **Fixed** `508d299`: title + chart one block |
 | 10 | ● | PLAUSIBLE | `paid-search/leads-section.tsx` | Final review: "Leads by Action" + "Total Leads" could end a page alone (the Total row wasn't kept with the first category). | **Fixed** `508d299` |
-| 11 | ○ | CONFIRMED | creative tables, Status column | Status is an ad-level field and only the top level prints, so the 13th column is blank on every row. | Follow-up |
+| 11 | ○ | CONFIRMED | creative tables, Status column | Status is an ad-level field and only the top level prints, so the 13th column is blank on every row. | **Fixed** `02a40c9` (§6 R5) |
 | 12 | ○ | CONFIRMED | `e2e/export/pdf-check.ts:39` | The #4 exemption is unbounded vertically and applies to every section's runs, so a lone `—` or emoji cut at the top or bottom edge would go unflagged. | Follow-up |
 | 13 | ○ | CONFIRMED | `e2e/export/acceptance.mts:214` | The trend-toggle regex assumes Paid Search is the first channel; a client without Paid Search prints "Spend Clicks Meta" undetected. | Follow-up |
 | 14 | ○ | CONFIRMED | `paid-search.export.test.tsx` | The geo chevron check's `every()` could pass vacuously. | **Fixed** `508d299` (asserts 10) |
@@ -184,3 +185,27 @@ This is an improvement, and the full suite passes. Its own metric toggle still p
 - **#13:** match `Spend Clicks (Paid Search|Meta|LinkedIn)`.
 
 None of these block the ship. The highest-value one is the Vercel run.
+
+---
+
+## §6 Review round 1 (Thomas): resolutions
+
+Thomas approved with four minors, a width note and three record corrections. All are resolved on the branch in `02a40c9` (plus the #348 and #350 fixes merged up):
+
+| # | Where | Finding | Resolution |
+|---|---|---|---|
+| R1 | `data-table.tsx:83` | Organic Social v1 Top Content's platform title could strand now that each short table is a block; the 15-row edge wasn't tested. | **Fixed**: the `h3` keeps with its table (test). A 15-vs-16 printed-row test pins `DataTable`'s boundary; `< 15` would fail it. |
+| R2 | `acceptance.mts:214` | A failed or timed-out part prints its fallback in a 200 PDF, tells the reader to try a shorter date range, and the run didn't catch it. | **Fixed**: the date-range advice is hidden in export. The three identical `Fallback`s became one tested `PaidMediaFallback`, with the live text unchanged. The acceptance run fails if any part printed its fallback; this only became effective with `81ff587`, which decodes `&apos;`, without which "Couldn't" never matched. **Offered as a follow-up:** a route-side warning for a partial PDF, which needs the renderer to read the page's DOM. |
+| R3 | `hero.tsx:29` | The dashed Leads line was unlabelled on paper. | **Fixed**: the export label reads "Cost (bars) · Leads (dashed line, right axis)". |
+| R4 | `creative-table-client.tsx:117` | Meta's Frequency double-count caveat vanished with the hint. | **Fixed**: it prints as a footnote under the table in export (one `FREQUENCY_CAVEAT` constant, shared with the live hint). |
+| R5 | width headroom (not anchored) | The 13-column trees had ~3 pt to spare on Renaissance; Status is blank on every printed row (#11). | **Fixed**: both creative tables leave out the Status column in export. |
+| R6 | record lines 24, 64, 68 | Test-file count; geo chevrons via CSS; the campaign table missing from the `DataTable` list. | Corrected above. |
+
+**Verification:**
+- `npx vitest run`: 2587/2587 on the branch. Type-check and `check:rsc` are clean; lint has no errors.
+- **Live acceptance**, at the top of the stack (`018c422`): every check passed, 246, including "every part loaded, none printed its fallback".
+- **Spot checks** of the PDFs:
+  - the Meta footnote prints;
+  - no Status column in either tree;
+  - the hero names both series.
+
