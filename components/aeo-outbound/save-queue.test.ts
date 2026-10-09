@@ -94,3 +94,56 @@ test('a retry that succeeds does not hide an outstanding 400', async () => {
   expect(sleep).toHaveBeenCalledWith(1000)
   expect(q.state.error).toBe(MSG)
 })
+
+test('typing during a retry wait keeps the retry message, and the ok clears it', async () => {
+  let release: () => void = () => {}
+  const sleep = vi.fn(() => new Promise<void>((r) => { release = r }))
+  let calls = 0
+  const send = vi.fn(async (): Promise<SendResult> => (++calls === 1 ? { kind: 'retry' } : { kind: 'ok', revision: calls }))
+  const q = new SaveQueue(send, 0, () => {}, sleep)
+  q.markDirty('why'); q.edit('why', 'w'); await flush()
+  expect(q.state.error).toBe("Couldn't save, retrying")
+  q.markDirty('headline'); q.edit('headline', 'h'); await flush()
+  expect(q.state.error).toBe("Couldn't save, retrying")
+  release(); await flush()
+  expect(q.state.error).toBeNull()
+  expect(q.state.dirty).toBe(false)
+})
+test('an outstanding 400 makes the queue dirty even without a keystroke', async () => {
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: MSG })), 0, () => {})
+  q.edit(LEAD, 'x'.repeat(81)); await flush()
+  expect(q.state.dirty).toBe(true)
+})
+test('a send that throws synchronously is treated as a retry', async () => {
+  const sleep = vi.fn(async (_ms: number) => {})
+  let n = 0
+  const send = vi.fn((): Promise<SendResult> => { if (++n === 1) throw new Error('boom'); return Promise.resolve({ kind: 'ok', revision: 1 }) })
+  const q = new SaveQueue(send, 0, () => {}, sleep)
+  q.markDirty('why'); q.edit('why', 'x'); await flush()
+  expect(sleep).toHaveBeenCalledWith(1000)
+  expect(q.state).toMatchObject({ saving: false, revision: 1, dirty: false })
+})
+test('a 400 that arrives after the same field was edited again is not recorded, and the newer value is sent', async () => {
+  let release: (r: SendResult) => void = () => {}
+  const values: string[] = []
+  const send = vi.fn((_p: string, v: string): Promise<SendResult> => {
+    values.push(v)
+    return values.length === 1 ? new Promise((r) => { release = r }) : Promise.resolve({ kind: 'ok', revision: 2 })
+  })
+  const q = new SaveQueue(send, 0, () => {})
+  q.markDirty(LEAD); q.edit(LEAD, 'old'); await flush()
+  q.markDirty(LEAD); q.edit(LEAD, 'new')
+  release({ kind: 'bad', error: MSG }); await flush()
+  expect(values).toEqual(['old', 'new'])
+  expect(q.state.error).toBeNull()
+  expect(q.state.dirty).toBe(false)
+})
+test('stop() while a send is in flight: a late ok changes neither the revision nor the stopped state', async () => {
+  let release: (r: SendResult) => void = () => {}
+  const send = vi.fn((): Promise<SendResult> => new Promise((r) => { release = r }))
+  const q = new SaveQueue(send, 5, () => {})
+  q.markDirty('why'); q.edit('why', 'x'); await flush()
+  q.stop('This snapshot changed. Reload.')
+  release({ kind: 'ok', revision: 9 }); await flush()
+  expect(q.state).toMatchObject({ revision: 5, stopped: true, error: 'This snapshot changed. Reload.' })
+})

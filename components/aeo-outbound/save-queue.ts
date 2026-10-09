@@ -4,6 +4,7 @@
 // A 400 belongs to its own field: it is recorded, the field stays dirty, and every other pending field still sends.
 export type SendResult = { kind: 'ok'; revision: number } | { kind: 'bad'; error: string } | { kind: 'stop' } | { kind: 'retry' }
 export interface SaveState { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean }
+const RETRY_MESSAGE = "Couldn't save, retrying"
 const BACKOFF = [1000, 2000, 4000]
 
 export class SaveQueue {
@@ -12,6 +13,7 @@ export class SaveQueue {
   private dirtyPaths = new Set<string>()
   private bad = new Map<string, string>()
   private running = false
+  private waiting = false
   private attempt = 0
   state: SaveState
 
@@ -25,7 +27,7 @@ export class SaveQueue {
   }
 
   private set(p: Partial<SaveState>) {
-    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 }
+    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0 }
     this.onState(this.state)
   }
 
@@ -48,7 +50,7 @@ export class SaveQueue {
     this.bad.delete(path)
     this.pending.delete(path)
     this.pending.set(path, { value, stamp: this.typed.get(path) ?? 0 })
-    this.set({ error: this.outstandingBad() })
+    this.set({ error: this.waiting ? RETRY_MESSAGE : this.outstandingBad() })
     void this.run()
   }
 
@@ -61,7 +63,7 @@ export class SaveQueue {
       while (this.pending.size && !this.state.stopped) {
         const [path, item] = this.pending.entries().next().value as [string, { value: string; stamp: number }]
         this.set({ saving: true })
-        const r = await this.send(path, item.value, this.state.revision).catch((): SendResult => ({ kind: 'retry' }))
+        const r = await Promise.resolve().then(() => this.send(path, item.value, this.state.revision)).catch((): SendResult => ({ kind: 'retry' }))
         if (this.state.stopped) return
         if (r.kind === 'ok') {
           if (this.pending.get(path) === item) this.pending.delete(path)
@@ -69,6 +71,7 @@ export class SaveQueue {
           this.attempt = 0
           this.set({ revision: r.revision, saving: false, error: this.outstandingBad() })
         } else if (r.kind === 'bad') {
+          this.attempt = 0
           // Only this field is refused. It stays dirty until Ryan changes that text; the others keep sending.
           if (this.pending.get(path) === item) {
             this.pending.delete(path)
@@ -80,8 +83,9 @@ export class SaveQueue {
           this.stop('This snapshot changed. Reload.')
           return
         } else {
-          this.set({ saving: false, error: "Couldn't save, retrying" })
-          await this.sleep(BACKOFF[this.attempt] ?? 10_000)
+          this.set({ saving: false, error: RETRY_MESSAGE })
+          this.waiting = true
+          try { await this.sleep(BACKOFF[this.attempt] ?? 10_000) } finally { this.waiting = false }
           this.attempt++
         }
       }
