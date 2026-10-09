@@ -154,7 +154,9 @@ if (!process.env.AUTH_SECRET) {
   // A page loaded before sections were added posts no section; it must still export Organic Social.
   const skew = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
     { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-no-section')
-  check(!!skew, 'a body with no section still exports Organic Social')
+  // Its filename names the section it exported, so a default that picked another enabled section fails here (Thomas,
+  // #348 acceptance.mts:129), not just one that failed outright.
+  check(/Organic%20Social/.test(skew?.res.headers.get('content-disposition') ?? ''), 'a body with no section still exports Organic Social')
 
   // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
   // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.

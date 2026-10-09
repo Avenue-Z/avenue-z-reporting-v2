@@ -40,7 +40,13 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() } catch { /* not JSON: a bad request below */ }
   const parsed = parseExportRequest(body)
   if (!parsed) {
-    log(null, 'bad-request')
+    // Which section and client were turned away (a page posting a section this deployment doesn't accept, after a
+    // rollback or deploy skew). Raw body values: quoted, escaped and capped, so they can't break or flood the line.
+    const raw = (k: string) => {
+      const v = body && typeof body === 'object' ? (body as Record<string, unknown>)[k] : undefined
+      return typeof v === 'string' ? JSON.stringify(v.slice(0, 64)).replace(/[\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16)}`) : '-'
+    }
+    console.info(`[export] client=${raw('clientSlug')} section=${raw('section')} view=overview outcome=bad-request ms=${Date.now() - started}`)
     return NextResponse.json({ error: 'bad-request' }, { status: 400 })
   }
 
