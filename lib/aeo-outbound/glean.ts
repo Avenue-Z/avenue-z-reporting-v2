@@ -40,7 +40,8 @@ export async function gleanOnce(prompt: string, signal: AbortSignal, fetchImpl: 
   let payload: unknown
   try {
     payload = await res.json()
-  } catch {
+  } catch (e) {
+    if (signal.aborted) throw e
     throw new Error('Glean chat returned unreadable JSON')
   }
   return readGleanReply(payload)

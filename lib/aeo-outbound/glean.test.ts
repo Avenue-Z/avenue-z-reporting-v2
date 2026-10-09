@@ -80,6 +80,18 @@ test('gleanOnce: a 200 that is not JSON throws without any body text', async () 
   const err = await gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch).catch((e: Error) => e)
   expect((err as Error).message).toBe('Glean chat returned unreadable JSON')
 })
+test('gleanOnce: a deadline abort during the body read stays an AbortError', async () => {
+  const controller = new AbortController()
+  const fetchImpl = vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => {
+      controller.abort()
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+    },
+  }))
+  await expect(gleanOnce('p', controller.signal, fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({ name: 'AbortError' })
+})
 test('gleanOnce: a non-ok response releases the body before throwing', async () => {
   const cancel = vi.fn(async () => {})
   const fetchImpl = vi.fn(async () => ({ ok: false, status: 502, body: { cancel } }))
