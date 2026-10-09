@@ -280,8 +280,10 @@ export default async function ReportPage({
                 section: activeSection,
                 // The tab the page resolved, never the raw param: the route accepts only a slug-shaped tab.
                 subsection: resolveExportView(client, activeSection, subsectionParam ?? null).subsectionId,
-                dateRange: servedDateRange,
-                compareRange: servedCompareRange,
+                // The Executive Overview ignores ranges: it posts its fixed ones, so a stale ?compareRange= the request
+                // validator refuses can't turn its export into a 400.
+                dateRange: activeSection === 'executive-overview' ? 'last_30_days' : servedDateRange,
+                compareRange: activeSection === 'executive-overview' ? null : servedCompareRange,
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
               } }
             : {})} />

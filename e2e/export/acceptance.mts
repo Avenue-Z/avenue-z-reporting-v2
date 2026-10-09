@@ -247,7 +247,13 @@ if (!process.env.AUTH_SECRET) {
       check(controls.length === 0, `eo-${eoClient}-${who}: no toggle, tab, sort or hover-only text (${[...new Set(controls)].join(', ') || 'none'})`)
       check(!text.includes('Reporting period'), `eo-${eoClient}-${who}: no reporting period stamped`)
       // Exact case: the Web Analytics label prints uppercase; the Journey's "sessions in the last 30 days" must not satisfy it.
-      check(text.includes('LAST 30 DAYS'), `eo-${eoClient}-${who}: each section keeps its own window label`)
+      check(text.includes('LAST 30 DAYS'), `eo-${eoClient}-${who}: Web Analytics keeps its 30-day window label`)
+      // The year-to-date and as-of-today labels are why no period is stamped (Thomas, #354 acceptance.mts:244). They print
+      // only when the CRM blocks loaded, so they're checked then; a run whose CRM failed says so instead of passing quietly.
+      const crmLoaded = !/Couldn't load (contact|lead|pipeline) data|CRM not connected/.test(text)
+      if (crmLoaded) {
+        check(text.includes('Year to date, by ISO week.') && text.includes('Open pipeline is as of today.'), `eo-${eoClient}-${who}: the CRM blocks keep their year-to-date and as-of-today labels`)
+      } else console.log(`  note  eo-${eoClient}-${who}: CRM blocks didn't load, so their window labels weren't checked`)
     }
     if (s && c) check(body(s.pdf) === body(c.pdf), `eo-${eoClient}: the staff export prints exactly what the client export does`)
   }

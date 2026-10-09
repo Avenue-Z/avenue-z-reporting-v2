@@ -23,6 +23,7 @@ vi.mock('@/lib/salesforce/leads', () => ({ getSalesforceWeeklyLeads: vi.fn(async
 import { ga4Query } from '@/lib/ga4/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { getSalesforceWeeklyContacts } from '@/lib/salesforce/contacts'
+import { getSalesforcePipeline } from '@/lib/salesforce/pipeline'
 import { getSalesforceWeeklyLeads } from '@/lib/salesforce/leads'
 import { ExecutiveOverviewReport } from './index'
 
@@ -271,5 +272,30 @@ describe('the ga4Config gate', () => {
     // 50 vs 40 filtered = +25.0%, not whatever 999 (raw) vs the raw compare
     // total would give. Renders on both the KPI tile and the journey card.
     expect(screen.getAllByText(/25\.0%/).length).toBeGreaterThan(0)
+  })
+})
+
+// Thomas, #354: Salesforce queries time out at 60 s, past the export's 40 s ready budget, and this page has no Suspense, so
+// a slow CRM made every export answer "still loading". The export passes a deadline; past it the CRM blocks print their
+// "Couldn't load" cards (the fetch carries on and warms the cache). The live page passes none and waits as before.
+describe('a CRM deadline (the PDF export)', () => {
+  beforeEach(() => (getClientBySlug as Mock).mockResolvedValue(client(undefined)))
+
+  it('prints the CRM blocks as failed once the deadline passes, and says so in the log', async () => {
+    const never = new Promise<never>(() => {})
+    ;(getSalesforceWeeklyContacts as Mock).mockReturnValueOnce(never)
+    ;(getSalesforcePipeline as Mock).mockReturnValueOnce(never)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(await ExecutiveOverviewReport({ clientSlug: 'renaissance', crmDeadlineMs: 20 }))
+    expect(screen.getByText("Couldn't load contact data.")).toBeInTheDocument()
+    expect(screen.getByText("Couldn't load pipeline data.")).toBeInTheDocument()
+    expect(warn.mock.calls.map((c) => String(c[0])).filter((l) => /\[executive-overview\] CRM .* past the export deadline slug=renaissance/.test(l))).toHaveLength(2)
+    warn.mockRestore()
+  })
+
+  it('without a deadline a CRM answer that arrives is used', async () => {
+    ;(getSalesforceWeeklyContacts as Mock).mockResolvedValueOnce(null)
+    await renderReport()
+    expect(getSalesforceWeeklyContacts).toHaveBeenCalledWith('renaissance')
   })
 })

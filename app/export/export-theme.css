@@ -105,6 +105,15 @@
 .export-theme :not([data-export-chart] *)[style^="color:#39A0FF" i],
 .export-theme :not([data-export-chart] *)[style*=";color:#39A0FF" i] { color: #1d4ed8 !important; }
 
+/* Bars drawn in brand green off any chart panel (the Executive Overview's contact pacing and pipeline owner bars, marked
+   data-export-bars): darkened for white paper, where #60FF80 is about 1.4:1, and the in-progress week kept faint but
+   visible. Inline styles as the server renders them (style="height:50%;background-color:#60FF80"), hence !important. */
+.export-theme [data-export-bars] [style$="background-color:#60FF80" i],
+.export-theme [data-export-bars] [style*="background-color:#60FF80;" i],
+.export-theme [data-export-bars] .bg-brand-green { background-color: #15803d !important; }
+.export-theme [data-export-bars] [style*="background-color:#60FF8033" i] { background-color: rgb(21 128 61 / 0.25) !important; }
+.export-theme [data-export-bars] [style*="border-top-color:#60FF80" i] { border-top-color: #15803d !important; }
+
 /* Borders */
 .export-theme .border-white\/\[0\.06\],
 .export-theme .border-white\/\[0\.08\] { border-color: rgb(0 0 0 / 0.10); }

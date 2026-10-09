@@ -40,6 +40,8 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
       return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'executive-overview':
       // It resolves its own windows (last 30 days, year to date, as of today); the page passes it only the slug.
-      return <ExecutiveOverviewReport clientSlug={clientSlug} />
+      // A deadline for the CRM fetches, under the 40 s ready budget: Salesforce's own timeout is 60 s, and a slow CRM
+      // must print its "Couldn't load" card rather than leave the export "still loading" (Thomas, #354).
+      return <ExecutiveOverviewReport clientSlug={clientSlug} crmDeadlineMs={25_000} />
   }
 }

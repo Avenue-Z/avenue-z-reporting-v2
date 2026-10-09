@@ -112,5 +112,6 @@ test('the Executive Overview stamps the export time and no reporting period, wha
   expect(text).toContain('Exported Oct 6, 2026, 10:17 AM EDT')
   expect(text).not.toContain('Reporting period')
   const [report] = findElements(r.element, (e) => nameOf(e.type) === 'ExecutiveOverviewReport')
-  expect(report.props).toEqual({ clientSlug: 'renaissance' })
+  // The CRM fetches get a deadline under the ready budget (Thomas, #354): a slow CRM prints "Couldn't load", not a 504.
+  expect(report.props).toEqual({ clientSlug: 'renaissance', crmDeadlineMs: 25_000 })
 })

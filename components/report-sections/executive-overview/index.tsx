@@ -39,9 +39,27 @@ const SESSIONS_DESC_ORDER = [{ metric: { metricName: 'sessions' }, desc: true }]
 
 interface ExecutiveOverviewProps {
   clientSlug: string
+  /** The PDF export's deadline for the CRM fetches. Salesforce's own timeout (60 s) outlasts the export's 40 s ready
+   *  budget, and this page has no Suspense, so a slow CRM would hold the whole export at "still loading". Past the
+   *  deadline the fetch counts as failed (its block prints "Couldn't load") and carries on, warming the cache. The live
+   *  page passes none and waits as before. */
+  crmDeadlineMs?: number
 }
 
-export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewProps) {
+/** `p`, or a rejection once `ms` passes (none when `ms` is undefined). Logs which CRM fetch ran past it. */
+function withDeadline<T>(p: Promise<T>, ms: number | undefined, what: string, slug: string): Promise<T> {
+  if (ms === undefined) return p
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      console.warn(`[executive-overview] CRM ${what} past the export deadline slug=${slug} ms=${ms}`)
+      reject(new Error(`CRM ${what} past the export deadline (${ms} ms)`))
+    }, ms)
+  })
+  return Promise.race([p, deadline]).finally(() => clearTimeout(timer))
+}
+
+export async function ExecutiveOverviewReport({ clientSlug, crmDeadlineMs }: ExecutiveOverviewProps) {
   // Ranges are resolved here, never taken from props. Every route passes
   // compareRange as null for a section with no date picker, and a default
   // parameter does not fire for null. Taking it from the caller renders every
@@ -122,8 +140,8 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
     ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }),
     cmpIso ? ga4Query({ clientSlug, dateRange: cmpIso, metrics: ['sessions', 'engagementRate', 'averageSessionDuration'], dimensions: ['newVsReturning'] }) : Promise.resolve(null),
     peecConfigured ? getPeecOverview(clientSlug, 'year_to_date') : Promise.resolve(null),
-    canFetch ? getSalesforcePipeline(clientSlug)       : Promise.resolve(null),
-    canFetch ? (crmScoped ? getSalesforceWeeklyLeads(clientSlug) : getSalesforceWeeklyContacts(clientSlug)) : Promise.resolve(null),
+    canFetch ? withDeadline(getSalesforcePipeline(clientSlug), crmDeadlineMs, 'pipeline', clientSlug) : Promise.resolve(null),
+    canFetch ? withDeadline(crmScoped ? getSalesforceWeeklyLeads(clientSlug) : getSalesforceWeeklyContacts(clientSlug), crmDeadlineMs, crmScoped ? 'leads' : 'contacts', clientSlug) : Promise.resolve(null),
     // dimensions: ['eventName'] + a leadEventFilter, not a bare conversions
     // metric — see lib/ga4/lead-events.ts. Only issued when ga4Config is set;
     // an unconfigured client's Conversions/Conversion Rate keep reading
