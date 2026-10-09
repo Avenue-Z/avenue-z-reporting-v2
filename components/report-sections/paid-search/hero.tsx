@@ -5,6 +5,7 @@ import { CHART_COLORS } from '@/lib/constants'
 import { num } from '@/lib/supermetrics/format'
 import { money } from '@/lib/paid-media/format'
 import { bucketLabel } from '@/lib/paid-search/week-label'
+import { useExportMode } from '@/components/export/export-mode'
 import type { HeroPoint } from '@/lib/paid-search/types'
 
 const METRICS = [
@@ -16,8 +17,17 @@ const METRICS = [
 
 export function Hero({ points }: { points: HeroPoint[] }) {
   const [metric, setMetric] = useState<(typeof METRICS)[number]['key']>('cost')
+  // The PDF export prints the default metric, named as a label, on the chart panel's dark surface: on white paper the
+  // green bars and cyan line would be faint (spec 2026-10-08 §7; PR 3 plan deviation 2).
+  const exportMode = useExportMode()
   return (
-    <section className="space-y-3">
+    <section
+      className={exportMode ? 'space-y-3 rounded-lg border border-white/[0.06] bg-bg-surface p-5' : 'space-y-3'}
+      {...(exportMode ? { 'data-export-block': '', 'data-export-chart': '' } : {})}
+    >
+      {exportMode ? (
+        <p data-export-toggle-label="" className="text-xs font-semibold text-white">{METRICS.find((m) => m.key === metric)!.label}</p>
+      ) : (
       <div className="flex gap-2">
         {METRICS.map((m) => (
           <button
@@ -33,6 +43,7 @@ export function Hero({ points }: { points: HeroPoint[] }) {
           </button>
         ))}
       </div>
+      )}
       <ComboChart
         data={points}
         xKey="week"

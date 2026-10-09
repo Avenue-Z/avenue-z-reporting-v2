@@ -7,6 +7,7 @@ import { num, pct } from '@/lib/supermetrics/format'
 import { money, costPerLead } from '@/lib/paid-media/format'
 import type { KeywordRow } from '@/lib/paid-search/types'
 import type { KeywordsData } from '@/lib/paid-search/keywords'
+import { useExportMode } from '@/components/export/export-mode'
 
 // A fixed top-10-by-leads ranking — not a sortable table. Only these 10 rows
 // reach the client (the total covers the full set, computed server-side), so
@@ -39,6 +40,8 @@ function toTableRow(r: KeywordRow): Record<string, React.ReactNode> {
 export function KeywordsTableClient({ data }: { data: KeywordsData }) {
   // Default view: only keywords with ≥10 clicks (item 11c). Clearable.
   const [filterOn, setFilterOn] = useState(true)
+  // The PDF export prints the default ≥10-clicks view, named as a label rather than the toggle (spec 2026-10-08 §7).
+  const exportMode = useExportMode()
   const { top, total, count } = filterOn ? data.filtered : data.all
 
   const noun = count === 1 ? 'keyword' : 'keywords'
@@ -57,12 +60,16 @@ export function KeywordsTableClient({ data }: { data: KeywordsData }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">Keywords</p>
+        {exportMode ? (
+          <p data-export-toggle-label="" className="text-xs text-text-muted">Showing keywords with ≥10 clicks</p>
+        ) : (
         <button
           onClick={() => setFilterOn((v) => !v)}
           className="rounded-md px-3 py-1 text-xs text-text-muted transition-colors hover:bg-white/10 hover:text-white"
         >
           {filterOn ? 'Showing keywords with ≥10 clicks · Show all' : 'Showing all keywords · Filter ≥10 clicks'}
         </button>
+        )}
       </div>
 
       {count === 0 ? (
