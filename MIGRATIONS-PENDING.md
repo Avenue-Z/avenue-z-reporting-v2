@@ -287,3 +287,11 @@ reached staging. A read-only preflight first, host-guarded to the address the sc
 with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreign key and the
 check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
 no rows; Renaissance's row unchanged. Production: not applied.
+
+## Add aeo_outbound_reports (delivered, awaiting apply)
+
+`drizzle/0026_aeo_outbound_reports.sql` creates the `aeo_outbound_status` enum and the standalone
+`aeo_outbound_reports` table (AEO Outbound Snapshot). Additive: no existing table, column or row
+changes, and only `lib/aeo-outbound/store.ts` reads it, so the `clients` 42703 risk above does not
+apply. Apply with the hash-checked `scripts/migrate-http.ts`, dev first, then staging and production
+each on my written go, before the code reaches that environment.

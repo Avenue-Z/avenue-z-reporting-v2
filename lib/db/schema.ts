@@ -485,3 +485,41 @@ export type ClientRole = (typeof clientRoleEnum.enumValues)[number]
 export type HealthStateRow = typeof healthState.$inferSelect
 export type ReportCommentary = typeof reportCommentary.$inferSelect
 export type NewReportCommentary = typeof reportCommentary.$inferInsert
+
+// AEO Outbound Snapshot (spec docs/superpowers/specs/2026-10-08-aeo-outbound-snapshot-design.md §9). Read and written
+// only by lib/aeo-outbound/store.ts. Standalone: references no other table.
+export const aeoOutboundStatusEnum = pgEnum('aeo_outbound_status', ['generating', 'draft', 'approved', 'failed'])
+
+export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  peecProjectId: text('peec_project_id').notNull(),
+  peecProjectName: text('peec_project_name').notNull(),
+  brandName: text('brand_name'),
+  status: aeoOutboundStatusEnum('status').notNull().default('generating'),
+  data: jsonb('data').$type<Record<string, unknown>>(),
+  slots: jsonb('slots').$type<Record<string, unknown>>(),
+  notes: jsonb('notes').$type<string[]>(),
+  revision: integer('revision').notNull().default(0),
+  error: text('error'),
+  html: text('html'),
+  shareToken: text('share_token').unique(),
+  rerunOf: uuid('rerun_of'),
+  createdBy: text('created_by').notNull(),
+  approvedBy: text('approved_by'),
+  revokedBy: text('revoked_by'),
+  deletedBy: text('deleted_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  shareRevokedAt: timestamp('share_revoked_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => ({
+  createdIdx: index('aeo_outbound_created_idx').on(table.createdAt),
+  oneGenerating: uniqueIndex('aeo_outbound_one_generating').on(table.peecProjectId).where(sql`status = 'generating'`),
+  approvedComplete: check('aeo_outbound_approved_complete',
+    sql`(${table.status} = 'approved') = (${table.html} IS NOT NULL AND ${table.shareToken} IS NOT NULL AND ${table.approvedAt} IS NOT NULL)`),
+  revokeOnlyApproved: check('aeo_outbound_revoke_only_approved', sql`${table.shareRevokedAt} IS NULL OR ${table.status} = 'approved'`),
+  deleteOnlyDraftOrFailed: check('aeo_outbound_delete_only_draft_failed', sql`${table.deletedAt} IS NULL OR ${table.status} IN ('draft', 'failed')`),
+}))
+
+export type AeoOutboundRow = typeof aeoOutboundReports.$inferSelect
