@@ -6,7 +6,8 @@ export interface Word { text: string; page: number; xMin: number; yMin: number; 
 export interface PdfText { pages: { width: number; height: number }[]; words: Word[] }
 
 const num = (s: string, attr: string) => Number(new RegExp(`${attr}="([\\d.]+)"`).exec(s)?.[1] ?? NaN)
-const unescape = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+// pdftotext writes an apostrophe as &apos;: undecoded, every check for text like "Couldn't load" silently never matched.
+const unescape = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&')
 
 export function readPdf(file: string): PdfText {
   const xml = execFileSync('pdftotext', ['-bbox-layout', file, '-'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
