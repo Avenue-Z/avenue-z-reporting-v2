@@ -68,7 +68,7 @@ test('source mix weights by retrieval_count, drops zero weights, sorts by weight
 
 test('competitor gap domains: own brand absent, a competitor present, ranked by retrieved chats', () => {
   const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z')
-  expect(d.gapDomains).toEqual([{ domain: 'alpha.com', retrievedChats: 1250 }, { domain: 'forum.com', retrievedChats: 300 }])
+  expect(d.gapDomains).toEqual([{ domain: 'forum.com', retrievedChats: 300 }])
 })
 
 test('own site with no rows: zero chats, null percent, and a note', () => {
@@ -179,4 +179,65 @@ test('competitor gap domains are capped at 4, the top by retrieved chats', () =>
   const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'EDITORIAL', retrieved_chat_count: 100 * n, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
   const d = buildSnapshotData({ ...PULL, domains: [...PULL.domains.filter((r) => r.domain === 'example.com'), ...[1, 2, 3, 4, 5].map(gap)] }, '2026-10-08T15:00:00Z')
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['gap5.com', 'gap4.com', 'gap3.com', 'gap2.com'])
+})
+
+const gapRow = (domain: string, classification: string | null, chats = 100) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
+
+test('gap sites leave out COMPETITOR and OWN rows, roster domains with no classification, and their subdomains', () => {
+  const domains = [
+    gapRow('rival-site.com', 'COMPETITOR'),
+    gapRow('mine.com', 'OWN'),
+    gapRow('www.beta.com', null),
+    gapRow('shop.alpha.com', 'EDITORIAL'),
+    gapRow('notalpha.com', 'EDITORIAL', 50),
+    gapRow('open.com', 'EDITORIAL', 40),
+  ]
+  const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
+  expect(d.gapDomains.map((g) => g.domain)).toEqual(['notalpha.com', 'open.com'])
+})
+
+const REF = (id: string, name: string, own = false) => ({ id, name, is_own: own, domains: [`${id}.example`] })
+const ROW = (id: string, name: string, visibility: number) => ({ brand: { id, name }, visibility, share_of_voice: 0.1, position: 2 })
+
+test('ties share a rank and the next brand skips one (1, 2, 2, 4)', () => {
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A'), REF('kw_b', 'B'), REF('kw_c', 'C')]
+  const brands = [ROW('kw_a', 'A', 0.3), ROW('kw_own', 'Own', 0.2001), ROW('kw_b', 'B', 0.2004), ROW('kw_c', 'C', 0.1)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+  expect(d.brands.map((b) => [b.name, b.rank])).toEqual([['A', 1], ['B', 2], ['Own', 2], ['C', 4]])
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 4 brands' })
+})
+
+test('a rival tied with the brand on displayed visibility is not a leader gap', () => {
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A'), REF('kw_b', 'B')]
+  const brands = [ROW('kw_a', 'A', 0.3), ROW('kw_own', 'Own', 0.2001), ROW('kw_b', 'B', 0.2004)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+  expect(d.leaderGaps.map((g) => g.name)).toEqual(['A'])
+})
+
+test('a roster brand with no row counts in n and the k note, and is not in brands', () => {
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A'), REF('kw_z', 'Zed')]
+  const brands = [ROW('kw_a', 'A', 0.3), ROW('kw_own', 'Own', 0.2)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+  expect(d.brands.map((b) => b.name)).toEqual(['A', 'Own'])
+  expect(d.rankN).toBe(3)
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 3 brands' })
+  expect(d.notes).toContain('Rank is by visibility among the 3 brands tracked in Peec.')
+  expect(d.notes).toContain('1 tracked brands have no Peec data in this window and count as zero visibility.')
+})
+
+test('worked example: roster 8, rows 6, rankAmong 7 gives n 7 and the first no-data competitor by id fills the last slot', () => {
+  const roster = [REF('kw_own', 'Own', true), ...['a', 'b', 'c', 'd', 'e', 'y', 'x'].map((s) => REF(`kw_${s}`, s.toUpperCase()))]
+  const brands = [ROW('kw_own', 'Own', 0.1), ROW('kw_a', 'A', 0.6), ROW('kw_b', 'B', 0.5), ROW('kw_c', 'C', 0.4), ROW('kw_d', 'D', 0.3), ROW('kw_e', 'E', 0.2)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z', { ...DEFAULTS, rankAmong: 7 })
+  expect(d.rankN).toBe(7)
+  expect(d.brands.map((b) => b.name)).toEqual(['A', 'B', 'C', 'D', 'E', 'Own'])
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#6 of 7 brands' })
+  expect(d.notes).toContain('Rank is by visibility among 7 of the 8 brands tracked in Peec: the brand and the competitors with the highest visibility.')
+  expect(d.notes).toContain('2 tracked brands have no Peec data in this window and count as zero visibility.')
+})
+
+test('a note says when the data covers fewer days than were requested, and not when it covers them all', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes).toContain('Requested 2026-09-09 to 2026-10-08; Peec data covers 2026-10-01 to 2026-10-08.')
+  const same = buildSnapshotData({ ...PULL, requested: { ...PULL.window } }, '2026-10-08T15:00:00Z')
+  expect(same.notes.join(' ')).not.toContain('Requested')
 })
