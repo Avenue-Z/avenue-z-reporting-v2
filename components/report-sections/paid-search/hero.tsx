@@ -26,7 +26,8 @@ export function Hero({ points }: { points: HeroPoint[] }) {
       {...(exportMode ? { 'data-export-block': '', 'data-export-chart': '' } : {})}
     >
       {exportMode ? (
-        <p data-export-toggle-label="" className="text-xs font-semibold text-white">{METRICS.find((m) => m.key === metric)!.label}</p>
+        // Both series named: ComboChart has no legend, and live the dashed Leads line is named on hover only.
+        <p data-export-toggle-label="" className="text-xs font-semibold text-white">{METRICS.find((m) => m.key === metric)!.label} (bars) · Leads (dashed line, right axis)</p>
       ) : (
       <div className="flex gap-2">
         {METRICS.map((m) => (

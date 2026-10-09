@@ -23,7 +23,8 @@ test('the hero prints Cost as a label on a dark panel, one block, no buttons', (
   const { container } = inExport(<Hero points={points} />)
   expect(screen.queryAllByRole('button')).toHaveLength(0)
   expect(screen.getByTestId('combo').textContent).toBe('Cost')
-  expect(screen.getByText('Cost', { selector: '[data-export-toggle-label]' })).toBeTruthy()
+  // Thomas, #352 hero.tsx:29: the dashed Leads line has no legend and is named on hover only, so the label names both.
+  expect(screen.getByText('Cost (bars) · Leads (dashed line, right axis)', { selector: '[data-export-toggle-label]' })).toBeTruthy()
   const section = container.querySelector('section')!
   expect(section.hasAttribute('data-export-block') && section.hasAttribute('data-export-chart')).toBe(true)
   expect(section.className).toContain('bg-bg-surface')

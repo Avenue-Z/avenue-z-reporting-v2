@@ -64,7 +64,7 @@ export function TopContent({ groups }: { groups: PlatformTopContent[] }) {
       </div>
       {groups.map((g) => (
         <div key={g.platform} className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">{g.platform}</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted" data-export-keep-with-next="">{g.platform}</h3>
           {/* key on sortBy: DataTable seeds its sort state from defaultSort only
               on mount, so remount it when the metric toggles to re-sort the table
               by the clicked column. */}

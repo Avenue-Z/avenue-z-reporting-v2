@@ -49,3 +49,13 @@ test('geo: the chart and its title print as one block', () => {
   render(<ExportModeProvider><LinkedInGeoSection rows={[{ region: 'Ohio', spend: 9, impressions: 1, clicks: 1, leads: 0 }]} /></ExportModeProvider>)
   expect(screen.getByText('Top Regions by Spend').parentElement!.hasAttribute('data-export-block')).toBe(true)
 })
+
+// Thomas, #352 (width headroom) and record item 11: Status is an ad-level field and only top-level rows print, so the
+// column was blank on every printed row. The export leaves it out.
+test('the export leaves out the Status column; live keeps it', () => {
+  const container = inExport(groups)
+  expect([...container.querySelectorAll('th')].map((th) => th.textContent?.trim())).not.toContain('Status')
+  const cols = container.querySelectorAll('th').length
+  expect([...container.querySelectorAll('tbody tr')].every((tr) => tr.querySelectorAll('td').length === cols)).toBe(true)
+  expect([...render(<LinkedInCreativeTable groups={groups} />).container.querySelectorAll('th')].map((th) => th.textContent?.trim())).toContain('Status')
+})

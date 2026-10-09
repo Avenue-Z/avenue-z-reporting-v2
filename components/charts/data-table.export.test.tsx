@@ -48,3 +48,11 @@ test('outside the export the table is unchanged: sortable headers with an arrow,
   expect(screen.getByText('Cost ↓')).toBeTruthy()
   expect(container.querySelector('[data-export-table], [data-export-row]')).toBeNull()
 })
+
+// Thomas, #352 data-table.tsx:83: 13 and 20 rows left `<= 15` free to become `< 15`. The boundary, totals counted.
+test('15 printed rows (14 + totals) are one block; 16 (15 + totals) split', () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `R${i}`, cost: '$1', _cost: 1 }))
+  const block = (n: number) => inExport(<DataTable columns={COLUMNS} rows={rows(n)} totalsRow={TOTALS} />).container.querySelector('[data-export-table]')?.hasAttribute('data-export-block')
+  expect(block(14)).toBe(true)
+  expect(block(15)).toBe(false)
+})

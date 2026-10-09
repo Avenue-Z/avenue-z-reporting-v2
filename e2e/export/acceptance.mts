@@ -215,6 +215,10 @@ if (!process.env.AUTH_SECRET) {
         const text = r.pdf.words.map((w) => w.text).join(' ')
         const controls = text.match(/Spend Clicks Paid Search|Cost Clicks Impressions Leads|Show all|Filter ≥10 clicks|[▸▾]/g) ?? []
         check(controls.length === 0, `${name}-${who}: no toggle, sort or expand controls (${[...new Set(controls)].join(', ') || 'none'})`)
+        // A part that failed or timed out prints its fallback and the export still returns 200 (Thomas, #352
+        // acceptance.mts:214); a run that printed one has not exported the tab.
+        const failed = text.match(/Couldn't load this section|Taking longer than usual/g) ?? []
+        check(failed.length === 0, `${name}-${who}: every part loaded, none printed its fallback (${[...new Set(failed)].join(', ') || 'none'})`)
       }
       if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
     }
