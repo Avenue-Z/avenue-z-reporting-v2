@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
 import { countLinks, fontsOf, outsideBox, pagesOf, readPdf, type PdfText } from './pdf-check'
+import { exportPair } from './pair'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
 const failures: string[] = []
@@ -126,13 +127,20 @@ if (!process.env.AUTH_SECRET) {
   // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
   // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.
   const APFM = { clientSlug: 'a-place-for-mom', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
-  const staff = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, 'apfm-staff')
-  const client = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, 'apfm-client')
   // Every glyph in the same order, and every page starting at the same place. The stamp's minute can differ between the
   // runs, so it is dropped. Spaces are too: sub-pixel glyph placement (0.07 pt seen) splits letter-spaced titles into
   // words differently ("GROW T H" / "GROW TH") with the same glyphs in the same place.
   const body = (pdf: PdfText) => pdf.words.map((w) => w.text).join('').replace(/^.*?Exported.*?(AM|PM)[A-Z]{2,4}/, '')
     + pdf.pages.map((_, i) => pdf.words.find((w) => w.page === i + 1)?.yMin.toFixed(0)).join()
+  // Exported once more if the pair differs: a stale cache can refresh between the two exports (./pair.ts). A retry's
+  // PDFs are named -retry, so the first pair's stay on disk to compare.
+  const apfm = await exportPair(
+    (n) => exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, `apfm-staff${n > 1 ? '-retry' : ''}`),
+    (n) => exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, `apfm-client${n > 1 ? '-retry' : ''}`),
+    (a, b) => (body(a.pdf) === body(b.pdf) ? null : 'their text or page starts differ'),
+  )
+  if (apfm.retried) console.log(`  note  apfm: the first staff/client pair differed (${apfm.retried}); exported once more, as a cache may have refreshed between them`)
+  const { staff, client } = apfm
   for (const [name, r] of [['apfm-staff', staff], ['apfm-client', client]] as const) {
     if (!r) continue
     const staffOnly = (r.pdf.words.map((w) => w.text).join(' ').match(/\b(Draft|Approve|Revoke|Add annotation|Add commentary|Edit|Hidden)\b/g) ?? [])
@@ -142,7 +150,7 @@ if (!process.env.AUTH_SECRET) {
     // An annotation's label starts with its day; the day printed again before it read "8/25 · 8/25 | …".
     check(!/(\d{1,2}\/\d{1,2}) · \1\b/.test(text), `${name}: each annotation's day prints once`)
   }
-  if (staff && client) check(body(staff.pdf) === body(client.pdf), 'apfm: the staff export prints exactly what the client export does')
+  if (staff && client) check(apfm.difference === null, 'apfm: the staff export prints exactly what the client export does')
 }
 
 console.log(`\nfixture PDF: ${fixturePdf}`)
