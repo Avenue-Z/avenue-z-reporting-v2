@@ -24,7 +24,6 @@ export type CommentaryViewKey =
   | OrgSocialChannelViewKey
   | OrgSocialRecommendationsViewKey
   | 'organic-social:influencer'
-  | 'organic-social:influencer:recommendations'
 
 /** The commentary key for a single Organic Social platform subpage. */
 export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelViewKey {
@@ -36,6 +35,8 @@ const RECOMMENDATIONS_SUFFIX = ':recommendations'
  *  (and for a key that already is a Recommendations key). */
 export function recommendationsViewKeyFor(key: CommentaryViewKey): CommentaryViewKey | null {
   if (key !== 'organic-social' && !key.startsWith('organic-social:')) return null
+  // No Recommendations on the Influencer tab (Jasmine, 10/9: "We don't need recommendations for this tab").
+  if (key === 'organic-social:influencer') return null
   if (key.endsWith(RECOMMENDATIONS_SUFFIX)) return null
   return `${key}${RECOMMENDATIONS_SUFFIX}` as CommentaryViewKey
 }
@@ -107,9 +108,9 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'organic-social': { label: 'Organic Social', owner: 'Jasmine / Kyleah' },
   ...ORG_SOCIAL_CHANNEL_VIEWS,
   ...ORG_SOCIAL_RECOMMENDATION_VIEWS,
-  // The Influencer tab (10/6 calls): its own Insights and Recommendations streams.
+  // The Influencer tab (10/6 calls): its own Insights stream. No Recommendations (Jasmine, 10/9: we don't manage their
+  // influencer marketing).
   'organic-social:influencer': { label: 'Organic Social — Influencer', owner: 'Jasmine / Kyleah' },
-  'organic-social:influencer:recommendations': { label: 'Organic Social — Influencer — Recommendations', owner: 'Jasmine / Kyleah' },
 }
 
 /** Runtime guard: is this string one of the canonical view keys? Used to reject
