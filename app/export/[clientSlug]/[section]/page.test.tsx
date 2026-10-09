@@ -77,8 +77,8 @@ test('the page loads the fallback fonts for arrows, symbols and emoji', async ()
 // Only sections switched on for the server export render here (lib/export/sections.ts). A section the client has
 // enabled but that has no export yet is a 404, so this page can't print a report its components aren't ready for.
 test('a section not switched on for the export is a 404, even when the client has it enabled', async () => {
-  getClientBySlug.mockResolvedValue({ ...CLIENT, enabledReports: ['organic-social', 'paid-media'] })
-  await expect(open({ dateRange: 'last_30_days' }, 'paid-media')).rejects.toMatchObject({ digest: expect.stringMatching(/^NEXT_HTTP_ERROR_FALLBACK;404/) })
+  getClientBySlug.mockResolvedValue({ ...CLIENT, enabledReports: ['organic-social', 'ga4'] })
+  await expect(open({ dateRange: 'last_30_days' }, 'ga4')).rejects.toMatchObject({ digest: expect.stringMatching(/^NEXT_HTTP_ERROR_FALLBACK;404/) })
 })
 
 test('an unknown section is a 404', async () => {

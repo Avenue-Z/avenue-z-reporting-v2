@@ -117,9 +117,10 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       dateRange: Q.dateRange, compareRange: Q.compareRange, models: null })
   })
 
-  test.each(['paid-media'])(`${routeName}: %s keeps the browser print until its section is switched on`, async (section) => {
-    const { button } = await onPage(Route, CLIENT, section)
-    expect(button.props.serverExport).toBeUndefined()
+  test(`${routeName}: Paid Media's button exports on the server, with the resolved tab and no model filter`, async () => {
+    const { button } = await onPage(Route, CLIENT, 'paid-media', 'meta')
+    expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'paid-media', subsection: 'meta',
+      dateRange: Q.dateRange, compareRange: Q.compareRange, models: null })
   })
 
   test(`${routeName}: AEO's button exports on the server, with the resolved tab and the model filter`, async () => {
