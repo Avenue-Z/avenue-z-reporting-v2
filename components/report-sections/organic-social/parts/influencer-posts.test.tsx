@@ -117,3 +117,18 @@ test('in the PDF the heading and totals are handed to the grid and hidden on the
   const lead = render(<>{(InfluencerGrid.mock.calls.at(-1) as unknown as [{ lead: React.ReactNode }])[0].lead}</>)
   expect(lead.container.textContent).toMatch(/^Influencer Posts.*Posts1.*Total Engagements4/)
 })
+
+// Jasmine's 10/9 feedback (QA row 5): Total Views left out co-authored posts, which Dash gives public views, not views.
+test.each([['outline', outlineClient], ['designations', v2Client]])('%s: a co-authored post with public views counts in Views and Total Views', async (_, c) => {
+  getClientBySlug.mockResolvedValue(c)
+  fetchTopContentFrozen.mockResolvedValue([
+    post(1, { author: 'creator', caption: 'x #ad', publicViews: 704013, metrics: { effectiveness: null, engagementRate: null, engagements: 29718, impressions: 0 } }),
+    post(2, { author: 'creator2', caption: 'y #ad', metrics: { effectiveness: null, engagementRate: null, engagements: 59, impressions: 0 } }),
+  ])
+  const { getByText } = render(await InfluencerPostsSection({ ctx: CTX }))
+  expect(getByText('Total Views').closest('div.rounded-lg')!.textContent).toContain('704,013')
+  const posts = shown().posts as unknown as { id: number; metrics: { impressions: number; engagementRate: number | null } }[]
+  expect(posts.find((p) => p.id === 1)!.metrics.impressions).toBe(704013)
+  expect(posts.find((p) => p.id === 1)!.metrics.engagementRate).toBeNull()
+  expect(posts.find((p) => p.id === 2)!.metrics.impressions).toBe(0)
+})

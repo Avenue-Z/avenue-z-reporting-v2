@@ -8,7 +8,7 @@ import { influencerLabel, parseInfluencerSection } from '@/lib/organic-social/in
 import { OUTLINE_SORT_KEYS, ownHandlesFor, partitionByAuthor, withViewsBasisRate } from '@/lib/organic-social/outline-top-content'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
-import { influencerTotals } from '@/lib/organic-social/influencer-totals'
+import { influencerTotals, withPublicViews } from '@/lib/organic-social/influencer-totals'
 import { num } from '@/lib/supermetrics/format'
 import { KpiCard } from '@/components/charts/kpi-card'
 import { CODE_TEMPLATES } from '../template'
@@ -35,9 +35,11 @@ export async function InfluencerPostsSection({ ctx }: { ctx: OrganicSocialCtx })
     : fetchTopContentFrozen(clientSlug, dateRange, CHANNEL))
   if (!r.data) return <Fallback kind={r.error!} />
   const stored = await loadDesignations(clientSlug, r.data.map((p) => p.id))
-  const influencer = rules === 'outline'
+  // Views: a co-authored or tagged post Dash gives no views shows its public views (spec 2026-10-09 section 5). After the
+  // split, so the outline rate above is computed from Dash's views as before.
+  const influencer = withPublicViews(rules === 'outline'
     ? partitionByAuthor(withViewsBasisRate(r.data), stored, ownHandlesFor(r.data, client?.dashSocialConfig, clientSlug, CHANNEL, 'influencer')).influencer
-    : partitionPosts(r.data, stored).influencer
+    : partitionPosts(r.data, stored).influencer)
   // A client's Instagram label (influencerSection, "Partnership Posts" say) names this heading; the tab itself stays
   // "Influencer". Absent or invalid: the default heading, as the Instagram tab's section would show.
   const parsed = parseInfluencerSection(client?.dashSocialConfig?.influencerSection)
