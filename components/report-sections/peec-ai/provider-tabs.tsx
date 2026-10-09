@@ -3,6 +3,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 
 export type AeoProvider = 'peec' | 'profound'
 
@@ -21,9 +22,12 @@ export function ProviderTabs({
   // First render is deterministic (first available) to avoid hydration mismatch;
   // the persisted choice is applied after mount.
   const [selected, setSelected] = useState<AeoProvider>(availableProviders[0])
+  // The PDF export prints the live page's default, the first provider (spec 2026-10-08-pdf-export-all-reports-design §6),
+  // never a saved choice. With two providers its name stands in for the tab row.
+  const exportMode = useExportMode()
 
   useEffect(() => {
-    if (availableProviders.length < 2) return
+    if (exportMode || availableProviders.length < 2) return
     const saved = window.localStorage.getItem(storageKey) as AeoProvider | null
     if (saved && availableProviders.includes(saved)) setSelected(saved)
     // Restore once on mount; storageKey (per client slug) and the configured
@@ -34,6 +38,16 @@ export function ProviderTabs({
   function pick(p: AeoProvider) {
     setSelected(p)
     window.localStorage.setItem(storageKey, p)
+  }
+
+  if (exportMode) {
+    const first = availableProviders[0]
+    return (
+      <div className="space-y-8">
+        {availableProviders.length > 1 && <p data-export-provider="" className="text-sm font-bold text-white">{LABELS[first]}</p>}
+        {sections[first]}
+      </div>
+    )
   }
 
   if (availableProviders.length < 2) {

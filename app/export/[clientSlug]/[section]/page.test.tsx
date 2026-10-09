@@ -18,8 +18,8 @@ const textOf = (n: unknown): string => {
   if (Array.isArray(n)) return n.map(textOf).join('')
   return textOf((n as { props?: { children?: unknown } }).props?.children)
 }
-const open = (sp: Record<string, string>) =>
-  runRoute(ExportPage({ params: Promise.resolve({ clientSlug: 'renaissance' }), searchParams: Promise.resolve(sp) } as never))
+const open = (sp: Record<string, string>, section = 'organic-social') =>
+  runRoute(ExportPage({ params: Promise.resolve({ clientSlug: 'renaissance', section }), searchParams: Promise.resolve(sp) } as never))
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-06T14:17:00Z'))
@@ -71,5 +71,28 @@ test('the page loads the fallback fonts for arrows, symbols and emoji', async ()
   const r = await open({})
   if ('redirect' in r) throw new Error('unexpected redirect')
   const links = findElements(r.element, (e) => e.type === 'link').map((e) => e.props as { rel: string; href: string })
-  expect(links).toEqual([expect.objectContaining({ rel: 'stylesheet', href: expect.stringMatching(/family=Noto\+Sans\+Math&family=Noto\+Color\+Emoji/) })])
+  expect(links).toEqual([expect.objectContaining({ rel: 'stylesheet', href: expect.stringMatching(/family=Noto\+Sans\+Math&family=Noto\+Color\+Emoji&family=Noto\+Sans\+Mono/) })])
+})
+
+// Only sections switched on for the server export render here (lib/export/sections.ts). A section the client has
+// enabled but that has no export yet is a 404, so this page can't print a report its components aren't ready for.
+test('a section not switched on for the export is a 404, even when the client has it enabled', async () => {
+  getClientBySlug.mockResolvedValue({ ...CLIENT, enabledReports: ['organic-social', 'ga4'] })
+  await expect(open({ dateRange: 'last_30_days' }, 'ga4')).rejects.toMatchObject({ digest: expect.stringMatching(/^NEXT_HTTP_ERROR_FALLBACK;404/) })
+})
+
+test('an unknown section is a 404', async () => {
+  await expect(open({ dateRange: 'last_30_days' }, 'not-a-section')).rejects.toMatchObject({ digest: expect.stringMatching(/^NEXT_HTTP_ERROR_FALLBACK;404/) })
+})
+
+// #334 (task B7): the Influencer tab has no channel but a view, so the export must carry the view, or it would print
+// Overview under the title "Organic Social".
+test("the export page hands the report the tab's view and channel", async () => {
+  const reportProps = async (subsection: string) => {
+    const r = await open({ subsection, dateRange: 'last_30_days' })
+    if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+    return findElements(r.element, (e) => nameOf(e.type) === 'OrganicSocialReport')[0].props
+  }
+  expect(await reportProps('organic-influencer')).toMatchObject({ channel: null, view: 'influencer' })
+  expect(await reportProps('organic-linkedin')).toMatchObject({ channel: 'LINKEDIN', view: null })
 })

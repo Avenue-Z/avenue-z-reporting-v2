@@ -42,14 +42,14 @@ export function GeoSection({ rows }: { rows: GeoRegion[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-export-block="">
         <KpiCard title="Top Region" value={topRegion?.region ?? '—'} />
         <KpiCard title="Leads (Top Region)" value={topRegion?.leads ?? 0} />
         <KpiCard title="Total Regions" value={rows.length} />
       </div>
 
-      <div>
-        <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted">
+      <div data-export-block="">
+        <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           Top Regions by Leads
         </p>
         {top10.length > 0 ? (
@@ -63,10 +63,11 @@ export function GeoSection({ rows }: { rows: GeoRegion[] }) {
 
       {top10.length > 0 && (
         <div>
-          <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted">
+          <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
             Region → DMA Breakdown
           </p>
-          <div className="overflow-hidden rounded-lg border border-white/[0.06]">
+          {/* In the PDF export: the top 10 regions plus the total, collapsed as on first load, kept whole on one page. */}
+          <div className="overflow-hidden rounded-lg border border-white/[0.06]" data-export-table="" data-export-block="">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-wider text-text-muted">
@@ -121,13 +122,16 @@ function FragmentRow({
     <>
       <tr
         onClick={onToggle}
+        data-export-row=""
         className="cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
       >
         <td className="px-4 py-2.5 text-left font-medium text-white">
           <span className="inline-flex items-center gap-2">
-            <ChevronRightIcon
-              className={cn('h-3.5 w-3.5 text-text-muted transition-transform', isOpen && 'rotate-90')}
-            />
+            <span data-export-hide="" className="inline-flex">
+              <ChevronRightIcon
+                className={cn('h-3.5 w-3.5 text-text-muted transition-transform', isOpen && 'rotate-90')}
+              />
+            </span>
             {region.region}
             <span className="text-xs text-text-muted">({region.dmas.length} DMA{region.dmas.length === 1 ? '' : 's'})</span>
           </span>

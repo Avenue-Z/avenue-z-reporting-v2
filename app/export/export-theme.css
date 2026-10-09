@@ -17,6 +17,8 @@
      Chromium has none that cover them (only Open Sans), so they printed as empty boxes. These web fonts cover them,
      loaded by the export page; each downloads only the characters the page uses. */
   --font-sans: 'Nunito Sans', 'Noto Sans Math', 'Noto Color Emoji', sans-serif;
+  /* font-mono text (Technical Audit's paths and check ids) would resolve to Menlo or another system monospace. */
+  --font-mono: 'Noto Sans Mono', 'Noto Sans Math', 'Noto Color Emoji', monospace;
   color: #111111;
   background: #ffffff;
   font-family: var(--font-sans);
@@ -29,7 +31,29 @@
 /* A title over blocks it cannot share a page with (a section taller than a page) never ends a page alone. */
 .export-theme [data-export-keep-with-next] {
   break-after: avoid;
+  /* A title block with a description under it must not split between them either (AEO's card titles). */
+  break-inside: avoid;
 }
+/* Tables (spec 2026-10-08-pdf-export-all-reports-design §5). A table splits between pages only between rows, and
+   Chromium repeats the header row on each page it continues on. Cells wrap at the page width instead of the live
+   page's horizontal scroll, which a PDF would cut. */
+.export-theme [data-export-table] { overflow: visible; }
+.export-theme [data-export-table] table { table-layout: auto; }
+.export-theme [data-export-table] th,
+.export-theme [data-export-table] td { white-space: normal; overflow-wrap: break-word; }
+/* Wide tables (Content Impact, Technical Audit) fit the page with tighter cells: breaking inside words instead squeezed
+   columns to a letter or two wide ("CON TEN T"). */
+.export-theme [data-export-table] th { padding: 6px 5px; font-size: 9px; letter-spacing: 0.04em; }
+.export-theme [data-export-table] td { padding: 6px 5px; font-size: 11px; }
+.export-theme [data-export-row] { break-inside: avoid; }
+/* Chromium repeats a header row on each page only when the header itself may not break (found in the acceptance fixture). */
+.export-theme [data-export-table] thead { break-inside: avoid; }
+.export-theme [data-export-table-more] { break-before: avoid; }
+/* A live scroll box prints in full: its height cap would cut its last row at the edge and hide the rest. */
+.export-theme [data-export-scroll] { max-height: none; overflow: visible; }
+/* Cells and list rows wrap their full text instead of the live page's one-line ellipsis, whose title= hover is lost on paper. */
+.export-theme [data-export-table] .truncate { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }
+.export-theme [data-export-wrap] .truncate { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }
 .export-theme [data-export-hide] {
   display: none !important;
 }
@@ -57,6 +81,29 @@
 .export-theme .text-green-400 { color: #15803d; }
 .export-theme .text-red-400 { color: #b91c1c; }
 .export-theme .text-yellow-400 { color: #a16207; }
+/* AEO's bright brand text colours, darkened for white paper; a dark chart panel keeps them as designed. Tailwind's
+   arbitrary-value classes first, then the few inline styles (as the server renders them, e.g. style="color:#60FF80"),
+   which beat any stylesheet rule that isn't !important. An inline remap matches a text color declaration only, at the
+   start of the style or after a ';', so a pill's background-color (or a border-color) never matches, and a pill whose
+   text is neon (style="color:#60FF80;background-color:#60FF8022") is darkened. */
+.export-theme :not([data-export-chart] *).text-\[\#60FF80\] { color: #15803d; }
+.export-theme :not([data-export-chart] *).text-\[\#FF4444\] { color: #b91c1c; }
+.export-theme :not([data-export-chart] *).text-\[\#FFFC60\],
+.export-theme :not([data-export-chart] *).text-\[\#FFD700\] { color: #a16207; }
+.export-theme :not([data-export-chart] *).text-\[\#60FDFF\] { color: #0e7490; }
+.export-theme :not([data-export-chart] *).text-\[\#39A0FF\] { color: #1d4ed8; }
+.export-theme :not([data-export-chart] *)[style^="color:#60FF80" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#60FF80" i] { color: #15803d !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#FF4444" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#FF4444" i],
+.export-theme :not([data-export-chart] *)[style^="color:#FF6B6B" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#FF6B6B" i] { color: #b91c1c !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#FFFC60" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#FFFC60" i] { color: #a16207 !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#60FDFF" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#60FDFF" i] { color: #0e7490 !important; }
+.export-theme :not([data-export-chart] *)[style^="color:#39A0FF" i],
+.export-theme :not([data-export-chart] *)[style*=";color:#39A0FF" i] { color: #1d4ed8 !important; }
 
 /* Borders */
 .export-theme .border-white\/\[0\.06\],
