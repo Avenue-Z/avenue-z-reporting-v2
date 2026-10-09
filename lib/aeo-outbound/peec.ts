@@ -82,9 +82,10 @@ export class PeecClient {
       let retryWait: number | null = null
       let value: unknown
       // One retry for a network failure, a 5xx or a body read that broke, only with time to spare.
-      const takeTransient = (): boolean => {
+      const takeTransient = (kind: string): boolean => {
         if (transientUsed || this.deadline - this.now() <= TRANSIENT_RETRY_MIN_LEFT_MS) return false
         transientUsed = true
+        console.warn(`[PEEC API] ${path}: retrying once after ${kind}`)
         retryWait = TRANSIENT_RETRY_DELAY_MS
         return true
       }
@@ -102,7 +103,7 @@ export class PeecClient {
           if (e instanceof PeecError) throw e
           const err = e as Error
           if (err?.name === 'AbortError') throw timeoutErr()
-          if (!takeTransient()) {
+          if (!takeTransient('a network failure')) {
             throw new PeecError(`[PEEC API] ${path}: request failed (${this.scrub(err?.message ?? String(e)).slice(0, 200)})`)
           }
         }
@@ -114,9 +115,9 @@ export class PeecClient {
           const wait = retryDelayMs(res.headers.get('X-RateLimit-Reset'))
           if (wait >= this.deadline - this.now()) throw new PeecError(`[PEEC API] ${path}: rate limited, and waiting would pass the deadline`)
           retryWait = wait
-        } else if (res.status >= 500 && takeTransient()) {
-          // Release the connection; a failure to cancel changes nothing.
-          try { await res.body?.cancel() } catch { /* ignored */ }
+        } else if (res.status >= 500 && takeTransient(`HTTP ${res.status}`)) {
+          // Release the connection without waiting: a cancel that never settles must not hang the call.
+          try { void res.body?.cancel().catch(() => {}) } catch { /* ignored */ }
         } else if (res.status >= 400) {
           const body = await guard(res.text()).catch((e: unknown) => {
             if (e instanceof PeecError) throw e
@@ -125,14 +126,12 @@ export class PeecClient {
           })
           throw new PeecError(`[PEEC API] ${path}: HTTP ${res.status} (${this.scrub(body).slice(0, 200)})`)
         } else {
-          let blip = false
           value = await guard(res.json()).catch((e: unknown) => {
             if (e instanceof PeecError) throw e
             if (controller.signal.aborted) throw timeoutErr()
-            if (!(e instanceof SyntaxError) && takeTransient()) { blip = true; return undefined }
+            if (!(e instanceof SyntaxError) && takeTransient('a broken response body')) return undefined
             throw new PeecError(`[PEEC API] ${path}: response was not JSON`)
           })
-          if (blip) value = undefined
         }
       } finally {
         clearTimeout(timer)
@@ -159,7 +158,7 @@ export class PeecClient {
       for (const row of page) {
         const k = naturalKey(row)
         if (seen.has(k)) {
-          throw new PeecError(`[PEEC API] ${path}: the page at offset ${rows.length} repeats a row (${k}), so rows may be missing`)
+          throw new PeecError(`[PEEC API] ${path}: the page at offset ${rows.length} repeats a row (${k}), so the data has a duplicate or missing rows`)
         }
         seen.add(k)
       }

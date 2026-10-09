@@ -211,3 +211,49 @@ test('a retried network error message never carries the key', async () => {
   expect(err.message).toContain('request failed')
   expect(err.message).not.toContain(KEY)
 })
+
+test('a 502 whose body cancel never settles still retries and returns the 200', async () => {
+  const cancel = vi.fn(() => new Promise<void>(() => {}))
+  const stuck = { status: 502, headers: new Headers(), body: { cancel } } as unknown as Response
+  const fetch = vi.fn().mockResolvedValueOnce(stuck).mockResolvedValueOnce(json({ data: [5] }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).resolves.toEqual({ data: [5] })
+  expect(cancel).toHaveBeenCalledTimes(1)
+})
+
+test('the retry is logged once, without the key', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(`oops ${KEY}`, { status: 502 })).mockResolvedValueOnce(json({ data: [] }))
+    await new PeecClient(KEY, { fetch, sleep: async () => {} }).call('GET', '/x')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0][0])).toBe('[PEEC API] /x: retrying once after HTTP 502')
+    expect(String(warn.mock.calls[0][0])).not.toContain(KEY)
+  } finally {
+    warn.mockRestore()
+  }
+})
+
+test('exactly 6000ms left does not retry, 6001ms does', async () => {
+  for (const [left, calls] of [[6000, 1], [6001, 2]] as const) {
+    const fetch = vi.fn(async () => new Response('bad', { status: 503 }))
+    const c = new PeecClient(KEY, { fetch, sleep: async () => {}, now: () => 0, deadline: left })
+    await expect(c.call('GET', '/x')).rejects.toThrow('HTTP 503')
+    expect(fetch).toHaveBeenCalledTimes(calls)
+  }
+})
+
+test('a network failure with 5s left throws without sleeping', async () => {
+  const fetch = vi.fn(async () => { throw new TypeError('fetch failed') })
+  const { sleep } = retryable()
+  const c = new PeecClient(KEY, { fetch, sleep, now: () => 0, deadline: 5000 })
+  await expect(c.call('GET', '/x')).rejects.toThrow('request failed')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(sleep).not.toHaveBeenCalled()
+})
+
+test('a network failure then a 502 throws HTTP 502: one retry is shared across kinds', async () => {
+  const fetch = vi.fn().mockRejectedValueOnce(new TypeError('fetch failed')).mockResolvedValueOnce(new Response('bad', { status: 502 }))
+  await expect(new PeecClient(KEY, { fetch, sleep: async () => {} }).call('GET', '/x')).rejects.toThrow('HTTP 502')
+  expect(fetch).toHaveBeenCalledTimes(2)
+})
