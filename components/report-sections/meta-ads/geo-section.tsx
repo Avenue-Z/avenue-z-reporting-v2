@@ -27,7 +27,7 @@ export function MetaGeoSection({ data }: { data: MetaGeoData }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-export-block="">
         <KpiCard
           title="Top Region"
           value={topRegion?.region ?? '—'}
@@ -45,7 +45,7 @@ export function MetaGeoSection({ data }: { data: MetaGeoData }) {
       </div>
 
       <div>
-        <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted">
+        <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           Top Regions by Spend
         </p>
         {top10.length > 0 ? (
