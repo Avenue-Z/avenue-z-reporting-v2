@@ -1,7 +1,7 @@
 import type { AEOModel } from '@/lib/peec/models'
 import type { Client } from '@/lib/db/schema'
 import { resolveChannels, type DashChannel } from '@/lib/organic-social/metrics'
-import { hasInfluencerTab } from '@/lib/organic-social/influencer-tab'
+import { hasInfluencerTab, INFLUENCER_TAB_ID, INSTAGRAM_TAB_ID } from '@/lib/organic-social/influencer-tab'
 
 /** Chart color mapping — consistent across all charts */
 export const CHART_COLORS = {
@@ -202,11 +202,12 @@ export type OrganicView = 'influencer' | null
 
 export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null; view?: 'influencer' }[] = [
   { id: null,                  label: 'Overview',  channel: null },
-  { id: 'organic-instagram',   label: 'Instagram', channel: 'INSTAGRAM' },
-  // The Influencer tab (10/6 calls): Instagram's influencer posts on their own page, directly under Instagram
-  // (my call, 2026-10-07, after the page was seen on dev). Offered only by hasInfluencerTab (the Instagram tab shown,
-  // its influencer section not hidden). It has no channel, so a client that hides Overview still opens on Instagram.
+  // The Influencer tab (10/6 calls): Instagram's influencer posts on their own page. Directly under Overview since
+  // Jasmine's 10/9 feedback ("Can we please move this tab under the Overview Tab?"). Offered only by hasInfluencerTab
+  // (the Instagram tab shown, its influencer section not hidden). It has no channel, so with Overview hidden
+  // organicSocialSubsections puts it back under Instagram and the report still opens on Instagram.
   { id: 'organic-influencer',  label: 'Influencer', channel: null, view: 'influencer' },
+  { id: 'organic-instagram',   label: 'Instagram', channel: 'INSTAGRAM' },
   { id: 'organic-facebook',    label: 'Facebook',  channel: 'FACEBOOK' },
   { id: 'organic-linkedin',    label: 'LinkedIn',  channel: 'LINKEDIN' },
   { id: 'organic-x',           label: 'X',         channel: 'TWITTER' },
@@ -222,6 +223,17 @@ export type OrganicTabsClient = {
   hiddenReports?: readonly string[] | null
 }
 
+/** With Overview hidden the report opens on the first tab, which must stay a platform tab, so the Influencer tab (no
+ *  channel) goes back directly under Instagram, its place before 10/9. hasInfluencerTab requires the Instagram tab, so it
+ *  is always present when the Influencer tab is; if it were not, the list is returned as it is. */
+function influencerUnderInstagram<T extends { id: string | null }>(subs: T[]): T[] {
+  const tab = subs.find((s) => s.id === INFLUENCER_TAB_ID)
+  if (!tab) return subs
+  const rest = subs.filter((s) => s !== tab)
+  const at = rest.findIndex((s) => s.id === INSTAGRAM_TAB_ID)
+  return at < 0 ? subs : [...rest.slice(0, at + 1), tab, ...rest.slice(at + 1)]
+}
+
 /** Overview + the platform tabs this client is configured for AND has not hidden, plus the Influencer tab when
  *  hasInfluencerTab says so. */
 export function organicSocialSubsections(client: OrganicTabsClient) {
@@ -234,7 +246,7 @@ export function organicSocialSubsections(client: OrganicTabsClient) {
   // up with no tabs. visibleSubsections is shared with the other sections and still keeps theirs.
   const hidden = new Set<string>(client.hiddenReports ?? [])
   if (!hidden.has(ORGANIC_OVERVIEW_TAB_ID) || !subs.some((s) => s.channel != null)) return subs
-  return subs.filter((s) => s.id != null)
+  return influencerUnderInstagram(subs.filter((s) => s.id != null))
 }
 
 /** Single source of truth for "which view is this?". Never null — unknown/hidden/unconfigured → Overview. */

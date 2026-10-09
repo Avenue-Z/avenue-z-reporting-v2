@@ -7,7 +7,7 @@ const client = (over: Partial<Client> = {}): Client =>
 
 test('order is Overview, Instagram, Facebook, LinkedIn, X, TikTok', () => {
   expect(ORGANIC_SOCIAL_SUBSECTIONS.map((s) => s.id)).toEqual(
-    [null, 'organic-instagram', 'organic-influencer', 'organic-facebook', 'organic-linkedin', 'organic-x', 'organic-tiktok'],
+    [null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x', 'organic-tiktok'],
   )
 })
 

@@ -33,7 +33,7 @@ test('with Overview hidden, a named platform tab still opens', () => {
 // and it has no channel allowlist, so its Organic Social tabs are exactly today's.
 test("Renaissance's settings keep Overview first and every tab as today", () => {
   const ren = client(undefined, ['technical-audit', 'content-impact'])
-  expect(tabs(ren)).toEqual([null, 'organic-instagram', 'organic-influencer', 'organic-facebook', 'organic-linkedin', 'organic-x'])
+  expect(tabs(ren)).toEqual([null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x'])
   expect(resolveOrganicSubsection(ren, null).channel).toBeNull()
 })
 
