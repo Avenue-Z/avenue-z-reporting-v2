@@ -5,6 +5,8 @@ const BASE = 'https://api.peec.ai/customer/v1'
 const MAX_ATTEMPTS = 3
 const RETRY_MAX_SECONDS = 20
 const CALL_TIMEOUT_MS = 45_000
+const TRANSIENT_RETRY_DELAY_MS = 1000
+const TRANSIENT_RETRY_MIN_LEFT_MS = 6000
 export const MAX_ENDPOINT_ROWS = 250_000
 
 export class PeecError extends Error {
@@ -62,7 +64,9 @@ export class PeecClient {
   async call(method: 'GET' | 'POST', path: string, opts: { params?: Params; body?: unknown } = {}): Promise<unknown> {
     const url = new URL(BASE + path)
     for (const [k, v] of Object.entries(opts.params ?? {})) url.searchParams.set(k, String(v))
-    for (let attempt = 1; ; attempt++) {
+    let transientUsed = false // at most one blip retry per call, separate from the 429 counter
+    let rateAttempts = 0 // 429 attempts, counted apart from the transient retry
+    for (;;) {
       const left = this.deadline - this.now()
       if (left <= 0) throw new PeecError(`[PEEC API] ${path}: deadline reached`)
       const timeoutMs = Math.min(CALL_TIMEOUT_MS, left)
@@ -77,8 +81,15 @@ export class PeecClient {
       const timer = setTimeout(() => controller.abort(), timeoutMs)
       let retryWait: number | null = null
       let value: unknown
+      // One retry for a network failure, a 5xx or a body read that broke, only with time to spare.
+      const takeTransient = (): boolean => {
+        if (transientUsed || this.deadline - this.now() <= TRANSIENT_RETRY_MIN_LEFT_MS) return false
+        transientUsed = true
+        retryWait = TRANSIENT_RETRY_DELAY_MS
+        return true
+      }
       try {
-        let res: Response
+        let res: Response | null = null
         try {
           res = await guard(this.fetchImpl(url.toString(), {
             method,
@@ -91,13 +102,21 @@ export class PeecClient {
           if (e instanceof PeecError) throw e
           const err = e as Error
           if (err?.name === 'AbortError') throw timeoutErr()
-          throw new PeecError(`[PEEC API] ${path}: request failed (${this.scrub(err?.message ?? String(e)).slice(0, 200)})`)
+          if (!takeTransient()) {
+            throw new PeecError(`[PEEC API] ${path}: request failed (${this.scrub(err?.message ?? String(e)).slice(0, 200)})`)
+          }
         }
-        if (res.status === 429) {
-          if (attempt >= MAX_ATTEMPTS) throw new PeecError(`[PEEC API] ${path}: rate limited after ${MAX_ATTEMPTS} attempts`)
+        if (res === null) {
+          // Network failure, retry already scheduled.
+        } else if (res.status === 429) {
+          rateAttempts++
+          if (rateAttempts >= MAX_ATTEMPTS) throw new PeecError(`[PEEC API] ${path}: rate limited after ${MAX_ATTEMPTS} attempts`)
           const wait = retryDelayMs(res.headers.get('X-RateLimit-Reset'))
           if (wait >= this.deadline - this.now()) throw new PeecError(`[PEEC API] ${path}: rate limited, and waiting would pass the deadline`)
           retryWait = wait
+        } else if (res.status >= 500 && takeTransient()) {
+          // Release the connection; a failure to cancel changes nothing.
+          try { await res.body?.cancel() } catch { /* ignored */ }
         } else if (res.status >= 400) {
           const body = await guard(res.text()).catch((e: unknown) => {
             if (e instanceof PeecError) throw e
@@ -106,11 +125,14 @@ export class PeecClient {
           })
           throw new PeecError(`[PEEC API] ${path}: HTTP ${res.status} (${this.scrub(body).slice(0, 200)})`)
         } else {
+          let blip = false
           value = await guard(res.json()).catch((e: unknown) => {
             if (e instanceof PeecError) throw e
             if (controller.signal.aborted) throw timeoutErr()
+            if (!(e instanceof SyntaxError) && takeTransient()) { blip = true; return undefined }
             throw new PeecError(`[PEEC API] ${path}: response was not JSON`)
           })
+          if (blip) value = undefined
         }
       } finally {
         clearTimeout(timer)
@@ -124,7 +146,7 @@ export class PeecClient {
   }
 
   /** Every row of a list (GET) or report (POST): limit/offset, stop on the first EMPTY page, abort when a
-   *  later page repeats a natural key, abort past MAX_ENDPOINT_ROWS (aivx peec_api_export.py:106-198). */
+   *  natural key repeats, within a page or across pages, abort past MAX_ENDPOINT_ROWS (aivx peec_api_export.py:106-198). */
   async all<T>(method: 'GET' | 'POST', path: string, base: Record<string, unknown>, naturalKey: (row: T) => string, limit: number): Promise<T[]> {
     const rows: T[] = []
     const seen = new Set<string>()
@@ -134,12 +156,13 @@ export class PeecClient {
         : await this.call('POST', path, { body: { ...base, limit, offset: rows.length } })
       const page = rowsOf<T>(payload)
       if (page.length === 0) return rows
-      const keys = page.map(naturalKey)
-      const repeated = keys.find((k) => seen.has(k))
-      if (repeated !== undefined) {
-        throw new PeecError(`[PEEC API] ${path}: the page at offset ${rows.length} repeats a row an earlier page returned (${repeated}), so rows may be missing`)
+      for (const row of page) {
+        const k = naturalKey(row)
+        if (seen.has(k)) {
+          throw new PeecError(`[PEEC API] ${path}: the page at offset ${rows.length} repeats a row (${k}), so rows may be missing`)
+        }
+        seen.add(k)
       }
-      keys.forEach((k) => seen.add(k))
       rows.push(...page)
       if (rows.length > this.maxRows) throw new PeecError(`[PEEC API] ${path}: more than ${this.maxRows} rows, stopping`)
     }

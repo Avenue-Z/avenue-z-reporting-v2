@@ -120,3 +120,94 @@ test('the default fetch is not called as a method of the client', async () => {
     vi.unstubAllGlobals()
   }
 })
+
+const retryable = () => {
+  const sleep = vi.fn(async (_ms: number) => {})
+  return { sleep }
+}
+
+test('a 502 then a 200 succeeds after one 1000ms sleep', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(new Response('bad gateway', { status: 502 })).mockResolvedValueOnce(json({ data: [1] }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).resolves.toEqual({ data: [1] })
+  expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000])
+  expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('two 502s throw HTTP 502 after one retry', async () => {
+  const fetch = vi.fn(async () => new Response('bad gateway', { status: 502 }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).rejects.toThrow('HTTP 502')
+  expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('a fetch TypeError then a 200 succeeds', async () => {
+  const fetch = vi.fn().mockRejectedValueOnce(new TypeError('fetch failed')).mockResolvedValueOnce(json({ data: [2] }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).resolves.toEqual({ data: [2] })
+  expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000])
+})
+
+test('a body-read TypeError then a 200 succeeds', async () => {
+  const broken = { status: 200, headers: new Headers(), json: async () => { throw new TypeError('terminated') } } as unknown as Response
+  const fetch = vi.fn().mockResolvedValueOnce(broken).mockResolvedValueOnce(json({ data: [3] }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).resolves.toEqual({ data: [3] })
+  expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000])
+})
+
+test('a SyntaxError body is not JSON and is not retried', async () => {
+  const fetch = vi.fn(async () => new Response('<html>', { status: 200 }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).rejects.toThrow('response was not JSON')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(sleep).not.toHaveBeenCalled()
+})
+
+test('a timeout is not retried', async () => {
+  const fetch = vi.fn(async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }) })
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).rejects.toThrow('timed out')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(sleep).not.toHaveBeenCalled()
+})
+
+test('a 400 is not retried', async () => {
+  const fetch = vi.fn(async () => new Response('nope', { status: 400 }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).rejects.toThrow('HTTP 400')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(sleep).not.toHaveBeenCalled()
+})
+
+test('a 502 with 5s left throws without sleeping', async () => {
+  const fetch = vi.fn(async () => new Response('bad gateway', { status: 502 }))
+  const { sleep } = retryable()
+  const c = new PeecClient(KEY, { fetch, sleep, now: () => 0, deadline: 5000 })
+  await expect(c.call('GET', '/x')).rejects.toThrow('HTTP 502')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(sleep).not.toHaveBeenCalled()
+})
+
+test('429, 502, 429, 200 succeeds: the transient retry spends no 429 attempt', async () => {
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(json({}, 429, { 'X-RateLimit-Reset': '1' }))
+    .mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
+    .mockResolvedValueOnce(json({}, 429, { 'X-RateLimit-Reset': '1' }))
+    .mockResolvedValueOnce(json({ data: [4] }))
+  const { sleep } = retryable()
+  await expect(new PeecClient(KEY, { fetch, sleep }).call('GET', '/x')).resolves.toEqual({ data: [4] })
+  expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000, 1000, 1000])
+})
+
+test('a key repeated within one page throws naming the key', async () => {
+  const fetch = vi.fn(async () => json({ data: [{ id: 'a' }, { id: 'b' }, { id: 'a' }] }))
+  await expect(new PeecClient(KEY, { fetch }).all<{ id: string }>('GET', '/brands', {}, (r) => r.id, 3)).rejects.toThrow(/repeats a row.*\(a\)/)
+})
+
+test('a retried network error message never carries the key', async () => {
+  const fetch = vi.fn(async () => { throw new TypeError(`connect failed for ${KEY}`) })
+  const err = (await new PeecClient(KEY, { fetch, sleep: async () => {} }).call('GET', '/x').catch((e) => e)) as PeecError
+  expect(err.message).toContain('request failed')
+  expect(err.message).not.toContain(KEY)
+})
