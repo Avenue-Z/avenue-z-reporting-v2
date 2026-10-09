@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
-import { countLinks, fontsOf, outsideBox, pagesOf, readPdf, type PdfText } from './pdf-check'
+import { countLinks, fontsOf, outsideBox, pagesOf, printedContent, readPdf, type PdfText } from './pdf-check'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
 const failures: string[] = []
@@ -128,11 +128,9 @@ if (!process.env.AUTH_SECRET) {
   const APFM = { clientSlug: 'a-place-for-mom', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
   const staff = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, 'apfm-staff')
   const client = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, 'apfm-client')
-  // Every glyph in the same order, and every page starting at the same place. The stamp's minute can differ between the
-  // runs, so it is dropped. Spaces are too: sub-pixel glyph placement (0.07 pt seen) splits letter-spaced titles into
-  // words differently ("GROW T H" / "GROW TH") with the same glyphs in the same place.
-  const body = (pdf: PdfText) => pdf.words.map((w) => w.text).join('').replace(/^.*?Exported.*?(AM|PM)[A-Z]{2,4}/, '')
-    + pdf.pages.map((_, i) => pdf.words.find((w) => w.page === i + 1)?.yMin.toFixed(0)).join()
+  // Every page's text in reading order by position, and every page starting at the same place (printedContent: not
+  // pdftotext's extraction order, which differs between two renders of the same layout; the stamp's minute dropped).
+  const body = (pdf: PdfText) => printedContent(pdf).join('\n')
   for (const [name, r] of [['apfm-staff', staff], ['apfm-client', client]] as const) {
     if (!r) continue
     const staffOnly = (r.pdf.words.map((w) => w.text).join(' ').match(/\b(Draft|Approve|Revoke|Add annotation|Add commentary|Edit|Hidden)\b/g) ?? [])

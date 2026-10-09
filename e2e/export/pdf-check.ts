@@ -46,3 +46,24 @@ export function fontsOf(file: string): string[] {
   const out = execFileSync('pdffonts', [file], { encoding: 'utf8' })
   return [...new Set(out.split('\n').slice(2).map((l) => l.split(/\s+/)[0]?.replace(/^[A-Z]{6}\+/, '')).filter(Boolean))]
 }
+
+/** What a staff and a client export must print the same, page by page: the text in geometric reading order, not in
+ *  pdftotext's extraction order, which differs between two renders of the same layout (a wrapped table header's lines
+ *  interleave by height, not by cell). Words group into lines by height (within 2 pt: sub-pixel placement moves them
+ *  0.07 pt), lines read top to bottom and words left to right, joined without spaces (letter-spaced titles split into
+ *  words differently: "GROW T H" / "GROW TH"). Each page records where it starts, so a moved page break is a difference.
+ *  The stamp's time is dropped: the two exports run a minute apart. */
+export function printedContent(pdf: PdfText): string[] {
+  return pdf.pages.map((_, i) => {
+    const words = pdf.words.filter((w) => w.page === i + 1).sort((a, b) => a.yMin - b.yMin || a.xMin - b.xMin)
+    const lines: Word[][] = []
+    for (const w of words) {
+      const line = lines.at(-1)
+      if (line && w.yMin - line[0].yMin < 2) line.push(w)
+      else lines.push([w])
+    }
+    const text = lines.map((l) => l.sort((a, b) => a.xMin - b.xMin).map((w) => w.text).join('')).join('\n')
+      .replace(/(Exported.*?)\d{1,2}:\d{2}(AM|PM)/, '$1$2')
+    return `${words[0]?.yMin.toFixed(0) ?? ''}|${text}`
+  })
+}
