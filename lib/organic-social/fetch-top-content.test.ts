@@ -241,3 +241,27 @@ test('a TikTok payload typed IMAGE with no video object normalizes as IMAGE', ()
   const p = normalizePost(tiktokPost, 'TIKTOK')
   expect(p.mediaType).toBe('IMAGE')
 })
+
+// Spec 2026-10-09 section 5: Dash leaves `views` empty on a post another account authored and fills `public_views`
+// (probe 2026-10-09: Good News Movement 704,013 in A Place For Mom's lock). Carried for the Influencer tab only.
+const igPost = (instagram: Record<string, unknown>): DashContentPost =>
+  ({ id: 900000001, source: 'INSTAGRAM', type: 'VIDEO', source_created_at: '2026-09-30T13:32:00Z', instagram }) as DashContentPost
+
+test('an Instagram post carries Dash public_views as publicViews', () => {
+  expect(normalizePost(igPost({ public_views: 704013, sum_total_engagement: 29718 }), 'INSTAGRAM').publicViews).toBe(704013)
+  expect(normalizePost(igPost({ views: 0, public_views: 27461 }), 'INSTAGRAM').publicViews).toBe(27461) // a UGC-feed shape
+})
+
+test.each([['absent', {}], ['null', { public_views: null }], ['a string', { public_views: '704013' }], ['negative', { public_views: -1 }],
+  ['NaN', { public_views: Number.NaN }], ['Infinity', { public_views: Number.POSITIVE_INFINITY }]])(
+  'public_views %s gives no publicViews and the same Views as today', (_, extra) => {
+    const p = normalizePost(igPost({ views: 20, ...extra }), 'INSTAGRAM')
+    expect('publicViews' in p).toBe(false)
+    expect(p.metrics.impressions).toBe(20)
+  })
+
+test('a Facebook post never carries publicViews', () => {
+  const fb = { id: 700000002, source: 'FACEBOOK', type: 'IMAGE', source_created_at: '2026-06-15T00:00:00Z',
+    facebook: { organic_views: 55, public_views: 99 } } as DashContentPost
+  expect('publicViews' in normalizePost(fb, 'FACEBOOK')).toBe(false)
+})

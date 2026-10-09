@@ -26,6 +26,8 @@ export interface TopContentPost {
   sourceType: SourceType     // hardcoded 'organic' here; the designation table sets it in S2-B
   author?: string            // set only when the caller asks (outline Top Content); absent otherwise
   ugc?: true                 // set only when the caller asks (outline Top Content): another account's post tagging the client
+  publicViews?: number       // Instagram only: Dash's public_views, the count it fills when `views` is empty (another
+                             // account's post); read by the Influencer tab only (spec 2026-10-09 section 5)
 }
 
 /** The frozen Dash-sourced facts for one Top-Content card. Everything on TopContentPost

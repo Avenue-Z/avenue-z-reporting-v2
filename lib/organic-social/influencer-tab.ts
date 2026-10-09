@@ -5,6 +5,7 @@ import { resolveSection } from '@/lib/report-sections/resolve'
 import type { SectionOverride, SectionTemplate } from '@/lib/report-sections/types'
 import { parseInfluencerSection } from './influencer-section'
 import { CHANNEL_LABEL, resolveChannels } from './metrics'
+import { authorRuleOn } from './outline-top-content'
 
 export type InfluencerTabClient = {
   dashSocialConfig?: { channels?: string[]; influencerSection?: unknown } | null
@@ -26,13 +27,16 @@ export function hasInfluencerTab(client: InfluencerTabClient): boolean {
   return !(setting && 'hidden' in setting)
 }
 
-export type InfluencerRules = 'outline' | 'designations'
+export type InfluencerRules = 'outline' | 'author' | 'designations'
 
-/** 'outline' when the platform composition pins top-content@3 (partitionByAuthor, UGC and author marks), else
- *  'designations' (partitionPosts: the stored choice, then #ad), which is what top-content@2 does. */
-export function influencerRulesFor(template: SectionTemplate, override: SectionOverride | undefined): InfluencerRules {
+/** 'outline' when the platform composition pins top-content@3 (partitionByAuthor, UGC and author marks, deck-basis
+ *  rate); 'author' when it pins top-content@2 and the client has a saved Instagram handle (the same split, no rate
+ *  change; spec 2026-10-09 section 6); else 'designations' (partitionPosts: the stored choice, then #ad). `dsc` is the
+ *  client's dash_social_config; absent means no handle. */
+export function influencerRulesFor(template: SectionTemplate, override: SectionOverride | undefined, dsc?: unknown): InfluencerRules {
   const pin = resolveSection(template, override).find((p) => p.id === 'top-content')
-  return pin?.version === 3 ? 'outline' : 'designations'
+  if (pin?.version === 3) return 'outline'
+  return pin?.version === 2 && authorRuleOn(dsc) ? 'author' : 'designations'
 }
 
 /** The gallery rows without the Instagram influencer group, for a client that has the tab (the posts live there

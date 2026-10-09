@@ -17,6 +17,11 @@ export function parseOwnHandles(cfg: unknown): OwnHandles {
   return handle ? { INSTAGRAM: handle } : {}
 }
 
+/** The author rule's per-client switch for top-content@2 (spec 2026-10-09 section 6): a saved Instagram handle. */
+export function authorRuleOn(dsc: unknown): boolean {
+  return Boolean(parseOwnHandles(dsc).INSTAGRAM)
+}
+
 /** Stored designation first (a team member's choice); then a tagged post (UGC, another account's) is
  *  a collab post; then the author rule when both the author and the client's own handle are known
  *  (matches the decks: a post by someone else is a collab post); otherwise today's #ad suggestion. */
