@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { PEEC, GA4, PR_PROOF } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { useExportMode } from '@/components/export/export-mode'
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -25,7 +26,8 @@ function fmtPct(n: number, decimals = 1) {
 // `<XTable rows={…} />`.
 function SectionHeading({ title, tooltip, subtitle }: { title: string; tooltip: string; subtitle?: string }) {
   return (
-    <div className="mb-5">
+    // In the PDF export the heading stays on the page of what follows it (app/export/export-theme.css).
+    <div className="mb-5" data-export-keep-with-next="">
       <div className="flex items-center gap-1.5">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <InfoTooltip text={tooltip} />
@@ -136,7 +138,9 @@ export function TopEditorialDomainsTable({
         // internally instead of pushing the card open.
         // initialPageSize bumped 15 -> 100 so pagination does not truncate
         // inside the scroll viewport.
-        <div className="max-h-[320px] overflow-y-auto">
+        // In the PDF export the cap is lifted (data-export-scroll, app/export/export-theme.css): a printed scroll box would
+        // cut its last row and hide the rest.
+        <div className="max-h-[320px] overflow-y-auto" data-export-scroll="">
           <SortableTable
             columns={columns}
             rows={rows}
@@ -277,6 +281,8 @@ export function PromptClusterOpportunityMatrix({
 }: {
   rows: PromptClusterOpportunityRow[]
 }) {
+  // In the PDF export the card is one dark block (app/export/export-theme.css) and its bars draw complete.
+  const exportMode = useExportMode()
   // FB-012 — simple horizontal bar chart: Topic × % citation share from editorial sources.
   // Sorted descending so the top opportunity is at the top.
   const chartData = [...rows]
@@ -303,7 +309,7 @@ export function PromptClusterOpportunityMatrix({
         : Math.ceil(maxValue / 10) * 10
 
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6">
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6" data-export-block="" data-export-chart="">
       <SectionHeading
         title="Which prompt clusters offer the biggest PR opportunity?"
         tooltip={PEEC.citations.text}
@@ -345,7 +351,7 @@ export function PromptClusterOpportunityMatrix({
               itemStyle={{ color: '#FFFFFF' }}
               formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)}%`, 'Citation Share']}
             />
-            <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]}>
+            <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]} {...(exportMode ? { isAnimationActive: false } : {})}>
               {chartData.map((d) => (
                 <Cell key={d.topic} fill="#39A0FF" />
               ))}

@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ExportModeProvider } from '@/components/export/export-mode'
 import { CompetitorUrlsBrandAbsentTable, type CompetitorUrlsBrandAbsentRow } from './content-impact-tables'
 
 // Section H.2 table: Citation Share and its period-over-period delta used to share
@@ -57,4 +58,11 @@ test('clicking the Delta header sorts rows by citationShareDelta', () => {
   expect(domainOrder(container)).toEqual(['bravo.com', 'alpha.com'])
   fireEvent.click(deltaSort) // desc: 5 (alpha) before -2 (bravo)
   expect(domainOrder(container)).toEqual(['alpha.com', 'bravo.com'])
+})
+
+// PDF export (spec 2026-10-08 §6): a section's title stays with the first rows of its table.
+test("in the export a section's title is kept with its table", () => {
+  const { container } = render(<TooltipProvider><ExportModeProvider><CompetitorUrlsBrandAbsentTable rows={ROWS} emptyMessage="none" /></ExportModeProvider></TooltipProvider>)
+  expect(container.querySelector('[data-export-keep-with-next]')).not.toBeNull()
+  expect(container.querySelector('[data-export-table]')).not.toBeNull()
 })

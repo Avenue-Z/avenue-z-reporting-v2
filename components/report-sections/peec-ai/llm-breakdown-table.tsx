@@ -94,7 +94,7 @@ export function LLMBreakdownTable({ breakdown }: { breakdown: LLMBreakdown[] }) 
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
-      <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4">
+      <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4" data-export-keep-with-next="">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">How does brand performance vary across AI models?</p>
         <InfoTooltip text="Brand visibility and domain citation metrics broken down by AI model, year-to-date. Data sourced from Peec AI." />
       </div>

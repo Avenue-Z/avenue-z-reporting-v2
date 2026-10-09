@@ -1,5 +1,6 @@
 'use client'
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { useExportMode } from '@/components/export/export-mode'
 
 interface ComboChartProps<T extends object> {
   data: T[]
@@ -13,6 +14,8 @@ interface ComboChartProps<T extends object> {
 export function ComboChart<T extends object>({ data, xKey, bar, line, valueFormatter, xFormatter }: ComboChartProps<T>) {
   const fmtLine = (n: number) => Number(n).toLocaleString()
   const fmtBar = (n: number) => (valueFormatter ? valueFormatter(Number(n)) : fmtLine(n))
+  // In the PDF export the bars and line must be complete on first paint (no animation to catch half way).
+  const noAnimation = useExportMode() ? { isAnimationActive: false } : {}
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -26,8 +29,8 @@ export function ComboChart<T extends object>({ data, xKey, bar, line, valueForma
             labelFormatter={xFormatter ? (label) => xFormatter(String(label)) : undefined}
             formatter={(v, name) => (line && name === line.label ? fmtLine(Number(v)) : fmtBar(Number(v)))}
           />
-          <Bar yAxisId="left" dataKey={bar.key} name={bar.label} fill={bar.color} radius={[3, 3, 0, 0]} />
-          {line && <Line yAxisId="right" dataKey={line.key} name={line.label} stroke={line.color} strokeDasharray="5 4" dot={false} strokeWidth={2} />}
+          <Bar yAxisId="left" dataKey={bar.key} name={bar.label} fill={bar.color} radius={[3, 3, 0, 0]} {...noAnimation} />
+          {line && <Line yAxisId="right" dataKey={line.key} name={line.label} stroke={line.color} strokeDasharray="5 4" dot={false} strokeWidth={2} {...noAnimation} />}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

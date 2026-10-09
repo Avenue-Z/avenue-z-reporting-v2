@@ -109,7 +109,7 @@ test('a page still loading is 504 still-loading, a render failure 500 render-fai
   expect(res.status).toBe(500)
   expect(await res.json()).toEqual({ error: 'render-failed' })
   const lines = info.mock.calls.map((c) => String(c[0]))
-  expect(lines.some((l) => /\[export\] client=renaissance view=overview outcome=still-loading step=ready ms=\d+/.test(l))).toBe(true)
+  expect(lines.some((l) => /\[export\] client=renaissance section=organic-social view=overview outcome=still-loading step=ready ms=\d+/.test(l))).toBe(true)
   expect(lines.some((l) => /outcome=render-failed step=launch/.test(l))).toBe(true)
   expect(lines.join('\n')).not.toContain('SESSION')
 })
@@ -136,4 +136,43 @@ test('a PDF too big for the platform is a 413 too-large, never logged as ok', as
   const lines = vi.mocked(console.info).mock.calls.map((c) => String(c[0]))
   expect(lines.some((l) => /outcome=too-large/.test(l))).toBe(true)
   expect(lines.some((l) => /outcome=ok/.test(l))).toBe(false)
+})
+
+// A section the client has enabled but that isn't switched on for the export (lib/export/sections.ts) is
+// refused before Chromium launches; the page's button still prints in the browser.
+test('a section not switched on for the export is a 400 and nothing renders', async () => {
+  as('INTERNAL_ADMIN', 'avenue-z')
+  getClientBySlug.mockResolvedValue({ ...RENAISSANCE, enabledReports: ['organic-social', 'paid-media'] })
+  const res = await post({ ...body, section: 'paid-media' })
+  expect(res.status).toBe(400)
+  expect(renderPdf).not.toHaveBeenCalled()
+})
+
+// Thomas, #348 route.ts:36: after a rollback or deploy skew a page can post a section the route no longer accepts; the
+// refusal's log line must say which section and client it turned away. Raw body values, so escaped and capped.
+test('a refused body logs the section and client it named, escaped and capped', async () => {
+  as('INTERNAL_ADMIN', 'avenue-z')
+  // ga4: a section no PR switches on, so this holds up the stack (peec-ai and paid-media join in PRs 2 and 3).
+  getClientBySlug.mockResolvedValue({ ...RENAISSANCE, enabledReports: ['organic-social', 'ga4'] })
+  await post({ ...body, section: 'ga4' })
+  await post({ ...body, clientSlug: 'x'.repeat(200), section: 'evil\nline' })
+  const lines = vi.mocked(console.info).mock.calls.map((c) => String(c[0])).filter((l) => /outcome=bad-request/.test(l))
+  expect(lines[0]).toMatch(/^\[export\] client="renaissance" section="ga4" view=overview outcome=bad-request ms=\d+$/)
+  expect(lines[1]).toContain(`client="${'x'.repeat(64)}" section="evil\\nline"`)
+  expect(lines[1]).not.toContain('\n')
+})
+
+test('the server browser opens the section the request names, and the log line says which', async () => {
+  as('CLIENT_VIEWER', 'renaissance')
+  await post({ ...body, section: 'organic-social', subsection: 'organic-linkedin' })
+  expect(renderPdf.mock.calls[0][0].url).toMatch(/\/export\/renaissance\/organic-social\?/)
+  const lines = vi.mocked(console.info).mock.calls.map((c) => String(c[0]))
+  expect(lines.some((l) => /\[export\] client=renaissance section=organic-social view=organic-linkedin outcome=ok/.test(l))).toBe(true)
+})
+
+test('a page loaded before sections were added (no section in the body) still exports Organic Social', async () => {
+  as('CLIENT_VIEWER', 'renaissance')
+  const res = await post(body) // `body` has no section
+  expect(res.status).toBe(200)
+  expect(renderPdf.mock.calls[0][0].url).toMatch(/\/export\/renaissance\/organic-social\?/)
 })

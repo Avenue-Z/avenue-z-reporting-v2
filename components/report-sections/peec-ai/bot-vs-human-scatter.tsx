@@ -18,6 +18,7 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { type BotVsHumanScatterResult, type BotVsHumanState, botVsHumanState } from '@/lib/peec/bot-vs-human-scatter'
+import { useExportMode } from '@/components/export/export-mode'
 
 interface Props {
   data: BotVsHumanScatterResult
@@ -62,6 +63,8 @@ function resolvePointUrl(path: string | undefined, clientDomain: string): string
 }
 
 export default function BotVsHumanScatter({ data, clientDomain }: Props) {
+  // In the PDF export the points are drawn complete on first paint (no animation to catch half way).
+  const exportMode = useExportMode()
   const state = botVsHumanState(data)
   if (state !== 'ok') {
     return (
@@ -142,6 +145,7 @@ export default function BotVsHumanScatter({ data, clientDomain }: Props) {
             }))}
             cursor="pointer"
             onClick={handlePointClick}
+            {...(exportMode ? { isAnimationActive: false } : {})}
           />
         </ScatterChart>
       </ResponsiveContainer>

@@ -9,6 +9,7 @@ exports[`kpi-cards@1 golden 1`] = `
   </h3>
   <div
     class="grid grid-cols-1 gap-5 sm:grid-cols-3"
+    data-export-block=""
   >
     <div
       class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
