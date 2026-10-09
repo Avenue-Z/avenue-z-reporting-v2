@@ -137,3 +137,16 @@ the decision on Paul's brands-by-date suggestion; (10) the window limits are pla
 copy renders from them; (11) a notes line when the picked range is wider than the data; (12) gap-site exclusion covers
 subdomains of roster domains; (14) name the check `aeo_outbound_range_both_or_neither`, and tests for one-date bodies,
 Rerun reusing the range, and copy carrying it; (15) `/prompts` added to §7's step-8 row as non-fatal with its note text.
+
+Round 2 (changed lines `99534552..35371312` only): MAJORs 1, 3, 4 and 5 resolved; MAJOR 2 not resolved (the rankAmong
+cut versus brands with no data). Per my rule, a MAJOR after round 2 came to me as a decision. My decision: a tracked
+brand with no data is a zero-visibility brand for ranking everywhere (counts in n, can fill a rankAmong slot, never
+drawn or sent to Glean). Written into §7 with a worked example; the §14 row updated. No round 3. The code changes to
+match in the plan's Task 1.8.
+
+MINOR from round 2, for the plan: (16) a rerunOf lookup that finds nothing, a discarded row or another project's row
+returns `404 { code: 'bad-rerun' }`; a 400 with an unknown code shows the generic message, and a body range sent with
+rerunOf returns `code: 'bad-request'`; (17) the session read and the UPDATE share one 1.5s budget; (18) the route never
+sets a cookie by reading the session token without writing (or by dropping any Set-Cookie it would add), named in the
+plan; (19) no range rule is re-checked on rerun, with a test that an old stored range reaches Peec and fails with the
+no-data reason.
