@@ -154,7 +154,7 @@ export function CreativeTableClient({
             )
           })}
           <tr className="border-t border-white/[0.12] font-semibold" data-export-row="">
-            <td className="px-5 py-3 text-left text-white" style={indent(0)}>
+            <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
               {`Total (${campaigns.length} ${campaigns.length === 1 ? 'Campaign' : 'Campaigns'})`}
             </td>
             {metricCells(totals)}
@@ -202,7 +202,7 @@ function CampaignRows({
         data-export-row=""
         className={exportMode ? 'border-b border-white/[0.04]' : 'cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-bg-subtle/50'}
       >
-        <td className="px-5 py-3 text-left text-white" style={indent(0)}>
+        <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
           <Chevron open={campOpen} exportMode={exportMode} /> {camp.name}
         </td>
         {metricCells(camp)}

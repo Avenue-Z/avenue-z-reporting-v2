@@ -48,7 +48,7 @@ export function GeoSection({ rows }: { rows: GeoRegion[] }) {
         <KpiCard title="Total Regions" value={rows.length} />
       </div>
 
-      <div>
+      <div data-export-block="">
         <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           Top Regions by Leads
         </p>

@@ -36,7 +36,7 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
         {/* Total Leads at the top — sum of the category subtotals (Req 2). Uses
             the already-computed total; unaffected by the keyword ≥10 filter,
             which lives on a separate table and data path (comment [e]/[f]). */}
-        <div className="mb-4 flex items-center justify-between border-b border-white/[0.12] pb-3">
+        <div className="mb-4 flex items-center justify-between border-b border-white/[0.12] pb-3" data-export-keep-with-next="">
           <span className="text-sm font-bold text-white">Total Leads</span>
           <span className="tabular-nums text-base font-bold text-white">
             {data.totalLeads.toLocaleString('en-US')}

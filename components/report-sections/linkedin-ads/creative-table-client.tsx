@@ -143,7 +143,7 @@ export function CreativeTableClient({
             )
           })}
           <tr className="border-t border-white/[0.12] font-semibold" data-export-row="">
-            <td className="px-5 py-3 text-left text-white" style={indent(0)}>
+            <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
               {`Total (${groups.length} ${groups.length === 1 ? 'Campaign Group' : 'Campaign Groups'})`}
             </td>
             {metricCells(totals)}
@@ -191,7 +191,7 @@ function GroupRows({
         data-export-row=""
         className={exportMode ? 'border-b border-white/[0.04]' : 'cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-bg-subtle/50'}
       >
-        <td className="px-5 py-3 text-left text-white" style={indent(0)}>
+        <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
           <Chevron open={groupOpen} exportMode={exportMode} /> {group.name}
         </td>
         {metricCells(group)}

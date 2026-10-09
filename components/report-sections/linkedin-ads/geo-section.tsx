@@ -18,7 +18,7 @@ export function LinkedInGeoSection({ rows }: { rows: LinkedInGeoRow[] }) {
         <KpiCard title="Total Regions" value={totalGeos} />
       </div>
 
-      <div>
+      <div data-export-block="">
         <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           Top Regions by Spend
         </p>

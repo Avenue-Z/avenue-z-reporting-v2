@@ -37,6 +37,7 @@ test('leads: the chart card is a dark block; each category stays whole; the acti
   const { container } = inExport(<LeadsSection data={data} />)
   expect(container.querySelector('[data-export-block][data-export-chart] [data-testid="combo"]')).not.toBeNull()
   expect(screen.getByText('Leads by Action').hasAttribute('data-export-keep-with-next')).toBe(true)
+  expect(screen.getByText('Total Leads').parentElement!.hasAttribute('data-export-keep-with-next')).toBe(true)
   expect(container.querySelectorAll('[data-export-block]').length).toBe(1 + 3)
 })
 
@@ -48,6 +49,8 @@ test('geo: KPI grid and table are blocks, region rows are marked, chevrons hidde
   expect(container.querySelector('[data-export-table]')?.hasAttribute('data-export-block')).toBe(true)
   expect(screen.getByText('Top Regions by Leads').hasAttribute('data-export-keep-with-next')).toBe(true)
   expect(screen.getByText('Region → DMA Breakdown').hasAttribute('data-export-keep-with-next')).toBe(true)
+  expect(screen.getByText('Top Regions by Leads').parentElement!.hasAttribute('data-export-block')).toBe(true)
+  expect(container.querySelectorAll('tbody svg')).toHaveLength(10)
   expect([...container.querySelectorAll('tbody svg')].every((svg) => svg.closest('[data-export-hide]'))).toBe(true)
 })
 
