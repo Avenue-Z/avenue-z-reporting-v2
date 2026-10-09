@@ -32,7 +32,12 @@ export function pagesOf(pdf: PdfText, token: string): number[] {
 export function outsideBox(pdf: PdfText, margin = 28.8, tolerance = 2): Word[] {
   return pdf.words.filter((w) => {
     const p = pdf.pages[w.page - 1]
-    return w.xMin < margin - tolerance || w.yMin < margin - tolerance || w.xMax > p.width - margin + tolerance || w.yMax > p.height - margin + tolerance
+    const outsideX = w.xMin < margin - tolerance || w.xMax > p.width - margin + tolerance
+    // A word of symbols only (an arrow drawn in Noto Sans Math) reports the math font's very tall line box as its height,
+    // not its ink: "Region → DMA Breakdown" at a page top read 0.3 pt above the box while the arrow drew fully inside
+    // (PDF export PR 3, checked at 200 dpi). Such words are held to the box horizontally only.
+    if (!/[\p{L}\p{N}]/u.test(w.text)) return outsideX
+    return outsideX || w.yMin < margin - tolerance || w.yMax > p.height - margin + tolerance
   })
 }
 

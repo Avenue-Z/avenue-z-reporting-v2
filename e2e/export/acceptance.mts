@@ -198,6 +198,25 @@ if (!process.env.AUTH_SECRET) {
       if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
     }
   }
+
+  // Paid Media (PDF export PR 3): every tab of a client running Paid Search, Meta and LinkedIn, each as a staff editor and
+  // as a client. No toggle, sort or expand control prints; the two exports print the same; exportAs logs each time to ready.
+  const PM_RUNS: [string, (string | null)[]][] = [[process.env.PM_CLIENT ?? 'renaissance', [null, 'paid-search', 'meta', 'linkedin']]]
+  for (const [pmClient, tabs] of PM_RUNS) {
+    for (const tab of tabs) {
+      const pmBody = { clientSlug: pmClient, section: 'paid-media', subsection: tab, dateRange: 'last_30_days' }
+      const name = `pm-${pmClient}-${tab ?? 'overview'}`
+      const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, pmBody, `${name}-staff`)
+      const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: pmClient }, pmBody, `${name}-client`)
+      for (const [who, r] of [['staff', s], ['client', c]] as const) {
+        if (!r) continue
+        const text = r.pdf.words.map((w) => w.text).join(' ')
+        const controls = text.match(/Spend Clicks Paid Search|Cost Clicks Impressions Leads|Show all|Filter ≥10 clicks|[▸▾]/g) ?? []
+        check(controls.length === 0, `${name}-${who}: no toggle, sort or expand controls (${[...new Set(controls)].join(', ') || 'none'})`)
+      }
+      if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
+    }
+  }
 }
 
 console.log(`\nfixture PDF: ${fixturePdf}`)

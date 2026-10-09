@@ -58,7 +58,7 @@ export function KeywordsTableClient({ data }: { data: KeywordsData }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-export-keep-with-next="">
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">Keywords</p>
         {exportMode ? (
           <p data-export-toggle-label="" className="text-xs text-text-muted">Showing keywords with ≥10 clicks</p>

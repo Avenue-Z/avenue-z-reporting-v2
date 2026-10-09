@@ -58,4 +58,6 @@ test('keywords print the default ≥10-clicks view as a label, not a button', ()
   expect(screen.queryAllByRole('button')).toHaveLength(0)
   expect(screen.getByText('Showing keywords with ≥10 clicks')).toBeTruthy()
   expect(screen.getByText('No keywords reached 10 clicks in this period.')).toBeTruthy()
+  // Found in the live page check: without this the title and its label ended page 6 with the table on page 7.
+  expect(screen.getByText('Keywords').closest('[data-export-keep-with-next]')).not.toBeNull()
 })
