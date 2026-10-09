@@ -108,7 +108,8 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const labelled = starts.map((d, i) => (i === 0 ? !(starts.length > 1 && opensMonth[1]) : opensMonth[i]))
 
   return (
-    <div className="space-y-6">
+    // One block in the PDF export: tiles, bars and labels (about 350 px) never split.
+    <div className="space-y-6" data-export-block="">
       <p className="text-xs text-text-muted">Year to date, by ISO week.</p>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">

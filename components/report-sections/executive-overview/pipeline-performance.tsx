@@ -122,7 +122,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
         {campaignScoped && ' Scoped to agency-sourced campaigns.'}
       </p>
 
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4" data-export-block="">
         <KpiCard title="Open Deals"        value={openValue(openDeals, fmtNum)}        subValue={openCaveat} />
         <KpiCard title="Total Pipeline"    value={openValue(totalPipeline, fmtUsd)}    subValue={openCaveat} />
         <KpiCard
@@ -137,7 +137,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           Open Deals by Owner
         </h3>
         {byOwner === null ? (
@@ -158,7 +158,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
               : 'No open deals by owner.'}
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2" data-export-wrap="">
             {byOwner.map((o) => (
               <div key={o.owner} data-testid="owner-row" className="flex items-center gap-3 text-sm">
                 <span className="w-40 flex-shrink-0 truncate text-text-muted">{o.owner}</span>

@@ -204,9 +204,9 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
       <DemandJourney stages={stages} />
 
       <section className="space-y-6">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Web Analytics</h2>
-        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Last 30 days</p>
-        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">Web Analytics</h2>
+        <p className="text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">Last 30 days</p>
+        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4" data-export-block="">
           <KpiCard title="Sessions"             value={fmtNum(totals?.sessions as number)}                    delta={pct(totals?.sessions as number, cmpTotals?.sessions as number)} comparisonExpected tooltip="Total number of sessions in the selected period." />
           <KpiCard title="Active Users"         value={fmtNum(totals?.activeUsers as number)}                 delta={pct(totals?.activeUsers as number, cmpTotals?.activeUsers as number)} comparisonExpected tooltip="Users who had at least one engaged session." />
           <KpiCard title="New Users"            value={fmtNum(totals?.newUsers as number)}                    delta={pct(totals?.newUsers as number, cmpTotals?.newUsers as number)} comparisonExpected tooltip="First-time visitors in the selected period." />
@@ -226,11 +226,11 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
             is looking at leads on the configured campaigns; an unscoped one is
             looking at every contact created in the CRM. Calling both "Contact
             Creation" would mislabel one of them. */}
-        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           {crmScoped ? 'Lead Creation' : 'Contact Creation'}
         </h2>
         {crmScoped && (
-          <p className="text-xs text-text-muted">Scoped to agency-sourced campaigns.</p>
+          <p className="text-xs text-text-muted" data-export-keep-with-next="">Scoped to agency-sourced campaigns.</p>
         )}
         {contacts ? <ContactPacing data={contacts} />
           : hasCrm ? <LoadFailed message={`Couldn't load ${crmScoped ? 'lead' : 'contact'} data.`} />
@@ -238,7 +238,7 @@ export async function ExecutiveOverviewReport({ clientSlug }: ExecutiveOverviewP
       </section>
 
       <section className="space-y-6">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted">Pipeline Performance</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">Pipeline Performance</h2>
         {pipeline ? <PipelinePerformance data={pipeline} />
           : hasCrm ? <LoadFailed message="Couldn't load pipeline data." />
           : <NeedsConnection sourceName="CRM" />}
