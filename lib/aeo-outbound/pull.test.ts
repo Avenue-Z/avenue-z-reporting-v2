@@ -55,8 +55,9 @@ test('pulls every step over one window from the days that carry data', async () 
   expect(pull.models).toEqual(['ChatGPT UI'])
   expect(pull.actions.map((a) => a.title)).toEqual(['Give this page an H1 heading'])
   expect(pull.promptCount).toBe(100)
+  expect(pull.requested).toEqual({ start: '2026-09-09', end: '2026-10-08' })
   const discovery = seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!
-  expect(discovery.body).toMatchObject({ start_date: '2025-09-03', end_date: '2026-10-08' })
+  expect(discovery.body).toMatchObject({ start_date: '2026-09-09', end_date: '2026-10-08' })
   for (const s of seen.filter((s) => s.path.startsWith('/reports/') && !(s.body?.dimensions as string[] | undefined)?.includes('date'))) {
     expect(s.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06' })
     expect(s.body).not.toHaveProperty('filters')
@@ -88,4 +89,28 @@ test('refuses a window where the own brand has no row in the brands report', asy
     '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
   })
   await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow('The own brand has no row in the Peec brands report for this window')
+})
+
+test('a picked range is what step 4 sends, and the no-data message names it', async () => {
+  const { client, seen } = fakePeec(base)
+  const pull = await pullSnapshot(client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })
+  expect(pull.requested).toEqual({ start: '2026-10-01', end: '2026-10-07' })
+  const discovery = seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!
+  expect(discovery.body).toMatchObject({ start_date: '2026-10-01', end_date: '2026-10-07' })
+  const none = fakePeec({ ...base, '/reports/domains': () => [] })
+  await expect(pullSnapshot(none.client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' }))
+    .rejects.toThrow('No day between 2026-10-01 and 2026-10-07 has any Peec data for this project')
+})
+
+test('a null range falls back to the default', async () => {
+  const { client, seen } = fakePeec(base)
+  await pullSnapshot(client, 'or_a', NOW, undefined, null)
+  expect(seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!.body).toMatchObject({ start_date: '2026-09-09', end_date: '2026-10-08' })
+})
+
+test('a failing prompt count is non-fatal: null and a warning', async () => {
+  const { client } = fakePeec({ ...base, '/prompts': () => { throw new Error('boom') } })
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(pull.promptCount).toBeNull()
+  expect(pull.warnings).toContain("Peec's prompt count could not be loaded, so the methodology leaves it out.")
 })

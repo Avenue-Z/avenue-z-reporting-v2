@@ -2,6 +2,7 @@
 // model filter (all models; T3 confirmed). Guards fail with a reason Ryan can act on.
 import { DECISIONS, PITCH_STATUSES } from './config'
 import { PeecClient, PeecError, rowsOf } from './peec'
+import { defaultRange, type DayRange } from './range'
 
 export interface PeecProject { id: string; name: string; status: string }
 export interface RosterBrand { id: string; name: string; is_own: boolean; domains?: string[] | null }
@@ -25,6 +26,9 @@ export interface PeecPull {
   roster: RosterBrand[]
   ownBrand: RosterBrand
   profile: { industry: string | null; markets: string[] } | null
+  /** The range asked for (Ryan's dates, or the default). */
+  requested: DayRange
+  /** The days inside it that carry data. */
   window: { start: string; end: string }
   brands: BrandReportRow[]
   domains: DomainRow[]
@@ -34,9 +38,6 @@ export interface PeecPull {
   /** Non-fatal problems for the notes panel. */
   warnings: string[]
 }
-
-const DISCOVERY_DAYS = 400
-const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 
 export const isUsableProject = (p: PeecProject): boolean => !DECISIONS.pitchOnly || PITCH_STATUSES.includes(p.status)
 
@@ -48,7 +49,7 @@ export async function listProjects(client: PeecClient): Promise<PeecProject[]> {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export async function pullSnapshot(client: PeecClient, projectId: string, nowMs: number, onStep?: (step: number) => void): Promise<PeecPull> {
+export async function pullSnapshot(client: PeecClient, projectId: string, nowMs: number, onStep?: (step: number) => void, range?: DayRange | null): Promise<PeecPull> {
   onStep?.(1)
   const project = (await listProjects(client)).find((p) => p.id === projectId)
   if (!project) throw new PeecError(`Peec project ${projectId} is not available to this tool`)
@@ -67,8 +68,8 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
     : null
 
   onStep?.(4)
-  const end = day(nowMs)
-  const start = day(nowMs - DISCOVERY_DAYS * 86_400_000)
+  const requested = range ?? defaultRange(nowMs)
+  const { start, end } = requested
   const dated = await client.all<{ domain: string; date?: string; retrieved_chat_count?: number | null }>(
     'POST', '/reports/domains', { project_id: projectId, start_date: start, end_date: end, dimensions: ['date'] },
     (r) => `${r.domain}|${r.date}`, 10_000)
@@ -101,10 +102,16 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   } catch {
     warnings.push('Peec actions could not be loaded, so opportunities come from the data only.')
   }
-  const prompts = (await client.call('GET', '/prompts', { params: { project_id: projectId, limit: 1 } })) as { total_count?: number } | null
+  // Optional: the methodology leaves the count out when this fails.
+  let prompts: { total_count?: number } | null = null
+  try {
+    prompts = (await client.call('GET', '/prompts', { params: { project_id: projectId, limit: 1 } })) as { total_count?: number } | null
+  } catch {
+    warnings.push("Peec's prompt count could not be loaded, so the methodology leaves it out.")
+  }
 
   return {
-    project, roster, ownBrand: owned[0], profile, window, brands, domains, actions,
+    project, roster, ownBrand: owned[0], profile, requested, window, brands, domains, actions,
     promptCount: typeof prompts?.total_count === 'number' ? prompts.total_count : null,
     models,
     warnings,
