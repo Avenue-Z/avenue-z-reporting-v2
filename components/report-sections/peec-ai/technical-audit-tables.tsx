@@ -333,7 +333,8 @@ export function BotActivityTable({ bots, summary }: BotActivityTableProps) {
       description="Which AI crawlers are actively visiting the site, at what frequency, and whether they are successfully accessing content or hitting blocks."
       tooltip={AVZ_BOT_PLATFORM}
     >
-      {summary && <div>{summary}</div>}
+      {/* One block in the PDF export: a bot card on a page edge never splits, as every other stat grid on the tab. */}
+      {summary && <div data-export-block="">{summary}</div>}
       <SortableTable
         columns={columns}
         rows={bots}
