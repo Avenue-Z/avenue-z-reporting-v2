@@ -1,11 +1,11 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 vi.mock('@/app/actions/organic-social', () => ({ setDesignationAction: vi.fn(async () => ({ ok: true })) }))
-const { getDesignations, getClientBySlug, fetchTopContentFrozen, fetchTopContent, SortableTopContent } = vi.hoisted(() => ({
-  getDesignations: vi.fn(async () => new Map()), getClientBySlug: vi.fn(), fetchTopContentFrozen: vi.fn(),
+const { getDesignations, getClientBySlug, getSectionTemplate, fetchTopContentFrozen, fetchTopContent, SortableTopContent } = vi.hoisted(() => ({
+  getDesignations: vi.fn(async () => new Map()), getClientBySlug: vi.fn(), getSectionTemplate: vi.fn(async () => null), fetchTopContentFrozen: vi.fn(),
   fetchTopContent: vi.fn(async () => []), SortableTopContent: vi.fn(() => null),
 }))
 vi.mock('@/lib/organic-social/designations/select', () => ({ getDesignations }))
-vi.mock('@/lib/db/queries', () => ({ getClientBySlug }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug, getSectionTemplate }))
 vi.mock('@/lib/organic-social/frozen', () => ({ fetchTopContentFrozen }))
 vi.mock('@/lib/organic-social/top-content', () => ({ fetchTopContent, getTopContent: vi.fn() }))
 vi.mock('../sortable-top-content', () => ({ SortableTopContent }))
@@ -82,4 +82,22 @@ test('Overview with a handle: Instagram splits by author, other channels by #ad'
   render(await TopContentV2Section({ ...CTX, channel: null }))
   expect(rows('owned')).toEqual([7, 6])
   expect(rows('influencer')).toEqual([1, 5])
+})
+
+// Paul, #358 review (comment 1): Overview and the Influencer tab read one rule, influencerRulesFor on the platform layout,
+// so a post is never Influencer on one and nowhere on the other.
+test('a saved handle with the platform tabs pinned to top-content@1: today exactly (the Influencer tab uses #ad there too)', async () => {
+  getClientBySlug.mockResolvedValue({ ...withHandle, reportSectionConfig: { 'organic-social:platform': { versions: { 'top-content': 1 } } } })
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'famously_amy' }), post(7, { author: 'renbenefits' }), post(2, { caption: 'y #ad' })])
+  render(await TopContentV2Section({ ...CTX, channel: null }))
+  expect((fetchTopContentFrozen.mock.calls[0] as unknown[]).length).toBe(3)
+  expect(rows('influencer')).toEqual([2])
+})
+
+test("a top-content@3 client's Overview (on @2) asks for UGC marks as its Instagram and Influencer tabs do, handle or not", async () => {
+  getClientBySlug.mockResolvedValue({ ...noHandle, reportSectionConfig: { 'organic-social:platform': { versions: { 'top-content': 3 } } } })
+  fetchTopContentFrozen.mockResolvedValue([post(1), post(3, { ugc: true })])
+  render(await TopContentV2Section({ ...CTX, channel: null }))
+  expect((fetchTopContentFrozen.mock.calls[0] as unknown[]).length).toBe(4)
+  expect(rows('influencer')).toEqual([3]) // the tagged post, which the Influencer tab ('outline') also counts as Influencer
 })

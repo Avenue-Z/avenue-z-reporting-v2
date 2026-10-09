@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type { PartImpl } from '@/lib/report-sections/types'
-import { fetchTopContent, getTopContent } from '@/lib/organic-social/top-content'
+import { getTopContent } from '@/lib/organic-social/top-content'
+import { fetchTopContentFrozenWithAuthors } from '@/lib/organic-social/top-content-authors'
 import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { getDesignations } from '@/lib/organic-social/designations/select'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
@@ -17,7 +18,8 @@ import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 import { HoverHint } from '@/components/charts/hover-hint'
 import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
-import { OUTLINE_SORT_KEYS, authorRuleOn, ownHandlesFor, partitionByAuthor } from '@/lib/organic-social/outline-top-content'
+import { OUTLINE_SORT_KEYS, ownHandlesFor, partitionByAuthor } from '@/lib/organic-social/outline-top-content'
+import { splitRulesFor } from './split-rules'
 
 async function TopContentSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getTopContent(clientSlug, dateRange, channel))
@@ -70,14 +72,14 @@ export async function loadDesignations(clientSlug: string, postIds: number[]): P
  *  and Views, which the heading hint names (my call, 2026-10-07); sorting is in the browser only. Exported for the golden test,
  *  which awaits its resolved output directly (RTL does not render an async child's output). */
 export async function TopContentV2Section({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
-  // The client is read before the fetch: a saved Instagram handle turns on the author rule (spec 2026-10-09 section 6),
-  // and the same row answers the Influencer tab check below (spec B1: a client with the tab does not also see its
-  // Instagram influencer posts here). A failed read keeps today's request, split and gallery.
+  // The client is read before the fetch: the split follows the same rule the Influencer tab reads (splitRulesFor: the
+  // platform layout's pin and a saved Instagram handle; spec 2026-10-09 section 6, Paul's #358 review), and the same row
+  // answers the Influencer tab check below (spec B1). A failed read keeps today's request, split and gallery.
   const client = await getClientBySlug(clientSlug).catch(() => null)
   const dsc: unknown = client?.dashSocialConfig
-  const byAuthor = authorRuleOn(dsc)
+  const byAuthor = (await splitRulesFor(client)) !== 'designations'
   const r = await safe(byAuthor
-    ? fetchTopContentFrozen(clientSlug, dateRange, channel, { fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true, markUgc: true }) })
+    ? fetchTopContentFrozenWithAuthors(clientSlug, dateRange, channel)
     : fetchTopContentFrozen(clientSlug, dateRange, channel))
   if (!r.data) return <Fallback kind={r.error!} />
   const posts = r.data
