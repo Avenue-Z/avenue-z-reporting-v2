@@ -100,8 +100,8 @@ Influencer (2,109 + 2,051 + 914 + 1,033). The other 9 count 0. For a post author
   otherwise the field is absent. `TopContentPost` gains `publicViews?: number` (`content-types.ts:15-29`). Only the
   Influencer tab reads it, but it travels further: `toPayload` spreads every field (`snapshot.ts:8-11`), so every
   Instagram window frozen after deploy stores it in `top_content_snapshots` (Renaissance's production rows included), and
-  every gallery passes it to its client component as a prop. No visible change there; the Renaissance proof covers the
-  stored payload shape and the drift checker.
+  every gallery passes it to its client component as a prop. No visible change there; a read-only probe of the newest
+  frozen rows proves the stored shape (section 11).
 - On the Influencer tab only (`parts/influencer-posts.tsx`), after the split and before the totals and the grid, a post
   whose `metrics.impressions` is 0 and which has `publicViews` takes `publicViews` as `metrics.impressions`. Cards,
   the sort by Views, and Total Views then include it.
@@ -111,10 +111,10 @@ Influencer (2,109 + 2,051 + 914 + 1,033). The other 9 count 0. For a post author
 - Not changed on screen: the Instagram tab, Overview, every other channel, every other client surface.
 - **Two measures in one total.** Total Views then adds Dash `views` (the client's own posts) and `public_views` (others'
   posts). On own posts the two are close but not equal (2,051 against 2,044, probe above); the total is a sum of each
-  post's best available view count, and is stated that way in the staging note.
+  post's best available view count, and Whitney's staging note says so (section 8).
 - **What Jasmine will see.** September is locked, so Good News Movement shows 704,013, below the ~742K she saw on the post
   today and the "1100 something thousand" she mentioned at 14:16. Whether `public_views` is exactly the count Instagram
-  shows a co-author is unverified; the staging note says the number is Dash's, as of the 2026-10-05 lock.
+  shows a co-author is unverified; Whitney's staging note says the number is Dash's, as of the 2026-10-05 lock (section 8).
 
 **Locked and frozen months.** A locked month stores Dash's raw answer and normalizes it at read (`frozen.ts:68-69`:
 a locked client skips the freeze table and reads through the locking client), so A Place For Mom's September gains
@@ -161,9 +161,11 @@ For Mom's Overview has no Top Content part).
   `own = ownHandlesFor(posts, dsc, slug, channel)` and `partitionByAuthor(posts, stored, own)`. No `withViewsBasisRate`
   (@2's card rates stay as today), no owned limit, same heading, same sort keys, same gallery. Overview (channel null)
   uses the same rule; `authorOf` is Instagram-only (`post-author.ts:7-13`), so other channels fall to the #ad rule as today.
-  The client row is read once, before the fetch, and reused for the influencer-tab check that today reads it after the
-  split (`parts/top-content.tsx:80`), so the number of reads does not grow.
-- **The Influencer tab.** `influencerRulesFor` gains a third input (the client's `dash_social_config`) and a third result,
+  The client row is read before the fetch and that row is reused for the influencer-tab check that today reads it after
+  the split (`parts/top-content.tsx:80`). @2 still makes two `getClientBySlug` calls per render, as today: this one and
+  the one inside `loadDesignations` (`:59`), which the Influencer tab shares and is not changed.
+- **The Influencer tab.** `influencerRulesFor` gains an optional third input (the client's `dash_social_config`; absent
+  means no handle, so today's two-argument calls and results hold) and a third result,
   'author', for a top-content@2 pin with the switch on. A @1 pin or no pin stays 'designations' (the Instagram tab does
   no split there, `parts/top-content.tsx:22-25`). The
   tab then makes the same request as the Instagram tab (authors and UGC marks) and splits with `partitionByAuthor` and
@@ -178,8 +180,8 @@ split for that key; every other window switches**, including old months never fr
 Aug, Jul, Jun, Mar-Jul and Mar-Aug; staging has `INSTAGRAM` for Sep, Jul, Jun and `ALL` for Sep, Jul.
 - Switched windows: co-authored and UGC Instagram posts leave Renaissance's owned Top Content (Instagram tab and
   Overview) and appear on the Influencer tab.
-- Kept windows: the posts carry no authors, so `ownHandlesFor` logs "no post authors" and the split falls back to #ad
-  for owned posts (`outline-top-content.ts:47-52, 71-73`). UGC marks are absent too, so UGC posts also keep today's split.
+- Kept windows: the posts carry no authors, so `ownHandlesFor` logs "no post authors" (`outline-top-content.ts:71-73`)
+  and `partitionByAuthor` falls to the #ad rule for every post without an author (`:29`). UGC marks are absent too, so UGC posts also keep today's split.
 - **Accepted mismatch.** Where one key is frozen and the other is not (production June: `ALL` frozen, `INSTAGRAM` not),
   the first view after the handle is saved freezes the other key with authors, and a co-authored post can be Owned on one
   tab and Influencer on the other for that historical window. The Influencer tab follows the Instagram key, so it always
@@ -214,7 +216,9 @@ Aug, Jul, Jun, Mar-Jul and Mar-Aug; staging has `INSTAGRAM` for Sep, Jul, Jun an
   2026-10-07 from Thomas's account; probe `2026-10-09-public-views-and-designations-readonly.out`) are flipped back to
   Organic with "· change" on staging. Owner: Thomas.
 - **Renaissance's handle** saved on staging (script, Thomas's go), production at launch (written consent).
-- **Whitney's Slack note** after staging, drafted by me.
+- **Whitney's Slack note** after staging, drafted by me. It says: Influencer Views and Total Views are Dash's view count
+  per post (its own posts' views, others' public views); September is locked, so they show Dash's numbers as of
+  2026-10-05 (Good News Movement 704,013).
 
 ## 9. Failure handling and visibility
 
@@ -245,7 +249,8 @@ Aug, Jul, Jun, Mar-Jul and Mar-Aug; staging has `INSTAGRAM` for Sep, Jul, Jun an
    win; without a handle, the call and split are exactly today's (`fetchTopContentFrozen` called with no injection,
    `partitionPosts` result); Overview with a handle splits Instagram by author and other channels by #ad; a handle with
    posts that carry no author (a kept frozen window) logs the warning and falls back; a failed client read keeps today's
-   split; one client read per render.
+   split; the client is read before the fetch and that row reused for the tab check (two `getClientBySlug` calls per
+   render, as today).
 6. `influencerRulesFor`: @3 gives 'outline' with or without a handle; @2 with a handle gives 'author'; @2 without, @1, or
    no pin gives 'designations'. Influencer tab 'author' mode: same request as the Instagram tab (authors and UGC marks),
    same split, no rate change; 'outline' and 'designations' unchanged (existing `influencer-posts.test.tsx` cases pass).
@@ -256,8 +261,10 @@ Aug, Jul, Jun, Mar-Jul and Mar-Aug; staging has `INSTAGRAM` for Sep, Jul, Jun an
 
 Organic Social only (the department gate): the diff touches `lib/constants.ts` (the Organic Social list only),
 `lib/commentary/views.ts` (one Organic Social key), and Organic Social files. Prove it against the 2026-10-06 department
-snapshots before review. Renaissance: changes 1 and 2 touch only the Influencer tab, which production has not shipped;
-change 3 adds `publicViews` to Renaissance's newly frozen production rows and gallery props with no visible change;
+snapshots before review. Renaissance: changes 1 to 3 change Renaissance's Influencer tab (change 3: Views and Total Views on windows not frozen
+before deploy, since the fallback runs under 'designations' too), which production has not shipped; change 3 also adds
+`publicViews` to Renaissance's newly frozen production rows and gallery props, with no visible change there;
 change 4 changes Renaissance only once its handle is saved, and that save is the consent step. The plan's Renaissance
-proof covers the snapshot payload shape, the drift checker (`~/.claude/renaissance-baseline/check-drift.sh`, read before
-running) and the rendered pages. Paul reviews the PR; Jasmine and Whitney approve on staging; production Monday at the earliest.
+proof covers the rendered pages, a separate read-only probe of Renaissance's newest `top_content_snapshots` rows (the
+payload shape), and the drift checker (`~/.claude/renaissance-baseline/check-drift.sh`, read before running), which is
+expected to flag the changed Organic Social code files and says nothing about payloads. Paul reviews the PR; Jasmine and Whitney approve on staging; production Monday at the earliest.
