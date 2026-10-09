@@ -39,7 +39,6 @@ test('bad formats and calendar-invalid days are refused', () => {
     expect(checkRange({ start: '2026-09-01', end: bad }, NOW)).toEqual({ ok: false, error: msg })
   }
   expect(checkRange({ start: 20260901, end: '2026-09-20' }, NOW)).toEqual({ ok: false, error: msg })
-  expect(checkRange({ start: null, end: '2026-09-20' }, NOW)).toEqual({ ok: false, error: msg })
   expect(checkRange({ start: '2026-02-29', end: '2026-03-01' }, NOW).ok).toBe(false)
 })
 
@@ -61,4 +60,19 @@ test('exactly 400 days back passes, 401 is refused', () => {
 test('exactly 90 days passes, 91 is refused', () => {
   expect(checkRange({ start: '2026-07-01', end: '2026-09-28' }, NOW).ok).toBe(true) // 31+31+28 = 90
   expect(checkRange({ start: '2026-07-01', end: '2026-09-29' }, NOW)).toEqual({ ok: false, error: 'Pick at most 90 days.' })
+})
+
+test('null means none, like undefined', () => {
+  expect(checkRange({ start: null, end: null }, NOW)).toEqual({ ok: true, range: null })
+  const msg = 'Pick both a start and an end date, or neither.'
+  expect(checkRange({ start: null, end: '2026-10-01' }, NOW)).toEqual({ ok: false, error: msg })
+  expect(checkRange({ start: '2026-10-01', end: null }, NOW)).toEqual({ ok: false, error: msg })
+  expect(checkRange({ start: undefined, end: null }, NOW)).toEqual({ ok: true, range: null })
+})
+
+test('the day boundary: at 00:00 UTC today is the new day', () => {
+  const midnight = Date.parse('2026-10-08T00:00:00Z')
+  expect(checkRange({ start: '2026-10-01', end: '2026-10-08' }, midnight).ok).toBe(true)
+  expect(checkRange({ start: '2026-10-01', end: '2026-10-09' }, midnight)).toEqual({ ok: false, error: "The end date can't be in the future." })
+  expect(defaultRange(midnight)).toEqual({ start: '2026-09-09', end: '2026-10-08' })
 })

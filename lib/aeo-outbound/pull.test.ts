@@ -3,18 +3,23 @@ import { PeecClient } from './peec'
 import { listProjects, pullSnapshot } from './pull'
 
 type Route = (url: URL, body: Record<string, unknown> | null) => unknown
-function fakePeec(routes: Record<string, Route>) {
+function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number } = {}) {
   const seen: { path: string; body: Record<string, unknown> | null }[] = []
   const fetch = async (u: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(u)); const path = url.pathname.replace('/customer/v1', '')
     const body = init?.body ? JSON.parse(String(init.body)) : null
     seen.push({ path, body })
     const offset = Number(body?.offset ?? url.searchParams.get('offset') ?? 0)
-    const all = routes[path]?.(url, body)
+    let all: unknown
+    try { all = routes[path]?.(url, body) } catch (e) {
+      const t = e as { status?: number; abort?: boolean }
+      if (t.abort) throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+      return new Response('nope', { status: t.status ?? 400 })
+    }
     const data = Array.isArray(all) ? (offset === 0 ? all : []) : all
     return new Response(JSON.stringify(Array.isArray(all) ? { data } : data), { status: 200 })
   }
-  return { client: new PeecClient('skc-x', { fetch: fetch as typeof globalThis.fetch }), seen }
+  return { client: new PeecClient('skc-x', { fetch: fetch as typeof globalThis.fetch, sleep: async () => {}, ...opts }), seen }
 }
 const PROJECTS = [
   { id: 'or_b', name: 'Beta', status: 'PITCH_ENDED' },
@@ -109,8 +114,18 @@ test('a null range falls back to the default', async () => {
 })
 
 test('a failing prompt count is non-fatal: null and a warning', async () => {
-  const { client } = fakePeec({ ...base, '/prompts': () => { throw new Error('boom') } })
+  const { client } = fakePeec({ ...base, '/prompts': () => { throw { status: 404 } } })
   const pull = await pullSnapshot(client, 'or_a', NOW)
   expect(pull.promptCount).toBeNull()
   expect(pull.warnings).toContain("Peec's prompt count could not be loaded, so the methodology leaves it out.")
+})
+
+test('a deadline or timeout in an optional call propagates instead of becoming a warning', async () => {
+  const now = () => (seen.some((s) => s.path === '/actions/list') ? 100 : 0)
+  const { client, seen } = fakePeec(base, { deadline: 50, now })
+  await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/prompts: deadline reached$/)
+  const t = fakePeec({ ...base, '/actions/list': () => { throw { abort: true } } })
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/actions\/list: timed out after \d+ms$/)
+  const p = fakePeec({ ...base, '/prompts': () => { throw { abort: true } } })
+  await expect(pullSnapshot(p.client, 'or_a', NOW)).rejects.toThrow(/\/prompts: timed out after \d+ms$/)
 })

@@ -27,8 +27,10 @@ export function checkRange(
   nowMs: number,
 ): { ok: true; range: DayRange | null } | { ok: false; error: string } {
   const { start, end } = input
-  if (start === undefined && end === undefined) return { ok: true, range: null }
-  if (start === undefined || end === undefined || start === '' || end === '') {
+  // null is JSON's way to say none, so it counts as absent.
+  const none = (v: unknown) => v === undefined || v === null
+  if (none(start) && none(end)) return { ok: true, range: null }
+  if (none(start) || none(end) || start === '' || end === '') {
     return { ok: false, error: 'Pick both a start and an end date, or neither.' }
   }
   const s = parseDay(start)

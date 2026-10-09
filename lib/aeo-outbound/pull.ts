@@ -39,6 +39,11 @@ export interface PeecPull {
   warnings: string[]
 }
 
+// The two PeecError message formats for an exhausted budget (peec.ts): `${path}: deadline reached` and
+// `${path}: timed out after ${timeoutMs}ms`. Optional calls rethrow these instead of warning.
+const DEADLINE_ERROR = /: (timed out after \d+ms|deadline reached)$/
+const isDeadline = (e: unknown): boolean => e instanceof PeecError && DEADLINE_ERROR.test(e.message)
+
 export const isUsableProject = (p: PeecProject): boolean => !DECISIONS.pitchOnly || PITCH_STATUSES.includes(p.status)
 
 export async function listProjects(client: PeecClient): Promise<PeecProject[]> {
@@ -68,6 +73,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
     : null
 
   onStep?.(4)
+  // Not validated here: generate validates a fresh request, and a rerun's stored range is used as stored (spec §7a).
   const requested = range ?? defaultRange(nowMs)
   const { start, end } = requested
   const dated = await client.all<{ domain: string; date?: string; retrieved_chat_count?: number | null }>(
@@ -99,14 +105,16 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   let actions: ActionRow[] = []
   try {
     actions = rowsOf<ActionRow>(await client.call('POST', '/actions/list', { body: { project_id: projectId, limit: 50 } })).filter((a) => a.status === 'PENDING').slice(0, 10)
-  } catch {
+  } catch (e) {
+    if (isDeadline(e)) throw e
     warnings.push('Peec actions could not be loaded, so opportunities come from the data only.')
   }
   // Optional: the methodology leaves the count out when this fails.
   let prompts: { total_count?: number } | null = null
   try {
     prompts = (await client.call('GET', '/prompts', { params: { project_id: projectId, limit: 1 } })) as { total_count?: number } | null
-  } catch {
+  } catch (e) {
+    if (isDeadline(e)) throw e
     warnings.push("Peec's prompt count could not be loaded, so the methodology leaves it out.")
   }
 
