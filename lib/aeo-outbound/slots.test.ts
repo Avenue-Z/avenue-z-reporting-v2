@@ -61,3 +61,24 @@ test('rejects wrong shapes', () => {
   ]
   for (const c of cases) expect(validateGeneratedSlots(c, { category: 'a', market: 'b' }).ok).toBe(false)
 })
+
+test('a fixed value that is empty, too long or control-only is a shape error naming the field', () => {
+  const empty = validateGeneratedSlots(MODEL, { category: '', market: 'Y' })
+  expect(empty.ok).toBe(false)
+  expect(!empty.ok && empty.errors.join(' ')).toContain('category')
+  const long = validateGeneratedSlots(MODEL, { category: 'C', market: 'x'.repeat(1001) })
+  expect(!long.ok && long.errors.join(' ')).toContain('market')
+  const blank = validateGeneratedSlots(MODEL, { category: 'C', market: 'Y', next_step: '\n\t' })
+  expect(!blank.ok && blank.errors.join(' ')).toContain('next_step')
+})
+
+test('a fixed value is cleaned like a generated one, and Needs validation passes', () => {
+  const r = validateGeneratedSlots(MODEL, { category: '  Fin\ntech ', market: 'Needs validation' })
+  expect(r.ok && [r.slots.category, r.slots.market]).toEqual(['Fin tech', 'Needs validation'])
+})
+
+test('an extra key in the reply is ignored: the fixed category wins', () => {
+  const r = validateGeneratedSlots({ ...MODEL, category: 'Z' }, { category: 'Fintech', market: 'Y' })
+  expect(r.ok).toBe(true)
+  expect(r.ok && r.slots.category).toBe('Fintech')
+})

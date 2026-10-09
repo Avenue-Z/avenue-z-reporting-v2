@@ -1,11 +1,13 @@
-// The only reader and writer of aeo_outbound_reports (spec §9). Every write is one conditional UPDATE with
-// .returning(), so a lost race matches nothing instead of reporting success (app/actions/commentary.ts:17-37).
+// The only reader and writer of aeo_outbound_reports (spec §9). Every write is one conditional statement, and all
+// but markStaleGeneratingQuery end in .returning(), so a lost race matches nothing instead of reporting success
+// (app/actions/commentary.ts:17-37). markStaleGeneratingQuery does not return rows.
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
 import { STALE_GENERATING_MS } from './config'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
+import { isShareTokenShape } from './token'
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_GENERATING_MS)
 
@@ -102,6 +104,7 @@ export function liveByTokenQuery(token: string) {
 
 /** The frozen HTML for a live link, or undefined for unknown, revoked or discarded tokens. */
 export async function getLiveByToken(token: string): Promise<string | undefined> {
+  if (!isShareTokenShape(token)) return undefined
   const r = (await liveByTokenQuery(token))[0]
   return r?.html ?? undefined
 }

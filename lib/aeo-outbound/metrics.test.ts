@@ -51,7 +51,7 @@ test('ranks by visibility then id, and builds the KPIs his way', () => {
     { label: 'AI visibility', value: '15.1%' },
     { label: 'AI share of voice', value: '15.9%' },
     { label: 'Average answer position', value: '#3.1' },
-    { label: 'Competitive rank', value: '#3 of 3' },
+    { label: 'Competitive rank', value: '#3 of 3 brands' },
   ])
   expect(d.windowLabel).toBe('Oct 1, 2026 to Oct 8, 2026')
   expect(d.category).toBe('Fintech')
@@ -108,7 +108,7 @@ test('two arguments read DECISIONS, whose defaults are every brand, site gaps on
 test('Q2: rankAmong N keeps the brand and its N - 1 most visible competitors', () => {
   const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, rankAmong: 2 })
   expect(d.brands.map((b) => [b.name, b.rank])).toEqual([['Alpha', 1], ['Example Co', 2]])
-  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 2' })
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 2 brands' })
   expect(d.leaderGaps).toEqual([{ name: 'Alpha', visibilityPoints: 11, sovPoints: 6.6 }])
   expect(d.notes).toContain('Rank is by visibility among 2 of the 3 brands tracked in Peec: the brand and the competitors with the highest visibility.')
 })
@@ -135,4 +135,47 @@ test('source mix weighted by retrieved_chat_count (AIVx method)', () => {
   const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, sourceMixWeight: 'retrieved_chat_count' })
   expect(d.sourceMix.map((s) => [s.label, s.weight])).toEqual([['You', 1989], ['Competitor', 1250], ['Editorial', 900], ['UGC', 300], ['Uncategorized', 5]])
   expect(d.sourceMix.reduce((t, s) => t + s.weight, 0)).toBe(4444)
+})
+
+test('leader gaps use the exact ratios, not the rounded percentages (spec 5a row 17)', () => {
+  const brands = [
+    { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.2614, share_of_voice: 0.2234, position: 2.4 },
+    { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.1516, share_of_voice: 0.1585, position: 3.06 },
+  ]
+  const d = buildSnapshotData({ ...PULL, brands }, '2026-10-08T15:00:00Z')
+  // Rounded first: 26.1 - 15.2 = 10.9 and 22.3 - 15.9 = 6.4. Exact: 10.98 -> 11 and 6.49 -> 6.5.
+  expect(d.leaderGaps).toEqual([{ name: 'Alpha', visibilityPoints: 11, sovPoints: 6.5 }])
+})
+
+test('leader gap share of voice is null when either side has none', () => {
+  const brands = PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, share_of_voice: null } : b))
+  const d = buildSnapshotData({ ...PULL, brands }, '2026-10-08T15:00:00Z')
+  expect(d.leaderGaps.map((g) => g.sovPoints)).toEqual([null, null])
+})
+
+test('more than one own domain: the chat count adds them up, the percentage is the top domain, and a note says so', () => {
+  const own = { ...PULL.ownBrand, domains: ['example.com', 'shop.example.com'] }
+  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, retrieved_percentage: 0.01 }]
+  const d = buildSnapshotData({ ...PULL, ownBrand: own, domains }, '2026-10-08T15:00:00Z')
+  expect(d.ownRetrievedChats).toBe(2000)
+  expect(d.ownRetrievedPct).toBe(22.4)
+  expect(d.notes).toContain('The brand has 2 own domains with retrievals; the chat count adds them up and the percentage is for example.com only.')
+})
+
+test('one own domain adds no own-domains note', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes.join(' ')).not.toContain('own domains')
+})
+
+test('an empty source mix says so in a note', () => {
+  const domains = PULL.domains.map((r) => ({ ...r, retrieval_count: 0 }))
+  const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
+  expect(d.sourceMix).toEqual([])
+  expect(d.notes).toContain('Peec reported no source weights for this window, so the source mix is empty.')
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes.join(' ')).not.toContain('no source weights')
+})
+
+test('competitor gap domains are capped at 4, the top by retrieved chats', () => {
+  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'EDITORIAL', retrieved_chat_count: 100 * n, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
+  const d = buildSnapshotData({ ...PULL, domains: [...PULL.domains.filter((r) => r.domain === 'example.com'), ...[1, 2, 3, 4, 5].map(gap)] }, '2026-10-08T15:00:00Z')
+  expect(d.gapDomains.map((g) => g.domain)).toEqual(['gap5.com', 'gap4.com', 'gap3.com', 'gap2.com'])
 })

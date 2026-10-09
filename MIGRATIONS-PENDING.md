@@ -295,3 +295,13 @@ no rows; Renaissance's row unchanged. Production: not applied.
 changes, and only `lib/aeo-outbound/store.ts` reads it, so the `clients` 42703 risk above does not
 apply. Apply with the hash-checked `scripts/migrate-http.ts`, dev first, then staging and production
 each on my written go, before the code reaches that environment.
+
+Each environment only on my written go, dev first, then staging, then production. That script
+applies every unrecorded migration in journal order and does not check which database it points
+at, so a host guard runs first and refuses any host that is not the one I named for that run.
+Before: a read-only dry run that lists what is pending. On dev and staging it must show exactly
+`0026_aeo_outbound_reports` and nothing else. On production `0025_chart_notes` is also unapplied,
+so production needs 0025 applied first, on my go, or the dry run will show both and the script
+would apply both. After: a read-only read-back of the `aeo_outbound_reports` table, its three
+checks, both indexes with the partial `WHERE status = 'generating'` intact, the
+`aeo_outbound_status` enum, and the migration ledger up by one.

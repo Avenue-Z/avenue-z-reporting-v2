@@ -88,8 +88,8 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
       }))
     : (errors.push('opportunities: needs exactly 3'), [])
   const slots: Slots = {
-    category: fixed.category,
-    market: fixed.market,
+    category: text('category', fixed.category),
+    market: text('market', fixed.market),
     headline: text('headline', o.headline),
     summary: text('summary', o.summary),
     context: text('context', o.context),
@@ -98,7 +98,7 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
     why: text('why', o.why),
     opportunities: opps,
     methodology: text('methodology', o.methodology),
-    next_step: fixed.next_step ?? text('next_step', o.next_step),
+    next_step: text('next_step', fixed.next_step ?? o.next_step),
   }
   return errors.length ? { ok: false, errors } : { ok: true, slots }
 }

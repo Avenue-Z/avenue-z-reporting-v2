@@ -81,3 +81,11 @@ test('a missing profile is null, not an error', async () => {
   const { client } = fakePeec({ ...base, '/project-profile': () => ({ profile: null }) })
   expect((await pullSnapshot(client, 'or_a', NOW)).profile).toBeNull()
 })
+
+test('refuses a window where the own brand has no row in the brands report', async () => {
+  const { client } = fakePeec({
+    ...base,
+    '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
+  })
+  await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow('The own brand has no row in the Peec brands report for this window')
+})

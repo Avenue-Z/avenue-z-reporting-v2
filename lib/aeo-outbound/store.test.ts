@@ -104,3 +104,18 @@ test('unique violation detection', () => {
   expect(isUniqueViolation({ cause: { code: '23505' } })).toBe(true)
   expect(isUniqueViolation(new Error('x'))).toBe(false)
 })
+
+test('a malformed share token returns undefined without building a query', async () => {
+  vi.resetModules()
+  const select = vi.fn()
+  vi.doMock('@/lib/db/client', () => ({ db: { select } }))
+  try {
+    const store = await import('./store')
+    expect(await store.getLiveByToken('short')).toBeUndefined()
+    expect(await store.getLiveByToken("x' or 1=1 --")).toBeUndefined()
+    expect(select).not.toHaveBeenCalled()
+  } finally {
+    vi.doUnmock('@/lib/db/client')
+    vi.resetModules()
+  }
+})

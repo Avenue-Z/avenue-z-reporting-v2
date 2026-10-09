@@ -96,7 +96,7 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
   if (own.position !== null) kpis.push({ label: 'Average answer position', value: `#${own.position.toFixed(1)}` })
   else notes.push('Peec has no answer position for the brand in this window, so that card is left out.')
   if (competitorsTracked > 0) {
-    kpis.push({ label: 'Competitive rank', value: `#${own.rank} of ${brands.length}` })
+    kpis.push({ label: 'Competitive rank', value: `#${own.rank} of ${brands.length} brands` })
     notes.push(cut
       ? `Rank is by visibility among ${brands.length} of the ${sorted.length} brands tracked in Peec: the brand and the competitors with the highest visibility.`
       : `Rank is by visibility among the ${brands.length} brands tracked in Peec.`)
@@ -104,11 +104,19 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
     notes.push('No competitors tracked in this Peec project')
   }
 
-  const leaderGaps = brands.filter((b) => b.rank < own.rank).map((b) => ({
-    name: b.name,
-    visibilityPoints: pyRound(b.visibilityPct - own.visibilityPct, 1),
-    sovPoints: b.sovPct !== null && own.sovPct !== null ? pyRound(b.sovPct - own.sovPct, 1) : null,
-  }))
+  // Spec 5a row 17: competitor minus own from the exact ratios, rounded once at the end.
+  const ratioOf = (id: string) => kept.find((r) => r.brand.id === id)!
+  const ownRatio = ratioOf(own.id)
+  const leaderGaps = brands.filter((b) => b.rank < own.rank).map((b) => {
+    const rival = ratioOf(b.id)
+    return {
+      name: b.name,
+      visibilityPoints: pyRound((rival.visibility - ownRatio.visibility) * 100, 1),
+      sovPoints: typeof rival.share_of_voice === 'number' && typeof ownRatio.share_of_voice === 'number'
+        ? pyRound((rival.share_of_voice - ownRatio.share_of_voice) * 100, 1)
+        : null,
+    }
+  })
 
   const ownDomains = (pull.ownBrand.domains ?? []).map(bare)
   const ownRows = pull.domains.filter((r) => ownDomains.includes(bare(r.domain)))
@@ -116,6 +124,7 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
   const topOwn = [...ownRows].sort((a, b) => (b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0))[0]
   const ownRetrievedPct = typeof topOwn?.retrieved_percentage === 'number' ? pct1(topOwn.retrieved_percentage) : null
   if (!ownRows.length) notes.push("No retrievals of the brand's own site in this window.")
+  if (ownRows.length > 1) notes.push(`The brand has ${ownRows.length} own domains with retrievals; the chat count adds them up and the percentage is for ${topOwn.domain} only.`)
 
   const weights = new Map<string, number>()
   for (const r of pull.domains) {
@@ -128,6 +137,8 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
   const sourceMix = [...weights.entries()]
     .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
     .map(([label, weight]) => ({ label, weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 }))
+
+  if (!sourceMix.length) notes.push('Peec reported no source weights for this window, so the source mix is empty.')
 
   const competitorIds = new Set(pull.roster.filter((b) => !b.is_own).map((b) => b.id))
   const gapDomains = !decisions.competitorSiteGaps ? [] : pull.domains
