@@ -716,11 +716,27 @@ git push
 
 **Files:**
 - Create: `lib/aeo-outbound/metrics.ts`
+- Modify: `lib/aeo-outbound/config.ts` (append three keys to `DECISIONS`, Step 0)
 - Test: `lib/aeo-outbound/metrics.test.ts`, `lib/aeo-outbound/round.vectors.json` (generated in Step 1)
 
 **Interfaces:**
-- Consumes: `PeecPull` (Task 1.3).
-- Produces: `pyRound(x, dp)`, `fmtDay(iso)`, `fmtEasternDay(date)`, `titleClassification(c)`, types `BrandMetric`, `Kpi`, `SourceSlice`, `SnapshotData`, `buildSnapshotData(pull, generatedAtIso) → SnapshotData`.
+- Consumes: `PeecPull` (Task 1.3); `DECISIONS` (Task 1.1, plus the three keys added in Step 0).
+- Produces: `pyRound(x, dp)`, `fmtDay(iso)`, `fmtEasternDay(date)`, `titleClassification(c)`, types `BrandMetric`, `Kpi`, `SourceSlice`, `SnapshotData`, `MetricDecisions`, `buildSnapshotData(pull, generatedAtIso, decisions = DECISIONS) → SnapshotData`. Task 3.3 calls it with two arguments, so it reads `DECISIONS`.
+
+Amendment 2026-10-09 (my call, before Ryan answers): Q2, Q4 and the source-mix weighting each get a switch, so every answer is a value change in `config.ts`, never a code change. Both settings of each switch are tested.
+
+- [ ] **Step 0: Add the three switches** to `DECISIONS` in `lib/aeo-outbound/config.ts`. Insert these lines directly after the Q1 `sectionTitles` line, leaving every other line unchanged:
+
+```ts
+  /** Q2: null ranks the brand among every brand tracked in Peec. A number N (2 or more) ranks it among itself and
+   *  the N - 1 competitors with the highest visibility, like the 7 brands Peec's dashboard shows. */
+  rankAmong: null as number | null,
+  /** Q4: list the sites where competitors appear and the brand does not, ranked by AI answers that used them. */
+  competitorSiteGaps: true as boolean,
+  /** The source-mix weighting (my call, not Ryan's): retrieval_count matches Peec's dashboard within 1 point;
+   *  retrieved_chat_count is AIVx's method. */
+  sourceMixWeight: 'retrieval_count' as 'retrieval_count' | 'retrieved_chat_count',
+```
 
 - [ ] **Step 1: Generate Python rounding vectors** (Python's `round` is the AIVx rule, `aivx:agent/agent.py:1312-1314`):
 
@@ -738,6 +754,7 @@ PY
 import { expect, test } from 'vitest'
 import vectors from './round.vectors.json'
 import { buildSnapshotData, fmtDay, fmtEasternDay, pyRound, titleClassification } from './metrics'
+import type { MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
 
 test('pyRound matches Python round on every vector', () => {
@@ -833,6 +850,41 @@ test('no profile: category and market are null with a note', () => {
   expect([d.category, d.market]).toEqual([null, null])
   expect(d.notes.join(' ')).toContain('no project profile')
 })
+
+const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' }
+
+test('two arguments read DECISIONS, whose defaults are every brand, site gaps on, retrieval_count', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')).toEqual(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', DEFAULTS))
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes).toContain('Rank is by visibility among the 3 brands tracked in Peec.')
+})
+
+test('Q2: rankAmong N keeps the brand and its N - 1 most visible competitors', () => {
+  const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, rankAmong: 2 })
+  expect(d.brands.map((b) => [b.name, b.rank])).toEqual([['Alpha', 1], ['Example Co', 2]])
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 2' })
+  expect(d.leaderGaps).toEqual([{ name: 'Alpha', visibilityPoints: 11, sovPoints: 6.6 }])
+  expect(d.notes).toContain('Rank is by visibility among 2 of the 3 brands tracked in Peec: the brand and the competitors with the highest visibility.')
+})
+
+test('Q2: rankAmong at or above the tracked count changes nothing', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, rankAmong: 3 })).toEqual(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', DEFAULTS))
+})
+
+test('Q2: a brand ranked below the cut is still shown, last', () => {
+  const brands = PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, visibility: 0.05 } : b))
+  const d = buildSnapshotData({ ...PULL, brands }, '2026-10-08T15:00:00Z', { ...DEFAULTS, rankAmong: 2 })
+  expect(d.brands.map((b) => [b.name, b.rank])).toEqual([['Alpha', 1], ['Example Co', 2]])
+})
+
+test('Q4: competitorSiteGaps off leaves no gap sites', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, competitorSiteGaps: false }).gapDomains).toEqual([])
+})
+
+test('source mix weighted by retrieved_chat_count (AIVx method)', () => {
+  const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, sourceMixWeight: 'retrieved_chat_count' })
+  expect(d.sourceMix.map((s) => [s.label, s.weight])).toEqual([['You', 1989], ['Competitor', 1250], ['Editorial', 900], ['UGC', 300], ['Uncategorized', 5]])
+  expect(d.sourceMix.reduce((t, s) => t + s.weight, 0)).toBe(4444)
+})
 ```
 
 - [ ] **Step 3: Run to see it fail**
@@ -844,7 +896,11 @@ Expected: FAIL, module not found.
 
 ```ts
 // Turns a Peec pull into the numbers the page shows and Glean writes from (spec §5a, §7).
+import { DECISIONS } from './config'
 import type { PeecPull } from './pull'
+
+/** The three DECISIONS this file reads; a parameter so tests can cover both settings of each. */
+export type MetricDecisions = Pick<typeof DECISIONS, 'rankAmong' | 'competitorSiteGaps' | 'sourceMixWeight'>
 
 export interface BrandMetric { id: string; name: string; isOwn: boolean; visibilityPct: number; sovPct: number | null; position: number | null; rank: number }
 export interface Kpi { label: string; value: string }
@@ -911,10 +967,14 @@ export const titleClassification = (c: string): string => TITLE[c] ?? c
 const pct1 = (ratio: number) => pyRound(ratio * 100, 1)
 const bare = (d: string) => d.trim().toLowerCase().replace(/^www\./, '')
 
-export function buildSnapshotData(pull: PeecPull, generatedAt: string): SnapshotData {
+export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions: MetricDecisions = DECISIONS): SnapshotData {
   const notes: string[] = []
   const sorted = [...pull.brands].sort((a, b) => (b.visibility - a.visibility) || (a.brand.id < b.brand.id ? -1 : a.brand.id > b.brand.id ? 1 : 0))
-  const brands: BrandMetric[] = sorted.map((r, i) => ({
+  // Q2: keep the brand and its rankAmong - 1 most visible competitors, in visibility order.
+  const cut = decisions.rankAmong !== null && decisions.rankAmong < sorted.length
+  const keptIds = new Set(sorted.filter((r) => r.brand.id !== pull.ownBrand.id).slice(0, cut ? decisions.rankAmong! - 1 : sorted.length).map((r) => r.brand.id))
+  const kept = sorted.filter((r) => r.brand.id === pull.ownBrand.id || keptIds.has(r.brand.id))
+  const brands: BrandMetric[] = kept.map((r, i) => ({
     id: r.brand.id,
     name: r.brand.name,
     isOwn: r.brand.id === pull.ownBrand.id,
@@ -933,7 +993,9 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string): Snapshot
   else notes.push('Peec has no answer position for the brand in this window, so that card is left out.')
   if (competitorsTracked > 0) {
     kpis.push({ label: 'Competitive rank', value: `#${own.rank} of ${brands.length}` })
-    notes.push(`Rank is by visibility among the ${brands.length} brands tracked in Peec.`)
+    notes.push(cut
+      ? `Rank is by visibility among ${brands.length} of the ${sorted.length} brands tracked in Peec: the brand and the competitors with the highest visibility.`
+      : `Rank is by visibility among the ${brands.length} brands tracked in Peec.`)
   } else {
     notes.push('No competitors tracked in this Peec project')
   }
@@ -953,7 +1015,7 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string): Snapshot
 
   const weights = new Map<string, number>()
   for (const r of pull.domains) {
-    const w = r.retrieval_count ?? 0
+    const w = r[decisions.sourceMixWeight] ?? 0
     if (w <= 0) continue
     const label = r.classification ? titleClassification(r.classification) : 'Uncategorized'
     weights.set(label, (weights.get(label) ?? 0) + w)
@@ -964,7 +1026,7 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string): Snapshot
     .map(([label, weight]) => ({ label, weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 }))
 
   const competitorIds = new Set(pull.roster.filter((b) => !b.is_own).map((b) => b.id))
-  const gapDomains = pull.domains
+  const gapDomains = !decisions.competitorSiteGaps ? [] : pull.domains
     .filter((r) => {
       const ids = new Set((r.mentioned_brands ?? []).map((m) => m.id))
       return !ids.has(pull.ownBrand.id) && [...ids].some((id) => competitorIds.has(id))
@@ -1012,7 +1074,7 @@ Expected: PASS. If a `pyRound` vector fails, fix `pyRound` (the vectors are Pyth
 - [ ] **Step 6: Commit and push**
 
 ```bash
-git add lib/aeo-outbound/metrics.ts lib/aeo-outbound/metrics.test.ts lib/aeo-outbound/round.vectors.json
+git add lib/aeo-outbound/config.ts lib/aeo-outbound/metrics.ts lib/aeo-outbound/metrics.test.ts lib/aeo-outbound/round.vectors.json
 git commit -m "feat(aeo-outbound): snapshot metrics, ranking, source mix and gap domains"
 git push
 ```

@@ -30,13 +30,19 @@ existing dashboard share links, scheduled or automatic generation.
    separate admin screen.
 4. **Check the side panel.** It lists anything that needs a human look: missing inputs (`Needs validation`), numbers in
    the copy that don't match the Peec data, and source notes. These notes never appear on the report.
-5. **Approve.** One button. It asks to confirm ("Approving freezes this report. You can't edit it after this. To change
-   it, rerun."). After approval the report is frozen for good and the link exists.
+5. **Approve.** One button. It asks who the link is for (required, free text such as "Jane Doe, Acme") and to confirm
+   ("Approving freezes this report. You can't edit it after this. To change it, use Edit a copy."). After approval the
+   report is frozen for good and the link exists.
 6. **Copy link** and send it. The recipient opens it with no login and sees only that report.
-7. **Revoke** (optional, confirm dialog). The link stops working immediately and permanently.
-8. **Rerun** makes a fresh snapshot of the same Peec project as a new draft. The old one is untouched, so an approved
-   report stays live until it is revoked.
-9. **Discard** removes a draft or failed snapshot from the hub.
+7. **Opens.** The hub shows who the link is for, how many times it was opened, and when it was first and last opened
+   (§8). A link with no login can always be forwarded; opens are how Ryan spots that, and Revoke is how he stops it.
+8. **Revoke** (optional, confirm dialog). The link stops working immediately and permanently.
+9. **Edit a copy** (approved or revoked report): a new draft with the same data, copy and notes, made without calling
+   Peec or Glean. Ryan fixes it, approves it, and sends the new link. The original is untouched, so its link stays
+   live until he revokes it. This is how a typo, or a mistaken revoke, is fixed without losing his edits.
+10. **Rerun** makes a fresh snapshot of the same Peec project as a new draft, with new data and new copy. The old one
+   is untouched, so an approved report stays live until it is revoked.
+11. **Discard** removes a draft or failed snapshot from the hub.
 
 ## 3. Where each piece comes from
 
@@ -70,7 +76,7 @@ All new code lives in new folders. Nothing else in the app imports it.
 | `app/api/aeo-outbound/generate/route.ts` | POST, `maxDuration = 300` (precedent `app/api/cache-warm/route.ts:39`) | Contract in §7a. |
 | `app/api/aeo-outbound/reports/[id]/view/route.ts` | GET (staff + allowlist) | Returns the report HTML as `text/html`, `Cache-Control: no-store`: the draft with editing hooks, or the frozen HTML. 404 for unknown or discarded ids. Two callers only: the editor's own `fetch` (draft with editing hooks), and **Open full size**, which requests `?mode=preview` (the same HTML without editing hooks, so nothing typed there can be lost). |
 | `app/api/aeo-outbound/reports/[id]/slots/route.ts` | PATCH (staff + allowlist) | Autosave of one text slot. Contract in §9a. |
-| `app/actions/aeo-outbound.ts` | server actions | `approve`, `revoke`, `discard`. Each re-checks session and allowlist. Rerun is not an action: it calls `POST /generate` (§7a), because only that route has the 300s budget. |
+| `app/actions/aeo-outbound.ts` | server actions | `approve`, `revoke`, `discard`, `copyAsDraft`. Each re-checks session and allowlist. Rerun is not an action: it calls `POST /generate` (§7a), because only that route has the 300s budget. `copyAsDraft` makes no Peec or Glean call, so it fits an action. |
 | `components/aeo-outbound/*` | client components | Hub table, project picker, editor toolbar, iframe host with the save queue (§9a), notes drawer. |
 | `app/snapshot/[token]/route.ts` | GET, **public** | Serves the frozen HTML. Outside the proxy matcher (`proxy.ts:24-26`). |
 | `lib/aeo-outbound/*` | lib | `peec.ts`, `pull.ts`, `metrics.ts`, `charts.ts`, `render.ts`, `aivx/css.ts`, `aivx/js.ts`, `prompt.ts`, `generate.ts`, `grounding.ts`, `store.ts`, `permissions.ts`, `token.ts`. |
@@ -264,6 +270,13 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
   - `Content-Security-Policy: sandbox allow-scripts`, so even Ryan opening his own live link while signed in runs it with no access to his session
 
   Unknown, revoked and discarded tokens all get the same 404 page (one static line, no app chrome), so a probe learns nothing.
+- **Recording an open:** after a live lookup, a `GET` (not `HEAD`) runs one conditional UPDATE on that row:
+  `open_count + 1`, `first_opened_at` set if null, `last_opened_at = now()`, matching the same live conditions. It is not
+  counted when the `User-Agent` contains (case-insensitive) `slackbot`, `facebookexternalhit`, `twitterbot`,
+  `linkedinbot`, `discordbot`, `whatsapp`, `telegrambot`, `skypeuripreview`, `googlebot` or `bingbot`, so a link
+  preview in a chat app doesn't look like an open. Email security scanners can still register one, and the hub says
+  so. A failure to record is logged with the report id (never the token) and the page is still served, byte for byte.
+  Who the link is for is Ryan's label: nothing enforces it, because a link with no login can always be forwarded.
 - **What the recipient can reach:** only that document. The links in it are `#section` anchors, `avenuez.com`, and the
   share button, which copies the current URL (`aivx:renderer.py:2557-2614`, toast element plus script, minus the canonical tag). It has no
   link into the app, no data request, and no script from our origin.
@@ -294,12 +307,15 @@ the style of `report_commentary` (`lib/db/schema.ts:331-366`). It doesn't refere
 | `error` | text | For `failed`. |
 | `html` | text | Set only at Approve. |
 | `share_token` | text unique | Set only at Approve. |
+| `share_recipient` | text | Who the link is for, set at Approve (same cleaning as a slot value, 1 to 200 characters). |
+| `open_count` | integer not null default 0 | Opens of the live link (§8). |
+| `first_opened_at`, `last_opened_at` | timestamptz | |
 | `rerun_of` | uuid | Lineage. |
 | `created_by`, `approved_by`, `revoked_by`, `deleted_by` | text | Emails. |
 | `created_at`, `updated_at`, `approved_at`, `share_revoked_at`, `deleted_at` | timestamptz | |
 
 Checks:
-- `status='approved'` ⇔ `html IS NOT NULL AND share_token IS NOT NULL AND approved_at IS NOT NULL`
+- `status='approved'` ⇔ `html IS NOT NULL AND share_token IS NOT NULL AND approved_at IS NOT NULL AND share_recipient IS NOT NULL`
 - `share_revoked_at IS NULL OR status='approved'`
 - `deleted_at IS NULL OR status IN ('draft','failed')`
 - Partial unique index `aeo_outbound_one_generating` on `(peec_project_id) WHERE status = 'generating'` (§7a).
@@ -309,8 +325,14 @@ Checks:
 Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save into, approve or revoke a discarded row
 (the race documented at `app/actions/commentary.ts:23-27`).
 - save slot: `WHERE id AND status='draft' AND revision=$shown` → `revision+1`. 0 rows → 409, and the editor shows "This snapshot changed elsewhere. Reload."
-- approve: `WHERE id AND status='draft' AND revision=$shown AND no slot contains 'Needs validation'` → sets html (rendered from the stored data and slots), token and approved fields. One-way: no transition leaves `approved`.
+- approve: `WHERE id AND status='draft' AND revision=$shown AND no slot contains 'Needs validation'` → sets html (rendered from the stored data and slots), token, recipient and approved fields. One-way: no transition leaves `approved`.
 - revoke: `WHERE id AND status='approved' AND share_revoked_at IS NULL`. One-way.
+- record open: `WHERE share_token=$token AND status='approved' AND share_revoked_at IS NULL AND deleted_at IS NULL` (§8).
+- copy as draft: one `INSERT … SELECT` from the source row `WHERE id AND status='approved' AND deleted_at IS NULL` (live
+  or revoked). The new row is `draft` with the source's project, brand, data, slots and notes, `revision 0`,
+  `rerun_of` = the source id and `created_by` = the caller. No row matched → `not found`. The source is never written.
+- **Hub listing:** only the columns the hub shows (never `data`, `slots`, `notes` or `html`): every live row whatever its
+  age, plus the newest 500 other rows not discarded. A live link therefore can't drop off the hub, so it can always be revoked.
 - discard: `WHERE id AND (status IN ('draft','failed') OR (status='generating' AND created_at < now() - interval '6 minutes'))`. Sets `status='failed'` where it was `generating`, plus `deleted_at` and `deleted_by`.
 - rerun: the same `POST /generate` with `rerunOf` set (§7a). The new row stores `rerun_of`; the original is untouched. The editor's and hub's Rerun buttons open the new draft when it's ready.
 - **Stale:** a `generating` row older than 6 minutes (300s `maxDuration` plus margin) displays as *Failed (timed out)*. It allows Rerun and Discard, like a failed row. No cron.
@@ -348,7 +370,8 @@ Dashboard look (dark, `globals.css` tokens, the same card classes as `app/tools/
 iframe, which is pure AIVx.
 
 - **Hub:** a header "AEO Outbound Snapshot", then a "New snapshot" bar (project dropdown + **Generate**), then a table:
-  Brand · Peec project · Status · Created · Approved · Actions.
+  Brand · Peec project · Status · Created · Approved · For · Opens · Actions. **Opens** shows the count, with first
+  and last opened on hover and the line "Email security scanners can count as an open".
   - The table comes from the database only.
   - The dropdown is a client component that calls `/api/aeo-outbound/projects`. On failure it shows "Peec is unavailable. Retry" inline, and the rest of the hub keeps working.
   - **Generate** shows a local *Generating…* row, awaits the POST (§7a), then opens the editor (draft) or shows the reason (failed).
@@ -370,8 +393,8 @@ iframe, which is pure AIVx.
   | Status | Actions |
   |---|---|
   | Draft | Open, Rerun, Discard |
-  | Live | Open, Copy link, Revoke, Rerun |
-  | Revoked | Open, Rerun |
+  | Live | Open, Copy link, Revoke, Edit a copy, Rerun |
+  | Revoked | Open, Edit a copy, Rerun |
   | Failed | Rerun, Discard |
 
   Approve exists only in the editor, so a report can't be approved unseen.
@@ -382,6 +405,7 @@ iframe, which is pure AIVx.
   - save state ("Saving…" / "Saved" / "Couldn't save, retrying")
   - **Approve** (draft only; disabled with a tooltip while any `Needs validation` remains or while an edit is unsaved or saving, §9a)
   - **Copy link** and **Revoke** (Live)
+  - **Edit a copy** (Live or Revoked), which opens the new draft
   - **Rerun**
   - **Notes** (toggles the drawer)
   - **Open full size** (the same HTML in a new tab)
@@ -401,7 +425,7 @@ iframe, which is pure AIVx.
 - **Share button in the draft view is hidden.** Inside the `srcdoc` iframe the page's own address is a placeholder, not
   the real link, so AIVx's button would copy the wrong thing. The toolbar's **Copy link** is the only copy action in the
   editor. On the public link the AIVx button works as-is (verified in T2 under the sandbox CSP).
-- **Confirm dialogs:** Approve, Revoke and Discard.
+- **Confirm dialogs:** Approve (with the required "Who is this for?" field), Revoke and Discard.
 
 ## 11. AI-output review (before client delivery)
 
@@ -464,7 +488,9 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 - **Page length:** a web page, so no one-page print limit.
 - **AI-assistance line:** none on the report (my decision).
 
-**Questions** (each settles a §5a row or an open rule):
+**Questions** (each settles a §5a row or an open rule). Every answer is one value in `lib/aeo-outbound/config.ts`
+`DECISIONS`, with no other code change: Q2 is `rankAmong` (null for every tracked brand, or N for the brand and its
+N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix weighting (my call) is `sourceMixWeight`.
 1. (§5 rows 5-6) Title the two middle sections "Category data" and "Competitive visibility" (Thomas S's wording), instead of your skill's "Category data" and "Sources data"?
 2. (§5a row 10) Rank the brand against every competitor tracked in Peec, not only the top 7 shown on the dashboard? (The spec assumes Yes.)
 3. (§5a row 3) Peec's category is broad. Should the tool write a more specific one from the data, like your example's?
@@ -493,6 +519,11 @@ section order (strengths, then gaps) and the no-recommendations fallback.
 | Two tabs editing | Revision conflict 409, reload prompt. |
 | Approve double-click | The second UPDATE matches 0 rows, so it's a no-op. |
 | Revoke while recipient has the page open | Their open page stays. The next load is 404 (`no-store`). |
+| Link pasted into Slack, iMessage, WhatsApp and similar | The preview bot's request is served but not counted (§8). |
+| Email security scanner opens the link | Counted. The hub's hover says scanners can count. |
+| Recording an open fails | Logged with the report id; the page is still served. |
+| Typo found after Approve, or revoked by mistake | Edit a copy: a new draft with the same data and copy; approve it for a new link. |
+| More than 500 snapshots | The hub lists every live link plus the newest 500 others. |
 | Function killed mid-generate | Shows as Failed (timed out) after 6 minutes. Rerun works. |
 | Non-allowlisted staff | Access message, 403, or `{ ok: false, error: 'forbidden' }` from actions. No data returned. |
 | Brand name over 24 characters | 72px hero rule (`aivx:renderer.py:1439-1458`). |
@@ -522,8 +553,14 @@ section order (strengths, then gaps) and the no-recommendations fallback.
   - every UPDATE matches `deleted_at IS NULL`
   - rerun refused while generating
   - stale generating
+  - approve sets the recipient; the approved check needs it
+  - record open: the WHERE clause matches only a live row; first opened set once, last opened and the count every time
+  - copy as draft: only from an approved row (live or revoked), copies data, slots and notes, `revision 0`, `rerun_of` set, source untouched
+  - hub listing: no `data`, `slots`, `notes` or `html`; a live row older than the newest 500 is still listed
 - **Routes:**
   - the public route returns the exact stored bytes and headers (including the CSP sandbox), and a byte-identical 404 for unknown, revoked and discarded tokens
+  - the public route records an open for a live `GET`, not for `HEAD`, a listed preview bot or a 404, and still serves the same bytes when recording fails
+  - approve refuses an empty or too-long recipient; `copyAsDraft` returns `forbidden` for non-allowlisted staff and `not found` for a draft, failed or discarded source
   - projects, generate, view and slots routes return 403 without staff plus the allowlist
   - each server action (approve, revoke, discard) returns `forbidden` for non-allowlisted staff and writes nothing
   - a cross-origin `Origin` header gets 403 on generate, slots and actions
