@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type { PartImpl } from '@/lib/report-sections/types'
 import { getTopContent } from '@/lib/organic-social/top-content'
+import { fetchTopContentFrozenWithAuthors } from '@/lib/organic-social/top-content-authors'
 import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
 import { getDesignations } from '@/lib/organic-social/designations/select'
 import { partitionPosts } from '@/lib/organic-social/designations/partition'
@@ -17,7 +18,8 @@ import type { OrganicSocialCtx } from '../ctx'
 import { safe, Fallback } from './shared'
 import { HoverHint } from '@/components/charts/hover-hint'
 import { TOP_POSTS_DEFINITION } from '@/lib/organic-social/metric-definitions'
-import { OUTLINE_SORT_KEYS } from '@/lib/organic-social/outline-top-content'
+import { OUTLINE_SORT_KEYS, ownHandlesFor, partitionByAuthor } from '@/lib/organic-social/outline-top-content'
+import { splitRulesFor } from './split-rules'
 
 async function TopContentSection({ clientSlug, dateRange, channel }: OrganicSocialCtx) {
   const r = await safe(getTopContent(clientSlug, dateRange, channel))
@@ -65,19 +67,27 @@ export async function loadDesignations(clientSlug: string, postIds: number[]): P
 }
 
 /** top-content@2: the card gallery (owned + a separate Influencer section), backed by the
- *  snapshot-aware frozen fetch, split live by post_designations. Its toolbar offers the two outline sorts, Engagements
+ *  snapshot-aware frozen fetch, split live by post_designations, or by author when the client has a saved Instagram handle
+ *  (spec 2026-10-09 section 6). Its toolbar offers the two outline sorts, Engagements
  *  and Views, which the heading hint names (my call, 2026-10-07); sorting is in the browser only. Exported for the golden test,
  *  which awaits its resolved output directly (RTL does not render an async child's output). */
 export async function TopContentV2Section({ clientSlug, dateRange, channel, role }: OrganicSocialCtx) {
-  const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel))
+  // The client is read before the fetch: the split follows the same rule the Influencer tab reads (splitRulesFor: the
+  // platform layout's pin and a saved Instagram handle; spec 2026-10-09 section 6, Paul's #358 review), and the same row
+  // answers the Influencer tab check below (spec B1). A failed read keeps today's request, split and gallery.
+  const client = await getClientBySlug(clientSlug).catch(() => null)
+  const dsc: unknown = client?.dashSocialConfig
+  const byAuthor = (await splitRulesFor(client)) !== 'designations'
+  const r = await safe(byAuthor
+    ? fetchTopContentFrozenWithAuthors(clientSlug, dateRange, channel)
+    : fetchTopContentFrozen(clientSlug, dateRange, channel))
   if (!r.data) return <Fallback kind={r.error!} />
   const posts = r.data
   const stored = await loadDesignations(clientSlug, posts.map((p) => p.id))
-  const { owned, influencer } = partitionPosts(posts, stored)
+  const { owned, influencer } = byAuthor
+    ? partitionByAuthor(posts, stored, ownHandlesFor(posts, dsc, clientSlug, channel))
+    : partitionPosts(posts, stored)
   const canEdit = canSetDesignation(role)
-  // The Influencer tab shows Instagram's influencer posts; a client that has it does not also see them here, on
-  // Overview or the Instagram tab (spec B1). A failed client read keeps today's gallery.
-  const client = await getClientBySlug(clientSlug).catch(() => null)
 
   return (
     <section className="space-y-6">
