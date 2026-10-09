@@ -204,6 +204,47 @@ const BOT_TO_MODEL: Record<string, AEOModel> = {
   'Bingbot-Video':  'Copilot',
 }
 
+/** Section C's four cards. In the PDF export the Fastest and Slowest URLs, which are the answer, print in full (the theme
+ *  un-truncates inside data-export-wrap) and break anywhere, since a URL has no spaces; live they stay one truncated line. */
+export function TimeToFirstCards({ medFirstTraffic, medFirstAi, fastestAi, slowestAi, fastestAiUrl, slowestAiUrl }: {
+  medFirstTraffic: number | null
+  medFirstAi: number | null
+  fastestAi: number | null
+  slowestAi: number | null
+  fastestAiUrl: string | null
+  slowestAiUrl: string | null
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-export-block="" data-export-wrap="">
+      {[
+        { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
+        { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
+        { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
+        { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
+      ].map(({ icon: Icon, label, color, val, sourceUrl }) => (
+        <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+          <Icon className="h-4 w-4" style={{ color }} />
+          <span className="text-[11px] font-semibold text-text-muted">{label}</span>
+          <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
+            {formatDaysToFirst(val)}
+          </span>
+          {sourceUrl && (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block max-w-full truncate wrap-anywhere text-[10px] text-white/40 underline-offset-2 hover:text-white/70 hover:underline"
+              title={sourceUrl}
+            >
+              {sourceUrl}
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export async function ContentImpactReport({
   clientSlug,
   dateRange,
@@ -1217,33 +1258,8 @@ export async function ContentImpactReport({
         title="How quickly does new content earn traffic and AI citations?"
         description="For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range."
       >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-export-block="">
-          {[
-            { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
-            { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
-            { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
-            { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
-          ].map(({ icon: Icon, label, color, val, sourceUrl }) => (
-            <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-              <Icon className="h-4 w-4" style={{ color }} />
-              <span className="text-[11px] font-semibold text-text-muted">{label}</span>
-              <span className={cn('text-lg font-bold', val !== null ? 'text-white' : 'text-white/20')}>
-                {formatDaysToFirst(val)}
-              </span>
-              {sourceUrl && (
-                <a
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block max-w-full truncate text-[10px] text-white/40 underline-offset-2 hover:text-white/70 hover:underline"
-                  title={sourceUrl}
-                >
-                  {sourceUrl}
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
+        <TimeToFirstCards medFirstTraffic={medFirstTraffic} medFirstAi={medFirstAi} fastestAi={fastestAi} slowestAi={slowestAi}
+          fastestAiUrl={fastestAiUrl} slowestAiUrl={slowestAiUrl} />
         {!sectionCOk && (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
             <p className="text-xs text-text-muted">

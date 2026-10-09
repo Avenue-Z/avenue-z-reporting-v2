@@ -229,9 +229,11 @@ export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) 
       {!noData && (
         <p className="mt-5 border-t border-white/[0.08] pt-4 text-xs leading-relaxed text-text-muted">
           <span className="font-semibold text-white/80">Mentions</span> is how many AI answers brought up a
-          theme for the dates and models you&rsquo;ve selected. Open a theme to see the web pages those answers
+          theme for the dates and models you&rsquo;ve selected.{' '}
+          {/* The PDF export prints themes closed, with no page lists, so it leaves out the sentences about them. */}
+          {!exportMode && <>Open a theme to see the web pages those answers
           linked to most often (top 12). A single answer can link to many pages, so a theme&rsquo;s mention count
-          is usually higher than the number of links shown. Everything here comes straight from Profound.
+          is usually higher than the number of links shown.{' '}</>}Everything here comes straight from Profound.
         </p>
       )}
     </section>

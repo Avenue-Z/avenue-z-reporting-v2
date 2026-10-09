@@ -49,3 +49,20 @@ test('geo: the chart and its title print as one block', () => {
   render(<ExportModeProvider><MetaGeoSection data={{ rows: [{ region: 'Ohio', spend: 9, linkClicks: 1, lpv: 1, engagements: 1 }], totalRegions: 1, prevTopRegionSpend: null, prevTotalRegions: null }} /></ExportModeProvider>)
   expect(screen.getByText('Top Regions by Spend').parentElement!.hasAttribute('data-export-block')).toBe(true)
 })
+
+// Thomas, #352 creative-table-client.tsx:117: the Frequency caveat was a hover hint, hidden on paper, yet every Frequency
+// in the PDF is campaign level, where it applies. It prints as a footnote under the table.
+test('the export prints the Frequency double-count caveat under the table; live it stays a hint', () => {
+  expect(inExport(campaigns).textContent).toMatch(/Frequency: at campaign and ad set level, frequency sums reach across ad sets and may double-count users/)
+  expect(render(<CreativeTable campaigns={campaigns} />).container.querySelector('p')).toBeNull()
+})
+
+// Thomas, #352 (width headroom) and record item 11: Status is an ad-level field and only top-level rows print, so the
+// column was blank on every printed row while costing width on the tightest tables. The export leaves it out.
+test('the export leaves out the Status column; live keeps it', () => {
+  const container = inExport(campaigns)
+  expect([...container.querySelectorAll('th')].map((th) => th.textContent?.trim())).not.toContain('Status')
+  const cols = container.querySelectorAll('th').length
+  expect([...container.querySelectorAll('tbody tr')].every((tr) => tr.querySelectorAll('td').length === cols)).toBe(true)
+  expect([...render(<CreativeTable campaigns={campaigns} />).container.querySelectorAll('th')].map((th) => th.textContent?.trim())).toContain('Status')
+})

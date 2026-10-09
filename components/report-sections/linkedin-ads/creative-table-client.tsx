@@ -117,9 +117,12 @@ export function CreativeTableClient({
                 {!exportMode && sort.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
               </th>
             ))}
-            <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
-              Status
-            </th>
+            {/* Not in the PDF export: Status is an ad-level field, and only top-level rows print. */}
+            {!exportMode && (
+              <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
+                Status
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -147,7 +150,7 @@ export function CreativeTableClient({
               {`Total (${groups.length} ${groups.length === 1 ? 'Campaign Group' : 'Campaign Groups'})`}
             </td>
             {metricCells(totals)}
-            <td className="px-5 py-3 text-left text-white" />
+            {!exportMode && <td className="px-5 py-3 text-left text-white" />}
           </tr>
         </tbody>
       </table>
@@ -195,7 +198,7 @@ function GroupRows({
           <Chevron open={groupOpen} exportMode={exportMode} /> {group.name}
         </td>
         {metricCells(group)}
-        <td className="px-5 py-3 text-left text-white" />
+        {!exportMode && <td className="px-5 py-3 text-left text-white" />}
       </tr>
       {groupOpen &&
         campaigns.map((camp) => {

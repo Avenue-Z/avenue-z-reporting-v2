@@ -37,7 +37,6 @@ test('a kept title block never splits inside', () => {
 test('bright brand text colours are darkened on paper, and only off the dark chart panels', () => {
   expect(css).toContain('.export-theme :not([data-export-chart] *).text-\\[\\#60FF80\\] { color: #15803d; }')
   // An inline style beats any stylesheet rule that isn't !important (found on Technical Audit's stat values).
-  expect(css).toContain(':not([data-export-chart] *)[style*="color:#60FF80" i]:not([style*="background-color:#60FF80" i]) { color: #15803d !important; }')
   expect(css).toContain('.export-theme :not([data-export-chart] *).text-\\[\\#60FDFF\\] { color: #0e7490; }')
 })
 
@@ -46,4 +45,27 @@ test('bright brand text colours are darkened on paper, and only off the dark cha
 test('marked scroll boxes print in full and truncated text wraps in tables and marked lists', () => {
   expect(css).toContain('.export-theme [data-export-scroll] { max-height: none; overflow: visible; }')
   expect(css).toContain('.export-theme [data-export-wrap] .truncate { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }')
+})
+
+// Thomas, #350 export-theme.css:93: the inline-colour remaps matched "color:#60FF80" anywhere in the style, then excluded a
+// matching background-color; the UGC type pill (style="color:#60FF80;background-color:#60FF8022") defeated that and kept
+// neon text on a near-white pill. Each remap now matches a text color declaration only: at the start or after a ';'.
+// jsdom can't apply CSS, but it can run the selectors, so they're checked against elements as the server renders them.
+const inlineColourRules = [...css.matchAll(/^\.export-theme ([^{]*\[style[^{]*)\{\s*color:\s*(#[0-9a-f]{6}) !important;\s*\}/gim)]
+  .map(([, selectors, to]) => ({ selectors: selectors.split(',').map((s) => s.trim().replace(/^\.export-theme\s+/, '')).filter(Boolean), to }))
+const remappedTo = (html: string) => {
+  document.body.innerHTML = `<div class="export-theme">${html}</div>`
+  const el = document.querySelector('[data-probe]')!
+  return inlineColourRules.find((r) => r.selectors.some((sel) => el.matches(`.export-theme ${sel}`)))?.to ?? null
+}
+
+test('inline brand text colours are remapped wherever the color declaration sits, and nothing else is', () => {
+  expect(inlineColourRules.length).toBe(5) // green, red (two hexes), yellow, cyan, blue
+  expect(remappedTo('<span data-probe style="color:#60FF80">UGC</span>')).toBe('#15803d')
+  expect(remappedTo('<span data-probe style="color:#60FF80;background-color:#60FF8022">UGC</span>')).toBe('#15803d')
+  expect(remappedTo('<span data-probe style="background-color:#60FF8022;color:#60FF80">UGC</span>')).toBe('#15803d')
+  expect(remappedTo('<span data-probe style="color:#ff4444;background-color:#FF444422">Forum</span>')).toBe('#b91c1c')
+  expect(remappedTo('<div data-probe style="background-color:#60FF80"></div>')).toBeNull()
+  expect(remappedTo('<div data-probe style="border-color:#60FF80"></div>')).toBeNull()
+  expect(remappedTo('<div data-export-chart><span data-probe style="color:#60FF80">kept on the dark panel</span></div>')).toBeNull()
 })

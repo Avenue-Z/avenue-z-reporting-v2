@@ -133,7 +133,8 @@ export default function SlopeChart({ input, compareActive }: Props) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <ul className={cn('flex w-56 shrink-0 flex-col gap-1 pr-1', exportMode ? 'overflow-visible' : 'overflow-y-auto')}>
+        {/* data-export-wrap: the legend is the only key to the lines, so its names print in full, not cut at "…". */}
+        <ul className={cn('flex w-56 shrink-0 flex-col gap-1 pr-1', exportMode ? 'overflow-visible' : 'overflow-y-auto')} data-export-wrap="">
           {legendItems.map((p) => (
             <li
               key={p.url}
@@ -149,7 +150,7 @@ export default function SlopeChart({ input, compareActive }: Props) {
                 className="block h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: DIRECTION_COLOR[p.direction] }}
               />
-              <span className="flex-1 truncate" title={p.topic ?? p.url}>{p.topic ?? p.url}</span>
+              <span className="flex-1 truncate wrap-anywhere" title={p.topic ?? p.url}>{p.topic ?? p.url}</span>
               <span className="tabular-nums">{yTickFormatter(p.current)}</span>
             </li>
           ))}

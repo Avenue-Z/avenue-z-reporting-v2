@@ -160,7 +160,9 @@ if (!process.env.AUTH_SECRET) {
   // A page loaded before sections were added posts no section; it must still export Organic Social.
   const skew = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
     { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-no-section')
-  check(!!skew, 'a body with no section still exports Organic Social')
+  // Its filename names the section it exported, so a default that picked another enabled section fails here (Thomas,
+  // #348 acceptance.mts:129), not just one that failed outright.
+  check(/Organic%20Social/.test(skew?.res.headers.get('content-disposition') ?? ''), 'a body with no section still exports Organic Social')
 
   // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
   // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.
@@ -219,6 +221,10 @@ if (!process.env.AUTH_SECRET) {
         const text = r.pdf.words.map((w) => w.text).join(' ')
         const controls = text.match(/Spend Clicks Paid Search|Cost Clicks Impressions Leads|Show all|Filter ≥10 clicks|[▸▾]/g) ?? []
         check(controls.length === 0, `${name}-${who}: no toggle, sort or expand controls (${[...new Set(controls)].join(', ') || 'none'})`)
+        // A part that failed or timed out prints its fallback and the export still returns 200 (Thomas, #352
+        // acceptance.mts:214); a run that printed one has not exported the tab.
+        const failed = text.match(/Couldn't load this section|Taking longer than usual/g) ?? []
+        check(failed.length === 0, `${name}-${who}: every part loaded, none printed its fallback (${[...new Set(failed)].join(', ') || 'none'})`)
       }
       if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
     }

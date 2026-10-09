@@ -18,6 +18,9 @@ interface Col {
 
 const freq = (n: number) => n.toFixed(1) + 'x'
 
+const FREQUENCY_CAVEAT =
+  'At campaign and ad set level, frequency sums reach across ad sets and may double-count users reached in more than one ad set.'
+
 const COLS: Col[] = [
   { key: 'spend', label: 'Spend', fmt: money },
   { key: 'impressions', label: 'Impressions', fmt: num },
@@ -26,8 +29,7 @@ const COLS: Col[] = [
     key: 'frequency',
     label: 'Frequency',
     fmt: freq,
-    tooltip:
-      'At campaign and ad set level, frequency sums reach across ad sets and may double-count users reached in more than one ad set.',
+    tooltip: FREQUENCY_CAVEAT,
   },
   { key: 'linkClicks', label: 'Link Clicks', fmt: num },
   { key: 'ctr', label: 'CTR', fmt: pct },
@@ -128,9 +130,12 @@ export function CreativeTableClient({
                 </span>
               </th>
             ))}
-            <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
-              Status
-            </th>
+            {/* Not in the PDF export: Status is an ad-level field, and only top-level rows print. */}
+            {!exportMode && (
+              <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
+                Status
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -158,10 +163,17 @@ export function CreativeTableClient({
               {`Total (${campaigns.length} ${campaigns.length === 1 ? 'Campaign' : 'Campaigns'})`}
             </td>
             {metricCells(totals)}
-            <td className="px-5 py-3 text-left text-white" />
+            {!exportMode && <td className="px-5 py-3 text-left text-white" />}
           </tr>
         </tbody>
       </table>
+      {/* The Frequency hint is hover-only and hidden on paper, yet every Frequency the export prints is campaign level,
+          where the caveat applies, so it prints as a footnote. */}
+      {exportMode && (
+        <p className="border-t border-white/[0.06] px-5 py-3 text-[11px] text-text-muted">
+          Frequency: {FREQUENCY_CAVEAT.charAt(0).toLowerCase() + FREQUENCY_CAVEAT.slice(1)}
+        </p>
+      )}
     </div>
   )
 }
@@ -206,7 +218,7 @@ function CampaignRows({
           <Chevron open={campOpen} exportMode={exportMode} /> {camp.name}
         </td>
         {metricCells(camp)}
-        <td className="px-5 py-3 text-left text-white" />
+        {!exportMode && <td className="px-5 py-3 text-left text-white" />}
       </tr>
       {campOpen &&
         adSets.map((set) => {
