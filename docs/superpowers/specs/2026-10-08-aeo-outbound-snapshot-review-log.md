@@ -115,3 +115,25 @@ MINOR from round 2, for the plan:
     normal operation, and it adds no latency when the database answers.
 19. The four-condition approved check can't be exercised without a database: the test pins the generated SQL, and the
     dev apply's read-back checks the constraint text.
+
+## Amendment 2026-10-09 (2): Paul's review of #361, and Ryan picks the dates
+
+Paul reviewed #361 (10 inline comments). My decisions: the window is the last 30 days by default; Ryan may pick the
+dates; opens skip staff only. Amendment commit `99534552`; adversarial round 1 on the changed lines: 0 BLOCKER,
+5 MAJOR, 10 MINOR; Paul's comments 9 of 10 resolved (the rank denominator was not).
+
+MAJOR, fixed in the spec: (1) date rules: UTC days, both ends inclusive, default today − 29 through today, length
+end − start + 1, calendar-invalid, one date or empty string refused; (2) `n` = distinct roster-and-row brands, the cut
+applies to that set, `i` within the ranked set, the note texts, no-row brands only in `n`; (3) 400 bodies carry
+`code: 'bad-range' | 'bad-project'`; (4) Rerun's range is read server-side from the original, a body range with
+`rerunOf` is refused, copy as draft carries the range, an old range fails with the no-data reason; (5) the public
+route's session read is inside the 1.5s cap, not counted on failure, and the response never sets a cookie.
+Also fixed (errors in my own text): a duplicate step number in §7a and the stale "400-day ... Ported" parity row.
+
+MINOR, for the plan: (6) the 5xx and network retry is separate from the 429 budget, runs only with more than 6s left,
+and a failure while reading the body counts as a network failure; (7) leader gaps: list every brand ranked above the
+brand, with the gap as the difference of displayed values; (9) measure a 90-day pull's rows against the cap, and record
+the decision on Paul's brands-by-date suggestion; (10) the window limits are plain constants (not DECISIONS) and the hub
+copy renders from them; (11) a notes line when the picked range is wider than the data; (12) gap-site exclusion covers
+subdomains of roster domains; (14) name the check `aeo_outbound_range_both_or_neither`, and tests for one-date bodies,
+Rerun reusing the range, and copy carrying it; (15) `/prompts` added to §7's step-8 row as non-fatal with its note text.
