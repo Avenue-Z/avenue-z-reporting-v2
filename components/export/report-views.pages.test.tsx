@@ -28,7 +28,7 @@ import { auth } from '@/auth'
 import { parseModelsParam } from '@/lib/peec/models'
 import { resolveExportView, type ExportViewClient } from '@/lib/export/report-view'
 import { exportReportElement } from './report-element'
-import type { ServerExportSection } from '@/lib/export/sections'
+import { SERVER_EXPORT_SECTIONS, type ServerExportSection } from '@/lib/export/sections'
 
 const REPORTS = new Set(['OrganicSocialReport', 'PeecAIReport', 'PRInfluenceReport', 'ContentImpactReport', 'TechnicalAuditReport',
   'PaidMediaOverviewReport', 'PaidSearchReport', 'MetaAdsReport', 'LinkedInAdsReport'])
@@ -57,6 +57,17 @@ async function onPage(Route: typeof PortalSpa, client: typeof CLIENT, section: s
 
 beforeEach(() => {
   vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ADMIN', email: 'someone@example.com', clientSlug: 'c' } } as never)
+})
+
+// Thomas, #348 sections.ts:7: the route and the export page authorise every section with the portal's rule, so only a
+// section the client portal renders may be switched on. A dashboard-only report (ai-summaries, report-generator) in
+// SERVER_EXPORT_SECTIONS would let a client export a page its portal never shows; this fails the moment one is added.
+// Only that section enabled, so the portal can't fall back to another report and pass.
+test.each([...SERVER_EXPORT_SECTIONS])('the client portal renders %s, so the portal rule is the right gate for its export', async (section) => {
+  const client = { ...CLIENT, enabledReports: [section] }
+  const { report } = await onPage(PortalSpa, client, section)
+  const element = exportReportElement(resolveExportView(client as ExportViewClient, section, null), params)
+  expect(report ? nameOf(report.type) : 'nothing').toBe(nameOf(element.type))
 })
 
 for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {

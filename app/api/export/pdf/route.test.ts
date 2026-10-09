@@ -148,6 +148,19 @@ test('a section not switched on for the export is a 400 and nothing renders', as
   expect(renderPdf).not.toHaveBeenCalled()
 })
 
+// Thomas, #348 route.ts:36: after a rollback or deploy skew a page can post a section the route no longer accepts; the
+// refusal's log line must say which section and client it turned away. Raw body values, so escaped and capped.
+test('a refused body logs the section and client it named, escaped and capped', async () => {
+  as('INTERNAL_ADMIN', 'avenue-z')
+  getClientBySlug.mockResolvedValue({ ...RENAISSANCE, enabledReports: ['organic-social', 'peec-ai'] })
+  await post({ ...body, section: 'peec-ai' })
+  await post({ ...body, clientSlug: 'x'.repeat(200), section: 'evil\nline' })
+  const lines = vi.mocked(console.info).mock.calls.map((c) => String(c[0])).filter((l) => /outcome=bad-request/.test(l))
+  expect(lines[0]).toMatch(/^\[export\] client="renaissance" section="peec-ai" view=overview outcome=bad-request ms=\d+$/)
+  expect(lines[1]).toContain(`client="${'x'.repeat(64)}" section="evil\\nline"`)
+  expect(lines[1]).not.toContain('\n')
+})
+
 test('the server browser opens the section the request names, and the log line says which', async () => {
   as('CLIENT_VIEWER', 'renaissance')
   await post({ ...body, section: 'organic-social', subsection: 'organic-linkedin' })
