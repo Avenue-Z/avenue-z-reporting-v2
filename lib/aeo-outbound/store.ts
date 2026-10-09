@@ -95,10 +95,14 @@ export async function findGeneratingFor(projectId: string): Promise<string | und
   return (await db.select({ id: t.id }).from(t).where(and(eq(t.peecProjectId, projectId), eq(t.status, 'generating'))).limit(1))[0]?.id
 }
 
+export function liveByTokenQuery(token: string) {
+  return db.select({ html: t.html }).from(t)
+    .where(and(eq(t.shareToken, token), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt))).limit(1)
+}
+
 /** The frozen HTML for a live link, or undefined for unknown, revoked or discarded tokens. */
 export async function getLiveByToken(token: string): Promise<string | undefined> {
-  const r = (await db.select({ html: t.html }).from(t)
-    .where(and(eq(t.shareToken, token), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt))).limit(1))[0]
+  const r = (await liveByTokenQuery(token))[0]
   return r?.html ?? undefined
 }
 
