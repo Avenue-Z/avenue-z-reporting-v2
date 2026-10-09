@@ -123,6 +123,10 @@ test('Q2: a brand ranked below the cut is still shown, last', () => {
   expect(d.brands.map((b) => [b.name, b.rank])).toEqual([['Alpha', 1], ['Example Co', 2]])
 })
 
+test('Q2: rankAmong below 2 or not a whole number is refused', () => {
+  for (const n of [1, 0, -3, 2.5]) expect(() => buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, rankAmong: n })).toThrow('DECISIONS.rankAmong must be null or a whole number of 2 or more')
+})
+
 test('Q4: competitorSiteGaps off leaves no gap sites', () => {
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, competitorSiteGaps: false }).gapDomains).toEqual([])
 })

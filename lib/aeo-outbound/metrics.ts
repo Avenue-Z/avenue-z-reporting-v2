@@ -71,6 +71,7 @@ const pct1 = (ratio: number) => pyRound(ratio * 100, 1)
 const bare = (d: string) => d.trim().toLowerCase().replace(/^www\./, '')
 
 export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions: MetricDecisions = DECISIONS): SnapshotData {
+  if (decisions.rankAmong !== null && !(Number.isInteger(decisions.rankAmong) && decisions.rankAmong >= 2)) throw new Error('DECISIONS.rankAmong must be null or a whole number of 2 or more')
   const notes: string[] = []
   const sorted = [...pull.brands].sort((a, b) => (b.visibility - a.visibility) || (a.brand.id < b.brand.id ? -1 : a.brand.id > b.brand.id ? 1 : 0))
   // Q2: keep the brand and its rankAmong - 1 most visible competitors, in visibility order.
