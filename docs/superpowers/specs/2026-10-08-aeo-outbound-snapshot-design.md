@@ -88,7 +88,9 @@ Route handlers sit outside `app/tools`, because `protected-pages.test.ts:54,60` 
 
 **Shared files touched (append-only):**
 1. `lib/db/schema.ts`: the new table (§9).
-2. `drizzle/0026_*.sql`, `drizzle/meta/0026_snapshot.json`, `drizzle/meta/_journal.json`: the generated migration (latest today is `0025`; the number is regenerated against the then-current `dev` at merge time, since other branches may add migrations first). The open-tracking columns and the stricter approved check (§9) go into this same `0026`, regenerated in place, which is allowed only because `0026` is unapplied in every environment and unmerged. Its `MIGRATIONS-PENDING.md` read-back is updated to match, and `approveQuery` sets the recipient in the same change.
+2. `drizzle/0026_*.sql`, `drizzle/meta/0026_snapshot.json`, `drizzle/meta/_journal.json`: the generated migration (latest today is `0025`; the number is regenerated against the then-current `dev` at merge time, since other branches may add migrations first). The open-tracking columns and the stricter approved check (§9) go into this same `0026`, regenerated in place, which is allowed only because `0026` is unapplied in every environment and unmerged. Evidence, 2026-10-09: `0026`
+exists only on `feat/aeo-outbound-data` (first committed that day in `e3cd1b3f`; not on `dev`, `staging` or `main`),
+migrations are applied only by hand on my written go, and I confirmed I never applied it anywhere. Its `MIGRATIONS-PENDING.md` read-back is updated to match, and `approveQuery` sets the recipient in the same change.
 3. `MIGRATIONS-PENDING.md`: an entry.
 4. `.env.example`: `AEO_OUTBOUND_USERS`.
 5. `lib/constants.ts` `TEAMS` (`:269-318`): one new team `{ slug: 'new-business', name: 'New Business', tools: [{ slug: 'aeo-outbound-snapshot', name: 'AEO Outbound Snapshot', url: '/tools/new-business' }] }`.

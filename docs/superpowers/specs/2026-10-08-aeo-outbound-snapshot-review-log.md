@@ -100,3 +100,18 @@ MINOR, for the plan (no further spec round):
     boolean covers "yes" and "drop the list", not another ranking.
 14. The recipient is never logged; it is kept with the approved row, which can't be discarded. Accepted; a retention
     rule is a follow-up.
+
+Round 2 (changed lines `0ae74fe0..87bee3e7` only): MAJORs 2, 3 and 4 resolved; MAJOR 1 not resolved, because "0026 is
+unapplied everywhere" had no evidence. Per my rule a MAJOR after round 2 stops the review and comes to me. My decision:
+regenerate `0026` in place. Evidence: `git branch -r --contains e3cd1b3f` lists only `origin/feat/aeo-outbound-data`;
+`dev`, `staging` and `main` have no `0026`; migrations are applied only by hand on my written go, and I never applied it.
+Recorded in §4 item 2. No round 3.
+
+MINOR from round 2, for the plan:
+15. §9's closing paragraph should read "one new table, including its open-tracking columns".
+16. Plan Task 4.2 must carry `approve(id, revision, recipient)`, the recipient message and the `copyAsDraft` contract.
+17. Approve checks run in this order: forbidden, not found, recipient (length checked after cleaning), Needs validation, stale.
+18. Recording an open is best effort: if the 1.5s cap fires, that open may be lost (logged). The cap should not fire in
+    normal operation, and it adds no latency when the database answers.
+19. The four-condition approved check can't be exercised without a database: the test pins the generated SQL, and the
+    dev apply's read-back checks the constraint text.
