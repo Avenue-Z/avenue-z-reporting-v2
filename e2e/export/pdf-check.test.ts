@@ -78,3 +78,10 @@ test('a negative coordinate parses as a number', () => {
   const xml = '<doc><page width="792.000000" height="612.000000"><word xMin="-1.500000" yMin="10.000000" xMax="20.000000" yMax="19.000000">x</word></page></doc>'
   expect(parseBbox(xml).words[0]).toMatchObject({ xMin: -1.5, yMin: 10, page: 1 })
 })
+
+// pdftotext writes an apostrophe as &apos;; undecoded, every acceptance check for "Couldn't load…" silently never matched
+// (found running the #352/#354 review fixes' acceptance).
+test('an apostrophe and the other XML entities decode', () => {
+  const xml = '<page width="792" height="612"><word xMin="1" yMin="1" xMax="2" yMax="2">Couldn&apos;t</word><word xMin="3" yMin="1" xMax="4" yMax="2">&lt;a&gt;&amp;&quot;&#39;</word></page>'
+  expect(parseBbox(xml).words.map((w) => w.text)).toEqual(["Couldn't", '<a>&"\''])
+})
