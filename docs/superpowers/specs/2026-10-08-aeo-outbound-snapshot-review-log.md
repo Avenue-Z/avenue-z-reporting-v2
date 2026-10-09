@@ -69,3 +69,34 @@ Per my process, a MAJOR in round 2 stops the review. Both go to me as decisions,
 ## Resolution (2026-10-08)
 
 I reviewed both round-2 MAJORs and told Claude to fix everything. All findings are now fixed in the spec with targeted edits: the 2 round-2 MAJORs, the 11 round-2 MINORs and the 13 round-1 MINORs (16-27, 29). Per the process there is no round 3. Items that can't be proven by reading are marked UNVERIFIED and go to scratch trials T1-T3.
+
+## Amendment 2026-10-09: open tracking, Edit a copy, hub listing
+
+My decisions on 2026-10-09: track opens (not a per-recipient link or an email code), and add Edit a copy. Amendment
+commit `0ae74fe0`; adversarial review round 1 on the changed lines only: 0 BLOCKER, 4 MAJOR, 10 MINOR.
+
+MAJOR, fixed in the spec:
+1. How the new columns and stricter check reach the database: `0026` is regenerated in place (unapplied everywhere,
+   unmerged), the `MIGRATIONS-PENDING.md` read-back is updated, `approveQuery` sets the recipient (§4 item 2).
+2. Action contracts: `approve(id, revision, recipient)` and `copyAsDraft(id)` inputs, success shapes and errors (§4).
+3. Recording an open: awaited with a 1.5s cap; an error or the cap is logged and the page still served (§8, §15).
+4. Opens mislead: a request with a session cookie isn't counted; step 7 says opens are a rough signal (§2, §8, §15).
+
+MINOR, for the plan (no further spec round):
+5. Next 16 runs the GET handler for HEAD when no HEAD export exists: check `request.method` or export a HEAD that never records.
+6. A 0-row record-open after a concurrent revoke isn't a failure; record-open doesn't touch `updated_at`; update by id
+   (the live lookup returns id and html); a missing User-Agent or `Sec-Purpose: prefetch` is counted.
+7. The preview-bot User-Agent list is unverified: mark it so and check it on the first preview deploy.
+8. Double click on Edit a copy: disable the button while pending; a stray second draft can be discarded.
+9. Copy as draft copies `peec_project_id`, `peec_project_name`, `brand_name`, `data`, `slots`, `notes`; everything else
+   defaults; `rerun_of` means "derived from"; skipping the pitch-only re-check is deliberate (the source already passed it).
+10. Hub listing columns: id, project name, brand, status, created, approved, revoked, deleted, error, share token,
+    recipient, open count, first and last opened; ordered by `created_at desc`; `listReports` is replaced.
+11. Opens times: US Eastern, the footer's format; visible in the row on narrow screens too; For and Opens are empty
+    for draft and failed rows.
+12. Tests to add: the Approve dialog's required field, the For and Opens cells, Edit a copy opening the new draft,
+    `copyAsDraft` writing nothing when forbidden.
+13. `rankAmong` N also trims the bar chart and the brands in the Data block; §5a row 10, §7 and §14 to say so. Q4 as a
+    boolean covers "yes" and "drop the list", not another ranking.
+14. The recipient is never logged; it is kept with the approved row, which can't be discarded. Accepted; a retention
+    rule is a follow-up.

@@ -35,7 +35,9 @@ existing dashboard share links, scheduled or automatic generation.
    report is frozen for good and the link exists.
 6. **Copy link** and send it. The recipient opens it with no login and sees only that report.
 7. **Opens.** The hub shows who the link is for, how many times it was opened, and when it was first and last opened
-   (§8). A link with no login can always be forwarded; opens are how Ryan spots that, and Revoke is how he stops it.
+   (§8). Ryan's own checks while signed in don't count. Opens are a rough signal: a count can't tell a forward from a
+   re-open, a second device or an email security scanner (which often opens a link within seconds of delivery). A link
+   with no login can always be forwarded; Revoke is how Ryan stops it.
 8. **Revoke** (optional, confirm dialog). The link stops working immediately and permanently.
 9. **Edit a copy** (approved or revoked report): a new draft with the same data, copy and notes, made without calling
    Peec or Glean. Ryan fixes it, approves it, and sends the new link. The original is untouched, so its link stays
@@ -76,7 +78,7 @@ All new code lives in new folders. Nothing else in the app imports it.
 | `app/api/aeo-outbound/generate/route.ts` | POST, `maxDuration = 300` (precedent `app/api/cache-warm/route.ts:39`) | Contract in §7a. |
 | `app/api/aeo-outbound/reports/[id]/view/route.ts` | GET (staff + allowlist) | Returns the report HTML as `text/html`, `Cache-Control: no-store`: the draft with editing hooks, or the frozen HTML. 404 for unknown or discarded ids. Two callers only: the editor's own `fetch` (draft with editing hooks), and **Open full size**, which requests `?mode=preview` (the same HTML without editing hooks, so nothing typed there can be lost). |
 | `app/api/aeo-outbound/reports/[id]/slots/route.ts` | PATCH (staff + allowlist) | Autosave of one text slot. Contract in §9a. |
-| `app/actions/aeo-outbound.ts` | server actions | `approve`, `revoke`, `discard`, `copyAsDraft`. Each re-checks session and allowlist. Rerun is not an action: it calls `POST /generate` (§7a), because only that route has the 300s budget. `copyAsDraft` makes no Peec or Glean call, so it fits an action. |
+| `app/actions/aeo-outbound.ts` | server actions | `approve`, `revoke`, `discard`, `copyAsDraft`. Each re-checks session and allowlist. Rerun is not an action: it calls `POST /generate` (§7a), because only that route has the 300s budget. `copyAsDraft` makes no Peec or Glean call, so it fits an action. Contracts: `approve(id, revision, recipient)` returns `{ ok: true, token }`, or `{ ok: false, error }` with `forbidden`, `not found`, `stale`, `Fill in every "Needs validation" first.` or `Say who this link is for (1 to 200 characters).`; `copyAsDraft(id)` returns `{ ok: true, id }` (the new draft) or `{ ok: false, error: 'forbidden' \| 'not found' }`. Every refusal writes nothing. |
 | `components/aeo-outbound/*` | client components | Hub table, project picker, editor toolbar, iframe host with the save queue (§9a), notes drawer. |
 | `app/snapshot/[token]/route.ts` | GET, **public** | Serves the frozen HTML. Outside the proxy matcher (`proxy.ts:24-26`). |
 | `lib/aeo-outbound/*` | lib | `peec.ts`, `pull.ts`, `metrics.ts`, `charts.ts`, `render.ts`, `aivx/css.ts`, `aivx/js.ts`, `prompt.ts`, `generate.ts`, `grounding.ts`, `store.ts`, `permissions.ts`, `token.ts`. |
@@ -86,7 +88,7 @@ Route handlers sit outside `app/tools`, because `protected-pages.test.ts:54,60` 
 
 **Shared files touched (append-only):**
 1. `lib/db/schema.ts`: the new table (§9).
-2. `drizzle/0026_*.sql`, `drizzle/meta/0026_snapshot.json`, `drizzle/meta/_journal.json`: the generated migration (latest today is `0025`; the number is regenerated against the then-current `dev` at merge time, since other branches may add migrations first).
+2. `drizzle/0026_*.sql`, `drizzle/meta/0026_snapshot.json`, `drizzle/meta/_journal.json`: the generated migration (latest today is `0025`; the number is regenerated against the then-current `dev` at merge time, since other branches may add migrations first). The open-tracking columns and the stricter approved check (§9) go into this same `0026`, regenerated in place, which is allowed only because `0026` is unapplied in every environment and unmerged. Its `MIGRATIONS-PENDING.md` read-back is updated to match, and `approveQuery` sets the recipient in the same change.
 3. `MIGRATIONS-PENDING.md`: an entry.
 4. `.env.example`: `AEO_OUTBOUND_USERS`.
 5. `lib/constants.ts` `TEAMS` (`:269-318`): one new team `{ slug: 'new-business', name: 'New Business', tools: [{ slug: 'aeo-outbound-snapshot', name: 'AEO Outbound Snapshot', url: '/tools/new-business' }] }`.
@@ -272,11 +274,18 @@ Messages never include the key (`aivx:lib/peec-client.ts:91-93` scrub).
   Unknown, revoked and discarded tokens all get the same 404 page (one static line, no app chrome), so a probe learns nothing.
 - **Recording an open:** after a live lookup, a `GET` (not `HEAD`) runs one conditional UPDATE on that row:
   `open_count + 1`, `first_opened_at` set if null, `last_opened_at = now()`, matching the same live conditions. It is not
-  counted when the `User-Agent` contains (case-insensitive) `slackbot`, `facebookexternalhit`, `twitterbot`,
-  `linkedinbot`, `discordbot`, `whatsapp`, `telegrambot`, `skypeuripreview`, `googlebot` or `bingbot`, so a link
-  preview in a chat app doesn't look like an open. Email security scanners can still register one, and the hub says
-  so. A failure to record is logged with the report id (never the token) and the page is still served, byte for byte.
-  Who the link is for is Ryan's label: nothing enforces it, because a link with no login can always be forwarded.
+  counted when:
+  - the request carries an Auth.js session cookie (any cookie matching `/^(__Secure-)?authjs\.session-token(\.\d+)?$/`,
+    the pattern at `app/api/export/pdf/route.ts:21`), so Ryan checking his own link doesn't count. Only the cookie's
+    presence is checked, with no session lookup; a forged cookie can only suppress a count.
+  - the `User-Agent` contains (case-insensitive) `slackbot`, `facebookexternalhit`, `twitterbot`, `linkedinbot`,
+    `discordbot`, `whatsapp`, `telegrambot`, `skypeuripreview`, `googlebot` or `bingbot`, so a link preview in a chat
+    app doesn't look like an open. Email security scanners can still register one, and the hub says so.
+
+  The UPDATE is awaited with a 1.5s cap, before the response. A database error or the cap firing is logged with the
+  report id (never the token or the recipient), and the page is still served byte for byte; a slow database can't
+  hold the page. Who the link is for is Ryan's label: nothing enforces it, because a link with no login can always be
+  forwarded.
 - **What the recipient can reach:** only that document. The links in it are `#section` anchors, `avenuez.com`, and the
   share button, which copies the current URL (`aivx:renderer.py:2557-2614`, toast element plus script, minus the canonical tag). It has no
   link into the app, no data request, and no script from our origin.
@@ -559,8 +568,9 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
   - hub listing: no `data`, `slots`, `notes` or `html`; a live row older than the newest 500 is still listed
 - **Routes:**
   - the public route returns the exact stored bytes and headers (including the CSP sandbox), and a byte-identical 404 for unknown, revoked and discarded tokens
-  - the public route records an open for a live `GET`, not for `HEAD`, a listed preview bot or a 404, and still serves the same bytes when recording fails
-  - approve refuses an empty or too-long recipient; `copyAsDraft` returns `forbidden` for non-allowlisted staff and `not found` for a draft, failed or discarded source
+  - the public route records an open for a live `GET`, not for `HEAD`, a listed preview bot, a request with a session cookie or a 404, and still serves the same bytes when recording throws or never resolves (the 1.5s cap)
+  - approve refuses an empty or too-long recipient with its message and writes nothing; `copyAsDraft` returns `{ ok: true, id }` for an approved source, `forbidden` for non-allowlisted staff and `not found` for a draft, failed or discarded source, and writes nothing on a refusal
+  - the regenerated `0026` contains the new columns and the four-condition approved check, and nothing outside the new table
   - projects, generate, view and slots routes return 403 without staff plus the allowlist
   - each server action (approve, revoke, discard) returns `forbidden` for non-allowlisted staff and writes nothing
   - a cross-origin `Origin` header gets 403 on generate, slots and actions
